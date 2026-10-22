@@ -92,9 +92,11 @@
 #include <QString>
 #include <QStringLiteral>
 #include <QToolBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QVariant>
 #include <QWidget>
+#include <QWidgetAction>
 #include <Qt>
 #include <QtGlobal>
 
@@ -1372,6 +1374,80 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
+  // Crop options (GitHub issue 326): how the area outside the box draws. Its
+  // own group after the checkboxes (options-bar rule 1: advanced options). The
+  // moveAlignMoreButton pattern: compact "..." text, InstantPopup, height pinned
+  // by the optionsBarMenuButton QSS rule so the bar row keeps its height.
+  crop_options_button_ = new QToolButton(toolbar);
+  crop_options_button_->setObjectName(QStringLiteral("cropOptionsButton"));
+  crop_options_button_->setText(QStringLiteral("..."));
+  crop_options_button_->setProperty("optionsBarMenuButton", true);
+  crop_options_button_->setFocusPolicy(Qt::NoFocus);
+  bind_tooltip(crop_options_button_, QT_TR_NOOP("Crop options: cropped area and crop shield"));
+  crop_options_button_->setPopupMode(QToolButton::InstantPopup);
+  {
+    auto* crop_menu = new QMenu(crop_options_button_);
+    crop_menu->setObjectName(QStringLiteral("cropOptionsMenu"));
+    crop_show_cropped_area_action_ = crop_menu->addAction(tr("Show Cropped Area"));
+    crop_show_cropped_area_action_->setObjectName(QStringLiteral("cropShowCroppedAreaAction"));
+    bind_action_text(crop_show_cropped_area_action_, QT_TR_NOOP("Show Cropped Area"));
+    crop_show_cropped_area_action_->setCheckable(true);
+    connect(crop_show_cropped_area_action_, &QAction::toggled, this, [this](bool on) {
+      auto options = current_crop_overlay_options_;
+      options.show_cropped_area = on;
+      apply_crop_overlay_options(options);
+    });
+    crop_menu->addSeparator();
+    crop_shield_action_ = crop_menu->addAction(tr("Enable Crop Shield"));
+    crop_shield_action_->setObjectName(QStringLiteral("cropShieldAction"));
+    bind_action_text(crop_shield_action_, QT_TR_NOOP("Enable Crop Shield"));
+    crop_shield_action_->setCheckable(true);
+    connect(crop_shield_action_, &QAction::toggled, this, [this](bool on) {
+      auto options = current_crop_overlay_options_;
+      options.shield_enabled = on;
+      apply_crop_overlay_options(options);
+    });
+    // The shield's color and opacity share one row under the toggle.
+    auto* shield_row = new QWidget(crop_menu);
+    shield_row->setObjectName(QStringLiteral("cropShieldRow"));
+    auto* shield_layout = new QHBoxLayout(shield_row);
+    shield_layout->setContentsMargins(24, 2, 10, 4);
+    shield_layout->setSpacing(6);
+    auto* color_label = new QLabel(tr("Color:"), shield_row);
+    bind_widget_text(color_label, QT_TR_NOOP("Color:"));
+    shield_layout->addWidget(color_label);
+    crop_shield_color_button_ = new QPushButton(shield_row);
+    crop_shield_color_button_->setObjectName(QStringLiteral("cropShieldColorButton"));
+    crop_shield_color_button_->setFixedSize(36, 20);
+    bind_tooltip(crop_shield_color_button_, QT_TR_NOOP("Color of the crop shield"));
+    shield_layout->addWidget(crop_shield_color_button_);
+    shield_layout->addSpacing(8);
+    auto* opacity_label = new QLabel(tr("Opacity:"), shield_row);
+    bind_widget_text(opacity_label, QT_TR_NOOP("Opacity:"));
+    shield_layout->addWidget(opacity_label);
+    crop_shield_opacity_spin_ = new QSpinBox(shield_row);
+    crop_shield_opacity_spin_->setObjectName(QStringLiteral("cropShieldOpacitySpin"));
+    crop_shield_opacity_spin_->setRange(0, 100);
+    crop_shield_opacity_spin_->setSuffix(percent_suffix());
+    bind_tooltip(crop_shield_opacity_spin_, QT_TR_NOOP("Opacity of the crop shield"));
+    configure_dialog_spinbox(crop_shield_opacity_spin_, 64);
+    shield_layout->addWidget(crop_shield_opacity_spin_);
+    auto* shield_action = new QWidgetAction(crop_menu);
+    shield_action->setDefaultWidget(shield_row);
+    crop_menu->addAction(shield_action);
+    connect(crop_shield_opacity_spin_, &QSpinBox::valueChanged, this, [this](int percent) {
+      auto options = current_crop_overlay_options_;
+      options.shield_opacity_percent = percent;
+      apply_crop_overlay_options(options);
+    });
+    // The picker is a dialog: close the popup first so it does not hold the input grab.
+    connect(crop_shield_color_button_, &QPushButton::clicked, this, [this, crop_menu] {
+      crop_menu->close();
+      QTimer::singleShot(0, this, [this] { choose_crop_shield_color(); });
+    });
+    crop_options_button_->setMenu(crop_menu);
+  }
+  sync_crop_overlay_controls();
   // Canvas Size's two layer options, as Photoshop's "Delete Cropped Pixels"
   // (on by default there too) plus Patchy's own off-canvas layer delete.
   crop_delete_pixels_check_ = new CheckGlyphBox(tr("Delete Cropped Pixels"), toolbar);
@@ -1395,6 +1471,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     current_crop_delete_layers_ = checked;
     save_tool_settings();
   });
+  add_option_separator({CanvasTool::Crop});
+  add_option_widget(crop_options_button_, {CanvasTool::Crop});
   crop_apply_button_ = new QPushButton(toolbar);
   crop_apply_button_->setObjectName(QStringLiteral("cropApplyButton"));
   crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));

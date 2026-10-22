@@ -816,7 +816,13 @@ void ui_crop_options_bar_groups_its_controls() {
       }
       expect_next_to(QStringLiteral("cropDeletePixelsCheck"), QStringLiteral("cropDeleteLayersCheck"));
       expect_next_to(QStringLiteral("cropDeleteLayersCheck"), separator);
+      // The Crop options popup is its own group between the checkboxes and Apply (issue 326).
+      expect_next_to(QStringLiteral("cropOptionsButton"), separator);
       expect_next_to(QStringLiteral("cropApplyButton"), QStringLiteral("cropCancelButton"));
+      const int options_popup = at(QStringLiteral("cropOptionsButton"));
+      if (options_popup <= 0 || tokens[static_cast<std::size_t>(options_popup) - 1] != separator) {
+        problem("no separator before the Crop options button");
+      }
       const int pixels = at(QStringLiteral("cropDeletePixelsCheck"));
       const int apply = at(QStringLiteral("cropApplyButton"));
       if (pixels <= 0 || tokens[static_cast<std::size_t>(pixels) - 1] != separator) {
@@ -828,8 +834,8 @@ void ui_crop_options_bar_groups_its_controls() {
       if (tokens.empty() || tokens.back() != QStringLiteral("cropCancelButton")) {
         problem("Cancel is not last");
       }
-      if (const auto count = std::count(tokens.begin(), tokens.end(), separator); count != 3) {
-        problem(std::to_string(count) + " separators, expected 3");
+      if (const auto count = std::count(tokens.begin(), tokens.end(), separator); count != 4) {
+        problem(std::to_string(count) + " separators, expected 4");
       }
       if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
         problem("takes " + std::to_string(lines) + " rows at 1366 px (row " + std::to_string(right) + " px)");

@@ -45,6 +45,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Quick Select | Size, Sample All Layers, Enhance Edge | `quickSelectSize`, `...SampleAllLayers`, `...EnhanceEdge` | yes | yes |
 | Object Selection | Sample All Layers, Model | `objectSelectSampleAllLayers`, `objectSelectModel` | yes | yes |
 | Crop | Style, ratio W/H, Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
+| Crop | Crop options popup: Show Cropped Area, shield on, color, opacity (`cropOptionsButton`) | `cropShowCroppedArea`, `cropShieldEnabled`, `cropShieldColor`, `cropShieldOpacity` | no | yes |
 | Crop | Size W/H, ratio preset row, Apply/Cancel | none (live box; preset derived) | no | no (session) |
 | Artboard | Size preset, W, H, Background, Auto-nest | `artboardWidth`, `artboardHeight`, `artboardBackground`, `artboardBackgroundColor`, `artboardAutoNest` | yes | yes |
 | Brush family | Preset (`brushPresetCombo`, built-in presets) | `brushPreset` | no | yes |

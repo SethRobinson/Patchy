@@ -9,7 +9,7 @@
     </message>
     <message>
         <source>Could not write %1</source>
-        <translation>Impossible d&apos;écrire %1</translation>
+        <translation>Impossible d'écrire %1</translation>
     </message>
     <message>
         <source>This AppImage contains no Patchy icons</source>
@@ -20,12 +20,12 @@
         <translation>Cet AppImage ne contient pas de fichier .desktop de Patchy</translation>
     </message>
     <message>
-        <source>This AppImage&apos;s desktop file has no Exec line</source>
-        <translation>Le fichier .desktop de cet AppImage n&apos;a pas de ligne Exec</translation>
+        <source>This AppImage's desktop file has no Exec line</source>
+        <translation>Le fichier .desktop de cet AppImage n'a pas de ligne Exec</translation>
     </message>
     <message>
         <source>Patchy is not running from an AppImage</source>
-        <translation>Patchy ne s&apos;exécute pas depuis un AppImage</translation>
+        <translation>Patchy ne s'exécute pas depuis un AppImage</translation>
     </message>
     <message>
         <source>Patchy is already in the applications menu</source>
@@ -33,15 +33,15 @@
     </message>
     <message>
         <source>Patchy did not add the applications menu entry</source>
-        <translation>Patchy n&apos;a pas ajouté l&apos;entrée du menu des applications</translation>
+        <translation>Patchy n'a pas ajouté l'entrée du menu des applications</translation>
     </message>
     <message>
         <source>Could not remove %1</source>
         <translation>Impossible de supprimer %1</translation>
     </message>
     <message>
-        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
-        <translation>Le nom de fichier de l&apos;AppImage ne peut pas être utilisé dans une entrée de menu</translation>
+        <source>The AppImage's file name cannot be used in a menu entry</source>
+        <translation>Le nom de fichier de l'AppImage ne peut pas être utilisé dans une entrée de menu</translation>
     </message>
 </context>
 <context>
@@ -52,15 +52,15 @@
     </message>
     <message>
         <source>Drag around the dial to set the angle. Use the arrow keys for precise changes; hold Shift for larger steps.</source>
-        <translation>Faites glisser autour du cadran pour définir l&apos;angle. Utilisez les touches fléchées pour des réglages précis ; maintenez Shift enfoncée pour des pas plus grands.</translation>
+        <translation>Faites glisser autour du cadran pour définir l'angle. Utilisez les touches fléchées pour des réglages précis ; maintenez Shift enfoncée pour des pas plus grands.</translation>
     </message>
     <message>
         <source>Waveform</source>
-        <translation>Forme d&apos;onde</translation>
+        <translation>Forme d'onde</translation>
     </message>
     <message>
         <source>Drag horizontally to change phase and vertically to change amplitude. Use the mouse wheel to change wavelength.</source>
-        <translation>Faites glisser horizontalement pour modifier la phase et verticalement pour modifier l&apos;amplitude. Utilisez la molette de la souris pour modifier la longueur d&apos;onde.</translation>
+        <translation>Faites glisser horizontalement pour modifier la phase et verticalement pour modifier l'amplitude. Utilisez la molette de la souris pour modifier la longueur d'onde.</translation>
     </message>
 </context>
 <context>
@@ -107,11 +107,11 @@
     </message>
     <message>
         <source>Hide original layers</source>
-        <translation>Masquer les calques d&apos;origine</translation>
+        <translation>Masquer les calques d'origine</translation>
     </message>
     <message>
         <source>Keep the originals, but hide them so transparent artwork is not displayed twice.</source>
-        <translation>Conserve les originaux, mais les masque pour que les éléments transparents ne s&apos;affichent pas deux fois.</translation>
+        <translation>Conserve les originaux, mais les masque pour que les éléments transparents ne s'affichent pas deux fois.</translation>
     </message>
     <message>
         <source>Create Copy</source>
@@ -127,7 +127,7 @@
     </message>
     <message>
         <source>Merged artwork becomes pixels. Undo restores the original layers.</source>
-        <translation>Le contenu fusionné devient des pixels. Annuler restaure les calques d&apos;origine.</translation>
+        <translation>Le contenu fusionné devient des pixels. Annuler restaure les calques d'origine.</translation>
     </message>
     <message>
         <source>Result: %1 vector layers, %2 bitmap layers, %3 other layers kept.</source>
@@ -135,7 +135,7 @@
     </message>
     <message>
         <source>The original layers are kept. Multiple outputs are placed in a new group.</source>
-        <translation>Les calques d&apos;origine sont conservés. Les résultats multiples sont placés dans un nouveau groupe.</translation>
+        <translation>Les calques d'origine sont conservés. Les résultats multiples sont placés dans un nouveau groupe.</translation>
     </message>
     <message>
         <source>%1 layers removed by merging.</source>
@@ -150,7 +150,7 @@
         <translation>Garder les calques vectoriels modifiables</translation>
     </message>
     <message>
-        <source>These layers keep their own effects and stay separate in a vector merge. Turning off &quot;Keep vector layers editable&quot; rasterizes merged artwork.</source>
+        <source>These layers keep their own effects and stay separate in a vector merge. Turning off "Keep vector layers editable" rasterizes merged artwork.</source>
         <translation>Ces calques conservent leurs propres effets et restent séparés lors d’une fusion vectorielle. Désactiver « Garder les calques vectoriels modifiables » pixellise le contenu fusionné.</translation>
     </message>
     <message>
@@ -190,11 +190,11 @@
         <translation>Les données vectorielles préservées ne peuvent pas être modifiées.</translation>
     </message>
     <message>
-        <source>This compound vector&apos;s opacity requires it to stay separate.</source>
+        <source>This compound vector's opacity requires it to stay separate.</source>
         <translation>L’opacité de ce vecteur composite impose de le conserver séparément.</translation>
     </message>
     <message>
-        <source>This group&apos;s appearance prevents moving shapes across its boundary.</source>
+        <source>This group's appearance prevents moving shapes across its boundary.</source>
         <translation>L’apparence de ce groupe empêche de déplacer des formes au-delà de ses limites.</translation>
     </message>
     <message>
@@ -270,18 +270,18 @@
     <name>LegacyPluginFolder</name>
     <message>
         <source>Legacy Photoshop plug-ins run on Windows only.</source>
-        <translation>Les anciens modules externes Photoshop ne s&apos;exécutent que sous Windows.</translation>
+        <translation>Les anciens modules externes Photoshop ne s'exécutent que sous Windows.</translation>
     </message>
     <message>
         <source>The plug-ins folder could not be created: %1</source>
-        <translation>Le dossier des modules externes n&apos;a pas pu être créé : %1</translation>
+        <translation>Le dossier des modules externes n'a pas pu être créé : %1</translation>
     </message>
 </context>
 <context>
     <name>LegacyPluginRunner</name>
     <message>
         <source>The plug-in host was given an invalid image.</source>
-        <translation>L&apos;hôte de modules externes a reçu une image non valide.</translation>
+        <translation>L'hôte de modules externes a reçu une image non valide.</translation>
     </message>
     <message>
         <source>The plug-in host program is missing: %1</source>
@@ -293,7 +293,7 @@
     </message>
     <message>
         <source>The plug-in host could not be contacted: %1</source>
-        <translation>Impossible de contacter l&apos;hôte de modules externes : %1</translation>
+        <translation>Impossible de contacter l'hôte de modules externes : %1</translation>
     </message>
     <message>
         <source>The plug-in host program could not be started: %1</source>
@@ -301,7 +301,7 @@
     </message>
     <message>
         <source>The plug-in host did not respond.</source>
-        <translation>L&apos;hôte de modules externes n&apos;a pas répondu.</translation>
+        <translation>L'hôte de modules externes n'a pas répondu.</translation>
     </message>
     <message>
         <source>The plug-in host program does not match this Patchy build.</source>
@@ -309,7 +309,7 @@
     </message>
     <message>
         <source>The plug-in crashed (host exit code %1).</source>
-        <translation>Le module externe a planté (code de sortie de l&apos;hôte %1).</translation>
+        <translation>Le module externe a planté (code de sortie de l'hôte %1).</translation>
     </message>
     <message>
         <source>The plug-in reported an error.</source>
@@ -340,7 +340,7 @@
     </message>
     <message>
         <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Utiliser le calque précédent pour créer un masque d&apos;écrêtage</translation>
+        <translation>Utiliser le calque précédent pour créer un masque d'écrêtage</translation>
     </message>
     <message>
         <source>Clip the new layer to the layer below it</source>
@@ -351,7 +351,7 @@
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
-        <translation>Éditeur d&apos;images matricielles Patchy.</translation>
+        <translation>Éditeur d'images matricielles Patchy.</translation>
     </message>
     <message>
         <source>Run without a display (Qt offscreen platform) and never reuse a running instance. Needs --run-script, --export, --stress-test, or --screenshot; exits 2 otherwise.</source>
@@ -371,7 +371,7 @@
     </message>
     <message>
         <source>Limit --screenshot to the child widget with this Qt object name.</source>
-        <translation>Limite --screenshot au widget enfant portant ce nom d&apos;objet Qt.</translation>
+        <translation>Limite --screenshot au widget enfant portant ce nom d'objet Qt.</translation>
     </message>
     <message>
         <source>Limit --screenshot to this region of the captured widget.</source>
@@ -379,11 +379,11 @@
     </message>
     <message>
         <source>Open the given file, save it to &lt;path&gt; (format follows the extension), and exit. Runs unattended: prompts are suppressed and no running instance is reused.</source>
-        <translation>Ouvre le fichier indiqué, l&apos;enregistre dans &lt;path&gt; (le format suit l&apos;extension) et quitte. S&apos;exécute sans surveillance : les invites sont supprimées et aucune instance en cours n&apos;est réutilisée.</translation>
+        <translation>Ouvre le fichier indiqué, l'enregistre dans &lt;path&gt; (le format suit l'extension) et quitte. S'exécute sans surveillance : les invites sont supprimées et aucune instance en cours n'est réutilisée.</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
-        <translation>Avec --export : ajoute ce texte à chaque calque de texte, en réaffichant chacun via le moteur de texte de Patchy, avant l&apos;enregistrement.</translation>
+        <source>With --export: append this text to every text layer, re-rendering each through Patchy's text engine, before saving.</source>
+        <translation>Avec --export : ajoute ce texte à chaque calque de texte, en réaffichant chacun via le moteur de texte de Patchy, avant l'enregistrement.</translation>
     </message>
     <message>
         <source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source>
@@ -399,7 +399,7 @@
     </message>
     <message>
         <source>Color preview placeholder currently accepts RGB8 buffers only</source>
-        <translation>L&apos;aperçu de couleur provisoire n&apos;accepte actuellement que les tampons RGB8</translation>
+        <translation>L'aperçu de couleur provisoire n'accepte actuellement que les tampons RGB8</translation>
     </message>
     <message>
         <source>Linear</source>
@@ -459,11 +459,11 @@
     </message>
     <message>
         <source>Layer id 0 is reserved</source>
-        <translation>L&apos;identifiant de calque 0 est réservé</translation>
+        <translation>L'identifiant de calque 0 est réservé</translation>
     </message>
     <message>
         <source>Document channel id 0 is reserved</source>
-        <translation>L&apos;identifiant de couche de document 0 est réservé</translation>
+        <translation>L'identifiant de couche de document 0 est réservé</translation>
     </message>
     <message>
         <source>Document channel ids must be unique</source>
@@ -479,7 +479,7 @@
     </message>
     <message>
         <source>Document path id 0 is reserved</source>
-        <translation>L&apos;identifiant de tracé de document 0 est réservé</translation>
+        <translation>L'identifiant de tracé de document 0 est réservé</translation>
     </message>
     <message>
         <source>Document path ids must be unique</source>
@@ -487,19 +487,19 @@
     </message>
     <message>
         <source>A document holds at most one work path</source>
-        <translation>Un document ne contient qu&apos;un seul tracé de travail au maximum</translation>
+        <translation>Un document ne contient qu'un seul tracé de travail au maximum</translation>
     </message>
     <message>
         <source>Cannot activate a layer that does not exist</source>
-        <translation>Impossible d&apos;activer un calque qui n&apos;existe pas</translation>
+        <translation>Impossible d'activer un calque qui n'existe pas</translation>
     </message>
     <message>
         <source>Document channel reorder index is out of range</source>
-        <translation>L&apos;index de réorganisation des couches du document est hors limites</translation>
+        <translation>L'index de réorganisation des couches du document est hors limites</translation>
     </message>
     <message>
         <source>Document channel display opacity must be in the inclusive range [0, 1]</source>
-        <translation>L&apos;opacité d&apos;affichage d&apos;une couche du document doit être comprise dans l&apos;intervalle fermé [0, 1]</translation>
+        <translation>L'opacité d'affichage d'une couche du document doit être comprise dans l'intervalle fermé [0, 1]</translation>
     </message>
     <message>
         <source>Foreground to Background</source>
@@ -563,7 +563,7 @@
     </message>
     <message>
         <source>Dawn Mist</source>
-        <translation>Brume de l&apos;aube</translation>
+        <translation>Brume de l'aube</translation>
     </message>
     <message>
         <source>Night Sky</source>
@@ -603,15 +603,15 @@
     </message>
     <message>
         <source>Photoshop layer id 0 is reserved</source>
-        <translation>L&apos;identifiant de calque Photoshop 0 est réservé</translation>
+        <translation>L'identifiant de calque Photoshop 0 est réservé</translation>
     </message>
     <message>
         <source>Layer opacity must be in the inclusive range [0, 1]</source>
-        <translation>L&apos;opacité du calque doit être comprise dans l&apos;intervalle fermé [0, 1]</translation>
+        <translation>L'opacité du calque doit être comprise dans l'intervalle fermé [0, 1]</translation>
     </message>
     <message>
         <source>Layer fill opacity must be in the inclusive range [0, 1]</source>
-        <translation>L&apos;opacité du fond du calque doit être comprise dans l&apos;intervalle fermé [0, 1]</translation>
+        <translation>L'opacité du fond du calque doit être comprise dans l'intervalle fermé [0, 1]</translation>
     </message>
     <message>
         <source>Layer masks must use 8-bit grayscale pixels</source>
@@ -759,7 +759,7 @@
     </message>
     <message>
         <source>Tree Bark</source>
-        <translation>Écorce d&apos;arbre</translation>
+        <translation>Écorce d'arbre</translation>
     </message>
     <message>
         <source>Weathered Marble</source>
@@ -767,7 +767,7 @@
     </message>
     <message>
         <source>Slate Slabs</source>
-        <translation>Dalles d&apos;ardoise</translation>
+        <translation>Dalles d'ardoise</translation>
     </message>
     <message>
         <source>Granite Blocks</source>
@@ -783,7 +783,7 @@
     </message>
     <message>
         <source>Steel Plate</source>
-        <translation>Plaque d&apos;acier</translation>
+        <translation>Plaque d'acier</translation>
     </message>
     <message>
         <source>Brown Leather</source>
@@ -863,7 +863,7 @@
     </message>
     <message>
         <source>Arcade Cabinet</source>
-        <translation>Borne d&apos;arcade</translation>
+        <translation>Borne d'arcade</translation>
     </message>
     <message>
         <source>Chrome Bumper</source>
@@ -907,7 +907,7 @@
     </message>
     <message>
         <source>Space Cadet</source>
-        <translation>Cadet de l&apos;espace</translation>
+        <translation>Cadet de l'espace</translation>
     </message>
     <message>
         <source>Royal Decree</source>
@@ -923,7 +923,7 @@
     </message>
     <message>
         <source>Blueprint</source>
-        <translation>Bleu d&apos;architecte</translation>
+        <translation>Bleu d'architecte</translation>
     </message>
     <message>
         <source>Soft Shadow</source>
@@ -1011,7 +1011,7 @@
     </message>
     <message>
         <source>Cannot remove a vector opacity boundary</source>
-        <translation>Impossible de supprimer une limite d&apos;opacité vectorielle</translation>
+        <translation>Impossible de supprimer une limite d'opacité vectorielle</translation>
     </message>
     <message>
         <source>Starter built-in filters support UInt8 buffers only</source>
@@ -1023,11 +1023,11 @@
     </message>
     <message>
         <source>Lens Blur supports UInt8 buffers only</source>
-        <translation>Flou de l&apos;objectif ne prend en charge que les tampons UInt8</translation>
+        <translation>Flou de l'objectif ne prend en charge que les tampons UInt8</translation>
     </message>
     <message>
         <source>Invalid Lens Blur settings</source>
-        <translation>Paramètres de Flou de l&apos;objectif non valides</translation>
+        <translation>Paramètres de Flou de l'objectif non valides</translation>
     </message>
     <message>
         <source>Iris Blur supports UInt8 buffers only</source>
@@ -1051,15 +1051,15 @@
     </message>
     <message>
         <source>Filter identifier cannot be empty</source>
-        <translation>L&apos;identifiant de filtre ne peut pas être vide</translation>
+        <translation>L'identifiant de filtre ne peut pas être vide</translation>
     </message>
     <message>
         <source>Filter implementation cannot be empty</source>
-        <translation>L&apos;implémentation du filtre ne peut pas être vide</translation>
+        <translation>L'implémentation du filtre ne peut pas être vide</translation>
     </message>
     <message>
         <source>Filter identifier is already registered</source>
-        <translation>L&apos;identifiant de filtre est déjà enregistré</translation>
+        <translation>L'identifiant de filtre est déjà enregistré</translation>
     </message>
     <message>
         <source>Unknown filter identifier</source>
@@ -1087,7 +1087,7 @@
     </message>
     <message>
         <source>Filter color extension has no visible source</source>
-        <translation>L&apos;extension de couleur du filtre n&apos;a aucune source visible</translation>
+        <translation>L'extension de couleur du filtre n'a aucune source visible</translation>
     </message>
     <message>
         <source>Surface Blur produced an empty range kernel</source>
@@ -1219,7 +1219,7 @@
     </message>
     <message>
         <source>Could not open Curves preset</source>
-        <translation>Impossible d&apos;ouvrir le préréglage de courbes</translation>
+        <translation>Impossible d'ouvrir le préréglage de courbes</translation>
     </message>
     <message>
         <source>Could not read Curves preset</source>
@@ -1227,19 +1227,19 @@
     </message>
     <message>
         <source>Could not open Curves preset for writing</source>
-        <translation>Impossible d&apos;ouvrir le préréglage de courbes en écriture</translation>
+        <translation>Impossible d'ouvrir le préréglage de courbes en écriture</translation>
     </message>
     <message>
         <source>Could not write Curves preset</source>
-        <translation>Impossible d&apos;écrire le préréglage de courbes</translation>
+        <translation>Impossible d'écrire le préréglage de courbes</translation>
     </message>
     <message>
         <source>Not an Affinity document</source>
-        <translation>Ce n&apos;est pas un document Affinity</translation>
+        <translation>Ce n'est pas un document Affinity</translation>
     </message>
     <message>
         <source>Affinity document info block is missing</source>
-        <translation>Le bloc d&apos;informations du document Affinity est manquant</translation>
+        <translation>Le bloc d'informations du document Affinity est manquant</translation>
     </message>
     <message>
         <source>Affinity document protocol block is missing</source>
@@ -1275,27 +1275,27 @@
     </message>
     <message>
         <source>Affinity preview image is not a PNG</source>
-        <translation>L&apos;image d&apos;aperçu Affinity n&apos;est pas un PNG</translation>
+        <translation>L'image d'aperçu Affinity n'est pas un PNG</translation>
     </message>
     <message>
         <source>Affinity preview image is corrupt</source>
-        <translation>L&apos;image d&apos;aperçu Affinity est corrompue</translation>
+        <translation>L'image d'aperçu Affinity est corrompue</translation>
     </message>
     <message>
         <source>Affinity preview image has implausible dimensions</source>
-        <translation>L&apos;image d&apos;aperçu Affinity a des dimensions invraisemblables</translation>
+        <translation>L'image d'aperçu Affinity a des dimensions invraisemblables</translation>
     </message>
     <message>
         <source>Affinity preview image uses an unsupported PNG variant</source>
-        <translation>L&apos;image d&apos;aperçu Affinity utilise une variante PNG non prise en charge</translation>
+        <translation>L'image d'aperçu Affinity utilise une variante PNG non prise en charge</translation>
     </message>
     <message>
         <source>Affinity preview image is incomplete</source>
-        <translation>L&apos;image d&apos;aperçu Affinity est incomplète</translation>
+        <translation>L'image d'aperçu Affinity est incomplète</translation>
     </message>
     <message>
         <source>Affinity preview image failed to decompress</source>
-        <translation>La décompression de l&apos;image d&apos;aperçu Affinity a échoué</translation>
+        <translation>La décompression de l'image d'aperçu Affinity a échoué</translation>
     </message>
     <message>
         <source>Affinity document has no embedded preview</source>
@@ -1307,15 +1307,15 @@
     </message>
     <message>
         <source>Affinity document tree is empty</source>
-        <translation>L&apos;arborescence du document Affinity est vide</translation>
+        <translation>L'arborescence du document Affinity est vide</translation>
     </message>
     <message>
         <source>Affinity document has no document node</source>
-        <translation>Le document Affinity n&apos;a pas de nœud de document</translation>
+        <translation>Le document Affinity n'a pas de nœud de document</translation>
     </message>
     <message>
         <source>Affinity document has no canvas size</source>
-        <translation>Le document Affinity n&apos;a pas de taille de zone de travail</translation>
+        <translation>Le document Affinity n'a pas de taille de zone de travail</translation>
     </message>
     <message>
         <source>Affinity document has an invalid canvas size</source>
@@ -1323,95 +1323,95 @@
     </message>
     <message>
         <source>Affinity document has no spread</source>
-        <translation>Le document Affinity n&apos;a pas de planche</translation>
+        <translation>Le document Affinity n'a pas de planche</translation>
     </message>
     <message>
         <source>Affinity document produced no layers</source>
-        <translation>Le document Affinity n&apos;a produit aucun calque</translation>
+        <translation>Le document Affinity n'a produit aucun calque</translation>
     </message>
     <message>
         <source>Affinity document tree has a bad header</source>
-        <translation>L&apos;arborescence du document Affinity a un en-tête incorrect</translation>
+        <translation>L'arborescence du document Affinity a un en-tête incorrect</translation>
     </message>
     <message>
         <source>Affinity document tree is implausibly large</source>
-        <translation>L&apos;arborescence du document Affinity est d&apos;une taille invraisemblable</translation>
+        <translation>L'arborescence du document Affinity est d'une taille invraisemblable</translation>
     </message>
     <message>
         <source>Affinity document tree nests too deeply</source>
-        <translation>L&apos;arborescence du document Affinity est imbriquée trop profondément</translation>
+        <translation>L'arborescence du document Affinity est imbriquée trop profondément</translation>
     </message>
     <message>
         <source>Affinity document tree has an unknown field type</source>
-        <translation>L&apos;arborescence du document Affinity contient un type de champ inconnu</translation>
+        <translation>L'arborescence du document Affinity contient un type de champ inconnu</translation>
     </message>
     <message>
         <source>Affinity document tree has an unhandled field type</source>
-        <translation>L&apos;arborescence du document Affinity contient un type de champ non géré</translation>
+        <translation>L'arborescence du document Affinity contient un type de champ non géré</translation>
     </message>
     <message>
         <source>Affinity document tree has an invalid binary array</source>
-        <translation>L&apos;arborescence du document Affinity contient un tableau binaire non valide</translation>
+        <translation>L'arborescence du document Affinity contient un tableau binaire non valide</translation>
     </message>
     <message>
         <source>Affinity document tree has an invalid embedded array</source>
-        <translation>L&apos;arborescence du document Affinity contient un tableau incorporé non valide</translation>
+        <translation>L'arborescence du document Affinity contient un tableau incorporé non valide</translation>
     </message>
     <message>
         <source>Affinity document tree has an invalid flags array</source>
-        <translation>L&apos;arborescence du document Affinity contient un tableau d&apos;indicateurs non valide</translation>
+        <translation>L'arborescence du document Affinity contient un tableau d'indicateurs non valide</translation>
     </message>
     <message>
         <source>Affinity document tree has an invalid flags count</source>
-        <translation>L&apos;arborescence du document Affinity contient un nombre d&apos;indicateurs non valide</translation>
+        <translation>L'arborescence du document Affinity contient un nombre d'indicateurs non valide</translation>
     </message>
     <message>
         <source>Affinity document tree has an invalid shared class</source>
-        <translation>L&apos;arborescence du document Affinity contient une classe partagée non valide</translation>
+        <translation>L'arborescence du document Affinity contient une classe partagée non valide</translation>
     </message>
     <message>
         <source>Affinity document tree has an invalid class</source>
-        <translation>L&apos;arborescence du document Affinity contient une classe non valide</translation>
+        <translation>L'arborescence du document Affinity contient une classe non valide</translation>
     </message>
     <message>
         <source>Affinity document tree has an implausible array</source>
-        <translation>L&apos;arborescence du document Affinity contient un tableau invraisemblable</translation>
+        <translation>L'arborescence du document Affinity contient un tableau invraisemblable</translation>
     </message>
     <message>
         <source>Affinity document tree has an implausible length</source>
-        <translation>L&apos;arborescence du document Affinity contient une longueur invraisemblable</translation>
+        <translation>L'arborescence du document Affinity contient une longueur invraisemblable</translation>
     </message>
     <message>
         <source>Affinity document tree has an implausible string</source>
-        <translation>L&apos;arborescence du document Affinity contient une chaîne invraisemblable</translation>
+        <translation>L'arborescence du document Affinity contient une chaîne invraisemblable</translation>
     </message>
     <message>
         <source>Aseprite cel data failed to decompress</source>
         <translation>La décompression des données de cel Aseprite a échoué</translation>
     </message>
     <message>
-        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel&apos;s Load Palette File instead.</source>
+        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel's Load Palette File instead.</source>
         <translation>Ce fichier est une palette de nuances Adobe (.ase), pas une image Aseprite. Chargez-le plutôt depuis le panneau Palette avec Charger un fichier de palette.</translation>
     </message>
     <message>
         <source>File is not an Aseprite image</source>
-        <translation>Le fichier n&apos;est pas une image Aseprite</translation>
+        <translation>Le fichier n'est pas une image Aseprite</translation>
     </message>
     <message>
         <source>Aseprite image has invalid dimensions</source>
-        <translation>L&apos;image Aseprite a des dimensions non valides</translation>
+        <translation>L'image Aseprite a des dimensions non valides</translation>
     </message>
     <message>
         <source>Aseprite color depth is not supported</source>
-        <translation>La profondeur de couleur Aseprite n&apos;est pas prise en charge</translation>
+        <translation>La profondeur de couleur Aseprite n'est pas prise en charge</translation>
     </message>
     <message>
         <source>Aseprite file contains no frames</source>
-        <translation>Le fichier Aseprite ne contient aucune image d&apos;animation</translation>
+        <translation>Le fichier Aseprite ne contient aucune image d'animation</translation>
     </message>
     <message>
         <source>Aseprite frame header is damaged</source>
-        <translation>L&apos;en-tête d&apos;image d&apos;animation Aseprite est endommagé</translation>
+        <translation>L'en-tête d'image d'animation Aseprite est endommagé</translation>
     </message>
     <message>
         <source>Aseprite cel chunk is truncated</source>
@@ -1431,7 +1431,7 @@
     </message>
     <message>
         <source>Cannot write an Aseprite file without layers</source>
-        <translation>Impossible d&apos;écrire un fichier Aseprite sans calques</translation>
+        <translation>Impossible d'écrire un fichier Aseprite sans calques</translation>
     </message>
     <message>
         <source>Aseprite cel compression failed</source>
@@ -1455,7 +1455,7 @@
     </message>
     <message>
         <source>File is not a BMP image</source>
-        <translation>Le fichier n&apos;est pas une image BMP</translation>
+        <translation>Le fichier n'est pas une image BMP</translation>
     </message>
     <message>
         <source>Unsupported BMP DIB header</source>
@@ -1463,7 +1463,7 @@
     </message>
     <message>
         <source>BMP DIB header is truncated</source>
-        <translation>L&apos;en-tête DIB BMP est tronqué</translation>
+        <translation>L'en-tête DIB BMP est tronqué</translation>
     </message>
     <message>
         <source>BMP plane count must be 1</source>
@@ -1479,11 +1479,11 @@
     </message>
     <message>
         <source>BMP pixel offset is invalid</source>
-        <translation>Le décalage des pixels BMP n&apos;est pas valide</translation>
+        <translation>Le décalage des pixels BMP n'est pas valide</translation>
     </message>
     <message>
         <source>BMP palette size is invalid</source>
-        <translation>La taille de la palette BMP n&apos;est pas valide</translation>
+        <translation>La taille de la palette BMP n'est pas valide</translation>
     </message>
     <message>
         <source>BMP palette is truncated</source>
@@ -1491,11 +1491,11 @@
     </message>
     <message>
         <source>A palette file is required for indexed BMP palette export</source>
-        <translation>Un fichier de palette est requis pour l&apos;exportation BMP indexée avec palette</translation>
+        <translation>Un fichier de palette est requis pour l'exportation BMP indexée avec palette</translation>
     </message>
     <message>
         <source>Could not open BMP palette file</source>
-        <translation>Impossible d&apos;ouvrir le fichier de palette BMP</translation>
+        <translation>Impossible d'ouvrir le fichier de palette BMP</translation>
     </message>
     <message>
         <source>Palette file is empty</source>
@@ -1535,11 +1535,11 @@
     </message>
     <message>
         <source>Cannot write an empty BMP image</source>
-        <translation>Impossible d&apos;écrire une image BMP vide</translation>
+        <translation>Impossible d'écrire une image BMP vide</translation>
     </message>
     <message>
         <source>Image has too many colors for exact indexed BMP export</source>
-        <translation>L&apos;image contient trop de couleurs pour une exportation BMP indexée exacte</translation>
+        <translation>L'image contient trop de couleurs pour une exportation BMP indexée exacte</translation>
     </message>
     <message>
         <source>Palette file does not contain any colors</source>
@@ -1551,7 +1551,7 @@
     </message>
     <message>
         <source>Indexed BMP palette size is invalid</source>
-        <translation>La taille de la palette BMP indexée n&apos;est pas valide</translation>
+        <translation>La taille de la palette BMP indexée n'est pas valide</translation>
     </message>
     <message>
         <source>Unsupported BMP bit depth</source>
@@ -1559,11 +1559,11 @@
     </message>
     <message>
         <source>Cannot flatten an empty document</source>
-        <translation>Impossible d&apos;aplatir un document vide</translation>
+        <translation>Impossible d'aplatir un document vide</translation>
     </message>
     <message>
         <source>Document is not in palette mode</source>
-        <translation>Le document n&apos;est pas en mode palette</translation>
+        <translation>Le document n'est pas en mode palette</translation>
     </message>
     <message>
         <source>Indexed mapping needs a palette</source>
@@ -1571,7 +1571,7 @@
     </message>
     <message>
         <source>Format identifier cannot be empty</source>
-        <translation>L&apos;identifiant de format ne peut pas être vide</translation>
+        <translation>L'identifiant de format ne peut pas être vide</translation>
     </message>
     <message>
         <source>Format handler must provide a read function</source>
@@ -1587,7 +1587,7 @@
     </message>
     <message>
         <source>GIF index data does not match the image dimensions</source>
-        <translation>Les données d&apos;index GIF ne correspondent pas aux dimensions de l&apos;image</translation>
+        <translation>Les données d'index GIF ne correspondent pas aux dimensions de l'image</translation>
     </message>
     <message>
         <source>GIF index references a missing palette color</source>
@@ -1599,11 +1599,11 @@
     </message>
     <message>
         <source>GIF transparent index references a missing palette color</source>
-        <translation>L&apos;index de transparence GIF référence une couleur de palette manquante</translation>
+        <translation>L'index de transparence GIF référence une couleur de palette manquante</translation>
     </message>
     <message>
         <source>HEIF orientation input buffer is too small</source>
-        <translation>Le tampon d&apos;entrée d&apos;orientation HEIF est trop petit</translation>
+        <translation>Le tampon d'entrée d'orientation HEIF est trop petit</translation>
     </message>
     <message>
         <source>Unable to decode this HEIC image with the system codec.</source>
@@ -1611,22 +1611,22 @@
     </message>
     <message>
         <source>Unable to decode this HEIC image outside a browser.</source>
-        <translation>Impossible de décoder cette image HEIC en dehors d&apos;un navigateur.</translation>
+        <translation>Impossible de décoder cette image HEIC en dehors d'un navigateur.</translation>
     </message>
     <message>
         <source>This file is not a supported HEIC/HEIF image</source>
-        <translation>Ce fichier n&apos;est pas une image HEIC/HEIF prise en charge</translation>
+        <translation>Ce fichier n'est pas une image HEIC/HEIF prise en charge</translation>
     </message>
     <message>
         <source>Unable to initialize the HEIF parser</source>
-        <translation>Impossible d&apos;initialiser l&apos;analyseur HEIF</translation>
+        <translation>Impossible d'initialiser l'analyseur HEIF</translation>
     </message>
     <message>
         <source>Unable to initialize HEIF decoding options</source>
-        <translation>Impossible d&apos;initialiser les options de décodage HEIF</translation>
+        <translation>Impossible d'initialiser les options de décodage HEIF</translation>
     </message>
     <message>
-        <source>This HEIF image&apos;s dimensions are not supported</source>
+        <source>This HEIF image's dimensions are not supported</source>
         <translation>Les dimensions de cette image HEIF ne sont pas prises en charge</translation>
     </message>
     <message>
@@ -1635,27 +1635,27 @@
     </message>
     <message>
         <source>ICO entry has an unsupported bitmap header</source>
-        <translation>L&apos;entrée ICO a un en-tête bitmap non pris en charge</translation>
+        <translation>L'entrée ICO a un en-tête bitmap non pris en charge</translation>
     </message>
     <message>
         <source>ICO entry uses an unsupported compression</source>
-        <translation>L&apos;entrée ICO utilise une compression non prise en charge</translation>
+        <translation>L'entrée ICO utilise une compression non prise en charge</translation>
     </message>
     <message>
         <source>ICO entry has an invalid width</source>
-        <translation>L&apos;entrée ICO a une largeur non valide</translation>
+        <translation>L'entrée ICO a une largeur non valide</translation>
     </message>
     <message>
         <source>ICO entry has an invalid height</source>
-        <translation>L&apos;entrée ICO a une hauteur non valide</translation>
+        <translation>L'entrée ICO a une hauteur non valide</translation>
     </message>
     <message>
         <source>ICO entry palette is too large</source>
-        <translation>La palette de l&apos;entrée ICO est trop grande</translation>
+        <translation>La palette de l'entrée ICO est trop grande</translation>
     </message>
     <message>
         <source>ICO entry has an unsupported bit depth</source>
-        <translation>L&apos;entrée ICO a une profondeur de bits non prise en charge</translation>
+        <translation>L'entrée ICO a une profondeur de bits non prise en charge</translation>
     </message>
     <message>
         <source>ICO data ended unexpectedly</source>
@@ -1663,11 +1663,11 @@
     </message>
     <message>
         <source>ICO entry references a missing palette color</source>
-        <translation>L&apos;entrée ICO référence une couleur de palette manquante</translation>
+        <translation>L'entrée ICO référence une couleur de palette manquante</translation>
     </message>
     <message>
         <source>File is not an ICO or CUR image</source>
-        <translation>Le fichier n&apos;est pas une image ICO ou CUR</translation>
+        <translation>Le fichier n'est pas une image ICO ou CUR</translation>
     </message>
     <message>
         <source>ICO file contains no readable images</source>
@@ -1675,11 +1675,11 @@
     </message>
     <message>
         <source>No icon sizes selected</source>
-        <translation>Aucune taille d&apos;icône sélectionnée</translation>
+        <translation>Aucune taille d'icône sélectionnée</translation>
     </message>
     <message>
         <source>File is not an IFF ILBM image</source>
-        <translation>Le fichier n&apos;est pas une image IFF ILBM</translation>
+        <translation>Le fichier n'est pas une image IFF ILBM</translation>
     </message>
     <message>
         <source>IFF ILBM file is missing its BMHD or BODY chunk</source>
@@ -1687,7 +1687,7 @@
     </message>
     <message>
         <source>IFF ILBM image has invalid dimensions</source>
-        <translation>L&apos;image IFF ILBM a des dimensions non valides</translation>
+        <translation>L'image IFF ILBM a des dimensions non valides</translation>
     </message>
     <message>
         <source>HAM-mode IFF images are not supported yet</source>
@@ -1695,11 +1695,11 @@
     </message>
     <message>
         <source>IFF ILBM compression is not supported</source>
-        <translation>La compression IFF ILBM n&apos;est pas prise en charge</translation>
+        <translation>La compression IFF ILBM n'est pas prise en charge</translation>
     </message>
     <message>
         <source>Only 1-8 bitplane IFF ILBM images are supported (no 24-bit deep ILBM yet)</source>
-        <translation>Seules les images IFF ILBM de 1 à 8 plans de bits sont prises en charge (pas encore d&apos;ILBM 24 bits)</translation>
+        <translation>Seules les images IFF ILBM de 1 à 8 plans de bits sont prises en charge (pas encore d'ILBM 24 bits)</translation>
     </message>
     <message>
         <source>Only 8-bit IFF PBM images are supported</source>
@@ -1723,15 +1723,15 @@
     </message>
     <message>
         <source>JPEG XR tone map input has no pixels</source>
-        <translation>L&apos;entrée de mappage tonal JPEG XR ne contient aucun pixel</translation>
+        <translation>L'entrée de mappage tonal JPEG XR ne contient aucun pixel</translation>
     </message>
     <message>
         <source>JPEG XR tone map input buffer is too small</source>
-        <translation>Le tampon d&apos;entrée de mappage tonal JPEG XR est trop petit</translation>
+        <translation>Le tampon d'entrée de mappage tonal JPEG XR est trop petit</translation>
     </message>
     <message>
         <source>Cannot write an empty document as JPEG XR</source>
-        <translation>Impossible d&apos;écrire un document vide au format JPEG XR</translation>
+        <translation>Impossible d'écrire un document vide au format JPEG XR</translation>
     </message>
     <message>
         <source>JPEG XR images can only be opened on Windows.</source>
@@ -1746,7 +1746,7 @@
         <translation>Une ligne en virgule flottante JPEG XR dépasse la limite du tampon du codec</translation>
     </message>
     <message>
-        <source>This JPEG XR image&apos;s dimensions are not supported</source>
+        <source>This JPEG XR image's dimensions are not supported</source>
         <translation>Les dimensions de cette image JPEG XR ne sont pas prises en charge</translation>
     </message>
     <message>
@@ -1755,15 +1755,15 @@
     </message>
     <message>
         <source>JPEG XR write buffer is too small</source>
-        <translation>Le tampon d&apos;écriture JPEG XR est trop petit</translation>
+        <translation>Le tampon d'écriture JPEG XR est trop petit</translation>
     </message>
     <message>
         <source>The Windows JPEG XR encoder did not accept a BGR or BGRA frame</source>
-        <translation>L&apos;encodeur JPEG XR de Windows n&apos;a pas accepté d&apos;image BGR ou BGRA</translation>
+        <translation>L'encodeur JPEG XR de Windows n'a pas accepté d'image BGR ou BGRA</translation>
     </message>
     <message>
         <source>Unable to read back the encoded JPEG XR image</source>
-        <translation>Impossible de relire l&apos;image JPEG XR encodée</translation>
+        <translation>Impossible de relire l'image JPEG XR encodée</translation>
     </message>
     <message>
         <source>Palette file is truncated</source>
@@ -1775,7 +1775,7 @@
     </message>
     <message>
         <source>Not a RIFF PAL file</source>
-        <translation>Ce n&apos;est pas un fichier PAL RIFF</translation>
+        <translation>Ce n'est pas un fichier PAL RIFF</translation>
     </message>
     <message>
         <source>PAL data chunk is truncated</source>
@@ -1787,7 +1787,7 @@
     </message>
     <message>
         <source>PAL color count is invalid</source>
-        <translation>Le nombre de couleurs PAL n&apos;est pas valide</translation>
+        <translation>Le nombre de couleurs PAL n'est pas valide</translation>
     </message>
     <message>
         <source>PAL file does not contain a data chunk</source>
@@ -1795,43 +1795,43 @@
     </message>
     <message>
         <source>Not a JASC PAL file</source>
-        <translation>Ce n&apos;est pas un fichier PAL JASC</translation>
+        <translation>Ce n'est pas un fichier PAL JASC</translation>
     </message>
     <message>
         <source>JASC PAL header is invalid</source>
-        <translation>L&apos;en-tête PAL JASC n&apos;est pas valide</translation>
+        <translation>L'en-tête PAL JASC n'est pas valide</translation>
     </message>
     <message>
         <source>JASC PAL color entry is invalid</source>
-        <translation>Une entrée de couleur PAL JASC n&apos;est pas valide</translation>
+        <translation>Une entrée de couleur PAL JASC n'est pas valide</translation>
     </message>
     <message>
         <source>Not a GIMP palette file</source>
-        <translation>Ce n&apos;est pas un fichier de palette GIMP</translation>
+        <translation>Ce n'est pas un fichier de palette GIMP</translation>
     </message>
     <message>
         <source>GIMP palette color entry is invalid</source>
-        <translation>Une entrée de couleur de palette GIMP n&apos;est pas valide</translation>
+        <translation>Une entrée de couleur de palette GIMP n'est pas valide</translation>
     </message>
     <message>
         <source>Palette color name is invalid</source>
-        <translation>Le nom de couleur de palette n&apos;est pas valide</translation>
+        <translation>Le nom de couleur de palette n'est pas valide</translation>
     </message>
     <message>
         <source>Not a hex palette file</source>
-        <translation>Ce n&apos;est pas un fichier de palette hexadécimale</translation>
+        <translation>Ce n'est pas un fichier de palette hexadécimale</translation>
     </message>
     <message>
         <source>Not an Adobe color table file</source>
-        <translation>Ce n&apos;est pas un fichier de table des couleurs Adobe</translation>
+        <translation>Ce n'est pas un fichier de table des couleurs Adobe</translation>
     </message>
     <message>
         <source>Not an Adobe color swatch file</source>
-        <translation>Ce n&apos;est pas un fichier de nuancier Adobe</translation>
+        <translation>Ce n'est pas un fichier de nuancier Adobe</translation>
     </message>
     <message>
         <source>Adobe color swatch count is invalid</source>
-        <translation>Le nombre de nuances Adobe n&apos;est pas valide</translation>
+        <translation>Le nombre de nuances Adobe n'est pas valide</translation>
     </message>
     <message>
         <source>Adobe color swatch file is truncated</source>
@@ -1839,11 +1839,11 @@
     </message>
     <message>
         <source>Not an Adobe swatch exchange file</source>
-        <translation>Ce n&apos;est pas un fichier d&apos;échange de nuances Adobe</translation>
+        <translation>Ce n'est pas un fichier d'échange de nuances Adobe</translation>
     </message>
     <message>
         <source>Adobe swatch exchange file is truncated</source>
-        <translation>Le fichier d&apos;échange de nuances Adobe est tronqué</translation>
+        <translation>Le fichier d'échange de nuances Adobe est tronqué</translation>
     </message>
     <message>
         <source>Unrecognized palette file format</source>
@@ -1855,11 +1855,11 @@
     </message>
     <message>
         <source>Could not open palette file</source>
-        <translation>Impossible d&apos;ouvrir le fichier de palette</translation>
+        <translation>Impossible d'ouvrir le fichier de palette</translation>
     </message>
     <message>
         <source>Cannot save an empty palette</source>
-        <translation>Impossible d&apos;enregistrer une palette vide</translation>
+        <translation>Impossible d'enregistrer une palette vide</translation>
     </message>
     <message>
         <source>Palette has more than 256 colors</source>
@@ -1867,7 +1867,7 @@
     </message>
     <message>
         <source>Palette names must be single lines of at most 4096 UTF-8 bytes</source>
-        <translation>Les noms de palette doivent tenir sur une seule ligne d&apos;au plus 4096 octets UTF-8</translation>
+        <translation>Les noms de palette doivent tenir sur une seule ligne d'au plus 4096 octets UTF-8</translation>
     </message>
     <message>
         <source>Unsupported palette file format</source>
@@ -1879,11 +1879,11 @@
     </message>
     <message>
         <source>Could not write palette file</source>
-        <translation>Impossible d&apos;écrire le fichier de palette</translation>
+        <translation>Impossible d'écrire le fichier de palette</translation>
     </message>
     <message>
         <source>File is not a PCX image</source>
-        <translation>Le fichier n&apos;est pas une image PCX</translation>
+        <translation>Le fichier n'est pas une image PCX</translation>
     </message>
     <message>
         <source>PCX data ended unexpectedly</source>
@@ -1895,19 +1895,19 @@
     </message>
     <message>
         <source>PCX image has invalid dimensions</source>
-        <translation>L&apos;image PCX a des dimensions non valides</translation>
+        <translation>L'image PCX a des dimensions non valides</translation>
     </message>
     <message>
         <source>PCX encoding is not supported</source>
-        <translation>L&apos;encodage PCX n&apos;est pas pris en charge</translation>
+        <translation>L'encodage PCX n'est pas pris en charge</translation>
     </message>
     <message>
         <source>Only 8-bit indexed and 24-bit PCX images are supported; convert 16-color PCX files to 256 colors first</source>
-        <translation>Seules les images PCX indexées 8 bits et 24 bits sont prises en charge ; convertissez d&apos;abord les fichiers PCX 16 couleurs en 256 couleurs</translation>
+        <translation>Seules les images PCX indexées 8 bits et 24 bits sont prises en charge ; convertissez d'abord les fichiers PCX 16 couleurs en 256 couleurs</translation>
     </message>
     <message>
         <source>PCX row stride is smaller than the image width</source>
-        <translation>Le pas de ligne PCX est inférieur à la largeur de l&apos;image</translation>
+        <translation>Le pas de ligne PCX est inférieur à la largeur de l'image</translation>
     </message>
     <message>
         <source>PCX file is missing its 256-color palette</source>
@@ -1931,7 +1931,7 @@
     </message>
     <message>
         <source>Some PDF text used a font with no Unicode mapping and could not be recovered as text.</source>
-        <translation>Une partie du texte PDF utilisait une police sans correspondance Unicode et n&apos;a pas pu être récupérée sous forme de texte.</translation>
+        <translation>Une partie du texte PDF utilisait une police sans correspondance Unicode et n'a pas pu être récupérée sous forme de texte.</translation>
     </message>
     <message>
         <source>A PDF image was too large to import and was skipped.</source>
@@ -1939,19 +1939,19 @@
     </message>
     <message>
         <source>A PDF image used a colour format Patchy could not decode and was skipped.</source>
-        <translation>Une image PDF utilisait un format de couleur que Patchy n&apos;a pas pu décoder et a été ignorée.</translation>
+        <translation>Une image PDF utilisait un format de couleur que Patchy n'a pas pu décoder et a été ignorée.</translation>
     </message>
     <message>
         <source>A PDF image transparency mask was too large to import; the image imported opaque.</source>
-        <translation>Un masque de transparence d&apos;image PDF était trop grand pour être importé ; l&apos;image a été importée opaque.</translation>
+        <translation>Un masque de transparence d'image PDF était trop grand pour être importé ; l'image a été importée opaque.</translation>
     </message>
     <message>
-        <source>A PDF image&apos;s transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
-        <translation>Le masque de transparence d&apos;une image PDF utilisait un codec que Patchy n&apos;a pas pu décoder ; l&apos;image a été importée opaque.</translation>
+        <source>A PDF image's transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
+        <translation>Le masque de transparence d'une image PDF utilisait un codec que Patchy n'a pas pu décoder ; l'image a été importée opaque.</translation>
     </message>
     <message>
         <source>A PDF soft mask was not applied; the affected artwork imported without it.</source>
-        <translation>Un masque flou PDF n&apos;a pas été appliqué ; les éléments concernés ont été importés sans lui.</translation>
+        <translation>Un masque flou PDF n'a pas été appliqué ; les éléments concernés ont été importés sans lui.</translation>
     </message>
     <message>
         <source>A PDF graphics state set a font directly; that text may be positioned differently.</source>
@@ -1963,11 +1963,11 @@
     </message>
     <message>
         <source>A PDF gradient mesh was not imported.</source>
-        <translation>Un filet de dégradé PDF n&apos;a pas été importé.</translation>
+        <translation>Un filet de dégradé PDF n'a pas été importé.</translation>
     </message>
     <message>
         <source>This file is not a readable PDF.</source>
-        <translation>Ce fichier n&apos;est pas un PDF lisible.</translation>
+        <translation>Ce fichier n'est pas un PDF lisible.</translation>
     </message>
     <message>
         <source>This PDF is password protected.</source>
@@ -1979,7 +1979,7 @@
     </message>
     <message>
         <source>The requested PDF page does not exist.</source>
-        <translation>La page PDF demandée n&apos;existe pas.</translation>
+        <translation>La page PDF demandée n'existe pas.</translation>
     </message>
     <message>
         <source>This PDF page is too large to import at the chosen resolution.</source>
@@ -1991,7 +1991,7 @@
     </message>
     <message>
         <source>Camera raw open failed: the file is empty</source>
-        <translation>Échec de l&apos;ouverture du fichier Camera Raw : le fichier est vide</translation>
+        <translation>Échec de l'ouverture du fichier Camera Raw : le fichier est vide</translation>
     </message>
     <message>
         <source>Unsupported RAW processing version</source>
@@ -2007,7 +2007,7 @@
     </message>
     <message>
         <source>Proton texture is truncated: the RTPACK header promises more data than the file holds</source>
-        <translation>La texture Proton est tronquée : l&apos;en-tête RTPACK annonce plus de données que le fichier n&apos;en contient</translation>
+        <translation>La texture Proton est tronquée : l'en-tête RTPACK annonce plus de données que le fichier n'en contient</translation>
     </message>
     <message>
         <source>Proton texture has an invalid RTPACK payload size</source>
@@ -2018,36 +2018,36 @@
         <translation>La texture Proton utilise un type de compression RTPACK inconnu</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s zlib payload is damaged</source>
+        <source>Proton texture's zlib payload is damaged</source>
         <translation>La charge utile zlib de la texture Proton est endommagée</translation>
     </message>
     <message>
         <source>Proton texture is truncated: the pixel data is shorter than the header promises</source>
-        <translation>La texture Proton est tronquée : les données de pixels sont plus courtes que ce qu&apos;annonce l&apos;en-tête</translation>
+        <translation>La texture Proton est tronquée : les données de pixels sont plus courtes que ce qu'annonce l'en-tête</translation>
     </message>
     <message>
         <source>PVRTC-compressed Proton textures cannot be opened; re-export the source image with RTPack -8888 first</source>
-        <translation>Les textures Proton compressées en PVRTC ne peuvent pas être ouvertes ; réexportez d&apos;abord l&apos;image source avec RTPack -8888</translation>
+        <translation>Les textures Proton compressées en PVRTC ne peuvent pas être ouvertes ; réexportez d'abord l'image source avec RTPack -8888</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded payload is neither a JPEG nor raw RGB pixels</source>
-        <translation>La charge utile incorporée de la texture Proton n&apos;est ni un JPEG ni des pixels RVB bruts</translation>
+        <source>Proton texture's embedded payload is neither a JPEG nor raw RGB pixels</source>
+        <translation>La charge utile incorporée de la texture Proton n'est ni un JPEG ni des pixels RVB bruts</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded JPEG could not be read</source>
-        <translation>Le JPEG incorporé de la texture Proton n&apos;a pas pu être lu</translation>
+        <source>Proton texture's embedded JPEG could not be read</source>
+        <translation>Le JPEG incorporé de la texture Proton n'a pas pu être lu</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded JPEG could not be decoded</source>
-        <translation>Le JPEG incorporé de la texture Proton n&apos;a pas pu être décodé</translation>
+        <source>Proton texture's embedded JPEG could not be decoded</source>
+        <translation>Le JPEG incorporé de la texture Proton n'a pas pu être décodé</translation>
     </message>
     <message>
         <source>This RTPACK file is not a Proton texture (an .rtfont or .rtpak package cannot be opened as an image)</source>
-        <translation>Ce fichier RTPACK n&apos;est pas une texture Proton (un paquet .rtfont ou .rtpak ne peut pas être ouvert comme image)</translation>
+        <translation>Ce fichier RTPACK n'est pas une texture Proton (un paquet .rtfont ou .rtpak ne peut pas être ouvert comme image)</translation>
     </message>
     <message>
         <source>Not a Proton texture: the RTTXTR header is missing</source>
-        <translation>Ce n&apos;est pas une texture Proton : l&apos;en-tête RTTXTR est manquant</translation>
+        <translation>Ce n'est pas une texture Proton : l'en-tête RTTXTR est manquant</translation>
     </message>
     <message>
         <source>Proton texture carries no mip levels</source>
@@ -2055,14 +2055,14 @@
     </message>
     <message>
         <source>Recorded original width was invalid; using the texture width</source>
-        <translation>La largeur d&apos;origine enregistrée n&apos;était pas valide ; utilisation de la largeur de la texture</translation>
+        <translation>La largeur d'origine enregistrée n'était pas valide ; utilisation de la largeur de la texture</translation>
     </message>
     <message>
         <source>Recorded original height was invalid; using the texture height</source>
-        <translation>La hauteur d&apos;origine enregistrée n&apos;était pas valide ; utilisation de la hauteur de la texture</translation>
+        <translation>La hauteur d'origine enregistrée n'était pas valide ; utilisation de la hauteur de la texture</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s first mip level does not match the texture size</source>
+        <source>Proton texture's first mip level does not match the texture size</source>
         <translation>Le premier niveau de mip de la texture Proton ne correspond pas à la taille de la texture</translation>
     </message>
     <message>
@@ -2071,15 +2071,15 @@
     </message>
     <message>
         <source>Cannot write an empty document as a Proton texture</source>
-        <translation>Impossible d&apos;écrire un document vide comme texture Proton</translation>
+        <translation>Impossible d'écrire un document vide comme texture Proton</translation>
     </message>
     <message>
-        <source>JPEG-encoded Proton textures need the application&apos;s JPEG encoder, which is not installed</source>
-        <translation>Les textures Proton encodées en JPEG nécessitent l&apos;encodeur JPEG de l&apos;application, qui n&apos;est pas installé</translation>
+        <source>JPEG-encoded Proton textures need the application's JPEG encoder, which is not installed</source>
+        <translation>Les textures Proton encodées en JPEG nécessitent l'encodeur JPEG de l'application, qui n'est pas installé</translation>
     </message>
     <message>
         <source>The JPEG encoder produced no data for the Proton texture</source>
-        <translation>L&apos;encodeur JPEG n&apos;a produit aucune donnée pour la texture Proton</translation>
+        <translation>L'encodeur JPEG n'a produit aucune donnée pour la texture Proton</translation>
     </message>
     <message>
         <source>Could not compress the Proton texture</source>
@@ -2091,7 +2091,7 @@
     </message>
     <message>
         <source>SVG path command is missing its coordinates</source>
-        <translation>Une commande de tracé SVG n&apos;a pas ses coordonnées</translation>
+        <translation>Une commande de tracé SVG n'a pas ses coordonnées</translation>
     </message>
     <message>
         <source>Invalid SVG move command</source>
@@ -2127,7 +2127,7 @@
     </message>
     <message>
         <source>Invalid SVG arc command</source>
-        <translation>Commande d&apos;arc SVG non valide</translation>
+        <translation>Commande d'arc SVG non valide</translation>
     </message>
     <message>
         <source>SVG radial-gradient focal points are not supported; the center was used</source>
@@ -2143,11 +2143,11 @@
     </message>
     <message>
         <source>SVG patternTransform skew was approximated</source>
-        <translation>L&apos;inclinaison patternTransform SVG a été approximée</translation>
+        <translation>L'inclinaison patternTransform SVG a été approximée</translation>
     </message>
     <message>
         <source>An SVG paint reference could not be resolved and was replaced with gray</source>
-        <translation>Une référence de peinture SVG n&apos;a pas pu être résolue et a été remplacée par du gris</translation>
+        <translation>Une référence de peinture SVG n'a pas pu être résolue et a été remplacée par du gris</translation>
     </message>
     <message>
         <source>An SVG pattern paint was approximated with gray</source>
@@ -2163,7 +2163,7 @@
     </message>
     <message>
         <source>SVG clip paths in objectBoundingBox units are not supported and were skipped</source>
-        <translation>Les masques d&apos;écrêtage SVG en unités objectBoundingBox ne sont pas pris en charge et ont été ignorés</translation>
+        <translation>Les masques d'écrêtage SVG en unités objectBoundingBox ne sont pas pris en charge et ont été ignorés</translation>
     </message>
     <message>
         <source>SVG clip-path content beyond plain shapes was skipped</source>
@@ -2179,7 +2179,7 @@
     </message>
     <message>
         <source>An SVG rectangle with different rx/ry corner radii was approximated</source>
-        <translation>Un rectangle SVG avec des rayons d&apos;angle rx/ry différents a été approximé</translation>
+        <translation>Un rectangle SVG avec des rayons d'angle rx/ry différents a été approximé</translation>
     </message>
     <message>
         <source>An anisotropic SVG transform approximated a stroke width by its area scale</source>
@@ -2195,7 +2195,7 @@
     </message>
     <message>
         <source>An external SVG image reference was skipped (only embedded data URIs import)</source>
-        <translation>Une référence d&apos;image SVG externe a été ignorée (seules les URI de données incorporées sont importées)</translation>
+        <translation>Une référence d'image SVG externe a été ignorée (seules les URI de données incorporées sont importées)</translation>
     </message>
     <message>
         <source>A rotated or skewed SVG image was imported axis-aligned</source>
@@ -2203,7 +2203,7 @@
     </message>
     <message>
         <source>SVG &lt;use&gt; nesting is too deep; the deepest references were skipped</source>
-        <translation>L&apos;imbrication des &lt;use&gt; SVG est trop profonde ; les références les plus profondes ont été ignorées</translation>
+        <translation>L'imbrication des &lt;use&gt; SVG est trop profonde ; les références les plus profondes ont été ignorées</translation>
     </message>
     <message>
         <source>An SVG &lt;use&gt; without a local reference was skipped</source>
@@ -2223,7 +2223,7 @@
     </message>
     <message>
         <source>An SVG symbol viewBox was ignored (contents placed unscaled)</source>
-        <translation>Un viewBox de symbole SVG a été ignoré (contenu placé sans mise à l&apos;échelle)</translation>
+        <translation>Un viewBox de symbole SVG a été ignoré (contenu placé sans mise à l'échelle)</translation>
     </message>
     <message>
         <source>A nested SVG viewBox was ignored</source>
@@ -2231,19 +2231,19 @@
     </message>
     <message>
         <source>SVG has no usable width/height or viewBox; opened at 300 x 150</source>
-        <translation>Le SVG n&apos;a ni largeur/hauteur ni viewBox utilisable ; ouvert en 300 x 150</translation>
+        <translation>Le SVG n'a ni largeur/hauteur ni viewBox utilisable ; ouvert en 300 x 150</translation>
     </message>
     <message>
-        <source>SVG canvas was scaled down to Patchy&apos;s 30000 px document limit</source>
+        <source>SVG canvas was scaled down to Patchy's 30000 px document limit</source>
         <translation>Le plan de travail SVG a été réduit à la limite de document de 30000 px de Patchy</translation>
     </message>
     <message>
         <source>SVGZ gzip header is invalid</source>
-        <translation>L&apos;en-tête gzip SVGZ est invalide</translation>
+        <translation>L'en-tête gzip SVGZ est invalide</translation>
     </message>
     <message>
         <source>SVGZ gzip header is truncated</source>
-        <translation>L&apos;en-tête gzip SVGZ est tronqué</translation>
+        <translation>L'en-tête gzip SVGZ est tronqué</translation>
     </message>
     <message>
         <source>SVGZ gzip data is truncated</source>
@@ -2251,7 +2251,7 @@
     </message>
     <message>
         <source>SVGZ data could not be decompressed</source>
-        <translation>Les données SVGZ n&apos;ont pas pu être décompressées</translation>
+        <translation>Les données SVGZ n'ont pas pu être décompressées</translation>
     </message>
     <message>
         <source>SVGZ data decompresses to an unreasonable size</source>
@@ -2259,27 +2259,27 @@
     </message>
     <message>
         <source>SVG export can only embed RGBA images</source>
-        <translation>L&apos;exportation SVG ne peut incorporer que des images RVBA</translation>
+        <translation>L'exportation SVG ne peut incorporer que des images RVBA</translation>
     </message>
     <message>
         <source>Could not encode an embedded PNG for SVG export</source>
-        <translation>Impossible d&apos;encoder un PNG incorporé pour l&apos;exportation SVG</translation>
+        <translation>Impossible d'encoder un PNG incorporé pour l'exportation SVG</translation>
     </message>
     <message>
-        <source>A pattern fill&apos;s tile was missing and exported as gray</source>
-        <translation>Le carreau d&apos;un fond de motif était manquant et a été exporté en gris</translation>
+        <source>A pattern fill's tile was missing and exported as gray</source>
+        <translation>Le carreau d'un fond de motif était manquant et a été exporté en gris</translation>
     </message>
     <message>
         <source>A layer-linked pattern fill was exported anchored to the document origin</source>
-        <translation>Un fond de motif lié au calque a été exporté ancré à l&apos;origine du document</translation>
+        <translation>Un fond de motif lié au calque a été exporté ancré à l'origine du document</translation>
     </message>
     <message>
         <source>Pass-through group opacity is approximated (SVG group opacity isolates the group)</source>
-        <translation>L&apos;opacité d&apos;un groupe en mode Transfert est approximée (l&apos;opacité de groupe SVG isole le groupe)</translation>
+        <translation>L'opacité d'un groupe en mode Transfert est approximée (l'opacité de groupe SVG isole le groupe)</translation>
     </message>
     <message>
         <source>Cannot export an empty document as SVG</source>
-        <translation>Impossible d&apos;exporter un document vide au format SVG</translation>
+        <translation>Impossible d'exporter un document vide au format SVG</translation>
     </message>
     <message>
         <source>SVG cannot encode a non-finite number</source>
@@ -2291,7 +2291,7 @@
     </message>
     <message>
         <source>File is not a supported TGA image</source>
-        <translation>Le fichier n&apos;est pas une image TGA prise en charge</translation>
+        <translation>Le fichier n'est pas une image TGA prise en charge</translation>
     </message>
     <message>
         <source>15/16-bit TGA images are not supported yet; convert to 24-bit or 32-bit</source>
@@ -2303,7 +2303,7 @@
     </message>
     <message>
         <source>Indexed TGA image is missing its color map</source>
-        <translation>L&apos;image TGA indexée ne contient pas sa table de couleurs</translation>
+        <translation>L'image TGA indexée ne contient pas sa table de couleurs</translation>
     </message>
     <message>
         <source>Indexed TGA images must be 8-bit</source>
@@ -2323,7 +2323,7 @@
     </message>
     <message>
         <source>Cannot write an empty TGA image</source>
-        <translation>Impossible d&apos;écrire une image TGA vide</translation>
+        <translation>Impossible d'écrire une image TGA vide</translation>
     </message>
     <message>
         <source>TGA images cannot exceed 65535 pixels per side</source>
@@ -2335,11 +2335,11 @@
     </message>
     <message>
         <source>Plug-in file does not exist.</source>
-        <translation>Le fichier du module externe n&apos;existe pas.</translation>
+        <translation>Le fichier du module externe n'existe pas.</translation>
     </message>
     <message>
         <source>Plug-in file could not be read.</source>
-        <translation>Le fichier du module externe n&apos;a pas pu être lu.</translation>
+        <translation>Le fichier du module externe n'a pas pu être lu.</translation>
     </message>
     <message>
         <source>Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.</source>
@@ -2347,11 +2347,11 @@
     </message>
     <message>
         <source>Plugin identifier cannot be empty</source>
-        <translation>L&apos;identifiant du module externe ne peut pas être vide</translation>
+        <translation>L'identifiant du module externe ne peut pas être vide</translation>
     </message>
     <message>
         <source>Plugin identifier is already registered</source>
-        <translation>L&apos;identifiant du module externe est déjà enregistré</translation>
+        <translation>L'identifiant du module externe est déjà enregistré</translation>
     </message>
     <message>
         <source>Unsupported ABR descriptor version</source>
@@ -2371,11 +2371,11 @@
     </message>
     <message>
         <source>brush depth is not 8 or 16 bit</source>
-        <translation>la profondeur du pinceau n&apos;est ni 8 ni 16 bits</translation>
+        <translation>la profondeur du pinceau n'est ni 8 ni 16 bits</translation>
     </message>
     <message>
         <source>ABR brush entry is truncated</source>
-        <translation>L&apos;entrée de pinceau ABR est tronquée</translation>
+        <translation>L'entrée de pinceau ABR est tronquée</translation>
     </message>
     <message>
         <source>ABR tagged block has a corrupt signature</source>
@@ -2415,11 +2415,11 @@
     </message>
     <message>
         <source>PAT pattern record is truncated</source>
-        <translation>L&apos;enregistrement du motif PAT est tronqué</translation>
+        <translation>L'enregistrement du motif PAT est tronqué</translation>
     </message>
     <message>
         <source>PAT pattern VMA version is unsupported</source>
-        <translation>La version du VMA du motif PAT n&apos;est pas prise en charge</translation>
+        <translation>La version du VMA du motif PAT n'est pas prise en charge</translation>
     </message>
     <message>
         <source>PAT pattern VMA length is invalid</source>
@@ -2431,11 +2431,11 @@
     </message>
     <message>
         <source>PAT pattern plane sample count is too large</source>
-        <translation>Le nombre d&apos;échantillons du plan du motif PAT est trop grand</translation>
+        <translation>Le nombre d'échantillons du plan du motif PAT est trop grand</translation>
     </message>
     <message>
         <source>PAT indexed pattern has no color plane</source>
-        <translation>Le motif PAT indexé n&apos;a pas de plan de couleur</translation>
+        <translation>Le motif PAT indexé n'a pas de plan de couleur</translation>
     </message>
     <message>
         <source>PAT indexed channel is truncated</source>
@@ -2451,7 +2451,7 @@
     </message>
     <message>
         <source>PAT indexed channel depth is unsupported</source>
-        <translation>La profondeur de la couche indexée PAT n&apos;est pas prise en charge</translation>
+        <translation>La profondeur de la couche indexée PAT n'est pas prise en charge</translation>
     </message>
     <message>
         <source>PAT indexed channel data is truncated</source>
@@ -2467,15 +2467,15 @@
     </message>
     <message>
         <source>PAT indexed compression mode is unsupported</source>
-        <translation>Le mode de compression indexé PAT n&apos;est pas pris en charge</translation>
+        <translation>Le mode de compression indexé PAT n'est pas pris en charge</translation>
     </message>
     <message>
         <source>PAT pattern record is too large</source>
-        <translation>L&apos;enregistrement du motif PAT est trop grand</translation>
+        <translation>L'enregistrement du motif PAT est trop grand</translation>
     </message>
     <message>
         <source>channel data could not be decoded</source>
-        <translation>les données de la couche n&apos;ont pas pu être décodées</translation>
+        <translation>les données de la couche n'ont pas pu être décodées</translation>
     </message>
     <message>
         <source>Unexpected end of PSD data</source>
@@ -2483,7 +2483,7 @@
     </message>
     <message>
         <source>Not a PSD/PSB file</source>
-        <translation>Ce n&apos;est pas un fichier PSD/PSB</translation>
+        <translation>Ce n'est pas un fichier PSD/PSB</translation>
     </message>
     <message>
         <source>Unsupported PSD/PSB version</source>
@@ -2491,7 +2491,7 @@
     </message>
     <message>
         <source>PSD channel dimensions cannot be negative</source>
-        <translation>Les dimensions d&apos;une couche PSD ne peuvent pas être négatives</translation>
+        <translation>Les dimensions d'une couche PSD ne peuvent pas être négatives</translation>
     </message>
     <message>
         <source>PSD channel data length does not match its dimensions</source>
@@ -2503,7 +2503,7 @@
     </message>
     <message>
         <source>PSD composite export requires RGB8 pixels</source>
-        <translation>L&apos;exportation du composite PSD nécessite des pixels RGB8</translation>
+        <translation>L'exportation du composite PSD nécessite des pixels RGB8</translation>
     </message>
     <message>
         <source>PSD zip-compressed channel data is corrupt</source>
@@ -2535,11 +2535,11 @@
     </message>
     <message>
         <source>PSD descriptor nesting is too deep</source>
-        <translation>L&apos;imbrication du descripteur PSD est trop profonde</translation>
+        <translation>L'imbrication du descripteur PSD est trop profonde</translation>
     </message>
     <message>
         <source>Invalid PSD descriptor item count</source>
-        <translation>Nombre d&apos;éléments du descripteur PSD invalide</translation>
+        <translation>Nombre d'éléments du descripteur PSD invalide</translation>
     </message>
     <message>
         <source>PSD reference form must be a 4-character key</source>
@@ -2575,7 +2575,7 @@
     </message>
     <message>
         <source>PSD merged transparency flag has no matching composite channel</source>
-        <translation>L&apos;indicateur de transparence fusionnée PSD n&apos;a pas de couche composite correspondante</translation>
+        <translation>L'indicateur de transparence fusionnée PSD n'a pas de couche composite correspondante</translation>
     </message>
     <message>
         <source>PSD merged transparency dimensions do not match the document</source>
@@ -2595,7 +2595,7 @@
     </message>
     <message>
         <source>PSD composite image data is missing</source>
-        <translation>Les données d&apos;image composite PSD sont manquantes</translation>
+        <translation>Les données d'image composite PSD sont manquantes</translation>
     </message>
     <message>
         <source>Photoshop supports at most 8000 layer records, including group boundaries</source>
@@ -2603,7 +2603,7 @@
     </message>
     <message>
         <source>A layered PSD needs a layer record to identify merged transparency</source>
-        <translation>Un PSD avec calques a besoin d&apos;un enregistrement de calque pour identifier la transparence fusionnée</translation>
+        <translation>Un PSD avec calques a besoin d'un enregistrement de calque pour identifier la transparence fusionnée</translation>
     </message>
     <message>
         <source>PSD filter mask bounds overflow</source>
@@ -2611,15 +2611,15 @@
     </message>
     <message>
         <source>PSD filter-effects record has no raw body</source>
-        <translation>L&apos;enregistrement des effets de filtre PSD n&apos;a pas de corps brut</translation>
+        <translation>L'enregistrement des effets de filtre PSD n'a pas de corps brut</translation>
     </message>
     <message>
         <source>PSD filter-effects record cannot be rekeyed safely</source>
-        <translation>L&apos;enregistrement des effets de filtre PSD ne peut pas être réindexé en toute sécurité</translation>
+        <translation>L'enregistrement des effets de filtre PSD ne peut pas être réindexé en toute sécurité</translation>
     </message>
     <message>
         <source>PSD filter-effects record id does not match its raw body</source>
-        <translation>L&apos;identifiant de l&apos;enregistrement des effets de filtre PSD ne correspond pas à son corps brut</translation>
+        <translation>L'identifiant de l'enregistrement des effets de filtre PSD ne correspond pas à son corps brut</translation>
     </message>
     <message>
         <source>PSD filter-effects block cannot be regenerated</source>
@@ -2663,23 +2663,23 @@
     </message>
     <message>
         <source>Could not open PSD file for reading</source>
-        <translation>Impossible d&apos;ouvrir le fichier PSD en lecture</translation>
+        <translation>Impossible d'ouvrir le fichier PSD en lecture</translation>
     </message>
     <message>
         <source>Could not open PSD file for writing</source>
-        <translation>Impossible d&apos;ouvrir le fichier PSD en écriture</translation>
+        <translation>Impossible d'ouvrir le fichier PSD en écriture</translation>
     </message>
     <message>
         <source>Layered PSD export currently supports pixel and group layers only</source>
-        <translation>L&apos;exportation PSD avec calques ne prend actuellement en charge que les calques de pixels et les groupes</translation>
+        <translation>L'exportation PSD avec calques ne prend actuellement en charge que les calques de pixels et les groupes</translation>
     </message>
     <message>
         <source>Layered PSD export currently supports RGB/RGBA 8-bit layers only</source>
-        <translation>L&apos;exportation PSD avec calques ne prend actuellement en charge que les calques RVB/RVBA 8 bits</translation>
+        <translation>L'exportation PSD avec calques ne prend actuellement en charge que les calques RVB/RVBA 8 bits</translation>
     </message>
     <message>
         <source>Layered PSD export requires 8-bit grayscale layer masks</source>
-        <translation>L&apos;exportation PSD avec calques nécessite des masques de fusion 8 bits en niveaux de gris</translation>
+        <translation>L'exportation PSD avec calques nécessite des masques de fusion 8 bits en niveaux de gris</translation>
     </message>
     <message>
         <source>Layer mask bounds do not match mask pixels</source>
@@ -2695,15 +2695,15 @@
     </message>
     <message>
         <source>PSD layer mask exceeds the layer record</source>
-        <translation>Le masque de fusion PSD dépasse l&apos;enregistrement du calque</translation>
+        <translation>Le masque de fusion PSD dépasse l'enregistrement du calque</translation>
     </message>
     <message>
         <source>PSD layer blending ranges exceed the layer record</source>
-        <translation>Les plages de fusion du calque PSD dépassent l&apos;enregistrement du calque</translation>
+        <translation>Les plages de fusion du calque PSD dépassent l'enregistrement du calque</translation>
     </message>
     <message>
         <source>Layered PSD export currently supports pixel, adjustment, and group layers only</source>
-        <translation>L&apos;exportation PSD avec calques ne prend actuellement en charge que les calques de pixels, les calques de réglage et les groupes</translation>
+        <translation>L'exportation PSD avec calques ne prend actuellement en charge que les calques de pixels, les calques de réglage et les groupes</translation>
     </message>
     <message>
         <source>PSD pattern channel list is truncated</source>
@@ -2727,7 +2727,7 @@
     </message>
     <message>
         <source>PSD pattern channel depth is unsupported</source>
-        <translation>La profondeur de la couche du motif PSD n&apos;est pas prise en charge</translation>
+        <translation>La profondeur de la couche du motif PSD n'est pas prise en charge</translation>
     </message>
     <message>
         <source>PSD pattern channel data is truncated</source>
@@ -2743,7 +2743,7 @@
     </message>
     <message>
         <source>PSD pattern compression mode is unsupported</source>
-        <translation>Le mode de compression du motif PSD n&apos;est pas pris en charge</translation>
+        <translation>Le mode de compression du motif PSD n'est pas pris en charge</translation>
     </message>
     <message>
         <source>PSD pattern length is invalid</source>
@@ -2751,11 +2751,11 @@
     </message>
     <message>
         <source>PSD pattern VMA header is truncated</source>
-        <translation>L&apos;en-tête VMA du motif PSD est tronqué</translation>
+        <translation>L'en-tête VMA du motif PSD est tronqué</translation>
     </message>
     <message>
         <source>PSD pattern VMA header is invalid</source>
-        <translation>L&apos;en-tête VMA du motif PSD est invalide</translation>
+        <translation>L'en-tête VMA du motif PSD est invalide</translation>
     </message>
     <message>
         <source>PSD pattern channel count is invalid</source>
@@ -2815,7 +2815,7 @@
     </message>
     <message>
         <source>Input Levels:</source>
-        <translation>Niveaux d&apos;entrée :</translation>
+        <translation>Niveaux d'entrée :</translation>
     </message>
     <message>
         <source>Output Levels:</source>
@@ -2835,7 +2835,7 @@
     </message>
     <message>
         <source>Click and drag on the image to adjust the selected channel</source>
-        <translation>Cliquez et faites glisser sur l&apos;image pour régler la couche sélectionnée</translation>
+        <translation>Cliquez et faites glisser sur l'image pour régler la couche sélectionnée</translation>
     </message>
     <message>
         <source>Black</source>
@@ -2843,7 +2843,7 @@
     </message>
     <message>
         <source>Set the black point from the image</source>
-        <translation>Définir le point noir à partir de l&apos;image</translation>
+        <translation>Définir le point noir à partir de l'image</translation>
     </message>
     <message>
         <source>Gray</source>
@@ -2851,7 +2851,7 @@
     </message>
     <message>
         <source>Neutralize a gray point from the image</source>
-        <translation>Neutraliser un point gris à partir de l&apos;image</translation>
+        <translation>Neutraliser un point gris à partir de l'image</translation>
     </message>
     <message>
         <source>White</source>
@@ -2859,7 +2859,7 @@
     </message>
     <message>
         <source>Set the white point from the image</source>
-        <translation>Définir le point blanc à partir de l&apos;image</translation>
+        <translation>Définir le point blanc à partir de l'image</translation>
     </message>
     <message>
         <source>Shadows</source>
@@ -2883,7 +2883,7 @@
     </message>
     <message>
         <source>Show shadow and highlight clipping together</source>
-        <translation>Afficher ensemble l&apos;écrêtage des tons foncés et des tons clairs</translation>
+        <translation>Afficher ensemble l'écrêtage des tons foncés et des tons clairs</translation>
     </message>
     <message>
         <source>Curves presets</source>
@@ -2919,7 +2919,7 @@
     </message>
     <message>
         <source>Hold to compare with the unadjusted image</source>
-        <translation>Maintenez enfoncé pour comparer avec l&apos;image non réglée</translation>
+        <translation>Maintenez enfoncé pour comparer avec l'image non réglée</translation>
     </message>
     <message>
         <source>Load Curves Preset</source>
@@ -2931,7 +2931,7 @@
     </message>
     <message>
         <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>Le paramètre prédéfini de courbes n&apos;a pas pu être chargé. Le fichier est peut-être endommagé ou non pris en charge.</translation>
+        <translation>Le paramètre prédéfini de courbes n'a pas pu être chargé. Le fichier est peut-être endommagé ou non pris en charge.</translation>
     </message>
     <message>
         <source>Save Curves Preset</source>
@@ -2939,7 +2939,7 @@
     </message>
     <message>
         <source>The Curves preset could not be saved.</source>
-        <translation>Le paramètre prédéfini de courbes n&apos;a pas pu être enregistré.</translation>
+        <translation>Le paramètre prédéfini de courbes n'a pas pu être enregistré.</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -3175,8 +3175,8 @@
     <message numerus="yes">
         <source>%n brush(es) could not be imported (no bitmap tip, or unreadable).</source>
         <translation>
-            <numerusform>%n pinceau n&apos;a pas pu être importé (pointe bitmap absente ou illisible).</numerusform>
-            <numerusform>%n pinceaux n&apos;ont pas pu être importés (pointe bitmap absente ou illisible).</numerusform>
+            <numerusform>%n pinceau n'a pas pu être importé (pointe bitmap absente ou illisible).</numerusform>
+            <numerusform>%n pinceaux n'ont pas pu être importés (pointe bitmap absente ou illisible).</numerusform>
         </translation>
     </message>
     <message numerus="yes">
@@ -3248,11 +3248,11 @@
     </message>
     <message>
         <source>Define from Selection</source>
-        <translation>Définir d&apos;après la sélection</translation>
+        <translation>Définir d'après la sélection</translation>
     </message>
     <message>
         <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
-        <translation>Crée une pointe de forme à partir de la sélection actuelle (ou de l&apos;image entière) : les pixels sombres peignent, les pixels clairs restent transparents</translation>
+        <translation>Crée une pointe de forme à partir de la sélection actuelle (ou de l'image entière) : les pixels sombres peignent, les pixels clairs restent transparents</translation>
     </message>
     <message>
         <source>Duplicate</source>
@@ -3290,7 +3290,7 @@
         </translation>
     </message>
     <message>
-        <source>Delete brush tip &quot;%1&quot;?</source>
+        <source>Delete brush tip "%1"?</source>
         <translation>Supprimer la pointe de forme « %1 » ?</translation>
     </message>
     <message numerus="yes">
@@ -3326,7 +3326,7 @@
     </message>
     <message>
         <source>There is no image content to define a brush from.</source>
-        <translation>Aucun contenu d&apos;image ne permet de définir une forme.</translation>
+        <translation>Aucun contenu d'image ne permet de définir une forme.</translation>
     </message>
     <message>
         <source>Brush %1</source>
@@ -3346,13 +3346,13 @@
     <message numerus="yes">
         <source>Reset %n default brush tip(s) to factory settings.</source>
         <translation>
-            <numerusform>%n pointe de forme par défaut rétablie aux paramètres d&apos;usine.</numerusform>
-            <numerusform>%n pointes de forme par défaut rétablies aux paramètres d&apos;usine.</numerusform>
+            <numerusform>%n pointe de forme par défaut rétablie aux paramètres d'usine.</numerusform>
+            <numerusform>%n pointes de forme par défaut rétablies aux paramètres d'usine.</numerusform>
         </translation>
     </message>
     <message>
         <source>All default brush tips are already present with factory settings.</source>
-        <translation>Toutes les pointes de forme par défaut sont déjà présentes avec les paramètres d&apos;usine.</translation>
+        <translation>Toutes les pointes de forme par défaut sont déjà présentes avec les paramètres d'usine.</translation>
     </message>
     <message>
         <source>%1 Copy</source>
@@ -3363,12 +3363,12 @@
         <translation>%1 est un objet dynamique lié à un fichier externe ; Patchy le conserve et peut le mettre à jour depuis le disque lorsque le fichier source est disponible.</translation>
     </message>
     <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 est un objet dynamique avec des filtres dynamiques ; Patchy les conserve et affiche l&apos;aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
+        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's preview (rasterize the layer to edit it here).</source>
+        <translation>%1 est un objet dynamique avec des filtres dynamiques ; Patchy les conserve et affiche l'aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
     </message>
     <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
-        <translation>%1 est un objet dynamique avec une déformation ou une transformation de perspective ; Patchy la conserve et affiche l&apos;aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
+        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop's preview (rasterize the layer to edit it here).</source>
+        <translation>%1 est un objet dynamique avec une déformation ou une transformation de perspective ; Patchy la conserve et affiche l'aperçu de Photoshop (pixellisez le calque pour le modifier ici).</translation>
     </message>
     <message>
         <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
@@ -3376,11 +3376,11 @@
     </message>
     <message>
         <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>%1 contient des paramètres de contour Satin Photoshop que Patchy ne peut ni afficher ni modifier (courbe personnalisée ou lissage). Patchy les conserve jusqu&apos;à la modification des styles de calque, puis utilise le contour Linéaire sans lissage.</translation>
+        <translation>%1 contient des paramètres de contour Satin Photoshop que Patchy ne peut ni afficher ni modifier (courbe personnalisée ou lissage). Patchy les conserve jusqu'à la modification des styles de calque, puis utilise le contour Linéaire sans lissage.</translation>
     </message>
     <message>
         <source>%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
-        <translation>%1 contient des données Comparaison sur Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l&apos;aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
+        <translation>%1 contient des données Comparaison sur Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l'aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
     </message>
     <message>
         <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
@@ -3388,7 +3388,7 @@
     </message>
     <message>
         <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
-        <translation>%1 contient des restrictions de fusion de couches Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l&apos;aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
+        <translation>%1 contient des restrictions de fusion de couches Photoshop pour un mode colorimétrique ou une structure de données non pris en charge. Patchy les conserve pour l'aller-retour PSD mais ne les affiche ni ne les modifie.</translation>
     </message>
     <message>
         <source>%1 preserves %2 unknown PSD layer block(s).</source>
@@ -3396,7 +3396,7 @@
     </message>
     <message>
         <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
-        <translation>%1 : texte PSD modifiable extrait de %2, mais Patchy a généré un aperçu pixellisé de substitution, car les pixels du texte PSD n&apos;étaient pas visibles.</translation>
+        <translation>%1 : texte PSD modifiable extrait de %2, mais Patchy a généré un aperçu pixellisé de substitution, car les pixels du texte PSD n'étaient pas visibles.</translation>
     </message>
     <message>
         <source>text data</source>
@@ -3404,19 +3404,19 @@
     </message>
     <message>
         <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
-        <translation>%1 : texte PSD modifiable extrait de %2 et bloc de texte PSD d&apos;origine conservé ; les pixels actuels utilisent l&apos;aperçu pixellisé du PSD jusqu&apos;à la modification du texte.</translation>
+        <translation>%1 : texte PSD modifiable extrait de %2 et bloc de texte PSD d'origine conservé ; les pixels actuels utilisent l'aperçu pixellisé du PSD jusqu'à la modification du texte.</translation>
     </message>
     <message>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
-        <translation>%1 est un calque de réglage propre à Patchy ; il est conservé dans les PSD Patchy mais peut apparaître comme un réglage non pris en charge dans d&apos;autres éditeurs.</translation>
+        <translation>%1 est un calque de réglage propre à Patchy ; il est conservé dans les PSD Patchy mais peut apparaître comme un réglage non pris en charge dans d'autres éditeurs.</translation>
     </message>
     <message>
         <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
-        <translation>%1 utilise un type de calque non pris en charge et pourrait ne pas s&apos;exporter sous forme de données PSD modifiables.</translation>
+        <translation>%1 utilise un type de calque non pris en charge et pourrait ne pas s'exporter sous forme de données PSD modifiables.</translation>
     </message>
     <message>
         <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
-        <translation>%1 utilise un format de pixels qui peut être affiché mais n&apos;est pas entièrement modifiable dans cette version.</translation>
+        <translation>%1 utilise un format de pixels qui peut être affiché mais n'est pas entièrement modifiable dans cette version.</translation>
     </message>
     <message>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
@@ -3428,11 +3428,11 @@
     </message>
     <message>
         <source>The document preserves %1 unknown PSD image resource(s).</source>
-        <translation>Le document conserve %1 ressource(s) d&apos;image PSD inconnue(s).</translation>
+        <translation>Le document conserve %1 ressource(s) d'image PSD inconnue(s).</translation>
     </message>
     <message>
         <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
-        <translation>Le document intègre %1 fichier(s) source d&apos;objet dynamique (%2 Mo) ; ils sont conservés octet par octet.</translation>
+        <translation>Le document intègre %1 fichier(s) source d'objet dynamique (%2 Mo) ; ils sont conservés octet par octet.</translation>
     </message>
     <message>
         <source>PSD Compatibility Report</source>
@@ -3448,7 +3448,7 @@
     </message>
     <message>
         <source>Patchy preserved the editable data it understands and flagged areas that may differ from Photoshop or other PSD editors.</source>
-        <translation>Patchy a conservé les données modifiables qu&apos;il comprend et a signalé les zones susceptibles de différer de Photoshop ou d&apos;autres éditeurs PSD.</translation>
+        <translation>Patchy a conservé les données modifiables qu'il comprend et a signalé les zones susceptibles de différer de Photoshop ou d'autres éditeurs PSD.</translation>
     </message>
     <message>
         <source>Curves graph</source>
@@ -3552,7 +3552,7 @@
     </message>
     <message>
         <source>Ink Splat</source>
-        <translation>Tache d&apos;encre</translation>
+        <translation>Tache d'encre</translation>
     </message>
     <message>
         <source>Grunge</source>
@@ -3816,7 +3816,7 @@
     </message>
     <message>
         <source>Drag on the image to add a photo by hand; drag corners to adjust.</source>
-        <translation>Faites glisser sur l&apos;image pour ajouter une photo manuellement ; faites glisser les coins pour ajuster.</translation>
+        <translation>Faites glisser sur l'image pour ajouter une photo manuellement ; faites glisser les coins pour ajuster.</translation>
     </message>
     <message>
         <source>Output</source>
@@ -3875,8 +3875,8 @@
         <translation>Diviser les photos</translation>
     </message>
     <message>
-        <source>The folder &quot;%1&quot; could not be created.</source>
-        <translation>Le dossier « %1 » n&apos;a pas pu être créé.</translation>
+        <source>The folder "%1" could not be created.</source>
+        <translation>Le dossier « %1 » n'a pas pu être créé.</translation>
     </message>
     <message>
         <source>Photos found: %1</source>
@@ -3960,7 +3960,7 @@
     </message>
     <message>
         <source>Lens Blur</source>
-        <translation>Flou de l&apos;objectif</translation>
+        <translation>Flou de l'objectif</translation>
     </message>
     <message>
         <source>Iris Blur</source>
@@ -4028,7 +4028,7 @@
     </message>
     <message>
         <source>Lens Vignette</source>
-        <translation>Vignettage d&apos;objectif</translation>
+        <translation>Vignettage d'objectif</translation>
     </message>
     <message>
         <source>Other</source>
@@ -4136,7 +4136,7 @@
     </message>
     <message>
         <source>Wavelength</source>
-        <translation>Longueur d&apos;onde</translation>
+        <translation>Longueur d'onde</translation>
     </message>
     <message>
         <source>Phase</source>
@@ -4244,11 +4244,11 @@
     </message>
     <message>
         <source>Fit the image in the preview</source>
-        <translation>Ajuster l&apos;image à l&apos;aperçu</translation>
+        <translation>Ajuster l'image à l'aperçu</translation>
     </message>
     <message>
         <source>Zoom to 100% (1 image pixel = 1 screen pixel)</source>
-        <translation>Zoom à 100 % (1 pixel d&apos;image = 1 pixel d&apos;écran)</translation>
+        <translation>Zoom à 100 % (1 pixel d'image = 1 pixel d'écran)</translation>
     </message>
     <message>
         <source>Zoom out</source>
@@ -4288,7 +4288,7 @@
     </message>
     <message>
         <source>New from Current</source>
-        <translation>Nouveau à partir de l&apos;actuel</translation>
+        <translation>Nouveau à partir de l'actuel</translation>
     </message>
     <message>
         <source>Import .grd...</source>
@@ -4344,11 +4344,11 @@
     </message>
     <message>
         <source>Trim transparent edges kept the full canvas: the image has no visible pixels.</source>
-        <translation>Le rognage des bords transparents a conservé toute la zone de travail : l&apos;image ne contient aucun pixel visible.</translation>
+        <translation>Le rognage des bords transparents a conservé toute la zone de travail : l'image ne contient aucun pixel visible.</translation>
     </message>
     <message>
         <source>Show in Explorer when done</source>
-        <translation>Afficher dans l&apos;Explorateur une fois terminé</translation>
+        <translation>Afficher dans l'Explorateur une fois terminé</translation>
     </message>
     <message>
         <source>Show in Finder when done</source>
@@ -4372,7 +4372,7 @@
     </message>
     <message>
         <source>Smooth resampling. Use the pixel art scale below for crisp enlargements.</source>
-        <translation>Rééchantillonnage lissé. Utilisez l&apos;échelle pixel art ci-dessous pour des agrandissements nets.</translation>
+        <translation>Rééchantillonnage lissé. Utilisez l'échelle pixel art ci-dessous pour des agrandissements nets.</translation>
     </message>
     <message>
         <source>Pixel art scale:</source>
@@ -4408,15 +4408,15 @@
     </message>
     <message>
         <source>Background color</source>
-        <translation>Couleur d&apos;arrière-plan</translation>
+        <translation>Couleur d'arrière-plan</translation>
     </message>
     <message>
         <source>Choose background color</source>
-        <translation>Choisir la couleur d&apos;arrière-plan</translation>
+        <translation>Choisir la couleur d'arrière-plan</translation>
     </message>
     <message>
         <source>Export Background Color</source>
-        <translation>Couleur d&apos;arrière-plan pour l&apos;exportation</translation>
+        <translation>Couleur d'arrière-plan pour l'exportation</translation>
     </message>
     <message>
         <source>Trim transparent edges</source>
@@ -4444,7 +4444,7 @@
     </message>
     <message>
         <source>JPEG XR is written by the Windows codec. Patchy saves 8 bits per channel, so a file opened from an HDR capture is written back as the tone mapped image.</source>
-        <translation>Le format JPEG XR est écrit par le codec Windows. Patchy enregistre 8 bits par couche, donc un fichier ouvert depuis une capture HDR est réécrit sous forme d&apos;image avec mappage tonal.</translation>
+        <translation>Le format JPEG XR est écrit par le codec Windows. Patchy enregistre 8 bits par couche, donc un fichier ouvert depuis une capture HDR est réécrit sous forme d'image avec mappage tonal.</translation>
     </message>
     <message>
         <source>Proton Texture Options</source>
@@ -4492,15 +4492,15 @@
     </message>
     <message>
         <source>Keep the alpha channel even when the image is opaque</source>
-        <translation>Conserver la couche alpha même si l&apos;image est opaque</translation>
+        <translation>Conserver la couche alpha même si l'image est opaque</translation>
     </message>
     <message>
         <source>Compress (RTPACK zlib container)</source>
         <translation>Compresser (conteneur RTPACK zlib)</translation>
     </message>
     <message>
-        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack&apos;s rule): a transparent image is written lossless instead.</source>
-        <translation>La texture est complétée à une puissance de deux et sa taille réelle est enregistrée dans l&apos;en-tête, elle s&apos;ouvre donc à nouveau à sa taille réelle. Le JPEG ne s&apos;applique qu&apos;aux images sans transparence (règle de RTPack) : une image transparente est écrite sans perte à la place.</translation>
+        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack's rule): a transparent image is written lossless instead.</source>
+        <translation>La texture est complétée à une puissance de deux et sa taille réelle est enregistrée dans l'en-tête, elle s'ouvre donc à nouveau à sa taille réelle. Le JPEG ne s'applique qu'aux images sans transparence (règle de RTPack) : une image transparente est écrite sans perte à la place.</translation>
     </message>
     <message>
         <source>Cursor Options</source>
@@ -4508,7 +4508,7 @@
     </message>
     <message>
         <source>Icon Options</source>
-        <translation>Options d&apos;icône</translation>
+        <translation>Options d'icône</translation>
     </message>
     <message>
         <source>Sizes</source>
@@ -4528,7 +4528,7 @@
     </message>
     <message>
         <source>Scaling:</source>
-        <translation>Mise à l&apos;échelle :</translation>
+        <translation>Mise à l'échelle :</translation>
     </message>
     <message>
         <source>Hotspot X:</source>
@@ -4540,7 +4540,7 @@
     </message>
     <message>
         <source>Hotspot is in pixels of the largest size; smaller sizes scale it.</source>
-        <translation>Le point actif est exprimé en pixels de la plus grande taille ; les tailles plus petites le mettent à l&apos;échelle.</translation>
+        <translation>Le point actif est exprimé en pixels de la plus grande taille ; les tailles plus petites le mettent à l'échelle.</translation>
     </message>
     <message>
         <source>BMP Options</source>
@@ -4604,23 +4604,23 @@
     </message>
     <message>
         <source>Layers are kept as editable objects (paths, text, images). The PDF may not look exactly like the canvas: blend modes, adjustment layers, group opacity, layer styles, and pixel masks have no editable PDF form here and are flattened into images where needed.</source>
-        <translation>Les calques sont conservés comme objets modifiables (tracés, texte, images). Le PDF peut différer de la zone de travail : les modes de fusion, les calques de réglage, l&apos;opacité des groupes, les styles de calque et les masques de pixels n&apos;ont pas de forme PDF modifiable ici et sont aplatis en images si nécessaire.</translation>
+        <translation>Les calques sont conservés comme objets modifiables (tracés, texte, images). Le PDF peut différer de la zone de travail : les modes de fusion, les calques de réglage, l'opacité des groupes, les styles de calque et les masques de pixels n'ont pas de forme PDF modifiable ici et sont aplatis en images si nécessaire.</translation>
     </message>
     <message>
         <source>When a font is missing, export that text as an image instead of substituting a font</source>
-        <translation>Quand une police est manquante, exporter ce texte sous forme d&apos;image au lieu de substituer une police</translation>
+        <translation>Quand une police est manquante, exporter ce texte sous forme d'image au lieu de substituer une police</translation>
     </message>
     <message>
-        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer&apos;s pixels instead.</source>
-        <translation>Si cette option est désactivée, le texte dans une police non installée est écrit comme texte modifiable dans une police de substitution, il peut donc différer de la zone de travail. Si elle est activée, ce texte est écrit sous forme d&apos;image des pixels du calque.</translation>
+        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer's pixels instead.</source>
+        <translation>Si cette option est désactivée, le texte dans une police non installée est écrit comme texte modifiable dans une police de substitution, il peut donc différer de la zone de travail. Si elle est activée, ce texte est écrit sous forme d'image des pixels du calque.</translation>
     </message>
     <message>
-        <source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source>
-        <translation>La page est dimensionnée d&apos;après la résolution du document, elle s&apos;imprime donc à la taille propre de l&apos;image.</translation>
+        <source>The page is sized from the document's resolution, so it prints at the image's own size.</source>
+        <translation>La page est dimensionnée d'après la résolution du document, elle s'imprime donc à la taille propre de l'image.</translation>
     </message>
     <message>
         <source>Export Options</source>
-        <translation>Options d&apos;exportation</translation>
+        <translation>Options d'exportation</translation>
     </message>
     <message>
         <source>GIF Options</source>
@@ -4643,8 +4643,8 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Chaque calque de premier niveau visible devient une image, en commençant par le calque du haut. Les calques masqués sont ignorés. Un nom de calque se terminant par une durée, comme « blink 0.25s », remplace le délai par défaut pour cette image. L&apos;animation se répète indéfiniment.</translation>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like "blink 0.25s", overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Chaque calque de premier niveau visible devient une image, en commençant par le calque du haut. Les calques masqués sont ignorés. Un nom de calque se terminant par une durée, comme « blink 0.25s », remplace le délai par défaut pour cette image. L'animation se répète indéfiniment.</translation>
     </message>
     <message>
         <source>%1: %2</source>
@@ -4656,7 +4656,7 @@
     </message>
     <message>
         <source>Image Sequence to Layers</source>
-        <translation>Séquence d&apos;images vers calques</translation>
+        <translation>Séquence d'images vers calques</translation>
     </message>
     <message>
         <source>%1 images will import as layers on a %2 x %3 px canvas, in this order:</source>
@@ -4668,7 +4668,7 @@
     </message>
     <message>
         <source>Export Image Sequence</source>
-        <translation>Exporter une séquence d&apos;images</translation>
+        <translation>Exporter une séquence d'images</translation>
     </message>
     <message>
         <source>Export visible layers only</source>
@@ -4744,7 +4744,7 @@
     </message>
     <message>
         <source>Trace Image to Shapes</source>
-        <translation>Vectoriser l&apos;image en formes</translation>
+        <translation>Vectoriser l'image en formes</translation>
     </message>
     <message>
         <source>Save the current settings as a preset</source>
@@ -4781,7 +4781,7 @@
     </message>
     <message>
         <source>Higher values follow the pixels more tightly and use more anchors</source>
-        <translation>Des valeurs élevées suivent les pixels de plus près et utilisent plus de points d&apos;ancrage</translation>
+        <translation>Des valeurs élevées suivent les pixels de plus près et utilisent plus de points d'ancrage</translation>
     </message>
     <message>
         <source>Corners:</source>
@@ -4821,11 +4821,11 @@
     </message>
     <message>
         <source>Max anchors:</source>
-        <translation>Points d&apos;ancrage max. :</translation>
+        <translation>Points d'ancrage max. :</translation>
     </message>
     <message>
         <source>Limits the total anchor count by loosening the curve fit until the result fits; Off keeps every anchor</source>
-        <translation>Limite le nombre total de points d&apos;ancrage en relâchant l&apos;ajustement des courbes jusqu&apos;à ce que le résultat tienne ; Désactivé conserve tous les points d&apos;ancrage</translation>
+        <translation>Limite le nombre total de points d'ancrage en relâchant l'ajustement des courbes jusqu'à ce que le résultat tienne ; Désactivé conserve tous les points d'ancrage</translation>
     </message>
     <message>
         <source>Abutting (cutout shapes)</source>
@@ -4861,15 +4861,15 @@
     </message>
     <message>
         <source>Show anchors</source>
-        <translation>Afficher les points d&apos;ancrage</translation>
+        <translation>Afficher les points d'ancrage</translation>
     </message>
     <message>
         <source>Mark the anchor points of the traced paths on the preview</source>
-        <translation>Marque les points d&apos;ancrage des tracés vectorisés sur l&apos;aperçu</translation>
+        <translation>Marque les points d'ancrage des tracés vectorisés sur l'aperçu</translation>
     </message>
     <message>
         <source>Tracing inside the selection</source>
-        <translation>Vectorisation à l&apos;intérieur de la sélection</translation>
+        <translation>Vectorisation à l'intérieur de la sélection</translation>
     </message>
     <message>
         <source>Pick colors from the whole layer</source>
@@ -4881,7 +4881,7 @@
     </message>
     <message>
         <source>Large result: editing will be slower and exported SVG files will be large. Lower Paths, raise Noise, or set Max anchors to simplify.</source>
-        <translation>Résultat volumineux : la modification sera plus lente et les fichiers SVG exportés seront lourds. Réduisez Tracés, augmentez Bruit ou définissez Points d&apos;ancrage max. pour simplifier.</translation>
+        <translation>Résultat volumineux : la modification sera plus lente et les fichiers SVG exportés seront lourds. Réduisez Tracés, augmentez Bruit ou définissez Points d'ancrage max. pour simplifier.</translation>
     </message>
     <message>
         <source>Grays:</source>
@@ -4905,8 +4905,8 @@
     <message numerus="yes">
         <source>%n anchor(s)</source>
         <translation>
-            <numerusform>%n point d&apos;ancrage</numerusform>
-            <numerusform>%n points d&apos;ancrage</numerusform>
+            <numerusform>%n point d'ancrage</numerusform>
+            <numerusform>%n points d'ancrage</numerusform>
         </translation>
     </message>
     <message>
@@ -4926,11 +4926,11 @@
         <translation>Saisissez un nom pour le paramètre prédéfini.</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <source>"%1" is a built-in preset. Choose another name.</source>
         <translation>« %1 » est un paramètre prédéfini intégré. Choisissez un autre nom.</translation>
     </message>
     <message>
-        <source>Replace the preset &quot;%1&quot;?</source>
+        <source>Replace the preset "%1"?</source>
         <translation>Remplacer le paramètre prédéfini « %1 » ?</translation>
     </message>
     <message>
@@ -4938,7 +4938,7 @@
         <translation>Supprimer le paramètre prédéfini de vectorisation</translation>
     </message>
     <message>
-        <source>Delete the preset &quot;%1&quot;?</source>
+        <source>Delete the preset "%1"?</source>
         <translation>Supprimer le paramètre prédéfini « %1 » ?</translation>
     </message>
     <message>
@@ -4946,12 +4946,12 @@
         <translation>Style de calque</translation>
     </message>
     <message>
-        <source>Pattern &quot;%1&quot; is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
-        <translation>Le motif « %1 » n&apos;est pas incorporé dans ce document ; l&apos;effet qui y fait référence ne peut donc pas être rendu tant que vous n&apos;aurez pas choisi un autre motif.</translation>
+        <source>Pattern "%1" is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
+        <translation>Le motif « %1 » n'est pas incorporé dans ce document ; l'effet qui y fait référence ne peut donc pas être rendu tant que vous n'aurez pas choisi un autre motif.</translation>
     </message>
     <message>
         <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Les contours personnalisés et le lissage des contours du Satin Photoshop sont conservés jusqu&apos;à ce que vous modifiiez les styles de calque. Patchy prévisualise et enregistre un Satin modifié avec le contour Linéaire non lissé.</translation>
+        <translation>Les contours personnalisés et le lissage des contours du Satin Photoshop sont conservés jusqu'à ce que vous modifiiez les styles de calque. Patchy prévisualise et enregistre un Satin modifié avec le contour Linéaire non lissé.</translation>
     </message>
     <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
@@ -4962,12 +4962,12 @@
         <translation>Remplacer par des valeurs par défaut modifiables</translation>
     </message>
     <message>
-        <source>This folder&apos;s closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
-        <translation>L&apos;enregistrement PSD de fermeture de ce dossier contient des données Comparaison sur distinctes. Patchy conserve ces données de délimitation telles quelles ; les commandes ci-dessous ne modifient que l&apos;enregistrement visible du dossier.</translation>
+        <source>This folder's closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
+        <translation>L'enregistrement PSD de fermeture de ce dossier contient des données Comparaison sur distinctes. Patchy conserve ces données de délimitation telles quelles ; les commandes ci-dessous ne modifient que l'enregistrement visible du dossier.</translation>
     </message>
     <message>
         <source>Remove Selected Instance</source>
-        <translation>Supprimer l&apos;instance sélectionnée</translation>
+        <translation>Supprimer l'instance sélectionnée</translation>
     </message>
     <message>
         <source>R</source>
@@ -5027,7 +5027,7 @@
     </message>
     <message>
         <source>Remove Stop</source>
-        <translation>Supprimer l&apos;étape</translation>
+        <translation>Supprimer l'étape</translation>
     </message>
     <message>
         <source>Roughness</source>
@@ -5113,11 +5113,11 @@
     </message>
     <message>
         <source>Reset Alignment</source>
-        <translation>Réinitialiser l&apos;alignement</translation>
+        <translation>Réinitialiser l'alignement</translation>
     </message>
     <message>
         <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>Cliquez sur un paramètre prédéfini pour remplacer les effets actuels. Faites un clic droit sur un dossier ou un style pour l&apos;exporter en fichier Photoshop .asl.</translation>
+        <translation>Cliquez sur un paramètre prédéfini pour remplacer les effets actuels. Faites un clic droit sur un dossier ou un style pour l'exporter en fichier Photoshop .asl.</translation>
     </message>
     <message>
         <source>New Style…</source>
@@ -5156,7 +5156,7 @@
         <translation>Une couche décochée conserve les calques inférieurs au lieu de les composer</translation>
     </message>
     <message>
-        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file&apos;s color mode</source>
+        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file's color mode</source>
         <translation>Ce calque conserve des restrictions de couches Photoshop que Patchy ne peut pas modifier pour le mode colorimétrique de ce fichier</translation>
     </message>
     <message>
@@ -5180,7 +5180,7 @@
         <translation>Fusionner les effets intérieurs en groupe</translation>
     </message>
     <message>
-        <source>Put the layer&apos;s blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
+        <source>Put the layer's blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
         <translation>Applique le mode de fusion du calque à ses incrustations, son satin et sa lueur interne au lieu de les laisser fusionner avec leurs propres modes</translation>
     </message>
     <message>
@@ -5337,11 +5337,11 @@
     </message>
     <message>
         <source>Anchor the pattern to the layer so it follows when the layer moves</source>
-        <translation>Ancre le motif au calque afin qu&apos;il suive le calque lorsque celui-ci se déplace</translation>
+        <translation>Ancre le motif au calque afin qu'il suive le calque lorsque celui-ci se déplace</translation>
     </message>
     <message>
         <source>Snap to Origin</source>
-        <translation>Magnétisme de l&apos;origine</translation>
+        <translation>Magnétisme de l'origine</translation>
     </message>
     <message>
         <source>Pattern Overlay</source>
@@ -5372,7 +5372,7 @@
         <translation>Surimpression</translation>
     </message>
     <message>
-        <source>Blend the stroke against the layer&apos;s own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
+        <source>Blend the stroke against the layer's own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
         <translation>Fusionne le contour avec le contenu du calque lui-même. Lorsque cette option est désactivée, le contour masque le contenu sur sa bande et se fond avec les calques du dessous, comme dans Photoshop</translation>
     </message>
     <message>
@@ -5381,7 +5381,7 @@
     </message>
     <message>
         <source>Choose Gradient Stop Color</source>
-        <translation>Choisir la couleur de l&apos;étape de dégradé</translation>
+        <translation>Choisir la couleur de l'étape de dégradé</translation>
     </message>
     <message>
         <source>Inner Shadow</source>
@@ -5397,7 +5397,7 @@
     </message>
     <message>
         <source>Remove Inner Shadow</source>
-        <translation>Supprimer l&apos;ombre interne</translation>
+        <translation>Supprimer l'ombre interne</translation>
     </message>
     <message>
         <source>Instances</source>
@@ -5457,11 +5457,11 @@
     </message>
     <message>
         <source>Layer Knocks Out Drop Shadow</source>
-        <translation>Le calque masque l&apos;ombre portée</translation>
+        <translation>Le calque masque l'ombre portée</translation>
     </message>
     <message>
-        <source>Hide the shadow under the layer&apos;s own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
-        <translation>Masque l&apos;ombre sous la forme du calque lui-même afin qu&apos;elle n&apos;apparaisse jamais à travers un contenu masqué ou semi-transparent, comme dans Photoshop</translation>
+        <source>Hide the shadow under the layer's own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
+        <translation>Masque l'ombre sous la forme du calque lui-même afin qu'elle n'apparaisse jamais à travers un contenu masqué ou semi-transparent, comme dans Photoshop</translation>
     </message>
     <message>
         <source>Add Stroke</source>
@@ -5513,7 +5513,7 @@
     </message>
     <message>
         <source>Could not save the style. Check that the style library folder is writable.</source>
-        <translation>Impossible d&apos;enregistrer le style. Vérifiez que le dossier de la bibliothèque de styles est accessible en écriture.</translation>
+        <translation>Impossible d'enregistrer le style. Vérifiez que le dossier de la bibliothèque de styles est accessible en écriture.</translation>
     </message>
     <message>
         <source>Choose Stroke Color</source>
@@ -5529,7 +5529,7 @@
     </message>
     <message>
         <source>Choose Color Overlay Color</source>
-        <translation>Choisir la couleur de l&apos;incrustation couleur</translation>
+        <translation>Choisir la couleur de l'incrustation couleur</translation>
     </message>
     <message>
         <source>Choose Outer Glow Color</source>
@@ -5545,11 +5545,11 @@
     </message>
     <message>
         <source>Choose Drop Shadow Color</source>
-        <translation>Choisir la couleur de l&apos;ombre portée</translation>
+        <translation>Choisir la couleur de l'ombre portée</translation>
     </message>
     <message>
         <source>Choose Inner Shadow Color</source>
-        <translation>Choisir la couleur de l&apos;ombre interne</translation>
+        <translation>Choisir la couleur de l'ombre interne</translation>
     </message>
     <message>
         <source>Warp</source>
@@ -5605,19 +5605,19 @@
     </message>
     <message>
         <source>Liquify edits pixels directly. Rasterize a Smart Object before using it.</source>
-        <translation>Fluidité modifie directement les pixels. Pixellisez l&apos;objet dynamique avant de l&apos;utiliser.</translation>
+        <translation>Fluidité modifie directement les pixels. Pixellisez l'objet dynamique avant de l'utiliser.</translation>
     </message>
     <message>
         <source>Missing Font</source>
         <translation>Police manquante</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate the font &quot;%1&quot;. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>Patchy can't locate the font "%1". Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>Patchy ne trouve pas la police « %1 ». La modification de cet aperçu pixellisé PSD remplacera cette police par une autre. Continuer ?</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
-        <translation>Patchy ne trouve pas ces polices : %1. La modification de cet aperçu pixellisé PSD remplacera ces polices par d&apos;autres. Continuer ?</translation>
+        <source>Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <translation>Patchy ne trouve pas ces polices : %1. La modification de cet aperçu pixellisé PSD remplacera ces polices par d'autres. Continuer ?</translation>
     </message>
     <message>
         <source>Continue</source>
@@ -5645,7 +5645,7 @@
     </message>
     <message>
         <source>Original Ratio</source>
-        <translation>Proportions d&apos;origine</translation>
+        <translation>Proportions d'origine</translation>
     </message>
     <message>
         <source>1 : 1 (Square)</source>
@@ -5689,11 +5689,11 @@
     </message>
     <message>
         <source>Image Size</source>
-        <translation>Taille de l&apos;image</translation>
+        <translation>Taille de l'image</translation>
     </message>
     <message>
         <source>Image Size:</source>
-        <translation>Taille de l&apos;image :</translation>
+        <translation>Taille de l'image :</translation>
     </message>
     <message>
         <source>Dimensions:</source>
@@ -5701,7 +5701,7 @@
     </message>
     <message>
         <source>Original Size</source>
-        <translation>Taille d&apos;origine</translation>
+        <translation>Taille d'origine</translation>
     </message>
     <message>
         <source>Fit 640 x 480</source>
@@ -5821,7 +5821,7 @@
     </message>
     <message>
         <source>Canvas extension color</source>
-        <translation>Couleur d&apos;arrière-plan de la zone de travail</translation>
+        <translation>Couleur d'arrière-plan de la zone de travail</translation>
     </message>
     <message>
         <source>Other...</source>
@@ -5829,11 +5829,11 @@
     </message>
     <message>
         <source>Choose canvas extension color</source>
-        <translation>Choisir la couleur d&apos;arrière-plan de la zone de travail</translation>
+        <translation>Choisir la couleur d'arrière-plan de la zone de travail</translation>
     </message>
     <message>
         <source>Canvas Extension Color</source>
-        <translation>Couleur d&apos;arrière-plan de la zone de travail</translation>
+        <translation>Couleur d'arrière-plan de la zone de travail</translation>
     </message>
     <message>
         <source>New Size: %1</source>
@@ -5948,12 +5948,12 @@
         <translation>Patchy a conservé des données Comparaison sur de Photoshop non prises en charge sans les afficher (%1 donnée(s) de calque, %2 enregistrement(s) de limite de groupe).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: invalid Gaussian blur radius; effect skipped</source>
+        <source>Layer '%1': invalid Gaussian blur radius; effect skipped</source>
         <translation>Calque « %1 » : rayon de flou gaussien non valide ; effet ignoré</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: Gaussian blur could not be applied; original pixels kept</source>
-        <translation>Calque « %1 » : le flou gaussien n&apos;a pas pu être appliqué ; pixels d&apos;origine conservés</translation>
+        <source>Layer '%1': Gaussian blur could not be applied; original pixels kept</source>
+        <translation>Calque « %1 » : le flou gaussien n'a pas pu être appliqué ; pixels d'origine conservés</translation>
     </message>
     <message>
         <source>Animated GIF: imported %1 frames as layers</source>
@@ -5969,15 +5969,15 @@
     </message>
     <message>
         <source>Linked file %1 has changed on disk; use Update Smart Object Content</source>
-        <translation>Le fichier lié %1 a été modifié sur le disque ; utilisez Mettre à jour le contenu de l&apos;objet dynamique</translation>
+        <translation>Le fichier lié %1 a été modifié sur le disque ; utilisez Mettre à jour le contenu de l'objet dynamique</translation>
     </message>
     <message>
         <source>SVG was imported as flattened raster: %1</source>
-        <translation>Le SVG a été importé en tant qu&apos;image pixellisée aplatie : %1</translation>
+        <translation>Le SVG a été importé en tant qu'image pixellisée aplatie : %1</translation>
     </message>
     <message>
         <source>Open failed</source>
-        <translation>Échec de l&apos;ouverture</translation>
+        <translation>Échec de l'ouverture</translation>
     </message>
     <message>
         <source>Get the Desktop Version</source>
@@ -5985,11 +5985,11 @@
     </message>
     <message>
         <source>This browser or device cannot decode this HEIC image because an HEVC decoder is unavailable. Try another current browser or device with HEVC support.</source>
-        <translation>Ce navigateur ou cet appareil ne peut pas décoder cette image HEIC, car aucun décodeur HEVC n&apos;est disponible. Essayez un autre navigateur ou appareil récent prenant en charge HEVC.</translation>
+        <translation>Ce navigateur ou cet appareil ne peut pas décoder cette image HEIC, car aucun décodeur HEVC n'est disponible. Essayez un autre navigateur ou appareil récent prenant en charge HEVC.</translation>
     </message>
     <message>
         <source>Patchy could not decode this HEIC image. The file may be damaged or use a profile this browser does not support.</source>
-        <translation>Patchy n&apos;a pas pu décoder cette image HEIC. Le fichier est peut-être endommagé ou utilise un profil que ce navigateur ne prend pas en charge.</translation>
+        <translation>Patchy n'a pas pu décoder cette image HEIC. Le fichier est peut-être endommagé ou utilise un profil que ce navigateur ne prend pas en charge.</translation>
     </message>
     <message>
         <source>Open Microsoft Store</source>
@@ -5998,8 +5998,8 @@
     <message numerus="yes">
         <source> (+%n more export note(s))</source>
         <translation>
-            <numerusform> (+%n autre note d&apos;exportation)</numerusform>
-            <numerusform> (+%n autres notes d&apos;exportation)</numerusform>
+            <numerusform> (+%n autre note d'exportation)</numerusform>
+            <numerusform> (+%n autres notes d'exportation)</numerusform>
         </translation>
     </message>
     <message>
@@ -6044,7 +6044,7 @@
     </message>
     <message>
         <source>Layer hidden. Click to show.</source>
-        <translation>Calque masqué. Cliquez pour l&apos;afficher.</translation>
+        <translation>Calque masqué. Cliquez pour l'afficher.</translation>
     </message>
     <message>
         <source>Transparent pixels locked</source>
@@ -6052,7 +6052,7 @@
     </message>
     <message>
         <source>Image pixels locked</source>
-        <translation>Pixels de l&apos;image verrouillés</translation>
+        <translation>Pixels de l'image verrouillés</translation>
     </message>
     <message>
         <source>Position locked</source>
@@ -6250,7 +6250,7 @@ Flux : %6
     </message>
     <message>
         <source>Clipped to the layer below. Click to release.</source>
-        <translation>Écrêté sur le calque inférieur. Cliquez pour annuler l&apos;écrêtage.</translation>
+        <translation>Écrêté sur le calque inférieur. Cliquez pour annuler l'écrêtage.</translation>
     </message>
     <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
@@ -6286,11 +6286,11 @@ Flux : %6
     </message>
     <message>
         <source>Layer mask. Click to edit it with the paint tools, %ALT%-click to view it, Shift-click to disable it.</source>
-        <translation>Masque de fusion. Cliquez pour le modifier avec les outils de peinture, %ALT%-clic pour l&apos;afficher, Shift-clic pour le désactiver.</translation>
+        <translation>Masque de fusion. Cliquez pour le modifier avec les outils de peinture, %ALT%-clic pour l'afficher, Shift-clic pour le désactiver.</translation>
     </message>
     <message>
         <source>Vector mask. Click to edit its path with the pen and path tools, %CTRL%-click to load it as a selection, %ALT%-click to view it, Shift-click to disable it.</source>
-        <translation>Masque vectoriel. Cliquez pour modifier son tracé avec les outils plume et tracé, %CTRL%-clic pour le charger comme sélection, %ALT%-clic pour l&apos;afficher, Shift-clic pour le désactiver.</translation>
+        <translation>Masque vectoriel. Cliquez pour modifier son tracé avec les outils plume et tracé, %CTRL%-clic pour le charger comme sélection, %ALT%-clic pour l'afficher, Shift-clic pour le désactiver.</translation>
     </message>
     <message>
         <source>mask</source>
@@ -6342,7 +6342,7 @@ Flux : %6
     </message>
     <message>
         <source>Shared Smart Filter mask. Click to edit it, %CTRL%-click to load it as a selection, %ALT%-click to view it, or Shift-click to disable it.</source>
-        <translation>Masque de filtre dynamique partagé. Cliquez pour le modifier, %CTRL%-clic pour le charger comme sélection, %ALT%-clic pour l&apos;afficher, ou Shift-clic pour le désactiver.</translation>
+        <translation>Masque de filtre dynamique partagé. Cliquez pour le modifier, %CTRL%-clic pour le charger comme sélection, %ALT%-clic pour l'afficher, ou Shift-clic pour le désactiver.</translation>
     </message>
     <message>
         <source>This Smart Filter mask can only be preserved, not edited</source>
@@ -6354,7 +6354,7 @@ Flux : %6
     </message>
     <message>
         <source>Smart Filter hidden. Click to show.</source>
-        <translation>Filtre dynamique masqué. Cliquez pour l&apos;afficher.</translation>
+        <translation>Filtre dynamique masqué. Cliquez pour l'afficher.</translation>
     </message>
     <message>
         <source> (%1 px)</source>
@@ -6442,7 +6442,7 @@ Flux : %6
     </message>
     <message>
         <source>An embedded SVG image could not be decoded (layer %1)</source>
-        <translation>Une image SVG incorporée n&apos;a pas pu être décodée (calque %1)</translation>
+        <translation>Une image SVG incorporée n'a pas pu être décodée (calque %1)</translation>
     </message>
     <message>
         <source>Move</source>
@@ -6570,11 +6570,11 @@ Flux : %6
     </message>
     <message>
         <source>Add Anchor Point</source>
-        <translation>Ajout de point d&apos;ancrage</translation>
+        <translation>Ajout de point d'ancrage</translation>
     </message>
     <message>
         <source>Delete Anchor Point</source>
-        <translation>Suppression de point d&apos;ancrage</translation>
+        <translation>Suppression de point d'ancrage</translation>
     </message>
     <message>
         <source>Convert Point</source>
@@ -6752,7 +6752,7 @@ Flux : %6
     </message>
     <message>
         <source>Create the document from the clipboard image</source>
-        <translation>Créer le document à partir de l&apos;image du Presse-papiers</translation>
+        <translation>Créer le document à partir de l'image du Presse-papiers</translation>
     </message>
     <message>
         <source>%1: %2 x %3 px at %4 ppi</source>
@@ -6760,7 +6760,7 @@ Flux : %6
     </message>
     <message>
         <source>Background Color</source>
-        <translation>Couleur d&apos;arrière-plan</translation>
+        <translation>Couleur d'arrière-plan</translation>
     </message>
     <message>
         <source>Convert to Indexed (Palette)</source>
@@ -6772,7 +6772,7 @@ Flux : %6
     </message>
     <message>
         <source>Exact image colors</source>
-        <translation>Couleurs exactes de l&apos;image</translation>
+        <translation>Couleurs exactes de l'image</translation>
     </message>
     <message>
         <source>Current palette</source>
@@ -6804,7 +6804,7 @@ Flux : %6
     </message>
     <message>
         <source>Pixels with alpha below this become fully transparent; the rest become opaque</source>
-        <translation>Les pixels dont l&apos;alpha est inférieur à ce seuil deviennent entièrement transparents ; les autres deviennent opaques</translation>
+        <translation>Les pixels dont l'alpha est inférieur à ce seuil deviennent entièrement transparents ; les autres deviennent opaques</translation>
     </message>
     <message>
         <source>Alpha threshold:</source>
@@ -6812,7 +6812,7 @@ Flux : %6
     </message>
     <message>
         <source>The image has more than 256 colors; choose Optimized instead.</source>
-        <translation>L&apos;image comporte plus de 256 couleurs ; choisissez Optimisée à la place.</translation>
+        <translation>L'image comporte plus de 256 couleurs ; choisissez Optimisée à la place.</translation>
     </message>
     <message>
         <source>Choose a palette.</source>
@@ -6880,7 +6880,7 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>Could not save the palette file.
 %1</source>
-        <translation>Impossible d&apos;enregistrer le fichier de palette.
+        <translation>Impossible d'enregistrer le fichier de palette.
 %1</translation>
     </message>
     <message>
@@ -6912,7 +6912,7 @@ RVB : %2, %3, %4</translation>
         <translation>Ouvrir comme image</translation>
     </message>
     <message>
-        <source>Open the selected pattern&apos;s texture as a new image</source>
+        <source>Open the selected pattern's texture as a new image</source>
         <translation>Ouvrir la texture du motif sélectionné comme nouvelle image</translation>
     </message>
     <message>
@@ -6943,7 +6943,7 @@ RVB : %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Delete pattern &quot;%1&quot;?</source>
+        <source>Delete pattern "%1"?</source>
         <translation>Supprimer le motif « %1 » ?</translation>
     </message>
     <message numerus="yes">
@@ -6965,7 +6965,7 @@ RVB : %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Could not load the selected pattern&apos;s texture.</source>
+        <source>Could not load the selected pattern's texture.</source>
         <translation>Impossible de charger la texture du motif sélectionné.</translation>
     </message>
     <message>
@@ -6986,7 +6986,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>No patterns could be imported.</source>
-        <translation>Aucun motif n&apos;a pu être importé.</translation>
+        <translation>Aucun motif n'a pu être importé.</translation>
     </message>
     <message numerus="yes">
         <source>Imported %n pattern(s).</source>
@@ -6997,11 +6997,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>All default patterns are already present with factory settings.</source>
-        <translation>Tous les motifs par défaut sont déjà présents avec les réglages d&apos;usine.</translation>
+        <translation>Tous les motifs par défaut sont déjà présents avec les réglages d'usine.</translation>
     </message>
     <message>
         <source>Some default patterns could not be restored. Check that the pattern library folder is writable.</source>
-        <translation>Certains motifs par défaut n&apos;ont pas pu être restaurés. Vérifiez que le dossier de la bibliothèque de motifs est accessible en écriture.</translation>
+        <translation>Certains motifs par défaut n'ont pas pu être restaurés. Vérifiez que le dossier de la bibliothèque de motifs est accessible en écriture.</translation>
     </message>
     <message numerus="yes">
         <source>Restored %n default pattern(s).</source>
@@ -7013,8 +7013,8 @@ RVB : %2, %3, %4</translation>
     <message numerus="yes">
         <source>Reset %n default pattern(s) to factory settings.</source>
         <translation>
-            <numerusform>%n motif par défaut rétabli aux réglages d&apos;usine.</numerusform>
-            <numerusform>%n motifs par défaut rétablis aux réglages d&apos;usine.</numerusform>
+            <numerusform>%n motif par défaut rétabli aux réglages d'usine.</numerusform>
+            <numerusform>%n motifs par défaut rétablis aux réglages d'usine.</numerusform>
         </translation>
     </message>
     <message>
@@ -7027,7 +7027,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>%1 is not a readable PDF file.</source>
-        <translation>%1 n&apos;est pas un fichier PDF lisible.</translation>
+        <translation>%1 n'est pas un fichier PDF lisible.</translation>
     </message>
     <message>
         <source>%1 uses a security scheme Patchy cannot open.</source>
@@ -7039,7 +7039,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>%1 could not be opened.</source>
-        <translation>%1 n&apos;a pas pu être ouvert.</translation>
+        <translation>%1 n'a pas pu être ouvert.</translation>
     </message>
     <message>
         <source>Open PDF</source>
@@ -7051,7 +7051,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Page %1 of %2 could not be rendered.</source>
-        <translation>La page %1 sur %2 n&apos;a pas pu être rendue.</translation>
+        <translation>La page %1 sur %2 n'a pas pu être rendue.</translation>
     </message>
     <message>
         <source>Page %1</source>
@@ -7063,7 +7063,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>%1 could not be turned into a document.</source>
-        <translation>%1 n&apos;a pas pu être converti en document.</translation>
+        <translation>%1 n'a pas pu être converti en document.</translation>
     </message>
     <message>
         <source>PDF content was rasterized at %1 ppi; text and vectors are pixels now.</source>
@@ -7079,7 +7079,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Annotations were not drawn.</source>
-        <translation>Les annotations n&apos;ont pas été dessinées.</translation>
+        <translation>Les annotations n'ont pas été dessinées.</translation>
     </message>
     <message>
         <source>Pages were trimmed to their content.</source>
@@ -7130,12 +7130,12 @@ RVB : %2, %3, %4</translation>
         <translation>Sélectionnez au moins une page.</translation>
     </message>
     <message>
-        <source>Some artwork could not be kept editable; reimport with &quot;Flattened image per page&quot; for an exact copy.</source>
-        <translation>Certains éléments n&apos;ont pas pu rester modifiables ; réimportez avec « Image aplatie par page » pour obtenir une copie exacte.</translation>
+        <source>Some artwork could not be kept editable; reimport with "Flattened image per page" for an exact copy.</source>
+        <translation>Certains éléments n'ont pas pu rester modifiables ; réimportez avec « Image aplatie par page » pour obtenir une copie exacte.</translation>
     </message>
     <message>
         <source>Editable import was not possible (%1); the page was flattened instead.</source>
-        <translation>L&apos;importation modifiable n&apos;a pas été possible (%1) ; la page a été aplatie à la place.</translation>
+        <translation>L'importation modifiable n'a pas été possible (%1) ; la page a été aplatie à la place.</translation>
     </message>
     <message>
         <source>Only the desktop version of Patchy can import PDF files. All versions, including this one, can export PDF.</source>
@@ -7166,8 +7166,8 @@ RVB : %2, %3, %4</translation>
         <translation>Imprimante indisponible</translation>
     </message>
     <message>
-        <source>Windows cannot read the settings for &quot;%1&quot;. The printer driver may need to be repaired or reinstalled.</source>
-        <translation>Windows ne parvient pas à lire les paramètres de « %1 ». Il faudra peut-être réparer ou réinstaller le pilote de l&apos;imprimante.</translation>
+        <source>Windows cannot read the settings for "%1". The printer driver may need to be repaired or reinstalled.</source>
+        <translation>Windows ne parvient pas à lire les paramètres de « %1 ». Il faudra peut-être réparer ou réinstaller le pilote de l'imprimante.</translation>
     </message>
     <message>
         <source>%1 x %2 %3</source>
@@ -7211,7 +7211,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Center Image</source>
-        <translation>Centrer l&apos;image</translation>
+        <translation>Centrer l'image</translation>
     </message>
     <message>
         <source>X</source>
@@ -7223,7 +7223,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Scaled Print Size</source>
-        <translation>Taille d&apos;impression mise à l&apos;échelle</translation>
+        <translation>Taille d'impression mise à l'échelle</translation>
     </message>
     <message>
         <source>Scale to fit media</source>
@@ -7239,7 +7239,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Print Resolution</source>
-        <translation>Résolution d&apos;impression</translation>
+        <translation>Résolution d'impression</translation>
     </message>
     <message>
         <source>Print crop marks</source>
@@ -7259,11 +7259,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Print failed</source>
-        <translation>Échec de l&apos;impression</translation>
+        <translation>Échec de l'impression</translation>
     </message>
     <message>
         <source>Save Print PDF</source>
-        <translation>Enregistrer le PDF d&apos;impression</translation>
+        <translation>Enregistrer le PDF d'impression</translation>
     </message>
     <message>
         <source>PDF failed</source>
@@ -7275,7 +7275,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The copy is printed at actual size and is never scaled.</source>
-        <translation>La copie est imprimée à sa taille réelle et n&apos;est jamais mise à l&apos;échelle.</translation>
+        <translation>La copie est imprimée à sa taille réelle et n'est jamais mise à l'échelle.</translation>
     </message>
     <message>
         <source>Scan</source>
@@ -7287,7 +7287,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The shaded parts fall outside the printable area and will be cut off. Drag the preview to choose which part prints.</source>
-        <translation>Les zones grisées se trouvent hors de la zone imprimable et seront coupées. Faites glisser l&apos;aperçu pour choisir la partie à imprimer.</translation>
+        <translation>Les zones grisées se trouvent hors de la zone imprimable et seront coupées. Faites glisser l'aperçu pour choisir la partie à imprimer.</translation>
     </message>
     <message>
         <source>Patchy Photocopy</source>
@@ -7323,7 +7323,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Natural adds photographic tone and color. Neutral retains the straight camera-to-sRGB rendering.</source>
-        <translation>Naturel ajoute une tonalité et des couleurs photographiques. Neutre conserve le rendu direct de l&apos;appareil photo vers sRGB.</translation>
+        <translation>Naturel ajoute une tonalité et des couleurs photographiques. Neutre conserve le rendu direct de l'appareil photo vers sRGB.</translation>
     </message>
     <message>
         <source>Profile:</source>
@@ -7331,7 +7331,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Original processing is preserved. Reset or changing Profile or Color noise uses current processing.</source>
-        <translation>Le traitement d&apos;origine est conservé. Réinitialiser, ou modifier le profil ou le bruit de couleur, utilise le traitement actuel.</translation>
+        <translation>Le traitement d'origine est conservé. Réinitialiser, ou modifier le profil ou le bruit de couleur, utilise le traitement actuel.</translation>
     </message>
     <message>
         <source>White Balance</source>
@@ -7515,7 +7515,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Progress is estimated from processing stages. Some stages report only when complete.</source>
-        <translation>La progression est estimée à partir des étapes de traitement. Certaines étapes ne sont signalées qu&apos;une fois terminées.</translation>
+        <translation>La progression est estimée à partir des étapes de traitement. Certaines étapes ne sont signalées qu'une fois terminées.</translation>
     </message>
     <message>
         <source>Open</source>
@@ -7523,7 +7523,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Retry Preview</source>
-        <translation>Réessayer l&apos;aperçu</translation>
+        <translation>Réessayer l'aperçu</translation>
     </message>
     <message>
         <source>Estimated white balance temperature. Adjust to use Custom white balance.</source>
@@ -7567,7 +7567,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Updating quick preview... %1%</source>
-        <translation>Mise à jour de l&apos;aperçu rapide... %1%</translation>
+        <translation>Mise à jour de l'aperçu rapide... %1%</translation>
     </message>
     <message>
         <source>RAW settings</source>
@@ -7587,7 +7587,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Settings were not saved.</source>
-        <translation>Les paramètres n&apos;ont pas été enregistrés.</translation>
+        <translation>Les paramètres n'ont pas été enregistrés.</translation>
     </message>
     <message>
         <source>ISO %1</source>
@@ -7607,7 +7607,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Quick preview - waiting to refine</source>
-        <translation>Aperçu rapide : en attente d&apos;affinage</translation>
+        <translation>Aperçu rapide : en attente d'affinage</translation>
     </message>
     <message>
         <source>Preview incomplete: %1</source>
@@ -7615,15 +7615,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Could not save RAW settings next to %1.</source>
-        <translation>Impossible d&apos;enregistrer les paramètres RAW à côté de %1.</translation>
+        <translation>Impossible d'enregistrer les paramètres RAW à côté de %1.</translation>
     </message>
     <message>
         <source>Saved RAW settings could not be read. Patchy defaults are being used.</source>
-        <translation>Les paramètres RAW enregistrés n&apos;ont pas pu être lus. Les valeurs par défaut de Patchy sont utilisées.</translation>
+        <translation>Les paramètres RAW enregistrés n'ont pas pu être lus. Les valeurs par défaut de Patchy sont utilisées.</translation>
     </message>
     <message>
         <source>The RAW settings file changed while this photo was open. Reopen the photo before saving settings.</source>
-        <translation>Le fichier de paramètres RAW a changé pendant que cette photo était ouverte. Rouvrez la photo avant d&apos;enregistrer les paramètres.</translation>
+        <translation>Le fichier de paramètres RAW a changé pendant que cette photo était ouverte. Rouvrez la photo avant d'enregistrer les paramètres.</translation>
     </message>
     <message>
         <source>Shape Appearance</source>
@@ -7730,8 +7730,8 @@ RVB : %2, %3, %4</translation>
         <translation>Aligner sur le calque</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
-        <translation>Ancre la grille de mosaïque à la position du calque ; décochée, elle est ancrée à l&apos;origine du document</translation>
+        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
+        <translation>Ancre la grille de mosaïque à la position du calque ; décochée, elle est ancrée à l'origine du document</translation>
     </message>
     <message>
         <source>Paint:</source>
@@ -7800,7 +7800,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Patchy Image Editor</source>
-        <translation>Éditeur d&apos;images Patchy</translation>
+        <translation>Éditeur d'images Patchy</translation>
     </message>
     <message>
         <source>Open source photo editing. Free forever, no subscriptions.</source>
@@ -7815,7 +7815,7 @@ RVB : %2, %3, %4</translation>
         <translation>GitHub : %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
+        <source>Seth's site: %1</source>
         <translation>Site de Seth : %1</translation>
     </message>
     <message>
@@ -7828,7 +7828,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Could not open settings folder.</source>
-        <translation>Impossible d&apos;ouvrir le dossier des paramètres.</translation>
+        <translation>Impossible d'ouvrir le dossier des paramètres.</translation>
     </message>
     <message>
         <source>Patchy is ready.</source>
@@ -7930,7 +7930,7 @@ RVB : %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Delete style &quot;%1&quot;?</source>
+        <source>Delete style "%1"?</source>
         <translation>Supprimer le style « %1 » ?</translation>
     </message>
     <message numerus="yes">
@@ -7972,11 +7972,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>All default styles are already present with factory settings.</source>
-        <translation>Tous les styles par défaut sont déjà présents avec leurs réglages d&apos;origine.</translation>
+        <translation>Tous les styles par défaut sont déjà présents avec leurs réglages d'origine.</translation>
     </message>
     <message>
         <source>Some default styles could not be restored. Check that the style library folder is writable.</source>
-        <translation>Certains styles par défaut n&apos;ont pas pu être restaurés. Vérifiez que le dossier de la bibliothèque de styles est accessible en écriture.</translation>
+        <translation>Certains styles par défaut n'ont pas pu être restaurés. Vérifiez que le dossier de la bibliothèque de styles est accessible en écriture.</translation>
     </message>
     <message numerus="yes">
         <source>Restored %n default style(s).</source>
@@ -7988,8 +7988,8 @@ RVB : %2, %3, %4</translation>
     <message numerus="yes">
         <source>Reset %n default style(s) to factory settings.</source>
         <translation>
-            <numerusform>%n style par défaut réinitialisé aux réglages d&apos;origine.</numerusform>
-            <numerusform>%n styles par défaut réinitialisés aux réglages d&apos;origine.</numerusform>
+            <numerusform>%n style par défaut réinitialisé aux réglages d'origine.</numerusform>
+            <numerusform>%n styles par défaut réinitialisés aux réglages d'origine.</numerusform>
         </translation>
     </message>
     <message>
@@ -8010,7 +8010,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Update checks are not supported on this platform.</source>
-        <translation>La recherche de mises à jour n&apos;est pas prise en charge sur cette plateforme.</translation>
+        <translation>La recherche de mises à jour n'est pas prise en charge sur cette plateforme.</translation>
     </message>
     <message>
         <source>Update check failed: no manifest entry for %1.</source>
@@ -8106,15 +8106,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Duplicate the selected effect</source>
-        <translation>Dupliquer l&apos;effet sélectionné</translation>
+        <translation>Dupliquer l'effet sélectionné</translation>
     </message>
     <message>
         <source>Remove the selected effect</source>
-        <translation>Supprimer l&apos;effet sélectionné</translation>
+        <translation>Supprimer l'effet sélectionné</translation>
     </message>
     <message>
         <source>Applies permanently to this layer. To keep effects editable, use Filter &gt; Convert for Smart Filters first.</source>
-        <translation>S&apos;applique définitivement à ce calque. Pour conserver des effets modifiables, utilisez d&apos;abord Filtre &gt; Convertir pour les filtres dynamiques.</translation>
+        <translation>S'applique définitivement à ce calque. Pour conserver des effets modifiables, utilisez d'abord Filtre &gt; Convertir pour les filtres dynamiques.</translation>
     </message>
     <message>
         <source>Ready</source>
@@ -8130,7 +8130,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Applies to this Smart Object as an editable Smart Filter.</source>
-        <translation>S&apos;applique à cet objet dynamique en tant que filtre dynamique modifiable.</translation>
+        <translation>S'applique à cet objet dynamique en tant que filtre dynamique modifiable.</translation>
     </message>
     <message>
         <source>This filter can run as an editable Smart Filter. Use Filter &gt; Convert for Smart Filters on this layer to keep it editable.</source>
@@ -8138,11 +8138,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This filter has no Smart Filter mapping. Applying it will rasterize the Smart Object.</source>
-        <translation>Ce filtre n&apos;a pas de correspondance en filtre dynamique. Son application pixellisera l&apos;objet dynamique.</translation>
+        <translation>Ce filtre n'a pas de correspondance en filtre dynamique. Son application pixellisera l'objet dynamique.</translation>
     </message>
     <message>
         <source>Applies permanently to the layer pixels.</source>
-        <translation>S&apos;applique définitivement aux pixels du calque.</translation>
+        <translation>S'applique définitivement aux pixels du calque.</translation>
     </message>
     <message>
         <source>Apply this saved Look</source>
@@ -8154,19 +8154,19 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Applies as editable Smart Filters.</source>
-        <translation>S&apos;applique sous forme de filtres dynamiques modifiables.</translation>
+        <translation>S'applique sous forme de filtres dynamiques modifiables.</translation>
     </message>
     <message>
         <source>Applying will rasterize the Smart Object (some effects have no Smart Filter mapping).</source>
-        <translation>L&apos;application pixellisera l&apos;objet dynamique (certains effets n&apos;ont pas de correspondance en filtre dynamique).</translation>
+        <translation>L'application pixellisera l'objet dynamique (certains effets n'ont pas de correspondance en filtre dynamique).</translation>
     </message>
     <message>
         <source>This effect cannot be applied as a Smart Filter. Applying the stack will rasterize the Smart Object.</source>
-        <translation>Cet effet ne peut pas être appliqué comme filtre dynamique. L&apos;application de la pile pixellisera l&apos;objet dynamique.</translation>
+        <translation>Cet effet ne peut pas être appliqué comme filtre dynamique. L'application de la pile pixellisera l'objet dynamique.</translation>
     </message>
     <message>
         <source>Rendering preview...</source>
-        <translation>Rendu de l&apos;aperçu...</translation>
+        <translation>Rendu de l'aperçu...</translation>
     </message>
     <message>
         <source>Choose a filter to adjust its settings.</source>
@@ -8186,11 +8186,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The selected Look no longer exists.</source>
-        <translation>Le Look sélectionné n&apos;existe plus.</translation>
+        <translation>Le Look sélectionné n'existe plus.</translation>
     </message>
     <message>
         <source>Could not %1 the Look. Check that the Looks folder is writable.</source>
-        <translation>Impossible d&apos;effectuer l&apos;action « %1 » sur le Look. Vérifiez que le dossier des Looks est accessible en écriture.</translation>
+        <translation>Impossible d'effectuer l'action « %1 » sur le Look. Vérifiez que le dossier des Looks est accessible en écriture.</translation>
     </message>
     <message>
         <source>Unsupported Look</source>
@@ -8217,7 +8217,7 @@ RVB : %2, %3, %4</translation>
         <translation>Supprimer le Look</translation>
     </message>
     <message>
-        <source>Delete Look &quot;%1&quot;?</source>
+        <source>Delete Look "%1"?</source>
         <translation>Supprimer le Look « %1 » ?</translation>
     </message>
     <message>
@@ -8353,7 +8353,7 @@ RVB : %2, %3, %4</translation>
         <translation>Conserver les proportions entre largeur et hauteur</translation>
     </message>
     <message>
-        <source>Softens the whole shape, stroke included, like Photoshop&apos;s vector mask feather</source>
+        <source>Softens the whole shape, stroke included, like Photoshop's vector mask feather</source>
         <translation>Adoucit toute la forme, contour compris, comme le contour progressif du masque vectoriel de Photoshop</translation>
     </message>
     <message>
@@ -8361,12 +8361,12 @@ RVB : %2, %3, %4</translation>
         <translation>Contour progressif :</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
+        <source>Below 100% the fill shows through everywhere, like Photoshop's vector mask density</source>
         <translation>Sous 100 %, le fond transparaît partout, comme la densité du masque vectoriel de Photoshop</translation>
     </message>
     <message>
         <source>Restore the default fill, stroke, opacity, and edge (the geometry stays)</source>
-        <translation>Rétablir le fond, le contour, l&apos;opacité et le bord par défaut (la géométrie reste)</translation>
+        <translation>Rétablir le fond, le contour, l'opacité et le bord par défaut (la géométrie reste)</translation>
     </message>
     <message>
         <source>Export Multi-Page PDF</source>
@@ -8397,7 +8397,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>One page per top-level layer group (the current document has none)</source>
-        <translation>Une page par groupe de calques de premier niveau (le document actuel n&apos;en a aucun)</translation>
+        <translation>Une page par groupe de calques de premier niveau (le document actuel n'en a aucun)</translation>
     </message>
     <message>
         <source>Draw ungrouped layers on every page</source>
@@ -8444,7 +8444,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Editable import was not possible for page %1 (%2); it was flattened instead.</source>
-        <translation>L&apos;import modifiable n&apos;a pas été possible pour la page %1 (%2) ; elle a été aplatie à la place.</translation>
+        <translation>L'import modifiable n'a pas été possible pour la page %1 (%2) ; elle a été aplatie à la place.</translation>
     </message>
     <message>
         <source>Portrait</source>
@@ -8468,15 +8468,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The PDF file could not be opened for writing.</source>
-        <translation>Impossible d&apos;ouvrir le fichier PDF en écriture.</translation>
+        <translation>Impossible d'ouvrir le fichier PDF en écriture.</translation>
     </message>
     <message>
         <source>The document could not be rendered for PDF export.</source>
-        <translation>Impossible de générer le rendu du document pour l&apos;export PDF.</translation>
+        <translation>Impossible de générer le rendu du document pour l'export PDF.</translation>
     </message>
     <message>
         <source>The PDF file could not be written.</source>
-        <translation>Impossible d&apos;écrire le fichier PDF.</translation>
+        <translation>Impossible d'écrire le fichier PDF.</translation>
     </message>
     <message>
         <source>The PDF would be too large to write (over 9 GB).</source>
@@ -8484,7 +8484,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>There are no pages to export.</source>
-        <translation>Il n&apos;y a aucune page à exporter.</translation>
+        <translation>Il n'y a aucune page à exporter.</translation>
     </message>
     <message>
         <source>Lossless (largest file)</source>
@@ -8504,19 +8504,19 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>How image data is stored in the PDF. Gray pages are written as one channel either way. Pages that keep editable shapes or text use a fixed high JPEG quality for every lossy choice.</source>
-        <translation>Détermine comment les données d&apos;image sont stockées dans le PDF. Les pages grises sont écrites sur un seul canal dans tous les cas. Les pages qui conservent des formes ou du texte modifiables utilisent une qualité JPEG élevée fixe pour tous les choix avec perte.</translation>
+        <translation>Détermine comment les données d'image sont stockées dans le PDF. Les pages grises sont écrites sur un seul canal dans tous les cas. Les pages qui conservent des formes ou du texte modifiables utilisent une qualité JPEG élevée fixe pour tous les choix avec perte.</translation>
     </message>
     <message>
         <source>Image quality:</source>
-        <translation>Qualité d&apos;image :</translation>
+        <translation>Qualité d'image :</translation>
     </message>
     <message>
         <source>Keep original image data for unchanged PDF pages</source>
-        <translation>Conserver les données d&apos;image d&apos;origine des pages PDF inchangées</translation>
+        <translation>Conserver les données d'image d'origine des pages PDF inchangées</translation>
     </message>
     <message>
         <source>A page that was imported from a PDF and has not visibly changed is written with the image data it came with: no quality loss and the original file size. Unchecked, every page is encoded again at the quality above.</source>
-        <translation>Une page importée d&apos;un PDF et qui n&apos;a pas changé visiblement est écrite avec ses données d&apos;image d&apos;origine : aucune perte de qualité et la taille de fichier d&apos;origine. Si l&apos;option est décochée, chaque page est réencodée avec la qualité ci-dessus.</translation>
+        <translation>Une page importée d'un PDF et qui n'a pas changé visiblement est écrite avec ses données d'image d'origine : aucune perte de qualité et la taille de fichier d'origine. Si l'option est décochée, chaque page est réencodée avec la qualité ci-dessus.</translation>
     </message>
     <message numerus="yes">
         <source>%n scanned page(s) had nothing to keep editable and were imported as flattened images.</source>
@@ -8526,8 +8526,8 @@ RVB : %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>About %1 GB of memory, more than half of this computer&apos;s %2 GB. Fewer pages or a lower resolution will open faster.</source>
-        <translation>Environ %1 Go de mémoire, soit plus de la moitié des %2 Go de cet ordinateur. Moins de pages ou une résolution plus faible s&apos;ouvriront plus vite.</translation>
+        <source>About %1 GB of memory, more than half of this computer's %2 GB. Fewer pages or a lower resolution will open faster.</source>
+        <translation>Environ %1 Go de mémoire, soit plus de la moitié des %2 Go de cet ordinateur. Moins de pages ou une résolution plus faible s'ouvriront plus vite.</translation>
     </message>
     <message>
         <source>About %1 GB of memory.</source>
@@ -8535,7 +8535,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Image or Photoshop files, or folders of images, to open.</source>
-        <translation>Fichiers image ou Photoshop, ou dossiers d&apos;images, à ouvrir.</translation>
+        <translation>Fichiers image ou Photoshop, ou dossiers d'images, à ouvrir.</translation>
     </message>
     <message>
         <source>Auto Sort</source>
@@ -8547,7 +8547,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Reverse the current order.</source>
-        <translation>Inverse l&apos;ordre actuel.</translation>
+        <translation>Inverse l'ordre actuel.</translation>
     </message>
     <message>
         <source>Export Documents to Folder</source>
@@ -8598,7 +8598,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Patchy-only setting. The file still opens in Photoshop without any warning, but Photoshop %1 and drops this setting if it re-saves the file.</source>
-        <translation>Réglage propre à Patchy. Le fichier s&apos;ouvre toujours dans Photoshop sans aucun avertissement, mais Photoshop %1 et abandonne ce réglage s&apos;il réenregistre le fichier.</translation>
+        <translation>Réglage propre à Patchy. Le fichier s'ouvre toujours dans Photoshop sans aucun avertissement, mais Photoshop %1 et abandonne ce réglage s'il réenregistre le fichier.</translation>
     </message>
     <message>
         <source>renders a regular drop shadow at the Distance value</source>
@@ -8610,15 +8610,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Extend the shadow from the layer all the way out to Distance, the flat long-shadow look</source>
-        <translation>Étend l&apos;ombre depuis le calque jusqu&apos;à la Distance complète, le style plat des ombres longues</translation>
+        <translation>Étend l'ombre depuis le calque jusqu'à la Distance complète, le style plat des ombres longues</translation>
     </message>
     <message>
         <source>How much the long shadow fades out by its far end</source>
-        <translation>À quel point l&apos;ombre longue s&apos;estompe vers son extrémité</translation>
+        <translation>À quel point l'ombre longue s'estompe vers son extrémité</translation>
     </message>
     <message>
         <source>Change all four corner radii together</source>
-        <translation>Modifier les quatre rayons d&apos;angle ensemble</translation>
+        <translation>Modifier les quatre rayons d'angle ensemble</translation>
     </message>
     <message>
         <source>Stroke Selection</source>
@@ -8646,7 +8646,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Could not open data folder.</source>
-        <translation>Impossible d&apos;ouvrir le dossier des données.</translation>
+        <translation>Impossible d'ouvrir le dossier des données.</translation>
     </message>
     <message>
         <source>Created by %1</source>
@@ -8654,7 +8654,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Could not write PSD file</source>
-        <translation>Impossible d&apos;écrire le fichier PSD</translation>
+        <translation>Impossible d'écrire le fichier PSD</translation>
     </message>
     <message>
         <source>The starter PSD reader currently supports RGB, CMYK, and Grayscale files only</source>
@@ -8670,15 +8670,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Not a Windows plug-in binary.</source>
-        <translation>Ce fichier n&apos;est pas un module externe Windows.</translation>
+        <translation>Ce fichier n'est pas un module externe Windows.</translation>
     </message>
     <message>
         <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
-        <translation>Architecture de module externe non prise en charge ; seuls les modules x86 32 bits et 64 bits s&apos;exécutent.</translation>
+        <translation>Architecture de module externe non prise en charge ; seuls les modules x86 32 bits et 64 bits s'exécutent.</translation>
     </message>
     <message>
         <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
-        <translation>Ce module externe n&apos;est pas un filtre ; seuls les modules de filtre (.8bf) s&apos;exécutent.</translation>
+        <translation>Ce module externe n'est pas un filtre ; seuls les modules de filtre (.8bf) s'exécutent.</translation>
     </message>
     <message>
         <source>Photoshop filter plug-in (32-bit).</source>
@@ -8698,7 +8698,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Could not open the plug-ins folder.</source>
-        <translation>Impossible d&apos;ouvrir le dossier des modules externes.</translation>
+        <translation>Impossible d'ouvrir le dossier des modules externes.</translation>
     </message>
     <message>
         <source>Blend Clipped Layers as Group</source>
@@ -8710,15 +8710,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This file is 32-bit per channel (HDR). Patchy converted it to 8-bit for editing: precision and dynamic range beyond 8-bit were lost, and saving writes an 8-bit file. Keep the original if you need the 32-bit data.</source>
-        <translation>Ce fichier est en 32 bits par couche (HDR). Patchy l&apos;a converti en 8 bits pour la modification : la précision et la plage dynamique au-delà de 8 bits sont perdues, et l&apos;enregistrement écrit un fichier 8 bits. Conservez l&apos;original si vous avez besoin des données 32 bits.</translation>
+        <translation>Ce fichier est en 32 bits par couche (HDR). Patchy l'a converti en 8 bits pour la modification : la précision et la plage dynamique au-delà de 8 bits sont perdues, et l'enregistrement écrit un fichier 8 bits. Conservez l'original si vous avez besoin des données 32 bits.</translation>
     </message>
     <message>
         <source>This file is 16-bit per channel. Patchy converted it to 8-bit for editing: some precision was lost, and saving writes an 8-bit file. Keep the original if you need the 16-bit data.</source>
-        <translation>Ce fichier est en 16 bits par couche. Patchy l&apos;a converti en 8 bits pour la modification : un peu de précision est perdue, et l&apos;enregistrement écrit un fichier 8 bits. Conservez l&apos;original si vous avez besoin des données 16 bits.</translation>
+        <translation>Ce fichier est en 16 bits par couche. Patchy l'a converti en 8 bits pour la modification : un peu de précision est perdue, et l'enregistrement écrit un fichier 8 bits. Conservez l'original si vous avez besoin des données 16 bits.</translation>
     </message>
     <message>
         <source>The source is %1 bits per channel; Patchy converted it to 8-bit for editing and saves an 8-bit file. Keep the original if you need the deeper data.</source>
-        <translation>La source est en %1 bits par couche ; Patchy l&apos;a convertie en 8 bits pour la modification et enregistre un fichier 8 bits. Conservez l&apos;original si vous avez besoin des données de plus grande profondeur.</translation>
+        <translation>La source est en %1 bits par couche ; Patchy l'a convertie en 8 bits pour la modification et enregistre un fichier 8 bits. Conservez l'original si vous avez besoin des données de plus grande profondeur.</translation>
     </message>
     <message>
         <source>%1 opened with notes:
@@ -8730,7 +8730,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Import Notes</source>
-        <translation>Notes d&apos;importation</translation>
+        <translation>Notes d'importation</translation>
     </message>
     <message>
         <source>Crop to Selection (Advanced)</source>
@@ -8741,20 +8741,20 @@ RVB : %2, %3, %4</translation>
         <translation>Supprimer aussi les calques entièrement hors de la zone de travail</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
-        <translation>Patchy ne trouve pas ces polices : %1. Ces polices n&apos;ont aucun glyphe pour leur texte : %2. La modification de cet aperçu pixellisé PSD remplacera ces polices par d&apos;autres. Continuer ?</translation>
+        <source>Patchy can't locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <translation>Patchy ne trouve pas ces polices : %1. Ces polices n'ont aucun glyphe pour leur texte : %2. La modification de cet aperçu pixellisé PSD remplacera ces polices par d'autres. Continuer ?</translation>
     </message>
     <message>
-        <source>The font &quot;%1&quot; has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
-        <translation>La police « %1 » n&apos;a aucun glyphe pour ce texte. La modification de cet aperçu pixellisé PSD remplacera cette police par une autre. Continuer ?</translation>
+        <source>The font "%1" has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <translation>La police « %1 » n'a aucun glyphe pour ce texte. La modification de cet aperçu pixellisé PSD remplacera cette police par une autre. Continuer ?</translation>
     </message>
     <message>
         <source>These fonts have no glyphs for their text: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
-        <translation>Ces polices n&apos;ont aucun glyphe pour leur texte : %1. La modification de cet aperçu pixellisé PSD remplacera ces polices par d&apos;autres. Continuer ?</translation>
+        <translation>Ces polices n'ont aucun glyphe pour leur texte : %1. La modification de cet aperçu pixellisé PSD remplacera ces polices par d'autres. Continuer ?</translation>
     </message>
     <message>
         <source>UI language for this run only, not saved: en, de, es, fr, it, ja, ko, pl, pt_BR, ru, zh_CN, or zh_TW.</source>
-        <translation>Langue de l&apos;interface pour cette exécution uniquement, non enregistrée : en, de, es, fr, it, ja, ko, pl, pt_BR, ru, zh_CN ou zh_TW.</translation>
+        <translation>Langue de l'interface pour cette exécution uniquement, non enregistrée : en, de, es, fr, it, ja, ko, pl, pt_BR, ru, zh_CN ou zh_TW.</translation>
     </message>
     <message>
         <source>Invalid or damaged animated WebP.</source>
@@ -8797,8 +8797,8 @@ RVB : %2, %3, %4</translation>
         <translation>Nombre de lectures :</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Chaque calque visible de premier niveau devient une image, en commençant par le calque du haut. Une durée à la fin du nom, comme &quot;blink 0.033s&quot;, définit la durée de cette image. Le nombre inclut la première lecture.</translation>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like "blink 0.033s", sets that frame's delay. Play count includes the first play.</source>
+        <translation>Chaque calque visible de premier niveau devient une image, en commençant par le calque du haut. Une durée à la fin du nom, comme "blink 0.033s", définit la durée de cette image. Le nombre inclut la première lecture.</translation>
     </message>
     <message>
         <source>Animated WebP: imported %1 frames as layers</source>
@@ -8871,7 +8871,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Unable to decode this HEIC image. HEIC decoding needs the Flatpak codec extension; install it with: flatpak install --user flathub org.freedesktop.Platform.codecs-extra//25.08-extra</source>
-        <translation>Impossible de décoder cette image HEIC. Le décodage HEIC nécessite l&apos;extension de codecs Flatpak ; installez-la avec : flatpak install --user flathub org.freedesktop.Platform.codecs-extra//25.08-extra</translation>
+        <translation>Impossible de décoder cette image HEIC. Le décodage HEIC nécessite l'extension de codecs Flatpak ; installez-la avec : flatpak install --user flathub org.freedesktop.Platform.codecs-extra//25.08-extra</translation>
     </message>
     <message>
         <source>Exposure</source>
@@ -8895,23 +8895,23 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This file uses a color mode Patchy does not edit in (Bitmap, Indexed, Duotone, Lab or Multichannel). Patchy converted it to RGB for editing, and saving writes an RGB file. Keep the original if you need its color mode.</source>
-        <translation>Ce fichier utilise un mode colorimétrique dans lequel Patchy ne travaille pas (Bitmap, Couleurs indexées, Bichromie, Lab ou Multicouche). Patchy l&apos;a converti en RVB pour l&apos;édition, et l&apos;enregistrement écrit un fichier RVB. Conservez l&apos;original si vous avez besoin de son mode colorimétrique.</translation>
+        <translation>Ce fichier utilise un mode colorimétrique dans lequel Patchy ne travaille pas (Bitmap, Couleurs indexées, Bichromie, Lab ou Multicouche). Patchy l'a converti en RVB pour l'édition, et l'enregistrement écrit un fichier RVB. Conservez l'original si vous avez besoin de son mode colorimétrique.</translation>
     </message>
     <message>
         <source>This CMYK file has adjustment layers that act on its CMYK inks. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the colors will look different. Keep the original, or merge those layers before saving.</source>
-        <translation>Ce fichier CMJN contient des calques de réglage qui agissent sur ses encres CMJN. Patchy les affiche ainsi, mais il enregistre des fichiers RVB : dans un fichier enregistré, ces calques sont appliqués au RVB et les couleurs seront différentes. Conservez l&apos;original ou fusionnez ces calques avant d&apos;enregistrer.</translation>
+        <translation>Ce fichier CMJN contient des calques de réglage qui agissent sur ses encres CMJN. Patchy les affiche ainsi, mais il enregistre des fichiers RVB : dans un fichier enregistré, ces calques sont appliqués au RVB et les couleurs seront différentes. Conservez l'original ou fusionnez ces calques avant d'enregistrer.</translation>
     </message>
     <message>
         <source>%1 came from a CMYK document and adjusts its CMYK inks here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its colors will look different.</source>
-        <translation>%1 provient d&apos;un document CMJN et règle ici ses encres CMJN. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses couleurs seront différentes.</translation>
+        <translation>%1 provient d'un document CMJN et règle ici ses encres CMJN. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l'appliquent au RVB et ses couleurs seront différentes.</translation>
     </message>
     <message>
         <source>This grayscale file has adjustment layers that act on its gray channel. Patchy shows them that way, but it saves RGB files: in a saved file those layers are applied to RGB and the tones will look different. Keep the original, or merge those layers before saving.</source>
-        <translation>Ce fichier en niveaux de gris contient des calques de réglage qui agissent sur sa couche de gris. Patchy les affiche ainsi, mais il enregistre des fichiers RVB : dans un fichier enregistré, ces calques sont appliqués au RVB et les tons seront différents. Conservez l&apos;original ou fusionnez ces calques avant d&apos;enregistrer.</translation>
+        <translation>Ce fichier en niveaux de gris contient des calques de réglage qui agissent sur sa couche de gris. Patchy les affiche ainsi, mais il enregistre des fichiers RVB : dans un fichier enregistré, ces calques sont appliqués au RVB et les tons seront différents. Conservez l'original ou fusionnez ces calques avant d'enregistrer.</translation>
     </message>
     <message>
         <source>%1 came from a grayscale document and adjusts its gray channel here. Patchy saves RGB files, so in the saved file Photoshop and Patchy apply it to RGB and its tones will look different.</source>
-        <translation>%1 provient d&apos;un document en niveaux de gris et règle ici sa couche de gris. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses tons seront différents.</translation>
+        <translation>%1 provient d'un document en niveaux de gris et règle ici sa couche de gris. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l'appliquent au RVB et ses tons seront différents.</translation>
     </message>
     <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
@@ -8939,15 +8939,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Off: the pixel dimensions stay the same and only the print resolution changes, so the image is not scaled.</source>
-        <translation>Désactivé : les dimensions en pixels restent identiques et seule la résolution d&apos;impression change, l&apos;image n&apos;est donc pas redimensionnée.</translation>
+        <translation>Désactivé : les dimensions en pixels restent identiques et seule la résolution d'impression change, l'image n'est donc pas redimensionnée.</translation>
     </message>
     <message>
         <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
-        <translation>Les dimensions en pixels sont verrouillées. Seules la résolution et la taille d&apos;impression changent.</translation>
+        <translation>Les dimensions en pixels sont verrouillées. Seules la résolution et la taille d'impression changent.</translation>
     </message>
     <message>
         <source>Pixel row access is outside the buffer</source>
-        <translation>L&apos;accès à la ligne de pixels sort du tampon</translation>
+        <translation>L'accès à la ligne de pixels sort du tampon</translation>
     </message>
     <message>
         <source>RGBA rows need a color buffer</source>
@@ -8975,7 +8975,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
-        <translation>Ce filtre n&apos;est pas disponible dans les documents 32 bits</translation>
+        <translation>Ce filtre n'est pas disponible dans les documents 32 bits</translation>
     </message>
     <message>
         <source>HDR Toning</source>
@@ -8995,10 +8995,10 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
-        <translation>L&apos;image 32 bits a été convertie en 16 bits par couche : la version web modifie jusqu&apos;à 16 bits.</translation>
+        <translation>L'image 32 bits a été convertie en 16 bits par couche : la version web modifie jusqu'à 16 bits.</translation>
     </message>
     <message>
-        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <source>This document's preserved text engine cannot store new area text.</source>
         <translation>Le moteur de texte conservé de ce document ne permet pas d’enregistrer de nouveau texte dans des formes.</translation>
     </message>
     <message>
@@ -9022,16 +9022,16 @@ RVB : %2, %3, %4</translation>
         <translation>Les masques de bits du format de pixel DDS ne tiennent pas dans la taille de pixel</translation>
     </message>
     <message>
-        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
-        <translation>Ce n&apos;est pas une texture DDS : la signature &apos;DDS &apos; est absente</translation>
+        <source>Not a DDS texture: the 'DDS ' signature is missing</source>
+        <translation>Ce n'est pas une texture DDS : la signature 'DDS ' est absente</translation>
     </message>
     <message>
         <source>DDS texture is truncated: the header is incomplete</source>
-        <translation>La texture DDS est tronquée : l&apos;en-tête est incomplet</translation>
+        <translation>La texture DDS est tronquée : l'en-tête est incomplet</translation>
     </message>
     <message>
         <source>DDS header has an unexpected size</source>
-        <translation>L&apos;en-tête DDS a une taille inattendue</translation>
+        <translation>L'en-tête DDS a une taille inattendue</translation>
     </message>
     <message>
         <source>DDS pixel format block has an unexpected size</source>
@@ -9043,7 +9043,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>DDS texture is truncated: the pixel data is shorter than the header promises</source>
-        <translation>La texture DDS est tronquée : les données de pixels sont plus courtes que ce qu&apos;annonce l&apos;en-tête</translation>
+        <translation>La texture DDS est tronquée : les données de pixels sont plus courtes que ce qu'annonce l'en-tête</translation>
     </message>
     <message>
         <source>The file marks its alpha channel as unused; it was ignored</source>
@@ -9055,7 +9055,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Premultiplied alpha was converted to straight alpha</source>
-        <translation>L&apos;alpha prémultiplié a été converti en alpha direct</translation>
+        <translation>L'alpha prémultiplié a été converti en alpha direct</translation>
     </message>
     <message>
         <source>16-bit channels were converted to 8 bits</source>
@@ -9087,11 +9087,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Cannot write an empty document as a DDS texture</source>
-        <translation>Impossible d&apos;écrire un document vide comme texture DDS</translation>
+        <translation>Impossible d'écrire un document vide comme texture DDS</translation>
     </message>
     <message>
         <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
-        <translation>BC4 ne conserve qu&apos;un canal : l&apos;image a été enregistrée comme sa luminance en niveaux de gris, sans transparence</translation>
+        <translation>BC4 ne conserve qu'un canal : l'image a été enregistrée comme sa luminance en niveaux de gris, sans transparence</translation>
     </message>
     <message>
         <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
@@ -9099,7 +9099,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
-        <translation>Les modules externes de format de fichier et d&apos;automatisation ne sont pas pris en charge ; seuls les modules de filtre (.8bf) s&apos;exécutent. Les textures DDS s&apos;ouvrent nativement via Fichier &gt; Ouvrir.</translation>
+        <translation>Les modules externes de format de fichier et d'automatisation ne sont pas pris en charge ; seuls les modules de filtre (.8bf) s'exécutent. Les textures DDS s'ouvrent nativement via Fichier &gt; Ouvrir.</translation>
     </message>
     <message>
         <source>DDS Texture Options</source>
@@ -9151,7 +9151,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Mipmap preview failed</source>
-        <translation>Échec de l&apos;aperçu des mipmaps</translation>
+        <translation>Échec de l'aperçu des mipmaps</translation>
     </message>
     <message>
         <source>Mipmap Preview</source>
@@ -9159,7 +9159,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Every level is written: this is what the texture will sample at each size.</source>
-        <translation>Tous les niveaux sont écrits : c&apos;est ce que la texture échantillonnera à chaque taille.</translation>
+        <translation>Tous les niveaux sont écrits : c'est ce que la texture échantillonnera à chaque taille.</translation>
     </message>
     <message>
         <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
@@ -9207,7 +9207,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
-        <translation>Affiche chaque niveau de mip encodé avec la compression choisie et décodé tel qu&apos;un jeu l&apos;échantillonnera.</translation>
+        <translation>Affiche chaque niveau de mip encodé avec la compression choisie et décodé tel qu'un jeu l'échantillonnera.</translation>
     </message>
     <message>
         <source>Mipmaps:</source>
@@ -9215,7 +9215,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
-        <translation>Les formats BC sont des formats par blocs 4x4 avec pertes. BC1 ne conserve qu&apos;1 bit de transparence : les pixels sous 50 pour cent d&apos;alpha deviennent entièrement transparents. BC4 ne stocke que des niveaux de gris et BC5 les canaux rouge et vert ; les deux abandonnent la transparence. Les mipmaps sont générés jusqu&apos;à 1x1 avec un filtre boîte ; Automatique ne les omet que pour un fichier ouvert depuis un .dds qui n&apos;en avait pas.</translation>
+        <translation>Les formats BC sont des formats par blocs 4x4 avec pertes. BC1 ne conserve qu'1 bit de transparence : les pixels sous 50 pour cent d'alpha deviennent entièrement transparents. BC4 ne stocke que des niveaux de gris et BC5 les canaux rouge et vert ; les deux abandonnent la transparence. Les mipmaps sont générés jusqu'à 1x1 avec un filtre boîte ; Automatique ne les omet que pour un fichier ouvert depuis un .dds qui n'en avait pas.</translation>
     </message>
     <message>
         <source>%1: one level, %2 x %3, %4 of texture data.</source>
@@ -9223,7 +9223,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
-        <translation>%1 : %2 niveaux de mip, %3 x %4 jusqu&apos;à %5 x %6, %7 de données de texture.</translation>
+        <translation>%1 : %2 niveaux de mip, %3 x %4 jusqu'à %5 x %6, %7 de données de texture.</translation>
     </message>
     <message>
         <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
@@ -9231,19 +9231,19 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Object Selection</source>
-        <translation>Sélection d&apos;objet</translation>
+        <translation>Sélection d'objet</translation>
     </message>
     <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
-        <translation>Patchy a converti ce document en RVB ; ce profil est donc affiché à titre indicatif et n&apos;est pas écrit dans les enregistrements RVB.</translation>
+        <translation>Patchy a converti ce document en RVB ; ce profil est donc affiché à titre indicatif et n'est pas écrit dans les enregistrements RVB.</translation>
     </message>
     <message>
         <source>This profile does not describe RGB data, so Patchy shows it for reference only and does not write it to saves.</source>
-        <translation>Ce profil ne décrit pas de données RVB ; Patchy l&apos;affiche donc à titre indicatif et ne l&apos;écrit pas lors de l&apos;enregistrement.</translation>
+        <translation>Ce profil ne décrit pas de données RVB ; Patchy l'affiche donc à titre indicatif et ne l'écrit pas lors de l'enregistrement.</translation>
     </message>
     <message>
         <source>Patchy converted the pixels to sRGB when it opened the file, so this profile is shown for reference only and is not written to saves.</source>
-        <translation>Patchy a converti les pixels en sRGB à l&apos;ouverture du fichier ; ce profil est donc affiché à titre indicatif et n&apos;est pas écrit lors de l&apos;enregistrement.</translation>
+        <translation>Patchy a converti les pixels en sRGB à l'ouverture du fichier ; ce profil est donc affiché à titre indicatif et n'est pas écrit lors de l'enregistrement.</translation>
     </message>
     <message>
         <source>This document carries information you may not want to share: %1. Strip All Metadata removes it.</source>
@@ -9255,7 +9255,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>camera serial numbers or owner</source>
-        <translation>numéros de série ou propriétaire de l&apos;appareil photo</translation>
+        <translation>numéros de série ou propriétaire de l'appareil photo</translation>
     </message>
     <message>
         <source>names and contact details</source>
@@ -9295,7 +9295,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This removes EXIF (including GPS and camera serial numbers), XMP, IPTC, comments, text such as AI prompts, embedded thumbnails and Content Credentials. The resolution is kept. You can undo it, and the file changes the next time you save it.</source>
-        <translation>Cette opération supprime les données EXIF (y compris le GPS et les numéros de série de l&apos;appareil photo), XMP, IPTC, les commentaires, le texte comme les invites d&apos;IA, les vignettes incorporées et les identifiants de contenu. La résolution est conservée. Vous pouvez l&apos;annuler, et le fichier est modifié au prochain enregistrement.</translation>
+        <translation>Cette opération supprime les données EXIF (y compris le GPS et les numéros de série de l'appareil photo), XMP, IPTC, les commentaires, le texte comme les invites d'IA, les vignettes incorporées et les identifiants de contenu. La résolution est conservée. Vous pouvez l'annuler, et le fichier est modifié au prochain enregistrement.</translation>
     </message>
     <message>
         <source>Strip Metadata</source>
@@ -9323,7 +9323,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Author Title:</source>
-        <translation>Fonction de l&apos;auteur :</translation>
+        <translation>Fonction de l'auteur :</translation>
     </message>
     <message>
         <source>Description:</source>
@@ -9435,7 +9435,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Rights Usage Terms:</source>
-        <translation>Conditions d&apos;utilisation des droits :</translation>
+        <translation>Conditions d'utilisation des droits :</translation>
     </message>
     <message>
         <source>Intellectual Genre:</source>
@@ -9479,7 +9479,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Camera Data</source>
-        <translation>Données de l&apos;appareil photo</translation>
+        <translation>Données de l'appareil photo</translation>
     </message>
     <message>
         <source>Color and Image</source>
@@ -9555,15 +9555,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Lens serial number:</source>
-        <translation>Numéro de série de l&apos;objectif :</translation>
+        <translation>Numéro de série de l'objectif :</translation>
     </message>
     <message>
         <source>Camera owner:</source>
-        <translation>Propriétaire de l&apos;appareil photo :</translation>
+        <translation>Propriétaire de l'appareil photo :</translation>
     </message>
     <message>
         <source>Exposure time:</source>
-        <translation>Temps d&apos;exposition :</translation>
+        <translation>Temps d'exposition :</translation>
     </message>
     <message>
         <source>F-number:</source>
@@ -9583,11 +9583,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Exposure bias:</source>
-        <translation>Correction d&apos;exposition :</translation>
+        <translation>Correction d'exposition :</translation>
     </message>
     <message>
         <source>Exposure program:</source>
-        <translation>Programme d&apos;exposition :</translation>
+        <translation>Programme d'exposition :</translation>
     </message>
     <message>
         <source>Metering:</source>
@@ -9626,8 +9626,8 @@ RVB : %2, %3, %4</translation>
         <translation>Logiciel :</translation>
     </message>
     <message>
-        <source>The file also carries a maker note: the camera maker&apos;s private data, which often includes serial numbers.</source>
-        <translation>Le fichier contient aussi une note du fabricant : les données privées du fabricant de l&apos;appareil photo, qui incluent souvent des numéros de série.</translation>
+        <source>The file also carries a maker note: the camera maker's private data, which often includes serial numbers.</source>
+        <translation>Le fichier contient aussi une note du fabricant : les données privées du fabricant de l'appareil photo, qui incluent souvent des numéros de série.</translation>
     </message>
     <message>
         <source>Latitude:</source>
@@ -9731,11 +9731,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Instance ID:</source>
-        <translation>ID d&apos;instance :</translation>
+        <translation>ID d'instance :</translation>
     </message>
     <message>
         <source>Original document ID:</source>
-        <translation>ID du document d&apos;origine :</translation>
+        <translation>ID du document d'origine :</translation>
     </message>
     <message>
         <source>Derived from:</source>
@@ -9767,7 +9767,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Photoshop records every document pasted or placed into this one. The list only grows and links this file to others.</source>
-        <translation>Photoshop enregistre chaque document collé ou importé dans celui-ci. La liste ne fait que s&apos;allonger et relie ce fichier à d&apos;autres.</translation>
+        <translation>Photoshop enregistre chaque document collé ou importé dans celui-ci. La liste ne fait que s'allonger et relie ce fichier à d'autres.</translation>
     </message>
     <message>
         <source>Cached text layer contents</source>
@@ -9803,7 +9803,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Remove Edit History</source>
-        <translation>Supprimer l&apos;historique des modifications</translation>
+        <translation>Supprimer l'historique des modifications</translation>
     </message>
     <message>
         <source>Generator:</source>
@@ -9827,7 +9827,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Thumbnails are written by the camera or editor that saved the file. They are not updated by every edit, so they can show content that was cropped out or painted over.</source>
-        <translation>Les vignettes sont écrites par l&apos;appareil photo ou l&apos;éditeur qui a enregistré le fichier. Elles ne sont pas mises à jour à chaque modification et peuvent donc montrer du contenu recadré ou recouvert de peinture.</translation>
+        <translation>Les vignettes sont écrites par l'appareil photo ou l'éditeur qui a enregistré le fichier. Elles ne sont pas mises à jour à chaque modification et peuvent donc montrer du contenu recadré ou recouvert de peinture.</translation>
     </message>
     <message>
         <source>(cannot display)</source>
@@ -9847,7 +9847,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Layout of the file as it was opened</source>
-        <translation>Structure du fichier à l&apos;ouverture</translation>
+        <translation>Structure du fichier à l'ouverture</translation>
     </message>
     <message>
         <source>Block</source>
@@ -9875,11 +9875,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>CMYK export needs a CMYK profile. Choose one in Preferences.</source>
-        <translation>L&apos;exportation CMJN nécessite un profil CMJN. Choisissez-en un dans les Préférences.</translation>
+        <translation>L'exportation CMJN nécessite un profil CMJN. Choisissez-en un dans les Préférences.</translation>
     </message>
     <message>
         <source>CMYK export is available for JPEG, TIFF and flattened PDF files only.</source>
-        <translation>L&apos;exportation CMJN n&apos;est disponible que pour les fichiers JPEG, TIFF et PDF aplatis.</translation>
+        <translation>L'exportation CMJN n'est disponible que pour les fichiers JPEG, TIFF et PDF aplatis.</translation>
     </message>
     <message>
         <source>CMYK (%1)</source>
@@ -9887,7 +9887,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>CMYK separates the image through the CMYK profile chosen in Preferences and embeds that profile. Transparent areas print as paper white. Patchy opens CMYK files as RGB again.</source>
-        <translation>CMJN sépare l&apos;image avec le profil CMJN choisi dans les Préférences et incorpore ce profil. Les zones transparentes s&apos;impriment en blanc du papier. Patchy rouvre les fichiers CMJN en RVB.</translation>
+        <translation>CMJN sépare l'image avec le profil CMJN choisi dans les Préférences et incorpore ce profil. Les zones transparentes s'impriment en blanc du papier. Patchy rouvre les fichiers CMJN en RVB.</translation>
     </message>
     <message>
         <source>Black and grays in black ink only</source>
@@ -9895,7 +9895,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Prints black text and gray areas with black ink alone instead of a mix of all four inks, so small type stays sharp even when the press is slightly out of register. Colored areas are separated through the profile as usual.</source>
-        <translation>Imprime le texte noir et les zones grises avec l&apos;encre noire seule plutôt qu&apos;avec un mélange des quatre encres, pour que les petits caractères restent nets même si le repérage de la presse dérive un peu. Les zones colorées sont séparées par le profil comme d&apos;habitude.</translation>
+        <translation>Imprime le texte noir et les zones grises avec l'encre noire seule plutôt qu'avec un mélange des quatre encres, pour que les petits caractères restent nets même si le repérage de la presse dérive un peu. Les zones colorées sont séparées par le profil comme d'habitude.</translation>
     </message>
     <message>
         <source>The JPEG XL file is damaged or not supported</source>
@@ -9958,7 +9958,7 @@ RVB : %2, %3, %4</translation>
         <translation>Effort :</translation>
     </message>
     <message>
-        <source>Patchy does not use JPEG XL&apos;s patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
+        <source>Patchy does not use JPEG XL's patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
         <translation>Patchy n’utilise pas les outils de codage par motifs et par points de JPEG XL : les images contenant du texte répété ou de petits points peuvent donc être un peu plus volumineuses qu’avec d’autres encodeurs.</translation>
     </message>
     <message>
@@ -9974,7 +9974,7 @@ RVB : %2, %3, %4</translation>
         <translation>Image CMJN : convertie en RVB selon le profil %1</translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
+        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
         <translation>Le profil CMJN du fichier, %1, diffère du profil CMJN de travail %2, utilisé par les enregistrements CMJN</translation>
     </message>
     <message>
@@ -9991,11 +9991,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The file holds text, not image data: a web page or an error message saved under an image name.</source>
-        <translation>Le fichier contient du texte, pas des données d&apos;image : une page web ou un message d&apos;erreur enregistré sous un nom d&apos;image.</translation>
+        <translation>Le fichier contient du texte, pas des données d'image : une page web ou un message d'erreur enregistré sous un nom d'image.</translation>
     </message>
     <message>
         <source>This is a %1 file, not %2. Give it the .%3 extension and open it again.</source>
-        <translation>Ceci est un fichier %1, pas %2. Donnez-lui l&apos;extension .%3 et ouvrez-le à nouveau.</translation>
+        <translation>Ceci est un fichier %1, pas %2. Donnez-lui l'extension .%3 et ouvrez-le à nouveau.</translation>
     </message>
     <message>
         <source>This is a %1 file, not %2, and Patchy cannot open %1 files.</source>
@@ -10003,11 +10003,11 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The JPEG data ends early: the file was cut short while it was downloaded or copied.</source>
-        <translation>Les données JPEG s&apos;arrêtent trop tôt : le fichier a été tronqué lors du téléchargement ou de la copie.</translation>
+        <translation>Les données JPEG s'arrêtent trop tôt : le fichier a été tronqué lors du téléchargement ou de la copie.</translation>
     </message>
     <message>
         <source>The JPEG header is damaged: no frame description precedes the image data.</source>
-        <translation>L&apos;en-tête JPEG est endommagé : aucune description de trame ne précède les données d&apos;image.</translation>
+        <translation>L'en-tête JPEG est endommagé : aucune description de trame ne précède les données d'image.</translation>
     </message>
     <message>
         <source>This JPEG uses lossless coding, which the JPEG decoder does not support.</source>
@@ -10031,7 +10031,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The TIFF header or its first directory is damaged.</source>
-        <translation>L&apos;en-tête TIFF ou son premier répertoire est endommagé.</translation>
+        <translation>L'en-tête TIFF ou son premier répertoire est endommagé.</translation>
     </message>
     <message>
         <source>This TIFF stores %1 bits per sample. The TIFF decoder reads 8 and 16-bit integer, 32-bit floating-point, and 1, 2 and 4-bit grayscale samples.</source>
@@ -10039,7 +10039,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This TIFF stores 32-bit integer samples; the TIFF decoder reads 32-bit samples only as floating point.</source>
-        <translation>Ce TIFF stocke des échantillons entiers 32 bits ; le décodeur TIFF ne lit les échantillons 32 bits qu&apos;en virgule flottante.</translation>
+        <translation>Ce TIFF stocke des échantillons entiers 32 bits ; le décodeur TIFF ne lit les échantillons 32 bits qu'en virgule flottante.</translation>
     </message>
     <message>
         <source>This TIFF packs %1-bit color samples; the TIFF decoder reads fewer than 8 bits per sample only for grayscale images.</source>
@@ -10051,7 +10051,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This file is not an OpenEXR image</source>
-        <translation>Ce fichier n&apos;est pas une image OpenEXR</translation>
+        <translation>Ce fichier n'est pas une image OpenEXR</translation>
     </message>
     <message>
         <source>The OpenEXR file is damaged or truncated</source>
@@ -10067,15 +10067,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The OpenEXR file could not be decoded</source>
-        <translation>Le fichier OpenEXR n&apos;a pas pu être décodé</translation>
+        <translation>Le fichier OpenEXR n'a pas pu être décodé</translation>
     </message>
     <message>
         <source>Cannot write an empty image as OpenEXR</source>
-        <translation>Impossible d&apos;écrire une image vide en OpenEXR</translation>
+        <translation>Impossible d'écrire une image vide en OpenEXR</translation>
     </message>
     <message>
         <source>The OpenEXR file could not be written</source>
-        <translation>Le fichier OpenEXR n&apos;a pas pu être écrit</translation>
+        <translation>Le fichier OpenEXR n'a pas pu être écrit</translation>
     </message>
     <message>
         <source>The Radiance HDR file is damaged or truncated</source>
@@ -10083,7 +10083,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This file is not a Radiance HDR image</source>
-        <translation>Ce fichier n&apos;est pas une image Radiance HDR</translation>
+        <translation>Ce fichier n'est pas une image Radiance HDR</translation>
     </message>
     <message>
         <source>This Radiance HDR file uses a pixel format Patchy does not read</source>
@@ -10095,19 +10095,19 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This Radiance HDR file uses an image orientation Patchy does not read</source>
-        <translation>Ce fichier Radiance HDR utilise une orientation d&apos;image que Patchy ne lit pas</translation>
+        <translation>Ce fichier Radiance HDR utilise une orientation d'image que Patchy ne lit pas</translation>
     </message>
     <message>
         <source>Cannot write an empty image as Radiance HDR</source>
-        <translation>Impossible d&apos;écrire une image vide en Radiance HDR</translation>
+        <translation>Impossible d'écrire une image vide en Radiance HDR</translation>
     </message>
     <message>
         <source>This file is not a JPEG 2000 image</source>
-        <translation>Ce fichier n&apos;est pas une image JPEG 2000</translation>
+        <translation>Ce fichier n'est pas une image JPEG 2000</translation>
     </message>
     <message>
         <source>The JPEG 2000 decoder could not be created</source>
-        <translation>Le décodeur JPEG 2000 n&apos;a pas pu être créé</translation>
+        <translation>Le décodeur JPEG 2000 n'a pas pu être créé</translation>
     </message>
     <message>
         <source>The JPEG 2000 file is damaged or truncated</source>
@@ -10115,7 +10115,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>The JPEG 2000 image could not be decoded</source>
-        <translation>L&apos;image JPEG 2000 n&apos;a pas pu être décodée</translation>
+        <translation>L'image JPEG 2000 n'a pas pu être décodée</translation>
     </message>
     <message>
         <source>This JPEG 2000 image has a channel layout Patchy does not read</source>
@@ -10123,15 +10123,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>CMYK JPEG 2000 image: converted to RGB with a plain ink mix</source>
-        <translation>Image JPEG 2000 CMJN : convertie en RVB par un simple mélange d&apos;encres</translation>
+        <translation>Image JPEG 2000 CMJN : convertie en RVB par un simple mélange d'encres</translation>
     </message>
     <message>
         <source>Cannot write an empty image as JPEG 2000</source>
-        <translation>Impossible d&apos;écrire une image vide en JPEG 2000</translation>
+        <translation>Impossible d'écrire une image vide en JPEG 2000</translation>
     </message>
     <message>
         <source>The JPEG 2000 file could not be written</source>
-        <translation>Le fichier JPEG 2000 n&apos;a pas pu être écrit</translation>
+        <translation>Le fichier JPEG 2000 n'a pas pu être écrit</translation>
     </message>
     <message>
         <source>Radiance HDR Image</source>
@@ -10147,7 +10147,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This OpenEXR file has no R, G, B or Y channels to show</source>
-        <translation>Ce fichier OpenEXR n&apos;a aucun canal R, G, B ou Y à afficher</translation>
+        <translation>Ce fichier OpenEXR n'a aucun canal R, G, B ou Y à afficher</translation>
     </message>
     <message>
         <source>AVIF: the clean aperture (crop) property was invalid and was ignored</source>
@@ -10230,10 +10230,10 @@ RVB : %2, %3, %4</translation>
         <translation>Cette version de Patchy ne peut pas décoder les images HEIC.</translation>
     </message>
     <message>
-        <source>This build of Patchy cannot decode HEIC images because the system&apos;s libheif library is not installed. Install it and try again.
+        <source>This build of Patchy cannot decode HEIC images because the system's libheif library is not installed. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif1
 Fedora: sudo dnf install libheif</source>
-        <translation>Cette version de Patchy ne peut pas décoder les images HEIC, car la bibliothèque libheif du système n&apos;est pas installée. Installez-la et réessayez.
+        <translation>Cette version de Patchy ne peut pas décoder les images HEIC, car la bibliothèque libheif du système n'est pas installée. Installez-la et réessayez.
 Debian/Ubuntu: sudo apt install libheif1
 Fedora: sudo dnf install libheif</translation>
     </message>
@@ -10242,16 +10242,16 @@ Fedora: sudo dnf install libheif</translation>
         <translation>Cette version de Patchy ne peut pas décoder les images HEIC, car la bibliothèque libheif installée est trop ancienne. Patchy a besoin de libheif 1.12 ou plus récent.</translation>
     </message>
     <message>
-        <source>The system&apos;s libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
+        <source>The system's libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
-        <translation>La bibliothèque libheif du système n&apos;a pas de module de décodage HEVC, Patchy ne peut donc pas décoder les images HEIC. Installez-le et réessayez.
+        <translation>La bibliothèque libheif du système n'a pas de module de décodage HEVC, Patchy ne peut donc pas décoder les images HEIC. Installez-le et réessayez.
 Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
-        <source>This HEIC image&apos;s bit depth is not supported by the installed libheif library.</source>
-        <translation>La profondeur de bits de cette image HEIC n&apos;est pas prise en charge par la bibliothèque libheif installée.</translation>
+        <source>This HEIC image's bit depth is not supported by the installed libheif library.</source>
+        <translation>La profondeur de bits de cette image HEIC n'est pas prise en charge par la bibliothèque libheif installée.</translation>
     </message>
     <message>
         <source>libheif returned an invalid HEIF pixel buffer</source>
@@ -10263,7 +10263,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Animated PNG: imported the default image only (%1)</source>
-        <translation>PNG animé : seule l&apos;image par défaut a été importée (%1)</translation>
+        <translation>PNG animé : seule l'image par défaut a été importée (%1)</translation>
     </message>
     <message>
         <source>Only a layer group can be an artboard</source>
@@ -10291,14 +10291,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Open in reverse order</source>
-        <translation>Ouvrir dans l&apos;ordre inverse</translation>
+        <translation>Ouvrir dans l'ordre inverse</translation>
     </message>
     <message>
         <source>Enter a resolution from %1 to %2 ppi.</source>
         <translation>Saisissez une résolution de %1 à %2 ppp.</translation>
     </message>
     <message>
-        <source>Indexed color needs &quot;Flattened image per page&quot;: shapes, text and images cannot be converted to a palette.</source>
+        <source>Indexed color needs "Flattened image per page": shapes, text and images cannot be converted to a palette.</source>
         <translation>Les couleurs indexées nécessitent « Image aplatie par page » : les formes, le texte et les images ne peuvent pas être convertis en palette.</translation>
     </message>
     <message>
@@ -10334,7 +10334,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>One page per artboard (the current document has none)</source>
-        <translation>Une page par plan de travail (le document actuel n&apos;en a aucun)</translation>
+        <translation>Une page par plan de travail (le document actuel n'en a aucun)</translation>
     </message>
     <message>
         <source>Start the document as an artboard the size of the canvas</source>
@@ -10362,7 +10362,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Each page is the size of its artboard, printed at actual size. Save PDF changes the sheet per page; a printer keeps the paper chosen above.</source>
-        <translation>Chaque page a la taille de son plan de travail et s&apos;imprime en taille réelle. Enregistrer en PDF change de feuille à chaque page ; une imprimante garde le papier choisi ci-dessus.</translation>
+        <translation>Chaque page a la taille de son plan de travail et s'imprime en taille réelle. Enregistrer en PDF change de feuille à chaque page ; une imprimante garde le papier choisi ci-dessus.</translation>
     </message>
     <message numerus="yes">
         <source>Each Artboard as a Page (%n page(s))</source>
@@ -10373,7 +10373,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>A PDF image could not be made gray and kept its colors.</source>
-        <translation>Une image du PDF n&apos;a pas pu être convertie en gris et a gardé ses couleurs.</translation>
+        <translation>Une image du PDF n'a pas pu être convertie en gris et a gardé ses couleurs.</translation>
     </message>
     <message>
         <source>Pages:</source>
@@ -10401,7 +10401,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>A PDF imported as page folders shows only its first page; its hidden pages are still pages.</source>
-        <translation>Un PDF importé en dossiers de pages n&apos;affiche que sa première page ; ses pages masquées restent des pages.</translation>
+        <translation>Un PDF importé en dossiers de pages n'affiche que sa première page ; ses pages masquées restent des pages.</translation>
     </message>
     <message>
         <source>Shallow</source>
@@ -10412,7 +10412,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Profonde</translation>
     </message>
     <message>
-        <source>Shallow cuts through the layers below to the bottom of this layer&apos;s group; Deep cuts through to the Background, or to transparency without one</source>
+        <source>Shallow cuts through the layers below to the bottom of this layer's group; Deep cuts through to the Background, or to transparency without one</source>
         <translation>Faible traverse les calques inférieurs jusqu’au bas du groupe de ce calque ; Profonde traverse jusqu’à l’arrière-plan, ou jusqu’à la transparence s’il n’y en a pas</translation>
     </message>
     <message>
@@ -10445,7 +10445,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Certaines polices utilisées dans ce document sont manquantes. Choisissez une police installée pour remplacer chacune d&apos;elles dans tous les calques de texte qui l&apos;utilisent, ou laissez-la non résolue.</translation>
+        <translation>Certaines polices utilisées dans ce document sont manquantes. Choisissez une police installée pour remplacer chacune d'elles dans tous les calques de texte qui l'utilisent, ou laissez-la non résolue.</translation>
     </message>
     <message>
         <source>Resolve Fonts</source>
@@ -10470,8 +10470,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Remplacer par :</translation>
     </message>
     <message>
-        <source>Don&apos;t show when opening documents</source>
-        <translation>Ne pas afficher à l&apos;ouverture des documents</translation>
+        <source>Don't show when opening documents</source>
+        <translation>Ne pas afficher à l'ouverture des documents</translation>
     </message>
     <message>
         <source>Type &gt; Resolve Missing Fonts opens this dialog at any time. Preferences can turn it back on for opened documents.</source>
@@ -10490,15 +10490,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Calque de texte. Police manquante sur cet ordinateur : %1.</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <source>The TIFF's Photoshop layer records are damaged</source>
         <translation>Les enregistrements de calques Photoshop du TIFF sont endommagés</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
-        <translation>Les données de calques Photoshop du TIFF mélangent des ordres d&apos;octets</translation>
+        <source>The TIFF's Photoshop layer data mixes byte orders</source>
+        <translation>Les données de calques Photoshop du TIFF mélangent des ordres d'octets</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <source>The TIFF's Photoshop layer data is cut short</source>
         <translation>Les données de calques Photoshop du TIFF sont tronquées</translation>
     </message>
     <message>
@@ -10507,10 +10507,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Not a TIFF file Patchy reads layers from</source>
-        <translation>Ce n&apos;est pas un fichier TIFF dont Patchy lit les calques</translation>
+        <translation>Ce n'est pas un fichier TIFF dont Patchy lit les calques</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s first directory is damaged</source>
+        <source>The TIFF's first directory is damaged</source>
         <translation>Le premier répertoire du TIFF est endommagé</translation>
     </message>
     <message>
@@ -10518,28 +10518,28 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Le TIFF ne contient aucune donnée de calques Photoshop</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
-        <translation>Le premier répertoire du TIFF n&apos;indique pas la taille de l&apos;image ou la disposition des couleurs</translation>
+        <source>The TIFF's first directory lacks its image size or color layout</source>
+        <translation>Le premier répertoire du TIFF n'indique pas la taille de l'image ou la disposition des couleurs</translation>
     </message>
     <message>
         <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
-        <translation>Patchy ne lit les calques TIFF qu&apos;en 8 ou 16 bits ou en virgule flottante 32 bits</translation>
+        <translation>Patchy ne lit les calques TIFF qu'en 8 ou 16 bits ou en virgule flottante 32 bits</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <source>The TIFF's Photoshop layer data holds no layers</source>
         <translation>Les données de calques Photoshop du TIFF ne contiennent aucun calque</translation>
     </message>
     <message>
         <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
-        <translation>Ce TIFF enregistre ses calques dans l&apos;ordre d&apos;octets IBM PC, et une partie de ces données de calques a une forme que Patchy ne sait pas encore convertir. Patchy l&apos;a laissée de côté : certains calques peuvent donc s&apos;afficher autrement que dans Photoshop.</translation>
+        <translation>Ce TIFF enregistre ses calques dans l'ordre d'octets IBM PC, et une partie de ces données de calques a une forme que Patchy ne sait pas encore convertir. Patchy l'a laissée de côté : certains calques peuvent donc s'afficher autrement que dans Photoshop.</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <source>The TIFF's Photoshop layer data is too large</source>
         <translation>Les données de calques Photoshop du TIFF sont trop volumineuses</translation>
     </message>
     <message>
         <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
-        <translation>Les calques Photoshop de ce TIFF n&apos;ont pas pu être lus ; il a donc été ouvert comme image aplatie : %1</translation>
+        <translation>Les calques Photoshop de ce TIFF n'ont pas pu être lus ; il a donc été ouvert comme image aplatie : %1</translation>
     </message>
     <message>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
@@ -10547,15 +10547,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Patchy writes layered TIFF files in RGB only</source>
-        <translation>Patchy n&apos;écrit les fichiers TIFF à calques qu&apos;en RVB</translation>
+        <translation>Patchy n'écrit les fichiers TIFF à calques qu'en RVB</translation>
     </message>
     <message>
         <source>Could not compress the TIFF image data</source>
-        <translation>Impossible de compresser les données d&apos;image du TIFF</translation>
+        <translation>Impossible de compresser les données d'image du TIFF</translation>
     </message>
     <message>
         <source>The document has no layers to write</source>
-        <translation>Le document n&apos;a aucun calque à écrire</translation>
+        <translation>Le document n'a aucun calque à écrire</translation>
     </message>
     <message>
         <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
@@ -10563,11 +10563,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Could not open the TIFF file for writing</source>
-        <translation>Impossible d&apos;ouvrir le fichier TIFF en écriture</translation>
+        <translation>Impossible d'ouvrir le fichier TIFF en écriture</translation>
     </message>
     <message>
         <source>Could not write the TIFF file</source>
-        <translation>Impossible d&apos;écrire le fichier TIFF</translation>
+        <translation>Impossible d'écrire le fichier TIFF</translation>
     </message>
     <message>
         <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
@@ -10583,11 +10583,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
-        <translation>Photoshop et Patchy ouvrent les calques ; les autres applications affichent l&apos;image aplatie. Sans calques, Patchy enregistre une copie aplatie et ce document garde ses calques.</translation>
+        <translation>Photoshop et Patchy ouvrent les calques ; les autres applications affichent l'image aplatie. Sans calques, Patchy enregistre une copie aplatie et ce document garde ses calques.</translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
-        <translation>Le profil CMJN du fichier, %1, diffère du profil CMJN de travail %2, utilisé par l&apos;Épreuve CMJN et les enregistrements CMJN en JPEG, TIFF et PDF</translation>
+        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <translation>Le profil CMJN du fichier, %1, diffère du profil CMJN de travail %2, utilisé par l'Épreuve CMJN et les enregistrements CMJN en JPEG, TIFF et PDF</translation>
     </message>
     <message>
         <source>In a CMYK file its adjustment layers would act on the inks and change the colors.</source>
@@ -10627,15 +10627,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>The CMYK profile could not separate a layer</source>
-        <translation>Le profil CMJN n&apos;a pas pu séparer un calque</translation>
+        <translation>Le profil CMJN n'a pas pu séparer un calque</translation>
     </message>
     <message>
         <source>The CMYK profile could not separate the image</source>
-        <translation>Le profil CMJN n&apos;a pas pu séparer l&apos;image</translation>
+        <translation>Le profil CMJN n'a pas pu séparer l'image</translation>
     </message>
     <message>
         <source>Smart object thumbnail</source>
-        <translation>Vignette de l&apos;objet dynamique</translation>
+        <translation>Vignette de l'objet dynamique</translation>
     </message>
     <message>
         <source>Shape layer thumbnail</source>
@@ -10929,24 +10929,24 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Supprimer tous les filtres dynamiques</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <source>Patchy can't render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
         <translation>Patchy ne peut pas rendre tous les filtres dynamiques qui seraient alors appliqués. Photoshop les rend quand le fichier y est ouvert.</translation>
     </message>
     <message>
-        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
-        <translation>Masquer ce filtre laisserait actifs des filtres dynamiques que Patchy ne peut pas rendre. Masquez ou supprimez-les d&apos;abord, ou masquez tous les filtres dynamiques.</translation>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Masquer ce filtre laisserait actifs des filtres dynamiques que Patchy ne peut pas rendre. Masquez ou supprimez-les d'abord, ou masquez tous les filtres dynamiques.</translation>
     </message>
     <message>
-        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
-        <translation>Supprimer ce filtre laisserait actifs des filtres dynamiques que Patchy ne peut pas rendre. Masquez ou supprimez-les d&apos;abord, ou supprimez tous les filtres dynamiques.</translation>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Supprimer ce filtre laisserait actifs des filtres dynamiques que Patchy ne peut pas rendre. Masquez ou supprimez-les d'abord, ou supprimez tous les filtres dynamiques.</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <source>Patchy can't edit this filter's settings. It is preserved unchanged.</source>
         <translation>Patchy ne peut pas modifier les réglages de ce filtre. Il est conservé tel quel.</translation>
     </message>
     <message>
-        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
-        <translation>Cette pile applique des filtres dynamiques que Patchy ne peut pas rendre, donc leurs réglages ne peuvent pas changer ici. Masquez ou supprimez d&apos;abord ces filtres.</translation>
+        <source>This stack runs Smart Filters that Patchy can't render, so their settings can't change here. Hide or delete those filters first.</source>
+        <translation>Cette pile applique des filtres dynamiques que Patchy ne peut pas rendre, donc leurs réglages ne peuvent pas changer ici. Masquez ou supprimez d'abord ces filtres.</translation>
     </message>
     <message>
         <source>Hide All Smart Filters</source>
@@ -10998,7 +10998,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
-        <translation>Réglage %1 issu de Photoshop. Patchy ne sait pas encore l&apos;appliquer : il n&apos;a aucun effet ici et est enregistré tel quel.</translation>
+        <translation>Réglage %1 issu de Photoshop. Patchy ne sait pas encore l'appliquer : il n'a aucun effet ici et est enregistré tel quel.</translation>
     </message>
     <message>
         <source>Constant</source>
@@ -11091,7 +11091,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 is not a 3D LUT Patchy can read.</source>
-        <translation>%1 n&apos;est pas une LUT 3D que Patchy sait lire.</translation>
+        <translation>%1 n'est pas une LUT 3D que Patchy sait lire.</translation>
     </message>
     <message>
         <source>Cyan</source>
@@ -11177,11 +11177,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Wavelength Min</source>
-        <translation>Longueur d&apos;onde min.</translation>
+        <translation>Longueur d'onde min.</translation>
     </message>
     <message>
         <source>Wavelength Max</source>
-        <translation>Longueur d&apos;onde max.</translation>
+        <translation>Longueur d'onde max.</translation>
     </message>
     <message>
         <source>Amplitude Min</source>
@@ -11221,7 +11221,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: "Radius 3 px".</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11405,8 +11405,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Imbrication auto dans et hors des plans de travail empêchée</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
-        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Couleur et vibrance de Photoshop). Ils n&apos;ont aucun effet ici et sont enregistrés tels quels.</translation>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop's Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Couleur et vibrance de Photoshop). Ils n'ont aucun effet ici et sont enregistrés tels quels.</translation>
     </message>
     <message>
         <source>Vibrance: vibrance %1, saturation %2</source>
@@ -11460,7 +11460,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
-        <translation>Effet masqué. Cliquez pour l&apos;afficher.</translation>
+        <translation>Effet masqué. Cliquez pour l'afficher.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11479,7 +11479,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Rétablir le lien...</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
+        <source>Used by layer "%1"</source>
         <translation>Utilisé par le calque « %1 »</translation>
     </message>
     <message numerus="yes">
@@ -11495,7 +11495,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
-        <translation>Les fichiers manquants restent signalés dans la barre d&apos;état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
+        <translation>Les fichiers manquants restent signalés dans la barre d'état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
     </message>
     <message>
         <source>Portable Anymap Image</source>
@@ -11536,7 +11536,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
-        <translation>Effet inactif, et les styles de calque sont masqués. Cliquez pour l&apos;activer.</translation>
+        <translation>Effet inactif, et les styles de calque sont masqués. Cliquez pour l'activer.</translation>
     </message>
     <message>
         <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
@@ -11569,7 +11569,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>How fast the brush keeps working while it is held still</source>
-        <translation>Vitesse à laquelle le pinceau continue d&apos;agir lorsqu&apos;il reste immobile</translation>
+        <translation>Vitesse à laquelle le pinceau continue d'agir lorsqu'il reste immobile</translation>
     </message>
     <message>
         <source>Stylus Pressure</source>
@@ -11589,7 +11589,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
+        <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d'après l'arrière-plan pour en faire un calque ordinaire.</translation>
     </message>
     <message>
         <source>Polygonal Lasso</source>
@@ -11818,27 +11818,27 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>The scan could not be completed (%1)</source>
-        <translation>La numérisation n&apos;a pas pu être terminée (%1)</translation>
+        <translation>La numérisation n'a pas pu être terminée (%1)</translation>
     </message>
     <message>
         <source>The scanner did not return an image file.</source>
-        <translation>Le scanner n&apos;a renvoyé aucun fichier image.</translation>
+        <translation>Le scanner n'a renvoyé aucun fichier image.</translation>
     </message>
     <message>
         <source>macOS scanner import requires the Cocoa platform.</source>
-        <translation>L&apos;importation depuis un scanner sous macOS nécessite la plateforme Cocoa.</translation>
+        <translation>L'importation depuis un scanner sous macOS nécessite la plateforme Cocoa.</translation>
     </message>
     <message>
         <source>The scanner window could not be opened.</source>
-        <translation>La fenêtre du scanner n&apos;a pas pu être ouverte.</translation>
+        <translation>La fenêtre du scanner n'a pas pu être ouverte.</translation>
     </message>
     <message>
         <source>The temporary scan folder could not be created.</source>
-        <translation>Le dossier temporaire de numérisation n&apos;a pas pu être créé.</translation>
+        <translation>Le dossier temporaire de numérisation n'a pas pu être créé.</translation>
     </message>
     <message>
         <source>Windows Image Acquisition is unavailable (%1)</source>
-        <translation>Windows Image Acquisition n&apos;est pas disponible (%1)</translation>
+        <translation>Windows Image Acquisition n'est pas disponible (%1)</translation>
     </message>
 </context>
 <context>
@@ -11868,50 +11868,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>the top level is not an object</source>
-        <translation>le niveau supérieur n&apos;est pas un objet</translation>
+        <translation>le niveau supérieur n'est pas un objet</translation>
     </message>
     <message>
         <source>Theme file format %1 is not supported by this build (expected %2).</source>
-        <translation>Le format de fichier de thème %1 n&apos;est pas pris en charge par cette version (attendu : %2).</translation>
+        <translation>Le format de fichier de thème %1 n'est pas pris en charge par cette version (attendu : %2).</translation>
     </message>
     <message>
-        <source>Theme file is missing a valid &quot;base&quot; (must be &quot;dark&quot; or &quot;light&quot;).</source>
-        <translation>Le fichier de thème n&apos;a pas de &quot;base&quot; valide (doit être &quot;dark&quot; ou &quot;light&quot;).</translation>
+        <source>Theme file is missing a valid "base" (must be "dark" or "light").</source>
+        <translation>Le fichier de thème n'a pas de "base" valide (doit être "dark" ou "light").</translation>
     </message>
     <message>
-        <source>Theme file&apos;s &quot;roles&quot; is not an object.</source>
-        <translation>Le &quot;roles&quot; du fichier de thème n&apos;est pas un objet.</translation>
+        <source>Theme file's "roles" is not an object.</source>
+        <translation>Le "roles" du fichier de thème n'est pas un objet.</translation>
     </message>
     <message>
-        <source>Unknown color role &quot;%1&quot; (ignored).</source>
-        <translation>Rôle de couleur inconnu &quot;%1&quot; (ignoré).</translation>
+        <source>Unknown color role "%1" (ignored).</source>
+        <translation>Rôle de couleur inconnu "%1" (ignoré).</translation>
     </message>
     <message>
-        <source>Invalid color &quot;%1&quot; for role &quot;%2&quot; (expected #RRGGBB or #RRGGBBAA).</source>
-        <translation>Couleur non valide &quot;%1&quot; pour le rôle &quot;%2&quot; (attendu #RRGGBB ou #RRGGBBAA).</translation>
+        <source>Invalid color "%1" for role "%2" (expected #RRGGBB or #RRGGBBAA).</source>
+        <translation>Couleur non valide "%1" pour le rôle "%2" (attendu #RRGGBB ou #RRGGBBAA).</translation>
     </message>
     <message>
-        <source>Theme file &quot;%1&quot; could not be read.</source>
-        <translation>Impossible de lire le fichier de thème &quot;%1&quot;.</translation>
+        <source>Theme file "%1" could not be read.</source>
+        <translation>Impossible de lire le fichier de thème "%1".</translation>
     </message>
 </context>
 <context>
     <name>VectorPreview</name>
     <message>
-        <source>Dynamic Vector Preview: using the document&apos;s pixel view.</source>
+        <source>Dynamic Vector Preview: using the document's pixel view.</source>
         <translation>Aperçu vectoriel dynamique : utilisation de la vue en pixels du document.</translation>
     </message>
     <message>
         <source>Pixel view: vector coordinates exceed the preview range at this zoom.</source>
-        <translation>Vue en pixels : les coordonnées vectorielles dépassent la plage d&apos;aperçu à ce niveau de zoom.</translation>
+        <translation>Vue en pixels : les coordonnées vectorielles dépassent la plage d'aperçu à ce niveau de zoom.</translation>
     </message>
     <message>
         <source>Pixel view: Dynamic Vector Preview reached its memory limit.</source>
-        <translation>Vue en pixels : l&apos;aperçu vectoriel dynamique a atteint sa limite de mémoire.</translation>
+        <translation>Vue en pixels : l'aperçu vectoriel dynamique a atteint sa limite de mémoire.</translation>
     </message>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
-        <translation>Vue en pixels : l&apos;aperçu vectoriel dynamique n&apos;a pas pu afficher cette vue.</translation>
+        <translation>Vue en pixels : l'aperçu vectoriel dynamique n'a pas pu afficher cette vue.</translation>
     </message>
 </context>
 <context>
@@ -11922,19 +11922,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>First, copy the setup prompt into your AI assistant (Claude Code, Codex, Cursor, or another tool that supports MCP). You only need to set up Patchy once. The setup prompt is in English because it is written for the assistant.</source>
-        <translation>Commencez par copier l&apos;invite de configuration dans votre assistant IA (Claude Code, Codex, Cursor ou un autre outil compatible MCP). Patchy ne doit être configuré qu&apos;une seule fois. L&apos;invite de configuration est en anglais, car elle est destinée à l&apos;assistant.</translation>
+        <translation>Commencez par copier l'invite de configuration dans votre assistant IA (Claude Code, Codex, Cursor ou un autre outil compatible MCP). Patchy ne doit être configuré qu'une seule fois. L'invite de configuration est en anglais, car elle est destinée à l'assistant.</translation>
     </message>
     <message>
         <source>Copy Setup Prompt</source>
-        <translation>Copier l&apos;invite de configuration</translation>
+        <translation>Copier l'invite de configuration</translation>
     </message>
     <message>
         <source>After setup, try an example prompt. Choose one below, then copy it into your assistant. You can change tasks or workspaces without installing again.</source>
-        <translation>Une fois la configuration terminée, essayez un exemple d&apos;invite. Choisissez-en un ci-dessous, puis copiez-le dans votre assistant. Vous pouvez changer de tâche ou d&apos;espace de travail sans réinstaller.</translation>
+        <translation>Une fois la configuration terminée, essayez un exemple d'invite. Choisissez-en un ci-dessous, puis copiez-le dans votre assistant. Vous pouvez changer de tâche ou d'espace de travail sans réinstaller.</translation>
     </message>
     <message>
         <source>Example prompts</source>
-        <translation>Exemples d&apos;invites</translation>
+        <translation>Exemples d'invites</translation>
     </message>
     <message>
         <source>Fix the face in my open document</source>
@@ -11942,7 +11942,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Edit the document I have open in Patchy. Make the face cuter on a separate correction layer, keep the other layers, and show me a before-and-after preview.</source>
-        <translation>Modifie le document que j&apos;ai ouvert dans Patchy. Rends le visage plus mignon sur un calque de correction séparé, conserve les autres calques et montre-moi un aperçu avant/après.</translation>
+        <translation>Modifie le document que j'ai ouvert dans Patchy. Rends le visage plus mignon sur un calque de correction séparé, conserve les autres calques et montre-moi un aperçu avant/après.</translation>
     </message>
     <message>
         <source>Create pixel art while I watch</source>
@@ -11950,7 +11950,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Create a cute 64x64 pixel-art animal in a visible Patchy window so I can watch. Use editable layers, inspect the preview and refine it, then save a layered PSD and a 64x64 PNG.</source>
-        <translation>Crée un animal mignon en pixel art de 64x64 dans une fenêtre Patchy visible pour que je puisse suivre. Utilise des calques modifiables, examine l&apos;aperçu et affine-le, puis enregistre un PSD avec calques et un PNG de 64x64.</translation>
+        <translation>Crée un animal mignon en pixel art de 64x64 dans une fenêtre Patchy visible pour que je puisse suivre. Utilise des calques modifiables, examine l'aperçu et affine-le, puis enregistre un PSD avec calques et un PNG de 64x64.</translation>
     </message>
     <message>
         <source>Make icons in the background</source>
@@ -11958,7 +11958,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Use Patchy in the background, without opening a window, to create three matching 32x32 app icons: a folder, a paintbrush, and a heart. Give them transparent backgrounds and show me the previews and saved PNG files.</source>
-        <translation>Utilise Patchy en arrière-plan, sans ouvrir de fenêtre, pour créer trois icônes d&apos;application assorties de 32x32 : un dossier, un pinceau et un cœur. Donne-leur un fond transparent et montre-moi les aperçus ainsi que les fichiers PNG enregistrés.</translation>
+        <translation>Utilise Patchy en arrière-plan, sans ouvrir de fenêtre, pour créer trois icônes d'application assorties de 32x32 : un dossier, un pinceau et un cœur. Donne-leur un fond transparent et montre-moi les aperçus ainsi que les fichiers PNG enregistrés.</translation>
     </message>
     <message>
         <source>Turn a reference image into artwork</source>
@@ -11966,7 +11966,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Use the image I attach as a reference for a cute 64x64 portrait in Patchy. Keep its recognizable features, compare your preview with the reference as you refine it, and save both an editable PSD and a PNG.</source>
-        <translation>Utilise l&apos;image que je joins comme référence pour un portrait mignon de 64x64 dans Patchy. Conserve ses traits reconnaissables, compare ton aperçu avec la référence au fur et à mesure que tu l&apos;affines, et enregistre à la fois un PSD modifiable et un PNG.</translation>
+        <translation>Utilise l'image que je joins comme référence pour un portrait mignon de 64x64 dans Patchy. Conserve ses traits reconnaissables, compare ton aperçu avec la référence au fur et à mesure que tu l'affines, et enregistre à la fois un PSD modifiable et un PNG.</translation>
     </message>
     <message>
         <source>Export sizes from my open document</source>
@@ -11974,7 +11974,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Use my open Patchy document to export transparent PNG copies at 64x64, 128x128, and 256x256. Preserve the proportions, leave the original document unchanged, and show me the exported files.</source>
-        <translation>Utilise mon document Patchy ouvert pour exporter des copies PNG transparentes en 64x64, 128x128 et 256x256. Conserve les proportions, laisse le document d&apos;origine inchangé et montre-moi les fichiers exportés.</translation>
+        <translation>Utilise mon document Patchy ouvert pour exporter des copies PNG transparentes en 64x64, 128x128 et 256x256. Conserve les proportions, laisse le document d'origine inchangé et montre-moi les fichiers exportés.</translation>
     </message>
     <message>
         <source>Make a contact sheet in the background</source>
@@ -11982,7 +11982,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Use Patchy in the background to make a labeled contact sheet from a folder of images. Ask me which folder if I have not provided one, keep the original files unchanged, and show me the finished sheet.</source>
-        <translation>Utilise Patchy en arrière-plan pour créer une planche contact avec légendes à partir d&apos;un dossier d&apos;images. Demande-moi quel dossier utiliser si je n&apos;en ai pas indiqué, laisse les fichiers d&apos;origine inchangés et montre-moi la planche terminée.</translation>
+        <translation>Utilise Patchy en arrière-plan pour créer une planche contact avec légendes à partir d'un dossier d'images. Demande-moi quel dossier utiliser si je n'en ai pas indiqué, laisse les fichiers d'origine inchangés et montre-moi la planche terminée.</translation>
     </message>
     <message>
         <source>Review my open document</source>
@@ -11990,15 +11990,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Look at the document I have open in Patchy and suggest three specific improvements to its composition and colors. Show me the preview before making any edits.</source>
-        <translation>Regarde le document que j&apos;ai ouvert dans Patchy et propose trois améliorations précises de sa composition et de ses couleurs. Montre-moi l&apos;aperçu avant de faire la moindre modification.</translation>
+        <translation>Regarde le document que j'ai ouvert dans Patchy et propose trois améliorations précises de sa composition et de ses couleurs. Montre-moi l'aperçu avant de faire la moindre modification.</translation>
     </message>
     <message>
         <source>Example prompt</source>
-        <translation>Exemple d&apos;invite</translation>
+        <translation>Exemple d'invite</translation>
     </message>
     <message>
         <source>Copy Example Prompt</source>
-        <translation>Copier l&apos;exemple d&apos;invite</translation>
+        <translation>Copier l'exemple d'invite</translation>
     </message>
     <message>
         <source>Copied</source>
@@ -12014,7 +12014,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Patchy is running inside a Flatpak sandbox; the skill folder is only visible from inside it.</source>
-        <translation>Patchy s&apos;exécute dans un bac à sable Flatpak ; le dossier de la compétence n&apos;est visible que depuis l&apos;intérieur de celui-ci.</translation>
+        <translation>Patchy s'exécute dans un bac à sable Flatpak ; le dossier de la compétence n'est visible que depuis l'intérieur de celui-ci.</translation>
     </message>
     <message>
         <source>The patchy-mcp connector was not found next to Patchy. Reinstall Patchy or download a full package.</source>
@@ -12038,14 +12038,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Patchy is running from an AppImage; the skill folder exists only while Patchy is open.</source>
-        <translation>Patchy s&apos;exécute depuis un AppImage ; le dossier de la compétence n&apos;existe que tant que Patchy est ouvert.</translation>
+        <translation>Patchy s'exécute depuis un AppImage ; le dossier de la compétence n'existe que tant que Patchy est ouvert.</translation>
     </message>
 </context>
 <context>
     <name>patchy::ui::AnimationPreviewWindow</name>
     <message>
         <source>Animation Preview</source>
-        <translation>Aperçu de l&apos;animation</translation>
+        <translation>Aperçu de l'animation</translation>
     </message>
     <message>
         <source>Play</source>
@@ -12064,16 +12064,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Définir la durée</translation>
     </message>
     <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Renomme les calques sélectionnés pour qu&apos;ils se terminent par cette durée d&apos;image, par exemple « clignement 0.25s ».</translation>
+        <source>Renames the selected layers to end with this frame time, like "blink 0.25s".</source>
+        <translation>Renomme les calques sélectionnés pour qu'ils se terminent par cette durée d'image, par exemple « clignement 0.25s ».</translation>
     </message>
     <message>
         <source>Remove</source>
         <translation>Supprimer</translation>
     </message>
     <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Supprime la durée d&apos;image à la fin du nom des calques sélectionnés.</translation>
+        <source>Removes the trailing frame time from the selected layers' names.</source>
+        <translation>Supprime la durée d'image à la fin du nom des calques sélectionnés.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -12088,8 +12088,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Arrêter</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Lit les calques visibles de premier niveau comme des images, de haut en bas, comme l’export GIF et WebP animés. Une durée à la fin du nom du calque, comme &quot;blink 0.25s&quot;, définit la durée de cette image.</translation>
+        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like "blink 0.25s", sets that frame's delay.</source>
+        <translation>Lit les calques visibles de premier niveau comme des images, de haut en bas, comme l’export GIF et WebP animés. Une durée à la fin du nom du calque, comme "blink 0.25s", définit la durée de cette image.</translation>
     </message>
     <message>
         <source>Default frame delay:</source>
@@ -12191,7 +12191,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>preview write</source>
-        <translation>écriture de l&apos;aperçu</translation>
+        <translation>écriture de l'aperçu</translation>
     </message>
     <message>
         <source>Square</source>
@@ -12253,7 +12253,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Spacing steps to fade over</source>
-        <translation>Nombre de pas d&apos;espacement sur lesquels appliquer le fondu</translation>
+        <translation>Nombre de pas d'espacement sur lesquels appliquer le fondu</translation>
     </message>
     <message>
         <source>Tip Shape</source>
@@ -12285,11 +12285,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Angle Jitter:</source>
-        <translation>Variation de l&apos;angle :</translation>
+        <translation>Variation de l'angle :</translation>
     </message>
     <message>
         <source>Angle Control:</source>
-        <translation>Contrôle de l&apos;angle :</translation>
+        <translation>Contrôle de l'angle :</translation>
     </message>
     <message>
         <source>Initial Direction</source>
@@ -12301,7 +12301,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Roundness Jitter:</source>
-        <translation>Variation de l&apos;arrondi :</translation>
+        <translation>Variation de l'arrondi :</translation>
     </message>
     <message>
         <source>Minimum Roundness:</source>
@@ -12309,7 +12309,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Roundness Control:</source>
-        <translation>Contrôle de l&apos;arrondi :</translation>
+        <translation>Contrôle de l'arrondi :</translation>
     </message>
     <message>
         <source>Flip X Jitter</source>
@@ -12353,7 +12353,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Opacity Jitter:</source>
-        <translation>Variation de l&apos;opacité :</translation>
+        <translation>Variation de l'opacité :</translation>
     </message>
     <message>
         <source>Minimum Opacity:</source>
@@ -12361,7 +12361,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Opacity Control:</source>
-        <translation>Contrôle de l&apos;opacité :</translation>
+        <translation>Contrôle de l'opacité :</translation>
     </message>
     <message>
         <source>Flow Jitter:</source>
@@ -12477,7 +12477,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Builds paint along stroke edges for a watercolor wash. It does not smear canvas colors; use Smudge for that.</source>
-        <translation>Accumule la peinture le long des bords du tracé pour un effet de lavis à l&apos;aquarelle. Cette option n&apos;étale pas les couleurs de la toile ; utilisez l&apos;outil Doigt pour cela.</translation>
+        <translation>Accumule la peinture le long des bords du tracé pour un effet de lavis à l'aquarelle. Cette option n'étale pas les couleurs de la toile ; utilisez l'outil Doigt pour cela.</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -12491,20 +12491,20 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::BrushTipLibrary</name>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;ouvrir « %1 ».</translation>
+        <source>Could not open "%1".</source>
+        <translation>Impossible d'ouvrir « %1 ».</translation>
     </message>
     <message>
         <source>Brush %1</source>
         <translation>Forme %1</translation>
     </message>
     <message>
-        <source>Could not save brush &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;enregistrer la forme « %1 ».</translation>
+        <source>Could not save brush "%1".</source>
+        <translation>Impossible d'enregistrer la forme « %1 ».</translation>
     </message>
     <message>
-        <source>No brush tips could be imported from &quot;%1&quot;.</source>
-        <translation>Aucune pointe de forme n&apos;a pu être importée depuis « %1 ».</translation>
+        <source>No brush tips could be imported from "%1".</source>
+        <translation>Aucune pointe de forme n'a pu être importée depuis « %1 ».</translation>
     </message>
 </context>
 <context>
@@ -12539,11 +12539,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>New from Selection…</source>
-        <translation>Nouvelle forme d&apos;après la sélection…</translation>
+        <translation>Nouvelle forme d'après la sélection…</translation>
     </message>
     <message>
         <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
-        <translation>Créer une pointe de forme à partir de la sélection actuelle (ou de l&apos;image entière) : les pixels sombres peignent, les pixels clairs restent transparents</translation>
+        <translation>Créer une pointe de forme à partir de la sélection actuelle (ou de l'image entière) : les pixels sombres peignent, les pixels clairs restent transparents</translation>
     </message>
     <message>
         <source>Manage…</source>
@@ -12610,23 +12610,23 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>This tool is unavailable in Quick Mask mode</source>
-        <translation>Cet outil n&apos;est pas disponible en mode Masque</translation>
+        <translation>Cet outil n'est pas disponible en mode Masque</translation>
     </message>
     <message>
         <source>This tool is unavailable while editing a Smart Filter mask</source>
-        <translation>Cet outil n&apos;est pas disponible pendant la modification d&apos;un masque de filtre dynamique</translation>
+        <translation>Cet outil n'est pas disponible pendant la modification d'un masque de filtre dynamique</translation>
     </message>
     <message>
         <source>This tool is unavailable while viewing a document channel</source>
-        <translation>Cet outil n&apos;est pas disponible pendant l&apos;affichage d&apos;une couche du document</translation>
+        <translation>Cet outil n'est pas disponible pendant l'affichage d'une couche du document</translation>
     </message>
     <message>
         <source>Healing is unavailable while editing a grayscale channel</source>
-        <translation>Le Correcteur n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>Le Correcteur n'est pas disponible pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>Clone is unavailable while editing a grayscale channel</source>
-        <translation>La duplication n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>La duplication n'est pas disponible pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>%ALT%-click to set a healing source</source>
@@ -12646,11 +12646,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Spot healing is unavailable while editing a grayscale channel</source>
-        <translation>Le Correcteur localisé n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>Le Correcteur localisé n'est pas disponible pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>Local adjustment brushes are unavailable while editing a grayscale channel</source>
-        <translation>Les pinceaux de réglage local ne sont pas disponibles pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>Les pinceaux de réglage local ne sont pas disponibles pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>Dodge</source>
@@ -12666,7 +12666,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Blur brush</source>
-        <translation>Goutte d&apos;eau</translation>
+        <translation>Goutte d'eau</translation>
     </message>
     <message>
         <source>Sharpen brush</source>
@@ -12678,7 +12678,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Patch is unavailable while editing a grayscale channel</source>
-        <translation>L&apos;outil Pièce n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>L'outil Pièce n'est pas disponible pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>Magic Wand</source>
@@ -12690,11 +12690,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Mixer Brush is unavailable while editing a grayscale channel</source>
-        <translation>Le Pinceau mélangeur n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>Le Pinceau mélangeur n'est pas disponible pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>Smudge is unavailable while editing a grayscale channel</source>
-        <translation>L&apos;outil Doigt n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+        <translation>L'outil Doigt n'est pas disponible pendant la modification d'une couche en niveaux de gris</translation>
     </message>
     <message>
         <source>Erase</source>
@@ -12758,11 +12758,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Drag the selection to where the copy should go</source>
-        <translation>Faites glisser la sélection à l&apos;endroit où placer la copie</translation>
+        <translation>Faites glisser la sélection à l'endroit où placer la copie</translation>
     </message>
     <message>
         <source>Select All is unavailable in Quick Mask mode</source>
-        <translation>Tout sélectionner n&apos;est pas disponible en mode Masque</translation>
+        <translation>Tout sélectionner n'est pas disponible en mode Masque</translation>
     </message>
     <message>
         <source>Brush flow: %1%</source>
@@ -12778,7 +12778,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>The Smart Filter mask is no longer available</source>
-        <translation>Le masque de filtre dynamique n&apos;est plus disponible</translation>
+        <translation>Le masque de filtre dynamique n'est plus disponible</translation>
     </message>
     <message>
         <source>Select a saved channel to edit</source>
@@ -12802,18 +12802,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Select an editable 8-bit pixel layer first</source>
-        <translation>Sélectionnez d&apos;abord un calque de pixels 8 bits modifiable</translation>
+        <translation>Sélectionnez d'abord un calque de pixels 8 bits modifiable</translation>
     </message>
     <message>
         <source>Select a normal pixel layer before painting on text</source>
         <translation>Sélectionnez un calque de pixels normal avant de peindre sur du texte</translation>
     </message>
     <message>
-        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
-        <translation>Le contenu d&apos;un objet dynamique ne peut pas être peint. Pixellisez le calque pour modifier ses pixels.</translation>
+        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
+        <translation>Le contenu d'un objet dynamique ne peut pas être peint. Pixellisez le calque pour modifier ses pixels.</translation>
     </message>
     <message>
-        <source>Shape layers can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Shape layers can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>Les calques de forme ne peuvent pas être peints. Pixellisez le calque pour modifier ses pixels.</translation>
     </message>
     <message>
@@ -12866,7 +12866,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Select the Clone or Healing Brush tool to set a sample source</source>
-        <translation>Sélectionnez l&apos;outil Tampon de duplication ou Correcteur pour définir une source d&apos;échantillonnage</translation>
+        <translation>Sélectionnez l'outil Tampon de duplication ou Correcteur pour définir une source d'échantillonnage</translation>
     </message>
     <message>
         <source>Processing...</source>
@@ -12882,7 +12882,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Rendering preview...</source>
-        <translation>Rendu de l&apos;aperçu...</translation>
+        <translation>Rendu de l'aperçu...</translation>
     </message>
     <message>
         <source>Inverted Quick Mask</source>
@@ -12910,7 +12910,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Select a pixel layer first</source>
-        <translation>Sélectionnez d&apos;abord un calque de pixels</translation>
+        <translation>Sélectionnez d'abord un calque de pixels</translation>
     </message>
     <message>
         <source>Layer has no opaque pixels</source>
@@ -12922,7 +12922,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Layer has no mask</source>
-        <translation>Le calque n&apos;a pas de masque</translation>
+        <translation>Le calque n'a pas de masque</translation>
     </message>
     <message>
         <source>Layer mask has no selected pixels</source>
@@ -12934,7 +12934,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Make a selection before growing</source>
-        <translation>Effectuez une sélection avant de l&apos;étendre</translation>
+        <translation>Effectuez une sélection avant de l'étendre</translation>
     </message>
     <message>
         <source>Grew selection to %1 px</source>
@@ -12950,7 +12950,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Select a pixel layer before using Magic Wand</source>
-        <translation>Sélectionnez un calque de pixels avant d&apos;utiliser la Baguette magique</translation>
+        <translation>Sélectionnez un calque de pixels avant d'utiliser la Baguette magique</translation>
     </message>
     <message>
         <source>Magic Wand selected %1 px</source>
@@ -12958,7 +12958,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Select a pixel layer before using Quick Select</source>
-        <translation>Sélectionnez un calque de pixels avant d&apos;utiliser la Sélection rapide</translation>
+        <translation>Sélectionnez un calque de pixels avant d'utiliser la Sélection rapide</translation>
     </message>
     <message>
         <source>Quick Select</source>
@@ -12978,7 +12978,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Spot healing needs unpainted pixels around the stroke to sample</source>
-        <translation>Le Correcteur localisé a besoin de pixels non peints autour du tracé pour l&apos;échantillonnage</translation>
+        <translation>Le Correcteur localisé a besoin de pixels non peints autour du tracé pour l'échantillonnage</translation>
     </message>
     <message>
         <source>Spot healing</source>
@@ -12989,11 +12989,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Sélectionnez un calque de pixels modifiable à transformer</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can&apos;t be transformed. Rasterize the layer first.</source>
-        <translation>Cet objet dynamique est en aperçu seul et ne peut pas être transformé. Pixellisez d&apos;abord le calque.</translation>
+        <source>This smart object is preview-only and can't be transformed. Rasterize the layer first.</source>
+        <translation>Cet objet dynamique est en aperçu seul et ne peut pas être transformé. Pixellisez d'abord le calque.</translation>
     </message>
     <message>
-        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <source>This layer's vector data is preserved but can't be edited.</source>
         <translation>Les données vectorielles de ce calque sont conservées mais ne peuvent pas être modifiées.</translation>
     </message>
     <message>
@@ -13014,7 +13014,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Could not rebuild the Smart Filter preview and cache</source>
-        <translation>Impossible de reconstruire l&apos;aperçu et le cache du filtre dynamique</translation>
+        <translation>Impossible de reconstruire l'aperçu et le cache du filtre dynamique</translation>
     </message>
     <message>
         <source>Transformed layer</source>
@@ -13042,26 +13042,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Warp works on a single layer. Select one layer to warp.</source>
-        <translation>La déformation s&apos;applique à un seul calque. Sélectionnez un seul calque à déformer.</translation>
+        <translation>La déformation s'applique à un seul calque. Sélectionnez un seul calque à déformer.</translation>
     </message>
     <message>
         <source>Select an editable pixel layer to warp</source>
         <translation>Sélectionnez un calque de pixels modifiable à déformer</translation>
     </message>
     <message>
-        <source>Text layers use Warp Text (the Type tool&apos;s Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
-        <translation>Les calques de texte utilisent Déformer le texte (bouton Déformer... de l&apos;outil Texte). Pour une grille personnalisée, convertissez d&apos;abord en objet dynamique ou pixellisez le calque.</translation>
+        <source>Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
+        <translation>Les calques de texte utilisent Déformer le texte (bouton Déformer... de l'outil Texte). Pour une grille personnalisée, convertissez d'abord en objet dynamique ou pixellisez le calque.</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can&apos;t be warped. Rasterize the layer first.</source>
-        <translation>Cet objet dynamique est en aperçu seul et ne peut pas être déformé. Pixellisez d&apos;abord le calque.</translation>
+        <source>This smart object is preview-only and can't be warped. Rasterize the layer first.</source>
+        <translation>Cet objet dynamique est en aperçu seul et ne peut pas être déformé. Pixellisez d'abord le calque.</translation>
     </message>
     <message>
-        <source>Shape layers and vector masks can&apos;t be warped. Convert to a smart object or rasterize first.</source>
-        <translation>Les calques de forme et les masques vectoriels ne peuvent pas être déformés. Convertissez d&apos;abord en objet dynamique ou pixellisez le calque.</translation>
+        <source>Shape layers and vector masks can't be warped. Convert to a smart object or rasterize first.</source>
+        <translation>Les calques de forme et les masques vectoriels ne peuvent pas être déformés. Convertissez d'abord en objet dynamique ou pixellisez le calque.</translation>
     </message>
     <message>
-        <source>This smart object&apos;s contents can&apos;t be decoded for warping</source>
+        <source>This smart object's contents can't be decoded for warping</source>
         <translation>Le contenu de cet objet dynamique ne peut pas être décodé pour la déformation</translation>
     </message>
     <message>
@@ -13082,7 +13082,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Pixel view: Dynamic Vector Preview requires background rendering.</source>
-        <translation>Affichage en pixels : l&apos;Aperçu vectoriel dynamique nécessite le rendu en arrière-plan.</translation>
+        <translation>Affichage en pixels : l'Aperçu vectoriel dynamique nécessite le rendu en arrière-plan.</translation>
     </message>
     <message>
         <source>Dynamic Vector Preview: sharp vector view.</source>
@@ -13102,11 +13102,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>The Pen tool draws paths on layer content</source>
-        <translation>L&apos;outil Plume dessine des tracés sur le contenu du calque</translation>
+        <translation>L'outil Plume dessine des tracés sur le contenu du calque</translation>
     </message>
     <message>
         <source>Select a shape layer or draw a path first</source>
-        <translation>Sélectionnez d&apos;abord un calque de forme ou dessinez un tracé</translation>
+        <translation>Sélectionnez d'abord un calque de forme ou dessinez un tracé</translation>
     </message>
     <message>
         <source>Move shape</source>
@@ -13118,11 +13118,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Delete anchors</source>
-        <translation>Supprimer les points d&apos;ancrage</translation>
+        <translation>Supprimer les points d'ancrage</translation>
     </message>
     <message>
         <source>Nudge anchors</source>
-        <translation>Décaler les points d&apos;ancrage</translation>
+        <translation>Décaler les points d'ancrage</translation>
     </message>
     <message>
         <source>Convert point</source>
@@ -13130,11 +13130,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Delete anchor</source>
-        <translation>Supprimer le point d&apos;ancrage</translation>
+        <translation>Supprimer le point d'ancrage</translation>
     </message>
     <message>
         <source>Add anchor</source>
-        <translation>Ajouter un point d&apos;ancrage</translation>
+        <translation>Ajouter un point d'ancrage</translation>
     </message>
     <message>
         <source>Click to add a point here. %CTRL%-drag moves the segment.</source>
@@ -13142,7 +13142,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Click to delete this point. %CTRL%-drag moves it. %ALT%+click converts it between corner and smooth.</source>
-        <translation>Cliquez pour supprimer ce point. %CTRL%+glisser le déplace. %ALT%+clic le convertit entre point d&apos;angle et point d&apos;inflexion.</translation>
+        <translation>Cliquez pour supprimer ce point. %CTRL%+glisser le déplace. %ALT%+clic le convertit entre point d'angle et point d'inflexion.</translation>
     </message>
     <message>
         <source>Click to delete this point. %CTRL%-drag moves it.</source>
@@ -13150,7 +13150,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Click to convert this point between corner and smooth</source>
-        <translation>Cliquez pour convertir ce point entre point d&apos;angle et point d&apos;inflexion</translation>
+        <translation>Cliquez pour convertir ce point entre point d'angle et point d'inflexion</translation>
     </message>
     <message>
         <source>Click to close the path</source>
@@ -13162,7 +13162,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>Faites glisser pour déplacer le point. Shift+clic l&apos;ajoute à la sélection ; Delete supprime les points sélectionnés.</translation>
+        <translation>Faites glisser pour déplacer le point. Shift+clic l'ajoute à la sélection ; Delete supprime les points sélectionnés.</translation>
     </message>
     <message>
         <source>Drag the handle to reshape the curve</source>
@@ -13174,11 +13174,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Add Anchor Point</source>
-        <translation>Ajouter un point d&apos;ancrage</translation>
+        <translation>Ajouter un point d'ancrage</translation>
     </message>
     <message>
         <source>Delete Anchor Point</source>
-        <translation>Supprimer un point d&apos;ancrage</translation>
+        <translation>Supprimer un point d'ancrage</translation>
     </message>
     <message>
         <source>Convert Point</source>
@@ -13206,7 +13206,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Transform path: drag inside to move, handles to scale, outside to rotate. Enter commits, Esc cancels.</source>
-        <translation>Transformation du tracé : faites glisser l&apos;intérieur pour déplacer, les poignées pour redimensionner, l&apos;extérieur pour faire pivoter. Enter valide, Esc annule.</translation>
+        <translation>Transformation du tracé : faites glisser l'intérieur pour déplacer, les poignées pour redimensionner, l'extérieur pour faire pivoter. Enter valide, Esc annule.</translation>
     </message>
     <message>
         <source>Transform path</source>
@@ -13246,39 +13246,39 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Drag the selection to a clean area to sample from, or press Enter to remove the object automatically</source>
-        <translation>Faites glisser la sélection vers une zone propre à échantillonner, ou appuyez sur Entrée pour supprimer l&apos;objet automatiquement</translation>
+        <translation>Faites glisser la sélection vers une zone propre à échantillonner, ou appuyez sur Entrée pour supprimer l'objet automatiquement</translation>
     </message>
     <message>
         <source>Remove Object needs an open document</source>
-        <translation>Supprimer l&apos;objet a besoin d&apos;un document ouvert</translation>
+        <translation>Supprimer l'objet a besoin d'un document ouvert</translation>
     </message>
     <message>
         <source>Remove Object needs a selection: select the area to remove first</source>
-        <translation>Supprimer l&apos;objet a besoin d&apos;une sélection : sélectionnez d&apos;abord la zone à supprimer</translation>
+        <translation>Supprimer l'objet a besoin d'une sélection : sélectionnez d'abord la zone à supprimer</translation>
     </message>
     <message>
         <source>Remove Object needs a selection on the canvas</source>
-        <translation>Supprimer l&apos;objet a besoin d&apos;une sélection dans la zone de travail</translation>
+        <translation>Supprimer l'objet a besoin d'une sélection dans la zone de travail</translation>
     </message>
     <message>
         <source>Remove Object needs an editable pixel layer</source>
-        <translation>Supprimer l&apos;objet a besoin d&apos;un calque de pixels modifiable</translation>
+        <translation>Supprimer l'objet a besoin d'un calque de pixels modifiable</translation>
     </message>
     <message>
         <source>Remove Object needs unselected pixels around the selection to sample</source>
-        <translation>Supprimer l&apos;objet a besoin de pixels non sélectionnés autour de la sélection pour l&apos;échantillonnage</translation>
+        <translation>Supprimer l'objet a besoin de pixels non sélectionnés autour de la sélection pour l'échantillonnage</translation>
     </message>
     <message>
         <source>Remove Object could not read the document pixels</source>
-        <translation>Supprimer l&apos;objet n&apos;a pas pu lire les pixels du document</translation>
+        <translation>Supprimer l'objet n'a pas pu lire les pixels du document</translation>
     </message>
     <message>
         <source>Remove Object</source>
-        <translation>Supprimer l&apos;objet</translation>
+        <translation>Supprimer l'objet</translation>
     </message>
     <message>
         <source>Remove Object needs a pixel layer</source>
-        <translation>Supprimer l&apos;objet a besoin d&apos;un calque de pixels</translation>
+        <translation>Supprimer l'objet a besoin d'un calque de pixels</translation>
     </message>
     <message>
         <source>Removed object with source %1 of %2. Run again to try another.</source>
@@ -13286,19 +13286,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Removed object with content-aware fill (%1 patches)</source>
-        <translation>Objet supprimé avec le remplissage d&apos;après le contenu (%1 pièces)</translation>
+        <translation>Objet supprimé avec le remplissage d'après le contenu (%1 pièces)</translation>
     </message>
     <message>
         <source>Remove Object found no clean source patches nearby; used the nearest edge instead (source %1 of %2)</source>
-        <translation>Supprimer l&apos;objet n&apos;a trouvé aucune pièce source propre à proximité ; le bord le plus proche a été utilisé à la place (source %1 sur %2)</translation>
+        <translation>Supprimer l'objet n'a trouvé aucune pièce source propre à proximité ; le bord le plus proche a été utilisé à la place (source %1 sur %2)</translation>
     </message>
     <message>
         <source>Removing object...</source>
-        <translation>Suppression de l&apos;objet...</translation>
+        <translation>Suppression de l'objet...</translation>
     </message>
     <message>
         <source>Removing object... %1%</source>
-        <translation>Suppression de l&apos;objet... %1%</translation>
+        <translation>Suppression de l'objet... %1%</translation>
     </message>
     <message>
         <source>Align Layers</source>
@@ -13314,11 +13314,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
-        <translation>Objet supprimé avec le remplissage d&apos;après le contenu, variante %1 (%2 pièces)</translation>
+        <translation>Objet supprimé avec le remplissage d'après le contenu, variante %1 (%2 pièces)</translation>
     </message>
     <message>
         <source>Remove Object was cancelled</source>
-        <translation>Supprimer l&apos;objet a été annulé</translation>
+        <translation>Supprimer l'objet a été annulé</translation>
     </message>
     <message>
         <source>Guide X: %1</source>
@@ -13374,31 +13374,31 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Object Selection is not available in this build</source>
-        <translation>La Sélection d&apos;objet n&apos;est pas disponible dans cette version</translation>
+        <translation>La Sélection d'objet n'est pas disponible dans cette version</translation>
     </message>
     <message>
         <source>Object Selection failed: %1</source>
-        <translation>Échec de la Sélection d&apos;objet : %1</translation>
+        <translation>Échec de la Sélection d'objet : %1</translation>
     </message>
     <message>
         <source>Object Selection found no object there</source>
-        <translation>La Sélection d&apos;objet n&apos;a trouvé aucun objet à cet endroit</translation>
+        <translation>La Sélection d'objet n'a trouvé aucun objet à cet endroit</translation>
     </message>
     <message>
         <source>Object Selection</source>
-        <translation>Sélection d&apos;objet</translation>
+        <translation>Sélection d'objet</translation>
     </message>
     <message>
         <source>Analyzing image... %1%</source>
-        <translation>Analyse de l&apos;image... %1%</translation>
+        <translation>Analyse de l'image... %1%</translation>
     </message>
     <message>
         <source>Select Object needs a selection around the object</source>
-        <translation>Sélectionner l&apos;objet nécessite une sélection autour de l&apos;objet</translation>
+        <translation>Sélectionner l'objet nécessite une sélection autour de l'objet</translation>
     </message>
     <message>
         <source>Select Object</source>
-        <translation>Sélectionner l&apos;objet</translation>
+        <translation>Sélectionner l'objet</translation>
     </message>
     <message>
         <source>Select a layer with visible content, or turn on Sample All Layers</source>
@@ -13406,19 +13406,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Object Selection could not read the document</source>
-        <translation>La Sélection d&apos;objet n&apos;a pas pu lire le document</translation>
+        <translation>La Sélection d'objet n'a pas pu lire le document</translation>
     </message>
     <message>
         <source>%1 ran out of memory. Close other programs or documents to free some memory, then try again.</source>
-        <translation>%1 : mémoire insuffisante. Fermez d&apos;autres programmes ou documents pour libérer de la mémoire, puis réessayez.</translation>
+        <translation>%1 : mémoire insuffisante. Fermez d'autres programmes ou documents pour libérer de la mémoire, puis réessayez.</translation>
     </message>
     <message>
         <source>Downloading Object Selection model... %1%</source>
-        <translation>Téléchargement du modèle de sélection d&apos;objet... %1%</translation>
+        <translation>Téléchargement du modèle de sélection d'objet... %1%</translation>
     </message>
     <message>
         <source>Refining preview...</source>
-        <translation>Affinage de l&apos;aperçu...</translation>
+        <translation>Affinage de l'aperçu...</translation>
     </message>
     <message>
         <source>Select a pixel layer to sample the current layer, or sample all layers</source>
@@ -13437,7 +13437,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Pixellisez le calque pour le déformer</translation>
     </message>
     <message>
-        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <source>A smart object in perspective can't be warped. Rasterize the layer first.</source>
         <translation>Un objet dynamique en perspective ne peut pas être déformé. Pixellisez d’abord le calque.</translation>
     </message>
     <message>
@@ -13458,7 +13458,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Click to continue the path from this end point</source>
-        <translation>Cliquez pour prolonger le tracé à partir de ce point d&apos;extrémité</translation>
+        <translation>Cliquez pour prolonger le tracé à partir de ce point d'extrémité</translation>
     </message>
     <message>
         <source>Delete Selected Shapes</source>
@@ -13497,7 +13497,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Show the normal composite image.</source>
-        <translation>Afficher l&apos;image composite normale.</translation>
+        <translation>Afficher l'image composite normale.</translation>
     </message>
     <message>
         <source>Preview this component as grayscale. Component channels are read-only.</source>
@@ -13529,7 +13529,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Preview this ink plate of the CMYK proof: darker means more ink. Plates come from the working CMYK profile and are read-only.</source>
-        <translation>Aperçu de cette plaque d&apos;encre de l&apos;épreuve CMJN : plus sombre signifie plus d&apos;encre. Les plaques viennent du profil CMJN de travail et sont en lecture seule.</translation>
+        <translation>Aperçu de cette plaque d'encre de l'épreuve CMJN : plus sombre signifie plus d'encre. Les plaques viennent du profil CMJN de travail et sont en lecture seule.</translation>
     </message>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
@@ -13540,7 +13540,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <name>patchy::ui::FontPickerCombo</name>
     <message>
         <source>The quick brown fox jumps over the lazy dog. 0123456789</source>
-        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font&apos;s Latin glyph coverage).</extracomment>
+        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font's Latin glyph coverage).</extracomment>
         <translation>Portez ce vieux whisky au juge blond qui fume. 0123456789</translation>
     </message>
     <message>
@@ -13555,8 +13555,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
     <message>
-        <source>G&apos;MIC Filter Library</source>
-        <translation>Bibliothèque de filtres G&apos;MIC</translation>
+        <source>G'MIC Filter Library</source>
+        <translation>Bibliothèque de filtres G'MIC</translation>
     </message>
     <message>
         <source>Search filters...</source>
@@ -13567,8 +13567,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Réinitialiser</translation>
     </message>
     <message>
-        <source>Filters from G&apos;MIC %1 (gmic.eu)</source>
-        <translation>Filtres de G&apos;MIC %1 (gmic.eu)</translation>
+        <source>Filters from G'MIC %1 (gmic.eu)</source>
+        <translation>Filtres de G'MIC %1 (gmic.eu)</translation>
     </message>
     <message>
         <source>Select a filter</source>
@@ -13580,7 +13580,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Input layers:</source>
-        <translation>Calques d&apos;entrée :</translation>
+        <translation>Calques d'entrée :</translation>
     </message>
     <message>
         <source>Active layer</source>
@@ -13608,42 +13608,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>The layers the filter works on. A filter made for one image is applied to each chosen layer in turn; a filter made for several layers, such as the Blend filters, combines them. Locked, text, shape and Smart Object layers are read but never changed.</source>
-        <translation>Les calques sur lesquels agit le filtre. Un filtre conçu pour une seule image est appliqué tour à tour à chaque calque choisi ; un filtre conçu pour plusieurs calques, comme les filtres Blend, les combine. Les calques verrouillés, de texte, de forme et d&apos;objet dynamique sont lus mais jamais modifiés.</translation>
+        <translation>Les calques sur lesquels agit le filtre. Un filtre conçu pour une seule image est appliqué tour à tour à chaque calque choisi ; un filtre conçu pour plusieurs calques, comme les filtres Blend, les combine. Les calques verrouillés, de texte, de forme et d'objet dynamique sont lus mais jamais modifiés.</translation>
     </message>
     <message>
-        <source>About G&apos;MIC...</source>
-        <translation>À propos de G&apos;MIC...</translation>
+        <source>About G'MIC...</source>
+        <translation>À propos de G'MIC...</translation>
     </message>
     <message>
-        <source>About G&apos;MIC</source>
-        <translation>À propos de G&apos;MIC</translation>
+        <source>About G'MIC</source>
+        <translation>À propos de G'MIC</translation>
     </message>
     <message>
-        <source>G&apos;MIC %1</source>
-        <translation>G&apos;MIC %1</translation>
+        <source>G'MIC %1</source>
+        <translation>G'MIC %1</translation>
     </message>
     <message numerus="yes">
-        <source>G&apos;MIC (GREYC&apos;s Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
+        <source>G'MIC (GREYC's Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
         <translation>
-            <numerusform>G&apos;MIC (GREYC&apos;s Magic for Image Computing) est un environnement libre et open source de traitement d&apos;images. Patchy inclut son interpréteur et %n filtre de sa bibliothèque standard, et les exécute dans cette boîte de dialogue de Patchy.</numerusform>
-            <numerusform>G&apos;MIC (GREYC&apos;s Magic for Image Computing) est un environnement libre et open source de traitement d&apos;images. Patchy inclut son interpréteur et %n filtres de sa bibliothèque standard, et les exécute dans cette boîte de dialogue de Patchy.</numerusform>
+            <numerusform>G'MIC (GREYC's Magic for Image Computing) est un environnement libre et open source de traitement d'images. Patchy inclut son interpréteur et %n filtre de sa bibliothèque standard, et les exécute dans cette boîte de dialogue de Patchy.</numerusform>
+            <numerusform>G'MIC (GREYC's Magic for Image Computing) est un environnement libre et open source de traitement d'images. Patchy inclut son interpréteur et %n filtres de sa bibliothèque standard, et les exécute dans cette boîte de dialogue de Patchy.</numerusform>
         </translation>
     </message>
     <message>
-        <source>G&apos;MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
-        <translation>G&apos;MIC est développé par David Tschumperlé et l&apos;équipe Image du laboratoire GREYC à Caen, en France, avec des filtres écrits par de nombreux contributeurs. La plupart des filtres indiquent leurs auteurs à la fin de leurs réglages.</translation>
+        <source>G'MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
+        <translation>G'MIC est développé par David Tschumperlé et l'équipe Image du laboratoire GREYC à Caen, en France, avec des filtres écrits par de nombreux contributeurs. La plupart des filtres indiquent leurs auteurs à la fin de leurs réglages.</translation>
     </message>
     <message>
-        <source>How to say it: its author pronounces it like the English word &quot;gimmick&quot;, a nod to the magic in its name, and says any pronunciation is fine.</source>
-        <translation>Prononciation : son auteur le prononce comme le mot anglais « gimmick », clin d&apos;œil à la magie de son nom, et dit que toute prononciation convient.</translation>
+        <source>How to say it: its author pronounces it like the English word "gimmick", a nod to the magic in its name, and says any pronunciation is fine.</source>
+        <translation>Prononciation : son auteur le prononce comme le mot anglais « gimmick », clin d'œil à la magie de son nom, et dit que toute prononciation convient.</translation>
     </message>
     <message>
-        <source>G&apos;MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G&apos;MIC team.</source>
-        <translation>G&apos;MIC est distribué sous la licence CeCILL-C, dont le texte est fourni avec Patchy. Les questions sur la façon dont Patchy exécute un filtre concernent Patchy, pas l&apos;équipe de G&apos;MIC.</translation>
+        <source>G'MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G'MIC team.</source>
+        <translation>G'MIC est distribué sous la licence CeCILL-C, dont le texte est fourni avec Patchy. Les questions sur la façon dont Patchy exécute un filtre concernent Patchy, pas l'équipe de G'MIC.</translation>
     </message>
     <message>
-        <source>Visit the G&apos;MIC website (gmic.eu)</source>
-        <translation>Visiter le site de G&apos;MIC (gmic.eu)</translation>
+        <source>Visit the G'MIC website (gmic.eu)</source>
+        <translation>Visiter le site de G'MIC (gmic.eu)</translation>
     </message>
 </context>
 <context>
@@ -13685,7 +13685,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Could not write the GRD file.</source>
-        <translation>Impossible d&apos;écrire le fichier GRD.</translation>
+        <translation>Impossible d'écrire le fichier GRD.</translation>
     </message>
 </context>
 <context>
@@ -13704,7 +13704,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Click a shortcut to change it. Backspace clears it. Esc cancels. Changes apply when you click OK.</source>
-        <translation>Cliquez sur un raccourci pour le modifier. Backspace l&apos;efface. Esc annule. Les modifications s&apos;appliquent lorsque vous cliquez sur OK.</translation>
+        <translation>Cliquez sur un raccourci pour le modifier. Backspace l'efface. Esc annule. Les modifications s'appliquent lorsque vous cliquez sur OK.</translation>
     </message>
     <message>
         <source>Built-in canvas keys (not editable)</source>
@@ -13716,7 +13716,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Set tool opacity (10%-100%)</source>
-        <translation>Définir l&apos;opacité de l&apos;outil (10 % à 100 %)</translation>
+        <translation>Définir l'opacité de l'outil (10 % à 100 %)</translation>
     </message>
     <message>
         <source>Nudge layer by 1 px / 10 px</source>
@@ -13810,7 +13810,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Afficher la fenêtre du module externe</translation>
     </message>
     <message>
-        <source>Brings the plug-in&apos;s window back in front of Patchy.</source>
+        <source>Brings the plug-in's window back in front of Patchy.</source>
         <translation>Ramène la fenêtre du module externe devant Patchy.</translation>
     </message>
     <message>
@@ -13819,17 +13819,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Force Stop Plug-in</source>
-        <translation>Forcer l&apos;arrêt du module externe</translation>
+        <translation>Forcer l'arrêt du module externe</translation>
     </message>
     <message>
-        <source>Ends the plug-in without applying it. Use it only if the plug-in&apos;s window has stopped responding.</source>
+        <source>Ends the plug-in without applying it. Use it only if the plug-in's window has stopped responding.</source>
         <extracomment>Tooltip of the stop button while a plug-in is loading or waits for the user in its own window.</extracomment>
-        <translation>Met fin au module externe sans l&apos;appliquer. À utiliser seulement si la fenêtre du module externe ne répond plus.</translation>
+        <translation>Met fin au module externe sans l'appliquer. À utiliser seulement si la fenêtre du module externe ne répond plus.</translation>
     </message>
     <message>
         <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
-        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
-        <translation>%1 est ouvert dans sa propre fenêtre. Réglez-y ses paramètres et cliquez sur son bouton OK pour l&apos;appliquer à ce calque.</translation>
+        <extracomment>%1 is the plug-in's name; shown while its own settings window is open.</extracomment>
+        <translation>%1 est ouvert dans sa propre fenêtre. Réglez-y ses paramètres et cliquez sur son bouton OK pour l'appliquer à ce calque.</translation>
     </message>
     <message>
         <source>Applying %1...</source>
@@ -13864,7 +13864,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Could not rebuild the Smart Filter preview and cache</source>
-        <translation>Impossible de reconstruire l&apos;aperçu et le cache du filtre dynamique</translation>
+        <translation>Impossible de reconstruire l'aperçu et le cache du filtre dynamique</translation>
     </message>
     <message>
         <source>Layer pixels are locked.</source>
@@ -13895,7 +13895,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Faux gras</translation>
     </message>
     <message>
-        <source>Thicken the current face synthetically instead of switching to the family&apos;s bold face</source>
+        <source>Thicken the current face synthetically instead of switching to the family's bold face</source>
         <translation>Épaissir artificiellement la police actuelle au lieu de passer à la variante grasse de la famille</translation>
     </message>
     <message>
@@ -13903,7 +13903,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Faux italique</translation>
     </message>
     <message>
-        <source>Slant the current face synthetically instead of switching to the family&apos;s italic face</source>
+        <source>Slant the current face synthetically instead of switching to the family's italic face</source>
         <translation>Incliner artificiellement la police actuelle au lieu de passer à la variante italique de la famille</translation>
     </message>
     <message>
@@ -13936,7 +13936,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Faux bold is not available on warped text. Remove the text warp first.</source>
-        <translation>Le faux gras n&apos;est pas disponible sur du texte déformé. Supprimez d&apos;abord la déformation du texte.</translation>
+        <translation>Le faux gras n'est pas disponible sur du texte déformé. Supprimez d'abord la déformation du texte.</translation>
     </message>
     <message>
         <source>Select a text layer to warp.</source>
@@ -13944,7 +13944,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Faux bold text cannot be warped. Turn off faux bold in the Character panel first.</source>
-        <translation>Le texte en faux gras ne peut pas être déformé. Désactivez d&apos;abord le faux gras dans le panneau Caractère.</translation>
+        <translation>Le texte en faux gras ne peut pas être déformé. Désactivez d'abord le faux gras dans le panneau Caractère.</translation>
     </message>
     <message>
         <source>Warp Text</source>
@@ -14012,7 +14012,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Could not merge the layers. The original layers are unchanged.</source>
-        <translation>Impossible de fusionner les calques. Les calques d&apos;origine sont inchangés.</translation>
+        <translation>Impossible de fusionner les calques. Les calques d'origine sont inchangés.</translation>
     </message>
     <message>
         <source>Merge down</source>
@@ -14036,7 +14036,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Target layer pixels are locked. Unlock image pixels to merge down.</source>
-        <translation>Les pixels du calque cible sont verrouillés. Déverrouillez les pixels de l&apos;image pour fusionner avec le calque inférieur.</translation>
+        <translation>Les pixels du calque cible sont verrouillés. Déverrouillez les pixels de l'image pour fusionner avec le calque inférieur.</translation>
     </message>
     <message>
         <source>Merged layer down</source>
@@ -14056,7 +14056,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Tool Palette</source>
-        <translation>Palette d&apos;outils</translation>
+        <translation>Palette d'outils</translation>
     </message>
     <message>
         <source>Options</source>
@@ -14088,7 +14088,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Page Set&amp;up...</source>
-        <translation>&amp;Format d&apos;impression...</translation>
+        <translation>&amp;Format d'impression...</translation>
     </message>
     <message>
         <source>&amp;Print...</source>
@@ -14184,7 +14184,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Define Brush Tip from Selection</source>
-        <translation>Définir une pointe de pinceau d&apos;après la sélection</translation>
+        <translation>Définir une pointe de pinceau d'après la sélection</translation>
     </message>
     <message>
         <source>&amp;New Layer</source>
@@ -14236,7 +14236,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Show Mask &amp;Overlay</source>
-        <translation>&amp;Afficher l&apos;incrustation du masque</translation>
+        <translation>&amp;Afficher l'incrustation du masque</translation>
     </message>
     <message>
         <source>View Layer Mask</source>
@@ -14320,7 +14320,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Fill With &amp;Background Color</source>
-        <translation>Remplir avec la &amp;couleur d&apos;arrière-plan</translation>
+        <translation>Remplir avec la &amp;couleur d'arrière-plan</translation>
     </message>
     <message>
         <source>&amp;Clear Layer / Selection</source>
@@ -14364,7 +14364,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>&amp;Image Size...</source>
-        <translation>Taille de l&apos;&amp;image...</translation>
+        <translation>Taille de l'&amp;image...</translation>
     </message>
     <message>
         <source>&amp;Canvas Size...</source>
@@ -14496,11 +14496,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Set Screen Size</source>
-        <translation>Définir la taille de l&apos;écran</translation>
+        <translation>Définir la taille de l'écran</translation>
     </message>
     <message>
         <source>Force Refresh</source>
-        <translation>Forcer l&apos;actualisation</translation>
+        <translation>Forcer l'actualisation</translation>
     </message>
     <message>
         <source>&amp;Scripting Guide</source>
@@ -14508,7 +14508,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Set &amp;up AI Control...</source>
-        <translation>&amp;Configurer le contrôle par l&apos;IA...</translation>
+        <translation>&amp;Configurer le contrôle par l'IA...</translation>
     </message>
     <message>
         <source>&amp;About Patchy</source>
@@ -14644,11 +14644,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>&amp;Photocopy (Scanner to Printer)...</source>
-        <translation>&amp;Photocopie (du scanner vers l&apos;imprimante)...</translation>
+        <translation>&amp;Photocopie (du scanner vers l'imprimante)...</translation>
     </message>
     <message>
         <source>&amp;Photocopy (Scanner or Camera to Printer)...</source>
-        <translation>&amp;Photocopie (du scanner ou de l&apos;appareil photo vers l&apos;imprimante)...</translation>
+        <translation>&amp;Photocopie (du scanner ou de l'appareil photo vers l'imprimante)...</translation>
     </message>
     <message>
         <source>Scan and &amp;Divide Photos...</source>
@@ -14660,7 +14660,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>&amp;Image Sequence to Layers...</source>
-        <translation>Séquence d&apos;&amp;images vers des calques...</translation>
+        <translation>Séquence d'&amp;images vers des calques...</translation>
     </message>
     <message>
         <source>Place &amp;Embedded...</source>
@@ -14696,7 +14696,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Define Custom Shape from SVG File</source>
-        <translation>Définir une forme personnalisée à partir d&apos;un fichier SVG</translation>
+        <translation>Définir une forme personnalisée à partir d'un fichier SVG</translation>
     </message>
     <message>
         <source>Select All</source>
@@ -14731,12 +14731,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Dissocier les calques</translation>
     </message>
     <message>
-        <source>Release the selected folder&apos;s layers into their parent</source>
+        <source>Release the selected folder's layers into their parent</source>
         <translation>Replace les calques du dossier sélectionné dans son dossier parent</translation>
     </message>
     <message>
         <source>Trace Image to Shapes...</source>
-        <translation>Vectoriser l&apos;image en formes...</translation>
+        <translation>Vectoriser l'image en formes...</translation>
     </message>
     <message>
         <source>Convert the pixel layer into editable shape layers, one per color</source>
@@ -14744,7 +14744,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Create Clipping Mask</source>
-        <translation>Créer un masque d&apos;écrêtage</translation>
+        <translation>Créer un masque d'écrêtage</translation>
     </message>
     <message>
         <source>Convert to Smart Object</source>
@@ -14752,15 +14752,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Edit Smart Object Contents</source>
-        <translation>Modifier le contenu de l&apos;objet dynamique</translation>
+        <translation>Modifier le contenu de l'objet dynamique</translation>
     </message>
     <message>
         <source>Replace Smart Object Contents...</source>
-        <translation>Remplacer le contenu de l&apos;objet dynamique...</translation>
+        <translation>Remplacer le contenu de l'objet dynamique...</translation>
     </message>
     <message>
         <source>Export Smart Object Contents...</source>
-        <translation>Exporter le contenu de l&apos;objet dynamique...</translation>
+        <translation>Exporter le contenu de l'objet dynamique...</translation>
     </message>
     <message>
         <source>New Smart Object via Copy</source>
@@ -14768,7 +14768,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Update Smart Object Content</source>
-        <translation>Mettre à jour le contenu de l&apos;objet dynamique</translation>
+        <translation>Mettre à jour le contenu de l'objet dynamique</translation>
     </message>
     <message>
         <source>Relink to File...</source>
@@ -14776,7 +14776,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Embed Linked Smart Object</source>
-        <translation>Incorporer l&apos;objet dynamique lié</translation>
+        <translation>Incorporer l'objet dynamique lié</translation>
     </message>
     <message>
         <source>Convert to Normal Layer (Rasterize)</source>
@@ -14812,7 +14812,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Fill background</source>
-        <translation>Remplir l&apos;arrière-plan</translation>
+        <translation>Remplir l'arrière-plan</translation>
     </message>
     <message>
         <source>&amp;Mode</source>
@@ -14832,7 +14832,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Snap Image to &amp;Palette</source>
-        <translation>Ajuster l&apos;image à la &amp;palette</translation>
+        <translation>Ajuster l'image à la &amp;palette</translation>
     </message>
     <message>
         <source>&amp;Invert</source>
@@ -14880,11 +14880,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Rotate the canvas by any angle, enlarging it to fit</source>
-        <translation>Faire pivoter la zone de travail selon un angle quelconque, en l&apos;agrandissant pour tout contenir</translation>
+        <translation>Faire pivoter la zone de travail selon un angle quelconque, en l'agrandissant pour tout contenir</translation>
     </message>
     <message>
         <source>Wrap the image by half its size so tiling seams land in the middle; press again to shift back</source>
-        <translation>Décale l&apos;image de la moitié de sa taille pour placer les raccords de mosaïque au centre ; appuyez de nouveau pour revenir à la position initiale</translation>
+        <translation>Décale l'image de la moitié de sa taille pour placer les raccords de mosaïque au centre ; appuyez de nouveau pour revenir à la position initiale</translation>
     </message>
     <message>
         <source>Divide Scanned P&amp;hotos...</source>
@@ -14892,7 +14892,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Detect the photos in this image and open or save each one as its own image</source>
-        <translation>Détecte les photos de cette image et ouvre ou enregistre chacune d&apos;elles comme une image distincte</translation>
+        <translation>Détecte les photos de cette image et ouvre ou enregistre chacune d'elles comme une image distincte</translation>
     </message>
     <message>
         <source>Convert for Smart Filters</source>
@@ -14944,7 +14944,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>&amp;Consolidate All to Tabs</source>
-        <translation>&amp;Regrouper tout sous forme d&apos;onglets</translation>
+        <translation>&amp;Regrouper tout sous forme d'onglets</translation>
     </message>
     <message>
         <source>&amp;Tile</source>
@@ -15012,7 +15012,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Show transform controls when selecting a layer with Move</source>
-        <translation>Afficher les options de transformation lors de la sélection d&apos;un calque avec l&apos;outil Déplacement</translation>
+        <translation>Afficher les options de transformation lors de la sélection d'un calque avec l'outil Déplacement</translation>
     </message>
     <message>
         <source>Reference point</source>
@@ -15264,7 +15264,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Original Ratio</source>
-        <translation>Proportions d&apos;origine</translation>
+        <translation>Proportions d'origine</translation>
     </message>
     <message>
         <source>1 : 1 (Square)</source>
@@ -15372,7 +15372,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Brush preset operation failed: %1</source>
-        <translation>Échec de l&apos;opération sur le pinceau prédéfini : %1</translation>
+        <translation>Échec de l'opération sur le pinceau prédéfini : %1</translation>
     </message>
     <message>
         <source>Brush preset: %1</source>
@@ -15396,7 +15396,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Keep pattern alignment continuous across strokes</source>
-        <translation>Conserver l&apos;alignement du motif d&apos;un tracé à l&apos;autre</translation>
+        <translation>Conserver l'alignement du motif d'un tracé à l'autre</translation>
     </message>
     <message>
         <source>Method:</source>
@@ -15428,7 +15428,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Keep sample source offset aligned across strokes</source>
-        <translation>Conserver le décalage de la source d&apos;échantillonnage d&apos;un tracé à l&apos;autre</translation>
+        <translation>Conserver le décalage de la source d'échantillonnage d'un tracé à l'autre</translation>
     </message>
     <message>
         <source>Diffusion:</source>
@@ -15436,7 +15436,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Lower values preserve fine texture; higher values adapt more quickly</source>
-        <translation>Les valeurs basses préservent les textures fines ; les valeurs élevées s&apos;adaptent plus vite</translation>
+        <translation>Les valeurs basses préservent les textures fines ; les valeurs élevées s'adaptent plus vite</translation>
     </message>
     <message>
         <source>Patch:</source>
@@ -15488,7 +15488,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Preserve local color differences while lightening or darkening</source>
-        <translation>Préserver les différences de couleur locales lors de l&apos;éclaircissement ou de l&apos;assombrissement</translation>
+        <translation>Préserver les différences de couleur locales lors de l'éclaircissement ou de l'assombrissement</translation>
     </message>
     <message>
         <source>Mode:</source>
@@ -15520,7 +15520,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Minimum edge contrast the trace snaps to</source>
-        <translation>Contraste minimal du contour auquel le tracé s&apos;accroche</translation>
+        <translation>Contraste minimal du contour auquel le tracé s'accroche</translation>
     </message>
     <message>
         <source>Frequency:</source>
@@ -15528,7 +15528,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>How often anchor points are placed while tracing</source>
-        <translation>Fréquence de placement des points d&apos;ancrage pendant le tracé</translation>
+        <translation>Fréquence de placement des points d'ancrage pendant le tracé</translation>
     </message>
     <message>
         <source>Limit Magic Wand selection to connected pixels</source>
@@ -15608,11 +15608,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Star inset:</source>
-        <translation>Retrait de l&apos;étoile :</translation>
+        <translation>Retrait de l'étoile :</translation>
     </message>
     <message>
         <source>0 makes a plain polygon; higher values pull in star points</source>
-        <translation>0 crée un polygone simple ; les valeurs plus élevées rentrent les branches de l&apos;étoile</translation>
+        <translation>0 crée un polygone simple ; les valeurs plus élevées rentrent les branches de l'étoile</translation>
     </message>
     <message>
         <source>Shape:</source>
@@ -15628,15 +15628,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Rounded-corner radius for the rectangle tool (0 = sharp corners)</source>
-        <translation>Rayon des angles arrondis pour l&apos;outil Rectangle (0 = angles vifs)</translation>
+        <translation>Rayon des angles arrondis pour l'outil Rectangle (0 = angles vifs)</translation>
     </message>
     <message>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
-        <translation>Opacité du fond pour l&apos;outil Remplissage et le raccourci Remplir</translation>
+        <translation>Opacité du fond pour l'outil Remplissage et le raccourci Remplir</translation>
     </message>
     <message>
         <source>Soft edge feather for the Fill tool and Fill shortcut</source>
-        <translation>Contour progressif des bords pour l&apos;outil Remplissage et le raccourci Remplir</translation>
+        <translation>Contour progressif des bords pour l'outil Remplissage et le raccourci Remplir</translation>
     </message>
     <message>
         <source>Font:</source>
@@ -15784,7 +15784,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Blur</source>
-        <translation>Goutte d&apos;eau</translation>
+        <translation>Goutte d'eau</translation>
     </message>
     <message>
         <source>Sharpen</source>
@@ -15856,11 +15856,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Add Anchor</source>
-        <translation>Ajout de point d&apos;ancrage</translation>
+        <translation>Ajout de point d'ancrage</translation>
     </message>
     <message>
         <source>Delete Anchor</source>
-        <translation>Suppression de point d&apos;ancrage</translation>
+        <translation>Suppression de point d'ancrage</translation>
     </message>
     <message>
         <source>Convert Point</source>
@@ -15880,7 +15880,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Click a point to switch it between corner and smooth.</source>
-        <translation>Cliquez sur un point pour le convertir entre point d&apos;angle et point d&apos;inflexion.</translation>
+        <translation>Cliquez sur un point pour le convertir entre point d'angle et point d'inflexion.</translation>
     </message>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
@@ -15892,15 +15892,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Add Anchor Point: click a path segment to insert a point.</source>
-        <translation>Ajout de point d&apos;ancrage : cliquez sur un segment du tracé pour insérer un point.</translation>
+        <translation>Ajout de point d'ancrage : cliquez sur un segment du tracé pour insérer un point.</translation>
     </message>
     <message>
         <source>Delete Anchor Point: click a point to remove it.</source>
-        <translation>Suppression de point d&apos;ancrage : cliquez sur un point pour le supprimer.</translation>
+        <translation>Suppression de point d'ancrage : cliquez sur un point pour le supprimer.</translation>
     </message>
     <message>
         <source>Convert Point: click a point to switch it between corner and smooth.</source>
-        <translation>Conversion de point : cliquez sur un point pour le convertir entre point d&apos;angle et point d&apos;inflexion.</translation>
+        <translation>Conversion de point : cliquez sur un point pour le convertir entre point d'angle et point d'inflexion.</translation>
     </message>
     <message>
         <source>Marquee Tools</source>
@@ -15956,7 +15956,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Background color</source>
-        <translation>Couleur d&apos;arrière-plan</translation>
+        <translation>Couleur d'arrière-plan</translation>
     </message>
     <message>
         <source>Brightness/Contrast...</source>
@@ -16044,11 +16044,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>This adjustment layer has no editable settings</source>
-        <translation>Ce calque de réglage n&apos;a aucun paramètre modifiable</translation>
+        <translation>Ce calque de réglage n'a aucun paramètre modifiable</translation>
     </message>
     <message>
         <source>Invert has no settings to edit</source>
-        <translation>Négatif n&apos;a aucun paramètre à modifier</translation>
+        <translation>Négatif n'a aucun paramètre à modifier</translation>
     </message>
     <message>
         <source>Cancelled adjustment edit</source>
@@ -16084,7 +16084,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Could not save brush preset: %1</source>
-        <translation>Impossible d&apos;enregistrer le pinceau prédéfini : %1</translation>
+        <translation>Impossible d'enregistrer le pinceau prédéfini : %1</translation>
     </message>
     <message>
         <source>Saved Brushes</source>
@@ -16092,7 +16092,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Select a saved brush. Update replaces it with the current brush settings. Document Undo does not change saved brushes.</source>
-        <translation>Sélectionnez un pinceau enregistré. Mettre à jour le remplace par les réglages actuels du pinceau. L&apos;annulation dans le document ne modifie pas les pinceaux enregistrés.</translation>
+        <translation>Sélectionnez un pinceau enregistré. Mettre à jour le remplace par les réglages actuels du pinceau. L'annulation dans le document ne modifie pas les pinceaux enregistrés.</translation>
     </message>
     <message>
         <source>Use</source>
@@ -16144,7 +16144,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Showing composite</source>
-        <translation>Affichage de l&apos;image composite</translation>
+        <translation>Affichage de l'image composite</translation>
     </message>
     <message>
         <source>Previewing Red channel (read-only)</source>
@@ -16160,7 +16160,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Showing channel overlay: %1</source>
-        <translation>Affichage de l&apos;incrustation de couche : %1</translation>
+        <translation>Affichage de l'incrustation de couche : %1</translation>
     </message>
     <message>
         <source>Previewing spot channel (read-only): %1</source>
@@ -16268,7 +16268,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Click to return to the composite image.</source>
-        <translation>Cliquez pour revenir à l&apos;image composite.</translation>
+        <translation>Cliquez pour revenir à l'image composite.</translation>
     </message>
     <message>
         <source>Editing channel: %1 (click to exit)</source>
@@ -16300,7 +16300,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Rasterize the Smart Object before applying destructive filters or adjustments</source>
-        <translation>Pixellisez l&apos;objet dynamique avant d&apos;appliquer des filtres ou des réglages destructifs</translation>
+        <translation>Pixellisez l'objet dynamique avant d'appliquer des filtres ou des réglages destructifs</translation>
     </message>
     <message>
         <source>Applying %1...</source>
@@ -16318,7 +16318,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 made no changes</source>
-        <translation>%1 n&apos;a apporté aucune modification</translation>
+        <translation>%1 n'a apporté aucune modification</translation>
     </message>
     <message>
         <source>Applied %1</source>
@@ -16398,7 +16398,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Lock image pixels</source>
-        <translation>Verrouiller les pixels de l&apos;image</translation>
+        <translation>Verrouiller les pixels de l'image</translation>
     </message>
     <message>
         <source>Lock position</source>
@@ -16430,7 +16430,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Animation Preview</source>
-        <translation>Aperçu de l&apos;animation</translation>
+        <translation>Aperçu de l'animation</translation>
     </message>
     <message>
         <source>Delete Layer</source>
@@ -16532,7 +16532,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>Edit palette entry</source>
-        <translation>Modifier l&apos;entrée de palette</translation>
+        <translation>Modifier l'entrée de palette</translation>
     </message>
     <message>
         <source>Palette index %1 set to %2</source>
@@ -16552,7 +16552,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>Clipboard does not contain an image</source>
-        <translation>Le presse-papiers ne contient pas d&apos;image</translation>
+        <translation>Le presse-papiers ne contient pas d'image</translation>
     </message>
     <message>
         <source>Clipboard Image</source>
@@ -16564,15 +16564,15 @@ Rect : -</translation>
     </message>
     <message>
         <source>Print resolution</source>
-        <translation>Résolution d&apos;impression</translation>
+        <translation>Résolution d'impression</translation>
     </message>
     <message>
         <source>Image size unchanged; print resolution set to %1 ppi</source>
-        <translation>Taille de l&apos;image inchangée ; résolution d&apos;impression définie sur %1 ppp</translation>
+        <translation>Taille de l'image inchangée ; résolution d'impression définie sur %1 ppp</translation>
     </message>
     <message>
         <source>Image size</source>
-        <translation>Taille de l&apos;image</translation>
+        <translation>Taille de l'image</translation>
     </message>
     <message>
         <source>Image %1 x %2 px (%3 x %4 in) at %5 ppi</source>
@@ -16636,7 +16636,7 @@ Rect : -</translation>
         <translation>Calques Image Affinity</translation>
     </message>
     <message numerus="yes">
-        <source>This document places %n image file(s) as Affinity &quot;Image&quot; layers.</source>
+        <source>This document places %n image file(s) as Affinity "Image" layers.</source>
         <translation>
             <numerusform>Ce document place %n fichier image en tant que calque « Image » Affinity.</numerusform>
             <numerusform>Ce document place %n fichiers image en tant que calques « Image » Affinity.</numerusform>
@@ -16644,7 +16644,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>Keep them as embedded smart objects? Each keeps its full-resolution original file for re-editing and PSD export. Converting to regular pixel layers keeps only the pixels at their placed size, which uses less memory but discards the originals.</source>
-        <translation>Voulez-vous les conserver comme objets dynamiques incorporés ? Chacun conserve son fichier d&apos;origine en pleine résolution pour une nouvelle modification et l&apos;exportation PSD. La conversion en calques de pixels ordinaires ne conserve que les pixels à leur taille de placement, ce qui utilise moins de mémoire mais supprime les originaux.</translation>
+        <translation>Voulez-vous les conserver comme objets dynamiques incorporés ? Chacun conserve son fichier d'origine en pleine résolution pour une nouvelle modification et l'exportation PSD. La conversion en calques de pixels ordinaires ne conserve que les pixels à leur taille de placement, ce qui utilise moins de mémoire mais supprime les originaux.</translation>
     </message>
     <message>
         <source>Keep as Smart Objects</source>
@@ -16665,8 +16665,8 @@ Rect : -</translation>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
-            <numerusform> (+%n autre note d&apos;importation)</numerusform>
-            <numerusform> (+%n autres notes d&apos;importation)</numerusform>
+            <numerusform> (+%n autre note d'importation)</numerusform>
+            <numerusform> (+%n autres notes d'importation)</numerusform>
         </translation>
     </message>
     <message>
@@ -16707,11 +16707,11 @@ Rect : -</translation>
     </message>
     <message>
         <source>No scanner or camera was found. Connect a WIA-compatible device and try again.</source>
-        <translation>Aucun scanner ni appareil photo n&apos;a été trouvé. Connectez un périphérique compatible WIA et réessayez.</translation>
+        <translation>Aucun scanner ni appareil photo n'a été trouvé. Connectez un périphérique compatible WIA et réessayez.</translation>
     </message>
     <message>
         <source>No scanner was found. Connect a scanner recognized by macOS and try again.</source>
-        <translation>Aucun scanner n&apos;a été trouvé. Connectez un scanner reconnu par macOS et réessayez.</translation>
+        <translation>Aucun scanner n'a été trouvé. Connectez un scanner reconnu par macOS et réessayez.</translation>
     </message>
     <message>
         <source>Scanned Image</source>
@@ -16727,7 +16727,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>Import failed</source>
-        <translation>Échec de l&apos;importation</translation>
+        <translation>Échec de l'importation</translation>
     </message>
     <message>
         <source>Photocopy</source>
@@ -16735,7 +16735,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>Photocopy sent to printer</source>
-        <translation>Photocopie envoyée à l&apos;imprimante</translation>
+        <translation>Photocopie envoyée à l'imprimante</translation>
     </message>
     <message>
         <source>Divide Scanned Photos</source>
@@ -16751,7 +16751,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>No photos were found</source>
-        <translation>Aucune photo n&apos;a été trouvée</translation>
+        <translation>Aucune photo n'a été trouvée</translation>
     </message>
     <message>
         <source>Dividing photos...</source>
@@ -16816,7 +16816,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>Save failed</source>
-        <translation>Échec de l&apos;enregistrement</translation>
+        <translation>Échec de l'enregistrement</translation>
     </message>
     <message>
         <source>Sprite Sheet to Layers</source>
@@ -16828,7 +16828,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>No non-empty cells were found with these settings.</source>
-        <translation>Aucune cellule non vide n&apos;a été trouvée avec ces paramètres.</translation>
+        <translation>Aucune cellule non vide n'a été trouvée avec ces paramètres.</translation>
     </message>
     <message>
         <source>Sprite Frames</source>
@@ -16848,7 +16848,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>There are no visible layers to export.</source>
-        <translation>Il n&apos;y a aucun calque visible à exporter.</translation>
+        <translation>Il n'y a aucun calque visible à exporter.</translation>
     </message>
     <message>
         <source>Sprite Sheet</source>
@@ -16860,19 +16860,19 @@ Rect : -</translation>
     </message>
     <message>
         <source>Export failed</source>
-        <translation>Échec de l&apos;exportation</translation>
+        <translation>Échec de l'exportation</translation>
     </message>
     <message>
         <source>Image Sequence to Layers</source>
-        <translation>Séquence d&apos;images vers calques</translation>
+        <translation>Séquence d'images vers calques</translation>
     </message>
     <message>
         <source>Image Sequence</source>
-        <translation>Séquence d&apos;images</translation>
+        <translation>Séquence d'images</translation>
     </message>
     <message>
         <source>Import image sequence</source>
-        <translation>Importer une séquence d&apos;images</translation>
+        <translation>Importer une séquence d'images</translation>
     </message>
     <message>
         <source>Imported %1 images as layers</source>
@@ -16880,11 +16880,11 @@ Rect : -</translation>
     </message>
     <message>
         <source>Export Image Sequence</source>
-        <translation>Exporter une séquence d&apos;images</translation>
+        <translation>Exporter une séquence d'images</translation>
     </message>
     <message>
         <source>There are no layers to export.</source>
-        <translation>Il n&apos;y a aucun calque à exporter.</translation>
+        <translation>Il n'y a aucun calque à exporter.</translation>
     </message>
     <message>
         <source>%1 of %2 files already exist in this folder. Overwrite them?</source>
@@ -16916,7 +16916,7 @@ Rect : -</translation>
     </message>
     <message>
         <source>This file format cannot store layers. Continue saving and flatten the linked file?</source>
-        <translation>Ce format de fichier ne peut pas stocker de calques. Continuer l&apos;enregistrement et aplatir le fichier lié ?</translation>
+        <translation>Ce format de fichier ne peut pas stocker de calques. Continuer l'enregistrement et aplatir le fichier lié ?</translation>
     </message>
     <message>
         <source>This file format cannot store layers, so Patchy will save a flattened copy. The open document will keep its layers and unsaved changes. To keep layers in the file, save as a Photoshop document (.psd) instead.</source>
@@ -16935,7 +16935,7 @@ Rect : -</translation>
         <translation>Enregistrer les calques PDF</translation>
     </message>
     <message>
-        <source>How should this document&apos;s layers be written to the PDF?</source>
+        <source>How should this document's layers be written to the PDF?</source>
         <translation>Comment les calques de ce document doivent-ils être écrits dans le PDF ?</translation>
     </message>
     <message>
@@ -16944,7 +16944,7 @@ Rect : -</translation>
 Flatten to one image: the page looks exactly like the canvas.
 
 Either way Patchy writes a copy; the open document keeps its layers and unsaved changes. Preferences &gt; Saving layered documents as PDF sets a default that skips this question.</source>
-        <translation>Conserver les calques modifiables : les calques de forme deviennent des tracés, le texte reste du vrai texte et les calques de pixels deviennent des images ; le PDF s&apos;ouvre donc en éléments séparés dans Patchy et d&apos;autres éditeurs. Les modes de fusion, les calques de réglage, l&apos;opacité des groupes, les styles de calque et les masques de pixels sont aplatis en images si nécessaire ; la page peut donc ne pas ressembler exactement à la zone de travail.
+        <translation>Conserver les calques modifiables : les calques de forme deviennent des tracés, le texte reste du vrai texte et les calques de pixels deviennent des images ; le PDF s'ouvre donc en éléments séparés dans Patchy et d'autres éditeurs. Les modes de fusion, les calques de réglage, l'opacité des groupes, les styles de calque et les masques de pixels sont aplatis en images si nécessaire ; la page peut donc ne pas ressembler exactement à la zone de travail.
 
 Aplatir en une seule image : la page ressemble exactement à la zone de travail.
 
@@ -16964,15 +16964,15 @@ Dans les deux cas, Patchy écrit une copie ; le document ouvert conserve ses cal
     </message>
     <message>
         <source>This file format cannot store saved channels. Continue saving and discard them?</source>
-        <translation>Ce format de fichier ne peut pas stocker de couches mémorisées. Continuer l&apos;enregistrement et les supprimer ?</translation>
+        <translation>Ce format de fichier ne peut pas stocker de couches mémorisées. Continuer l'enregistrement et les supprimer ?</translation>
     </message>
     <message>
         <source>Fill Opacity Will Be Discarded</source>
-        <translation>L&apos;opacité du fond sera supprimée</translation>
+        <translation>L'opacité du fond sera supprimée</translation>
     </message>
     <message>
         <source>Aseprite files cannot store Photoshop Fill Opacity. Continue saving without Fill Opacity?</source>
-        <translation>Les fichiers Aseprite ne peuvent pas stocker l&apos;opacité du fond de Photoshop. Continuer l&apos;enregistrement sans l&apos;opacité du fond ?</translation>
+        <translation>Les fichiers Aseprite ne peuvent pas stocker l'opacité du fond de Photoshop. Continuer l'enregistrement sans l'opacité du fond ?</translation>
     </message>
     <message>
         <source>Saved SVG copy %1.</source>
@@ -17000,7 +17000,7 @@ Dans les deux cas, Patchy écrit une copie ; le document ouvert conserve ses cal
     </message>
     <message>
         <source>Print output created</source>
-        <translation>Sortie d&apos;impression créée</translation>
+        <translation>Sortie d'impression créée</translation>
     </message>
     <message>
         <source>Patchy %1 is available. You are using version %2.
@@ -17028,7 +17028,7 @@ Pour mettre à jour, collez ceci dans un terminal :
 Save your work and close Patchy before running the installer.</source>
         <translation>Patchy %1 est disponible. Vous utilisez la version %2.
 
-Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;installation.</translation>
+Enregistrez votre travail et fermez Patchy avant de lancer le programme d'installation.</translation>
     </message>
     <message>
         <source>Update Available</source>
@@ -17048,11 +17048,11 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Install command copied to the clipboard</source>
-        <translation>Commande d&apos;installation copiée dans le presse-papiers</translation>
+        <translation>Commande d'installation copiée dans le presse-papiers</translation>
     </message>
     <message>
         <source>Could not open the download link</source>
-        <translation>Impossible d&apos;ouvrir le lien de téléchargement</translation>
+        <translation>Impossible d'ouvrir le lien de téléchargement</translation>
     </message>
     <message>
         <source>Filter recent files...</source>
@@ -17100,7 +17100,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Open in File Explorer</source>
-        <translation>Ouvrir dans l&apos;Explorateur de fichiers</translation>
+        <translation>Ouvrir dans l'Explorateur de fichiers</translation>
     </message>
     <message>
         <source>Folder is missing</source>
@@ -17116,7 +17116,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Editable Smart Filters currently support documents up to 64 megapixels</source>
-        <translation>Les filtres dynamiques modifiables prennent actuellement en charge les documents jusqu&apos;à 64 mégapixels</translation>
+        <translation>Les filtres dynamiques modifiables prennent actuellement en charge les documents jusqu'à 64 mégapixels</translation>
     </message>
     <message>
         <source>This Smart Object can only preserve its imported filters</source>
@@ -17132,7 +17132,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Smart Filter preview failed: %1</source>
-        <translation>Échec de l&apos;aperçu du filtre dynamique : %1</translation>
+        <translation>Échec de l'aperçu du filtre dynamique : %1</translation>
     </message>
     <message>
         <source>Cancelled Radial Blur</source>
@@ -17532,7 +17532,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Rasterize Text, Smart Object, and Shape layers before editing their pixels</source>
-        <translation>Pixellisez les calques de texte, d&apos;objet dynamique et de forme avant de modifier leurs pixels</translation>
+        <translation>Pixellisez les calques de texte, d'objet dynamique et de forme avant de modifier leurs pixels</translation>
     </message>
     <message>
         <source>Rasterize or Convert Layer?</source>
@@ -17543,27 +17543,27 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
         <translation>Pixelliser le calque ?</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
+        <source>"%1" is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
         <translation>« %1 » est un calque de texte : ses pixels sont recréés à partir du texte, si bien que les modifications apportées par %2 seraient perdues à la prochaine modification du texte.</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
+        <source>"%1" is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
         <translation>« %1 » est un calque de forme : ses pixels sont recréés à partir de la forme, si bien que les modifications apportées par %2 seraient perdues à la prochaine modification de la forme.</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can&apos;t be edited again.</source>
+        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can't be edited again.</source>
         <translation>Convertissez le calque en objet dynamique pour conserver le texte modifiable, ou pixellisez-le en pixels simples. Un texte pixellisé ne peut plus être modifié.</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can't be edited as a vector again.</source>
         <translation>Convertissez le calque en objet dynamique pour conserver la forme modifiable, ou pixellisez-le en pixels simples. Une forme pixellisée ne peut plus être modifiée en tant que vecteur.</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can&apos;t be edited again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can't be edited again.</source>
         <translation>Pixellisez le calque en pixels simples pour utiliser %1. Un texte pixellisé ne peut plus être modifié.</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can't be edited as a vector again.</source>
         <translation>Pixellisez le calque en pixels simples pour utiliser %1. Une forme pixellisée ne peut plus être modifiée en tant que vecteur.</translation>
     </message>
     <message>
@@ -17580,23 +17580,23 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Filters are unavailable while viewing a document channel</source>
-        <translation>Les filtres ne sont pas disponibles pendant l&apos;affichage d&apos;une couche du document</translation>
+        <translation>Les filtres ne sont pas disponibles pendant l'affichage d'une couche du document</translation>
     </message>
     <message>
         <source>This filter is not currently editable as a Smart Filter</source>
-        <translation>Ce filtre n&apos;est pas modifiable en tant que filtre dynamique pour le moment</translation>
+        <translation>Ce filtre n'est pas modifiable en tant que filtre dynamique pour le moment</translation>
     </message>
     <message>
         <source>Rasterize Smart Object?</source>
-        <translation>Pixelliser l&apos;objet dynamique ?</translation>
+        <translation>Pixelliser l'objet dynamique ?</translation>
     </message>
     <message>
         <source>%1 has no editable Photoshop Smart Filter mapping. Rasterize the Smart Object and apply the filter destructively?</source>
-        <translation>%1 n&apos;a pas de correspondance modifiable avec un filtre dynamique Photoshop. Pixelliser l&apos;objet dynamique et appliquer le filtre de façon destructive ?</translation>
+        <translation>%1 n'a pas de correspondance modifiable avec un filtre dynamique Photoshop. Pixelliser l'objet dynamique et appliquer le filtre de façon destructive ?</translation>
     </message>
     <message>
         <source>Filter preview failed: %1</source>
-        <translation>Échec de l&apos;aperçu du filtre : %1</translation>
+        <translation>Échec de l'aperçu du filtre : %1</translation>
     </message>
     <message>
         <source>Filter: %1</source>
@@ -17616,15 +17616,15 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Liquify is unavailable in Quick Mask mode</source>
-        <translation>Fluidité n&apos;est pas disponible en mode Masque</translation>
+        <translation>Fluidité n'est pas disponible en mode Masque</translation>
     </message>
     <message>
         <source>Liquify is unavailable while viewing a document channel</source>
-        <translation>Fluidité n&apos;est pas disponible pendant l&apos;affichage d&apos;une couche du document</translation>
+        <translation>Fluidité n'est pas disponible pendant l'affichage d'une couche du document</translation>
     </message>
     <message>
         <source>Rasterize the Smart Object before using Liquify</source>
-        <translation>Pixellisez l&apos;objet dynamique avant d&apos;utiliser Fluidité</translation>
+        <translation>Pixellisez l'objet dynamique avant d'utiliser Fluidité</translation>
     </message>
     <message>
         <source>Liquify</source>
@@ -17636,7 +17636,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Liquify made no changes</source>
-        <translation>Fluidité n&apos;a apporté aucune modification</translation>
+        <translation>Fluidité n'a apporté aucune modification</translation>
     </message>
     <message>
         <source>Applying Liquify...</source>
@@ -17664,7 +17664,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>This Look includes effects without an editable Photoshop Smart Filter mapping. Rasterize the Smart Object and apply the complete Look destructively?</source>
-        <translation>Ce Look comprend des effets sans correspondance modifiable avec un filtre dynamique Photoshop. Pixelliser l&apos;objet dynamique et appliquer le Look complet de façon destructive ?</translation>
+        <translation>Ce Look comprend des effets sans correspondance modifiable avec un filtre dynamique Photoshop. Pixelliser l'objet dynamique et appliquer le Look complet de façon destructive ?</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>
@@ -17691,7 +17691,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
         <translation>Nouveau document à partir de cet état</translation>
     </message>
     <message>
-        <source>Created new document from &quot;%1&quot;</source>
+        <source>Created new document from "%1"</source>
         <translation>Nouveau document créé à partir de « %1 »</translation>
     </message>
     <message>
@@ -17746,7 +17746,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Selected layers are hidden or not editable; nothing cut</source>
-        <translation>Les calques sélectionnés sont masqués ou non modifiables ; rien n&apos;a été coupé</translation>
+        <translation>Les calques sélectionnés sont masqués ou non modifiables ; rien n'a été coupé</translation>
     </message>
     <message>
         <source>Cut</source>
@@ -17766,7 +17766,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Selected layers are hidden or not editable; nothing copied</source>
-        <translation>Les calques sélectionnés sont masqués ou non modifiables ; rien n&apos;a été copié</translation>
+        <translation>Les calques sélectionnés sont masqués ou non modifiables ; rien n'a été copié</translation>
     </message>
     <message>
         <source>Copied %1 layer(s), %2 x %3 px</source>
@@ -17797,7 +17797,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Smart Filter cache data could not be duplicated safely</source>
-        <translation>Les données de cache du filtre dynamique n&apos;ont pas pu être dupliquées en toute sécurité</translation>
+        <translation>Les données de cache du filtre dynamique n'ont pas pu être dupliquées en toute sécurité</translation>
     </message>
     <message>
         <source>Paste</source>
@@ -17877,7 +17877,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Select a pixel, adjustment, or group layer before adding a mask</source>
-        <translation>Sélectionnez un calque de pixels, de réglage ou de groupe avant d&apos;ajouter un masque</translation>
+        <translation>Sélectionnez un calque de pixels, de réglage ou de groupe avant d'ajouter un masque</translation>
     </message>
     <message>
         <source>Layer already has a mask</source>
@@ -17897,7 +17897,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Active layer has no mask</source>
-        <translation>Le calque actif n&apos;a pas de masque</translation>
+        <translation>Le calque actif n'a pas de masque</translation>
     </message>
     <message>
         <source>Delete layer mask</source>
@@ -17977,7 +17977,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Apply mask supports editable 8-bit pixel layers</source>
-        <translation>L&apos;application du masque prend en charge les calques de pixels 8 bits modifiables</translation>
+        <translation>L'application du masque prend en charge les calques de pixels 8 bits modifiables</translation>
     </message>
     <message>
         <source>Apply layer mask</source>
@@ -18033,26 +18033,26 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>No frame times on the selected layers</source>
-        <translation>Aucune durée d&apos;image sur les calques sélectionnés</translation>
+        <translation>Aucune durée d'image sur les calques sélectionnés</translation>
     </message>
     <message>
         <source>Set frame time</source>
-        <translation>Définir la durée de l&apos;image</translation>
+        <translation>Définir la durée de l'image</translation>
     </message>
     <message>
         <source>Remove frame time</source>
-        <translation>Supprimer la durée de l&apos;image</translation>
+        <translation>Supprimer la durée de l'image</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; will open as a new image when the Layer Style dialog closes</source>
-        <translation>« %1 » s&apos;ouvrira comme nouvelle image à la fermeture de la boîte de dialogue Style de calque</translation>
+        <source>"%1" will open as a new image when the Layer Style dialog closes</source>
+        <translation>« %1 » s'ouvrira comme nouvelle image à la fermeture de la boîte de dialogue Style de calque</translation>
     </message>
     <message>
         <source>Open pattern as image</source>
         <translation>Ouvrir le motif comme image</translation>
     </message>
     <message>
-        <source>Opened pattern &quot;%1&quot; as a new image</source>
+        <source>Opened pattern "%1" as a new image</source>
         <translation>Motif « %1 » ouvert comme nouvelle image</translation>
     </message>
     <message>
@@ -18097,7 +18097,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Edit Shape Appearance...</source>
-        <translation>Modifier l&apos;aspect de la forme...</translation>
+        <translation>Modifier l'aspect de la forme...</translation>
     </message>
     <message>
         <source>Warp Text...</source>
@@ -18133,7 +18133,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Lock Image Pixels</source>
-        <translation>Verrouiller les pixels de l&apos;image</translation>
+        <translation>Verrouiller les pixels de l'image</translation>
     </message>
     <message>
         <source>Lock Position</source>
@@ -18153,7 +18153,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Show Mask Overlay</source>
-        <translation>Afficher l&apos;incrustation du masque</translation>
+        <translation>Afficher l'incrustation du masque</translation>
     </message>
     <message>
         <source>Link Layer Mask</source>
@@ -18185,7 +18185,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Could not copy the visible layers. The original layers are unchanged.</source>
-        <translation>Impossible de copier les calques visibles. Les calques d&apos;origine sont inchangés.</translation>
+        <translation>Impossible de copier les calques visibles. Les calques d'origine sont inchangés.</translation>
     </message>
     <message>
         <source>Merge visible (copy)</source>
@@ -18213,7 +18213,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Text, Smart Object, and Shape pixels cannot be filled. Rasterize the layer first.</source>
-        <translation>Les pixels des calques de texte, d&apos;objet dynamique et de forme ne peuvent pas être remplis. Pixellisez d&apos;abord le calque.</translation>
+        <translation>Les pixels des calques de texte, d'objet dynamique et de forme ne peuvent pas être remplis. Pixellisez d'abord le calque.</translation>
     </message>
     <message>
         <source>Clear Quick Mask</source>
@@ -18256,8 +18256,8 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
         <translation>Rien à effacer</translation>
     </message>
     <message>
-        <source>Text and smart object layers can&apos;t be cleared. Deselect first, then Delete removes the layer.</source>
-        <translation>Les calques de texte et d&apos;objet dynamique ne peuvent pas être effacés. Désélectionnez d&apos;abord, puis Delete supprime le calque.</translation>
+        <source>Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer.</source>
+        <translation>Les calques de texte et d'objet dynamique ne peuvent pas être effacés. Désélectionnez d'abord, puis Delete supprime le calque.</translation>
     </message>
     <message>
         <source>Deleted layer</source>
@@ -18269,11 +18269,11 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Make a selection before stroking</source>
-        <translation>Effectuez une sélection avant d&apos;appliquer un contour</translation>
+        <translation>Effectuez une sélection avant d'appliquer un contour</translation>
     </message>
     <message>
         <source>Select an editable pixel layer first</source>
-        <translation>Sélectionnez d&apos;abord un calque de pixels modifiable</translation>
+        <translation>Sélectionnez d'abord un calque de pixels modifiable</translation>
     </message>
     <message>
         <source>Stroke selection</source>
@@ -18321,7 +18321,7 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
-        <translation>Utilisez la transformation manuelle ou pixellisez les objets dynamiques avant d&apos;appliquer une symétrie</translation>
+        <translation>Utilisez la transformation manuelle ou pixellisez les objets dynamiques avant d'appliquer une symétrie</translation>
     </message>
     <message>
         <source>Flip horizontal</source>
@@ -18439,7 +18439,7 @@ Réduit</translation>
         <source>%1
 %2% opacity%3%4%5%6%7%8</source>
         <translation>%1
-%2 % d&apos;opacité%3%4%5%6%7%8</translation>
+%2 % d'opacité%3%4%5%6%7%8</translation>
     </message>
     <message>
         <source>
@@ -18493,7 +18493,7 @@ Clipped to the layer below</source>
     </message>
     <message>
         <source>image pixels</source>
-        <translation>pixels de l&apos;image</translation>
+        <translation>pixels de l'image</translation>
     </message>
     <message>
         <source>position</source>
@@ -18739,7 +18739,7 @@ Y : %2
     </message>
     <message>
         <source>Pasted %1 into palette index %2</source>
-        <translation>%1 collé à l&apos;index de palette %2</translation>
+        <translation>%1 collé à l'index de palette %2</translation>
     </message>
     <message>
         <source>The foreground color is already in the palette</source>
@@ -18771,7 +18771,7 @@ Y : %2
     </message>
     <message>
         <source>The image has more than 256 colors. Use Image &gt; Mode &gt; Indexed (Palette) to optimize it down.</source>
-        <translation>L&apos;image contient plus de 256 couleurs. Utilisez Image &gt; Mode &gt; Couleurs indexées (palette) pour la réduire.</translation>
+        <translation>L'image contient plus de 256 couleurs. Utilisez Image &gt; Mode &gt; Couleurs indexées (palette) pour la réduire.</translation>
     </message>
     <message>
         <source>Extract palette</source>
@@ -18780,8 +18780,8 @@ Y : %2
     <message numerus="yes">
         <source>Extracted %n color(s) from the image</source>
         <translation>
-            <numerusform>%n couleur extraite de l&apos;image</numerusform>
-            <numerusform>%n couleurs extraites de l&apos;image</numerusform>
+            <numerusform>%n couleur extraite de l'image</numerusform>
+            <numerusform>%n couleurs extraites de l'image</numerusform>
         </translation>
     </message>
     <message>
@@ -18820,20 +18820,20 @@ Y : %2
         <translation>Certains calques contiennent des couleurs hors palette ; la zone de travail les affiche donc alignées sur la palette (les filtres, les réglages, le collage et le texte peuvent en être la cause).</translation>
     </message>
     <message>
-        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers&apos; original colors?</source>
-        <translation>Conserver l&apos;aspect palettisé en rendant ces couleurs alignées permanentes, ou restaurer les couleurs d&apos;origine des calques ?</translation>
+        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers' original colors?</source>
+        <translation>Conserver l'aspect palettisé en rendant ces couleurs alignées permanentes, ou restaurer les couleurs d'origine des calques ?</translation>
     </message>
     <message>
         <source>Keep Palettized Look</source>
-        <translation>Conserver l&apos;aspect palettisé</translation>
+        <translation>Conserver l'aspect palettisé</translation>
     </message>
     <message>
         <source>Restore Original Colors</source>
-        <translation>Restaurer les couleurs d&apos;origine</translation>
+        <translation>Restaurer les couleurs d'origine</translation>
     </message>
     <message>
         <source>Converted to RGB color; the palettized look was kept</source>
-        <translation>Converti en couleurs RVB ; l&apos;aspect palettisé a été conservé</translation>
+        <translation>Converti en couleurs RVB ; l'aspect palettisé a été conservé</translation>
     </message>
     <message>
         <source>Converted to RGB color; pixels are unchanged</source>
@@ -18845,7 +18845,7 @@ Y : %2
     </message>
     <message>
         <source>Snap image to palette</source>
-        <translation>Aligner l&apos;image sur la palette</translation>
+        <translation>Aligner l'image sur la palette</translation>
     </message>
     <message>
         <source>Layer snapped to the palette</source>
@@ -18868,7 +18868,7 @@ Y : %2
     </message>
     <message>
         <source>Keep editing with the palette? Painting will snap to its colors; you can switch back any time with Image &gt; Mode &gt; RGB Color.</source>
-        <translation>Continuer à modifier avec la palette ? La peinture s&apos;alignera sur ses couleurs ; vous pourrez revenir en arrière à tout moment via Image &gt; Mode &gt; Couleurs RVB.</translation>
+        <translation>Continuer à modifier avec la palette ? La peinture s'alignera sur ses couleurs ; vous pourrez revenir en arrière à tout moment via Image &gt; Mode &gt; Couleurs RVB.</translation>
     </message>
     <message>
         <source>Use Palette</source>
@@ -18883,8 +18883,8 @@ Y : %2
         <translation>Appliquer ce choix à toutes les images indexées</translation>
     </message>
     <message>
-        <source>Editing with the image&apos;s palette</source>
-        <translation>Modification avec la palette de l&apos;image</translation>
+        <source>Editing with the image's palette</source>
+        <translation>Modification avec la palette de l'image</translation>
     </message>
     <message numerus="yes">
         <source>Palette: %n color(s)</source>
@@ -18903,7 +18903,7 @@ Y : %2
     </message>
     <message>
         <source>Some layers contain colors outside the palette (filters, layer styles, or text can cause this). Use Image &gt; Snap Image to Palette to fix them. Click to show the Palette panel.</source>
-        <translation>Certains calques contiennent des couleurs hors palette (les filtres, les styles de calque ou le texte peuvent en être la cause). Utilisez Image &gt; Aligner l&apos;image sur la palette pour les corriger. Cliquez pour afficher le panneau Palette.</translation>
+        <translation>Certains calques contiennent des couleurs hors palette (les filtres, les styles de calque ou le texte peuvent en être la cause). Utilisez Image &gt; Aligner l'image sur la palette pour les corriger. Cliquez pour afficher le panneau Palette.</translation>
     </message>
     <message>
         <source>%1 Shape Path</source>
@@ -18971,7 +18971,7 @@ Y : %2
     </message>
     <message>
         <source>Created %1. Draw into it with the Pen tool.</source>
-        <translation>%1 créé. Dessinez dedans avec l&apos;outil Plume.</translation>
+        <translation>%1 créé. Dessinez dedans avec l'outil Plume.</translation>
     </message>
     <message>
         <source>Select a saved path to use as the clipping path</source>
@@ -19034,8 +19034,8 @@ Y : %2
         <translation>Aligner sur le calque</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
-        <translation>Ancre la grille de mosaïque à la position du calque ; si l&apos;option est décochée, elle est ancrée à l&apos;origine du document</translation>
+        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
+        <translation>Ancre la grille de mosaïque à la position du calque ; si l'option est décochée, elle est ancrée à l'origine du document</translation>
     </message>
     <message>
         <source>Choose a pattern to fill with</source>
@@ -19067,7 +19067,7 @@ Y : %2
     </message>
     <message>
         <source>Tapers the stroke from thin to full and back, as if drawn with a pressure pen.</source>
-        <translation>Effile le contour du fin au plein puis inversement, comme s&apos;il était dessiné avec un stylet sensible à la pression.</translation>
+        <translation>Effile le contour du fin au plein puis inversement, comme s'il était dessiné avec un stylet sensible à la pression.</translation>
     </message>
     <message>
         <source>Stroke path</source>
@@ -19099,7 +19099,7 @@ Y : %2
     </message>
     <message>
         <source>Make a selection first</source>
-        <translation>Effectuez d&apos;abord une sélection</translation>
+        <translation>Effectuez d'abord une sélection</translation>
     </message>
     <message>
         <source>Make Work Path</source>
@@ -19131,11 +19131,11 @@ Y : %2
     </message>
     <message>
         <source>Select a pixel layer before running the plug-in</source>
-        <translation>Sélectionnez un calque de pixels avant d&apos;exécuter le module externe</translation>
+        <translation>Sélectionnez un calque de pixels avant d'exécuter le module externe</translation>
     </message>
     <message>
         <source>Select an editable 8-bit pixel layer before running the plug-in</source>
-        <translation>Sélectionnez un calque de pixels 8 bits modifiable avant d&apos;exécuter le module externe</translation>
+        <translation>Sélectionnez un calque de pixels 8 bits modifiable avant d'exécuter le module externe</translation>
     </message>
     <message>
         <source>Legacy Photoshop Plug-in</source>
@@ -19167,7 +19167,7 @@ Y : %2
     </message>
     <message>
         <source>Interface scale:</source>
-        <translation>Échelle de l&apos;interface :</translation>
+        <translation>Échelle de l'interface :</translation>
     </message>
     <message>
         <source>Check for updates on startup</source>
@@ -19175,19 +19175,19 @@ Y : %2
     </message>
     <message>
         <source>Show import warnings and notes in a popup (status bar otherwise)</source>
-        <translation>Afficher les avertissements et notes d&apos;importation dans une fenêtre contextuelle (sinon dans la barre d&apos;état)</translation>
+        <translation>Afficher les avertissements et notes d'importation dans une fenêtre contextuelle (sinon dans la barre d'état)</translation>
     </message>
     <message>
         <source>When enabled, opening a file shows the PSD compatibility report and an Import Notes popup. When disabled, import notes appear only in the status bar.</source>
-        <translation>Lorsque cette option est activée, l&apos;ouverture d&apos;un fichier affiche le rapport de compatibilité PSD et une fenêtre Notes d&apos;importation. Lorsqu&apos;elle est désactivée, les notes d&apos;importation n&apos;apparaissent que dans la barre d&apos;état.</translation>
+        <translation>Lorsque cette option est activée, l'ouverture d'un fichier affiche le rapport de compatibilité PSD et une fenêtre Notes d'importation. Lorsqu'elle est désactivée, les notes d'importation n'apparaissent que dans la barre d'état.</translation>
     </message>
     <message>
         <source>Show the develop dialog when opening camera raw files</source>
-        <translation>Afficher la boîte de dialogue de développement à l&apos;ouverture des fichiers Camera Raw</translation>
+        <translation>Afficher la boîte de dialogue de développement à l'ouverture des fichiers Camera Raw</translation>
     </message>
     <message>
         <source>When disabled, camera raw files open immediately with neutral develop settings (as-shot white balance, no adjustments).</source>
-        <translation>Lorsque cette option est désactivée, les fichiers Camera Raw s&apos;ouvrent immédiatement avec des réglages de développement neutres (balance des blancs telle que prise, aucun réglage).</translation>
+        <translation>Lorsque cette option est désactivée, les fichiers Camera Raw s'ouvrent immédiatement avec des réglages de développement neutres (balance des blancs telle que prise, aucun réglage).</translation>
     </message>
     <message>
         <source>Hold Shift to keep the aspect ratio when transforming</source>
@@ -19195,15 +19195,15 @@ Y : %2
     </message>
     <message>
         <source>When off, corner handles keep the aspect ratio and Shift resizes freely, matching current Photoshop. When on, corner handles resize freely and Shift keeps the aspect ratio.</source>
-        <translation>Lorsque cette option est désactivée, les poignées d&apos;angle conservent les proportions et Shift redimensionne librement, comme dans la version actuelle de Photoshop. Lorsqu&apos;elle est activée, les poignées d&apos;angle redimensionnent librement et Shift conserve les proportions.</translation>
+        <translation>Lorsque cette option est désactivée, les poignées d'angle conservent les proportions et Shift redimensionne librement, comme dans la version actuelle de Photoshop. Lorsqu'elle est activée, les poignées d'angle redimensionnent librement et Shift conserve les proportions.</translation>
     </message>
     <message>
         <source>Zoom layer thumbnails to the layer content</source>
         <translation>Zoomer les vignettes de calque sur le contenu du calque</translation>
     </message>
     <message>
-        <source>When enabled, layer thumbnails crop to the layer&apos;s visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
-        <translation>Lorsque cette option est activée, les vignettes de calque sont recadrées sur les pixels visibles du calque au lieu d&apos;afficher un aperçu de toute la zone de travail, de sorte que les petits calques remplissent leur vignette.</translation>
+        <source>When enabled, layer thumbnails crop to the layer's visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
+        <translation>Lorsque cette option est activée, les vignettes de calque sont recadrées sur les pixels visibles du calque au lieu d'afficher un aperçu de toute la zone de travail, de sorte que les petits calques remplissent leur vignette.</translation>
     </message>
     <message>
         <source>Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution.</source>
@@ -19234,8 +19234,8 @@ Y : %2
         <translation>Convertir en calques de pixels</translation>
     </message>
     <message>
-        <source>Affinity documents place image files as &quot;Image&quot; layers. Smart objects keep each placed file&apos;s full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
-        <translation>Les documents Affinity placent les fichiers image sous forme de calques « Image ». Les objets dynamiques conservent l&apos;original en pleine résolution de chaque fichier placé pour le rééditer et l&apos;exporter en PSD ; les calques de pixels ne conservent que les pixels à leur taille de placement.</translation>
+        <source>Affinity documents place image files as "Image" layers. Smart objects keep each placed file's full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
+        <translation>Les documents Affinity placent les fichiers image sous forme de calques « Image ». Les objets dynamiques conservent l'original en pleine résolution de chaque fichier placé pour le rééditer et l'exporter en PSD ; les calques de pixels ne conservent que les pixels à leur taille de placement.</translation>
     </message>
     <message>
         <source>Opening Affinity image layers:</source>
@@ -19251,7 +19251,7 @@ Y : %2
     </message>
     <message>
         <source>Editable objects keep shape layers as paths, text as real text, and pixel layers as images, so the PDF opens as separate pieces; blend modes, adjustments, layer styles, and pixel masks are flattened into images where needed, so the page may not look exactly like the canvas. One flattened image always looks exactly like the canvas.</source>
-        <translation>Les objets modifiables conservent les calques de forme sous forme de tracés, le texte sous forme de texte réel et les calques de pixels sous forme d&apos;images, de sorte que le PDF s&apos;ouvre en éléments séparés ; les modes de fusion, les réglages, les styles de calque et les masques de pixels sont aplatis en images si nécessaire, la page peut donc ne pas ressembler exactement à la zone de travail. Une seule image aplatie ressemble toujours exactement à la zone de travail.</translation>
+        <translation>Les objets modifiables conservent les calques de forme sous forme de tracés, le texte sous forme de texte réel et les calques de pixels sous forme d'images, de sorte que le PDF s'ouvre en éléments séparés ; les modes de fusion, les réglages, les styles de calque et les masques de pixels sont aplatis en images si nécessaire, la page peut donc ne pas ressembler exactement à la zone de travail. Une seule image aplatie ressemble toujours exactement à la zone de travail.</translation>
     </message>
     <message>
         <source>Saving layered documents as PDF:</source>
@@ -19267,11 +19267,11 @@ Y : %2
     </message>
     <message>
         <source>Remove all fonts you added to Patchy? They stay usable until you reload the page.</source>
-        <translation>Supprimer toutes les polices que vous avez ajoutées à Patchy ? Elles restent utilisables jusqu&apos;au rechargement de la page.</translation>
+        <translation>Supprimer toutes les polices que vous avez ajoutées à Patchy ? Elles restent utilisables jusqu'au rechargement de la page.</translation>
     </message>
     <message>
         <source>Remove all fonts you added to Patchy? They stay usable until you restart Patchy.</source>
-        <translation>Supprimer toutes les polices que vous avez ajoutées à Patchy ? Elles restent utilisables jusqu&apos;au redémarrage de Patchy.</translation>
+        <translation>Supprimer toutes les polices que vous avez ajoutées à Patchy ? Elles restent utilisables jusqu'au redémarrage de Patchy.</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -19283,7 +19283,7 @@ Y : %2
     </message>
     <message>
         <source>The profiling stress test builds a large scripted scene to measure rendering performance. It closes all open documents and takes several minutes. Primarily a development tool.</source>
-        <translation>Le test de charge de profilage construit une grande scène scriptée pour mesurer les performances de rendu. Il ferme tous les documents ouverts et prend plusieurs minutes. C&apos;est avant tout un outil de développement.</translation>
+        <translation>Le test de charge de profilage construit une grande scène scriptée pour mesurer les performances de rendu. Il ferme tous les documents ouverts et prend plusieurs minutes. C'est avant tout un outil de développement.</translation>
     </message>
     <message>
         <source>Quick (1024 px)</source>
@@ -19323,7 +19323,7 @@ Y : %2
     </message>
     <message>
         <source>Pressure controls opacity</source>
-        <translation>La pression contrôle l&apos;opacité</translation>
+        <translation>La pression contrôle l'opacité</translation>
     </message>
     <message>
         <source>Use eraser tip as Eraser</source>
@@ -19363,7 +19363,7 @@ Y : %2
     </message>
     <message>
         <source>Tilt shapes brush dabs</source>
-        <translation>L&apos;inclinaison façonne les empreintes du pinceau</translation>
+        <translation>L'inclinaison façonne les empreintes du pinceau</translation>
     </message>
     <message>
         <source>Minimum size:</source>
@@ -19375,7 +19375,7 @@ Y : %2
     </message>
     <message>
         <source>Set the pen buttons to Right Mouse Click and Middle Mouse Click in your tablet driver: while the pen is over the canvas, a right click triggers the Upper action and a middle click the Lower one. Buttons set to Scroll or Pan are handled by the driver and cannot trigger these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser.</source>
-        <translation>Réglez les boutons du stylet sur Clic droit et Clic central dans le pilote de votre tablette : lorsque le stylet est au-dessus de la zone de travail, un clic droit déclenche l&apos;action du bouton supérieur et un clic central celle du bouton inférieur. Les boutons réglés sur Défilement ou Déplacement sont gérés par le pilote et ne peuvent pas déclencher ces actions. Les boutons de la tablette (touches express) sont eux aussi gérés uniquement par le pilote : associez-les à des raccourcis clavier tels qu&apos;Annuler, Rétablir, [ et ] pour la taille du pinceau et E pour la gomme.</translation>
+        <translation>Réglez les boutons du stylet sur Clic droit et Clic central dans le pilote de votre tablette : lorsque le stylet est au-dessus de la zone de travail, un clic droit déclenche l'action du bouton supérieur et un clic central celle du bouton inférieur. Les boutons réglés sur Défilement ou Déplacement sont gérés par le pilote et ne peuvent pas déclencher ces actions. Les boutons de la tablette (touches express) sont eux aussi gérés uniquement par le pilote : associez-les à des raccourcis clavier tels qu'Annuler, Rétablir, [ et ] pour la taille du pinceau et E pour la gomme.</translation>
     </message>
     <message>
         <source>Upper pen button:</source>
@@ -19387,7 +19387,7 @@ Y : %2
     </message>
     <message>
         <source>Minimum tilt roundness:</source>
-        <translation>Arrondi minimal de l&apos;inclinaison :</translation>
+        <translation>Arrondi minimal de l'inclinaison :</translation>
     </message>
     <message>
         <source>Show rulers</source>
@@ -19463,7 +19463,7 @@ Y : %2
     </message>
     <message>
         <source>Overlay preview:</source>
-        <translation>Aperçu de l&apos;incrustation :</translation>
+        <translation>Aperçu de l'incrustation :</translation>
     </message>
     <message>
         <source>Snap:</source>
@@ -19483,15 +19483,15 @@ Y : %2
     </message>
     <message>
         <source>Interface Scale</source>
-        <translation>Échelle de l&apos;interface</translation>
+        <translation>Échelle de l'interface</translation>
     </message>
     <message>
         <source>Reload the page for the new interface scale to take effect.</source>
-        <translation>Rechargez la page pour que la nouvelle échelle de l&apos;interface prenne effet.</translation>
+        <translation>Rechargez la page pour que la nouvelle échelle de l'interface prenne effet.</translation>
     </message>
     <message>
         <source>Restart Patchy for the new interface scale to take effect.</source>
-        <translation>Redémarrez Patchy pour que la nouvelle échelle de l&apos;interface prenne effet.</translation>
+        <translation>Redémarrez Patchy pour que la nouvelle échelle de l'interface prenne effet.</translation>
     </message>
     <message>
         <source>Grid Preferences</source>
@@ -19539,7 +19539,7 @@ Y : %2
     </message>
     <message>
         <source>A script is already running: %1</source>
-        <translation>Un script est déjà en cours d&apos;exécution : %1</translation>
+        <translation>Un script est déjà en cours d'exécution : %1</translation>
     </message>
     <message>
         <source>Running script %1...</source>
@@ -19551,7 +19551,7 @@ Y : %2
     </message>
     <message>
         <source>The scripting guide (scripting-guide.md) is missing from the bundled scripts folder.</source>
-        <translation>Le guide de scripting (scripting-guide.md) est absent du dossier de scripts fourni avec l&apos;application.</translation>
+        <translation>Le guide de scripting (scripting-guide.md) est absent du dossier de scripts fourni avec l'application.</translation>
     </message>
     <message>
         <source>AI setup text copied to the clipboard</source>
@@ -19559,11 +19559,11 @@ Y : %2
     </message>
     <message>
         <source>Close smart object contents?</source>
-        <translation>Fermer le contenu de l&apos;objet dynamique ?</translation>
+        <translation>Fermer le contenu de l'objet dynamique ?</translation>
     </message>
     <message>
         <source>%1 has smart object contents open for editing. Close those tabs too?</source>
-        <translation>Le contenu d&apos;objets dynamiques de %1 est ouvert pour modification. Fermer aussi ces onglets ?</translation>
+        <translation>Le contenu d'objets dynamiques de %1 est ouvert pour modification. Fermer aussi ces onglets ?</translation>
     </message>
     <message>
         <source>Close Others</source>
@@ -19583,7 +19583,7 @@ Y : %2
     </message>
     <message>
         <source>Reveal in Explorer</source>
-        <translation>Afficher dans l&apos;Explorateur</translation>
+        <translation>Afficher dans l'Explorateur</translation>
     </message>
     <message>
         <source>Reveal in Finder</source>
@@ -19607,15 +19607,15 @@ Y : %2
     </message>
     <message>
         <source>Select a smart object layer first</source>
-        <translation>Sélectionnez d&apos;abord un calque d&apos;objet dynamique</translation>
+        <translation>Sélectionnez d'abord un calque d'objet dynamique</translation>
     </message>
     <message>
         <source>This smart object has no embedded contents to export</source>
-        <translation>Cet objet dynamique n&apos;a aucun contenu incorporé à exporter</translation>
+        <translation>Cet objet dynamique n'a aucun contenu incorporé à exporter</translation>
     </message>
     <message>
         <source>Export Smart Object Contents</source>
-        <translation>Exporter le contenu de l&apos;objet dynamique</translation>
+        <translation>Exporter le contenu de l'objet dynamique</translation>
     </message>
     <message>
         <source>All Files (*.*)</source>
@@ -19623,27 +19623,27 @@ Y : %2
     </message>
     <message>
         <source>Could not write %1</source>
-        <translation>Impossible d&apos;écrire %1</translation>
+        <translation>Impossible d'écrire %1</translation>
     </message>
     <message>
         <source>Exported smart object contents to %1</source>
-        <translation>Contenu de l&apos;objet dynamique exporté vers %1</translation>
+        <translation>Contenu de l'objet dynamique exporté vers %1</translation>
     </message>
     <message>
-        <source>This smart object has Smart Filters; Patchy keeps Photoshop&apos;s preview (rasterize to edit pixels)</source>
-        <translation>Cet objet dynamique comporte des filtres dynamiques ; Patchy conserve l&apos;aperçu de Photoshop (pixellisez pour modifier les pixels)</translation>
+        <source>This smart object has Smart Filters; Patchy keeps Photoshop's preview (rasterize to edit pixels)</source>
+        <translation>Cet objet dynamique comporte des filtres dynamiques ; Patchy conserve l'aperçu de Photoshop (pixellisez pour modifier les pixels)</translation>
     </message>
     <message>
-        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop&apos;s preview</source>
-        <translation>Cet objet dynamique comporte une transformation de déformation ou de perspective ; Patchy conserve l&apos;aperçu de Photoshop</translation>
+        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop's preview</source>
+        <translation>Cet objet dynamique comporte une transformation de déformation ou de perspective ; Patchy conserve l'aperçu de Photoshop</translation>
     </message>
     <message>
         <source>This smart object can only be preserved, not edited</source>
         <translation>Cet objet dynamique peut seulement être conservé, pas modifié</translation>
     </message>
     <message>
-        <source>This smart object&apos;s contents are not embedded in the document</source>
-        <translation>Le contenu de cet objet dynamique n&apos;est pas incorporé dans le document</translation>
+        <source>This smart object's contents are not embedded in the document</source>
+        <translation>Le contenu de cet objet dynamique n'est pas incorporé dans le document</translation>
     </message>
     <message>
         <source>Linked file %1 was not found. Use Relink to File... to point it at a new location</source>
@@ -19651,15 +19651,15 @@ Y : %2
     </message>
     <message>
         <source>Editing linked file. Save (%CTRL%+S) writes %1 and updates %2</source>
-        <translation>Modification d&apos;un fichier lié. Enregistrer (%CTRL%+S) écrit %1 et met à jour %2</translation>
+        <translation>Modification d'un fichier lié. Enregistrer (%CTRL%+S) écrit %1 et met à jour %2</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
-        <translation>Patchy ne peut pas réencoder le contenu %1 ; utilisez Exporter le contenu de l&apos;objet dynamique ou pixellisez le calque</translation>
+        <source>Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
+        <translation>Patchy ne peut pas réencoder le contenu %1 ; utilisez Exporter le contenu de l'objet dynamique ou pixellisez le calque</translation>
     </message>
     <message>
         <source>Could not decode the embedded smart object contents</source>
-        <translation>Impossible de décoder le contenu incorporé de l&apos;objet dynamique</translation>
+        <translation>Impossible de décoder le contenu incorporé de l'objet dynamique</translation>
     </message>
     <message>
         <source>%1 (embedded in %2)</source>
@@ -19667,26 +19667,26 @@ Y : %2
     </message>
     <message>
         <source>Editing smart object contents. Save (%CTRL%+S) applies them back to %1</source>
-        <translation>Modification du contenu d&apos;un objet dynamique. Enregistrer (%CTRL%+S) l&apos;applique à %1</translation>
+        <translation>Modification du contenu d'un objet dynamique. Enregistrer (%CTRL%+S) l'applique à %1</translation>
     </message>
     <message>
-        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
-        <translation>Impossible de peindre sur le contenu d&apos;un objet dynamique. Pixellisez le calque pour modifier ses pixels.</translation>
+        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
+        <translation>Impossible de peindre sur le contenu d'un objet dynamique. Pixellisez le calque pour modifier ses pixels.</translation>
     </message>
     <message>
         <source>Paint on Smart Object?</source>
-        <translation>Peindre sur l&apos;objet dynamique ?</translation>
+        <translation>Peindre sur l'objet dynamique ?</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a smart object, so its pixels can&apos;t be painted directly.</source>
+        <source>"%1" is a smart object, so its pixels can't be painted directly.</source>
         <translation>« %1 » est un objet dynamique ; ses pixels ne peuvent donc pas être peints directement.</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels, or open the smart object&apos;s contents in their own tab and draw there.</source>
-        <translation>Pixellisez le calque pour peindre sur ses pixels, ou ouvrez le contenu de l&apos;objet dynamique dans son propre onglet et dessinez à cet endroit.</translation>
+        <source>Rasterize the layer to paint on its pixels, or open the smart object's contents in their own tab and draw there.</source>
+        <translation>Pixellisez le calque pour peindre sur ses pixels, ou ouvrez le contenu de l'objet dynamique dans son propre onglet et dessinez à cet endroit.</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels. This smart object&apos;s contents can&apos;t be edited in Patchy.</source>
+        <source>Rasterize the layer to paint on its pixels. This smart object's contents can't be edited in Patchy.</source>
         <translation>Pixellisez le calque pour peindre sur ses pixels. Le contenu de cet objet dynamique ne peut pas être modifié dans Patchy.</translation>
     </message>
     <message>
@@ -19699,18 +19699,18 @@ Y : %2
     </message>
     <message>
         <source>The original document is closed; saving a copy instead</source>
-        <translation>Le document d&apos;origine est fermé ; une copie est enregistrée à la place</translation>
+        <translation>Le document d'origine est fermé ; une copie est enregistrée à la place</translation>
     </message>
     <message>
         <source>The smart object no longer exists in %1</source>
-        <translation>L&apos;objet dynamique n&apos;existe plus dans %1</translation>
+        <translation>L'objet dynamique n'existe plus dans %1</translation>
     </message>
     <message>
         <source>Could not re-encode the contents as %1</source>
         <translation>Impossible de réencoder le contenu en %1</translation>
     </message>
     <message>
-        <source>These contents can&apos;t be re-encoded</source>
+        <source>These contents can't be re-encoded</source>
         <translation>Ce contenu ne peut pas être réencodé</translation>
     </message>
     <message>
@@ -19719,7 +19719,7 @@ Y : %2
     </message>
     <message>
         <source>Applied smart object contents to %1</source>
-        <translation>Contenu de l&apos;objet dynamique appliqué à %1</translation>
+        <translation>Contenu de l'objet dynamique appliqué à %1</translation>
     </message>
     <message>
         <source>Saved %1 and updated %2</source>
@@ -19727,7 +19727,7 @@ Y : %2
     </message>
     <message>
         <source>Select a linked smart object layer first</source>
-        <translation>Sélectionnez d&apos;abord un calque d&apos;objet dynamique lié</translation>
+        <translation>Sélectionnez d'abord un calque d'objet dynamique lié</translation>
     </message>
     <message>
         <source>Could not read %1</source>
@@ -19739,7 +19739,7 @@ Y : %2
     </message>
     <message>
         <source>Updated smart object content from %1</source>
-        <translation>Contenu de l&apos;objet dynamique mis à jour depuis %1</translation>
+        <translation>Contenu de l'objet dynamique mis à jour depuis %1</translation>
     </message>
     <message>
         <source>Relink to File</source>
@@ -19755,11 +19755,11 @@ Y : %2
     </message>
     <message>
         <source>Relink Smart Object</source>
-        <translation>Rétablir le lien de l&apos;objet dynamique</translation>
+        <translation>Rétablir le lien de l'objet dynamique</translation>
     </message>
     <message>
         <source>Relinked smart object to %1</source>
-        <translation>Lien de l&apos;objet dynamique rétabli vers %1</translation>
+        <translation>Lien de l'objet dynamique rétabli vers %1</translation>
     </message>
     <message>
         <source>Embedded linked smart object %1</source>
@@ -19767,7 +19767,7 @@ Y : %2
     </message>
     <message>
         <source>Replace Smart Object Contents</source>
-        <translation>Remplacer le contenu de l&apos;objet dynamique</translation>
+        <translation>Remplacer le contenu de l'objet dynamique</translation>
     </message>
     <message>
         <source>Replace failed</source>
@@ -19775,11 +19775,11 @@ Y : %2
     </message>
     <message>
         <source>%1 is not a file type Patchy can embed and edit</source>
-        <translation>%1 n&apos;est pas un type de fichier que Patchy peut incorporer et modifier</translation>
+        <translation>%1 n'est pas un type de fichier que Patchy peut incorporer et modifier</translation>
     </message>
     <message>
         <source>Replaced smart object contents with %1</source>
-        <translation>Contenu de l&apos;objet dynamique remplacé par %1</translation>
+        <translation>Contenu de l'objet dynamique remplacé par %1</translation>
     </message>
     <message>
         <source>Select layers to convert to a smart object</source>
@@ -19791,7 +19791,7 @@ Y : %2
     </message>
     <message>
         <source>The selected layers have no pixels to convert</source>
-        <translation>Les calques sélectionnés n&apos;ont aucun pixel à convertir</translation>
+        <translation>Les calques sélectionnés n'ont aucun pixel à convertir</translation>
     </message>
     <message>
         <source>Convert failed</source>
@@ -19803,7 +19803,7 @@ Y : %2
     </message>
     <message>
         <source>Created an independent smart object copy</source>
-        <translation>Copie indépendante de l&apos;objet dynamique créée</translation>
+        <translation>Copie indépendante de l'objet dynamique créée</translation>
     </message>
     <message>
         <source>Place Embedded</source>
@@ -19815,7 +19815,7 @@ Y : %2
     </message>
     <message>
         <source>Place failed</source>
-        <translation>Échec de l&apos;importation</translation>
+        <translation>Échec de l'importation</translation>
     </message>
     <message>
         <source>Placed %1 as a smart object</source>
@@ -19879,7 +19879,7 @@ Y : %2
     </message>
     <message>
         <source>The profiling stress test closes all open documents, then builds a large scripted scene to measure performance. It takes several minutes; please leave the mouse and keyboard alone while it runs. This is primarily a development tool.</source>
-        <translation>Le test de charge de profilage ferme tous les documents ouverts, puis construit une grande scène scriptée pour mesurer les performances. Il prend plusieurs minutes ; veuillez ne pas toucher à la souris ni au clavier pendant son exécution. C&apos;est avant tout un outil de développement.</translation>
+        <translation>Le test de charge de profilage ferme tous les documents ouverts, puis construit une grande scène scriptée pour mesurer les performances. Il prend plusieurs minutes ; veuillez ne pas toucher à la souris ni au clavier pendant son exécution. C'est avant tout un outil de développement.</translation>
     </message>
     <message>
         <source>Warning: this is a DEBUG build - results will not reflect release performance.</source>
@@ -19975,23 +19975,23 @@ Y : %2
     </message>
     <message>
         <source>Release Clipping Mask</source>
-        <translation>Annuler le masque d&apos;écrêtage</translation>
+        <translation>Annuler le masque d'écrêtage</translation>
     </message>
     <message>
         <source>Release clipping mask</source>
-        <translation>Annuler le masque d&apos;écrêtage</translation>
+        <translation>Annuler le masque d'écrêtage</translation>
     </message>
     <message>
         <source>Create clipping mask</source>
-        <translation>Créer un masque d&apos;écrêtage</translation>
+        <translation>Créer un masque d'écrêtage</translation>
     </message>
     <message>
         <source>Clipping mask released</source>
-        <translation>Masque d&apos;écrêtage annulé</translation>
+        <translation>Masque d'écrêtage annulé</translation>
     </message>
     <message>
         <source>Clipping mask created</source>
-        <translation>Masque d&apos;écrêtage créé</translation>
+        <translation>Masque d'écrêtage créé</translation>
     </message>
     <message>
         <source>Layer locked</source>
@@ -20015,7 +20015,7 @@ Y : %2
     </message>
     <message>
         <source>Background Color</source>
-        <translation>Couleur d&apos;arrière-plan</translation>
+        <translation>Couleur d'arrière-plan</translation>
     </message>
     <message>
         <source>Foreground color changed</source>
@@ -20023,7 +20023,7 @@ Y : %2
     </message>
     <message>
         <source>Background color changed</source>
-        <translation>Couleur d&apos;arrière-plan modifiée</translation>
+        <translation>Couleur d'arrière-plan modifiée</translation>
     </message>
     <message>
         <source>Swapped foreground/background</source>
@@ -20039,7 +20039,7 @@ Y : %2
     </message>
     <message>
         <source>Background color %1</source>
-        <translation>Couleur d&apos;arrière-plan %1</translation>
+        <translation>Couleur d'arrière-plan %1</translation>
     </message>
     <message>
         <source>Text color %1</source>
@@ -20146,7 +20146,7 @@ Y : %2
     </message>
     <message>
         <source>No patterns are available.</source>
-        <translation>Aucun motif n&apos;est disponible.</translation>
+        <translation>Aucun motif n'est disponible.</translation>
     </message>
     <message>
         <source>Pattern Fill %1</source>
@@ -20173,12 +20173,12 @@ Y : %2
         <translation>Placez les calques de forme dans un groupe et appliquez le masque vectoriel à ce groupe.</translation>
     </message>
     <message>
-        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <source>This layer's vector data is preserved but can't be edited.</source>
         <translation>Les données vectorielles de ce calque sont conservées mais ne peuvent pas être modifiées.</translation>
     </message>
     <message>
         <source>The active layer has no vector mask</source>
-        <translation>Le calque actif n&apos;a pas de masque vectoriel</translation>
+        <translation>Le calque actif n'a pas de masque vectoriel</translation>
     </message>
     <message>
         <source>The active layer already has a vector mask</source>
@@ -20186,7 +20186,7 @@ Y : %2
     </message>
     <message>
         <source>Draw a work path first</source>
-        <translation>Dessinez d&apos;abord un tracé de travail</translation>
+        <translation>Dessinez d'abord un tracé de travail</translation>
     </message>
     <message>
         <source>Add vector mask</source>
@@ -20270,7 +20270,7 @@ Y : %2
     </message>
     <message>
         <source>Could not save the custom shape</source>
-        <translation>Impossible d&apos;enregistrer la forme personnalisée</translation>
+        <translation>Impossible d'enregistrer la forme personnalisée</translation>
     </message>
     <message>
         <source>Defined %1 from the path.</source>
@@ -20322,7 +20322,7 @@ Y : %2
     </message>
     <message>
         <source>Tracing is unavailable in Quick Mask mode</source>
-        <translation>La vectorisation n&apos;est pas disponible en mode Masque</translation>
+        <translation>La vectorisation n'est pas disponible en mode Masque</translation>
     </message>
     <message>
         <source>Select a pixel layer to trace</source>
@@ -20330,7 +20330,7 @@ Y : %2
     </message>
     <message>
         <source>Trace Image to Shapes</source>
-        <translation>Vectoriser l&apos;image en formes</translation>
+        <translation>Vectoriser l'image en formes</translation>
     </message>
     <message>
         <source>The layer has no pixels to trace</source>
@@ -20349,7 +20349,7 @@ Y : %2
     </message>
     <message>
         <source>Trace image to shapes</source>
-        <translation>Vectoriser l&apos;image en formes</translation>
+        <translation>Vectoriser l'image en formes</translation>
     </message>
     <message>
         <source>Traced %1</source>
@@ -20381,7 +20381,7 @@ Y : %2
     </message>
     <message>
         <source>Anchors: %1 -&gt; %2</source>
-        <translation>Points d&apos;ancrage : %1 -&gt; %2</translation>
+        <translation>Points d'ancrage : %1 -&gt; %2</translation>
     </message>
     <message>
         <source>Cancelled simplifying the path</source>
@@ -20393,7 +20393,7 @@ Y : %2
     </message>
     <message>
         <source>Simplified the path: %1 -&gt; %2 anchors</source>
-        <translation>Tracé simplifié : %1 -&gt; %2 points d&apos;ancrage</translation>
+        <translation>Tracé simplifié : %1 -&gt; %2 points d'ancrage</translation>
     </message>
     <message>
         <source>Select two or more shape layers to combine</source>
@@ -20484,7 +20484,7 @@ Y : %2
     </message>
     <message>
         <source>Brush flow: Shift+number keys (number keys with Airbrush)</source>
-        <translation>Flux du pinceau : Shift+touches numériques (touches numériques avec l&apos;Aérographe)</translation>
+        <translation>Flux du pinceau : Shift+touches numériques (touches numériques avec l'Aérographe)</translation>
     </message>
     <message>
         <source>Select a text layer or click in text with the Type tool to edit these settings.</source>
@@ -20551,19 +20551,19 @@ Y : %2
         <translation>Pivoter les lettres latines (texte vertical)</translation>
     </message>
     <message>
-        <source>Lay Latin letters on their side along the column instead of upright (Photoshop&apos;s Standard Vertical Roman Alignment)</source>
+        <source>Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)</source>
         <translation>Coucher les lettres latines le long de la colonne au lieu de les laisser droites (Alignement romain vertical standard de Photoshop)</translation>
     </message>
     <message>
         <source>Line spacing (Photoshop leading). Entering a value turns Auto leading off.</source>
-        <translation>Interligne, comme dans Photoshop. La saisie d&apos;une valeur désactive l&apos;interligne automatique.</translation>
+        <translation>Interligne, comme dans Photoshop. La saisie d'une valeur désactive l'interligne automatique.</translation>
     </message>
     <message>
         <source>Width of the active shape</source>
         <translation>Largeur de la forme active</translation>
     </message>
     <message>
-        <source>Keep the shape&apos;s width and height in proportion</source>
+        <source>Keep the shape's width and height in proportion</source>
         <translation>Conserver les proportions entre largeur et hauteur de la forme</translation>
     </message>
     <message>
@@ -20572,7 +20572,7 @@ Y : %2
     </message>
     <message>
         <source>Pick a custom shape first</source>
-        <translation>Choisissez d&apos;abord une forme personnalisée</translation>
+        <translation>Choisissez d'abord une forme personnalisée</translation>
     </message>
     <message>
         <source>Shape size</source>
@@ -20580,15 +20580,15 @@ Y : %2
     </message>
     <message>
         <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
-        <translation>Terminez d&apos;abord la transformation : Entrée l&apos;applique, Échap l&apos;annule</translation>
+        <translation>Terminez d'abord la transformation : Entrée l'applique, Échap l'annule</translation>
     </message>
     <message>
         <source>Shape Appearance...</source>
         <translation>Apparence de la forme...</translation>
     </message>
     <message>
-        <source>Edit the active shape layer&apos;s fill, stroke, opacity, and edge</source>
-        <translation>Modifier le fond, le contour, l&apos;opacité et le bord du calque de forme actif</translation>
+        <source>Edit the active shape layer's fill, stroke, opacity, and edge</source>
+        <translation>Modifier le fond, le contour, l'opacité et le bord du calque de forme actif</translation>
     </message>
     <message>
         <source>Appearance...</source>
@@ -20596,7 +20596,7 @@ Y : %2
     </message>
     <message>
         <source>Edit Appearance...</source>
-        <translation>Modifier l&apos;apparence...</translation>
+        <translation>Modifier l'apparence...</translation>
     </message>
     <message>
         <source>none</source>
@@ -20667,7 +20667,7 @@ Y : %2
     </message>
     <message>
         <source>Opening image %1 of %2...</source>
-        <translation>Ouverture de l&apos;image %1 sur %2...</translation>
+        <translation>Ouverture de l'image %1 sur %2...</translation>
     </message>
     <message>
         <source>Opened %1 of %2 images from %3</source>
@@ -20683,15 +20683,15 @@ Y : %2
     <message numerus="yes">
         <source> (%n could not be opened)</source>
         <translation>
-            <numerusform> (%n n&apos;a pas pu être ouvert)</numerusform>
-            <numerusform> (%n n&apos;ont pas pu être ouverts)</numerusform>
+            <numerusform> (%n n'a pas pu être ouvert)</numerusform>
+            <numerusform> (%n n'ont pas pu être ouverts)</numerusform>
         </translation>
     </message>
     <message>
         <source>These files could not be opened:
 
 %1</source>
-        <translation>Ces fichiers n&apos;ont pas pu être ouverts :
+        <translation>Ces fichiers n'ont pas pu être ouverts :
 
 %1</translation>
     </message>
@@ -20705,7 +20705,7 @@ Y : %2
     </message>
     <message>
         <source>Writing image %1 of %2...</source>
-        <translation>Écriture de l&apos;image %1 sur %2...</translation>
+        <translation>Écriture de l'image %1 sur %2...</translation>
     </message>
     <message>
         <source>Export cancelled after %1 of %2 images</source>
@@ -20733,7 +20733,7 @@ Y : %2
     </message>
     <message>
         <source>Layers as Image Se&amp;quence...</source>
-        <translation>Calques en &amp;séquence d&apos;images...</translation>
+        <translation>Calques en &amp;séquence d'images...</translation>
     </message>
     <message>
         <source>Layers as Animated &amp;GIF...</source>
@@ -20744,8 +20744,8 @@ Y : %2
         <translation>Afficher les valeurs de transformation pendant le glissement</translation>
     </message>
     <message>
-        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point&apos;s position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
-        <translation>Affiche un petit encart à côté du pointeur pendant le déplacement, la mise à l&apos;échelle ou la rotation : la position du point de référence et le décalage, la largeur et la hauteur avec les pourcentages d&apos;échelle, ou l&apos;angle et la rotation effectuée.</translation>
+        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point's position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
+        <translation>Affiche un petit encart à côté du pointeur pendant le déplacement, la mise à l'échelle ou la rotation : la position du point de référence et le décalage, la largeur et la hauteur avec les pourcentages d'échelle, ou l'angle et la rotation effectuée.</translation>
     </message>
     <message>
         <source>Pivot:</source>
@@ -20753,15 +20753,15 @@ Y : %2
     </message>
     <message>
         <source>Remove Object</source>
-        <translation>Supprimer l&apos;objet</translation>
+        <translation>Supprimer l'objet</translation>
     </message>
     <message>
         <source>Patch: draw around the area to fix, then drag the selection to a clean source area, or press Enter to remove the object automatically</source>
-        <translation>Pièce : entourez la zone à corriger, puis faites glisser la sélection vers une zone source propre, ou appuyez sur Entrée pour supprimer l&apos;objet automatiquement</translation>
+        <translation>Pièce : entourez la zone à corriger, puis faites glisser la sélection vers une zone source propre, ou appuyez sur Entrée pour supprimer l'objet automatiquement</translation>
     </message>
     <message>
         <source>Fill the selection from its surroundings with the content-aware search (Enter)</source>
-        <translation>Remplir la sélection à partir de son entourage avec la recherche d&apos;après le contenu (Enter)</translation>
+        <translation>Remplir la sélection à partir de son entourage avec la recherche d'après le contenu (Enter)</translation>
     </message>
     <message>
         <source>&amp;Align</source>
@@ -20833,11 +20833,11 @@ Y : %2
     </message>
     <message>
         <source>Distribute Horizontal &amp;Spacing</source>
-        <translation>Répartir l&apos;e&amp;spacement horizontal</translation>
+        <translation>Répartir l'e&amp;spacement horizontal</translation>
     </message>
     <message>
         <source>Distribute Vertical S&amp;pacing</source>
-        <translation>Répartir l&apos;es&amp;pacement vertical</translation>
+        <translation>Répartir l'es&amp;pacement vertical</translation>
     </message>
     <message>
         <source>Snap moved layers to other layers, guides, the grid, and the canvas (View &gt; Snap). Choose the targets under View &gt; Snap To.</source>
@@ -20845,7 +20845,7 @@ Y : %2
     </message>
     <message>
         <source>Finish the current drag before aligning layers</source>
-        <translation>Terminez le déplacement en cours avant d&apos;aligner les calques</translation>
+        <translation>Terminez le déplacement en cours avant d'aligner les calques</translation>
     </message>
     <message>
         <source>Return to the layer view to align layers</source>
@@ -20886,7 +20886,7 @@ Y : %2
         <translation>Aligner les transformations sur la grille de pixels</translation>
     </message>
     <message>
-        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop's "Snap Vector Tools and Transforms to Pixel Grid". Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
         <translation>Les positions et tailles saisies dans la barre de Transformation manuelle tombent sur des pixels entiers, comme « Aligner les outils vectoriels et les transformations sur la grille de pixels » de Photoshop. Les transformations pivotées ne sont pas alignées. Désactivé, une fraction saisie comme 3.4 px est conservée et les pixels sont rééchantillonnés.</translation>
     </message>
     <message>
@@ -20903,18 +20903,18 @@ Y : %2
     </message>
     <message>
         <source>Remove &amp;Object...</source>
-        <translation>Supprimer l&apos;&amp;objet...</translation>
+        <translation>Supprimer l'&amp;objet...</translation>
     </message>
     <message>
         <source>Remove Object needs a selection: select the area to remove first</source>
-        <translation>Supprimer l&apos;objet a besoin d&apos;une sélection : sélectionnez d&apos;abord la zone à supprimer</translation>
+        <translation>Supprimer l'objet a besoin d'une sélection : sélectionnez d'abord la zone à supprimer</translation>
     </message>
     <message>
         <source>Tone match</source>
         <translation>Accord des tons</translation>
     </message>
     <message>
-        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <source>How strongly the fill's brightness is smoothed to its own edges (0 keeps the raw fill)</source>
         <translation>Force du lissage de la luminosité du remplissage vers ses propres bords (0 conserve le remplissage brut)</translation>
     </message>
     <message>
@@ -20939,7 +20939,7 @@ Y : %2
     </message>
     <message>
         <source>Content-aware fill (%1 patches)</source>
-        <translation>Remplissage d&apos;après le contenu (%1 pièces)</translation>
+        <translation>Remplissage d'après le contenu (%1 pièces)</translation>
     </message>
     <message>
         <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
@@ -20947,26 +20947,26 @@ Y : %2
     </message>
     <message>
         <source>Cancelled Remove Object</source>
-        <translation>Supprimer l&apos;objet annulé</translation>
+        <translation>Supprimer l'objet annulé</translation>
     </message>
     <message>
         <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
-        <translation>Objet supprimé avec le remplissage d&apos;après le contenu, variante %1 (%2 pièces)</translation>
+        <translation>Objet supprimé avec le remplissage d'après le contenu, variante %1 (%2 pièces)</translation>
     </message>
     <message>
         <source>Removed object with the nearest edge (source %1 of %2)</source>
         <translation>Objet supprimé avec le bord le plus proche (source %1 sur %2)</translation>
     </message>
     <message>
-        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
-        <translation>Adoucit le bord du remplissage vers l&apos;extérieur de la sélection, en plus de son propre contour progressif. La zone remplie s&apos;agrandit du contour progressif ; gardez-le petit quand la sélection longe un bord</translation>
+        <source>Softens the fill's edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>Adoucit le bord du remplissage vers l'extérieur de la sélection, en plus de son propre contour progressif. La zone remplie s'agrandit du contour progressif ; gardez-le petit quand la sélection longe un bord</translation>
     </message>
     <message>
         <source>Duplicate to New Layer</source>
         <translation>Dupliquer vers un nouveau calque</translation>
     </message>
     <message>
-        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <source>Copies this variation's filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
         <translation>Copie la zone remplie de cette variante sur un nouveau calque masqué au-dessus de celui-ci, pour conserver et comparer plusieurs variantes</translation>
     </message>
     <message>
@@ -20979,15 +20979,15 @@ Y : %2
     </message>
     <message>
         <source>Duplicate Remove Object variation to layer</source>
-        <translation>Dupliquer la variante de Supprimer l&apos;objet vers un calque</translation>
+        <translation>Dupliquer la variante de Supprimer l'objet vers un calque</translation>
     </message>
     <message>
         <source>Remove Object variation %1</source>
-        <translation>Supprimer l&apos;objet variante %1</translation>
+        <translation>Supprimer l'objet variante %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Variante %1 copiée dans le calque masqué &quot;%2&quot;</translation>
+        <source>Copied variation %1 to the hidden layer "%2"</source>
+        <translation>Variante %1 copiée dans le calque masqué "%2"</translation>
     </message>
     <message>
         <source>&amp;Files as Layers...</source>
@@ -21003,11 +21003,11 @@ Y : %2
     </message>
     <message>
         <source>None of the files could be added as layers</source>
-        <translation>Aucun des fichiers n&apos;a pu être ajouté comme calque</translation>
+        <translation>Aucun des fichiers n'a pu être ajouté comme calque</translation>
     </message>
     <message>
         <source>The drop target is no longer in the document</source>
-        <translation>La cible du dépôt n&apos;est plus dans le document</translation>
+        <translation>La cible du dépôt n'est plus dans le document</translation>
     </message>
     <message>
         <source>Add files as layers</source>
@@ -21017,7 +21017,7 @@ Y : %2
         <source>These files could not be added as layers:
 
 %1</source>
-        <translation>Ces fichiers n&apos;ont pas pu être ajoutés comme calques :
+        <translation>Ces fichiers n'ont pas pu être ajoutés comme calques :
 
 %1</translation>
     </message>
@@ -21034,7 +21034,7 @@ Y : %2
     </message>
     <message>
         <source>The document is no longer open.</source>
-        <translation>Le document n&apos;est plus ouvert.</translation>
+        <translation>Le document n'est plus ouvert.</translation>
     </message>
     <message>
         <source>Adding file %1 of %2...</source>
@@ -21054,7 +21054,7 @@ Y : %2
     </message>
     <message>
         <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
-        <translation>Écrit une copie de chaque document modifié dans un dossier de récupération afin de pouvoir le rouvrir après un plantage. Le fichier que vous avez enregistré n&apos;est jamais touché, et les copies sont supprimées lorsque Patchy se ferme normalement.</translation>
+        <translation>Écrit une copie de chaque document modifié dans un dossier de récupération afin de pouvoir le rouvrir après un plantage. Le fichier que vous avez enregistré n'est jamais touché, et les copies sont supprimées lorsque Patchy se ferme normalement.</translation>
     </message>
     <message numerus="yes">
         <source>%n minute(s)</source>
@@ -21065,7 +21065,7 @@ Y : %2
     </message>
     <message>
         <source>Could not save recovery information: %1</source>
-        <translation>Impossible d&apos;enregistrer les informations de récupération : %1</translation>
+        <translation>Impossible d'enregistrer les informations de récupération : %1</translation>
     </message>
     <message>
         <source>%1 (Recovered)</source>
@@ -21081,13 +21081,13 @@ Y : %2
     <message numerus="yes">
         <source>%n recovery file(s) could not be opened; see %1</source>
         <translation>
-            <numerusform>%n fichier de récupération n&apos;a pas pu être ouvert ; voir %1</numerusform>
-            <numerusform>%n fichiers de récupération n&apos;ont pas pu être ouverts ; voir %1</numerusform>
+            <numerusform>%n fichier de récupération n'a pas pu être ouvert ; voir %1</numerusform>
+            <numerusform>%n fichiers de récupération n'ont pas pu être ouverts ; voir %1</numerusform>
         </translation>
     </message>
     <message>
-        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
-        <translation>Écart de couleur maximal entre un pixel et la couleur cliquée pour qu&apos;il soit rempli</translation>
+        <source>How far a pixel's color may differ from the clicked color and still be filled</source>
+        <translation>Écart de couleur maximal entre un pixel et la couleur cliquée pour qu'il soit rempli</translation>
     </message>
     <message>
         <source>Limit the fill to pixels connected to the click</source>
@@ -21114,7 +21114,7 @@ Y : %2
         <translation>Retrait de première ligne :</translation>
     </message>
     <message>
-        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <source>Indent of each paragraph's first line; negative with a left indent makes a hanging indent</source>
         <translation>Retrait de la première ligne de chaque paragraphe ; une valeur négative combinée à un retrait gauche crée un retrait négatif</translation>
     </message>
     <message>
@@ -21122,7 +21122,7 @@ Y : %2
         <translation>Retrait gauche :</translation>
     </message>
     <message>
-        <source>Space between the box edge and every line&apos;s start</source>
+        <source>Space between the box edge and every line's start</source>
         <translation>Espace entre le bord du bloc et le début de chaque ligne</translation>
     </message>
     <message>
@@ -21130,7 +21130,7 @@ Y : %2
         <translation>Retrait droit :</translation>
     </message>
     <message>
-        <source>Space between every line&apos;s end and the box edge</source>
+        <source>Space between every line's end and the box edge</source>
         <translation>Espace entre la fin de chaque ligne et le bord du bloc</translation>
     </message>
     <message>
@@ -21163,31 +21163,31 @@ Y : %2
     </message>
     <message>
         <source>Replace the smart object with a folder holding the layers of its contents</source>
-        <translation>Remplace l&apos;objet dynamique par un dossier contenant les calques de son contenu</translation>
+        <translation>Remplace l'objet dynamique par un dossier contenant les calques de son contenu</translation>
     </message>
     <message>
         <source>Embed the linked Smart Object before converting it to layers</source>
-        <translation>Incorporez l&apos;objet dynamique lié avant de le convertir en calques</translation>
+        <translation>Incorporez l'objet dynamique lié avant de le convertir en calques</translation>
     </message>
     <message>
         <source>Delete the Smart Filters before converting this Smart Object to layers</source>
         <translation>Supprimez les filtres dynamiques avant de convertir cet objet dynamique en calques</translation>
     </message>
     <message>
-        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <source>A warped or perspective Smart Object can't be converted to layers; rasterize it instead</source>
         <translation>Un objet dynamique déformé ou en perspective ne peut pas être converti en calques ; pixellisez-le plutôt</translation>
     </message>
     <message>
-        <source>The smart object&apos;s contents have no layers to convert</source>
-        <translation>Le contenu de l&apos;objet dynamique ne contient aucun calque à convertir</translation>
+        <source>The smart object's contents have no layers to convert</source>
+        <translation>Le contenu de l'objet dynamique ne contient aucun calque à convertir</translation>
     </message>
     <message>
-        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
-        <translation>Le contenu comporte des filtres dynamiques, qui ne peuvent pas encore être sortis de l&apos;objet dynamique</translation>
+        <source>The contents contain Smart Filters, which can't be moved out of the Smart Object yet</source>
+        <translation>Le contenu comporte des filtres dynamiques, qui ne peuvent pas encore être sortis de l'objet dynamique</translation>
     </message>
     <message>
         <source>Could not convert the smart object to layers</source>
-        <translation>Impossible de convertir l&apos;objet dynamique en calques</translation>
+        <translation>Impossible de convertir l'objet dynamique en calques</translation>
     </message>
     <message numerus="yes">
         <source>Converted the smart object to %n layer(s)</source>
@@ -21216,13 +21216,13 @@ Y : %2
         <source>%1 could not run.
 
 %2</source>
-        <translation>%1 n&apos;a pas pu s&apos;exécuter.
+        <translation>%1 n'a pas pu s'exécuter.
 
 %2</translation>
     </message>
     <message>
         <source>Legacy Photoshop plug-ins run on Windows only.</source>
-        <translation>Les anciens modules externes Photoshop ne s&apos;exécutent que sous Windows.</translation>
+        <translation>Les anciens modules externes Photoshop ne s'exécutent que sous Windows.</translation>
     </message>
     <message>
         <source>The selection does not touch the active layer.</source>
@@ -21230,11 +21230,11 @@ Y : %2
     </message>
     <message>
         <source>The layer no longer exists.</source>
-        <translation>Le calque n&apos;existe plus.</translation>
+        <translation>Le calque n'existe plus.</translation>
     </message>
     <message>
         <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
-        <translation>Les modules externes de filtre Photoshop (.8bf, 32 bits ou 64 bits) sont recherchés dans ces dossiers et leurs sous-dossiers et listés sous Modules externes &gt; Anciens modules externes Photoshop. N&apos;exécutez que des modules de confiance : ils s&apos;exécutent avec vos autorisations.</translation>
+        <translation>Les modules externes de filtre Photoshop (.8bf, 32 bits ou 64 bits) sont recherchés dans ces dossiers et leurs sous-dossiers et listés sous Modules externes &gt; Anciens modules externes Photoshop. N'exécutez que des modules de confiance : ils s'exécutent avec vos autorisations.</translation>
     </message>
     <message>
         <source>Always scanned:</source>
@@ -21262,7 +21262,7 @@ Y : %2
     </message>
     <message>
         <source>Could not open the plug-ins folder.</source>
-        <translation>Impossible d&apos;ouvrir le dossier des modules externes.</translation>
+        <translation>Impossible d'ouvrir le dossier des modules externes.</translation>
     </message>
     <message>
         <source>Plug-in scan finished: %1 available</source>
@@ -21282,15 +21282,15 @@ Y : %2
     </message>
     <message>
         <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
-        <translation>Les fenêtres des modules externes s&apos;ouvrent sur l&apos;écran qui affiche Patchy. Les modules externes à interface plein écran se dimensionnent selon cette taille d&apos;écran ; une taille plus petite les garde utilisables sur les grands écrans.</translation>
+        <translation>Les fenêtres des modules externes s'ouvrent sur l'écran qui affiche Patchy. Les modules externes à interface plein écran se dimensionnent selon cette taille d'écran ; une taille plus petite les garde utilisables sur les grands écrans.</translation>
     </message>
     <message>
         <source>Screen size for plug-in windows:</source>
-        <translation>Taille d&apos;écran pour les fenêtres des modules externes :</translation>
+        <translation>Taille d'écran pour les fenêtres des modules externes :</translation>
     </message>
     <message>
         <source>%1 via Patchy</source>
-        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in's name.</extracomment>
         <translation>%1 via Patchy</translation>
     </message>
     <message>
@@ -21327,19 +21327,19 @@ Y : %2
     </message>
     <message>
         <source>Could not open the themes folder.</source>
-        <translation>Impossible d&apos;ouvrir le dossier des thèmes.</translation>
+        <translation>Impossible d'ouvrir le dossier des thèmes.</translation>
     </message>
     <message>
         <source>Delete Theme</source>
         <translation>Supprimer le thème</translation>
     </message>
     <message>
-        <source>Delete the theme &quot;%1&quot;? Its file is removed from the themes folder.</source>
-        <translation>Supprimer le thème &quot;%1&quot; ? Son fichier sera retiré du dossier des thèmes.</translation>
+        <source>Delete the theme "%1"? Its file is removed from the themes folder.</source>
+        <translation>Supprimer le thème "%1" ? Son fichier sera retiré du dossier des thèmes.</translation>
     </message>
     <message>
-        <source>Could not delete &quot;%1&quot;.</source>
-        <translation>Impossible de supprimer &quot;%1&quot;.</translation>
+        <source>Could not delete "%1".</source>
+        <translation>Impossible de supprimer "%1".</translation>
     </message>
     <message>
         <source>Import Theme</source>
@@ -21350,8 +21350,8 @@ Y : %2
         <translation>Thème Patchy (*.patchytheme)</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;ouvrir « %1 ».</translation>
+        <source>Could not open "%1".</source>
+        <translation>Impossible d'ouvrir « %1 ».</translation>
     </message>
     <message>
         <source>Could not create the themes folder.</source>
@@ -21416,7 +21416,7 @@ Y : %2
     </message>
     <message>
         <source>Canvas Background Color</source>
-        <translation>Couleur d&apos;arrière-plan de la zone de travail</translation>
+        <translation>Couleur d'arrière-plan de la zone de travail</translation>
     </message>
     <message>
         <source>Scrubby Zoom</source>
@@ -21436,11 +21436,11 @@ Y : %2
     </message>
     <message>
         <source>Fill Screen</source>
-        <translation>Remplir l&apos;écran</translation>
+        <translation>Remplir l'écran</translation>
     </message>
     <message>
         <source>Fi&amp;ll Screen</source>
-        <translation>Remp&amp;lir l&apos;écran</translation>
+        <translation>Remp&amp;lir l'écran</translation>
     </message>
     <message>
         <source>Zoom In</source>
@@ -21452,15 +21452,15 @@ Y : %2
     </message>
     <message>
         <source>Show the image at actual pixels (View &gt; Actual Pixels)</source>
-        <translation>Afficher l&apos;image en pixels réels (Affichage &gt; Pixels réels)</translation>
+        <translation>Afficher l'image en pixels réels (Affichage &gt; Pixels réels)</translation>
     </message>
     <message>
         <source>Fit the whole image in the window (View &gt; Fit on Screen)</source>
-        <translation>Afficher l&apos;image entière dans la fenêtre (Affichage &gt; Taille écran)</translation>
+        <translation>Afficher l'image entière dans la fenêtre (Affichage &gt; Taille écran)</translation>
     </message>
     <message>
         <source>Zoom until the image fills the window (View &gt; Fill Screen)</source>
-        <translation>Zoomer jusqu&apos;à ce que l&apos;image remplisse la fenêtre (Affichage &gt; Remplir l&apos;écran)</translation>
+        <translation>Zoomer jusqu'à ce que l'image remplisse la fenêtre (Affichage &gt; Remplir l'écran)</translation>
     </message>
     <message>
         <source>Default units:</source>
@@ -21480,7 +21480,7 @@ Y : %2
     </message>
     <message>
         <source>The last plug-in is no longer available</source>
-        <translation>Le dernier module externe n&apos;est plus disponible</translation>
+        <translation>Le dernier module externe n'est plus disponible</translation>
     </message>
     <message>
         <source>Repeat %1</source>
@@ -21502,7 +21502,7 @@ Y : %2
     </message>
     <message>
         <source>This layer is not a linked smart object</source>
-        <translation>Ce calque n&apos;est pas un objet dynamique lié</translation>
+        <translation>Ce calque n'est pas un objet dynamique lié</translation>
     </message>
     <message>
         <source>Place Linked</source>
@@ -21514,47 +21514,47 @@ Y : %2
     </message>
     <message>
         <source>The placed position or size is out of range</source>
-        <translation>La position ou la taille de l&apos;importation est hors limites</translation>
+        <translation>La position ou la taille de l'importation est hors limites</translation>
     </message>
     <message>
-        <source>text layer &quot;%1&quot;</source>
-        <translation>calque de texte &quot;%1&quot;</translation>
+        <source>text layer "%1"</source>
+        <translation>calque de texte "%1"</translation>
     </message>
     <message>
-        <source>pixel layer &quot;%1&quot;</source>
-        <translation>calque de pixels &quot;%1&quot;</translation>
+        <source>pixel layer "%1"</source>
+        <translation>calque de pixels "%1"</translation>
     </message>
     <message>
-        <source>smart object &quot;%1&quot;</source>
-        <translation>objet dynamique &quot;%1&quot;</translation>
+        <source>smart object "%1"</source>
+        <translation>objet dynamique "%1"</translation>
     </message>
     <message>
-        <source>adjustment layer &quot;%1&quot; and the layers below it</source>
-        <translation>calque de réglage &quot;%1&quot; et les calques en dessous</translation>
+        <source>adjustment layer "%1" and the layers below it</source>
+        <translation>calque de réglage "%1" et les calques en dessous</translation>
     </message>
     <message>
-        <source>the blend mode of &quot;%1&quot; and the layers below it</source>
-        <translation>le mode de fusion de &quot;%1&quot; et les calques en dessous</translation>
+        <source>the blend mode of "%1" and the layers below it</source>
+        <translation>le mode de fusion de "%1" et les calques en dessous</translation>
     </message>
     <message>
-        <source>shape layer &quot;%1&quot; (its styles or fill options)</source>
-        <translation>calque de forme &quot;%1&quot; (ses styles ou options de fond)</translation>
+        <source>shape layer "%1" (its styles or fill options)</source>
+        <translation>calque de forme "%1" (ses styles ou options de fond)</translation>
     </message>
     <message>
-        <source>group &quot;%1&quot; (its styles or masks)</source>
-        <translation>groupe &quot;%1&quot; (ses styles ou masques)</translation>
+        <source>group "%1" (its styles or masks)</source>
+        <translation>groupe "%1" (ses styles ou masques)</translation>
     </message>
     <message>
-        <source>clipping mask group &quot;%1&quot;</source>
-        <translation>groupe de masque d&apos;écrêtage &quot;%1&quot;</translation>
+        <source>clipping mask group "%1"</source>
+        <translation>groupe de masque d'écrêtage "%1"</translation>
     </message>
     <message>
-        <source>the layer mask on &quot;%1&quot;</source>
-        <translation>le masque de fusion de &quot;%1&quot;</translation>
+        <source>the layer mask on "%1"</source>
+        <translation>le masque de fusion de "%1"</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; (merged under an adjustment layer or blend mode)</source>
-        <translation>&quot;%1&quot; (fusionné sous un calque de réglage ou un mode de fusion)</translation>
+        <source>"%1" (merged under an adjustment layer or blend mode)</source>
+        <translation>"%1" (fusionné sous un calque de réglage ou un mode de fusion)</translation>
     </message>
     <message numerus="yes">
         <source>%1 and %n more</source>
@@ -21567,7 +21567,7 @@ Y : %2
         <source>SVG keeps shape layers as vectors, but this document has content SVG cannot hold as vectors. Continue saving and bake it into images in the linked file?
 
 Baked into images: %1.</source>
-        <translation>Le format SVG conserve les calques de forme sous forme de vecteurs, mais ce document contient des éléments que SVG ne peut pas stocker en vecteurs. Continuer l&apos;enregistrement et les convertir en images dans le fichier lié ?
+        <translation>Le format SVG conserve les calques de forme sous forme de vecteurs, mais ce document contient des éléments que SVG ne peut pas stocker en vecteurs. Continuer l'enregistrement et les convertir en images dans le fichier lié ?
 
 Convertis en images : %1.</translation>
     </message>
@@ -21597,7 +21597,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Also applies to a pen button set to Scroll. Hold %CTRL% or Shift while scrolling to pan. Two-finger scrolling on a trackpad always pans; pinch to zoom.</source>
-        <translation>S&apos;applique aussi à un bouton de stylet réglé sur Défilement. Maintenez %CTRL% ou Shift pendant le défilement pour déplacer la vue. Le défilement à deux doigts sur un trackpad déplace toujours la vue ; pincez pour zoomer.</translation>
+        <translation>S'applique aussi à un bouton de stylet réglé sur Défilement. Maintenez %CTRL% ou Shift pendant le défilement pour déplacer la vue. Le défilement à deux doigts sur un trackpad déplace toujours la vue ; pincez pour zoomer.</translation>
     </message>
     <message>
         <source>Tools</source>
@@ -21657,7 +21657,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>This layer is not an embedded smart object</source>
-        <translation>Ce calque n&apos;est pas un objet dynamique incorporé</translation>
+        <translation>Ce calque n'est pas un objet dynamique incorporé</translation>
     </message>
     <message>
         <source>This smart object cannot be re-rendered</source>
@@ -21669,7 +21669,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Déplacement : %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle ; Maj ajoute. Faites glisser l&apos;illustration sélectionnée pour la déplacer, %ALT%+glisser pour la dupliquer.</translation>
+        <translation>Déplacement : %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle ; Maj ajoute. Faites glisser l'illustration sélectionnée pour la déplacer, %ALT%+glisser pour la dupliquer.</translation>
     </message>
     <message>
         <source>Reset the crop box to the canvas (Esc)</source>
@@ -21677,7 +21677,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Crop: drag the handles to crop or extend the canvas (%ALT% resizes about the center), drag inside to lay out a new box, drag outside it to rotate. Enter crops, Esc resets the box.</source>
-        <translation>Recadrage : faites glisser les poignées pour recadrer ou agrandir la zone de travail (%ALT% redimensionne autour du centre), glissez à l&apos;intérieur pour tracer un nouveau cadre, glissez à l&apos;extérieur pour pivoter. Entrée recadre, Échap réinitialise le cadre.</translation>
+        <translation>Recadrage : faites glisser les poignées pour recadrer ou agrandir la zone de travail (%ALT% redimensionne autour du centre), glissez à l'intérieur pour tracer un nouveau cadre, glissez à l'extérieur pour pivoter. Entrée recadre, Échap réinitialise le cadre.</translation>
     </message>
     <message>
         <source>Ratio</source>
@@ -21696,7 +21696,7 @@ Convertis en images : %1.</translation>
         <translation>Largeur du cadre de recadrage</translation>
     </message>
     <message>
-        <source>Keep the crop box&apos;s width and height in proportion</source>
+        <source>Keep the crop box's width and height in proportion</source>
         <translation>Conserver les proportions du cadre de recadrage</translation>
     </message>
     <message>
@@ -21781,11 +21781,11 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
-        <translation>Exposition d&apos;aperçu 32 bits, en diaphragmes. Elle modifie l&apos;affichage, pas les pixels.</translation>
+        <translation>Exposition d'aperçu 32 bits, en diaphragmes. Elle modifie l'affichage, pas les pixels.</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
-        <translation>Ce filtre n&apos;est pas disponible dans les documents 32 bits</translation>
+        <translation>Ce filtre n'est pas disponible dans les documents 32 bits</translation>
     </message>
     <message>
         <source>Linear RGB: %1, %2, %3</source>
@@ -21829,7 +21829,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Set Icon from Current Window</source>
-        <translation>Définir l&apos;icône depuis la fenêtre actuelle</translation>
+        <translation>Définir l'icône depuis la fenêtre actuelle</translation>
     </message>
     <message>
         <source>Revert to Bundled</source>
@@ -21840,10 +21840,10 @@ Convertis en images : %1.</translation>
         <translation>Icône enregistrée dans %1</translation>
     </message>
     <message numerus="yes">
-        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <source>%n recovered document(s) could not be moved to this session's recovery folder; the copies stay in %1</source>
         <translation>
-            <numerusform>%n document récupéré n&apos;a pas pu être déplacé dans le dossier de récupération de cette session ; la copie reste dans %1</numerusform>
-            <numerusform>%n documents récupérés n&apos;ont pas pu être déplacés dans le dossier de récupération de cette session ; les copies restent dans %1</numerusform>
+            <numerusform>%n document récupéré n'a pas pu être déplacé dans le dossier de récupération de cette session ; la copie reste dans %1</numerusform>
+            <numerusform>%n documents récupérés n'ont pas pu être déplacés dans le dossier de récupération de cette session ; les copies restent dans %1</numerusform>
         </translation>
     </message>
     <message>
@@ -21852,11 +21852,11 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Select the main subject of the image automatically</source>
-        <translation>Sélectionner automatiquement le sujet principal de l&apos;image</translation>
+        <translation>Sélectionner automatiquement le sujet principal de l'image</translation>
     </message>
     <message>
         <source>Object Selection</source>
-        <translation>Sélection d&apos;objet</translation>
+        <translation>Sélection d'objet</translation>
     </message>
     <message>
         <source>Selected the subject</source>
@@ -21864,15 +21864,15 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Object Selection: sample all layers</source>
-        <translation>Sélection d&apos;objet : échantillonner tous les calques</translation>
+        <translation>Sélection d'objet : échantillonner tous les calques</translation>
     </message>
     <message>
         <source>Object Selection: active layer</source>
-        <translation>Sélection d&apos;objet : calque actif</translation>
+        <translation>Sélection d'objet : calque actif</translation>
     </message>
     <message>
         <source>Remove Background</source>
-        <translation>Supprimer l&apos;arrière-plan</translation>
+        <translation>Supprimer l'arrière-plan</translation>
     </message>
     <message>
         <source>Select S&amp;ubject</source>
@@ -21880,31 +21880,31 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Select &amp;Background</source>
-        <translation>Sélectionner l&apos;arrière-&amp;plan</translation>
+        <translation>Sélectionner l'arrière-&amp;plan</translation>
     </message>
     <message>
         <source>Remove Bac&amp;kground</source>
-        <translation>Supprimer l&apos;arrière-pla&amp;n</translation>
+        <translation>Supprimer l'arrière-pla&amp;n</translation>
     </message>
     <message>
         <source>Hide the background with a layer mask on the active layer</source>
-        <translation>Masquer l&apos;arrière-plan avec un masque de fusion sur le calque actif</translation>
+        <translation>Masquer l'arrière-plan avec un masque de fusion sur le calque actif</translation>
     </message>
     <message>
         <source>Open a document before using %1</source>
-        <translation>Ouvrez un document avant d&apos;utiliser %1</translation>
+        <translation>Ouvrez un document avant d'utiliser %1</translation>
     </message>
     <message>
         <source>%1 is not available in this build</source>
-        <translation>%1 n&apos;est pas disponible dans cette version</translation>
+        <translation>%1 n'est pas disponible dans cette version</translation>
     </message>
     <message>
         <source>%1 is unavailable in Quick Mask mode</source>
-        <translation>%1 n&apos;est pas disponible en mode Masque</translation>
+        <translation>%1 n'est pas disponible en mode Masque</translation>
     </message>
     <message>
         <source>%1 could not read the document</source>
-        <translation>%1 n&apos;a pas pu lire le document</translation>
+        <translation>%1 n'a pas pu lire le document</translation>
     </message>
     <message>
         <source>Finding the subject...</source>
@@ -21920,11 +21920,11 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>%1 found no subject</source>
-        <translation>%1 n&apos;a trouvé aucun sujet</translation>
+        <translation>%1 n'a trouvé aucun sujet</translation>
     </message>
     <message>
         <source>Select Background</source>
-        <translation>Sélectionner l&apos;arrière-plan</translation>
+        <translation>Sélectionner l'arrière-plan</translation>
     </message>
     <message>
         <source>Selected the background</source>
@@ -21936,7 +21936,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Select &amp;Object</source>
-        <translation>Sélectionner l&apos;&amp;objet</translation>
+        <translation>Sélectionner l'&amp;objet</translation>
     </message>
     <message>
         <source>Selected the object</source>
@@ -21988,19 +21988,19 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>High Quality Object Selection</source>
-        <translation>Sélection d&apos;objet haute qualité</translation>
+        <translation>Sélection d'objet haute qualité</translation>
     </message>
     <message>
         <source>Download the High Quality model for Object Selection?</source>
-        <translation>Télécharger le modèle haute qualité pour la sélection d&apos;objet ?</translation>
+        <translation>Télécharger le modèle haute qualité pour la sélection d'objet ?</translation>
     </message>
     <message>
         <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Il trouve les objets bien plus précisément que le modèle intégré. Le téléchargement fait %1 Mo depuis GitHub et reste sur cet ordinateur. Vous pouvez changer de modèle à tout moment dans la barre d&apos;options de la sélection d&apos;objet.</translation>
+        <translation>Il trouve les objets bien plus précisément que le modèle intégré. Le téléchargement fait %1 Mo depuis GitHub et reste sur cet ordinateur. Vous pouvez changer de modèle à tout moment dans la barre d'options de la sélection d'objet.</translation>
     </message>
     <message>
         <source>Object Selection now uses the High Quality model</source>
-        <translation>La sélection d&apos;objet utilise maintenant le modèle haute qualité</translation>
+        <translation>La sélection d'objet utilise maintenant le modèle haute qualité</translation>
     </message>
     <message>
         <source>The High Quality model could not be downloaded: %1</source>
@@ -22012,7 +22012,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>The High Quality model is not available in the web version</source>
-        <translation>Le modèle haute qualité n&apos;est pas disponible dans la version web</translation>
+        <translation>Le modèle haute qualité n'est pas disponible dans la version web</translation>
     </message>
     <message>
         <source>Downloading the High Quality model... %1 of %2 MB</source>
@@ -22023,20 +22023,20 @@ Convertis en images : %1.</translation>
         <translation>les fichiers téléchargés ne sont pas là où Patchy les cherche</translation>
     </message>
     <message>
-        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool&apos;s options bar.</source>
-        <translation>Supprime le modèle haute qualité téléchargé. La sélection d&apos;objet utilise alors le modèle intégré ; vous pouvez le télécharger à nouveau depuis la barre d&apos;options de l&apos;outil.</translation>
+        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool's options bar.</source>
+        <translation>Supprime le modèle haute qualité téléchargé. La sélection d'objet utilise alors le modèle intégré ; vous pouvez le télécharger à nouveau depuis la barre d'options de l'outil.</translation>
     </message>
     <message>
         <source>High Quality Object Selection model: downloaded (%1 MB)</source>
-        <translation>Modèle haute qualité de la sélection d&apos;objet : téléchargé (%1 Mo)</translation>
+        <translation>Modèle haute qualité de la sélection d'objet : téléchargé (%1 Mo)</translation>
     </message>
     <message>
         <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Modèle haute qualité de la sélection d&apos;objet : non téléchargé</translation>
+        <translation>Modèle haute qualité de la sélection d'objet : non téléchargé</translation>
     </message>
     <message>
         <source>Deleted the High Quality Object Selection model</source>
-        <translation>Le modèle haute qualité de la sélection d&apos;objet a été supprimé</translation>
+        <translation>Le modèle haute qualité de la sélection d'objet a été supprimé</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
@@ -22044,7 +22044,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Télécharge le modèle haute qualité (%1 Mo depuis GitHub). Avec lui, la sélection d&apos;objet trouve les objets plus précisément.</translation>
+        <translation>Télécharge le modèle haute qualité (%1 Mo depuis GitHub). Avec lui, la sélection d'objet trouve les objets plus précisément.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -22056,7 +22056,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>The update was not installed because Patchy stayed open</source>
-        <translation>La mise à jour n&apos;a pas été installée, car Patchy est resté ouvert</translation>
+        <translation>La mise à jour n'a pas été installée, car Patchy est resté ouvert</translation>
     </message>
     <message>
         <source>Patchy %1 is available. You are using version %2.
@@ -22064,7 +22064,7 @@ Convertis en images : %1.</translation>
 Patchy can download the update, close, install it, and start again. You will be asked about unsaved work first.</source>
         <translation>Patchy %1 est disponible. Vous utilisez la version %2.
 
-Patchy peut télécharger la mise à jour, se fermer, l&apos;installer et redémarrer. Une question vous sera d&apos;abord posée sur le travail non enregistré.</translation>
+Patchy peut télécharger la mise à jour, se fermer, l'installer et redémarrer. Une question vous sera d'abord posée sur le travail non enregistré.</translation>
     </message>
     <message>
         <source>Update Now</source>
@@ -22082,29 +22082,29 @@ These apps are still connected to the old version: %2.
 Restart them to finish updating.</source>
         <translation>Patchy a été mis à jour vers la version %1.
 
-Ces applications sont encore connectées à l&apos;ancienne version : %2.
+Ces applications sont encore connectées à l'ancienne version : %2.
 
 Redémarrez-les pour terminer la mise à jour.</translation>
     </message>
     <message>
         <source>The downloaded installer is no longer on this computer.</source>
-        <translation>Le programme d&apos;installation téléchargé n&apos;est plus sur cet ordinateur.</translation>
+        <translation>Le programme d'installation téléchargé n'est plus sur cet ordinateur.</translation>
     </message>
     <message>
         <source>The downloaded installer does not match the checksum published for this update.</source>
-        <translation>Le programme d&apos;installation téléchargé ne correspond pas à la somme de contrôle publiée pour cette mise à jour.</translation>
+        <translation>Le programme d'installation téléchargé ne correspond pas à la somme de contrôle publiée pour cette mise à jour.</translation>
     </message>
     <message>
         <source>The downloaded installer is not signed by %1, the publisher of this copy of Patchy.</source>
-        <translation>Le programme d&apos;installation téléchargé n&apos;est pas signé par %1, l&apos;éditeur de cette copie de Patchy.</translation>
+        <translation>Le programme d'installation téléchargé n'est pas signé par %1, l'éditeur de cette copie de Patchy.</translation>
     </message>
     <message>
         <source>The downloaded installer is signed by %1, not by %2, the publisher of this copy of Patchy.</source>
-        <translation>Le programme d&apos;installation téléchargé est signé par %1, et non par %2, l&apos;éditeur de cette copie de Patchy.</translation>
+        <translation>Le programme d'installation téléchargé est signé par %1, et non par %2, l'éditeur de cette copie de Patchy.</translation>
     </message>
     <message>
         <source>Windows could not start the installer.</source>
-        <translation>Windows n&apos;a pas pu lancer le programme d&apos;installation.</translation>
+        <translation>Windows n'a pas pu lancer le programme d'installation.</translation>
     </message>
     <message>
         <source>The update was not installed.
@@ -22112,41 +22112,41 @@ Redémarrez-les pour terminer la mise à jour.</translation>
 %1
 
 You can still download it in your browser.</source>
-        <translation>La mise à jour n&apos;a pas été installée.
+        <translation>La mise à jour n'a pas été installée.
 
 %1
 
 Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     </message>
     <message>
-        <source>G&apos;&amp;MIC Filter Library...</source>
-        <translation>Bibliothèque de filtres G&apos;&amp;MIC...</translation>
+        <source>G'&amp;MIC Filter Library...</source>
+        <translation>Bibliothèque de filtres G'&amp;MIC...</translation>
     </message>
     <message>
-        <source>Browse and apply filters from the G&apos;MIC library</source>
-        <translation>Parcourir et appliquer les filtres de la bibliothèque G&apos;MIC</translation>
+        <source>Browse and apply filters from the G'MIC library</source>
+        <translation>Parcourir et appliquer les filtres de la bibliothèque G'MIC</translation>
     </message>
     <message>
-        <source>This G&apos;MIC filter is not available</source>
-        <translation>Ce filtre G&apos;MIC n&apos;est pas disponible</translation>
+        <source>This G'MIC filter is not available</source>
+        <translation>Ce filtre G'MIC n'est pas disponible</translation>
     </message>
     <message>
         <source>Rasterize the Smart Object before using %1</source>
-        <translation>Pixellisez l&apos;objet dynamique avant d&apos;utiliser %1</translation>
+        <translation>Pixellisez l'objet dynamique avant d'utiliser %1</translation>
     </message>
     <message>
         <source>The filter returned no image.</source>
-        <translation>Le filtre n&apos;a renvoyé aucune image.</translation>
+        <translation>Le filtre n'a renvoyé aucune image.</translation>
     </message>
     <message>
-        <source>G&apos;MIC Filter Library</source>
-        <translation>Bibliothèque de filtres G&apos;MIC</translation>
+        <source>G'MIC Filter Library</source>
+        <translation>Bibliothèque de filtres G'MIC</translation>
     </message>
     <message>
         <source>%1 could not be applied.
 
 %2</source>
-        <translation>Impossible d&apos;appliquer %1.
+        <translation>Impossible d'appliquer %1.
 
 %2</translation>
     </message>
@@ -22156,14 +22156,14 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     </message>
     <message>
         <source>No layer matches the chosen input layers.</source>
-        <translation>Aucun calque ne correspond aux calques d&apos;entrée choisis.</translation>
+        <translation>Aucun calque ne correspond aux calques d'entrée choisis.</translation>
     </message>
     <message>
         <source>%1 needs about %2 MB of memory for these layers, more than this computer can spare. Use fewer input layers or a smaller image.</source>
-        <translation>%1 nécessite environ %2 Mo de mémoire pour ces calques, plus que cet ordinateur ne peut en fournir. Utilisez moins de calques d&apos;entrée ou une image plus petite.</translation>
+        <translation>%1 nécessite environ %2 Mo de mémoire pour ces calques, plus que cet ordinateur ne peut en fournir. Utilisez moins de calques d'entrée ou une image plus petite.</translation>
     </message>
     <message>
-        <source>Don&apos;t ask again about version %1</source>
+        <source>Don't ask again about version %1</source>
         <translation>Ne plus demander pour la version %1</translation>
     </message>
     <message>
@@ -22188,7 +22188,7 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     </message>
     <message>
         <source>None of the chosen layers can be changed. Locked, text, shape and Smart Object layers stay as they are.</source>
-        <translation>Aucun des calques choisis ne peut être modifié. Les calques verrouillés, de texte, de forme et d&apos;objet dynamique restent tels quels.</translation>
+        <translation>Aucun des calques choisis ne peut être modifié. Les calques verrouillés, de texte, de forme et d'objet dynamique restent tels quels.</translation>
     </message>
     <message>
         <source>Combines the chosen layers into the active layer. The other layers stay as they are.</source>
@@ -22207,7 +22207,7 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     </message>
     <message>
         <source>Part of the layer will lie outside the canvas. It is kept, and the Move tool brings it into view.</source>
-        <translation>Une partie du calque se trouvera hors de la zone de travail. Elle est conservée, et l&apos;outil Déplacement la ramène en vue.</translation>
+        <translation>Une partie du calque se trouvera hors de la zone de travail. Elle est conservée, et l'outil Déplacement la ramène en vue.</translation>
     </message>
     <message numerus="yes">
         <source>%n of the chosen layers cannot be changed (locked, text, shape or Smart Object) and stay as they are.</source>
@@ -22237,8 +22237,8 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     <message numerus="yes">
         <source>Adds %n new layer(s). The preview already shows them on the canvas and in the Layers panel.</source>
         <translation>
-            <numerusform>Ajoute %n nouveau calque. L&apos;aperçu l&apos;affiche déjà sur la zone de travail et dans le panneau Calques.</numerusform>
-            <numerusform>Ajoute %n nouveaux calques. L&apos;aperçu les affiche déjà sur la zone de travail et dans le panneau Calques.</numerusform>
+            <numerusform>Ajoute %n nouveau calque. L'aperçu l'affiche déjà sur la zone de travail et dans le panneau Calques.</numerusform>
+            <numerusform>Ajoute %n nouveaux calques. L'aperçu les affiche déjà sur la zone de travail et dans le panneau Calques.</numerusform>
         </translation>
     </message>
     <message>
@@ -22274,8 +22274,8 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
         <translation>Profil CMJN</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not a CMYK profile Patchy can use.</source>
-        <translation>« %1 » n&apos;est pas un profil CMJN utilisable par Patchy.</translation>
+        <source>"%1" is not a CMYK profile Patchy can use.</source>
+        <translation>« %1 » n'est pas un profil CMJN utilisable par Patchy.</translation>
     </message>
     <message>
         <source>CMYK profile:</source>
@@ -22307,7 +22307,7 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     </message>
     <message>
         <source>Proof Colors</source>
-        <translation>Couleurs d&apos;épreuve</translation>
+        <translation>Couleurs d'épreuve</translation>
     </message>
     <message>
         <source>Gamut Warning</source>
@@ -22315,11 +22315,11 @@ Vous pouvez toujours la télécharger dans votre navigateur.</translation>
     </message>
     <message>
         <source>Proof Colors and Gamut Warning need a CMYK profile. Choose one in Preferences.</source>
-        <translation>Couleurs d&apos;épreuve et Couleurs non imprimables nécessitent un profil CMJN. Choisissez-en un dans les Préférences.</translation>
+        <translation>Couleurs d'épreuve et Couleurs non imprimables nécessitent un profil CMJN. Choisissez-en un dans les Préférences.</translation>
     </message>
     <message>
         <source>Canvas view uses the CMYK profile %1. Documents and exports are unchanged.</source>
-        <translation>L&apos;affichage de la zone de travail utilise le profil CMJN %1. Les documents et les exportations ne changent pas.</translation>
+        <translation>L'affichage de la zone de travail utilise le profil CMJN %1. Les documents et les exportations ne changent pas.</translation>
     </message>
     <message>
         <source>Cyan</source>
@@ -22371,15 +22371,15 @@ Téléchargez le nouvel AppImage, quittez Patchy et remplacez ce fichier par cel
     </message>
     <message>
         <source>The downloaded AppImage is no longer on this computer.</source>
-        <translation>L&apos;AppImage téléchargé n&apos;est plus sur cet ordinateur.</translation>
+        <translation>L'AppImage téléchargé n'est plus sur cet ordinateur.</translation>
     </message>
     <message>
         <source>The downloaded AppImage does not match the checksum published for this update.</source>
-        <translation>L&apos;AppImage téléchargé ne correspond pas à la somme de contrôle publiée pour cette mise à jour.</translation>
+        <translation>L'AppImage téléchargé ne correspond pas à la somme de contrôle publiée pour cette mise à jour.</translation>
     </message>
     <message>
         <source>The new AppImage could not be put in place of this one.</source>
-        <translation>Le nouvel AppImage n&apos;a pas pu remplacer celui-ci.</translation>
+        <translation>Le nouvel AppImage n'a pas pu remplacer celui-ci.</translation>
     </message>
     <message>
         <source>Patchy %1 is available. You are using version %2.
@@ -22387,15 +22387,15 @@ Téléchargez le nouvel AppImage, quittez Patchy et remplacez ce fichier par cel
 Patchy can download the update, replace this AppImage, and start again. You will be asked about unsaved work first.</source>
         <translation>Patchy %1 est disponible. Vous utilisez la version %2.
 
-Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer. Une question vous sera d&apos;abord posée sur le travail non enregistré.</translation>
+Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer. Une question vous sera d'abord posée sur le travail non enregistré.</translation>
     </message>
     <message>
         <source>&amp;Flatten Image</source>
-        <translation>A&amp;platir l&apos;image</translation>
+        <translation>A&amp;platir l'image</translation>
     </message>
     <message>
         <source>Merge every visible layer into one opaque Background layer</source>
-        <translation>Fusionner tous les calques visibles en un calque d&apos;arrière-plan opaque</translation>
+        <translation>Fusionner tous les calques visibles en un calque d'arrière-plan opaque</translation>
     </message>
     <message>
         <source>No layers to flatten</source>
@@ -22403,11 +22403,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The image is already flat</source>
-        <translation>L&apos;image est déjà aplatie</translation>
+        <translation>L'image est déjà aplatie</translation>
     </message>
     <message>
         <source>Flatten Image</source>
-        <translation>Aplatir l&apos;image</translation>
+        <translation>Aplatir l'image</translation>
     </message>
     <message>
         <source>Discard hidden layers?</source>
@@ -22415,15 +22415,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Flattening image...</source>
-        <translation>Aplatissement de l&apos;image...</translation>
+        <translation>Aplatissement de l'image...</translation>
     </message>
     <message>
         <source>Could not flatten the image. The layers are unchanged.</source>
-        <translation>Impossible d&apos;aplatir l&apos;image. Les calques sont inchangés.</translation>
+        <translation>Impossible d'aplatir l'image. Les calques sont inchangés.</translation>
     </message>
     <message>
         <source>Flatten image</source>
-        <translation>Aplatir l&apos;image</translation>
+        <translation>Aplatir l'image</translation>
     </message>
     <message>
         <source>Flattened the image</source>
@@ -22475,7 +22475,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The image is placed on white paper and separated through the CMYK profile %1 with the %2 rendering intent, and that profile is embedded in the file. Patchy opens CMYK files as RGB again, so keep a PSD copy for further editing. The profile is chosen in Preferences.</source>
-        <translation>L&apos;image est placée sur du papier blanc et séparée selon le profil CMJN %1 avec le mode de rendu %2, et ce profil est incorporé au fichier. Patchy rouvre les fichiers CMJN en RVB : conservez une copie PSD pour continuer à modifier l&apos;image. Le profil se choisit dans les Préférences.</translation>
+        <translation>L'image est placée sur du papier blanc et séparée selon le profil CMJN %1 avec le mode de rendu %2, et ce profil est incorporé au fichier. Patchy rouvre les fichiers CMJN en RVB : conservez une copie PSD pour continuer à modifier l'image. Le profil se choisit dans les Préférences.</translation>
     </message>
     <message>
         <source>Black and grays in black ink only</source>
@@ -22483,19 +22483,19 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Prints black text and gray areas with black ink alone, so small type stays sharp on press. Colored areas are separated through the profile as usual.</source>
-        <translation>Imprime le texte noir et les zones grises avec la seule encre noire, pour que les petits caractères restent nets à l&apos;impression. Les zones colorées sont séparées selon le profil comme d&apos;habitude.</translation>
+        <translation>Imprime le texte noir et les zones grises avec la seule encre noire, pour que les petits caractères restent nets à l'impression. Les zones colorées sont séparées selon le profil comme d'habitude.</translation>
     </message>
     <message>
-        <source>Don&apos;t show this again</source>
+        <source>Don't show this again</source>
         <translation>Ne plus afficher</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but a PDF with editable layers is saved in RGB. Save it in RGB?</source>
-        <translation>Ce document est en mode Épreuve CMJN, mais un PDF à calques modifiables est enregistré en RVB. L&apos;enregistrer en RVB ?</translation>
+        <translation>Ce document est en mode Épreuve CMJN, mais un PDF à calques modifiables est enregistré en RVB. L'enregistrer en RVB ?</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but %1 files are saved in RGB. Only JPEG, TIFF and flattened PDF files can be saved in CMYK. Save it in RGB?</source>
-        <translation>Ce document est en mode Épreuve CMJN, mais les fichiers %1 sont enregistrés en RVB. Seuls les fichiers JPEG, TIFF et PDF aplatis peuvent être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
+        <translation>Ce document est en mode Épreuve CMJN, mais les fichiers %1 sont enregistrés en RVB. Seuls les fichiers JPEG, TIFF et PDF aplatis peuvent être enregistrés en CMJN. L'enregistrer en RVB ?</translation>
     </message>
     <message>
         <source>Save in RGB</source>
@@ -22507,7 +22507,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Patchy includes one CMYK profile, ISO Coated v2 (basICColor). The other profiles in this list were found on this computer, installed by the operating system or by other software such as Adobe applications; Patchy does not include them.</source>
-        <translation>Patchy inclut un seul profil CMJN, ISO Coated v2 (basICColor). Les autres profils de cette liste ont été trouvés sur cet ordinateur, installés par le système d&apos;exploitation ou par d&apos;autres logiciels comme les applications Adobe ; Patchy ne les inclut pas.</translation>
+        <translation>Patchy inclut un seul profil CMJN, ISO Coated v2 (basICColor). Les autres profils de cette liste ont été trouvés sur cet ordinateur, installés par le système d'exploitation ou par d'autres logiciels comme les applications Adobe ; Patchy ne les inclut pas.</translation>
     </message>
     <message>
         <source>Automatic (%1, included with Patchy)</source>
@@ -22523,7 +22523,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Convert the document to RGB Color before turning on CMYK Proof.</source>
-        <translation>Convertissez le document en couleurs RVB avant d&apos;activer Épreuve CMJN.</translation>
+        <translation>Convertissez le document en couleurs RVB avant d'activer Épreuve CMJN.</translation>
     </message>
     <message>
         <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
@@ -22531,7 +22531,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>CMYK Proof: the canvas shows the CMYK profile %1. Saving as JPEG, TIFF or PDF writes CMYK.</source>
-        <translation>Épreuve CMJN : la zone de travail affiche le profil CMJN %1. L&apos;enregistrement en JPEG, TIFF ou PDF écrit du CMJN.</translation>
+        <translation>Épreuve CMJN : la zone de travail affiche le profil CMJN %1. L'enregistrement en JPEG, TIFF ou PDF écrit du CMJN.</translation>
     </message>
     <message>
         <source>RGB Color: saves are written in RGB again.</source>
@@ -22539,11 +22539,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Opened in Image &gt; Mode &gt; CMYK Proof, so saving as JPEG, TIFF or PDF writes CMYK again</source>
-        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l&apos;enregistrement en JPEG, TIFF ou PDF écrit de nouveau du CMJN</translation>
+        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l'enregistrement en JPEG, TIFF ou PDF écrit de nouveau du CMJN</translation>
     </message>
     <message>
         <source>Patchy edits in RGB. This profile sets what CMYK numbers mean in the color picker, the Info panel and CMYK swatches. Image &gt; Mode &gt; CMYK Proof, View &gt; Proof Colors, and CMYK saves and exports also convert colors through it.</source>
-        <translation>Patchy travaille en RVB. Ce profil définit la signification des valeurs CMJN dans le sélecteur de couleur, le panneau Informations et les nuanciers CMJN. Image &gt; Mode &gt; Épreuve CMJN, Affichage &gt; Couleurs d&apos;épreuve, ainsi que les enregistrements et exportations CMJN, convertissent aussi les couleurs selon ce profil.</translation>
+        <translation>Patchy travaille en RVB. Ce profil définit la signification des valeurs CMJN dans le sélecteur de couleur, le panneau Informations et les nuanciers CMJN. Image &gt; Mode &gt; Épreuve CMJN, Affichage &gt; Couleurs d'épreuve, ainsi que les enregistrements et exportations CMJN, convertissent aussi les couleurs selon ce profil.</translation>
     </message>
     <message>
         <source>%1 returns a %2 x %3 pixel image. Only the part over the selection is applied, and the layer keeps its size. Deselect to apply the whole result.</source>
@@ -22563,16 +22563,16 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Dernier filtre : %1</translation>
     </message>
     <message>
-        <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
-        <translation>La bibliothèque de filtres G&apos;MIC, près de 400 filtres, fait partie de la version de bureau de Patchy pour Windows, macOS et Linux.</translation>
+        <source>The G'MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
+        <translation>La bibliothèque de filtres G'MIC, près de 400 filtres, fait partie de la version de bureau de Patchy pour Windows, macOS et Linux.</translation>
     </message>
     <message>
         <source>Get the Desktop Version</source>
         <translation>Obtenir la version de bureau</translation>
     </message>
     <message>
-        <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>
-        <translation>Près de 400 filtres G&apos;MIC, dans la version de bureau de Patchy</translation>
+        <source>Nearly 400 G'MIC filters, in the desktop version of Patchy</source>
+        <translation>Près de 400 filtres G'MIC, dans la version de bureau de Patchy</translation>
     </message>
     <message>
         <source>Rotate Layer &amp;Right</source>
@@ -22616,11 +22616,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Mirror the whole image left to right</source>
-        <translation>Inverser toute l&apos;image de gauche à droite</translation>
+        <translation>Inverser toute l'image de gauche à droite</translation>
     </message>
     <message>
         <source>Mirror the whole image top to bottom</source>
-        <translation>Inverser toute l&apos;image de haut en bas</translation>
+        <translation>Inverser toute l'image de haut en bas</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before rotating</source>
@@ -22660,7 +22660,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Picked background color %1, %2, %3 (%4)</source>
-        <translation>Couleur d&apos;arrière-plan prélevée %1, %2, %3 (%4)</translation>
+        <translation>Couleur d'arrière-plan prélevée %1, %2, %3 (%4)</translation>
     </message>
     <message>
         <source>Use the system title bar</source>
@@ -22688,7 +22688,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Sample Size:</source>
-        <translation>Taille de l&apos;échantillon :</translation>
+        <translation>Taille de l'échantillon :</translation>
     </message>
     <message>
         <source>Point Sample</source>
@@ -22700,7 +22700,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Average the colors in a square around the click instead of one pixel</source>
-        <translation>Faire la moyenne des couleurs d&apos;un carré autour du clic au lieu d&apos;un seul pixel</translation>
+        <translation>Faire la moyenne des couleurs d'un carré autour du clic au lieu d'un seul pixel</translation>
     </message>
     <message>
         <source>Sample:</source>
@@ -22912,7 +22912,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Artboard from Layers takes layers that are not on an artboard</source>
-        <translation>Plan de travail depuis les calques n&apos;accepte que des calques hors de tout plan de travail</translation>
+        <translation>Plan de travail depuis les calques n'accepte que des calques hors de tout plan de travail</translation>
     </message>
     <message>
         <source>Artboard from layers</source>
@@ -22936,7 +22936,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The document has no artboards</source>
-        <translation>Le document n&apos;a aucun plan de travail</translation>
+        <translation>Le document n'a aucun plan de travail</translation>
     </message>
     <message>
         <source>The canvas already fits the artboards</source>
@@ -22976,7 +22976,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>This document has no artboards</source>
-        <translation>Ce document n&apos;a aucun plan de travail</translation>
+        <translation>Ce document n'a aucun plan de travail</translation>
     </message>
     <message>
         <source>Export Artboards to Files</source>
@@ -22992,7 +22992,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Could not complete the Cut command because the selected area is empty.</source>
-        <translation>Impossible d&apos;exécuter la commande Couper, car la zone sélectionnée est vide.</translation>
+        <translation>Impossible d'exécuter la commande Couper, car la zone sélectionnée est vide.</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -23000,11 +23000,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Could not complete the Copy command because the selected area is empty.</source>
-        <translation>Impossible d&apos;exécuter la commande Copier, car la zone sélectionnée est vide.</translation>
+        <translation>Impossible d'exécuter la commande Copier, car la zone sélectionnée est vide.</translation>
     </message>
     <message>
         <source>Could not complete the Copy Merged command because the selected area is empty.</source>
-        <translation>Impossible d&apos;exécuter la commande Copier avec fusion, car la zone sélectionnée est vide.</translation>
+        <translation>Impossible d'exécuter la commande Copier avec fusion, car la zone sélectionnée est vide.</translation>
     </message>
     <message>
         <source>Export</source>
@@ -23028,7 +23028,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Compositing the image...</source>
-        <translation>Composition de l&apos;image...</translation>
+        <translation>Composition de l'image...</translation>
     </message>
     <message>
         <source>Writing %1...</source>
@@ -23044,7 +23044,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Crop does not apply to a document with artboards; resize an artboard with the Artboard tool</source>
-        <translation>Le recadrage ne s&apos;applique pas à un document avec des plans de travail ; redimensionnez un plan de travail avec l&apos;outil Plan de travail</translation>
+        <translation>Le recadrage ne s'applique pas à un document avec des plans de travail ; redimensionnez un plan de travail avec l'outil Plan de travail</translation>
     </message>
     <message>
         <source>Preparing page images...</source>
@@ -23064,18 +23064,18 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>A click sets the foreground color; %ALT%+click sets the background</source>
-        <translation>Un clic définit la couleur de premier plan ; %ALT%+clic définit l&apos;arrière-plan</translation>
+        <translation>Un clic définit la couleur de premier plan ; %ALT%+clic définit l'arrière-plan</translation>
     </message>
     <message>
         <source>A click sets the background color; %ALT%+click sets the foreground</source>
-        <translation>Un clic définit la couleur d&apos;arrière-plan ; %ALT%+clic définit le premier plan</translation>
+        <translation>Un clic définit la couleur d'arrière-plan ; %ALT%+clic définit le premier plan</translation>
     </message>
     <message>
         <source>Ro&amp;tate &amp;&amp; Flip</source>
         <translation>Ro&amp;tation et symétrie</translation>
     </message>
     <message>
-        <source>Shows the desktop&apos;s own title bar and window frame instead of Patchy&apos;s window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
+        <source>Shows the desktop's own title bar and window frame instead of Patchy's window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
         <translation>Affiche la barre de titre et le cadre de fenêtre du bureau à la place des boutons de fenêtre de Patchy dans la barre de menus. Activé par défaut quand le bureau affiche les menus des applications dans une barre de menus globale. Prend effet au prochain démarrage de Patchy.</translation>
     </message>
     <message>
@@ -23092,7 +23092,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Close Tab Group</source>
-        <translation>Fermer le groupe d&apos;onglets</translation>
+        <translation>Fermer le groupe d'onglets</translation>
     </message>
     <message>
         <source>Close Panel</source>
@@ -23100,14 +23100,14 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Preparing page image %1 of %2...</source>
-        <translation>Préparation de l&apos;image de page %1 sur %2...</translation>
+        <translation>Préparation de l'image de page %1 sur %2...</translation>
     </message>
     <message>
         <source>Use Esc to commit text</source>
         <translation>Utiliser Échap pour valider le texte</translation>
     </message>
     <message>
-        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar&apos;s Cancel button discards the edit. When off, Esc cancels the edit.</source>
+        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar's Cancel button discards the edit. When off, Esc cancels the edit.</source>
         <translation>Si cette option est activée, Échap applique le texte en cours de saisie, comme %CTRL%+Entrée, et le bouton Annuler de la barre d’options abandonne la modification. Si elle est désactivée, Échap annule la modification.</translation>
     </message>
     <message>
@@ -23124,7 +23124,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Distribute spacing and choose what to align to</source>
-        <translation>Répartir l&apos;espacement et choisir la référence d&apos;alignement</translation>
+        <translation>Répartir l'espacement et choisir la référence d'alignement</translation>
     </message>
     <message>
         <source>Resolve Missing Fonts...</source>
@@ -23132,7 +23132,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>This document has no missing fonts</source>
-        <translation>Ce document n&apos;a aucune police manquante</translation>
+        <translation>Ce document n'a aucune police manquante</translation>
     </message>
     <message numerus="yes">
         <source>Replaced missing fonts in %n text layer(s)</source>
@@ -23154,21 +23154,21 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Show the Missing Fonts dialog when opening a document with missing fonts</source>
-        <translation>Afficher la boîte de dialogue Polices manquantes à l&apos;ouverture d&apos;un document dont des polices sont manquantes</translation>
+        <translation>Afficher la boîte de dialogue Polices manquantes à l'ouverture d'un document dont des polices sont manquantes</translation>
     </message>
     <message>
         <source>Type &gt; Resolve Missing Fonts opens the same dialog at any time.</source>
         <translation>Texte &gt; Résoudre les polices manquantes ouvre la même boîte de dialogue à tout moment.</translation>
     </message>
     <message>
-        <source>The following fonts are missing for text layer &quot;%1&quot;: %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
-        <translation>Les polices suivantes sont manquantes pour le calque de texte « %1 » : %2. Les pixels existants seront transformés au lieu d&apos;être redessinés. Continuer ?</translation>
+        <source>The following fonts are missing for text layer "%1": %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
+        <translation>Les polices suivantes sont manquantes pour le calque de texte « %1 » : %2. Les pixels existants seront transformés au lieu d'être redessinés. Continuer ?</translation>
     </message>
     <message numerus="yes">
         <source>The following fonts are missing for %n text layer(s): %1. The existing pixels will be transformed instead of re-rendered. Continue?</source>
         <translation>
-            <numerusform>Les polices suivantes sont manquantes pour %n calque de texte : %1. Les pixels existants seront transformés au lieu d&apos;être redessinés. Continuer ?</numerusform>
-            <numerusform>Les polices suivantes sont manquantes pour %n calques de texte : %1. Les pixels existants seront transformés au lieu d&apos;être redessinés. Continuer ?</numerusform>
+            <numerusform>Les polices suivantes sont manquantes pour %n calque de texte : %1. Les pixels existants seront transformés au lieu d'être redessinés. Continuer ?</numerusform>
+            <numerusform>Les polices suivantes sont manquantes pour %n calques de texte : %1. Les pixels existants seront transformés au lieu d'être redessinés. Continuer ?</numerusform>
         </translation>
     </message>
     <message>
@@ -23189,23 +23189,23 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Sélection rapide : peignez sur la zone à sélectionner ; les tracés suivants l&apos;agrandissent. Maj+glisser ajoute, %ALT%+glisser soustrait.</translation>
+        <translation>Sélection rapide : peignez sur la zone à sélectionner ; les tracés suivants l'agrandissent. Maj+glisser ajoute, %ALT%+glisser soustrait.</translation>
     </message>
     <message>
         <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Sélection d&apos;objet : tracez un cadre autour d&apos;un objet ou cliquez dessus. Maj+glisser ajoute, %ALT%+glisser soustrait.</translation>
+        <translation>Sélection d'objet : tracez un cadre autour d'un objet ou cliquez dessus. Maj+glisser ajoute, %ALT%+glisser soustrait.</translation>
     </message>
     <message>
         <source>Daily</source>
         <translation>Chaque jour</translation>
     </message>
     <message>
-        <source>Width part of the selection&apos;s aspect ratio</source>
-        <translation>Largeur du rapport d&apos;aspect de la sélection</translation>
+        <source>Width part of the selection's aspect ratio</source>
+        <translation>Largeur du rapport d'aspect de la sélection</translation>
     </message>
     <message>
-        <source>Height part of the selection&apos;s aspect ratio</source>
-        <translation>Hauteur du rapport d&apos;aspect de la sélection</translation>
+        <source>Height part of the selection's aspect ratio</source>
+        <translation>Hauteur du rapport d'aspect de la sélection</translation>
     </message>
     <message>
         <source>Duplicate Group</source>
@@ -23269,15 +23269,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Opened in Image &gt; Mode &gt; CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again</source>
-        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l&apos;enregistrement en PSD, JPEG, TIFF ou PDF écrit de nouveau du CMJN</translation>
+        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l'enregistrement en PSD, JPEG, TIFF ou PDF écrit de nouveau du CMJN</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
-        <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. %2 Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
+        <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. %2 Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L'enregistrer en RVB ?</translation>
     </message>
     <message>
         <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
-        <translation>Épreuve CMJN est une émulation : Patchy travaille en RVB et convertit en CMJN via le profil colorimétrique, donc les couleurs et les valeurs d&apos;encre peuvent différer légèrement d&apos;un véritable éditeur CMJN</translation>
+        <translation>Épreuve CMJN est une émulation : Patchy travaille en RVB et convertit en CMJN via le profil colorimétrique, donc les couleurs et les valeurs d'encre peuvent différer légèrement d'un véritable éditeur CMJN</translation>
     </message>
     <message>
         <source>CMYK Proof</source>
@@ -23288,12 +23288,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Ce fichier CMJN est ouvert en Image &gt; Mode &gt; Épreuve CMJN.</translation>
     </message>
     <message>
-        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
-        <translation>Épreuve CMJN est une émulation. Patchy travaille en RVB : il convertit les encres du fichier en RVB à l&apos;ouverture, affiche l&apos;impression via le profil colorimétrique CMJN et reconvertit en CMJN à l&apos;enregistrement. Les couleurs et les valeurs d&apos;encre peuvent donc différer légèrement d&apos;un véritable éditeur CMJN comme Photoshop. Les calques d&apos;un PSD CMJN que vous ne modifiez pas gardent leurs encres d&apos;origine.</translation>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file's inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Épreuve CMJN est une émulation. Patchy travaille en RVB : il convertit les encres du fichier en RVB à l'ouverture, affiche l'impression via le profil colorimétrique CMJN et reconvertit en CMJN à l'enregistrement. Les couleurs et les valeurs d'encre peuvent donc différer légèrement d'un véritable éditeur CMJN comme Photoshop. Les calques d'un PSD CMJN que vous ne modifiez pas gardent leurs encres d'origine.</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
-        <translation>Ce document est en mode Épreuve CMJN, mais un TIFF à calques est enregistré en RVB. L&apos;enregistrer en RVB ?</translation>
+        <translation>Ce document est en mode Épreuve CMJN, mais un TIFF à calques est enregistré en RVB. L'enregistrer en RVB ?</translation>
     </message>
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
@@ -23313,7 +23313,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Could not add Patchy to the applications menu: %1</source>
-        <translation>Impossible d&apos;ajouter Patchy au menu des applications : %1</translation>
+        <translation>Impossible d'ajouter Patchy au menu des applications : %1</translation>
     </message>
     <message>
         <source>Could not remove Patchy from the applications menu: %1</source>
@@ -23328,7 +23328,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Patchy a été retiré du menu des applications</translation>
     </message>
     <message>
-        <source>Don&apos;t Ask Again</source>
+        <source>Don't Ask Again</source>
         <translation>Ne plus demander</translation>
     </message>
     <message>
@@ -23497,7 +23497,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Prevent Auto-Nesting</source>
-        <translation>Empêcher l&apos;imbrication auto</translation>
+        <translation>Empêcher l'imbrication auto</translation>
     </message>
     <message>
         <source>Auto-nesting prevented</source>
@@ -23517,11 +23517,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
-        <translation>Passez à l&apos;outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+        <translation>Passez à l'outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
     <message>
         <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
-        <translation>Passez à l&apos;outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+        <translation>Passez à l'outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
     <message>
         <source>Show %1</source>
@@ -23541,7 +23541,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
-        <translation>Afficher la boîte de dialogue Fichiers liés manquants à l&apos;ouverture d&apos;un document dont des fichiers liés manquent</translation>
+        <translation>Afficher la boîte de dialogue Fichiers liés manquants à l'ouverture d'un document dont des fichiers liés manquent</translation>
     </message>
     <message>
         <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
@@ -23549,13 +23549,13 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>This document has no missing linked files</source>
-        <translation>Ce document n&apos;a aucun fichier lié manquant</translation>
+        <translation>Ce document n'a aucun fichier lié manquant</translation>
     </message>
     <message numerus="yes">
         <source>Relinked %n smart object file(s)</source>
         <translation>
-            <numerusform>Lien rétabli pour %n fichier d&apos;objet dynamique</numerusform>
-            <numerusform>Lien rétabli pour %n fichiers d&apos;objets dynamiques</numerusform>
+            <numerusform>Lien rétabli pour %n fichier d'objet dynamique</numerusform>
+            <numerusform>Lien rétabli pour %n fichiers d'objets dynamiques</numerusform>
         </translation>
     </message>
     <message>
@@ -23595,8 +23595,8 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Options de transformation</translation>
     </message>
     <message>
-        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
-        <translation>Les plans de travail ne peuvent pas être effacés. Désélectionnez d&apos;abord, puis Delete supprime le plan de travail.</translation>
+        <source>Artboards can't be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Les plans de travail ne peuvent pas être effacés. Désélectionnez d'abord, puis Delete supprime le plan de travail.</translation>
     </message>
     <message>
         <source>Deleted artboard</source>
@@ -23608,19 +23608,19 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>
-        <translation>Le calque d&apos;arrière-plan ne peut pas aller dans un dossier</translation>
+        <translation>Le calque d'arrière-plan ne peut pas aller dans un dossier</translation>
     </message>
     <message>
         <source>The Background layer stays at the bottom of the stack</source>
-        <translation>Le calque d&apos;arrière-plan reste tout en bas de la pile</translation>
+        <translation>Le calque d'arrière-plan reste tout en bas de la pile</translation>
     </message>
     <message>
         <source>Layer from Background</source>
-        <translation>Calque d&apos;après l&apos;arrière-plan</translation>
+        <translation>Calque d'après l'arrière-plan</translation>
     </message>
     <message>
         <source>The Background layer cannot have layer styles</source>
-        <translation>Le calque d&apos;arrière-plan ne peut pas avoir de styles de calque</translation>
+        <translation>Le calque d'arrière-plan ne peut pas avoir de styles de calque</translation>
     </message>
     <message>
         <source>Polygonal Lasso</source>
@@ -23644,7 +23644,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Add a layer, choosing its name, color, mode and opacity first</source>
-        <translation>Ajouter un calque en choisissant d&apos;abord son nom, sa couleur, son mode et son opacité</translation>
+        <translation>Ajouter un calque en choisissant d'abord son nom, sa couleur, son mode et son opacité</translation>
     </message>
     <message>
         <source>&amp;Merge Visible</source>
@@ -23772,15 +23772,47 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
-        <translation>Calques lus par la pipette : le calque actif, celui-ci et les calques inférieurs, ou l&apos;image fusionnée, avec ou sans calques de réglage</translation>
+        <translation>Calques lus par la pipette : le calque actif, celui-ci et les calques inférieurs, ou l'image fusionnée, avec ou sans calques de réglage</translation>
     </message>
     <message>
         <source>Show Sample Ring</source>
-        <translation>Afficher l&apos;anneau d&apos;échantillonnage</translation>
+        <translation>Afficher l'anneau d'échantillonnage</translation>
     </message>
     <message>
         <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
-        <translation>Pendant le prélèvement, afficher les pixels agrandis et la nouvelle couleur au-dessus de celle qu&apos;elle remplace</translation>
+        <translation>Pendant le prélèvement, afficher les pixels agrandis et la nouvelle couleur au-dessus de celle qu'elle remplace</translation>
+    </message>
+<message>
+        <source>Sets:</source>
+        <translation>Définit :</translation>
+    </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Options de recadrage : zone recadrée et masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Afficher la zone recadrée</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Activer le masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Couleur :</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Couleur du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacité du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Couleur du masque de recadrage</translation>
     </message>
 </context>
 <context>
@@ -23794,11 +23826,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <name>patchy::ui::McpActivity</name>
     <message>
         <source>AI editing: %1</source>
-        <translation>Modification par l&apos;IA : %1</translation>
+        <translation>Modification par l'IA : %1</translation>
     </message>
     <message>
         <source>AI reading: %1</source>
-        <translation>Lecture par l&apos;IA : %1</translation>
+        <translation>Lecture par l'IA : %1</translation>
     </message>
     <message>
         <source>AI connected</source>
@@ -23822,15 +23854,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>AI pausing: %1</source>
-        <translation>Mise en pause de l&apos;IA : %1</translation>
+        <translation>Mise en pause de l'IA : %1</translation>
     </message>
     <message>
         <source>%1 is using this workspace. You can browse while it works. Pause to edit; Stop keeps completed changes available for Undo.</source>
-        <translation>%1 utilise cet espace de travail. Vous pouvez naviguer pendant qu&apos;il travaille. Mettez en pause pour modifier ; Arrêter conserve les modifications terminées dans l&apos;historique d&apos;annulation.</translation>
+        <translation>%1 utilise cet espace de travail. Vous pouvez naviguer pendant qu'il travaille. Mettez en pause pour modifier ; Arrêter conserve les modifications terminées dans l'historique d'annulation.</translation>
     </message>
     <message>
         <source>Connected to %1 through MCP. Waiting for a Patchy request; the assistant may still be thinking.</source>
-        <translation>Connecté à %1 via MCP. En attente d&apos;une requête Patchy ; l&apos;assistant est peut-être encore en train de réfléchir.</translation>
+        <translation>Connecté à %1 via MCP. En attente d'une requête Patchy ; l'assistant est peut-être encore en train de réfléchir.</translation>
     </message>
     <message>
         <source>Stop</source>
@@ -23850,7 +23882,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Continue automation using the edited workspace. Missing or incompatible targets stop with an error.</source>
-        <translation>Poursuit l&apos;automatisation avec l&apos;espace de travail modifié. Les cibles manquantes ou incompatibles provoquent un arrêt avec une erreur.</translation>
+        <translation>Poursuit l'automatisation avec l'espace de travail modifié. Les cibles manquantes ou incompatibles provoquent un arrêt avec une erreur.</translation>
     </message>
     <message>
         <source>Pause after the current edit so you can draw, move layers, or change the document.</source>
@@ -23862,19 +23894,19 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Show each stroke or edit with a short pause and a separate Undo step. You can change this while work is running. History limits still apply.</source>
-        <translation>Affiche chaque trait ou modification avec une courte pause et une étape d&apos;annulation distincte. Vous pouvez changer ce réglage pendant que le travail est en cours. Les limites de l&apos;historique s&apos;appliquent toujours.</translation>
+        <translation>Affiche chaque trait ou modification avec une courte pause et une étape d'annulation distincte. Vous pouvez changer ce réglage pendant que le travail est en cours. Les limites de l'historique s'appliquent toujours.</translation>
     </message>
     <message>
         <source>Stop this operation and keep its changes available for Undo.</source>
-        <translation>Arrête cette opération et conserve ses modifications dans l&apos;historique d&apos;annulation.</translation>
+        <translation>Arrête cette opération et conserve ses modifications dans l'historique d'annulation.</translation>
     </message>
     <message>
         <source>No Patchy edit is running. Use Stop in your assistant to stop it between requests.</source>
-        <translation>Aucune modification Patchy n&apos;est en cours. Utilisez Arrêter dans votre assistant pour l&apos;interrompre entre deux requêtes.</translation>
+        <translation>Aucune modification Patchy n'est en cours. Utilisez Arrêter dans votre assistant pour l'interrompre entre deux requêtes.</translation>
     </message>
     <message>
         <source>Stop automation before closing Patchy.</source>
-        <translation>Arrêtez l&apos;automatisation avant de fermer Patchy.</translation>
+        <translation>Arrêtez l'automatisation avant de fermer Patchy.</translation>
     </message>
     <message>
         <source>Finishing the current edit. Manual editing is available when Resume appears.</source>
@@ -23882,11 +23914,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Pause automation to change the document or its editing controls. Browsing and scrolling are available while it works.</source>
-        <translation>Mettez l&apos;automatisation en pause pour modifier le document ou ses commandes d&apos;édition. La navigation et le défilement restent disponibles pendant le travail.</translation>
+        <translation>Mettez l'automatisation en pause pour modifier le document ou ses commandes d'édition. La navigation et le défilement restent disponibles pendant le travail.</translation>
     </message>
     <message>
         <source>Close Preferences and pause automation before applying settings.</source>
-        <translation>Fermez les Préférences et mettez l&apos;automatisation en pause avant d&apos;appliquer les réglages.</translation>
+        <translation>Fermez les Préférences et mettez l'automatisation en pause avant d'appliquer les réglages.</translation>
     </message>
     <message>
         <source>Connection details</source>
@@ -23982,8 +24014,8 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Extraire</translation>
     </message>
     <message>
-        <source>Build the palette from the image&apos;s colors</source>
-        <translation>Construire la palette à partir des couleurs de l&apos;image</translation>
+        <source>Build the palette from the image's colors</source>
+        <translation>Construire la palette à partir des couleurs de l'image</translation>
     </message>
     <message>
         <source>Add the foreground color</source>
@@ -23998,12 +24030,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Copier</translation>
     </message>
     <message>
-        <source>Copy the selected color&apos;s hex code to the clipboard</source>
+        <source>Copy the selected color's hex code to the clipboard</source>
         <translation>Copier le code hexadécimal de la couleur sélectionnée dans le presse-papiers</translation>
     </message>
     <message>
         <source>No palette. Pick a preset, load a palette file, or extract one from the image.</source>
-        <translation>Aucune palette. Choisissez un paramètre prédéfini, chargez un fichier de palette ou extrayez-en une de l&apos;image.</translation>
+        <translation>Aucune palette. Choisissez un paramètre prédéfini, chargez un fichier de palette ou extrayez-en une de l'image.</translation>
     </message>
     <message>
         <source>Convert to Indexed (Palette)...</source>
@@ -24030,7 +24062,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Two or more entries share the same color. Identical colors cannot be told apart in the artwork: exports and palette remaps always use the first matching index. Nudge one channel by 1 (for example #000000 and #010101) to control indexes separately.</source>
-        <translation>Au moins deux entrées partagent la même couleur. Des couleurs identiques ne peuvent pas être distinguées dans l&apos;illustration : les exportations et les réaffectations de palette utilisent toujours le premier index correspondant. Décalez une couche de 1 (par exemple #000000 et #010101) pour contrôler les index séparément.</translation>
+        <translation>Au moins deux entrées partagent la même couleur. Des couleurs identiques ne peuvent pas être distinguées dans l'illustration : les exportations et les réaffectations de palette utilisent toujours le premier index correspondant. Décalez une couche de 1 (par exemple #000000 et #010101) pour contrôler les index séparément.</translation>
     </message>
     <message>
         <source>Edit Color...</source>
@@ -24077,7 +24109,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Pick Screen Color</source>
-        <translation>Prélever une couleur à l&apos;écran</translation>
+        <translation>Prélever une couleur à l'écran</translation>
     </message>
     <message>
         <source>Custom colors</source>
@@ -24201,7 +24233,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Ink percentages in the working CMYK space: %1. Choose the profile in Preferences.</source>
-        <translation>Pourcentages d&apos;encre dans l&apos;espace de travail CMJN : %1. Choisissez le profil dans les Préférences.</translation>
+        <translation>Pourcentages d'encre dans l'espace de travail CMJN : %1. Choisissez le profil dans les Préférences.</translation>
     </message>
     <message>
         <source>no profile (approximate)</source>
@@ -24213,7 +24245,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>This color is outside the gamut of %1 and prints as the color shown here. Click to use it.</source>
-        <translation>Cette couleur est hors de la gamme de %1 et s&apos;imprime comme la couleur affichée ici. Cliquez pour l&apos;utiliser.</translation>
+        <translation>Cette couleur est hors de la gamme de %1 et s'imprime comme la couleur affichée ici. Cliquez pour l'utiliser.</translation>
     </message>
     <message>
         <source>Add Custom Color</source>
@@ -24235,15 +24267,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>%CTRL%+clic ou %CTRL%+Enter charge le tracé comme sélection ; faites glisser pour réorganiser.</translation>
     </message>
     <message>
-        <source>This is the document&apos;s clipping path.</source>
-        <translation>Il s&apos;agit du tracé de détourage du document.</translation>
+        <source>This is the document's clipping path.</source>
+        <translation>Il s'agit du tracé de détourage du document.</translation>
     </message>
     <message>
         <source>The temporary work path. Double-click to save it as a named path.</source>
-        <translation>Le tracé de travail temporaire. Double-cliquez pour l&apos;enregistrer comme tracé nommé.</translation>
+        <translation>Le tracé de travail temporaire. Double-cliquez pour l'enregistrer comme tracé nommé.</translation>
     </message>
     <message>
-        <source>The active layer&apos;s path (shape or vector mask).</source>
+        <source>The active layer's path (shape or vector mask).</source>
         <translation>Le tracé du calque actif (forme ou masque vectoriel).</translation>
     </message>
 </context>
@@ -24254,20 +24286,20 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Motif sans titre</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;ouvrir « %1 ».</translation>
+        <source>Could not open "%1".</source>
+        <translation>Impossible d'ouvrir « %1 ».</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot;.</source>
+        <source>Could not read "%1".</source>
         <translation>Impossible de lire « %1 ».</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to import safely.</source>
+        <source>"%1" is too large to import safely.</source>
         <translation>« %1 » est trop volumineux pour être importé en toute sécurité.</translation>
     </message>
     <message>
-        <source>Could not import patterns from &quot;%1&quot;. The file is not a supported Photoshop PAT file or is damaged.</source>
-        <translation>Impossible d&apos;importer des motifs depuis « %1 ». Le fichier n&apos;est pas un fichier PAT Photoshop pris en charge ou il est endommagé.</translation>
+        <source>Could not import patterns from "%1". The file is not a supported Photoshop PAT file or is damaged.</source>
+        <translation>Impossible d'importer des motifs depuis « %1 ». Le fichier n'est pas un fichier PAT Photoshop pris en charge ou il est endommagé.</translation>
     </message>
     <message>
         <source>Some pattern data was skipped or repaired because it is unsupported or damaged.</source>
@@ -24282,35 +24314,35 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Motif %1</translation>
     </message>
     <message>
-        <source>Skipped pattern &quot;%1&quot; because its pixels could not be decoded.</source>
-        <translation>Motif « %1 » ignoré : ses pixels n&apos;ont pas pu être décodés.</translation>
+        <source>Skipped pattern "%1" because its pixels could not be decoded.</source>
+        <translation>Motif « %1 » ignoré : ses pixels n'ont pas pu être décodés.</translation>
     </message>
     <message>
-        <source>Pattern &quot;%1&quot; used an id already assigned to different pixels; it was imported with a new id.</source>
-        <translation>Le motif « %1 » utilisait un identifiant déjà attribué à d&apos;autres pixels ; il a été importé avec un nouvel identifiant.</translation>
+        <source>Pattern "%1" used an id already assigned to different pixels; it was imported with a new id.</source>
+        <translation>Le motif « %1 » utilisait un identifiant déjà attribué à d'autres pixels ; il a été importé avec un nouvel identifiant.</translation>
     </message>
     <message>
-        <source>Could not save pattern &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;enregistrer le motif « %1 ».</translation>
+        <source>Could not save pattern "%1".</source>
+        <translation>Impossible d'enregistrer le motif « %1 ».</translation>
     </message>
     <message>
-        <source>No patterns could be imported from &quot;%1&quot;.</source>
-        <translation>Aucun motif n&apos;a pu être importé depuis « %1 ».</translation>
+        <source>No patterns could be imported from "%1".</source>
+        <translation>Aucun motif n'a pu être importé depuis « %1 ».</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
+        <source>"%1" is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
         <translation>« %1 » est trop grand pour servir de motif (plus de 30 000 pixels de large ou de haut).</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to use as a pattern (over 8 million pixels).</source>
+        <source>"%1" is too large to use as a pattern (over 8 million pixels).</source>
         <translation>« %1 » est trop grand pour servir de motif (plus de 8 millions de pixels).</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot; as an image.</source>
+        <source>Could not read "%1" as an image.</source>
         <translation>Impossible de lire « %1 » comme image.</translation>
     </message>
     <message>
-        <source>Animated image &quot;%1&quot;: imported the first frame only.</source>
+        <source>Animated image "%1": imported the first frame only.</source>
         <translation>Image animée « %1 » : seule la première image a été importée.</translation>
     </message>
     <message>
@@ -24422,11 +24454,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Set Icon from Current Window</source>
-        <translation>Définir l&apos;icône depuis la fenêtre actuelle</translation>
+        <translation>Définir l'icône depuis la fenêtre actuelle</translation>
     </message>
     <message>
-        <source>Captures the running script&apos;s window (or the active image) as this script&apos;s icon.</source>
-        <translation>Capture la fenêtre du script en cours (ou l&apos;image active) comme icône de ce script.</translation>
+        <source>Captures the running script's window (or the active image) as this script's icon.</source>
+        <translation>Capture la fenêtre du script en cours (ou l'image active) comme icône de ce script.</translation>
     </message>
     <message>
         <source>Revert to Bundled</source>
@@ -24434,15 +24466,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>A script is already running: %1</source>
-        <translation>Un script est déjà en cours d&apos;exécution : %1</translation>
+        <translation>Un script est déjà en cours d'exécution : %1</translation>
     </message>
     <message>
         <source>Open a document or a script window first, then set the icon from it.</source>
-        <translation>Ouvrez d&apos;abord un document ou une fenêtre de script, puis définissez l&apos;icône à partir de celui-ci.</translation>
+        <translation>Ouvrez d'abord un document ou une fenêtre de script, puis définissez l'icône à partir de celui-ci.</translation>
     </message>
     <message>
         <source>Could not write %1</source>
-        <translation>Impossible d&apos;écrire %1</translation>
+        <translation>Impossible d'écrire %1</translation>
     </message>
     <message>
         <source>Saved icon to %1</source>
@@ -24486,11 +24518,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Replace the example paths with your own. Add --script-arg key=value to override a script option (repeatable), and --script-output result.txt to write the console output to a file when the run completes.</source>
-        <translation>Remplacez les chemins d&apos;exemple par les vôtres. Ajoutez --script-arg key=value pour remplacer une option du script (répétable), et --script-output result.txt pour écrire la sortie de la console dans un fichier à la fin de l&apos;exécution.</translation>
+        <translation>Remplacez les chemins d'exemple par les vôtres. Ajoutez --script-arg key=value pour remplacer une option du script (répétable), et --script-output result.txt pour écrire la sortie de la console dans un fichier à la fin de l'exécution.</translation>
     </message>
     <message>
         <source>This line works as-is in Command Prompt, PowerShell, and batch files.</source>
-        <translation>Cette ligne fonctionne telle quelle dans l&apos;Invite de commandes, PowerShell et les fichiers batch.</translation>
+        <translation>Cette ligne fonctionne telle quelle dans l'Invite de commandes, PowerShell et les fichiers batch.</translation>
     </message>
     <message>
         <source>This line works as-is in your terminal.</source>
@@ -24502,7 +24534,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Saved your copy to %1; it now runs instead of the bundled script (right-click it for Revert to Bundled).</source>
-        <translation>Votre copie a été enregistrée dans %1 ; elle s&apos;exécute désormais à la place du script fourni (cliquez dessus avec le bouton droit pour Rétablir la version fournie).</translation>
+        <translation>Votre copie a été enregistrée dans %1 ; elle s'exécute désormais à la place du script fourni (cliquez dessus avec le bouton droit pour Rétablir la version fournie).</translation>
     </message>
     <message>
         <source>Save Script</source>
@@ -24521,23 +24553,23 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Attribuer un raccourci...</translation>
     </message>
     <message>
-        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <source>Opens Preferences &gt; Hotkeys at this script's row.</source>
         <translation>Ouvre Préférences &gt; Raccourcis sur la ligne de ce script.</translation>
     </message>
     <message>
         <source>Could not write %1: %2</source>
-        <translation>Impossible d&apos;écrire %1 : %2</translation>
+        <translation>Impossible d'écrire %1 : %2</translation>
     </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
     <message>
-        <source>Invalid color: %1 (use &quot;#rrggbb&quot; or a named color)</source>
-        <translation>Couleur non valide : %1 (utilisez &quot;#rrggbb&quot; ou un nom de couleur)</translation>
+        <source>Invalid color: %1 (use "#rrggbb" or a named color)</source>
+        <translation>Couleur non valide : %1 (utilisez "#rrggbb" ou un nom de couleur)</translation>
     </message>
     <message>
         <source>The layer no longer exists.</source>
-        <translation>Le calque n&apos;existe plus.</translation>
+        <translation>Le calque n'existe plus.</translation>
     </message>
     <message>
         <source>opacity needs a number between 0 and 100.</source>
@@ -24553,7 +24585,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>This layer is not a text layer.</source>
-        <translation>Ce calque n&apos;est pas un calque de texte.</translation>
+        <translation>Ce calque n'est pas un calque de texte.</translation>
     </message>
     <message>
         <source>Could not edit the text layer.</source>
@@ -24565,7 +24597,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The document is no longer open.</source>
-        <translation>Le document n&apos;est plus ouvert.</translation>
+        <translation>Le document n'est plus ouvert.</translation>
     </message>
     <message>
         <source>ungroup needs a group layer.</source>
@@ -24621,7 +24653,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>simplifyPath needs a shape layer or a layer with a vector mask.</source>
-        <translation>simplifyPath nécessite un calque de forme ou un calque doté d&apos;un masque vectoriel.</translation>
+        <translation>simplifyPath nécessite un calque de forme ou un calque doté d'un masque vectoriel.</translation>
     </message>
     <message>
         <source>getPixels supports 8-bit RGB and RGBA layers only.</source>
@@ -24669,7 +24701,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Palette alphaThreshold must be an integer from 0 to 255.</source>
-        <translation>L&apos;option alphaThreshold de la palette doit être un entier compris entre 0 et 255.</translation>
+        <translation>L'option alphaThreshold de la palette doit être un entier compris entre 0 et 255.</translation>
     </message>
     <message>
         <source>Unknown or invalid palette option: %1</source>
@@ -24681,7 +24713,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The document has no palette.</source>
-        <translation>Le document n&apos;a pas de palette.</translation>
+        <translation>Le document n'a pas de palette.</translation>
     </message>
     <message>
         <source>Use .pal, .gpl, .hex, .act, or .aco to save a palette.</source>
@@ -24689,7 +24721,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Could not save palette: %1</source>
-        <translation>Impossible d&apos;enregistrer la palette : %1</translation>
+        <translation>Impossible d'enregistrer la palette : %1</translation>
     </message>
     <message>
         <source>activeLayer needs a layer of this document.</source>
@@ -24733,7 +24765,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Could not merge the layers. The original layers are unchanged.</source>
-        <translation>Impossible de fusionner les calques. Les calques d&apos;origine sont inchangés.</translation>
+        <translation>Impossible de fusionner les calques. Les calques d'origine sont inchangés.</translation>
     </message>
     <message>
         <source>Layer</source>
@@ -24765,11 +24797,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Undo history cannot be disabled in a connector session.</source>
-        <translation>L&apos;historique d&apos;annulation ne peut pas être désactivé dans une session de connecteur.</translation>
+        <translation>L'historique d'annulation ne peut pas être désactivé dans une session de connecteur.</translation>
     </message>
     <message>
         <source>Could not open %1</source>
-        <translation>Impossible d&apos;ouvrir %1</translation>
+        <translation>Impossible d'ouvrir %1</translation>
     </message>
     <message>
         <source>newDocument needs a size between 1 and 30000.</source>
@@ -24817,23 +24849,23 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Undo and redo must run before any edits in a script.</source>
-        <translation>Les opérations d&apos;annulation et de rétablissement doivent être exécutées avant toute modification dans un script.</translation>
+        <translation>Les opérations d'annulation et de rétablissement doivent être exécutées avant toute modification dans un script.</translation>
     </message>
     <message>
         <source>Unknown preview option: %1</source>
-        <translation>Option d&apos;aperçu inconnue : %1</translation>
+        <translation>Option d'aperçu inconnue : %1</translation>
     </message>
     <message>
         <source>Preview dimensions must be integers from 1 to 4096.</source>
-        <translation>Les dimensions de l&apos;aperçu doivent être des entiers compris entre 1 et 4096.</translation>
+        <translation>Les dimensions de l'aperçu doivent être des entiers compris entre 1 et 4096.</translation>
     </message>
     <message>
         <source>Invalid preview rectangle.</source>
-        <translation>Rectangle d&apos;aperçu non valide.</translation>
+        <translation>Rectangle d'aperçu non valide.</translation>
     </message>
     <message>
         <source>The preview rectangle is outside the canvas.</source>
-        <translation>Le rectangle d&apos;aperçu est en dehors de la zone de travail.</translation>
+        <translation>Le rectangle d'aperçu est en dehors de la zone de travail.</translation>
     </message>
     <message>
         <source>nearestNeighbor must be a boolean.</source>
@@ -24841,7 +24873,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Could not allocate the preview image.</source>
-        <translation>Impossible d&apos;allouer l&apos;image d&apos;aperçu.</translation>
+        <translation>Impossible d'allouer l'image d'aperçu.</translation>
     </message>
     <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
@@ -24877,15 +24909,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>A preview output path is required.</source>
-        <translation>Un chemin de sortie pour l&apos;aperçu est requis.</translation>
+        <translation>Un chemin de sortie pour l'aperçu est requis.</translation>
     </message>
     <message>
         <source>Preview options must be an object.</source>
-        <translation>Les options d&apos;aperçu doivent être un objet.</translation>
+        <translation>Les options d'aperçu doivent être un objet.</translation>
     </message>
     <message>
         <source>Could not save the preview: %1</source>
-        <translation>Impossible d&apos;enregistrer l&apos;aperçu : %1</translation>
+        <translation>Impossible d'enregistrer l'aperçu : %1</translation>
     </message>
     <message>
         <source>Invalid brush argument: %1</source>
@@ -24897,7 +24929,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>A script is already running: %1</source>
-        <translation>Un script est déjà en cours d&apos;exécution : %1</translation>
+        <translation>Un script est déjà en cours d'exécution : %1</translation>
     </message>
     <message>
         <source>Untitled Script</source>
@@ -24917,7 +24949,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Script stopped: a callback showed no activity for %1 seconds (a stuck loop?).</source>
-        <translation>Script arrêté : une fonction de rappel n&apos;a montré aucune activité pendant %1 secondes (boucle bloquée ?).</translation>
+        <translation>Script arrêté : une fonction de rappel n'a montré aucune activité pendant %1 secondes (boucle bloquée ?).</translation>
     </message>
     <message>
         <source>%1s</source>
@@ -24929,7 +24961,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Running Script</source>
-        <translation>Script en cours d&apos;exécution</translation>
+        <translation>Script en cours d'exécution</translation>
     </message>
     <message>
         <source>Stop...</source>
@@ -24948,12 +24980,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Arrêter le script</translation>
     </message>
     <message>
-        <source>Stop &quot;%1&quot;?</source>
+        <source>Stop "%1"?</source>
         <translation>Arrêter « %1 » ?</translation>
     </message>
     <message>
         <source>Undo the changes it made</source>
-        <translation>Annuler les modifications qu&apos;il a apportées</translation>
+        <translation>Annuler les modifications qu'il a apportées</translation>
     </message>
     <message>
         <source>setTimeout/setInterval needs a function.</source>
@@ -24973,7 +25005,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>playSound: %1 is not a .wav file</source>
-        <translation>playSound : %1 n&apos;est pas un fichier .wav</translation>
+        <translation>playSound : %1 n'est pas un fichier .wav</translation>
     </message>
     <message>
         <source>Untitled</source>
@@ -24993,7 +25025,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Finish the current manual edit before resuming automation.</source>
-        <translation>Terminez la modification manuelle en cours avant de reprendre l&apos;automatisation.</translation>
+        <translation>Terminez la modification manuelle en cours avant de reprendre l'automatisation.</translation>
     </message>
     <message>
         <source>Slow mode requires a visible Patchy workspace.</source>
@@ -25005,7 +25037,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Filter %1 has no parameter named %2</source>
-        <translation>Le filtre %1 n&apos;a aucun paramètre nommé %2</translation>
+        <translation>Le filtre %1 n'a aucun paramètre nommé %2</translation>
     </message>
     <message>
         <source>Filter %1 rejected those parameters.</source>
@@ -25040,12 +25072,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>showDialog : spec.fields doit être un tableau</translation>
     </message>
     <message>
-        <source>showDialog: every field needs a non-empty &quot;key&quot;</source>
-        <translation>showDialog : chaque champ doit avoir une &quot;key&quot; non vide</translation>
+        <source>showDialog: every field needs a non-empty "key"</source>
+        <translation>showDialog : chaque champ doit avoir une "key" non vide</translation>
     </message>
     <message>
-        <source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, color, folder, or file)</source>
-        <translation>showDialog : type de champ inconnu &quot;%1&quot; (utilisez number, slider, checkbox, choice, text, color, folder ou file)</translation>
+        <source>showDialog: unknown field type "%1" (use number, slider, checkbox, choice, text, color, folder, or file)</source>
+        <translation>showDialog : type de champ inconnu "%1" (utilisez number, slider, checkbox, choice, text, color, folder ou file)</translation>
     </message>
     <message>
         <source>Choose Color</source>
@@ -25057,11 +25089,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Menu commands are unavailable in the background connector. Use the scripting API.</source>
-        <translation>Les commandes de menu ne sont pas disponibles dans le connecteur en arrière-plan. Utilisez l&apos;API de script.</translation>
+        <translation>Les commandes de menu ne sont pas disponibles dans le connecteur en arrière-plan. Utilisez l'API de script.</translation>
     </message>
     <message>
         <source>No document is open to zoom.</source>
-        <translation>Aucun document n&apos;est ouvert pour le zoom.</translation>
+        <translation>Aucun document n'est ouvert pour le zoom.</translation>
     </message>
     <message>
         <source>Invalid vector option or target: %1.</source>
@@ -25076,48 +25108,48 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Tracé de travail</translation>
     </message>
     <message>
-        <source>textOrientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
-        <translation>textOrientation doit valoir &apos;horizontal&apos; ou &apos;vertical&apos;.</translation>
+        <source>textOrientation must be 'horizontal' or 'vertical'.</source>
+        <translation>textOrientation doit valoir 'horizontal' ou 'vertical'.</translation>
     </message>
     <message>
-        <source>textDirection must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
-        <translation>textDirection doit valoir &apos;auto&apos;, &apos;ltr&apos; ou &apos;rtl&apos;.</translation>
+        <source>textDirection must be 'auto', 'ltr' or 'rtl'.</source>
+        <translation>textDirection doit valoir 'auto', 'ltr' ou 'rtl'.</translation>
     </message>
     <message>
-        <source>orientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
-        <translation>orientation doit valoir &apos;horizontal&apos; ou &apos;vertical&apos;.</translation>
+        <source>orientation must be 'horizontal' or 'vertical'.</source>
+        <translation>orientation doit valoir 'horizontal' ou 'vertical'.</translation>
     </message>
     <message>
-        <source>direction must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
-        <translation>direction doit valoir &apos;auto&apos;, &apos;ltr&apos; ou &apos;rtl&apos;.</translation>
+        <source>direction must be 'auto', 'ltr' or 'rtl'.</source>
+        <translation>direction doit valoir 'auto', 'ltr' ou 'rtl'.</translation>
     </message>
     <message>
         <source>exportPdf needs one open document or an array of them.</source>
-        <translation>exportPdf a besoin d&apos;un document ouvert ou d&apos;un tableau de documents.</translation>
+        <translation>exportPdf a besoin d'un document ouvert ou d'un tableau de documents.</translation>
     </message>
     <message>
         <source>exportPdf needs an output path.</source>
-        <translation>exportPdf a besoin d&apos;un chemin de sortie.</translation>
+        <translation>exportPdf a besoin d'un chemin de sortie.</translation>
     </message>
     <message>
         <source>Could not export %1: %2</source>
-        <translation>Impossible d&apos;exporter %1 : %2</translation>
+        <translation>Impossible d'exporter %1 : %2</translation>
     </message>
     <message>
         <source>One of the documents is no longer open.</source>
-        <translation>L&apos;un des documents n&apos;est plus ouvert.</translation>
+        <translation>L'un des documents n'est plus ouvert.</translation>
     </message>
     <message>
-        <source>exportPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
-        <translation>exportPdf imageQuality doit être &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot; ou &quot;low&quot;.</translation>
+        <source>exportPdf imageQuality must be "lossless", "high", "medium", or "low".</source>
+        <translation>exportPdf imageQuality doit être "lossless", "high", "medium" ou "low".</translation>
     </message>
     <message>
         <source>removeObject: unknown option %1.</source>
         <translation>removeObject : option inconnue %1.</translation>
     </message>
     <message>
-        <source>removeObject needs the document&apos;s active layer (set doc.activeLayer first).</source>
-        <translation>removeObject requiert le calque actif du document (définissez d&apos;abord doc.activeLayer).</translation>
+        <source>removeObject needs the document's active layer (set doc.activeLayer first).</source>
+        <translation>removeObject requiert le calque actif du document (définissez d'abord doc.activeLayer).</translation>
     </message>
     <message>
         <source>removeObject needs a selection.</source>
@@ -25136,8 +25168,8 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>%1 : layers doit être un tableau non vide de calques de ce document.</translation>
     </message>
     <message>
-        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
-        <translation>%1 : alignTo doit valoir &quot;selection&quot; ou &quot;canvas&quot;.</translation>
+        <source>%1: alignTo must be "selection" or "canvas".</source>
+        <translation>%1 : alignTo doit valoir "selection" ou "canvas".</translation>
     </message>
     <message>
         <source>%1: unknown option %2.</source>
@@ -25157,7 +25189,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>%1: finish the pending transform first.</source>
-        <translation>%1 : terminez d&apos;abord la transformation en attente.</translation>
+        <translation>%1 : terminez d'abord la transformation en attente.</translation>
     </message>
     <message>
         <source>alignLayers needs at least one movable layer.</source>
@@ -25173,23 +25205,23 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>No layers were added.</source>
-        <translation>Aucun calque n&apos;a été ajouté.</translation>
+        <translation>Aucun calque n'a été ajouté.</translation>
     </message>
     <message>
         <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
         <translation>intervalMinutes doit valoir 5, 10, 15, 30 ou 60</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign doit valoir &apos;left&apos;, &apos;center&apos;, &apos;right&apos; ou &apos;justify&apos;.</translation>
+        <source>textAlign must be 'left', 'center', 'right' or 'justify'.</source>
+        <translation>textAlign doit valoir 'left', 'center', 'right' ou 'justify'.</translation>
     </message>
     <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
-        <translation>%1 : runs doit être un tableau d&apos;objets {text, font, size, bold, italic, color}.</translation>
+        <translation>%1 : runs doit être un tableau d'objets {text, font, size, bold, italic, color}.</translation>
     </message>
     <message>
         <source>%1: run %2 needs a text string.</source>
-        <translation>%1 : le segment %2 a besoin d&apos;une chaîne de texte.</translation>
+        <translation>%1 : le segment %2 a besoin d'une chaîne de texte.</translation>
     </message>
     <message>
         <source>%1: run %2 has a non-positive size.</source>
@@ -25209,11 +25241,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
-        <translation>box doit être {width, height}, chacun d&apos;au moins 16 pixels du document.</translation>
+        <translation>box doit être {width, height}, chacun d'au moins 16 pixels du document.</translation>
     </message>
     <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align doit valoir &apos;left&apos;, &apos;center&apos;, &apos;right&apos; ou &apos;justify&apos;.</translation>
+        <source>align must be 'left', 'center', 'right' or 'justify'.</source>
+        <translation>align doit valoir 'left', 'center', 'right' ou 'justify'.</translation>
     </message>
     <message>
         <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
@@ -25233,7 +25265,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Plug-in %1 cannot run: %2</source>
-        <translation>Le module externe %1 ne peut pas s&apos;exécuter : %2</translation>
+        <translation>Le module externe %1 ne peut pas s'exécuter : %2</translation>
     </message>
     <message>
         <source>applyPlugin needs a pixel layer.</source>
@@ -25261,7 +25293,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>%1: font has no glyphs for this text, rendered with a fallback: %2</source>
-        <translation>%1 : la police n&apos;a aucun glyphe pour ce texte, rendu avec une police de remplacement : %2</translation>
+        <translation>%1 : la police n'a aucun glyphe pour ce texte, rendu avec une police de remplacement : %2</translation>
     </message>
     <message>
         <source>exportAnimatedWebp needs a .webp output path.</source>
@@ -25293,7 +25325,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>resizeImage method must be one of %1.</source>
-        <translation>La méthode de resizeImage doit être l&apos;une de %1.</translation>
+        <translation>La méthode de resizeImage doit être l'une de %1.</translation>
     </message>
     <message>
         <source>convertBitDepth takes 8, 16 or 32.</source>
@@ -25301,7 +25333,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>16 and 32-bit editing is not enabled.</source>
-        <translation>L&apos;édition en 16 et 32 bits n&apos;est pas activée.</translation>
+        <translation>L'édition en 16 et 32 bits n'est pas activée.</translation>
     </message>
     <message>
         <source>Indexed documents are 8-bit only.</source>
@@ -25309,39 +25341,39 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>This filter is not available in 32-bit documents.</source>
-        <translation>Ce filtre n&apos;est pas disponible dans les documents 32 bits.</translation>
+        <translation>Ce filtre n'est pas disponible dans les documents 32 bits.</translation>
     </message>
     <message>
         <source>The web version edits up to 16 bits per channel.</source>
-        <translation>La version web modifie jusqu&apos;à 16 bits par couche.</translation>
+        <translation>La version web modifie jusqu'à 16 bits par couche.</translation>
     </message>
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
-        <translation>Le mode de fusion %1 n&apos;est pas disponible dans les documents 32 bits.</translation>
+        <translation>Le mode de fusion %1 n'est pas disponible dans les documents 32 bits.</translation>
     </message>
     <message>
         <source>%1 needs an output path.</source>
-        <translation>%1 a besoin d&apos;un chemin de sortie.</translation>
+        <translation>%1 a besoin d'un chemin de sortie.</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
-        <translation>patchy.scripts.install : les options doivent être un objet tel que {hotkey: &quot;Ctrl+Alt+D&quot;}.</translation>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: "Ctrl+Alt+D"}.</source>
+        <translation>patchy.scripts.install : les options doivent être un objet tel que {hotkey: "Ctrl+Alt+D"}.</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
-        <translation>patchy.scripts.install : hotkey doit être une chaîne telle que &quot;Ctrl+Alt+D&quot;.</translation>
+        <source>patchy.scripts.install: hotkey must be a string such as "Ctrl+Alt+D".</source>
+        <translation>patchy.scripts.install : hotkey doit être une chaîne telle que "Ctrl+Alt+D".</translation>
     </message>
     <message>
-        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
-        <translation>patchy.scripts : aucun script à &quot;%1&quot; (installez-le ou appelez rescan() d&apos;abord).</translation>
+        <source>patchy.scripts: no script at "%1" (install it or call rescan() first).</source>
+        <translation>patchy.scripts : aucun script à "%1" (installez-le ou appelez rescan() d'abord).</translation>
     </message>
     <message>
-        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
-        <translation>patchy.scripts : &quot;%1&quot; n&apos;est pas un raccourci que Patchy peut attribuer (utilisez l&apos;écriture portable de Qt, par exemple &quot;Ctrl+Alt+D&quot;).</translation>
+        <source>patchy.scripts: "%1" is not a shortcut Patchy can bind (use Qt's portable spelling, such as "Ctrl+Alt+D").</source>
+        <translation>patchy.scripts : "%1" n'est pas un raccourci que Patchy peut attribuer (utilisez l'écriture portable de Qt, par exemple "Ctrl+Alt+D").</translation>
     </message>
     <message>
-        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
-        <translation>patchy.scripts : le chemin du script doit être un chemin de fichier .js dans le dossier des scripts de l&apos;utilisateur (&quot;Mine/export.js&quot;), pas &quot;%1&quot;.</translation>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder ("Mine/export.js"), not "%1".</source>
+        <translation>patchy.scripts : le chemin du script doit être un chemin de fichier .js dans le dossier des scripts de l'utilisateur ("Mine/export.js"), pas "%1".</translation>
     </message>
     <message>
         <source>patchy.scripts: could not create the folder for %1.</source>
@@ -25349,23 +25381,23 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>patchy.scripts: could not write %1.</source>
-        <translation>patchy.scripts : impossible d&apos;écrire %1.</translation>
+        <translation>patchy.scripts : impossible d'écrire %1.</translation>
     </message>
     <message>
         <source>Could not write %1: %2</source>
-        <translation>Impossible d&apos;écrire %1 : %2</translation>
+        <translation>Impossible d'écrire %1 : %2</translation>
     </message>
     <message>
         <source>Automatic selection is not available in this build (%1).</source>
-        <translation>La sélection automatique n&apos;est pas disponible dans cette version (%1).</translation>
+        <translation>La sélection automatique n'est pas disponible dans cette version (%1).</translation>
     </message>
     <message>
         <source>Exit Quick Mask before using automatic selection.</source>
-        <translation>Quittez le mode Masque avant d&apos;utiliser la sélection automatique.</translation>
+        <translation>Quittez le mode Masque avant d'utiliser la sélection automatique.</translation>
     </message>
     <message>
         <source>Automatic selection could not read the document.</source>
-        <translation>La sélection automatique n&apos;a pas pu lire le document.</translation>
+        <translation>La sélection automatique n'a pas pu lire le document.</translation>
     </message>
     <message>
         <source>Automatic selection failed: %1</source>
@@ -25389,7 +25421,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>removeBackground found no subject.</source>
-        <translation>removeBackground n&apos;a trouvé aucun sujet.</translation>
+        <translation>removeBackground n'a trouvé aucun sujet.</translation>
     </message>
     <message>
         <source>Invalid selectBackground option: %1.</source>
@@ -25404,8 +25436,8 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Option removeBackground non valide : %1.</translation>
     </message>
     <message>
-        <source>setFileInfo needs an object such as {title: &quot;Harbor&quot;}.</source>
-        <translation>setFileInfo attend un objet tel que {title: &quot;Harbor&quot;}.</translation>
+        <source>setFileInfo needs an object such as {title: "Harbor"}.</source>
+        <translation>setFileInfo attend un objet tel que {title: "Harbor"}.</translation>
     </message>
     <message>
         <source>setFileInfo: %1 must be %2.</source>
@@ -25441,7 +25473,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Select Subject is not included in this build of Patchy; check doc.selection.subjectSelectionAvailable.</source>
-        <translation>« Sélectionner un sujet » n&apos;est pas inclus dans cette version de Patchy ; vérifiez doc.selection.subjectSelectionAvailable.</translation>
+        <translation>« Sélectionner un sujet » n'est pas inclus dans cette version de Patchy ; vérifiez doc.selection.subjectSelectionAvailable.</translation>
     </message>
     <message>
         <source>The document changed during automatic selection.</source>
@@ -25456,16 +25488,16 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Impossible de télécharger le modèle haute qualité : %1</translation>
     </message>
     <message>
-        <source>G&apos;MIC filters are not available in this build.</source>
-        <translation>Les filtres G&apos;MIC ne sont pas disponibles dans cette version.</translation>
+        <source>G'MIC filters are not available in this build.</source>
+        <translation>Les filtres G'MIC ne sont pas disponibles dans cette version.</translation>
     </message>
     <message>
-        <source>Unknown G&apos;MIC filter: %1</source>
-        <translation>Filtre G&apos;MIC inconnu : %1</translation>
+        <source>Unknown G'MIC filter: %1</source>
+        <translation>Filtre G'MIC inconnu : %1</translation>
     </message>
     <message>
         <source>applyGmic: %1 is not a valid value for %2.</source>
-        <translation>applyGmic : %1 n&apos;est pas une valeur valide pour %2.</translation>
+        <translation>applyGmic : %1 n'est pas une valeur valide pour %2.</translation>
     </message>
     <message>
         <source>applyGmic: too many values (%1 given, the filter takes %2).</source>
@@ -25484,12 +25516,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>applyGmic : valeur inputLayers inconnue %1.</translation>
     </message>
     <message>
-        <source>G&apos;MIC filter %1 was cancelled.</source>
-        <translation>Le filtre G&apos;MIC %1 a été annulé.</translation>
+        <source>G'MIC filter %1 was cancelled.</source>
+        <translation>Le filtre G'MIC %1 a été annulé.</translation>
     </message>
     <message>
-        <source>G&apos;MIC filter %1 failed: %2</source>
-        <translation>Échec du filtre G&apos;MIC %1 : %2</translation>
+        <source>G'MIC filter %1 failed: %2</source>
+        <translation>Échec du filtre G'MIC %1 : %2</translation>
     </message>
     <message>
         <source>CMYK values are percentages from 0 to 100</source>
@@ -25501,7 +25533,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The artboards could not be exported.</source>
-        <translation>Les plans de travail n&apos;ont pas pu être exportés.</translation>
+        <translation>Les plans de travail n'ont pas pu être exportés.</translation>
     </message>
     <message>
         <source>exportArtboards cannot write .%1 files.</source>
@@ -25512,12 +25544,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Les plans de travail ne peuvent pas agrandir la zone de travail au-delà de %1 x %1 px.</translation>
     </message>
     <message>
-        <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
-        <translation>exportPdf pages doit valoir &quot;artboards&quot;, &quot;groups&quot; ou &quot;canvas&quot;.</translation>
+        <source>exportPdf pages must be "artboards", "groups" or "canvas".</source>
+        <translation>exportPdf pages doit valoir "artboards", "groups" ou "canvas".</translation>
     </message>
     <message>
-        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
-        <translation>Panneau inconnu &quot;%1&quot;. Panneaux : %2.</translation>
+        <source>Unknown panel "%1". Panels: %2.</source>
+        <translation>Panneau inconnu "%1". Panneaux : %2.</translation>
     </message>
     <message>
         <source>Unknown layer color label: %1</source>
@@ -25549,7 +25581,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
-        <translation>L&apos;exposition d&apos;aperçu ne s&apos;applique qu&apos;à un document 32 bits ouvert.</translation>
+        <translation>L'exposition d'aperçu ne s'applique qu'à un document 32 bits ouvert.</translation>
     </message>
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
@@ -25559,51 +25591,51 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
     <message>
-        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; doit être un entier de %3 à %4.</translation>
+        <source>%1: option "%2" must be an integer from %3 to %4.</source>
+        <translation>%1 : l'option "%2" doit être un entier de %3 à %4.</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be true or false.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; doit être true ou false.</translation>
+        <source>%1: option "%2" must be true or false.</source>
+        <translation>%1 : l'option "%2" doit être true ou false.</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be a string.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; doit être une chaîne.</translation>
+        <source>%1: option "%2" must be a string.</source>
+        <translation>%1 : l'option "%2" doit être une chaîne.</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be one of %3.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; doit être l&apos;une des valeurs %3.</translation>
+        <source>%1: option "%2" must be one of %3.</source>
+        <translation>%1 : l'option "%2" doit être l'une des valeurs %3.</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; ne s&apos;applique pas à un fichier .%3.</translation>
+        <source>%1: option "%2" does not apply to a .%3 file.</source>
+        <translation>%1 : l'option "%2" ne s'applique pas à un fichier .%3.</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; doit être un tableau non vide de tailles parmi %3.</translation>
+        <source>%1: option "%2" must be a non-empty array of sizes from %3.</source>
+        <translation>%1 : l'option "%2" doit être un tableau non vide de tailles parmi %3.</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
-        <translation>%1 : l&apos;option &quot;%2&quot; doit être un objet {x, y} d&apos;entiers de 0 à 255.</translation>
+        <source>%1: option "%2" must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1 : l'option "%2" doit être un objet {x, y} d'entiers de 0 à 255.</translation>
     </message>
     <message>
         <source>%1: options must be an object such as {quality: 85}.</source>
         <translation>%1 : les options doivent être un objet tel que {quality: 85}.</translation>
     </message>
     <message>
-        <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
-        <translation>%1 : blackInkOnly nécessite colorMode: &quot;cmyk&quot;.</translation>
+        <source>%1: blackInkOnly needs colorMode: "cmyk".</source>
+        <translation>%1 : blackInkOnly nécessite colorMode: "cmyk".</translation>
     </message>
     <message>
-        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
-        <translation>%1 : layers exige colorMode: &quot;rgb&quot; ; un TIFF à calques est enregistré en RVB.</translation>
+        <source>%1: layers needs colorMode: "rgb"; a TIFF with layers is saved in RGB.</source>
+        <translation>%1 : layers exige colorMode: "rgb" ; un TIFF à calques est enregistré en RVB.</translation>
     </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
     <message>
         <source>Patchy Image Editor</source>
-        <translation>Éditeur d&apos;images Patchy</translation>
+        <translation>Éditeur d'images Patchy</translation>
     </message>
     <message>
         <source>Open source photo editing. Free forever, no subscriptions.</source>
@@ -25627,11 +25659,11 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>You can also drop image files anywhere in the window</source>
-        <translation>Vous pouvez aussi déposer des fichiers image n&apos;importe où dans la fenêtre</translation>
+        <translation>Vous pouvez aussi déposer des fichiers image n'importe où dans la fenêtre</translation>
     </message>
     <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
-        <translation>Tout s&apos;exécute localement dans votre navigateur. Rien de ce que vous créez n&apos;est jamais envoyé en ligne.</translation>
+        <translation>Tout s'exécute localement dans votre navigateur. Rien de ce que vous créez n'est jamais envoyé en ligne.</translation>
     </message>
     <message>
         <source>Drop a font file or a zip of fonts here to use your own fonts.</source>
@@ -25646,7 +25678,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>GitHub : %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
+        <source>Seth's site: %1</source>
         <translation>Site de Seth : %1</translation>
     </message>
     <message>
@@ -25670,8 +25702,8 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Gratuit · Windows, macOS et Linux</translation>
     </message>
     <message>
-        <source>More features, nearly 400 G&apos;MIC filters, faster editing, and full access to your system fonts.</source>
-        <translation>Plus de fonctions, près de 400 filtres G&apos;MIC, une édition plus rapide et l&apos;accès à toutes vos polices système.</translation>
+        <source>More features, nearly 400 G'MIC filters, faster editing, and full access to your system fonts.</source>
+        <translation>Plus de fonctions, près de 400 filtres G'MIC, une édition plus rapide et l'accès à toutes vos polices système.</translation>
     </message>
     <message>
         <source>Remove from Recent Files</source>
@@ -25769,7 +25801,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Styles Photoshop (*.asl)</translation>
     </message>
     <message numerus="yes">
-        <source>Exported %n style(s) to &quot;%1&quot;.</source>
+        <source>Exported %n style(s) to "%1".</source>
         <translation>
             <numerusform>%n style exporté vers « %1 ».</numerusform>
             <numerusform>%n styles exportés vers « %1 ».</numerusform>
@@ -25791,20 +25823,20 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Style sans titre</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;ouvrir « %1 ».</translation>
+        <source>Could not open "%1".</source>
+        <translation>Impossible d'ouvrir « %1 ».</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot;.</source>
+        <source>Could not read "%1".</source>
         <translation>Impossible de lire « %1 ».</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to import safely.</source>
+        <source>"%1" is too large to import safely.</source>
         <translation>« %1 » est trop volumineux pour être importé en toute sécurité.</translation>
     </message>
     <message>
-        <source>Could not import styles from &quot;%1&quot;. The file is not a supported Photoshop ASL file or is damaged.</source>
-        <translation>Impossible d&apos;importer les styles depuis « %1 ». Le fichier n&apos;est pas un fichier Photoshop ASL pris en charge ou il est endommagé.</translation>
+        <source>Could not import styles from "%1". The file is not a supported Photoshop ASL file or is damaged.</source>
+        <translation>Impossible d'importer les styles depuis « %1 ». Le fichier n'est pas un fichier Photoshop ASL pris en charge ou il est endommagé.</translation>
     </message>
     <message>
         <source>Imported Styles</source>
@@ -25815,24 +25847,24 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Style %1</translation>
     </message>
     <message>
-        <source>Style &quot;%1&quot; used an id already assigned to a different style; it was imported with a new id.</source>
+        <source>Style "%1" used an id already assigned to a different style; it was imported with a new id.</source>
         <translation>Le style « %1 » utilisait un identifiant déjà attribué à un autre style ; il a été importé avec un nouvel identifiant.</translation>
     </message>
     <message>
-        <source>Could not save style &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;enregistrer le style « %1 ».</translation>
+        <source>Could not save style "%1".</source>
+        <translation>Impossible d'enregistrer le style « %1 ».</translation>
     </message>
     <message>
-        <source>No styles could be imported from &quot;%1&quot;.</source>
-        <translation>Aucun style n&apos;a pu être importé depuis « %1 ».</translation>
+        <source>No styles could be imported from "%1".</source>
+        <translation>Aucun style n'a pu être importé depuis « %1 ».</translation>
     </message>
     <message>
         <source>There are no styles to export.</source>
-        <translation>Il n&apos;y a aucun style à exporter.</translation>
+        <translation>Il n'y a aucun style à exporter.</translation>
     </message>
     <message>
-        <source>Could not write &quot;%1&quot;.</source>
-        <translation>Impossible d&apos;écrire « %1 ».</translation>
+        <source>Could not write "%1".</source>
+        <translation>Impossible d'écrire « %1 ».</translation>
     </message>
     <message>
         <source>%1 Copy</source>
@@ -25859,7 +25891,7 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Wrap the image by half its size so the seams land in the middle for painting over. Press again to shift them back to the edges.</source>
-        <translation>Décale l&apos;image de la moitié de sa taille pour placer les raccords au centre et pouvoir peindre par-dessus. Appuyez à nouveau pour les ramener sur les bords.</translation>
+        <translation>Décale l'image de la moitié de sa taille pour placer les raccords au centre et pouvoir peindre par-dessus. Appuyez à nouveau pour les ramener sur les bords.</translation>
     </message>
     <message>
         <source>Drag to pan. Mouse wheel zooms. Double-click to recenter.</source>

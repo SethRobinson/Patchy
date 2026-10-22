@@ -173,6 +173,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_retouch_sample_all_layers(retouch_sample_all_layers_check_->isChecked());
   }
   session->canvas->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+  session->canvas->set_crop_overlay_options(current_crop_overlay_options_);
   session->canvas->set_crop_keep_proportions(crop_size_link_active());
   if (patch_mode_combo_ != nullptr) {
     session->canvas->set_patch_tool_mode(

@@ -963,6 +963,10 @@ public:
   void set_crop_ratio(double width, double height) noexcept;
   [[nodiscard]] double crop_ratio_width() const noexcept;
   [[nodiscard]] double crop_ratio_height() const noexcept;
+  // How the area outside the pending crop box draws (CropOverlayOptions,
+  // canvas_types.hpp). Opacity clamps to 0..100; the color is stored opaque.
+  void set_crop_overlay_options(const CropOverlayOptions& options);
+  [[nodiscard]] const CropOverlayOptions& crop_overlay_options() const noexcept;
   // Size style's Width/Height link (GitHub issue 332): with no ratio set, every
   // handle drag keeps the box's drag-start width:height, through the same
   // constrained path a set ratio takes.
@@ -3064,6 +3068,7 @@ private:
   QPointF crop_drag_start_point_;
   QPointF crop_drag_grab_offset_;
   double crop_angle_{0.0};
+  CropOverlayOptions crop_overlay_options_;
   double crop_rotate_start_angle_{0.0};
   double crop_rotate_start_vector_degrees_{0.0};
   bool crop_square_constrained_{false};

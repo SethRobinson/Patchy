@@ -639,6 +639,26 @@ void CanvasWidget::nudge_crop_rect(QPoint delta) {
   notify_crop_session_changed();
 }
 
+void CanvasWidget::set_crop_overlay_options(const CropOverlayOptions& options) {
+  auto clamped = options;
+  clamped.shield_opacity_percent = std::clamp(clamped.shield_opacity_percent, 0, 100);
+  if (!clamped.shield_color.isValid()) {
+    clamped.shield_color = QColor(0, 0, 0);
+  }
+  clamped.shield_color.setAlpha(255);
+  if (clamped == crop_overlay_options_) {
+    return;
+  }
+  crop_overlay_options_ = clamped;
+  if (crop_session_active_ || crop_dragging_out_) {
+    update();
+  }
+}
+
+const CropOverlayOptions& CanvasWidget::crop_overlay_options() const noexcept {
+  return crop_overlay_options_;
+}
+
 void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
   std::optional<QRect> document_rect;
   double angle = 0.0;
@@ -663,17 +683,30 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
                           widget_rect.height());
   const auto corners = box_to_widget.map(QPolygonF(local_rect));
 
-  // Shield: darken everything outside the pending crop. Deliberately unthemed
-  // black-over-artwork, like the marching ants (docs/ui-conventions.md).
-  painter.save();
-  painter.setRenderHint(QPainter::Antialiasing, false);
-  QPainterPath shield;
-  shield.addRect(QRectF(rect()));
-  QPainterPath box_path;
-  box_path.addPolygon(corners);
-  box_path.closeSubpath();
-  painter.fillPath(shield.subtracted(box_path), QColor(0, 0, 0, 120));
-  painter.restore();
+  // Shield: darken everything outside the pending crop, in the user's shield
+  // color and opacity (a user setting, unthemed like the grid and guide colors).
+  // Show Cropped Area off hides the outside behind the backdrop instead.
+  const auto& options = crop_overlay_options_;
+  std::optional<QColor> outside_fill;
+  if (!options.show_cropped_area) {
+    outside_fill = backdrop_color();
+  } else if (options.shield_enabled && options.shield_opacity_percent > 0) {
+    QColor shield_color = options.shield_color;
+    shield_color.setAlpha(
+        static_cast<int>(std::lround(std::clamp(options.shield_opacity_percent, 0, 100) * 255.0 / 100.0)));
+    outside_fill = shield_color;
+  }
+  if (outside_fill.has_value()) {
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    QPainterPath shield;
+    shield.addRect(QRectF(rect()));
+    QPainterPath box_path;
+    box_path.addPolygon(corners);
+    box_path.closeSubpath();
+    painter.fillPath(shield.subtracted(box_path), *outside_fill);
+    painter.restore();
+  }
 
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, angle != 0.0);
