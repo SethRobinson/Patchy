@@ -3084,6 +3084,50 @@ void reserve_menu_icon_column(QMenu* menu) {
   first->setIconVisibleInMenu(false);
 }
 
+namespace {
+
+class MenuSeparatorClickGuard final : public QObject {
+ public:
+  explicit MenuSeparatorClickGuard(QObject* parent) : QObject(parent) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    // The press passes through (it opens nothing and a drag from it onto an
+    // item still triggers on release); the release is what closes the menu.
+    const auto type = event->type();
+    if (type != QEvent::MouseButtonRelease && type != QEvent::MouseButtonDblClick) {
+      return false;
+    }
+    auto* menu = qobject_cast<QMenu*>(watched);
+    if (menu == nullptr) {
+      return false;
+    }
+    // A release over a parent menu while a submenu is open reaches the
+    // submenu first, outside its rect (actionAt is null), and QMenu
+    // forwards it to the parent, which passes through here again.
+    const auto* action = menu->actionAt(static_cast<QMouseEvent*>(event)->position().toPoint());
+    if (action == nullptr || !action->isSeparator()) {
+      return false;
+    }
+    event->accept();
+    return true;
+  }
+};
+
+}  // namespace
+
+void install_menu_separator_click_guard() {
+  auto* app = QCoreApplication::instance();
+  if (app == nullptr) {
+    return;
+  }
+  static const char kInstalledProperty[] = "patchyMenuSeparatorClickGuard";
+  if (app->property(kInstalledProperty).toBool()) {
+    return;
+  }
+  app->setProperty(kInstalledProperty, true);
+  app->installEventFilter(new MenuSeparatorClickGuard(app));
+}
+
 void hide_menu_action_icons(QMenu* menu) {
   if (menu == nullptr) {
     return;

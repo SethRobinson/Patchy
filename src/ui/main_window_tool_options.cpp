@@ -2245,15 +2245,12 @@ void MainWindow::load_tool_settings() {
   current_vector_line_weight_ = std::clamp(
       settings.value(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_).toDouble(), 1.0,
       1000.0);
-  if (auto* stroke_check = findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
-      stroke_check != nullptr) {
-    QSignalBlocker blocker(stroke_check);
-    stroke_check->setChecked(current_vector_stroke_enabled_);
-  }
+  // tools/vectorStrokeEnabled keeps its key: a saved "off" shows as 0 in the width field
+  // (GitHub issue 311), and tools/vectorStrokeWidth keeps the last real width.
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
       stroke_width != nullptr) {
     QSignalBlocker blocker(stroke_width);
-    stroke_width->setValue(current_vector_stroke_width_);
+    stroke_width->setValue(vector_stroke_field_value());
   }
   if (auto* line_weight = findChild<QDoubleSpinBox*>(QStringLiteral("vectorLineWeightSpin"));
       line_weight != nullptr) {
@@ -3146,12 +3143,14 @@ void MainWindow::refresh_options_bar() {
       }
     }
   }
-  // The canvas frame the tool starts with has nothing to apply or reset.
-  const auto crop_has_changes = canvas_ != nullptr && canvas_->crop_session_has_changes();
-  for (auto* button : {crop_apply_button_, crop_cancel_button_}) {
-    if (button != nullptr) {
-      button->setEnabled(edit_allowed && crop_has_changes);
-    }
+  // The canvas frame the tool starts with has nothing to apply or reset. With a
+  // ratio set, that frame is smaller than the canvas: Apply crops to it, but the
+  // X would put back the same box, so it stays off (GitHub issue 318).
+  if (crop_apply_button_ != nullptr) {
+    crop_apply_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_has_changes());
+  }
+  if (crop_cancel_button_ != nullptr) {
+    crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_can_reset());
   }
   if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker blocker(patch_mode_combo_);

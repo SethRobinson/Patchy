@@ -8114,10 +8114,6 @@ RGB: %2, %3, %4</translation>
         <translation>Abaixo de 100%, o preenchimento aparece em todos os lugares, como a densidade da máscara vetorial do Photoshop</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Trace o contorno da forma</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Pintar:</translation>
     </message>
@@ -11800,6 +11796,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Radius:</source>
         <translation>Raio:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Largura do traço (0 para nenhum traço)</translation>
     </message>
 </context>
 <context>
@@ -15907,24 +15907,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Preenchimento de forma: nenhum, cor sólida, degradê ou padrão</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Traçado</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Trace o contorno da forma</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Traço de forma: cor sólida, degradê ou padrão</translation>
-    </message>
-    <message>
-        <source>Stroke width:</source>
-        <translation>Largura do traço:</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Largura do traço</translation>
     </message>
     <message>
         <source>Width of the active shape</source>
@@ -23769,6 +23753,14 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Traço:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Largura do traço (0 para nenhum traço)</translation>
     </message>
 </context>
 <context>

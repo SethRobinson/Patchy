@@ -2413,10 +2413,8 @@ void shot_readme_vector_tools() {
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
   radius_spin->setValue(32);
-  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
-  CHECK(stroke_check != nullptr && stroke_width != nullptr);
-  stroke_check->setChecked(true);
+  CHECK(stroke_width != nullptr);
   stroke_width->setValue(8.0);
   set_gradient_fill(readme_vector_gradient({{0.0, QColor("#efaa53")}, {1.0, QColor("#fff0bd")}},
                                            patchy::LayerStyleGradientType::Linear, 90.0F));
@@ -2639,13 +2637,10 @@ void shot_readme_shape_appearance() {
   QApplication::processEvents();
   auto* sides_spin = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
   auto* inset_spin = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
-  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
-  CHECK(sides_spin != nullptr && inset_spin != nullptr && stroke_check != nullptr &&
-        stroke_width != nullptr);
+  CHECK(sides_spin != nullptr && inset_spin != nullptr && stroke_width != nullptr);
   sides_spin->setValue(5);
   inset_spin->setValue(45);
-  stroke_check->setChecked(true);
   stroke_width->setValue(12.0);
   fill = patchy::VectorFill{};
   fill.kind = patchy::VectorFillKind::Solid;
@@ -2688,7 +2683,7 @@ void shot_readme_shape_appearance() {
   CHECK(ring_row >= 0);
   shape_combo->setCurrentIndex(ring_row);
   QApplication::processEvents();
-  stroke_check->setChecked(false);
+  stroke_width->setValue(0.0);  // no stroke (issue 311: the width is the switch)
   fill = patchy::VectorFill{};
   fill.kind = patchy::VectorFillKind::Solid;
   fill.color = readme_rgb(QColor(0x3d, 0x4a, 0x7d));

@@ -7734,10 +7734,6 @@ RGB: %2, %3, %4</translation>
         <translation>Verankert das Kachelraster an der Position der Ebene; ohne Häkchen wird es am Dokumentursprung verankert</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Konturlinie der Form zeichnen</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Füllung:</translation>
     </message>
@@ -11801,6 +11797,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Radius:</source>
         <translation>Radius:</translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Konturbreite (0 für keine Kontur)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15551,20 +15551,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Formfläche: ohne, Volltonfarbe, Verlauf oder Muster</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Kontur</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Kontur der Form zeichnen</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Formkontur: Volltonfarbe, Verlauf oder Muster</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Konturbreite</translation>
     </message>
     <message>
         <source>Weight:</source>
@@ -21471,10 +21459,6 @@ Y: %2
         <translation>So weit zoomen, dass das Bild das Fenster füllt (Ansicht &gt; Bildschirm füllen)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>Konturbreite:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>Standardeinheiten:</translation>
     </message>
@@ -23769,6 +23753,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Kontur:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Konturbreite (0 für keine Kontur)</translation>
     </message>
 </context>
 <context>
