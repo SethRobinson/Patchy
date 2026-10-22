@@ -1112,7 +1112,10 @@ void cleanup_after_visual_test() {
         // switched tools or resized the brush must not start the next test's window there.
         "tools/activeTool", "tools/brushSize", "tools/brushOpacity", "tools/brushFlow", "tools/brushSoftness",
         "tools/brushAirbrush", "tools/brushTip", "tools/brushPreset", "tools/eraserSize", "tools/eraserOpacity",
-        "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill"}) {
+        "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill",
+        // The foreground/background pair (GitHub issue 339): a test that picked a color must
+        // not start the next test's window painting in it.
+        "tools/foregroundColor", "tools/backgroundColor"}) {
     settings.remove(QLatin1StringView(key));
   }
   settings.sync();

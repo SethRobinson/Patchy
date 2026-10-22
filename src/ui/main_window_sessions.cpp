@@ -379,6 +379,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
     // Brush settings are application-wide: capture the outgoing canvas's live
     // values so the incoming canvas (whose copies may be stale) inherits them.
     stash_active_brush_settings();
+    stash_active_colors();
     // Layer ids restart per document, so the active-document thumbnail cache
     // cannot survive a document switch.
     layer_thumbnail_cache_.clear();
@@ -414,6 +415,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   }
   canvas_ = canvas;
   if (canvas_changed) {
+    apply_active_colors_to_canvas();
     canvas_->set_fill_opacity(current_fill_opacity_);
     canvas_->set_fill_softness(current_fill_softness_);
     canvas_->set_fill_tolerance(current_fill_tolerance_);
@@ -637,6 +639,7 @@ bool MainWindow::close_document_session(DocumentSession& target_session) {
     // activation ran to stash them), then drop the pointer before the delete so
     // the fallback activation below starts from a clean slate.
     stash_active_brush_settings();
+    stash_active_colors();
     canvas_ = nullptr;
   }
   if (float_window != nullptr) {

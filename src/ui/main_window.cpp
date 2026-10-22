@@ -4333,6 +4333,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   tabs_phase.end();
   startup_trace::Scope color_phase("mw.input_color_settings");
   load_pen_input_settings();
+  load_color_settings();
   set_working_cmyk_space(cmyk_working_space_for(stored_cmyk_working_settings()));
   color_phase.end();
   // Startup opens with an empty workspace (the start panel); no document is

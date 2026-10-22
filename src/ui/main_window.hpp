@@ -2058,6 +2058,13 @@ private:
   void schedule_save_tool_settings();
   [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
   void stash_active_brush_settings();
+  // The foreground/background pair is application-wide (GitHub issue 339): canvases hold
+  // working copies, the window holds the pair the home screen, the next document and the
+  // next launch see. Stash reads canvas_'s copy back; apply hands the pair to canvas_.
+  void stash_active_colors();
+  void apply_active_colors_to_canvas();
+  void load_color_settings();
+  void save_color_settings() const;
   void apply_active_brush_settings_to_canvas();
   void apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas);
   void refresh_pattern_stamp_pattern_combo();
@@ -3108,6 +3115,13 @@ private:
       TransformInterpolation::Bicubic};
   int current_polygon_sides_{5};
   int current_polygon_star_inset_{0};
+  QColor foreground_color_{Qt::black};
+  QColor background_color_{Qt::white};
+  // canvas_'s colors right after the pair was applied or last stashed: a difference
+  // is a change made on the canvas. A palette document snaps its copy, which must
+  // not count as a change of the pair.
+  QColor canvas_applied_foreground_;
+  QColor canvas_applied_background_;
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the
   // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer

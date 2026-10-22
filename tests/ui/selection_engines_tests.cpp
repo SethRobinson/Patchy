@@ -261,11 +261,13 @@ void ui_quick_mask_overlay_channels_and_tab_state_are_temporary() {
   CHECK(quick_mask_button->defaultAction() == quick_mask);
   CHECK(quick_mask_button->isCheckable());
 
+  // The foreground/background pair is application-wide (GitHub issue 339): the first
+  // document takes the pair last set in the second one.
   tabs->setCurrentIndex(tabs->indexOf(first_canvas));
   QApplication::processEvents();
   CHECK(require_canvas(window) == first_canvas);
-  CHECK(first_canvas->primary_color() == first_primary);
-  CHECK(first_canvas->secondary_color() == first_secondary);
+  CHECK(first_canvas->primary_color() == second_primary);
+  CHECK(first_canvas->secondary_color() == second_secondary);
   quick_mask->trigger();
   QApplication::processEvents();
   CHECK(first_canvas->quick_mask_active());
@@ -311,8 +313,8 @@ void ui_quick_mask_overlay_channels_and_tab_state_are_temporary() {
   quick_mask->trigger();
   QApplication::processEvents();
   CHECK(!first_canvas->quick_mask_active());
-  CHECK(first_canvas->primary_color() == first_primary);
-  CHECK(first_canvas->secondary_color() == first_secondary);
+  CHECK(first_canvas->primary_color() == second_primary);
+  CHECK(first_canvas->secondary_color() == second_secondary);
   CHECK(channels->count() == 4);
 
   tabs->setCurrentIndex(tabs->indexOf(second_canvas));

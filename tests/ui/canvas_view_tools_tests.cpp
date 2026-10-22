@@ -18,6 +18,7 @@
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/zoom_status_bar.hpp"
 #include "ui/status_document_info.hpp"
+#include "ui/tool_palette_footer.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_api.hpp"
 #include "color/color_management.hpp"
@@ -5324,6 +5325,155 @@ void ui_active_tool_and_options_restore_on_next_launch() {
 
 // A missing or hand-edited key never leaves the bar in a strange state: unknown tool
 // tokens, non-numeric values and out-of-range numbers read as the defaults (or clamp).
+namespace {
+
+// The keys GitHub issue 339 added: the application-wide foreground/background pair.
+std::list<SettingsValueRestorer> clear_issue_339_settings() {
+  std::list<SettingsValueRestorer> restorers;
+  auto settings = patchy::ui::app_settings();
+  for (const char* key : {"tools/foregroundColor", "tools/backgroundColor"}) {
+    restorers.emplace_back(QString::fromLatin1(key));
+    settings.remove(QLatin1String(key));
+  }
+  settings.sync();
+  return restorers;
+}
+
+std::pair<QColor, QColor> swatch_colors(patchy::ui::MainWindow& window) {
+  auto* foreground = window.findChild<patchy::ui::ColorWellSwatch*>(QStringLiteral("foregroundColorButton"));
+  auto* background = window.findChild<patchy::ui::ColorWellSwatch*>(QStringLiteral("backgroundColorButton"));
+  CHECK(foreground != nullptr && background != nullptr);
+  if (foreground == nullptr || background == nullptr) {
+    return {};
+  }
+  return {foreground->color(), background->color()};
+}
+
+}  // namespace
+
+// GitHub issue 339: the foreground/background pair belongs to the application. Closing the
+// last document keeps it on the home screen, and every document, new or switched to, uses it.
+void ui_colors_survive_closing_last_document_and_carry_to_new_documents() {
+  const auto restorers = clear_issue_339_settings();
+  const QColor red(200, 30, 40);
+  const QColor blue(20, 60, 210);
+  const QColor green(30, 160, 70);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* first = require_canvas(window);
+  if (first == nullptr) {
+    return;
+  }
+  CHECK(first->primary_color() == QColor(Qt::black));
+  CHECK(first->secondary_color() == QColor(Qt::white));
+  first->set_primary_color(blue);
+  first->set_secondary_color(red);
+  // Swap (X) runs the real color path; the pair is now red over blue.
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+  CHECK(first->primary_color() == red);
+  CHECK(first->secondary_color() == blue);
+
+  // A new document takes the current pair.
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  auto* second = require_canvas(window);
+  CHECK(second != nullptr && second != first);
+  if (second == nullptr || second == first) {
+    return;
+  }
+  CHECK(second->primary_color() == red);
+  CHECK(second->secondary_color() == blue);
+  // A change in one document follows the user back to the other one.
+  second->set_primary_color(green);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr && tabs->count() == 2);
+  if (tabs == nullptr || tabs->count() != 2) {
+    return;
+  }
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(require_canvas(window) == first);
+  CHECK(first->primary_color() == green);
+  CHECK(first->secondary_color() == blue);
+
+  // Default colors (D) still resets the pair.
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  CHECK(first->primary_color() == QColor(Qt::black));
+  CHECK(first->secondary_color() == QColor(Qt::white));
+  first->set_primary_color(green);
+  first->set_secondary_color(red);
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+
+  // Close every document: the home screen's swatches keep the pair.
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, 1));
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, 0));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  CHECK(swatch_colors(window) == std::pair(red, green));
+
+  // The next document starts with it.
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  auto* third = require_canvas(window);
+  if (third == nullptr) {
+    return;
+  }
+  CHECK(third->primary_color() == red);
+  CHECK(third->secondary_color() == green);
+}
+
+// GitHub issue 339: the pair is saved as it changes and the next launch starts with it,
+// home screen included. No keys (first launch) or unreadable ones are black over white.
+void ui_colors_restore_on_next_launch() {
+  const auto restorers = clear_issue_339_settings();
+  const QColor orange(240, 140, 20);
+  const QColor teal(10, 120, 130);
+  {
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    CHECK(swatch_colors(window) == std::pair(QColor(Qt::black), QColor(Qt::white)));
+    patchy::ui::MainWindowTestAccess::create_default_document(window);
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    if (canvas == nullptr) {
+      return;
+    }
+    canvas->set_primary_color(teal);
+    canvas->set_secondary_color(orange);
+    require_action(window, "colorSwapAction")->trigger();
+    QApplication::processEvents();
+    const auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/foregroundColor")).toString() == orange.name(QColor::HexRgb));
+    CHECK(settings.value(QStringLiteral("tools/backgroundColor")).toString() == teal.name(QColor::HexRgb));
+  }
+  {
+    // "The next launch": a fresh window from the same settings store.
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    CHECK(swatch_colors(window) == std::pair(orange, teal));
+    patchy::ui::MainWindowTestAccess::create_default_document(window);
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    if (canvas == nullptr) {
+      return;
+    }
+    CHECK(canvas->primary_color() == orange);
+    CHECK(canvas->secondary_color() == teal);
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/foregroundColor"), QStringLiteral("banana"));
+    settings.remove(QStringLiteral("tools/backgroundColor"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  CHECK(swatch_colors(window) == std::pair(QColor(Qt::black), QColor(Qt::white)));
+}
+
 void ui_tool_settings_fall_back_on_missing_or_malformed_keys() {
   const auto restorers = clear_issue_254_settings();
   {
@@ -7854,6 +8004,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_active_tool_and_options_restore_on_next_launch", ui_active_tool_and_options_restore_on_next_launch},
       {"ui_tool_settings_fall_back_on_missing_or_malformed_keys",
        ui_tool_settings_fall_back_on_missing_or_malformed_keys},
+      {"ui_colors_survive_closing_last_document_and_carry_to_new_documents",
+       ui_colors_survive_closing_last_document_and_carry_to_new_documents},
+      {"ui_colors_restore_on_next_launch", ui_colors_restore_on_next_launch},
       {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
        ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
       {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},
