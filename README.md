@@ -42,7 +42,7 @@ Paste this into a terminal. It installs Patchy for your user from the Patchy Fla
 repository and pulls the shared KDE runtime from Flathub. No root needed.
 
 ```sh
-flatpak install --user -y https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
+flatpak install --user https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
 ```
 
 Patchy then updates with `flatpak update` or through your software center, and starts
@@ -51,13 +51,17 @@ from your application menu or with `flatpak run com.rtsoft.patchy`.
 This needs the `flatpak` tool. If needed, install it first with
 `sudo apt install flatpak`.
 
+If you already use flatpak system-wide, you can use `--system` in place of `--user`.
+Patchy then reuses the runtime extensions you already have (graphics drivers, codecs)
+instead of downloading them again. Installing that way may ask for an admin password.
+
 The `.flatpakref` link in the table downloads a small file that a Flatpak-aware
 software center (GNOME Software, KDE Discover) can open to install Patchy. Ubuntu has
 none by default, and on Ubuntu 24.04 GNOME Software's Open button fails to start
 Flatpak apps, so use the terminal command above instead.
 
 The single-file bundle is the same build, for when you would rather download a file
-first. Install it with `flatpak install --user -y PatchyLinux.flatpak`. It still fetches
+first. Install it with `flatpak install --user PatchyLinux.flatpak`. It still fetches
 the KDE runtime from Flathub, and it updates from the same repository afterwards.
 
 My flatpak knowledge is limited, so I hope all this makes sense.  I hope to submit Patchy to Flathub eventually, but for now we have our own repository.
