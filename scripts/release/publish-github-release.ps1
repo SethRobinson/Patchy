@@ -240,7 +240,7 @@ If it cannot mount itself, install FUSE 3 (``sudo apt install fuse3``, ``sudo dn
 Flatpak (updates with ``flatpak update``):
 
 ``````sh
-flatpak install --user -y https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
+flatpak install --user https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
 ``````
 "@
 }

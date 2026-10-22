@@ -17,13 +17,17 @@ Patchy ships on Linux as a Flatpak (this page) and as an AppImage
 
 Install commands, all per user (no root, no polkit prompt; GitHub issue 14):
 
-    flatpak install --user -y https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
-    curl -L -o /tmp/PatchyLinux.flatpak <bundle url> && flatpak install --user -y /tmp/PatchyLinux.flatpak
+    flatpak install --user https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
+    curl -L -o /tmp/PatchyLinux.flatpak <bundle url> && flatpak install --user /tmp/PatchyLinux.flatpak
     flatpak update --user -y com.rtsoft.patchy
 
 Keep `--user` on every documented command. Besides the root prompt, flatpak 1.14 fails
 a command without it ("While opening repository") on a machine that has no system-wide
-installation. Both installs add the Flathub remote themselves when the machine has none (the ref's
+installation. `--user` stays the default (GitHub issue 14). Its cost: the runtime's
+extensions (Mesa, VAAPI, codecs) are fetched again into the user installation even when the
+system installation has them (GitHub issue 205), so the README offers `--system` as the
+alternative for people who already use flatpak system-wide. The install commands leave out
+`-y` so flatpak lists the download and asks first. Both installs add the Flathub remote themselves when the machine has none (the ref's
 `RuntimeRepo`, the bundle's `--runtime-repo`) and pull `org.kde.Platform` from it. The
 app's update dialog shows the `flatpak update` line (`show_update_available` in
 `src/ui/main_window_files.cpp`, pinned by `ui_update_available_dialog_*` in
