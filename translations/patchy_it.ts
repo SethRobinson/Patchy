@@ -8333,10 +8333,6 @@ RGB: %2, %3, %4</translation>
         <translation>Dal centro</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>Raggi degli angoli</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>In alto a sinistra:</translation>
     </message>
@@ -11792,6 +11788,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>I miei look</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>Forma:</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>Lati:</translation>
     </message>
 </context>
 <context>

@@ -8166,10 +8166,6 @@ RGB: %2, %3, %4</translation>
         <translation>중심에서</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>코너 반경</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>왼쪽 상단:</translation>
     </message>
@@ -11757,6 +11753,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>내 룩</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>모양:</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>변 수:</translation>
     </message>
 </context>
 <context>

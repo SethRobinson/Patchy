@@ -69,6 +69,7 @@
 #include <QTimer>
 #include <QMouseEvent>
 #include <QToolBar>
+#include <QFontMetrics>
 #include <QToolButton>
 #include <QPushButton>
 #include <QEvent>
@@ -3786,6 +3787,7 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   CHECK(content != nullptr);
   CHECK(content->path.subpaths.size() == 1);
   CHECK(content->path.subpaths[0].anchors.size() == 5);
+  const auto polygon_layer_id = *document.active_layer_id();
   const auto polygon_bounds = content->path.bounds();
   CHECK(polygon_bounds.has_value());
   CHECK(std::abs(polygon_bounds->top - 400.0) < 0.5);           // apex touches the box top
@@ -3793,12 +3795,45 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   CHECK(polygon_bounds->right > 495.0 && polygon_bounds->right < 500.0);
   CHECK(polygon_bounds->bottom > 488.0 && polygon_bounds->bottom < 493.0);
 
+  // The dialog's Sides field starts at the bar's count; a new count makes the
+  // polygon and becomes the tool's (GitHub issue 309).
+  seen = false;
+  // Placed clear of the custom shape below: a click snaps to nearby shape edges.
+  shape_tap(*canvas, QPoint(600, 250), [&seen] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* sides = dialog->findChild<QSpinBox*>(QStringLiteral("shapeCreateSidesSpin"));
+    CHECK(sides != nullptr);
+    if (sides == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(sides->value() == 5);
+    sides->setValue(7);
+    dialog->accept();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 3);
+  CHECK(*document.active_layer_id() != polygon_layer_id);
+  layer = document.find_layer(*document.active_layer_id());
+  content = layer != nullptr ? layer->vector_shape() : nullptr;
+  CHECK(content != nullptr && content->path.subpaths.size() == 1);
+  if (content != nullptr && content->path.subpaths.size() == 1) {
+    CHECK(content->path.subpaths[0].anchors.size() == 7);
+  }
+  CHECK(sides_spin->value() == 7);
+  CHECK(canvas->polygon_sides() == 7);
+
   // Custom Shape: the library shape stamped into the box.
   canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
   seen = false;
   shape_tap(*canvas, QPoint(100, 500), shape_create_dialog_answer(seen, 80.0, 40.0, 0, -1.0, true));
   CHECK(seen);
-  CHECK(document.layers().size() == initial_layers + 3);
+  CHECK(document.layers().size() == initial_layers + 4);
   layer = document.find_layer(*document.active_layer_id());
   CHECK(layer != nullptr);
   CHECK(layer->name() == "Custom Shape 1");
@@ -3809,6 +3844,107 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   CHECK(custom_bounds->left >= 99.5 && custom_bounds->right <= 180.5);
   CHECK(custom_bounds->top >= 499.5 && custom_bounds->bottom <= 540.5);
   CHECK(custom_bounds->right - custom_bounds->left > 40.0);
+
+  // The dialog's Shape picker lists the bar's shapes, starts on the bar's
+  // shape, and the one picked is created and becomes the tool's (issue 309).
+  auto* bar_combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(bar_combo != nullptr && bar_combo->count() > 1);
+  if (bar_combo == nullptr || bar_combo->count() < 2) {
+    return;
+  }
+  const int picked_index = bar_combo->currentIndex() == 0 ? 1 : 0;
+  const auto picked_id = bar_combo->itemData(picked_index).toString();
+  seen = false;
+  shape_tap(*canvas, QPoint(300, 500), [&seen, bar_combo, picked_index] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeCreateCustomShapeCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(combo->count() == bar_combo->count());
+    CHECK(combo->currentData() == bar_combo->currentData());
+    CHECK(combo->itemText(picked_index) == bar_combo->itemText(picked_index));
+    combo->setCurrentIndex(picked_index);
+    dialog->accept();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 5);
+  CHECK(bar_combo->currentData().toString() == picked_id);
+  const auto* tool_shape = canvas->custom_shape_path();
+  layer = document.find_layer(*document.active_layer_id());
+  content = layer != nullptr ? layer->vector_shape() : nullptr;
+  CHECK(tool_shape != nullptr && content != nullptr);
+  if (tool_shape != nullptr && content != nullptr) {
+    CHECK(content->path.subpaths.size() == tool_shape->subpaths.size());
+    for (std::size_t i = 0; i < std::min(content->path.subpaths.size(), tool_shape->subpaths.size()); ++i) {
+      CHECK(content->path.subpaths[i].anchors.size() == tool_shape->subpaths[i].anchors.size());
+    }
+  }
+}
+
+// Layout of the four Create <Shape> dialogs (GitHub issue 309): wide enough
+// for the title, Width and Height on one row with From Center below, and per
+// tool only its own extra field.
+void ui_shape_create_dialog_layout() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto visible_child = [](QDialog* dialog, const char* name) {
+    auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+    return widget != nullptr && widget->isVisible();
+  };
+  const std::pair<patchy::ui::CanvasTool, const char*> tools[] = {
+      {patchy::ui::CanvasTool::Rectangle, "shapeCreateRadiusTopLeftSpin"},
+      {patchy::ui::CanvasTool::Ellipse, nullptr},
+      {patchy::ui::CanvasTool::Polygon, "shapeCreateSidesSpin"},
+      {patchy::ui::CanvasTool::CustomShape, "shapeCreateCustomShapeCombo"},
+  };
+  for (const auto& [tool, own_field] : tools) {
+    canvas->set_tool(tool);
+    bool seen = false;
+    shape_tap(*canvas, QPoint(200, 200), [&seen, &visible_child, own = own_field] {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      auto* width_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateWidthSpin"));
+      auto* height_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateHeightSpin"));
+      auto* center = dialog->findChild<QCheckBox*>(QStringLiteral("shapeCreateFromCenterCheck"));
+      CHECK(width_spin != nullptr && height_spin != nullptr && center != nullptr);
+      if (width_spin == nullptr || height_spin == nullptr || center == nullptr) {
+        dialog->reject();
+        return;
+      }
+      seen = true;
+      const auto width_box = QRect(width_spin->mapTo(dialog, QPoint()), width_spin->size());
+      const auto height_box = QRect(height_spin->mapTo(dialog, QPoint()), height_spin->size());
+      const auto center_box = QRect(center->mapTo(dialog, QPoint()), center->size());
+      CHECK(std::abs(width_box.center().y() - height_box.center().y()) <= 1);
+      CHECK(height_box.left() > width_box.right());
+      CHECK(center_box.top() > width_box.bottom());
+      QFont title_font = dialog->font();
+      title_font.setBold(true);
+      CHECK(dialog->width() >=
+            QFontMetrics(title_font).horizontalAdvance(dialog->windowTitle()) + 200);
+      for (const auto* field : {"shapeCreateRadiusTopLeftSpin", "shapeCreateSidesSpin",
+                                "shapeCreateCustomShapeCombo"}) {
+        const bool expected = own != nullptr && std::string_view(own) == field;
+        CHECK(visible_child(dialog, field) == expected);
+      }
+      dialog->reject();
+    });
+    CHECK(seen);
+  }
 }
 
 void ui_shape_tap_line_fixed_size_and_path_mode() {
@@ -3867,6 +4003,38 @@ void ui_shape_tap_line_fixed_size_and_path_mode() {
   CHECK(work_bounds.has_value());
   CHECK(std::abs(work_bounds->left - 300.0) < 1e-6);
   CHECK(std::abs(work_bounds->right - 400.0) < 1e-6);
+}
+
+// Captures each Create <Shape> dialog as opened by a tap (issue shots for
+// GitHub issue 309); nothing is created.
+void ui_shape_create_dialog_captures() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const std::pair<patchy::ui::CanvasTool, const char*> tools[] = {
+      {patchy::ui::CanvasTool::Rectangle, "shape_create_dialog_rectangle"},
+      {patchy::ui::CanvasTool::Ellipse, "shape_create_dialog_ellipse"},
+      {patchy::ui::CanvasTool::Polygon, "shape_create_dialog_polygon"},
+      {patchy::ui::CanvasTool::CustomShape, "shape_create_dialog_custom_shape"},
+  };
+  for (const auto& [tool, artifact] : tools) {
+    canvas->set_tool(tool);
+    bool seen = false;
+    const std::string name = artifact;
+    shape_tap(*canvas, QPoint(200, 200), [&seen, name] {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      seen = true;
+      QApplication::processEvents();
+      save_widget_artifact(name, *dialog);
+      dialog->reject();
+    });
+    CHECK(seen);
+  }
 }
 
 void ui_shape_size_spins_reflect_and_resize_active_shape() {
@@ -5384,6 +5552,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tap_creates_ellipse_polygon_and_custom_shape",
        ui_shape_tap_creates_ellipse_polygon_and_custom_shape},
       {"ui_shape_tap_line_fixed_size_and_path_mode", ui_shape_tap_line_fixed_size_and_path_mode},
+      {"ui_shape_create_dialog_captures", ui_shape_create_dialog_captures},
+      {"ui_shape_create_dialog_layout", ui_shape_create_dialog_layout},
       {"ui_shape_size_spins_reflect_and_resize_active_shape",
        ui_shape_size_spins_reflect_and_resize_active_shape},
       {"ui_shape_size_controls_follow_move_and_properties_selection",
