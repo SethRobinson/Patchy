@@ -8093,10 +8093,6 @@ RGB: %2, %3, %4</translation>
         <translation>100% 미만에서는 Photoshop의 벡터 마스크 밀도와 같이 채우기가 모든 곳에서 보입니다.</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>모양 윤곽선을 그립니다.</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>페인트:</translation>
     </message>
@@ -11765,6 +11761,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Radius:</source>
         <translation>반지름:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>획 너비 (0이면 획 없음)</translation>
     </message>
 </context>
 <context>
@@ -15871,24 +15871,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>도형 채우기: 없음, 단색, 그레이디언트 또는 패턴</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>획</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>모양 윤곽선을 그립니다.</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>모양 획: 단색, 그레이디언트 또는 패턴</translation>
-    </message>
-    <message>
-        <source>Stroke width:</source>
-        <translation>획 너비:</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>획 너비</translation>
     </message>
     <message>
         <source>Width of the active shape</source>
@@ -23697,6 +23681,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>획:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>획 너비 (0이면 획 없음)</translation>
     </message>
     <message>
         <source>Crop options: cropped area and crop shield</source>

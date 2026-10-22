@@ -8135,10 +8135,6 @@ RGB: %2, %3, %4</translation>
         <translation>Ниже 100% заливка проявляется повсюду, как плотность векторной маски Photoshop.</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Обведите контур фигуры</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Краска:</translation>
     </message>
@@ -11835,6 +11831,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Radius:</source>
         <translation>Радиус:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Толщина обводки (0 = без обводки)</translation>
     </message>
 </context>
 <context>
@@ -15943,24 +15943,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Заливка фигуры: нет, сплошной цвет, градиент или узор.</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Обводка</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Обведите контур фигуры</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Обводка фигуры: сплошной цвет, градиент или узор.</translation>
-    </message>
-    <message>
-        <source>Stroke width:</source>
-        <translation>Толщина обводки:</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Толщина обводки</translation>
     </message>
     <message>
         <source>Width of the active shape</source>
@@ -23841,6 +23825,14 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Обводка:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Толщина обводки (0 = без обводки)</translation>
     </message>
     <message>
         <source>Crop options: cropped area and crop shield</source>

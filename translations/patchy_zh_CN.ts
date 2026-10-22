@@ -7717,10 +7717,6 @@ RGB：%2, %3, %4</translation>
         <translation>将拼贴网格锚定到图层位置；取消勾选则锚定到文档原点</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>描边形状轮廓</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>填充类型:</translation>
     </message>
@@ -11766,6 +11762,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Radius:</source>
         <translation>半径:</translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>描边宽度 (0 表示无描边)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15515,20 +15515,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>形状填充：无、纯色、渐变或图案</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>描边</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>为形状轮廓描边</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>形状描边：纯色、渐变或图案</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>描边宽度</translation>
     </message>
     <message>
         <source>Weight:</source>
@@ -21410,10 +21398,6 @@ Y: %2
         <translation>缩放直到图像填满窗口 (视图 &gt; 填充屏幕)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>描边宽度:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>默认单位:</translation>
     </message>
@@ -23697,6 +23681,14 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>描边:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>描边宽度 (0 表示无描边)</translation>
     </message>
     <message>
         <source>Crop options: cropped area and crop shield</source>

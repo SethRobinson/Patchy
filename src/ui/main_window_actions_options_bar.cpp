@@ -1374,7 +1374,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
-  // Crop options (GitHub issue 326): how the area outside the box draws. The
+  // Crop options (GitHub issue 326): how the area outside the box draws. Its
+  // own group after the checkboxes (options-bar rule 1: advanced options). The
   // moveAlignMoreButton pattern: compact "..." text, InstantPopup, height pinned
   // by the optionsBarMenuButton QSS rule so the bar row keeps its height.
   crop_options_button_ = new QToolButton(toolbar);
@@ -1447,8 +1448,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     crop_options_button_->setMenu(crop_menu);
   }
   sync_crop_overlay_controls();
-  add_option_separator({CanvasTool::Crop});
-  add_option_widget(crop_options_button_, {CanvasTool::Crop});
   // Canvas Size's two layer options, as Photoshop's "Delete Cropped Pixels"
   // (on by default there too) plus Patchy's own off-canvas layer delete.
   crop_delete_pixels_check_ = new CheckGlyphBox(tr("Delete Cropped Pixels"), toolbar);
@@ -1472,6 +1471,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     current_crop_delete_layers_ = checked;
     save_tool_settings();
   });
+  add_option_separator({CanvasTool::Crop});
+  add_option_widget(crop_options_button_, {CanvasTool::Crop});
   crop_apply_button_ = new QPushButton(toolbar);
   crop_apply_button_->setObjectName(QStringLiteral("cropApplyButton"));
   crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));
@@ -2987,22 +2988,38 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
   connect(vector_fill_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(false); });
-  // Fill | Stroke, its swatch and width (GitHub issue 311).
+  // Fill | Stroke [width] [swatch] (GitHub issue 311). There is no Stroke checkbox: the
+  // width is the switch, 0 px for no stroke (set_vector_stroke_width_from_field).
   add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
                         CanvasTool::Polygon, CanvasTool::CustomShape});
-  auto* vector_stroke_check = new CheckGlyphBox(tr("Stroke"), toolbar);
-  bind_widget_text(vector_stroke_check, QT_TR_NOOP("Stroke"));
-  vector_stroke_check->setObjectName(QStringLiteral("vectorStrokeCheck"));
-  vector_stroke_check->setChecked(current_vector_stroke_enabled_);
-  bind_tooltip(vector_stroke_check, QT_TR_NOOP("Stroke the shape outline"));
-  add_option_widget(vector_stroke_check, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_check);
-  connect(vector_stroke_check, &QCheckBox::toggled, this, [this](bool checked) {
-    current_vector_stroke_enabled_ = checked;
-    refresh_vector_stroke_controls();
-    schedule_save_tool_settings();
-    apply_options_bar_appearance_to_active_shape({"stroke.enabled"});
+  // A thickness has no percent basis: the document extent means nothing to it.
+  const auto thickness_context = [this]() -> UnitConversionContext {
+    auto context = document_unit_context(true);
+    context.percent_reference_pixels = 0.0;
+    return context;
+  };
+  auto* vector_stroke_width_label = add_option_label(QT_TR_NOOP("Stroke:"), vector_appearance_tools);
+  vector_stroke_width_label->setObjectName(QStringLiteral("vectorStrokeWidthLabel"));
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_width_label);
+  auto* vector_stroke_width = new UnitSpinBox(SpinUnit::Pixels, toolbar);
+  vector_stroke_width->setObjectName(QStringLiteral("vectorStrokeWidthSpin"));
+  vector_stroke_width->setRange(0.0, 1000.0);
+  vector_stroke_width->setDecimals(1);
+  vector_stroke_width->setValue(vector_stroke_field_value());
+  vector_stroke_width->set_context_provider(thickness_context);
+  bind_tooltip(vector_stroke_width, QT_TR_NOOP("Stroke width (0 for no stroke)"));
+  configure_toolbar_spinbox(vector_stroke_width, 64);
+  add_option_widget(vector_stroke_width, vector_appearance_tools);
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
+  register_ruler_unit_field(vector_stroke_width);  // print users think in mm strokes
+  connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this,
+          [this](double value) { set_vector_stroke_width_from_field(value); });
+
+  install_appearance_edit_intent(vector_stroke_width, [this, vector_stroke_width] {
+    set_vector_stroke_width_from_field(vector_stroke_width->value());
   });
+  connect(vector_stroke_width, &QDoubleSpinBox::editingFinished, this,
+          [this] { finish_pending_shape_appearance_edit(); });
 
   vector_stroke_swatch_button_ = new QToolButton(toolbar);
   vector_stroke_swatch_button_->setObjectName(QStringLiteral("vectorStrokeSwatchButton"));
@@ -3012,40 +3029,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(true); });
-
-  // A thickness has no percent basis: the document extent means nothing to it.
-  const auto thickness_context = [this]() -> UnitConversionContext {
-    auto context = document_unit_context(true);
-    context.percent_reference_pixels = 0.0;
-    return context;
-  };
-  auto* vector_stroke_width_label = add_option_label(QT_TR_NOOP("Stroke width:"), vector_appearance_tools);
-  vector_stroke_width_label->setObjectName(QStringLiteral("vectorStrokeWidthLabel"));
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_width_label);
-  auto* vector_stroke_width = new UnitSpinBox(SpinUnit::Pixels, toolbar);
-  vector_stroke_width->setObjectName(QStringLiteral("vectorStrokeWidthSpin"));
-  vector_stroke_width->setRange(0.1, 1000.0);
-  vector_stroke_width->setDecimals(1);
-  vector_stroke_width->setValue(current_vector_stroke_width_);
-  vector_stroke_width->set_context_provider(thickness_context);
-  bind_tooltip(vector_stroke_width, QT_TR_NOOP("Stroke width"));
-  configure_toolbar_spinbox(vector_stroke_width, 64);
-  add_option_widget(vector_stroke_width, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
-  register_ruler_unit_field(vector_stroke_width);  // print users think in mm strokes
-  connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-    current_vector_stroke_width_ = value;
-    schedule_save_tool_settings();
-    schedule_vector_appearance_apply();
-  });
-
-  install_appearance_edit_intent(vector_stroke_width, [this, vector_stroke_width] {
-    current_vector_stroke_width_ = vector_stroke_width->value();
-    schedule_save_tool_settings();
-    schedule_vector_appearance_apply();
-  });
-  connect(vector_stroke_width, &QDoubleSpinBox::editingFinished, this,
-          [this] { finish_pending_shape_appearance_edit(); });
 
   // W / H of the ACTIVE shape layer (Photoshop's options-bar readouts): they
   // mirror the selected shape's bounds and resize it live (top-left anchored,
@@ -3085,6 +3068,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (properties_shape_link_size_button_ != nullptr) {
       const QSignalBlocker blocker(properties_shape_link_size_button_);
       properties_shape_link_size_button_->setChecked(checked);
+    }
+    if (canvas_ != nullptr) {
+      canvas_->set_custom_shape_keep_proportions(checked);
     }
   });
   // Even space on both sides of the toggle (GitHub issue 311, the icon-button rule in
