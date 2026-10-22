@@ -981,6 +981,22 @@ public:
   [[nodiscard]] CropOverlay crop_overlay() const noexcept;
   [[nodiscard]] int crop_overlay_orientation() const noexcept;
   [[nodiscard]] bool crop_overlay_only_while_dragging() const noexcept;
+  // Perspective Crop session (canvas_widget_perspective_crop.cpp, GitHub issue 328): a
+  // drag lays out a box or four clicks place the corners; each corner then moves on
+  // its own and the inside moves the quad. Enter/Apply hands the quad (document space,
+  // output order TL, TR, BR, BL) to the commit callback; Esc/the X clear it; a tool
+  // switch, edit lock or document swap cancel it. Session changes fire the crop
+  // session callback.
+  [[nodiscard]] bool perspective_crop_session_active() const noexcept;  // four corners placed
+  [[nodiscard]] bool perspective_crop_session_pending() const noexcept;  // any corner or drag
+  [[nodiscard]] std::optional<std::array<QPointF, 4>> perspective_crop_quad() const;
+  // Places the four corners at once (scripts, tests); false for a folded quad or when
+  // the Perspective Crop tool is not current. Corners are reordered upright.
+  bool set_perspective_crop_quad(const std::array<QPointF, 4>& quad);
+  void commit_perspective_crop_session();
+  void cancel_perspective_crop_session();
+  void set_perspective_crop_show_grid(bool show);
+  [[nodiscard]] bool perspective_crop_show_grid() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   // True when the displayed frame reflects the current document: no recomposite
@@ -1276,6 +1292,8 @@ public:
   // Fired when a crop session is established, cancelled, or committed so the
   // options bar and info panel can resync.
   void set_crop_session_changed_callback(std::function<void()> callback);
+  // Commit of a pending Perspective Crop quad (document space, TL, TR, BR, BL).
+  void set_perspective_crop_commit_requested_callback(std::function<void(std::array<QPointF, 4>)> callback);
   // Every artboard edit the canvas gestures ask for (canvas_widget_artboard.cpp,
   // docs/artboards.md): the Artboard tool's create/move/resize/add, a label click or
   // double-click. MainWindow applies them with an undo step.
@@ -2230,6 +2248,14 @@ private:
   [[nodiscard]] QRect ratio_fitted_crop_rect(QRect within) const;
   [[nodiscard]] QRect canvas_document_rect() const noexcept;
   void draw_crop_overlay(QPainter& painter) const;
+  // Perspective Crop gestures (canvas_widget_perspective_crop.cpp).
+  [[nodiscard]] int perspective_crop_corner_at(QPoint widget_point) const;  // -1 when none
+  [[nodiscard]] bool perspective_crop_quad_contains(QPoint widget_point) const;
+  void handle_perspective_crop_press(QMouseEvent* event);
+  void update_perspective_crop_drag(QPointF document_point);
+  void finish_perspective_crop_mouse_release(QMouseEvent* event);
+  void update_perspective_crop_cursor(QPoint widget_point);
+  void draw_perspective_crop_overlay(QPainter& painter) const;
   // Artboards (canvas_widget_artboard.cpp): the canvas backdrop of an artboard document
   // (checkerboard only inside artboards), the outlines and name labels, and the Artboard
   // tool's handles, add buttons and drag previews.
@@ -3090,6 +3116,18 @@ private:
   bool crop_overlay_only_while_dragging_{false};
   std::function<void(QRect, double)> crop_commit_requested_callback_;
   std::function<void()> crop_session_changed_callback_;
+  // Perspective Crop session state, document space. Points are the placed corners
+  // (four once the quad is complete); drag corner 0-3 is a corner, 4 the whole quad.
+  std::vector<QPointF> perspective_crop_points_;
+  bool perspective_crop_dragging_out_{false};
+  QPoint perspective_crop_press_widget_point_;
+  QPointF perspective_crop_anchor_document_;
+  QPointF perspective_crop_hover_document_;
+  int perspective_crop_drag_corner_{-1};
+  QPointF perspective_crop_drag_start_point_;
+  std::array<QPointF, 4> perspective_crop_drag_start_quad_{};
+  bool perspective_crop_show_grid_{true};
+  std::function<void(std::array<QPointF, 4>)> perspective_crop_commit_requested_callback_;
   // Artboard tool gesture state (canvas_widget_artboard.cpp), document space.
   enum class ArtboardDragMode { None, Create, Move, Resize };
   ArtboardDragMode artboard_drag_mode_{ArtboardDragMode::None};

@@ -1570,6 +1570,124 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_cancel_button_->setProperty("optionsSessionButton", true);
   add_option_widget(crop_cancel_button_, {CanvasTool::Crop});
 
+  // Perspective Crop (GitHub issue 328, docs/crop-tool.md): the result's size and
+  // resolution. A blank W or H takes the quad's mean edge lengths, a blank Resolution
+  // keeps the document's; Front Image fills all three from the active document and
+  // Clear empties them, as in Photoshop. The fields are pixel native with typed unit
+  // tokens converting at the document PPI, like the Crop tool's Size fields.
+  add_option_label(QT_TR_NOOP("W:"), {CanvasTool::PerspectiveCrop});
+  perspective_crop_width_spin_ = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
+  perspective_crop_width_spin_->set_context_provider(document_axis_context(true));
+  perspective_crop_width_spin_->setObjectName(QStringLiteral("perspectiveCropWidthSpin"));
+  perspective_crop_width_spin_->setRange(0, 300000);
+  perspective_crop_width_spin_->setSpecialValueText(QStringLiteral(" "));  // 0 = from the corners
+  perspective_crop_width_spin_->setKeyboardTracking(false);
+  bind_tooltip(perspective_crop_width_spin_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Width of the result; blank uses the spacing of the corners"));
+  configure_toolbar_spinbox(perspective_crop_width_spin_, 78);
+  add_option_widget(perspective_crop_width_spin_, {CanvasTool::PerspectiveCrop});
+  auto* perspective_swap = make_swap_dimensions_button("perspectiveCropSwapButton");
+  add_option_widget(perspective_swap, {CanvasTool::PerspectiveCrop});
+  label_after_swap_button(add_option_label(QT_TR_NOOP("H:"), {CanvasTool::PerspectiveCrop}));
+  perspective_crop_height_spin_ = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
+  perspective_crop_height_spin_->set_context_provider(document_axis_context(false));
+  perspective_crop_height_spin_->setObjectName(QStringLiteral("perspectiveCropHeightSpin"));
+  perspective_crop_height_spin_->setRange(0, 300000);
+  perspective_crop_height_spin_->setSpecialValueText(QStringLiteral(" "));
+  perspective_crop_height_spin_->setKeyboardTracking(false);
+  bind_tooltip(perspective_crop_height_spin_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the result; blank uses the spacing of the corners"));
+  configure_toolbar_spinbox(perspective_crop_height_spin_, 78);
+  add_option_widget(perspective_crop_height_spin_, {CanvasTool::PerspectiveCrop});
+  add_option_label(QT_TR_NOOP("Resolution:"), {CanvasTool::PerspectiveCrop});
+  auto* perspective_resolution = new TrimmedDoubleSpinBox(toolbar);
+  perspective_crop_resolution_spin_ = perspective_resolution;
+  perspective_resolution->setObjectName(QStringLiteral("perspectiveCropResolutionSpin"));
+  perspective_resolution->setRange(0.0, 9999.0);
+  perspective_resolution->setDecimals(2);
+  perspective_resolution->setSpecialValueText(QStringLiteral(" "));  // 0 = keep the document's
+  perspective_resolution->setKeyboardTracking(false);
+  bind_tooltip(perspective_resolution, QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                                         "Resolution of the result in pixels per inch; blank keeps the "
+                                                         "document's"));
+  configure_toolbar_spinbox(perspective_resolution, 64);
+  add_option_widget(perspective_resolution, {CanvasTool::PerspectiveCrop});
+  add_option_separator({CanvasTool::PerspectiveCrop});
+  auto* perspective_front_image = new QPushButton(tr("Front Image"), toolbar);
+  perspective_front_image->setObjectName(QStringLiteral("perspectiveCropFrontImageButton"));
+  bind_widget_text(perspective_front_image, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Front Image"));
+  bind_tooltip(perspective_front_image, QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                                          "Fill in the width, height and resolution of this document"));
+  add_option_widget(perspective_front_image, {CanvasTool::PerspectiveCrop});
+  auto* perspective_clear = new QPushButton(tr("Clear"), toolbar);
+  perspective_clear->setObjectName(QStringLiteral("perspectiveCropClearButton"));
+  bind_widget_text(perspective_clear, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear"));
+  bind_tooltip(perspective_clear, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear the width, height and resolution"));
+  add_option_widget(perspective_clear, {CanvasTool::PerspectiveCrop});
+  add_option_separator({CanvasTool::PerspectiveCrop});
+  perspective_crop_grid_check_ = new CheckGlyphBox(tr("Show Grid"), toolbar);
+  perspective_crop_grid_check_->setObjectName(QStringLiteral("perspectiveCropShowGridCheck"));
+  perspective_crop_grid_check_->setChecked(current_perspective_crop_show_grid_);
+  bind_tooltip(perspective_crop_grid_check_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Draw a grid inside the corners to line them up with the area"));
+  add_option_widget(perspective_crop_grid_check_, {CanvasTool::PerspectiveCrop});
+  perspective_crop_apply_button_ = new QPushButton(toolbar);
+  perspective_crop_apply_button_->setObjectName(QStringLiteral("perspectiveCropApplyButton"));
+  perspective_crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));
+  bind_tooltip(perspective_crop_apply_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Apply perspective crop (Enter)"));
+  perspective_crop_apply_button_->setFixedWidth(30);
+  perspective_crop_apply_button_->setIconSize(QSize(20, 20));
+  perspective_crop_apply_button_->setProperty("optionsSessionButton", true);
+  add_option_separator({CanvasTool::PerspectiveCrop});
+  add_option_widget(perspective_crop_apply_button_, {CanvasTool::PerspectiveCrop});
+  perspective_crop_cancel_button_ = new QPushButton(toolbar);
+  perspective_crop_cancel_button_->setObjectName(QStringLiteral("perspectiveCropCancelButton"));
+  perspective_crop_cancel_button_->setIcon(simple_icon(QStringLiteral("cancel")));
+  bind_tooltip(perspective_crop_cancel_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear the corners (Esc)"));
+  perspective_crop_cancel_button_->setFixedWidth(30);
+  perspective_crop_cancel_button_->setIconSize(QSize(20, 20));
+  perspective_crop_cancel_button_->setProperty("optionsSessionButton", true);
+  add_option_widget(perspective_crop_cancel_button_, {CanvasTool::PerspectiveCrop});
+  connect(perspective_swap, &QToolButton::clicked, this, [this] {
+    const int width = perspective_crop_width_spin_->value();
+    perspective_crop_width_spin_->setValue(perspective_crop_height_spin_->value());
+    perspective_crop_height_spin_->setValue(width);
+  });
+  connect(perspective_front_image, &QPushButton::clicked, this, [this] {
+    if (!has_active_document()) {
+      return;
+    }
+    const auto& doc = std::as_const(document());
+    perspective_crop_width_spin_->setValue(doc.width());
+    perspective_crop_height_spin_->setValue(doc.height());
+    const auto ppi = doc.print_settings().horizontal_ppi;
+    perspective_crop_resolution_spin_->setValue(std::isfinite(ppi) && ppi > 0.0 ? ppi : 0.0);
+  });
+  connect(perspective_clear, &QPushButton::clicked, this, [this] {
+    perspective_crop_width_spin_->setValue(0);
+    perspective_crop_height_spin_->setValue(0);
+    perspective_crop_resolution_spin_->setValue(0.0);
+  });
+  connect(perspective_crop_grid_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_perspective_crop_show_grid_ = checked;
+    for (const auto& target_session : sessions_) {
+      if (target_session != nullptr && target_session->canvas != nullptr) {
+        target_session->canvas->set_perspective_crop_show_grid(checked);
+      }
+    }
+    save_tool_settings();
+  });
+  connect(perspective_crop_apply_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->commit_perspective_crop_session();
+    }
+  });
+  connect(perspective_crop_cancel_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->cancel_perspective_crop_session();
+    }
+  });
+
   // Artboard tool (docs/artboards.md): the size and background show the selected
   // artboard and edit it; with none selected they are what a new artboard gets.
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Artboard});

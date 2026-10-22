@@ -11766,6 +11766,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>描边宽度 (0 表示无描边)</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>透视裁剪</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13440,6 +13444,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>请选择一个图层以从它及下方图层取样，或对所有图层取样</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>没有可裁剪的内容: 请先放置四个角</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>已取消透视裁剪</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>四个角必须构成凸形</translation>
     </message>
 </context>
 <context>
@@ -23778,6 +23794,86 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Show Overlay Only While Dragging</source>
         <translation>仅在拖动时显示叠加</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>结果的宽度; 留空则使用四个角的间距</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>结果的高度; 留空则使用四个角的间距</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>分辨率:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>结果的分辨率 (像素/英寸); 留空则保留文档的分辨率</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>前面的图像</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>填入此文档的宽度、高度和分辨率</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>清除宽度、高度和分辨率</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>显示网格</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>在四个角内绘制网格, 便于对齐区域</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>应用透视裁剪 (Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>清除四个角 (Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>透视裁剪</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>拖出一个框或在倾斜区域周围单击四个角, 然后把各个角拖到其边缘上。按 Enter 将其拉正为矩形。</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>透视裁剪: 拖出一个框或单击四个角, 然后把每个角拖到区域的边缘上。在内部拖动可移动它。按 Enter 裁剪并拉正, 按 Esc 清除四个角。</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>裁剪工具</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>循环切换裁剪工具</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>四个角必须构成凸形</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>已裁剪并拉正</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>角: 间距 %1 x %2 像素</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>角: 尚未放置</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25549,6 +25645,18 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>笔触需要一个未锁定的像素图层。</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop 需要四个角: [[x, y], [x, y], [x, y], [x, y]] 或四个 {x, y} 点。</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>perspectiveCrop 的选项为 {width, height, resolution}: 尺寸 1 到 300000, 分辨率 0 或以上。</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>perspectiveCrop 的四个角必须构成凸形, 且无法裁剪带画板的文档。</translation>
     </message>
 </context>
 <context>

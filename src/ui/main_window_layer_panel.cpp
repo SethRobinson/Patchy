@@ -6,6 +6,7 @@
 #include "core/artboard.hpp"
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/vector_shape.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/smart_filter.hpp"
@@ -4747,6 +4748,15 @@ void MainWindow::refresh_document_info() {
             << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
       if (canvas_->patch_tool_transparent()) {
         lines << tr("Transparent");
+      }
+    } else if (current_tool_ == CanvasTool::PerspectiveCrop) {
+      if (const auto quad = canvas_->perspective_crop_quad(); quad.has_value()) {
+        const std::array<double, 8> corners{(*quad)[0].x(), (*quad)[0].y(), (*quad)[1].x(), (*quad)[1].y(),
+                                            (*quad)[2].x(), (*quad)[2].y(), (*quad)[3].x(), (*quad)[3].y()};
+        const auto size = patchy::perspective_crop_auto_size(corners);
+        lines << tr("Corners: %1 x %2 px apart").arg(size[0]).arg(size[1]);
+      } else {
+        lines << tr("Corners: none placed");
       }
     } else if (current_tool_ == CanvasTool::Crop) {
       if (canvas_->crop_ratio_width() > 0.0 && canvas_->crop_ratio_height() > 0.0) {

@@ -2083,6 +2083,12 @@ void MainWindow::load_tool_settings() {
   }
   current_crop_delete_pixels_ = settings.value(QStringLiteral("tools/cropDeletePixels"), true).toBool();
   current_crop_delete_layers_ = settings.value(QStringLiteral("tools/cropDeleteLayers"), false).toBool();
+  current_perspective_crop_show_grid_ = stored_bool(settings, "tools/perspectiveCropShowGrid", true);
+  if (perspective_crop_grid_check_ != nullptr) {
+    const QSignalBlocker blocker(perspective_crop_grid_check_);
+    perspective_crop_grid_check_->setChecked(current_perspective_crop_show_grid_);
+  }
+  canvas_->set_perspective_crop_show_grid(current_perspective_crop_show_grid_);
   for (const auto& [check, value] : {std::pair{crop_delete_pixels_check_, current_crop_delete_pixels_},
                                      std::pair{crop_delete_layers_check_, current_crop_delete_layers_}}) {
     if (check != nullptr) {
@@ -2472,6 +2478,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropStyle"), current_crop_style_);
   settings.setValue(QStringLiteral("tools/cropDeletePixels"), current_crop_delete_pixels_);
   settings.setValue(QStringLiteral("tools/cropDeleteLayers"), current_crop_delete_layers_);
+  settings.setValue(QStringLiteral("tools/perspectiveCropShowGrid"), current_perspective_crop_show_grid_);
   if (crop_overlay_combo_ != nullptr && current_crop_overlay_ >= 0 &&
       current_crop_overlay_ < crop_overlay_combo_->count()) {
     settings.setValue(QStringLiteral("tools/cropOverlay"), crop_overlay_combo_->itemData(current_crop_overlay_));
@@ -3309,6 +3316,14 @@ void MainWindow::refresh_options_bar() {
   }
   if (crop_cancel_button_ != nullptr) {
     crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_can_reset());
+  }
+  if (perspective_crop_apply_button_ != nullptr) {
+    perspective_crop_apply_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
+                                               canvas_->perspective_crop_session_active());
+  }
+  if (perspective_crop_cancel_button_ != nullptr) {
+    perspective_crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
+                                                canvas_->perspective_crop_session_pending());
   }
   sync_crop_guide_buttons_enabled(edit_allowed);
   if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {

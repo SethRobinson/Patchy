@@ -5,6 +5,9 @@
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
+#include "core/warp_mesh.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
 #include "synthetic_dng.hpp"
@@ -540,6 +543,145 @@ void crop_document_rotated_rect_straightens_content() {
   CHECK(sticker_layer->pixels().pixel(0, 0)[3] == 0);
   CHECK(sticker_layer->pixels().pixel(2, 2)[3] == 255);
   CHECK(sticker_layer->pixels().pixel(2, 2)[0] == 5);
+}
+
+// Perspective Crop (GitHub issue 328): a document whose Background shows a grid of
+// solid cells photographed through a known homography (each pixel colored by the
+// cell its center falls in after the inverse map) rectifies back onto the grid.
+// Every cell center lands on its own color at 8, 16 and 32 bits.
+void perspective_crop_document_rectifies_quad_onto_rectangle() {
+  const std::array<double, 8> quad{20.0, 15.0, 100.0, 25.0, 110.0, 90.0, 10.0, 80.0};
+  constexpr std::int32_t kOutWidth = 60;
+  constexpr std::int32_t kOutHeight = 40;
+  constexpr std::int32_t kCell = 10;
+  const auto forward = patchy::homography_from_rect_to_quad(0.0, 0.0, kOutWidth, kOutHeight, quad);
+  CHECK(forward.has_value());
+  const auto inverse = patchy::invert_homography(*forward);
+  CHECK(inverse.has_value());
+  const auto cell_color = [](std::int32_t cx, std::int32_t cy) {
+    return std::array<float, 4>{30.0F * static_cast<float>(cx) + 20.0F, 50.0F * static_cast<float>(cy) + 30.0F,
+                                128.0F, 255.0F};
+  };
+  for (const auto format : {patchy::PixelFormat::rgb8(), patchy::PixelFormat::rgb16(), patchy::PixelFormat::rgbf32()}) {
+    const auto domain =
+        format.bit_depth == patchy::BitDepth::Float32 ? patchy::DeepDomain::Linear : patchy::DeepDomain::Encoded;
+    patchy::PixelBuffer photo(120, 100, format);
+    for (std::int32_t y = 0; y < photo.height(); ++y) {
+      for (std::int32_t x = 0; x < photo.width(); ++x) {
+        const auto uv = patchy::apply_homography(*inverse, x + 0.5, y + 0.5);
+        std::array<float, 4> color{5.0F, 5.0F, 5.0F, 255.0F};
+        if (uv[0] >= 0.0 && uv[1] >= 0.0 && uv[0] < kOutWidth && uv[1] < kOutHeight) {
+          color = cell_color(static_cast<std::int32_t>(uv[0]) / kCell, static_cast<std::int32_t>(uv[1]) / kCell);
+        }
+        patchy::store_rgba_row(photo, y, x, 1, domain, color);
+      }
+    }
+    patchy::Document document(120, 100, format);
+    const auto background_id = document.add_pixel_layer("Background", std::move(photo)).id();
+    CHECK(patchy::perspective_crop_document(document, quad, kOutWidth, kOutHeight, patchy::EditColor{1, 2, 3, 255}));
+    CHECK(document.width() == kOutWidth);
+    CHECK(document.height() == kOutHeight);
+    const auto* background = document.find_layer(background_id);
+    CHECK(background != nullptr);
+    const auto& pixels = std::as_const(*background).pixels();
+    CHECK(pixels.format().bit_depth == format.bit_depth);
+    CHECK(pixels.width() == kOutWidth);
+    CHECK(pixels.height() == kOutHeight);
+    for (std::int32_t cy = 0; cy < kOutHeight / kCell; ++cy) {
+      for (std::int32_t cx = 0; cx < kOutWidth / kCell; ++cx) {
+        std::array<float, 4> got{};
+        patchy::load_rgba_row(pixels, cy * kCell + kCell / 2, cx * kCell + kCell / 2, 1, domain, got);
+        const auto want = cell_color(cx, cy);
+        for (std::size_t c = 0; c < 3U; ++c) {
+          CHECK(std::abs(got[c] - want[c]) < 0.51F);
+        }
+      }
+    }
+  }
+}
+
+// A quad reaching past the canvas brings in the Background's extension color there,
+// and transparency on an ordinary layer (the rotated crop's fill rules); an
+// axis-aligned quad the size of its output copies pixels exactly, like crop_document.
+void perspective_crop_document_fills_beyond_canvas_and_copies_rectangles() {
+  patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(40, 40, 100, 110, 120)).id();
+  patchy::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgb(40, 40, 5, 6, 7));
+  const auto sticker_id = sticker.id();
+  sticker.set_bounds(patchy::Rect{0, 0, 40, 40});
+  document.add_layer(std::move(sticker));
+  const std::array<double, 8> wide{-20.0, 0.0, 40.0, 0.0, 40.0, 40.0, -20.0, 40.0};
+  CHECK(patchy::perspective_crop_document(document, wide, 60, 40, patchy::EditColor{1, 2, 3, 255}));
+  const auto* background = document.find_layer(background_id);
+  CHECK(background != nullptr);
+  CHECK(background->pixels().pixel(5, 20)[0] == 1);
+  CHECK(background->pixels().pixel(5, 20)[2] == 3);
+  CHECK(background->pixels().pixel(40, 20)[0] == 100);
+  const auto* sticker_layer = document.find_layer(sticker_id);
+  CHECK(sticker_layer != nullptr);
+  const auto sticker_bounds = sticker_layer->bounds();
+  CHECK(sticker_bounds.x == 20);
+  CHECK(sticker_layer->pixels().format().channels == 4);
+  CHECK(sticker_layer->pixels().pixel(10, 20)[0] == 5);
+  CHECK(sticker_layer->pixels().pixel(10, 20)[3] == 255);
+
+  const auto build = [] {
+    patchy::Document marked_document(48, 32, patchy::PixelFormat::rgb8());
+    auto marked = solid_rgb(48, 32, 10, 20, 30);
+    for (std::int32_t i = 0; i < 20; ++i) {
+      auto* marker = marked.pixel(9 + i, 7 + (i % 15));
+      marker[0] = static_cast<std::uint8_t>(40 + i * 9);
+      marker[1] = 90;
+    }
+    (void)marked_document.add_pixel_layer("Background", std::move(marked));
+    return marked_document;
+  };
+  auto cropped = build();
+  auto rectified = build();
+  CHECK(patchy::crop_document(cropped, patchy::Rect{8, 6, 32, 20}, patchy::EditColor{1, 2, 3, 255}));
+  const std::array<double, 8> rect_quad{8.0, 6.0, 40.0, 6.0, 40.0, 26.0, 8.0, 26.0};
+  CHECK(patchy::perspective_crop_document(rectified, rect_quad, 32, 20, patchy::EditColor{1, 2, 3, 255}));
+  const auto cropped_pixels = std::as_const(cropped.layers().front()).pixels().data();
+  const auto rectified_pixels = std::as_const(rectified.layers().front()).pixels().data();
+  CHECK(cropped_pixels.size() == rectified_pixels.size());
+  CHECK(std::equal(cropped_pixels.begin(), cropped_pixels.end(), rectified_pixels.begin()));
+}
+
+// Type stays live under a parallelogram (an affine map composes its transform), and
+// rasterizes under true perspective; a folded quad or a zero size changes nothing.
+void perspective_crop_document_text_rules_and_refusals() {
+  const auto build = [] {
+    patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+    (void)document.add_pixel_layer("Background", solid_rgb(40, 40, 200, 200, 200));
+    patchy::Layer text(document.allocate_layer_id(), "Hello", solid_rgba(10, 6, 0, 0, 0, 255));
+    text.set_bounds(patchy::Rect{12, 12, 10, 6});
+    text.metadata()[patchy::kLayerMetadataText] = "Hello";
+    document.add_layer(std::move(text));
+    return document;
+  };
+  auto skewed = build();
+  const std::array<double, 8> parallelogram{6.0, 4.0, 36.0, 4.0, 34.0, 34.0, 4.0, 34.0};
+  CHECK(patchy::perspective_crop_document(skewed, parallelogram, 30, 30, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(patchy::layer_is_text(skewed.layers().back()));
+  CHECK(skewed.layers().back().metadata().contains(patchy::kLayerMetadataTextTransform));
+
+  auto tilted = build();
+  const std::array<double, 8> trapezoid{10.0, 4.0, 30.0, 4.0, 38.0, 36.0, 2.0, 36.0};
+  CHECK(patchy::perspective_crop_document(tilted, trapezoid, 30, 30, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(!patchy::layer_is_text(tilted.layers().back()));
+  CHECK(!std::as_const(tilted.layers().back()).pixels().empty());
+
+  auto untouched = build();
+  const std::array<double, 8> folded{0.0, 0.0, 30.0, 30.0, 30.0, 0.0, 0.0, 30.0};
+  CHECK(!patchy::perspective_crop_quad_is_convex(folded));
+  CHECK(!patchy::perspective_crop_document(untouched, folded, 30, 30, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(!patchy::perspective_crop_document(untouched, trapezoid, 0, 30, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(untouched.width() == 40);
+  CHECK(patchy::layer_is_text(untouched.layers().back()));
+
+  const auto size = patchy::perspective_crop_auto_size(trapezoid);
+  CHECK(size[0] == 28);
+  CHECK(size[1] == 33);
 }
 
 void crop_document_contained_rect_matches_two_arg_overload() {
@@ -3201,6 +3343,10 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"crop_document_mixed_crop_and_expand_shifts_masks_and_channels",
        crop_document_mixed_crop_and_expand_shifts_masks_and_channels},
       {"crop_document_rotated_rect_straightens_content", crop_document_rotated_rect_straightens_content},
+      {"perspective_crop_document_rectifies_quad_onto_rectangle", perspective_crop_document_rectifies_quad_onto_rectangle},
+      {"perspective_crop_document_fills_beyond_canvas_and_copies_rectangles",
+       perspective_crop_document_fills_beyond_canvas_and_copies_rectangles},
+      {"perspective_crop_document_text_rules_and_refusals", perspective_crop_document_text_rules_and_refusals},
       {"crop_document_contained_rect_matches_two_arg_overload",
        crop_document_contained_rect_matches_two_arg_overload},
       {"document_image_resize_scales_layers_and_writes_artifact",

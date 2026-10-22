@@ -335,6 +335,9 @@ public:
   Q_INVOKABLE void resizeCanvas(int width, int height);
   Q_INVOKABLE void convertBitDepth(int bits);
   Q_INVOKABLE void crop(int x, int y, int width, int height);
+  // Perspective Crop (GitHub issue 328): `corners` is four [x, y] or {x, y} points in
+  // output order TL, TR, BR, BL; options {width, height, resolution}.
+  Q_INVOKABLE void perspectiveCrop(const QJSValue& corners, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool saveAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());

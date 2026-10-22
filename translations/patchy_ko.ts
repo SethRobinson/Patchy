@@ -11766,6 +11766,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>획 너비 (0이면 획 없음)</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>원근 자르기</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13440,6 +13444,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>레이어를 선택해 그 레이어와 아래 레이어에서 샘플링하거나 모든 레이어에서 샘플링하세요</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>자를 영역이 없습니다: 먼저 모서리 네 개를 놓으세요</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>원근 자르기 취소됨</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>모서리는 볼록한 모양을 이루어야 합니다</translation>
     </message>
 </context>
 <context>
@@ -23778,6 +23794,86 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Show Overlay Only While Dragging</source>
         <translation>드래그하는 동안에만 오버레이 표시</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>결과의 너비. 비워 두면 모서리 간격을 사용합니다</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>결과의 높이. 비워 두면 모서리 간격을 사용합니다</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>해상도:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>결과의 해상도(인치당 픽셀). 비워 두면 문서 해상도를 유지합니다</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>앞쪽 이미지</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>이 문서의 너비, 높이, 해상도를 입력합니다</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>너비, 높이, 해상도를 지웁니다</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>격자 표시</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>모서리 안쪽에 격자를 그려 영역에 맞추기 쉽게 합니다</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>원근 자르기 적용(Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>모서리 지우기(Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>원근 자르기</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>기울어진 영역 주위로 상자를 드래그하거나 모서리 네 개를 클릭한 다음 모서리를 가장자리에 맞춰 드래그하세요. Enter 키를 누르면 직사각형으로 바로잡습니다.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>원근 자르기: 상자를 드래그하거나 모서리 네 개를 클릭한 다음 각 모서리를 영역 가장자리에 맞춰 드래그하세요. 안쪽을 드래그하면 이동합니다. Enter 키는 자르고 바로잡으며, Esc 키는 모서리를 지웁니다.</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>자르기 도구</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>자르기 도구 전환</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>모서리는 볼록한 모양을 이루어야 합니다</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>자르고 바로잡았습니다</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>모서리: %1 x %2px 간격</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>모서리: 놓은 것 없음</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25549,6 +25645,18 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>스트로크에는 잠금 해제된 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop에는 모서리 네 개가 필요합니다: [[x, y], [x, y], [x, y], [x, y]] 또는 {x, y} 점 네 개.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>perspectiveCrop 옵션은 {width, height, resolution}입니다: 크기는 1에서 300000, 해상도는 0 이상.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>perspectiveCrop 모서리는 볼록한 모양이어야 하며 아트보드가 있는 문서는 자를 수 없습니다.</translation>
     </message>
 </context>
 <context>

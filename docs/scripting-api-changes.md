@@ -8,6 +8,13 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-22 (additive): `doc.perspectiveCrop(corners, options?)`, the Perspective Crop tool's
+commit (GitHub issue 328): four corners as `[x, y]` or `{x, y}` in result order (top left, top
+right, bottom right, bottom left) are rectified onto `width` x `height` (default: the corners'
+mean edge lengths) on every layer, mask and channel; `resolution` sets the pixels per inch. A
+folded quad, bad options or a document with artboards throw. Permanent identifiers: the method
+name, the keys `width`, `height`, `resolution`, command id `tools.perspective_crop`, `tools.cycle.crop`
+and settings key `tools/perspectiveCropShowGrid`. Pinned by `ui_script_document_perspective_crop`.
 2026-10-21 (behavioral): `layer.drawStrokes` and `layer.strokePath` accept 16 and 32-bit pixel
 layers (they refused anything but 8 bits); the strokes run through the canvas brush, which paints
 at the layer's depth. The refusal now reads "Strokes require an unlocked pixel layer."

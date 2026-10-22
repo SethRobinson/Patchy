@@ -1043,6 +1043,19 @@ interface PatchyDocument {
   convertBitDepth(bits: 8 | 16 | 32): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
+  /**
+   * Perspective Crop: rectifies the area inside four corners onto a rectangle, on every
+   * layer, mask and channel. `corners` lists them in result order, top left, top right,
+   * bottom right, bottom left, as [x, y] pairs or {x, y} points; they must form a convex
+   * shape. `width`/`height` default to the corners' mean edge lengths, `resolution`
+   * (pixels per inch) to the document's. Area the corners take from beyond the canvas is
+   * white under a Background layer and transparent elsewhere. A true perspective
+   * rasterizes type layers. Throws for a folded quad or a document with artboards.
+   */
+  perspectiveCrop(
+    corners: [number, number][] | {x: number; y: number}[],
+    options?: {width?: number; height?: number; resolution?: number},
+  ): void;
   /** Saves to the path; the format follows the extension (.psd, .png, ...). The document
    * then points at that file (a layered document saved to a flat format keeps its own
    * path and stays modified, Photoshop's save-a-copy rule). `options` sets the format's

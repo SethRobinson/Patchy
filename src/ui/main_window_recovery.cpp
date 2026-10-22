@@ -40,6 +40,7 @@ bool MainWindow::any_canvas_interaction_active() const {
     if (canvas != nullptr &&
         (canvas->pointer_gesture_active() || canvas->free_transform_active() || canvas->warp_transform_active() ||
          canvas->path_transform_active() || canvas->crop_session_has_changes() ||
+         canvas->perspective_crop_session_pending() ||
          canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr)) {
       return true;
     }
