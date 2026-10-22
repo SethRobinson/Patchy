@@ -90,6 +90,25 @@ Photoshop from the logged-on console session, never from ssh, so:
 - With an empty `ssh` the agent runs on this PC as a child process: that is how the protocol is
   exercised against a real Photoshop without a second machine.
 
+## Running Testy on a Photoshop host over ssh
+
+To measure against a Photoshop that only another machine has (Photoshop 2025 alone, say), run
+Testy there. ssh sessions cannot start Photoshop over COM, so `testy\remote\run-console.ps1`
+runs `testy\testy.py` in the console user's session through a temporary interactive
+scheduled task (`testy-console-run`), waits, prints the log's tail and exits with Testy's exit
+code (`-NoWait` returns at once; the same command later waits and cleans up):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File <repo>\testy\remote\run-console.ps1 -Python <python.exe> -User <console user> -Arguments "--corpus corpus\psd-tools.txt --editors photoshop,patchy --photoshop-reference 2025 --no-build --no-serve --no-browser --exit-when-done"
+```
+
+`--photoshop-reference 2025` with no `--photoshop` and no `photoshop.check` makes 2025 the only
+Photoshop of the run: ground truth, Photoshop column and every resave reopen. The host needs
+Python 3.11+ with pywin32, Pillow and numpy, the corpus (`python testy\fetch_psd_tools_corpus.py`
+for psd-tools), a built `build\release\patchy.exe` (or `editors.patchy` in its
+`config.local.json`), and its console user logged on. The log is `testy\runs\console-run.log`
+(`-Log` changes it); a literal `%` in `-Arguments` must be written `%%`.
+
 ## Tests
 
 `tests\testy_photoshop_versions_tests.py` (through `scripts\run-throttled.bat python`) covers

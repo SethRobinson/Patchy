@@ -173,6 +173,24 @@ class VersionChecks(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 config.photoshop_reference({'2026': installed}, '2024')
 
+    def test_a_run_can_use_an_older_photoshop_alone(self):
+        older = photoshop.PhotoshopInstall('2025', 'Photoshop.Application.190', Path('C:/PS 2025/Photoshop.exe'))
+        newer = photoshop.PhotoshopInstall('2026', 'Photoshop.Application.200', Path('C:/PS 2026/Photoshop.exe'))
+        args = types.SimpleNamespace(photoshop_reference='2025', photoshop=None)
+        runner = object.__new__(testy.Runner)
+        runner.resume = False
+        runner.status = {}
+        with mock.patch.object(config, 'photoshop_installs', return_value={'2025': older, '2026': newer}), \
+                mock.patch.object(config, 'PHOTOSHOP', {}):
+            runner._setup_photoshop_versions(args)
+        self.assertEqual(runner.ps_reference, older)
+        self.assertEqual(runner.ps_checks, [])
+        driver = photoshop.PhotoshopDriver(install=runner.ps_reference)
+        self.assertEqual((driver.install.progid, driver._exe), (older.progid, older.exe))
+        with mock.patch.object(photoshop, 'exe_version', return_value='26.9.0.1'):
+            record = runner._photoshop_run_record()
+        self.assertEqual((record['reference'], record['referenceChosen'], record['checks']), ('2025', True, []))
+
     def test_configured_installs_add_a_remote_version(self):
         local = photoshop.PhotoshopInstall('2026', 'Photoshop.Application.200', Path('C:/PS/Photoshop.exe'))
         settings = {'installs': [{'label': '2025', 'host': 'box'}, {'label': 'x', 'host': 'nowhere'}],

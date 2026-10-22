@@ -398,7 +398,7 @@ testy/
   export_static.py   one finished run as a folder a plain web host can serve
   affinity_js.py     MCP/JS client for the Affinity app (also reused by .af tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
-  photoshop_agent.py remote Photoshop reopen agent (+ remote/start-agent.ps1)
+  photoshop_agent.py remote Photoshop reopen agent; remote/ runs it or Testy by ssh
   drivers/           one per editor: photoshop (COM, --selftest included; photoshop_remote), patchy
                      (+ patchy_text_afresh.js), krita (+ krita_scripts/), gimp,
                      photodemon, photopea, photocraft, affinity, psdtools; winproc.py (error-dialog
