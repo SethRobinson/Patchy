@@ -92,7 +92,8 @@ works per anchor: click or marquee selects, drag moves
 anchors or knobs (smooth pairs stay colinear; a collapsed handle on its
 corner anchor is not grabbable), Shift adds, arrows
 nudge (1 px, Shift 10 px, coalesced per burst), Delete removes selected
-anchors (subpaths under two anchors disappear), Escape deselects. With a
+anchors (subpaths under two anchors disappear;
+[emptied shape layers go](vector-commands.md#deleting-the-last-shape)), Escape deselects. With a
 selection, the options-bar Combine box rewrites the selected shapes' op in
 place. The Pen doubles as the point editor (insert by exact de Casteljau
 split, delete, Alt+click converts). Any direct edit drops the touched groups' live-shape
@@ -121,8 +122,7 @@ click deselects. Double-click saves the work path: inline rename, row moves
 to the END (DocumentPath::set_kind drops the stale 1025 source so the writer
 allocates a saved-range id; psd_work_path_saved_as_named_round_trips).
 Ctrl-click (Cmd on macOS) loads a row's path as a selection without changing
-targeting; Ctrl+Enter on the CANVAS does the same for the targeted row (a
-canvas key, not a shortcut).
+targeting; Ctrl+Enter on the CANVAS does the same for the targeted row.
 
 Saved rows drag-reorder among themselves (frame-breaking drops revert); the
 writer assigns the sorted saved-range id set by document order so reorders
@@ -161,7 +161,7 @@ ui_paths_panel_actions_follow_row_selection pins it):
   synthetic input (one "Stroke path" undo); Simulate Pressure sends tablet
   events with a sine taper; open subpaths get no implied chord.
 - Make Selection: feather (triple box blur), anti-alias, combine ops.
-- Make Work Path from Selection: tolerance 0.5-10 px (persisted); traces the
+- Make Work Path from Selection: tolerance (persisted); traces the
   hard selection, fits via core/path_fit (Douglas-Peucker corners +
   Schneider cubics); outer loops Add, holes Subtract.
 - Delete Path; Duplicate Path in the row context menu ("<name> copy").

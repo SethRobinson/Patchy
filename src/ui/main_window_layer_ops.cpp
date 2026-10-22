@@ -3356,9 +3356,17 @@ void MainWindow::delete_layers(std::vector<LayerId> ids) {
   if (ids.empty()) {
     return;
   }
+  push_undo_snapshot(tr("Delete layer"));
+  remove_layers_in_open_undo_step(std::move(ids));
+}
+
+void MainWindow::remove_layers_in_open_undo_step(std::vector<LayerId> ids) {
+  ids = root_drop_layer_ids(document().layers(), ids);
+  if (ids.empty()) {
+    return;
+  }
   auto& doc = document();
   const auto next_active = layer_to_activate_after_delete(std::as_const(doc).layers(), ids);
-  push_undo_snapshot(tr("Delete layer"));
   for (const auto id : ids) {
     doc.remove_layer(id);
   }
