@@ -23915,14 +23915,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>透视裁剪</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>拖出一个框或在倾斜区域周围单击四个角, 然后把各个角拖到其边缘上。按 Enter 将其拉正为矩形。</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>透视裁剪: 拖出一个框或单击四个角, 然后把每个角拖到区域的边缘上。在内部拖动可移动它。按 Enter 裁剪并拉正, 按 Esc 清除四个角。</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>裁剪工具</translation>
     </message>
@@ -23945,6 +23937,18 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>Corners: none placed</source>
         <translation>角: 尚未放置</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>将结果旋转四分之一圈: 顶部标记移到下一条边</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>拖出一个框或在倾斜区域周围单击四个角, 然后把各个角或边拖到其边缘上。箭头标示结果的顶部; 按 Enter 将其拉正为矩形。</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>透视裁剪: 拖出一个框或单击四个角, 然后把各个角或边拖到区域的边缘上。在内部拖动可移动它, 在角的外侧拖动可旋转它 (按住 Shift 以 15 度为步长)。箭头标示结果的顶部。按 Enter 裁剪并拉正, 按 Esc 清除四个角。</translation>
     </message>
 </context>
 <context>

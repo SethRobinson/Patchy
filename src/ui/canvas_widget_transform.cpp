@@ -3085,33 +3085,65 @@ double CanvasWidget::distorted_transform_handle_direction(TransformHandle handle
 }
 
 CanvasWidget::TransformHandle CanvasWidget::distorted_transform_handle_at(QPoint widget_point) const {
+  return quad_handle_at({distorted_transform_handle_position(TransformHandle::TopLeft),
+                         distorted_transform_handle_position(TransformHandle::TopRight),
+                         distorted_transform_handle_position(TransformHandle::BottomRight),
+                         distorted_transform_handle_position(TransformHandle::BottomLeft)},
+                        distorted_transform_handle_position(TransformHandle::Rotate), QPointF(widget_point));
+}
+
+QPointF CanvasWidget::quad_handle_position(const std::array<QPointF, 4>& corners, TransformHandle handle) {
+  switch (handle) {
+    case TransformHandle::TopLeft:
+      return corners[0];
+    case TransformHandle::TopRight:
+      return corners[1];
+    case TransformHandle::BottomRight:
+      return corners[2];
+    case TransformHandle::BottomLeft:
+      return corners[3];
+    case TransformHandle::Top:
+    case TransformHandle::Right:
+    case TransformHandle::Bottom:
+    case TransformHandle::Left: {
+      const auto [first, second] = transform_edge_corner_handles(handle);
+      return (quad_handle_position(corners, first) + quad_handle_position(corners, second)) / 2.0;
+    }
+    default:
+      return (corners[0] + corners[1] + corners[2] + corners[3]) / 4.0;
+  }
+}
+
+CanvasWidget::TransformHandle CanvasWidget::quad_handle_at(const std::array<QPointF, 4>& corners,
+                                                           std::optional<QPointF> rotate_stem, QPointF point) {
   // The EdgesAndCorners zones (transform_handle_at) on the true quad: a Move core
   // first, then the nearest handle square, the edge bands, the inside, and the
   // rotate band just outside each corner.
   constexpr double kHandleHit = 14.0;
   constexpr double kEdgeGrabOutside = 6.0;
   constexpr double kCornerRotateReach = 28.8;
-  const QPointF point(widget_point);
-  const std::array<TransformHandle, 4> corners = {TransformHandle::TopLeft, TransformHandle::TopRight,
-                                                  TransformHandle::BottomRight, TransformHandle::BottomLeft};
+  const std::array<TransformHandle, 4> corner_handles = {TransformHandle::TopLeft, TransformHandle::TopRight,
+                                                         TransformHandle::BottomRight, TransformHandle::BottomLeft};
   const std::array<TransformHandle, 4> edges = {TransformHandle::Top, TransformHandle::Right,
                                                 TransformHandle::Bottom, TransformHandle::Left};
+  const auto position_of = [&corners, &rotate_stem](TransformHandle handle) {
+    return handle == TransformHandle::Rotate ? rotate_stem.value_or(QPointF()) : quad_handle_position(corners, handle);
+  };
   QPolygonF polygon;
   double shortest_edge = std::numeric_limits<double>::max();
-  for (const auto corner : corners) {
-    polygon << distorted_transform_handle_position(corner);
+  for (const auto& corner : corners) {
+    polygon << corner;
   }
   for (const auto edge : edges) {
     const auto [first, second] = transform_edge_corner_handles(edge);
-    const auto along = distorted_transform_handle_position(second) - distorted_transform_handle_position(first);
+    const auto along = position_of(second) - position_of(first);
     shortest_edge = std::min(shortest_edge, std::hypot(along.x(), along.y()));
   }
   const bool inside = polygon.containsPoint(point, Qt::OddEvenFill);
   const auto inner = std::min(kHandleHit / 2.0, shortest_edge / 6.0);
   const auto edge_distance = [&](TransformHandle edge, double* parameter) {
     const auto [first, second] = transform_edge_corner_handles(edge);
-    return segment_distance(point, distorted_transform_handle_position(first),
-                            distorted_transform_handle_position(second), parameter);
+    return segment_distance(point, position_of(first), position_of(second), parameter);
   };
   if (inside) {
     bool core = true;
@@ -3130,7 +3162,10 @@ CanvasWidget::TransformHandle CanvasWidget::distorted_transform_handle_at(QPoint
   for (const auto handle : {TransformHandle::Rotate, TransformHandle::TopLeft, TransformHandle::Top,
                             TransformHandle::TopRight, TransformHandle::Right, TransformHandle::BottomRight,
                             TransformHandle::Bottom, TransformHandle::BottomLeft, TransformHandle::Left}) {
-    const auto position = distorted_transform_handle_position(handle);
+    if (handle == TransformHandle::Rotate && !rotate_stem.has_value()) {
+      continue;
+    }
+    const auto position = position_of(handle);
     if (std::abs(point.x() - position.x()) > kHandleHit / 2.0 || std::abs(point.y() - position.y()) > kHandleHit / 2.0) {
       continue;
     }
@@ -3156,8 +3191,8 @@ CanvasWidget::TransformHandle CanvasWidget::distorted_transform_handle_at(QPoint
   if (inside) {
     return TransformHandle::Move;
   }
-  for (const auto corner : corners) {
-    const auto position = distorted_transform_handle_position(corner);
+  for (const auto corner : corner_handles) {
+    const auto position = position_of(corner);
     if (std::hypot(point.x() - position.x(), point.y() - position.y()) <= kCornerRotateReach) {
       return TransformHandle::Rotate;
     }

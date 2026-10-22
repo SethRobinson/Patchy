@@ -299,7 +299,8 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
              "Click the start point, double-click or press Enter to close.");
     case CanvasTool::PerspectiveCrop:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag a box or click four corners around a skewed area, then drag the "
-             "corners onto its edges. Enter straightens it into a rectangle.");
+             "corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a "
+             "rectangle.");
     default:
       return nullptr;
   }
@@ -327,9 +328,10 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "center), drag inside to lay out a new box, drag outside it to rotate. Enter crops, Esc "
              "resets the box.");
     case CanvasTool::PerspectiveCrop:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Perspective Crop: drag a box or click four corners, then drag each corner "
-             "onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the "
-             "corners.");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Perspective Crop: drag a box or click four corners, then drag the corners "
+             "or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it "
+             "(Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc "
+             "clears the corners.");
     case CanvasTool::AddAnchor:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Anchor Point: click a path segment to insert a point.");
     case CanvasTool::DeleteAnchor:

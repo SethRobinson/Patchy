@@ -3317,6 +3317,10 @@ void MainWindow::refresh_options_bar() {
   if (crop_cancel_button_ != nullptr) {
     crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_can_reset());
   }
+  if (perspective_crop_turn_button_ != nullptr) {
+    perspective_crop_turn_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
+                                              canvas_->perspective_crop_session_active());
+  }
   if (perspective_crop_apply_button_ != nullptr) {
     perspective_crop_apply_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
                                                canvas_->perspective_crop_session_active());

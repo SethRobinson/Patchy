@@ -23987,14 +23987,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Corte em perspectiva</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Arraste uma caixa ou clique em quatro cantos ao redor de uma área inclinada e depois arraste os cantos até as bordas. Enter a endireita em um retângulo.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Corte em perspectiva: arraste uma caixa ou clique em quatro cantos e depois arraste cada canto até as bordas da área. Arraste dentro para movê-la. Enter corta e endireita, Esc limpa os cantos.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Ferramentas de corte</translation>
     </message>
@@ -24017,6 +24009,18 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Corners: none placed</source>
         <translation>Cantos: nenhum posicionado</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Girar o resultado um quarto de volta: o marcador do topo passa para o lado seguinte</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Arraste uma caixa ou clique em quatro cantos ao redor de uma área inclinada e depois arraste os cantos ou os lados até as bordas. A seta marca o topo do resultado; Enter a endireita em um retângulo.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Corte em perspectiva: arraste uma caixa ou clique em quatro cantos e depois arraste os cantos ou os lados até as bordas da área. Arraste dentro para movê-la e logo fora de um canto para girá-la (Shift ajusta em passos de 15 graus). A seta marca o topo do resultado. Enter corta e endireita, Esc limpa os cantos.</translation>
     </message>
 </context>
 <context>

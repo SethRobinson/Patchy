@@ -996,6 +996,9 @@ public:
   void commit_perspective_crop_session();
   void cancel_perspective_crop_session();
   void set_perspective_crop_show_grid(bool show);
+  // Makes the quad's left edge (in output terms) the result's top: the output turns a
+  // quarter clockwise and the up marker moves with it. Ignored without a quad.
+  void turn_perspective_crop_top();
   [[nodiscard]] bool perspective_crop_show_grid() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
@@ -2114,6 +2117,14 @@ private:
   [[nodiscard]] static bool transform_handle_is_edge(TransformHandle handle) noexcept;
   [[nodiscard]] QPointF distorted_transform_handle_position(TransformHandle handle) const;
   [[nodiscard]] TransformHandle distorted_transform_handle_at(QPoint widget_point) const;
+  // The EdgesAndCorners hit zones (move-tool.md) on a convex quad given in widget space,
+  // on-screen corner order TL, TR, BR, BL: the distorted Free Transform box and the
+  // Perspective Crop quad share them. `rotate_stem` is the box's rotate handle, nullopt
+  // when it has none (the rotate reach outside each corner still reports Rotate).
+  [[nodiscard]] static TransformHandle quad_handle_at(const std::array<QPointF, 4>& corners,
+                                                      std::optional<QPointF> rotate_stem, QPointF point);
+  // A handle's widget position on such a quad (edges at their midpoints; Move at the centroid).
+  [[nodiscard]] static QPointF quad_handle_position(const std::array<QPointF, 4>& corners, TransformHandle handle);
   // On-screen outward direction (degrees, y down) of a handle on the distorted quad.
   [[nodiscard]] double distorted_transform_handle_direction(TransformHandle handle) const;
   void draw_distorted_transform_controls(QPainter& painter) const;
@@ -2249,13 +2260,21 @@ private:
   [[nodiscard]] QRect canvas_document_rect() const noexcept;
   void draw_crop_overlay(QPainter& painter) const;
   // Perspective Crop gestures (canvas_widget_perspective_crop.cpp).
-  [[nodiscard]] int perspective_crop_corner_at(QPoint widget_point) const;  // -1 when none
-  [[nodiscard]] bool perspective_crop_quad_contains(QPoint widget_point) const;
+  // What a press grabs on the finished quad: a corner 0-3 (output order), the inside,
+  // an edge (Edge + 0 top, 1 right, 2 bottom, 3 left, in output terms) or the rotate
+  // reach outside a corner; Free Transform's quad_handle_at zones.
+  static constexpr int kPerspectiveCropPartNone = -1;
+  static constexpr int kPerspectiveCropPartMove = 4;
+  static constexpr int kPerspectiveCropPartEdge = 5;
+  static constexpr int kPerspectiveCropPartRotate = 9;
+  [[nodiscard]] std::array<QPointF, 4> perspective_crop_widget_quad() const;
+  [[nodiscard]] int perspective_crop_part_at(QPoint widget_point) const;
   void handle_perspective_crop_press(QMouseEvent* event);
-  void update_perspective_crop_drag(QPointF document_point);
+  void update_perspective_crop_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void finish_perspective_crop_mouse_release(QMouseEvent* event);
   void update_perspective_crop_cursor(QPoint widget_point);
   void draw_perspective_crop_overlay(QPainter& painter) const;
+  void draw_perspective_crop_up_marker(QPainter& painter, const QPolygonF& quad) const;
   // Artboards (canvas_widget_artboard.cpp): the canvas backdrop of an artboard document
   // (checkerboard only inside artboards), the outlines and name labels, and the Artboard
   // tool's handles, add buttons and drag previews.
@@ -3123,9 +3142,11 @@ private:
   QPoint perspective_crop_press_widget_point_;
   QPointF perspective_crop_anchor_document_;
   QPointF perspective_crop_hover_document_;
-  int perspective_crop_drag_corner_{-1};
+  int perspective_crop_drag_part_{-1};
   QPointF perspective_crop_drag_start_point_;
   std::array<QPointF, 4> perspective_crop_drag_start_quad_{};
+  QPointF perspective_crop_rotate_center_;
+  double perspective_crop_rotate_start_degrees_{0.0};
   bool perspective_crop_show_grid_{true};
   std::function<void(std::array<QPointF, 4>)> perspective_crop_commit_requested_callback_;
   // Artboard tool gesture state (canvas_widget_artboard.cpp), document space.

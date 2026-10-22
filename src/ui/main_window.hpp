@@ -2615,6 +2615,7 @@ private:
   UnitIntSpinBox* perspective_crop_height_spin_{nullptr};
   QDoubleSpinBox* perspective_crop_resolution_spin_{nullptr};
   QCheckBox* perspective_crop_grid_check_{nullptr};
+  QToolButton* perspective_crop_turn_button_{nullptr};
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
