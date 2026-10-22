@@ -28,16 +28,15 @@ launch. The controls also serve Path Select / Direct Select and next-shape
 defaults; stroke controls stay enabled when any eligible target has a
 stroke; multi-shape edits: [batch appearance](batch-appearance.md).
 
-A bare click with Rectangle, Ellipse, Polygon, or Custom Shape
-opens the Create <Shape> dialog (shape_create_dialog.cpp): Width, Height,
-From Center (checked, the click is the center; otherwise the top-left
-corner), and per-corner radii for rectangles prefilled from the options-bar
-Radius. The result commits exactly like a drag (mode routing, Combine,
-vector-mask target, naming); values are remembered per tool for the
-session. The click test is a release on the press's own document pixel; any
-real extent commits as a drag. Line has no dialog (Photoshop has none), a
-Fixed Size style click still places its W x H, and Pixels mode keeps its
-legacy click.
+A bare click with Rectangle, Ellipse, Polygon, or Custom Shape opens the
+Create <Shape> dialog (shape_create_dialog.cpp, no shape menu): W and H share
+a row, From Center (click = center, else top-left), the title fits.
+Rectangle: one linked Radius (unlinked or unequal radii: four corners).
+Polygon: Sides; Custom Shape: the bar's picker (`populate_custom_shape_combo`);
+both go back to the bar. It commits like a drag (mode routing, Combine,
+vector-mask target, naming); values persist per tool for the session.
+A click releases on the press's document pixel. Line has no dialog, a
+Fixed Size click places its W x H, and Pixels mode keeps its legacy click.
 
 The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
 link button for proportional edits) mirror the active shape layer's bounds:

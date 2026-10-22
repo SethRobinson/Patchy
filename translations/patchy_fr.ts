@@ -8333,10 +8333,6 @@ RVB : %2, %3, %4</translation>
         <translation>Depuis le centre</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>Rayons des angles</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>Haut gauche :</translation>
     </message>
@@ -11792,6 +11788,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>Mes looks</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>Forme :</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>Côtés :</translation>
+    </message>
+    <message>
+        <source>Radius:</source>
+        <translation>Rayon :</translation>
     </message>
 </context>
 <context>
