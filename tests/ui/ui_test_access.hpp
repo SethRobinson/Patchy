@@ -199,6 +199,11 @@ public:
     return window.current_vector_stroke_paint_;
   }
 
+  // What the next shape gets from the options bar (stroke switch and width included).
+  static patchy::VectorShapeContent current_shape_appearance(const MainWindow& window) {
+    return window.current_shape_appearance_content();
+  }
+
   static bool apply_options_bar_appearance(MainWindow& window) {
     return window.apply_options_bar_appearance_to_active_shape();
   }

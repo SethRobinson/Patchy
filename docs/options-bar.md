@@ -33,10 +33,11 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 
 ## Shape tool rows
 
-- The shape bars (Rectangle, Ellipse, Polygon, Line, Custom Shape; Pen shares them) read, in Shape mode: mode | Fill [swatch] | Stroke checkbox, [swatch], Stroke width | W [link] H | Combine | the tool's own settings | Appearance... (GitHub issue 311). The own group is Rectangle's Radius, Polygon's Sides and Star inset, Custom Shape's Shape, Line's Weight with the two arrowhead toggles, and Pen's Auto Add/Delete; Ellipse has none. Line's Weight used to precede Combine.
-- The Fill and Stroke swatches are framed `QToolButton`s (`optionsBarSwatch` QSS rule: the push-button colors, hover and pressed states) 38x26 with a 28x16 chip, drawn at the button's icon size by `update_vector_swatch_icons`. The Stroke checkbox stays (Seth, issue 311).
+- The shape bars (Rectangle, Ellipse, Polygon, Line, Custom Shape; Pen shares them) read, in Shape mode: mode | Fill [swatch] | Stroke [width] [swatch] | W [link] H | Combine | the tool's own settings | Appearance... (GitHub issue 311). The own group is Rectangle's Radius, Polygon's Sides and Star inset, Custom Shape's Shape, Line's Weight with the two arrowhead toggles, and Pen's Auto Add/Delete; Ellipse has none. Line's Weight used to precede Combine.
+- The Fill and Stroke swatches are framed `QToolButton`s (`optionsBarSwatch` QSS rule: the push-button colors, hover and pressed states) 38x26 with a 28x16 chip, drawn at the button's icon size by `update_vector_swatch_icons`.
+- No Stroke checkbox, here or in the Shape Appearance dialog (Seth, issue 311 follow-up): the width is the switch. The field shows 0 while the stroke is off and accepts 0 to turn it off; any other value turns it on. The model keeps `stroke.enabled` and the last real width (`set_vector_stroke_width_from_field`), so a PSD's vstk never carries a zero width, a PSD stroke that is off reads 0, and the saved `tools/vectorStrokeEnabled`/`vectorStrokeWidth` keys are unchanged. At 0 only `stroke.enabled` is applied to the selection, so each shape keeps its own width. The swatch and width stay enabled.
 - The keep-proportions toggle (`vectorShapeLinkSizeButton`, a framed push button) sits evenly: the H label after it (`vectorShapeHeightLabel`) drops its text padding, so the field-to-button gap matches the button-to-text gap (4 and 5 px).
-- Coverage: `ui_shape_options_bars_group_their_controls` (grouping, Line order, swatch frame, toggle spacing, one row at 1366 px, shots in both schemes).
+- Coverage: `ui_shape_options_bars_group_their_controls` (grouping, Line order, swatch frame, toggle spacing, one row at 1366 px, shots in both schemes); `ui_shape_stroke_width_zero_means_no_stroke` (render, PSD round trip, a disabled stroke reads 0, a width restores it).
 
 ## Duplicate sliders drop first
 

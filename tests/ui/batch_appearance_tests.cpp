@@ -408,7 +408,8 @@ void ui_batch_shape_mixed_geometry_compound_and_reset() {
   const auto assembled = assemble_shape_appearance(compound_content, apply_shape_appearance_edits(context.originals[2], *edited));
   CHECK(assembled.parts[0].stroke.width == 17 && assembled.parts[1].stroke.width == 17);
   CHECK(assembled.parts[0].fill == a.fill && assembled.parts[1].fill == b.fill);
-  CHECK(assembled.parts[1].stroke.content == b.stroke.content && !assembled.parts[1].stroke.enabled);
+  // A width is also the stroke switch (issue 311): typing one turns the off part's stroke on.
+  CHECK(assembled.parts[1].stroke.content == b.stroke.content && assembled.parts[1].stroke.enabled);
   CHECK(apply_shape_appearance_edits(context.originals[0], *edited).geometry == context.originals[0].geometry);
   CHECK(!apply_shape_appearance_edits(context.originals[3], *edited).geometry.has_value());
   QTimer::singleShot(0, [&] {

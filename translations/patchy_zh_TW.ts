@@ -7717,10 +7717,6 @@ RGB：%2, %3, %4</translation>
         <translation>將並排格點固定在圖層的位置；取消勾選則固定在文件原點</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>為形狀外框加上筆畫</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>上色:</translation>
     </message>
@@ -11766,6 +11762,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Radius:</source>
         <translation>半徑:</translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>筆畫寬度 (0 表示無筆畫)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15515,20 +15515,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>形狀填滿:無、純色、漸層或圖樣</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>筆畫</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>為形狀的外框加上筆畫</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>形狀筆畫:純色、漸層或圖樣</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>筆畫寬度</translation>
     </message>
     <message>
         <source>Weight:</source>
@@ -21410,10 +21398,6 @@ Y：%2
         <translation>縮放直到影像填滿視窗 (檢視 &gt; 填滿螢幕)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>筆畫寬度:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>預設單位:</translation>
     </message>
@@ -23697,6 +23681,14 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>筆畫:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>筆畫寬度 (0 表示無筆畫)</translation>
     </message>
 </context>
 <context>
