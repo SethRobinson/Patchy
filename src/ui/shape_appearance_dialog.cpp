@@ -734,16 +734,17 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_form->setVerticalSpacing(8);
   stroke_layout->addLayout(stroke_form);
 
-  auto* stroke_check = new QCheckBox(QObject::tr("Stroke the shape outline"), stroke_group);
-  stroke_check->setObjectName(QStringLiteral("shapeStrokeCheck"));
-  stroke_check->setChecked(state->settings.stroke.enabled);
-  stroke_form->addRow(QString(), stroke_check);
-
+  // No "Stroke the shape outline" checkbox (GitHub issue 311): Width 0 means no stroke. The
+  // model keeps strokeEnabled and the last real width, so a PSD never stores a zero width.
+  const auto stroke_field_value = [state] {
+    return state->settings.stroke.enabled ? state->settings.stroke.width : 0.0;
+  };
   auto* stroke_width_spin = new UnitSpinBox(SpinUnit::Pixels, stroke_group);
   stroke_width_spin->setObjectName(QStringLiteral("shapeStrokeWidthSpin"));
-  stroke_width_spin->setRange(0.1, 1000.0);
+  stroke_width_spin->setRange(0.0, 1000.0);
   stroke_width_spin->setDecimals(1);
-  stroke_width_spin->setValue(state->settings.stroke.width);
+  stroke_width_spin->setValue(stroke_field_value());
+  stroke_width_spin->setToolTip(QObject::tr("Stroke width (0 for no stroke)"));
   apply_document_field_units(stroke_width_spin, thickness_units, true);
   unit_fields.push_back(stroke_width_spin);
   link_field_unit_picks(unit_fields);
@@ -963,12 +964,10 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     set_row(pattern_align_check, pattern);
   };
 
-  // The stroke rows only apply while the stroke is enabled; grey them out
-  // rather than hiding so the dialog never changes height under the pointer.
-  // The per-paint-kind rows additionally hide like the fill section's.
+  // The stroke rows stay enabled: the width is the stroke switch (0 = none). The
+  // per-paint-kind rows hide like the fill section's.
   const auto refresh_stroke_rows = [=] {
-    const bool enabled = stroke_check->isChecked() || (batch != nullptr && std::any_of(
-        batch->originals.begin(), batch->originals.end(), [](const auto& value) { return value.stroke.enabled; }));
+    const bool enabled = true;
     const auto set_row = [stroke_form, field_rows](QWidget* field, bool row_enabled) {
       if (const auto row = field_rows.find(field); row != field_rows.end()) {
         field = row->second;
@@ -1137,9 +1136,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       QSignalBlocker feather_blocker(feather_spin);
       feather_spin->setValue(state->settings.feather);
       QSignalBlocker width_blocker(stroke_width_spin);
-      stroke_width_spin->setValue(state->settings.stroke.width);
-      QSignalBlocker check_blocker(stroke_check);
-      stroke_check->setChecked(state->settings.stroke.enabled);
+      stroke_width_spin->setValue(stroke_field_value());
     }
     fill_color_button->setIcon(color_swatch_icon(state->settings.fill.color));
     stroke_color_button->setIcon(color_swatch_icon(state->settings.stroke.content.color));
@@ -1300,14 +1297,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     state->settings.fill.pattern_linked = checked;
     notify({"fill.pattern_linked"});
   });
-  QObject::connect(stroke_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
-    state->settings.stroke.enabled = checked;
-    refresh_stroke_rows();
-    notify({"stroke.enabled"});
-  });
   QObject::connect(stroke_width_spin, &QDoubleSpinBox::valueChanged, &dialog, [=](double value) {
-    state->settings.stroke.width = value;
-    notify({"stroke.width"});
+    state->settings.stroke.enabled = value > 0.0;
+    if (value > 0.0) state->settings.stroke.width = std::clamp(value, 0.1, 1000.0);
+    // 0 leaves every shape's own width alone (a batch must not copy this one's).
+    notify(value > 0.0 ? std::vector<std::string>{"stroke.enabled", "stroke.width"}
+                       : std::vector<std::string>{"stroke.enabled"});
   });
 
   QObject::connect(stroke_color_button, &QPushButton::clicked, &dialog, [=, &dialog] {
@@ -1497,8 +1492,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     bind_field(pattern_offset_x_spin, {"fill.pattern_phase_x"});
     bind_field(pattern_offset_y_spin, {"fill.pattern_phase_y"});
     bind_field(pattern_align_check, {"fill.pattern_linked"});
-    bind_field(stroke_check, {"stroke.enabled"});
-    bind_field(stroke_width_spin, {"stroke.width"});
+    bind_field(stroke_width_spin, {"stroke.enabled", "stroke.width"});
     bind_field(stroke_align_combo, {"stroke.alignment"});
     bind_field(stroke_cap_combo, {"stroke.cap"});
     bind_field(stroke_join_combo, {"stroke.join"});

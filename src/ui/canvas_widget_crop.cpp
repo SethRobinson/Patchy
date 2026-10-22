@@ -74,6 +74,13 @@ bool CanvasWidget::crop_session_has_changes() const noexcept {
   return crop_session_active_ && (crop_angle_ != 0.0 || crop_rect_ != canvas_document_rect());
 }
 
+bool CanvasWidget::crop_session_can_reset() const {
+  // With a ratio set the automatic frame is smaller than the canvas, so it has
+  // changes to apply but nothing to reset (GitHub issue 318).
+  return crop_session_active_ && (crop_box_from_selection_ || crop_angle_ != 0.0 ||
+                                  crop_rect_ != ratio_fitted_crop_rect(canvas_document_rect()));
+}
+
 QRect CanvasWidget::canvas_document_rect() const noexcept {
   return document_ != nullptr ? QRect(0, 0, document_->width(), document_->height()) : QRect();
 }
@@ -196,7 +203,7 @@ void CanvasWidget::cancel_crop_session() {
     return;
   }
   // Leaving the tool with the untouched canvas frame is not worth a message.
-  const auto had_changes = crop_session_has_changes();
+  const auto had_changes = crop_session_can_reset();
   reset_crop_session_state();
   update_tool_cursor();
   update();
@@ -260,7 +267,7 @@ void CanvasWidget::reset_crop_session_to_canvas() {
     cancel_crop_session();
     return;
   }
-  const auto had_changes = crop_session_has_changes();
+  const auto had_changes = crop_session_can_reset();
   reset_crop_session_state();
   crop_session_active_ = true;
   crop_box_is_default_ = true;

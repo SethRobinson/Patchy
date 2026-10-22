@@ -7734,10 +7734,6 @@ RGB: %2, %3, %4</translation>
         <translation>Ancla la cuadrícula de mosaicos a la posición de la capa; si está desactivado, la ancla al origen del documento</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Trazar el contorno de la forma</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Pintura:</translation>
     </message>
@@ -11801,6 +11797,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Radius:</source>
         <translation>Radio:</translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Grosor del trazo (0 para ningún trazo)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15551,20 +15551,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Relleno de la forma: ninguno, color sólido, degradado o motivo</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Trazo</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Trazar el contorno de la forma</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Trazo de la forma: color sólido, degradado o motivo</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Grosor del trazo</translation>
     </message>
     <message>
         <source>Weight:</source>
@@ -21471,10 +21459,6 @@ Y: %2
         <translation>Ampliar hasta que la imagen llene la ventana (Vista &gt; Llenar pantalla)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>Ancho del trazo:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>Unidades predeterminadas:</translation>
     </message>
@@ -23769,6 +23753,14 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Trazo:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Grosor del trazo (0 para ningún trazo)</translation>
     </message>
 </context>
 <context>

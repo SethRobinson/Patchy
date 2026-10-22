@@ -1816,6 +1816,9 @@ void MainWindow::create_docks() {
       const QSignalBlocker blocker(vector_shape_link_size_button_);
       vector_shape_link_size_button_->setChecked(checked);
     }
+    if (canvas_ != nullptr) {
+      canvas_->set_custom_shape_keep_proportions(checked);
+    }
   });
 
   build_properties_artboard_panel(properties_panel, properties_layout);
