@@ -1263,6 +1263,36 @@ void cli_startup_benchmark_flag_reads_value() {
   CHECK(value({"patchy", "--", "--startup-benchmark", "r.json"}) == "<none>");
 }
 
+// `patchy --mcp-connector [args]` must behave exactly like the patchy-mcp executable:
+// only an exact first argument selects the mode, and dropping it leaves the connector's
+// own arguments with argv still null-terminated.
+void cli_mcp_connector_flag_is_first_argument_only() {
+  const auto first = [](std::initializer_list<const char*> args) {
+    std::vector<const char*> argv(args);
+    return patchy::mcp_connector_flag_first(static_cast<int>(argv.size()), argv.data());
+  };
+  CHECK(first({"patchy", "--mcp-connector"}));
+  CHECK(first({"patchy", "--mcp-connector", "--check"}));
+  CHECK(!first({"patchy"}));
+  CHECK(!first({"patchy", "a.psd", "--mcp-connector"}));
+  CHECK(!first({"patchy", "--mcp-connector=1"}));
+  CHECK(!first({"patchy", "--", "--mcp-connector"}));
+  CHECK(!patchy::mcp_connector_flag_first(0, nullptr));
+
+  std::string a0 = "patchy", a1 = "--mcp-connector", a2 = "--attach";
+  std::vector<char*> argv{a0.data(), a1.data(), a2.data(), nullptr};
+  int argc = 3;
+  patchy::drop_first_argument(argc, argv.data());
+  CHECK(argc == 2);
+  CHECK(std::string(argv[0]) == "patchy");
+  CHECK(std::string(argv[1]) == "--attach");
+  CHECK(argv[2] == nullptr);
+  patchy::drop_first_argument(argc, argv.data());
+  CHECK(argc == 1 && argv[1] == nullptr);
+  patchy::drop_first_argument(argc, argv.data());
+  CHECK(argc == 1);
+}
+
 // Off, nothing is recorded; on, nested scopes come back parent first with their
 // depth, marks keep their order, and both reports name every event.
 void startup_trace_records_nested_phases_and_reports() {
@@ -1368,6 +1398,7 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"heal_membrane_interpolates_boundary_offsets", heal_membrane_interpolates_boundary_offsets},
       {"cli_headless_flag_matches_exact_token", cli_headless_flag_matches_exact_token},
       {"cli_startup_benchmark_flag_reads_value", cli_startup_benchmark_flag_reads_value},
+      {"cli_mcp_connector_flag_is_first_argument_only", cli_mcp_connector_flag_is_first_argument_only},
       {"startup_trace_records_nested_phases_and_reports", startup_trace_records_nested_phases_and_reports},
   };
 }

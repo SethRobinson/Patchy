@@ -23,6 +23,29 @@ namespace patchy {
   return false;
 }
 
+// The first argument that turns the patchy binary into the MCP connector (docs/ai-control.md).
+// Linux packages start the connector this way (AppRun, the patchy-mcp wrapper script).
+inline constexpr const char kMcpConnectorFlag[] = "--mcp-connector";
+
+// True when argv[1] is exactly "--mcp-connector". Only the first argument counts: the
+// connector mode changes settings and the platform before the QApplication exists, so a
+// file named like the flag further along must never select it.
+[[nodiscard]] inline bool mcp_connector_flag_first(int argc, const char* const* argv) noexcept {
+  return argv != nullptr && argc >= 2 && argv[1] != nullptr && std::strcmp(argv[1], kMcpConnectorFlag) == 0;
+}
+
+// Removes argv[1] in place (argv[argc] stays the terminating null), so the connector sees
+// the same arguments as the separate patchy-mcp executable.
+inline void drop_first_argument(int& argc, char** argv) noexcept {
+  if (argv == nullptr || argc < 2) {
+    return;
+  }
+  for (int i = 1; i < argc; ++i) {
+    argv[i] = argv[i + 1];
+  }
+  --argc;
+}
+
 // Value of "--language <code>" or "--language=<code>" for main(): the UI language for
 // this run only, applied after the saved preference loads and never persisted. Returns
 // nullptr when absent. Same scan rules as headless_flag_present; QCommandLineParser

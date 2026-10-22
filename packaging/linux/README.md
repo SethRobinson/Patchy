@@ -162,6 +162,10 @@ support this attachment. `make-flatpak.sh` runs the headless command inside the 
 sandbox (`flatpak-builder --run`, nothing installed) before anything is exported and
 fails unless the script output ends in `[done]`.
 
+`/app/bin/patchy-mcp` is a two-line script that runs `/app/bin/patchy --mcp-connector`
+(docs/ai-control.md), so `flatpak run --command=patchy-mcp com.rtsoft.patchy` starts the
+connector with no second binary in the package.
+
 Running `tests/mcp_client_tests.py` inside the sandbox (the release check: `flatpak run
 --user --devel --command=bash com.rtsoft.patchy -c 'cd ~/patchy/src &&
 .deps/mcp-client-flatpak/bin/python tests/mcp_client_tests.py /app/bin/patchy-mcp'`)
