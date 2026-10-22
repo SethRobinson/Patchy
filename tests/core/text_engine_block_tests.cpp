@@ -267,13 +267,16 @@ void text_engine_patchy_born_document_writes_a_block() {
     const auto* path = frame->at_path({"1", "0"});
     CHECK(path != nullptr && path->list.size() == 32);
     if (path != nullptr && path->list.size() == 32) {
-      // Corners (0,0), (w,0), (w,h), (0,h), each point written four times as x y pairs.
-      CHECK(path->list[8].raw == "400.0");
-      CHECK(path->list[9].raw == "0.0");
-      CHECK(path->list[16].raw == "400.0");
-      CHECK(path->list[17].raw == "180.0");
-      CHECK(path->list[24].raw == "0.0");
-      CHECK(path->list[25].raw == "180.0");
+      // One straight segment per edge (start, start, end, end), Photoshop's own layout
+      // (wt_arch_p50_para.psd): its corner-repeated predecessor made a warped box layer
+      // prompt to update in Photoshop 2025 and 2026.
+      const char* expected[32] = {"0.0",   "0.0",   "0.0",   "0.0",   "400.0", "0.0",   "400.0", "0.0",
+                                  "400.0", "0.0",   "400.0", "0.0",   "400.0", "180.0", "400.0", "180.0",
+                                  "400.0", "180.0", "400.0", "180.0", "0.0",   "180.0", "0.0",   "180.0",
+                                  "0.0",   "180.0", "0.0",   "180.0", "0.0",   "0.0",   "0.0",   "0.0"};
+      for (std::size_t i = 0; i < 32; ++i) {
+        CHECK(path->list[i].raw == expected[i]);
+      }
     }
     CHECK(frame->at_path({"2", "0"})->integer() == 1);
     CHECK(frame->at_path({"2", "11", "4"})->integer() == -2);
@@ -418,7 +421,18 @@ void text_engine_area_frames_reject_unrecognized_geometry() {
   CHECK(marker != nullptr);
   if (!marker) return;
   *marker = engine_list_of({engine_number(-3), engine_number(-3)});
-  // The box writer's legacy repeated-corner format isn't a closed cubic stream.
+  // The box writer's legacy repeated-corner format (each corner four times, older Patchy saves)
+  // isn't a closed cubic stream; today's writer emits Photoshop's edge segments instead.
+  auto* contour = engine.root().at_path({"0", "8", "0", "0", "0", "1", "0"});
+  CHECK(contour != nullptr);
+  if (!contour) return;
+  contour->list.clear();
+  for (const auto& corner : {std::pair{0.0, 0.0}, {100.0, 0.0}, {100.0, 50.0}, {0.0, 50.0}}) {
+    for (int repeat = 0; repeat < 4; ++repeat) {
+      contour->list.push_back(engine_number(corner.first));
+      contour->list.push_back(engine_number(corner.second));
+    }
+  }
   CHECK(engine.object_geometry(0).kind == TextFrameGeometry::Kind::Unsupported);
   *marker = engine_list_of({engine_number(-4), engine_number(-4)});
   CHECK(engine.object_geometry(0).kind == TextFrameGeometry::Kind::Unsupported);

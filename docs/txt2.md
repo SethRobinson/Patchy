@@ -81,7 +81,7 @@ embedded smart-object PSD in its `lnk2` block, not at document level).
 | `/0/2`, `/0/3`, `/0/4` | MojiKumi / MojiKumiSet (9) / KinsokuSet (6) | boilerplate, identical across captures |
 | `/0/5/0[]` | StyleSheetSet | `/0` name ("Normal RGB", "None"), `/6` the 93-key style sheet |
 | `/0/6/0[]` | ParagraphSheetSet | `/0` name ("Normal RGB", "Basic Paragraph"), `/5` the 44-key paragraph sheet, `/6` default style sheet index |
-| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)) |
+| `/0/8/0[]` | text frame set | one entry per text object; `/0/2/6` `[-1 -1]` point, `[-2 -2]` box, `[-3 -3]` area ([area-text.md](area-text.md)); a box frame's `/0/1/0` contour is four straight cubic segments `start start end end` from (0,0) clockwise (a corner-repeated contour made a warped box layer prompt to update) |
 | `/0/9/0[]` | ListStyleSet | 11 predefined list styles, `/0` name, `/6` numbering kind; index is what a paragraph's `/36` references |
 | `/1` | DocumentObjects | |
 | `/1/4` | engine version | `/0 7 /1 11 /2 0 /3 (Photoshop)` |
@@ -209,7 +209,9 @@ numbering: 58 px), the text itself is unchanged, and the tier changes the bullet
 - Whether `/1/5` must grow with the object count (Patchy keeps the template's one story with
   no font versions and Photoshop accepted it); FontSet entries without `/5` version strings
   are accepted too.
-- Warp Text, PSD-frame transforms and RTL paragraphs on authored objects: the TySh carries them
-  and Photoshop read the probes' horizontal, vertical and boxed layers back, but a warped or
-  transformed Patchy-born layer has not been read back yet.
+- PSD-frame transforms and RTL paragraphs on authored objects: the TySh carries them and
+  Photoshop read the probes' horizontal, vertical and boxed layers back, but a transformed
+  Patchy-born layer has not been read back yet. Warp Text lives only in the TySh too; its box
+  must match Photoshop's layout or the layer prompts to update, whatever the object
+  ([warp.md](warp.md), Warp Text).
 - Older Photoshop versions: Photoshop 2026 (`/98 /0 14`) has been probed, Photoshop 2025 only for the issue 341 open checks. Older files can carry a named-key engine (`DocumentResources/TextFrameSet`, `DocumentObjects/TextObjects`); Patchy reads its point and box frames and preserves the rest, but cannot author into it.

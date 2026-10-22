@@ -398,15 +398,19 @@ EngineNode TextEngineBlock::author_frame(const TextEngineInputs& inputs) const {
     }
     frame.set("1", engine_dict_of({{"0", std::move(path)}}));
   } else if (inputs.boxed) {
-    // The box path: four corners, each written four times (the point and its handles).
+    // The box path: one straight cubic segment per edge, start, both handles, end, like the
+    // area path above (Photoshop's own frames: (0,0) (0,0) (w,0) (w,0), then the right edge).
+    // Four degenerate segments, each corner repeated, read as text but a warped box layer
+    // opened with the "text layers might need to be updated" prompt (PS 2025 and 2026).
     const double w = std::max(1.0, std::isfinite(inputs.box_width) ? inputs.box_width : 1.0);
     const double h = std::max(1.0, std::isfinite(inputs.box_height) ? inputs.box_height : 1.0);
     auto path = engine_list();
     const double corners[4][2] = {{0.0, 0.0}, {w, 0.0}, {w, h}, {0.0, h}};
-    for (const auto& corner : corners) {
-      for (int repeat = 0; repeat < 4; ++repeat) {
-        path.list.push_back(engine_number(corner[0]));
-        path.list.push_back(engine_number(corner[1]));
+    for (std::size_t i = 0; i < 4; ++i) {
+      const double* segment[4] = {corners[i], corners[i], corners[(i + 1) % 4], corners[(i + 1) % 4]};
+      for (const double* point : segment) {
+        path.list.push_back(engine_number(point[0]));
+        path.list.push_back(engine_number(point[1]));
       }
     }
     frame.set("1", engine_dict_of({{"0", std::move(path)}}));
