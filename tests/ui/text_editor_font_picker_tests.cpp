@@ -347,6 +347,77 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
   save_widget_artifact("ui_text_outside_click_commit", window);
 }
 
+// GitHub issue 330: switching to another app (Alt+Tab, Cmd+Tab, the Dock) moves focus from the editor
+// to nowhere with ActiveWindowFocusReason and must leave the session open; Qt gives the focus back
+// to the editor when the window is active again. Activating a top-level with nothing focusable runs
+// the same QApplication path (focus to null, the main window's focus child kept). Focus that lands
+// anywhere else on the way back still commits.
+void ui_text_session_survives_app_switch() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.raise();
+  window.activateWindow();
+  CHECK(process_events_until([&] { return QApplication::activeWindow() == &window; }, 2000));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto layer_count_before_click = layer_list->count();
+  const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(90, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QPointer<QTextEdit> editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("App Switch"));
+  editor->setFocus(Qt::MouseFocusReason);
+  QApplication::processEvents();
+  CHECK(QApplication::focusWidget() == editor);
+
+  QWidget other;
+  other.setObjectName(QStringLiteral("textAppSwitchOtherWindow"));
+  other.setFocusPolicy(Qt::NoFocus);
+  other.resize(200, 100);
+  const auto switch_away = [&] {
+    other.show();
+    other.raise();
+    other.activateWindow();
+    CHECK(process_events_until([&] { return QApplication::activeWindow() == &other; }, 2000));
+    QApplication::processEvents();
+  };
+  const auto switch_back = [&] {
+    window.raise();
+    window.activateWindow();
+    CHECK(process_events_until([&] { return QApplication::activeWindow() == &window; }, 2000));
+    QApplication::processEvents();
+  };
+
+  switch_away();
+  CHECK(QApplication::focusWidget() == nullptr);
+  CHECK(editor != nullptr);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  switch_back();
+  CHECK(editor != nullptr);
+  CHECK(QApplication::focusWidget() == editor);
+  editor->moveCursor(QTextCursor::End);
+  QKeyEvent typed(QEvent::KeyPress, Qt::Key_S, Qt::NoModifier, QStringLiteral("s"));
+  QApplication::sendEvent(editor, &typed);
+  QApplication::processEvents();
+  CHECK(editor != nullptr && editor->toPlainText() == QStringLiteral("App Switchs"));
+  CHECK(layer_list->count() == layer_count_before_click + 1);
+
+  // Away again; the layer list becomes the main window's focus child while it is inactive, so
+  // reactivation hands focus to the list instead of the editor: that is a click off and commits.
+  switch_away();
+  CHECK(editor != nullptr);
+  layer_list->setFocus(Qt::OtherFocusReason);
+  switch_back();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("App Switchs"));
+}
+
 // Desktop simulation of the wasm click-off re-entrancy bug (same harness shape as
 // ui_move_commit_ignores_reentrant_input_during_processing_wait): the click-off press moves focus
 // to the canvas BEFORE delivery, the focus-loss handler arms swallow_next_canvas_left_press_ and
@@ -3145,6 +3216,7 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting},
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},
+      {"ui_text_session_survives_app_switch", ui_text_session_survives_app_switch},
       {"ui_text_click_off_commit_ignores_reentrant_release_during_wait",
        ui_text_click_off_commit_ignores_reentrant_release_during_wait},
       {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},
