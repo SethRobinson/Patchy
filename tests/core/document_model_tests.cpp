@@ -1,4 +1,5 @@
 #include <string_view>
+#include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "core/document_memory.hpp"
 #include "core/stroke_patch.hpp"
@@ -31,6 +32,7 @@
 #include <limits>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <span>
 #include <sstream>
 #include <stdexcept>
@@ -468,6 +470,138 @@ void default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels() {
   CHECK(patchy::default_non_group_layer_id(document.layers()).value() == adjustment_id);
   document.find_layer(adjustment_id)->set_visible(false);
   CHECK(patchy::default_non_group_layer_id(document.layers()).value() == hidden_pixel_id);
+}
+
+// Pick tool Sample choices (GitHub issue 321): the layers each composite choice
+// leaves out, with groups (the later siblings at each level of the active
+// layer's path) and adjustment layers at any depth.
+void sample_layers_excluded_ids_cover_current_and_below_and_no_adjustments() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto base_id = document.add_pixel_layer("Base", solid_rgb(2, 2, 10, 20, 30)).id();
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer adjustment_below(document.allocate_layer_id(), "Invert below", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment_below, invert);
+  const auto adjustment_below_id = adjustment_below.id();
+  document.add_layer(std::move(adjustment_below));
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto group_id = group.id();
+  patchy::Layer child_below(document.allocate_layer_id(), "Child below", solid_rgb(2, 2, 1, 2, 3));
+  patchy::Layer nested_adjustment(document.allocate_layer_id(), "Nested invert", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(nested_adjustment, invert);
+  patchy::Layer active(document.allocate_layer_id(), "Active", solid_rgb(2, 2, 4, 5, 6));
+  patchy::Layer child_above(document.allocate_layer_id(), "Child above", solid_rgb(2, 2, 7, 8, 9));
+  const auto child_below_id = child_below.id();
+  const auto nested_adjustment_id = nested_adjustment.id();
+  const auto active_id = active.id();
+  const auto child_above_id = child_above.id();
+  group.add_child(std::move(child_below));
+  group.add_child(std::move(nested_adjustment));
+  group.add_child(std::move(active));
+  group.add_child(std::move(child_above));
+  document.add_layer(std::move(group));
+  patchy::Layer adjustment_above(document.allocate_layer_id(), "Invert above", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment_above, invert);
+  const auto adjustment_above_id = adjustment_above.id();
+  document.add_layer(std::move(adjustment_above));
+  const auto top_id = document.add_pixel_layer("Top", solid_rgb(2, 2, 90, 90, 90)).id();
+  const auto& layers = std::as_const(document).layers();
+  using patchy::SampleLayers;
+  using Ids = std::set<patchy::LayerId>;
+  const auto excluded = [&layers](std::optional<patchy::LayerId> active_layer, SampleLayers mode) {
+    const auto ids = patchy::sample_layers_excluded_ids(layers, active_layer, mode);
+    return ids.has_value() ? std::optional<Ids>(Ids(ids->begin(), ids->end())) : std::nullopt;
+  };
+
+  CHECK(!excluded(active_id, SampleLayers::CurrentLayer).has_value());
+  CHECK(excluded(active_id, SampleLayers::AllLayers) == Ids{});
+  CHECK(excluded(active_id, SampleLayers::AllLayersNoAdjustments) ==
+        (Ids{adjustment_below_id, nested_adjustment_id, adjustment_above_id}));
+  CHECK(excluded(active_id, SampleLayers::CurrentAndBelow) == (Ids{child_above_id, adjustment_above_id, top_id}));
+  CHECK(excluded(active_id, SampleLayers::CurrentAndBelowNoAdjustments) ==
+        (Ids{child_above_id, adjustment_above_id, top_id, adjustment_below_id, nested_adjustment_id}));
+  // A selected folder samples all of it; the bottom layer samples only itself.
+  CHECK(excluded(group_id, SampleLayers::CurrentAndBelow) == (Ids{adjustment_above_id, top_id}));
+  CHECK(excluded(base_id, SampleLayers::CurrentAndBelow) ==
+        (Ids{adjustment_below_id, group_id, adjustment_above_id, top_id}));
+  CHECK(excluded(child_below_id, SampleLayers::CurrentAndBelow) ==
+        (Ids{nested_adjustment_id, active_id, child_above_id, adjustment_above_id, top_id}));
+  CHECK(excluded(top_id, SampleLayers::CurrentAndBelow) == Ids{});
+  // Current & Below needs an active layer in the tree.
+  CHECK(!excluded(std::nullopt, SampleLayers::CurrentAndBelow).has_value());
+  CHECK(!excluded(patchy::LayerId{9999}, SampleLayers::CurrentAndBelowNoAdjustments).has_value());
+  CHECK(excluded(std::nullopt, SampleLayers::AllLayersNoAdjustments).has_value());
+}
+
+// The composite each Sample choice reads (GitHub issue 321): an Invert below and
+// above a half-opaque active layer, under a half-opaque red layer, gives a
+// different color per choice once the excluded layers are hidden.
+void sample_layers_composites_differ_per_choice() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 60, 120, 200));
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer adjustment_below(document.allocate_layer_id(), "Invert below", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment_below, invert);
+  document.add_layer(std::move(adjustment_below));
+  auto& active = document.add_pixel_layer("Active", solid_rgb(1, 1, 40, 160, 60));
+  active.set_opacity(0.5F);
+  const auto active_id = active.id();
+  patchy::Layer adjustment_above(document.allocate_layer_id(), "Invert above", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment_above, invert);
+  document.add_layer(std::move(adjustment_above));
+  document.add_pixel_layer("Top", solid_rgb(1, 1, 220, 40, 40)).set_opacity(0.5F);
+  document.set_active_layer(active_id);
+
+  const auto composite = [&document, active_id](patchy::SampleLayers mode) {
+    auto copy = document;
+    const auto excluded = patchy::sample_layers_excluded_ids(std::as_const(copy).layers(), active_id, mode)
+                              .value_or(std::vector<patchy::LayerId>{});
+    for (const auto id : excluded) {
+      copy.find_layer(id)->set_visible(false);
+    }
+    const auto flat = patchy::Compositor{}.flatten_rgb8(copy);
+    const auto* pixel = flat.pixel(0, 0);
+    return std::array<int, 3>{pixel[0], pixel[1], pixel[2]};
+  };
+  const auto close_to = [](std::array<int, 3> actual, std::array<int, 3> expected) {
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      if (std::abs(actual[channel] - expected[channel]) > 2) {
+        return false;
+      }
+    }
+    return true;
+  };
+  using patchy::SampleLayers;
+  // Base inverted (195,135,55), then half the active green.
+  CHECK(close_to(composite(SampleLayers::CurrentAndBelow), {117, 147, 57}));
+  // That inverted (138,108,198), then half the red on top.
+  CHECK(close_to(composite(SampleLayers::AllLayers), {179, 74, 119}));
+  // No inverts: the base and half the green, then half the red.
+  CHECK(close_to(composite(SampleLayers::CurrentAndBelowNoAdjustments), {50, 140, 130}));
+  CHECK(close_to(composite(SampleLayers::AllLayersNoAdjustments), {135, 90, 85}));
+}
+
+// The stored Sample choice (GitHub issue 321): a known token wins; otherwise the
+// pre-321 bool maps (true All Layers, false Current Layer); otherwise All Layers.
+void sample_layers_settings_map_tokens_and_legacy_bool() {
+  using patchy::SampleLayers;
+  for (const auto mode : {SampleLayers::CurrentLayer, SampleLayers::CurrentAndBelow, SampleLayers::AllLayers,
+                          SampleLayers::AllLayersNoAdjustments, SampleLayers::CurrentAndBelowNoAdjustments}) {
+    CHECK(patchy::sample_layers_from_settings(patchy::sample_layers_token(mode), false) == mode);
+    CHECK(patchy::sample_layers_from_settings(patchy::sample_layers_token(mode), std::nullopt) == mode);
+  }
+  // Permanent identifiers.
+  CHECK(patchy::sample_layers_token(SampleLayers::CurrentLayer) == "current");
+  CHECK(patchy::sample_layers_token(SampleLayers::CurrentAndBelow) == "currentAndBelow");
+  CHECK(patchy::sample_layers_token(SampleLayers::AllLayers) == "all");
+  CHECK(patchy::sample_layers_token(SampleLayers::AllLayersNoAdjustments) == "allNoAdjustments");
+  CHECK(patchy::sample_layers_token(SampleLayers::CurrentAndBelowNoAdjustments) == "currentAndBelowNoAdjustments");
+  CHECK(patchy::sample_layers_from_settings(std::nullopt, false) == SampleLayers::CurrentLayer);
+  CHECK(patchy::sample_layers_from_settings(std::nullopt, true) == SampleLayers::AllLayers);
+  CHECK(patchy::sample_layers_from_settings(std::nullopt, std::nullopt) == SampleLayers::AllLayers);
+  CHECK(patchy::sample_layers_from_settings(std::string_view("bogus"), false) == SampleLayers::CurrentLayer);
+  CHECK(patchy::sample_layers_from_settings(std::string_view(""), std::nullopt) == SampleLayers::AllLayers);
 }
 
 void default_non_group_layer_id_ignores_locked_content_and_folder_only_trees() {
@@ -966,6 +1100,10 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"only_layer_id_needs_exactly_one_layer_in_the_tree", only_layer_id_needs_exactly_one_layer_in_the_tree},
       {"default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels",
        default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels},
+      {"sample_layers_excluded_ids_cover_current_and_below_and_no_adjustments",
+       sample_layers_excluded_ids_cover_current_and_below_and_no_adjustments},
+      {"sample_layers_composites_differ_per_choice", sample_layers_composites_differ_per_choice},
+      {"sample_layers_settings_map_tokens_and_legacy_bool", sample_layers_settings_map_tokens_and_legacy_bool},
       {"default_non_group_layer_id_ignores_locked_content_and_folder_only_trees",
        default_non_group_layer_id_ignores_locked_content_and_folder_only_trees},
       {"default_non_group_layer_id_allows_position_locked_pixels",

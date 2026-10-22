@@ -2806,20 +2806,36 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_label(QT_TR_NOOP("Sample:"), {CanvasTool::Eyedropper});
   eyedropper_sample_layers_combo_ = new QComboBox(toolbar);
   eyedropper_sample_layers_combo_->setObjectName(QStringLiteral("eyedropperSampleLayersCombo"));
-  eyedropper_sample_layers_combo_->addItem(tr("All Layers"), true);
-  eyedropper_sample_layers_combo_->addItem(tr("Current Layer"), false);
-  eyedropper_sample_layers_combo_->setCurrentIndex(
-      std::max(0, eyedropper_sample_layers_combo_->findData(current_eyedropper_sample_all_layers_)));
+  // Item data is the settings token (GitHub issue 321); the language refresh below
+  // relabels each item from its token.
+  const auto sample_layers_text = [](SampleLayers mode) {
+    static constexpr std::array<const char*, 5> kSampleLayersTexts{
+        QT_TR_NOOP("Current Layer"), QT_TR_NOOP("Current & Below"), QT_TR_NOOP("All Layers"),
+        QT_TR_NOOP("All Layers No Adjustments"), QT_TR_NOOP("Current & Below No Adjustments")};
+    return QCoreApplication::translate(kMainWindowTranslationContext,
+                                       kSampleLayersTexts[static_cast<std::size_t>(mode)]);
+  };
+  for (const auto mode : {SampleLayers::CurrentLayer, SampleLayers::CurrentAndBelow, SampleLayers::AllLayers,
+                          SampleLayers::AllLayersNoAdjustments, SampleLayers::CurrentAndBelowNoAdjustments}) {
+    eyedropper_sample_layers_combo_->addItem(sample_layers_text(mode),
+                                             QString::fromLatin1(sample_layers_token(mode)));
+  }
+  eyedropper_sample_layers_combo_->setCurrentIndex(std::max(
+      0, eyedropper_sample_layers_combo_->findData(
+             QString::fromLatin1(sample_layers_token(current_eyedropper_sample_layers_)))));
   bind_tooltip(eyedropper_sample_layers_combo_,
-               QT_TR_NOOP("Pick from the merged image or from the active layer alone"));
+               QT_TR_NOOP("Which layers a pick reads: the active layer, it and the layers below, or the merged "
+                          "image, optionally without adjustment layers"));
   add_option_widget(eyedropper_sample_layers_combo_, {CanvasTool::Eyedropper});
   connect(eyedropper_sample_layers_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0 || eyedropper_sample_layers_combo_ == nullptr) {
       return;
     }
-    current_eyedropper_sample_all_layers_ = eyedropper_sample_layers_combo_->itemData(index).toBool();
+    current_eyedropper_sample_layers_ =
+        sample_layers_from_settings(eyedropper_sample_layers_combo_->itemData(index).toString().toStdString(),
+                                    std::nullopt);
     if (canvas_ != nullptr) {
-      canvas_->set_eyedropper_sample_all_layers(current_eyedropper_sample_all_layers_);
+      canvas_->set_eyedropper_sample_layers(current_eyedropper_sample_layers_);
     }
     save_tool_settings();
   });
@@ -2869,7 +2885,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                   QStringLiteral("eyedropperSetsBackgroundButton"), true);
   QPointer<QComboBox> eyedropper_size_combo(eyedropper_sample_size_combo_);
   QPointer<QComboBox> eyedropper_layers_combo(eyedropper_sample_layers_combo_);
-  register_retranslation([eyedropper_size_combo, eyedropper_layers_combo, eyedropper_sample_size_text] {
+  register_retranslation([eyedropper_size_combo, eyedropper_layers_combo, eyedropper_sample_size_text,
+                          sample_layers_text] {
     if (eyedropper_size_combo != nullptr) {
       const QSignalBlocker blocker(eyedropper_size_combo);
       for (int index = 0; index < eyedropper_size_combo->count(); ++index) {
@@ -2877,11 +2894,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
             index, eyedropper_sample_size_text(eyedropper_size_combo->itemData(index).toInt()));
       }
     }
-    if (eyedropper_layers_combo != nullptr && eyedropper_layers_combo->count() == 2) {
+    if (eyedropper_layers_combo != nullptr) {
       const QSignalBlocker blocker(eyedropper_layers_combo);
-      eyedropper_layers_combo->setItemText(0, QCoreApplication::translate(kMainWindowTranslationContext, "All Layers"));
-      eyedropper_layers_combo->setItemText(
-          1, QCoreApplication::translate(kMainWindowTranslationContext, "Current Layer"));
+      for (int index = 0; index < eyedropper_layers_combo->count(); ++index) {
+        const auto token = eyedropper_layers_combo->itemData(index).toString().toStdString();
+        eyedropper_layers_combo->setItemText(index, sample_layers_text(sample_layers_from_settings(token, std::nullopt)));
+      }
     }
   });
 
