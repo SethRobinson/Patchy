@@ -2091,6 +2091,7 @@ void MainWindow::load_tool_settings() {
     }
   }
   canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+  canvas_->set_crop_keep_proportions(crop_size_link_active());
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
   // Transparent reads as "the tool is broken" a session later. The retired
@@ -2709,6 +2710,10 @@ double MainWindow::effective_crop_ratio_height() const noexcept {
   return current_crop_style_ == 0 ? current_crop_ratio_h_ : 0.0;
 }
 
+bool MainWindow::crop_size_link_active() const noexcept {
+  return current_crop_style_ == 1 && crop_link_size_button_ != nullptr && crop_link_size_button_->isChecked();
+}
+
 void MainWindow::apply_crop_style(int style) {
   current_crop_style_ = std::clamp(style, 0, 1);
   if (canvas_ != nullptr) {
@@ -2716,6 +2721,7 @@ void MainWindow::apply_crop_style(int style) {
     // automatic frame grows back to the canvas); Ratio mode restores the
     // remembered ratio, which re-fits the box like a fresh entry.
     canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+    canvas_->set_crop_keep_proportions(crop_size_link_active());
   }
   schedule_save_tool_settings();
   refresh_options_bar();

@@ -2363,6 +2363,8 @@ private:
   // The ratio the canvas should constrain with under the current crop style.
   [[nodiscard]] double effective_crop_ratio_width() const noexcept;
   [[nodiscard]] double effective_crop_ratio_height() const noexcept;
+  // Size style with its link button down: handle drags keep the box's proportion.
+  [[nodiscard]] bool crop_size_link_active() const noexcept;
   void apply_crop_style(int style);
   // A Size-mode field committed `value` px for one axis; the linked axis follows
   // the box's current proportion when the link button is down.
