@@ -22,7 +22,9 @@ if (-not $existing) {
   # A small .cmd beside the log carries the arguments and the redirection, so they are
   # quoted exactly once (a literal % in them must be written %%).
   $cmdFile = [IO.Path]::ChangeExtension($Log, '.cmd')
-  @("@`"$Python`" `"$repo\testy\testy.py`" $Arguments > `"$Log`" 2>&1",
+  # UTF-8 output: a localized Photoshop's alerts do not fit the console code page.
+  @('@set PYTHONUTF8=1',
+    "@`"$Python`" `"$repo\testy\testy.py`" $Arguments > `"$Log`" 2>&1",
     '@set TESTY_EXIT=%ERRORLEVEL%',
     "@echo exit %TESTY_EXIT% >> `"$Log`"",
     '@exit %TESTY_EXIT%') | Set-Content -LiteralPath $cmdFile -Encoding Ascii
@@ -44,6 +46,6 @@ while ((Get-ScheduledTask -TaskName $TaskName).State -eq 'Running' -and (Get-Dat
 $code = (Get-ScheduledTaskInfo -TaskName $TaskName).LastTaskResult
 if ((Get-ScheduledTask -TaskName $TaskName).State -eq 'Running') { "timed out after $TimeoutMinutes minutes; the task keeps running"; exit 124 }
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-if (Test-Path -LiteralPath $Log) { Get-Content -LiteralPath $Log -Tail 60 } else { 'no log was written' }
+if (Test-Path -LiteralPath $Log) { Get-Content -LiteralPath $Log -Tail 60 -Encoding UTF8 } else { 'no log was written' }
 "task result: $code"
 exit $code

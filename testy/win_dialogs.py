@@ -318,8 +318,14 @@ class DialogGuard:
                 self._note(f"dismissed a dialog: {description}")
 
     def _note(self, message: str) -> None:
+        # Logging is a side channel: an error in it (a localized alert on a console that
+        # cannot encode it) must neither stop the watcher thread nor escape stop(), which
+        # runs inside the guarded call's `with` block and would be taken for its failure.
         if self.log is not None:
-            self.log(message)
+            try:
+                self.log(message)
+            except Exception:
+                pass
 
     def _current_pids(self) -> set[int]:
         now = time.monotonic()
