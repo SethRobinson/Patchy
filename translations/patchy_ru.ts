@@ -24090,6 +24090,39 @@ Patchy может скачать обновление, заменить этот
         <source>Corners: none placed</source>
         <translation>Углы: не расставлены</translation>
     </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>Размер значков и кнопок палитры инструментов относительно масштаба интерфейса.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Самый маленький</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>Маленький</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>Обычный</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>Крупнее</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Самый крупный</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>Размер значков инструментов:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

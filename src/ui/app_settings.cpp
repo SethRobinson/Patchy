@@ -25,6 +25,7 @@ namespace {
 
 // Persisted identifiers: never rename them (see AGENTS.md).
 QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); }
+QString toolbar_icon_size_key() { return QStringLiteral("preferences/toolbarIconSize"); }
 #ifndef Q_OS_WASM
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
 #endif
@@ -149,6 +150,56 @@ int stored_gui_scale_percent() {
 void set_stored_gui_scale_percent(int percent) {
   auto settings = app_settings();
   settings.setValue(gui_scale_key(), normalize_gui_scale_percent(percent));
+}
+
+QString toolbar_icon_size_token(ToolbarIconSize size) {
+  switch (size) {
+    case ToolbarIconSize::Smallest:
+      return QStringLiteral("smallest");
+    case ToolbarIconSize::Small:
+      return QStringLiteral("small");
+    case ToolbarIconSize::Normal:
+      break;
+    case ToolbarIconSize::Bigger:
+      return QStringLiteral("bigger");
+    case ToolbarIconSize::Biggest:
+      return QStringLiteral("biggest");
+  }
+  return QStringLiteral("normal");
+}
+
+ToolbarIconSize toolbar_icon_size_from_token(const QString& token) {
+  for (const auto size : kToolbarIconSizes) {
+    if (token == toolbar_icon_size_token(size)) {
+      return size;
+    }
+  }
+  return ToolbarIconSize::Normal;
+}
+
+double toolbar_icon_size_factor(ToolbarIconSize size) {
+  switch (size) {
+    case ToolbarIconSize::Smallest:
+      return 0.75;
+    case ToolbarIconSize::Small:
+      return 0.875;
+    case ToolbarIconSize::Normal:
+      break;
+    case ToolbarIconSize::Bigger:
+      return 1.25;
+    case ToolbarIconSize::Biggest:
+      return 1.5;
+  }
+  return 1.0;
+}
+
+ToolbarIconSize stored_toolbar_icon_size() {
+  return toolbar_icon_size_from_token(app_settings().value(toolbar_icon_size_key()).toString());
+}
+
+void set_stored_toolbar_icon_size(ToolbarIconSize size) {
+  auto settings = app_settings();
+  settings.setValue(toolbar_icon_size_key(), toolbar_icon_size_token(size));
 }
 
 int normalize_recovery_interval_minutes(int stored) {

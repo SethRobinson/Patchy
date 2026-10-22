@@ -754,6 +754,41 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   }
   application_form->addRow(tr("Interface scale:"), gui_scale_combo);
 
+  // The tool palette's icons and buttons on top of the interface scale, as named steps
+  // (a second percentage beside the first would read as the same setting). Applied live
+  // on OK; the item data is the stored token.
+  auto* toolbar_icon_size_combo = new QComboBox(application_group);
+  toolbar_icon_size_combo->setObjectName(QStringLiteral("preferencesToolbarIconSizeCombo"));
+  toolbar_icon_size_combo->setToolTip(
+      tr("Size of the tool palette's icons and buttons, relative to the interface scale."));
+  for (const auto size : kToolbarIconSizes) {
+    QString label;
+    switch (size) {
+      case ToolbarIconSize::Smallest:
+        label = tr("Smallest", "toolbar icon size");
+        break;
+      case ToolbarIconSize::Small:
+        label = tr("Small", "toolbar icon size");
+        break;
+      case ToolbarIconSize::Normal:
+        label = tr("Normal", "toolbar icon size");
+        break;
+      case ToolbarIconSize::Bigger:
+        label = tr("Bigger", "toolbar icon size");
+        break;
+      case ToolbarIconSize::Biggest:
+        label = tr("Biggest", "toolbar icon size");
+        break;
+    }
+    toolbar_icon_size_combo->addItem(label, toolbar_icon_size_token(size));
+  }
+  toolbar_icon_size_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  toolbar_icon_size_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  const auto entry_toolbar_icon_size = stored_toolbar_icon_size();
+  toolbar_icon_size_combo->setCurrentIndex(
+      std::max(0, toolbar_icon_size_combo->findData(toolbar_icon_size_token(entry_toolbar_icon_size))));
+  application_form->addRow(tr("Toolbar icon size:"), toolbar_icon_size_combo);
+
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
   // Linux only: the desktop's own title bar and frame instead of the frameless chrome
   // (GitHub issue 145; docs/wayland.md). Read at startup, so like the interface scale it
@@ -1861,6 +1896,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
 #endif
                                QStringLiteral("preferencesInterfaceScaleMessageBox"));
     }
+    if (const auto chosen_toolbar_icon_size =
+            toolbar_icon_size_from_token(toolbar_icon_size_combo->currentData().toString());
+        chosen_toolbar_icon_size != entry_toolbar_icon_size) {
+      set_stored_toolbar_icon_size(chosen_toolbar_icon_size);
+    }
+    apply_tool_palette_factor(toolbar_icon_size_factor(stored_toolbar_icon_size()));
     set_ruler_unit_preference(measurement_unit_from_settings_token(
         ruler_units_combo->currentData().toString(), MeasurementUnit::Pixels));
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());

@@ -24018,6 +24018,39 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Corners: none placed</source>
         <translation>Ecken: keine gesetzt</translation>
     </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>Größe der Symbole und Schaltflächen der Werkzeugpalette, relativ zur Oberflächenskalierung.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Am kleinsten</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>Klein</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>Normal</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>Größer</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Am größten</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>Größe der Werkzeugsymbole:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

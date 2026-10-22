@@ -23946,6 +23946,39 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Corners: none placed</source>
         <translation>角: 未配置</translation>
     </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>ツールパレットのアイコンとボタンのサイズです。インターフェースの拡大率に対する相対値です。</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>標準</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最大</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>ツールアイコンのサイズ:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

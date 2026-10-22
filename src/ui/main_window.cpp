@@ -4340,6 +4340,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // document session brings a canvas (startup_tool_settings_pending_).
 
   startup_trace::Scope actions_phase("mw.actions");
+  tool_palette_factor_ = toolbar_icon_size_factor(stored_toolbar_icon_size());
   create_actions();
   restore_startup_tool_selection();
   actions_phase.end();
@@ -4404,7 +4405,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   restore_panel_layout();
   layout_phase.end();
   startup_trace::Scope stylesheet_phase("mw.stylesheet");
-  setStyleSheet(photoshop_style());
+  setStyleSheet(photoshop_style(tool_palette_factor_));
   stylesheet_phase.end();
   const startup_trace::Scope status_phase("mw.status_bar");
   // Connected after the first sheet is applied: connecting earlier would let a

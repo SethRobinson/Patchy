@@ -23946,6 +23946,39 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Corners: none placed</source>
         <translation>角: 尚未放置</translation>
     </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>工具面板圖示和按鈕的大小，相對於介面縮放。</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>正常</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>較大</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最大</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>工具圖示大小:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
