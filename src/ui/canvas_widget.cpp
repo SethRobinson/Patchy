@@ -978,12 +978,12 @@ int CanvasWidget::eyedropper_sample_size() const noexcept {
   return eyedropper_sample_size_;
 }
 
-void CanvasWidget::set_eyedropper_sample_all_layers(bool enabled) noexcept {
-  eyedropper_sample_all_layers_ = enabled;
+void CanvasWidget::set_eyedropper_sample_layers(SampleLayers mode) noexcept {
+  eyedropper_sample_layers_ = mode;
 }
 
-bool CanvasWidget::eyedropper_sample_all_layers() const noexcept {
-  return eyedropper_sample_all_layers_;
+SampleLayers CanvasWidget::eyedropper_sample_layers() const noexcept {
+  return eyedropper_sample_layers_;
 }
 
 void CanvasWidget::set_eyedropper_picks_background(bool background) {

@@ -13507,6 +13507,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Многоугольное лассо</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Выберите слой, чтобы брать образец с него и слоёв ниже, или берите образец со всех слоёв</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22795,10 +22799,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Текущий слой</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Брать цвет из сведённого изображения или только с активного слоя</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Удалить из последних папок</translation>
     </message>
@@ -23841,6 +23841,22 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Текущий и ниже</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Все слои без корректировок</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Текущий и ниже без корректировок</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Какие слои читает пипетка: активный слой, его и слои ниже или сведённое изображение, при желании без корректирующих слоёв</translation>
     </message>
 </context>
 <context>

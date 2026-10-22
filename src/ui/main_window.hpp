@@ -3113,7 +3113,7 @@ private:
   SpongeMode current_sponge_mode_{SpongeMode::Desaturate};
   bool current_sponge_vibrance_{true};
   int current_eyedropper_sample_size_{1};
-  bool current_eyedropper_sample_all_layers_{true};
+  SampleLayers current_eyedropper_sample_layers_{SampleLayers::AllLayers};
   bool current_eyedropper_picks_background_{false};
   bool view_rulers_visible_{false};
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};

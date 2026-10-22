@@ -13507,6 +13507,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Lasso wielokątne</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Wybierz warstwę, aby próbkować ją i warstwy poniżej, albo próbkuj wszystkie warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22795,10 +22799,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Bieżąca warstwa</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Pobierz kolor ze scalonego obrazu albo tylko z aktywnej warstwy</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Usuń z ostatnich folderów</translation>
     </message>
@@ -23841,6 +23841,22 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Bieżąca i poniżej</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Wszystkie warstwy bez dopasowań</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Bieżąca i poniżej bez dopasowań</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Które warstwy odczytuje pobranie: aktywną warstwę, ją i warstwy poniżej lub scalony obraz, opcjonalnie bez warstw dopasowania</translation>
     </message>
 </context>
 <context>

@@ -13437,6 +13437,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>多邊形套索</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>請選取一個圖層以從它及下方圖層取樣，或取樣全部圖層</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22659,10 +22663,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>目前圖層</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>從合併後的影像或僅從使用中圖層取色</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>從最近使用的資料夾中移除</translation>
     </message>
@@ -23697,6 +23697,22 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>目前及下方圖層</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>全部圖層 (無調整)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>目前及下方圖層 (無調整)</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>取色讀取的圖層：目前圖層、目前及下方圖層或合併影像，可選擇不含調整圖層</translation>
     </message>
 </context>
 <context>

@@ -2800,20 +2800,31 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_label(QT_TR_NOOP("Sample:"), {CanvasTool::Eyedropper});
   eyedropper_sample_layers_combo_ = new QComboBox(toolbar);
   eyedropper_sample_layers_combo_->setObjectName(QStringLiteral("eyedropperSampleLayersCombo"));
-  eyedropper_sample_layers_combo_->addItem(tr("All Layers"), true);
-  eyedropper_sample_layers_combo_->addItem(tr("Current Layer"), false);
-  eyedropper_sample_layers_combo_->setCurrentIndex(
-      std::max(0, eyedropper_sample_layers_combo_->findData(current_eyedropper_sample_all_layers_)));
+  // Item data is the settings token (GitHub issue 321).
+  const auto add_sample_layers_item = [this](const QString& text, SampleLayers mode) {
+    eyedropper_sample_layers_combo_->addItem(text, QString::fromLatin1(sample_layers_token(mode)));
+  };
+  add_sample_layers_item(tr("Current Layer"), SampleLayers::CurrentLayer);
+  add_sample_layers_item(tr("Current & Below"), SampleLayers::CurrentAndBelow);
+  add_sample_layers_item(tr("All Layers"), SampleLayers::AllLayers);
+  add_sample_layers_item(tr("All Layers No Adjustments"), SampleLayers::AllLayersNoAdjustments);
+  add_sample_layers_item(tr("Current & Below No Adjustments"), SampleLayers::CurrentAndBelowNoAdjustments);
+  eyedropper_sample_layers_combo_->setCurrentIndex(std::max(
+      0, eyedropper_sample_layers_combo_->findData(
+             QString::fromLatin1(sample_layers_token(current_eyedropper_sample_layers_)))));
   bind_tooltip(eyedropper_sample_layers_combo_,
-               QT_TR_NOOP("Pick from the merged image or from the active layer alone"));
+               QT_TR_NOOP("Which layers a pick reads: the active layer, it and the layers below, or the merged "
+                          "image, optionally without adjustment layers"));
   add_option_widget(eyedropper_sample_layers_combo_, {CanvasTool::Eyedropper});
   connect(eyedropper_sample_layers_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0 || eyedropper_sample_layers_combo_ == nullptr) {
       return;
     }
-    current_eyedropper_sample_all_layers_ = eyedropper_sample_layers_combo_->itemData(index).toBool();
+    current_eyedropper_sample_layers_ =
+        sample_layers_from_settings(eyedropper_sample_layers_combo_->itemData(index).toString().toStdString(),
+                                    std::nullopt);
     if (canvas_ != nullptr) {
-      canvas_->set_eyedropper_sample_all_layers(current_eyedropper_sample_all_layers_);
+      canvas_->set_eyedropper_sample_layers(current_eyedropper_sample_layers_);
     }
     save_tool_settings();
   });
