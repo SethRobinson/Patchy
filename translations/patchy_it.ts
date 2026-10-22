@@ -11802,6 +11802,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Spessore traccia (0 per nessuna traccia)</translation>
     </message>
     <message>
+        <source>Trim</source>
+        <translation>Rifila</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>In base a</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Pixel trasparenti</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Colore del pixel in alto a sinistra</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Colore del pixel in basso a destra</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>L&apos;immagine non ha pixel trasparenti</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Rifila</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>In alto</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>In basso</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Sinistra</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Destra</translation>
+    </message>
+    <message>
         <source>Perspective Crop</source>
         <translation>Taglierina prospettica</translation>
     </message>
@@ -23867,6 +23911,34 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Mostra la sovrapposizione solo durante il trascinamento</translation>
     </message>
     <message>
+        <source>T&amp;rim...</source>
+        <translation>Rifi&amp;la...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Elimina i bordi trasparenti o di un solo colore dell&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Niente da rifilare: l&apos;immagine non ha pixel visibili</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Niente da rifilare: tutta l&apos;immagine è di un solo colore</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Niente da rifilare sui lati scelti</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Rifila</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Rifilato a %1 x %2</translation>
+    </message>
+    <message>
         <source>Width of the result; blank uses the spacing of the corners</source>
         <translation>Larghezza del risultato; vuoto usa la distanza tra gli angoli</translation>
     </message>
@@ -25718,6 +25790,18 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>I tratti richiedono un livello pixel non bloccato.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>le opzioni di trim devono essere un oggetto.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn deve essere &quot;transparent&quot;, &quot;topLeft&quot; o &quot;bottomRight&quot;.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim non si applica a un documento con tavole da disegno.</translation>
     </message>
     <message>
         <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>

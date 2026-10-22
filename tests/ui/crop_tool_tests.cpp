@@ -48,9 +48,16 @@
 #include <QAbstractItemView>
 #include <QMenu>
 #include <QPainter>
+#include <QScopeGuard>
+#include <QRadioButton>
 #include <QTimer>
 #include <QToolButton>
 #include "ui/color_panel.hpp"
+#include "core/pixel_depth.hpp"
+#include "formats/document_trim.hpp"
+#include "scripting_test_support.hpp"
+#include "ui/script_engine.hpp"
+#include <cstdio>
 #include <cstdlib>
 
 namespace {
@@ -1866,6 +1873,259 @@ void ui_crop_delete_options_crop_and_delete_layers() {
   CHECK(second_layers != nullptr && second_layers->isChecked());
 }
 
+// Image > Trim... (GitHub issue 297). Answers the next Trim dialog: checks whether
+// Transparent Pixels is offered, picks `basis` (an object name, or nullptr to keep the
+// remembered choice), sets the sides and accepts.
+struct TrimDialogAnswer {
+  const char* basis{nullptr};
+  std::array<bool, 4> sides{true, true, true, true};  // top, bottom, left, right
+  bool transparent_enabled{true};
+  const char* expected_basis{nullptr};  // the radio checked on open, when given
+  const char* artifact{nullptr};
+};
+
+// The dialog driver runs inside Qt's event dispatch, where a throwing CHECK must not land.
+void trim_expect(bool condition, const char* what) {
+  if (!condition) {
+    patchy::test::report_failure(std::string("Trim dialog: ") + what);
+  }
+}
+
+void answer_trim_dialog(TrimDialogAnswer answer, bool* seen) {
+  *seen = false;
+  QTimer::singleShot(0, [answer, seen] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyTrimDialog") || !widget->isVisible()) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      trim_expect(dialog != nullptr, "dialog != nullptr");
+      if (dialog == nullptr) {
+        return;
+      }
+      *seen = true;
+      auto* transparent = dialog->findChild<QRadioButton*>(QStringLiteral("trimTransparentRadio"));
+      trim_expect(transparent != nullptr, "transparent != nullptr");
+      trim_expect(dialog->findChild<QRadioButton*>(QStringLiteral("trimTopLeftRadio")) != nullptr, "dialog->findChild<QRadioButton*>(QStringLiteral(\"trimTopLeftRadio\")) != nullptr");
+      trim_expect(dialog->findChild<QRadioButton*>(QStringLiteral("trimBottomRightRadio")) != nullptr, "dialog->findChild<QRadioButton*>(QStringLiteral(\"trimBottomRightRadio\")) != nullptr");
+      if (transparent != nullptr) {
+        trim_expect(transparent->isEnabled() == answer.transparent_enabled, "transparent->isEnabled() == answer.transparent_enabled");
+      }
+      trim_expect(!dialog->styleSheet().contains(QLatin1Char('@')), "!dialog->styleSheet().contains(QLatin1Char('@'))");
+      if (answer.expected_basis != nullptr) {
+        auto* expected = dialog->findChild<QRadioButton*>(QString::fromLatin1(answer.expected_basis));
+        trim_expect(expected != nullptr && expected->isChecked(), "expected != nullptr && expected->isChecked()");
+      }
+      if (answer.basis != nullptr) {
+        auto* radio = dialog->findChild<QRadioButton*>(QString::fromLatin1(answer.basis));
+        trim_expect(radio != nullptr, "radio != nullptr");
+        if (radio != nullptr) {
+          radio->setChecked(true);
+        }
+      }
+      const std::array<const char*, 4> names{"trimTopCheck", "trimBottomCheck", "trimLeftCheck", "trimRightCheck"};
+      for (std::size_t index = 0; index < names.size(); ++index) {
+        auto* check = dialog->findChild<QCheckBox*>(QString::fromLatin1(names[index]));
+        trim_expect(check != nullptr, "check != nullptr");
+        if (check != nullptr) {
+          check->setChecked(answer.sides[index]);
+        }
+      }
+      if (answer.artifact != nullptr) {
+        widget->grab().save(QStringLiteral("test-artifacts/%1.png").arg(QString::fromLatin1(answer.artifact)));
+      }
+      dialog->accept();
+      return;
+    }
+    trim_expect(false, "no visible Trim dialog");
+  });
+}
+
+void run_trim(patchy::ui::MainWindow& window, const TrimDialogAnswer& answer) {
+  bool seen = false;
+  answer_trim_dialog(answer, &seen);
+  require_hotkey_action(window, QStringLiteral("image.trim"))->trigger();
+  QApplication::processEvents();
+  CHECK(seen);
+}
+
+bool run_trim_script(patchy::ui::MainWindow& window, const QString& source) {
+  const auto clean = patchy::test::ui::scripting_support::run_script(window, source);
+  if (!clean) {
+    for (const auto& line : window.script_engine_host().message_backlog()) {
+      fprintf(stderr, "  script: %s\n", qPrintable(line));
+    }
+  }
+  return clean;
+}
+
+void check_trim_size(patchy::ui::MainWindow& window, const patchy::Document& document, int width, int height) {
+  if (document.width() != width || document.height() != height) {
+    fprintf(stderr, "  trim: expected %d x %d, document is %d x %d, status \"%s\"\n", width, height, document.width(),
+            document.height(), qPrintable(window.statusBar()->currentMessage()));
+  }
+  CHECK(document.width() == width && document.height() == height);
+}
+
+void clear_trim_settings() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("trim"));
+}
+
+// A 200x150 document whose Background was removed: a pink block and a blue square on
+// transparency, together spanning x 40..130 and y 30..110.
+constexpr const char* kTrimStickerSetup = R"JS(
+  var d = app.newDocument(200, 150);
+  var base = d.activeLayer;
+  var art = d.addLayer('Art');
+  art.fillRect(40, 30, 60, 50, '#c83c78');
+  d.addLayer('Dot').fillRect(120, 100, 10, 10, '#3080f0');
+  base.remove();
+)JS";
+
+void ui_trim_transparent_pixels_trims_sides_and_undoes() {
+  clear_trim_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_trim_script(window, QString::fromLatin1(kTrimStickerSetup)));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  check_trim_size(window, document, 200, 150);
+  const auto undo = [&] {
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    check_trim_size(window, document, 200, 150);
+  };
+
+  // A first run starts on Transparent Pixels with every side checked.
+  run_trim(window, {nullptr, {true, true, true, true}, true, "trimTransparentRadio", "ui_trim_dialog"});
+  check_trim_size(window, document, 90, 80);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Trimmed to 90 x 80"));
+  {
+    const auto composite = patchy::flatten_document_for_trim(document);
+    CHECK(composite.pixel(0, 0)[3] == 255);
+    CHECK(composite.pixel(0, 0)[0] == 0xc8);
+    CHECK(composite.pixel(89, 79)[3] == 255);
+    CHECK(composite.pixel(89, 79)[2] == 0xf0);
+  }
+  save_widget_artifact("ui_trim_result", window);
+  undo();
+
+  // Top only keeps the rows below the first visible one.
+  run_trim(window, {nullptr, {true, false, false, false}});
+  check_trim_size(window, document, 200, 120);
+  undo();
+  // Left and right only.
+  run_trim(window, {nullptr, {false, false, true, true}, true, "trimTransparentRadio"});
+  check_trim_size(window, document, 90, 150);
+
+  // The choices persist.
+  const auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("trim/basedOn")).toString() == QStringLiteral("transparent"));
+  CHECK(!settings.value(QStringLiteral("trim/top")).toBool());
+  CHECK(!settings.value(QStringLiteral("trim/bottom")).toBool());
+  CHECK(settings.value(QStringLiteral("trim/left")).toBool());
+  CHECK(settings.value(QStringLiteral("trim/right")).toBool());
+  clear_trim_settings();
+}
+
+void ui_trim_corner_colors_and_nothing_to_trim() {
+  clear_trim_settings();
+  {
+    // A remembered Transparent Pixels falls back to Top Left on an opaque image.
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("trim/basedOn"), QStringLiteral("transparent"));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_trim_script(window, QStringLiteral(R"JS(
+    var d = app.newDocument(200, 150);
+    d.activeLayer.fillRect(0, 0, 200, 150, '#ffffff');
+    d.addLayer('Art').fillRect(50, 40, 30, 20, '#20a040');
+    d.addLayer('Band').fillRect(0, 140, 200, 10, '#2040e0');
+  )JS")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo = [&] {
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    check_trim_size(window, document, 200, 150);
+  };
+
+  // White top left: everything white goes, the band keeps the full width.
+  run_trim(window, {nullptr, {true, true, true, true}, false, "trimTopLeftRadio", "ui_trim_dialog_opaque"});
+  check_trim_size(window, document, 200, 110);
+  undo();
+  // Blue bottom right, left and right only: no column is all blue, so nothing changes.
+  run_trim(window, {"trimBottomRightRadio", {false, false, true, true}, false});
+  check_trim_size(window, document, 200, 150);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Nothing to trim on the chosen sides"));
+  // Every side: only the band rows go.
+  run_trim(window, {nullptr, {true, true, true, true}, false, "trimBottomRightRadio"});
+  check_trim_size(window, document, 200, 140);
+  undo();
+
+  // A one-color image has nothing to keep.
+  CHECK(run_trim_script(window, QStringLiteral(R"JS(
+    var u = app.newDocument(64, 48);
+    u.activeLayer.fillRect(0, 0, 64, 48, '#406080');
+  )JS")));
+  auto& uniform = patchy::ui::MainWindowTestAccess::document(window);
+  run_trim(window, {"trimTopLeftRadio", {true, true, true, true}, false});
+  check_trim_size(window, uniform, 64, 48);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Nothing to trim: the whole image is one color"));
+  clear_trim_settings();
+}
+
+// 16 and 32-bit documents trim on their deep composite and stay at their depth.
+void ui_trim_deep_documents() {
+  patchy::set_deep_editing_override(true);
+  const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  for (const int bits : {16, 32}) {
+    clear_trim_settings();
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(run_trim_script(
+        window, QString::fromLatin1(kTrimStickerSetup) + QStringLiteral("d.convertBitDepth(%1);").arg(bits)));
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto depth = bits == 16 ? patchy::BitDepth::UInt16 : patchy::BitDepth::Float32;
+    CHECK(document.color_state().bit_depth == depth);
+    run_trim(window, {nullptr, {true, true, true, true}, true, "trimTransparentRadio"});
+    check_trim_size(window, document, 90, 80);
+    CHECK(document.color_state().bit_depth == depth);
+    const auto* art = patchy::test::ui::scripting_support::layer_named(document, "Art");
+    CHECK(art != nullptr && art->pixels().format().bit_depth == depth);
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    check_trim_size(window, document, 200, 150);
+  }
+  clear_trim_settings();
+}
+
+// doc.trim: the same analysis in one call, returning the kept rect or null.
+void ui_script_trim() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_trim_script(window, QString::fromLatin1(kTrimStickerSetup) + QStringLiteral(R"JS(
+    function throws(f) { try { f(); } catch (e) { return true; } return false; }
+    if (throws(function () { d.trim({basedOn: 'middle'}); }) !== true) throw Error('unknown basedOn');
+    var r = d.trim({bottom: false});
+    if (!r || r.x !== 40 || r.y !== 30 || r.width !== 90 || r.height !== 120) throw Error('kept ' + JSON.stringify(r));
+    if (d.width !== 90 || d.height !== 120) throw Error('size ' + d.width + 'x' + d.height);
+    r = d.trim();
+    if (!r || r.x !== 0 || r.y !== 0 || r.width !== 90 || r.height !== 80) throw Error('second ' + JSON.stringify(r));
+    if (d.trim() !== null) throw Error('nothing left to trim');
+    var o = app.newDocument(100, 80);
+    o.activeLayer.fillRect(0, 0, 100, 80, '#ffffff');
+    o.activeLayer.fillRect(10, 20, 30, 5, '#000000');
+    if (o.trim() !== null) throw Error('opaque image has no transparent edge');
+    var t = o.trim({basedOn: 'topLeft', left: false, right: false});
+    if (!t || t.x !== 0 || t.y !== 20 || t.width !== 100 || t.height !== 5) throw Error('topLeft ' + JSON.stringify(t));
+    if (o.trim({basedOn: 'bottomRight'}) === null) throw Error('bottomRight');
+    if (o.width !== 30 || o.height !== 5) throw Error('final ' + o.width + 'x' + o.height);
+    console.log('trim-ok');
+  )JS")));
+  CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("trim-ok")));
+}
+
 }  // namespace
 
 namespace {
@@ -2234,5 +2494,9 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
       {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
       {"ui_crop_options_popup_sets_shield_and_cropped_area", ui_crop_options_popup_sets_shield_and_cropped_area},
+      {"ui_trim_transparent_pixels_trims_sides_and_undoes", ui_trim_transparent_pixels_trims_sides_and_undoes},
+      {"ui_trim_corner_colors_and_nothing_to_trim", ui_trim_corner_colors_and_nothing_to_trim},
+      {"ui_trim_deep_documents", ui_trim_deep_documents},
+      {"ui_script_trim", ui_script_trim},
   };
 }

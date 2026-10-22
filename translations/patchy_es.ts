@@ -11802,6 +11802,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Grosor del trazo (0 para ningún trazo)</translation>
     </message>
     <message>
+        <source>Trim</source>
+        <translation>Cortar</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>Basado en</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Píxeles transparentes</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Color del píxel superior izquierdo</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Color del píxel inferior derecho</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>La imagen no tiene píxeles transparentes</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Cortar</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Superior</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Inferior</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Izquierda</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Derecha</translation>
+    </message>
+    <message>
         <source>Perspective Crop</source>
         <translation>Recorte con perspectiva</translation>
     </message>
@@ -23867,6 +23911,34 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Mostrar la superposición solo al arrastrar</translation>
     </message>
     <message>
+        <source>T&amp;rim...</source>
+        <translation>Co&amp;rtar...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Recortar los bordes transparentes o de un solo color de la imagen</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Nada que cortar: la imagen no tiene píxeles visibles</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Nada que cortar: toda la imagen es de un color</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Nada que cortar en los lados elegidos</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Cortar</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Cortado a %1 x %2</translation>
+    </message>
+    <message>
         <source>Width of the result; blank uses the spacing of the corners</source>
         <translation>Anchura del resultado; en blanco usa la separación de las esquinas</translation>
     </message>
@@ -25718,6 +25790,18 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>Los trazos requieren una capa de píxeles desbloqueada.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>las opciones de trim deben ser un objeto.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn debe ser &quot;transparent&quot;, &quot;topLeft&quot; o &quot;bottomRight&quot;.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim no se aplica a un documento con mesas de trabajo.</translation>
     </message>
     <message>
         <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>

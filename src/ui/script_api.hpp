@@ -338,6 +338,9 @@ public:
   // Perspective Crop (GitHub issue 328): `corners` is four [x, y] or {x, y} points in
   // output order TL, TR, BR, BL; options {width, height, resolution}.
   Q_INVOKABLE void perspectiveCrop(const QJSValue& corners, const QJSValue& options = QJSValue());
+  // Image > Trim (GitHub issue 297): {basedOn, top, bottom, left, right}; returns the kept
+  // rect in the old canvas coordinates, or null when nothing was trimmed.
+  Q_INVOKABLE QJSValue trim(const QJSValue& options = QJSValue());
   Q_INVOKABLE bool saveAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());

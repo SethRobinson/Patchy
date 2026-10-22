@@ -764,6 +764,9 @@ private:
   // Image > Crop to Selection (Advanced): the Canvas Size dialog prefilled with the
   // selection rect as its frame.
   void crop_to_selection_advanced();
+  // Image > Trim... (GitHub issue 297): crops the canvas to the composite's content,
+  // cutting transparent or corner-colored edges.
+  void trim_canvas_dialog();
   // Shared apply for Canvas Size and the advanced crop: `frame` is the new canvas in
   // current document coordinates (core `resize_canvas_to_frame`).
   void apply_canvas_size(Rect frame, QColor extension_color, bool crop_layers, bool delete_off_canvas_layers,

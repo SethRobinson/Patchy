@@ -11767,6 +11767,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>描边宽度 (0 表示无描边)</translation>
     </message>
     <message>
+        <source>Trim</source>
+        <translation>裁切</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>基于</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>透明像素</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>左上角像素颜色</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>右下角像素颜色</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>图像没有透明像素</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>裁切掉</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>顶部</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>底部</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左侧</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右侧</translation>
+    </message>
+    <message>
         <source>Perspective Crop</source>
         <translation>透视裁剪</translation>
     </message>
@@ -23795,6 +23839,34 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>仅在拖动时显示叠加</translation>
     </message>
     <message>
+        <source>T&amp;rim...</source>
+        <translation>裁切(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>裁掉图像透明或单色的边缘</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>没有可裁切的内容：图像没有可见像素</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>没有可裁切的内容：整个图像是一种颜色</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>所选边上没有可裁切的内容</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>裁切</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>已裁切为 %1 x %2</translation>
+    </message>
+    <message>
         <source>Width of the result; blank uses the spacing of the corners</source>
         <translation>结果的宽度; 留空则使用四个角的间距</translation>
     </message>
@@ -25645,6 +25717,18 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>笔触需要一个未锁定的像素图层。</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>trim 的选项必须是对象。</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim 的 basedOn 必须是 &quot;transparent&quot;、&quot;topLeft&quot; 或 &quot;bottomRight&quot;。</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim 不适用于含有画板的文档。</translation>
     </message>
     <message>
         <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>

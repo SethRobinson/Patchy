@@ -32,6 +32,7 @@
 #include "core/pixel_grid.hpp"
 #include "core/smart_object.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/document_trim.hpp"
 #include "render/compositor.hpp"
 #include "formats/palette_io.hpp"
 #include "core/layer_render_utils.hpp"
@@ -2875,6 +2876,54 @@ void ScriptDocumentObject::perspectiveCrop(const QJSValue& corners, const QJSVal
     document->print_settings().vertical_ppi = resolution;
   }
   host_.note_structure_changed(session_id_);
+}
+
+QJSValue ScriptDocumentObject::trim(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  auto basis = TrimBasis::TransparentPixels;
+  TrimSides sides;
+  if (!options.isUndefined() && !options.isNull()) {
+    if (!options.isObject()) {
+      host_.throw_js_error(ScriptEngineHost::tr("trim options must be an object."));
+      return {};
+    }
+    if (const auto value = options.property(QStringLiteral("basedOn")); !value.isUndefined() && !value.isNull()) {
+      const auto parsed = parse_trim_basis(value.toString().toStdString());
+      if (!parsed.has_value()) {
+        host_.throw_js_error(ScriptEngineHost::tr(
+            "trim basedOn must be one of \"transparent\", \"topLeft\", \"bottomRight\"."));
+        return {};
+      }
+      basis = *parsed;
+    }
+    const auto side = [&options](const char* key, bool& out) {
+      if (const auto value = options.property(QString::fromLatin1(key)); !value.isUndefined() && !value.isNull()) {
+        out = value.toBool();
+      }
+    };
+    side("top", sides.top);
+    side("bottom", sides.bottom);
+    side("left", sides.left);
+    side("right", sides.right);
+  }
+  const auto* current = read_document();
+  if (current == nullptr) {
+    return {};
+  }
+  if (document_has_artboards(*current)) {
+    host_.throw_js_error(ScriptEngineHost::tr("trim does not apply to a document with artboards."));
+    return {};
+  }
+  const auto bounds = trim_bounds(flatten_document_for_trim(*current), basis, sides);
+  if (!bounds.has_value() || *bounds == Rect::from_size(current->width(), current->height())) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  auto* document = write_document();
+  if (document == nullptr || !crop_document(*document, *bounds)) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  host_.note_structure_changed(session_id_);
+  return rect_to_js(host_.engine(), *bounds);
 }
 
 bool ScriptDocumentObject::saveAs(const QString& path, const QJSValue& options) {

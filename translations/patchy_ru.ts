@@ -11837,6 +11837,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Толщина обводки (0 = без обводки)</translation>
     </message>
     <message>
+        <source>Trim</source>
+        <translation>Тримминг</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>На основе</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Прозрачные пиксели</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Цвет левого верхнего пикселя</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Цвет правого нижнего пикселя</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>В изображении нет прозрачных пикселей</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Обрезать</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Сверху</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Снизу</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Слева</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Справа</translation>
+    </message>
+    <message>
         <source>Perspective Crop</source>
         <translation>Кадрирование перспективы</translation>
     </message>
@@ -23939,6 +23983,34 @@ Patchy может скачать обновление, заменить этот
         <translation>Показывать наложение только при перетаскивании</translation>
     </message>
     <message>
+        <source>T&amp;rim...</source>
+        <translation>&amp;Тримминг...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Обрезать прозрачные или одноцветные края изображения</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Нечего обрезать: в изображении нет видимых пикселей</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Нечего обрезать: всё изображение одного цвета</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Нечего обрезать с выбранных сторон</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Тримминг</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Обрезано до %1 x %2</translation>
+    </message>
+    <message>
         <source>Width of the result; blank uses the spacing of the corners</source>
         <translation>Ширина результата; пустое поле берёт расстояние между углами</translation>
     </message>
@@ -25791,6 +25863,18 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>Мазки требуют разблокированный растровый слой.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>параметры trim должны быть объектом.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn должен быть &quot;transparent&quot;, &quot;topLeft&quot; или &quot;bottomRight&quot;.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim не применяется к документу с монтажными областями.</translation>
     </message>
     <message>
         <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>

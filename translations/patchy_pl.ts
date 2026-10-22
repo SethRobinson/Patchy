@@ -11837,6 +11837,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Szerokość obrysu (0 = brak obrysu)</translation>
     </message>
     <message>
+        <source>Trim</source>
+        <translation>Przytnij</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>Na podstawie</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Przezroczyste piksele</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Kolor lewego górnego piksela</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Kolor prawego dolnego piksela</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>Obraz nie ma przezroczystych pikseli</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Odetnij</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Góra</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Dół</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Lewy</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Prawy</translation>
+    </message>
+    <message>
         <source>Perspective Crop</source>
         <translation>Kadrowanie perspektywiczne</translation>
     </message>
@@ -23939,6 +23983,34 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Pokazuj nakładkę tylko podczas przeciągania</translation>
     </message>
     <message>
+        <source>T&amp;rim...</source>
+        <translation>P&amp;rzytnij...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Odetnij przezroczyste lub jednokolorowe krawędzie obrazu</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Nic do przycięcia: obraz nie ma widocznych pikseli</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Nic do przycięcia: cały obraz ma jeden kolor</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Nic do przycięcia po wybranych stronach</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Przytnij</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Przycięto do %1 x %2</translation>
+    </message>
+    <message>
         <source>Width of the result; blank uses the spacing of the corners</source>
         <translation>Szerokość wyniku; puste pole używa odstępu narożników</translation>
     </message>
@@ -25791,6 +25863,18 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>Pociągnięcia wymagają odblokowanej warstwy pikseli.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>opcje trim muszą być obiektem.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn musi mieć wartość &quot;transparent&quot;, &quot;topLeft&quot; lub &quot;bottomRight&quot;.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim nie działa w dokumencie z obszarami roboczymi.</translation>
     </message>
     <message>
         <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>

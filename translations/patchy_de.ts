@@ -11802,6 +11802,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Konturbreite (0 für keine Kontur)</translation>
     </message>
     <message>
+        <source>Trim</source>
+        <translation>Zuschneiden</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>Basierend auf</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Transparente Pixel</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Farbe des Pixels oben links</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Farbe des Pixels unten rechts</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>Das Bild hat keine transparenten Pixel</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Wegschneiden</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Oben</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Unten</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Links</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Rechts</translation>
+    </message>
+    <message>
         <source>Perspective Crop</source>
         <translation>Perspektivisches Freistellen</translation>
     </message>
@@ -23867,6 +23911,34 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Überlagerung nur beim Ziehen anzeigen</translation>
     </message>
     <message>
+        <source>T&amp;rim...</source>
+        <translation>&amp;Zuschneiden...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Die transparenten oder einfarbigen Ränder des Bildes wegschneiden</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Nichts zuzuschneiden: Das Bild hat keine sichtbaren Pixel</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Nichts zuzuschneiden: Das ganze Bild hat eine Farbe</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Nichts zuzuschneiden an den gewählten Seiten</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Zuschneiden</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Zugeschnitten auf %1 x %2</translation>
+    </message>
+    <message>
         <source>Width of the result; blank uses the spacing of the corners</source>
         <translation>Breite des Ergebnisses; leer übernimmt den Abstand der Ecken</translation>
     </message>
@@ -25718,6 +25790,18 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>Malstriche erfordern eine nicht gesperrte Pixelebene.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>trim-Optionen müssen ein Objekt sein.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn muss &quot;transparent&quot;, &quot;topLeft&quot; oder &quot;bottomRight&quot; sein.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim gilt nicht für ein Dokument mit Zeichenflächen.</translation>
     </message>
     <message>
         <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>

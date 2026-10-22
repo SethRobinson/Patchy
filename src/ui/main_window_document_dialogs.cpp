@@ -14,6 +14,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/file_info_dialog.hpp"
+#include "formats/document_trim.hpp"
 #include "formats/metadata/metadata_edit.hpp"
 #include "ui/background_workers.hpp"
 
@@ -225,6 +226,185 @@ std::optional<RotateCanvasSettings> request_rotate_canvas_settings(QWidget* pare
     return std::nullopt;
   }
   return RotateCanvasSettings{clockwise->isChecked() ? angle->value() : -angle->value()};
+}
+
+struct TrimSettings {
+  TrimBasis basis{TrimBasis::TransparentPixels};
+  TrimSides sides;
+};
+
+// Image > Trim... (GitHub issue 297): what to compare against and which sides to cut.
+// Transparent Pixels is offered only when the composite has transparency; the choices
+// persist under `trim/` (permanent keys).
+std::optional<TrimSettings> request_trim_settings(QWidget* parent, bool has_transparency) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("patchyTrimDialog"));
+  dialog.setWindowTitle(QObject::tr("Trim"));
+  append_themed_style(dialog, QStringLiteral(R"(
+    QDialog#patchyTrimDialog {
+      background: @dlg_raised_bg;
+      color: @text_on_raised;
+    }
+    QDialog#patchyTrimDialog QWidget {
+      background: @dlg_raised_bg;
+      color: @text_on_raised;
+    }
+    QDialog#patchyTrimDialog QLabel {
+      background: transparent;
+      color: @text_on_raised;
+      font-size: 11px;
+    }
+    QDialog#patchyTrimDialog QLabel[sectionLabel="true"] {
+      font-weight: 700;
+    }
+    QDialog#patchyTrimDialog QRadioButton,
+    QDialog#patchyTrimDialog QCheckBox {
+      background: transparent;
+      color: @text_on_raised;
+      font-size: 11px;
+      spacing: 7px;
+    }
+    QDialog#patchyTrimDialog QRadioButton:disabled,
+    QDialog#patchyTrimDialog QCheckBox:disabled {
+      color: @text_disabled;
+    }
+    QDialog#patchyTrimDialog QRadioButton::indicator {
+      width: 11px;
+      height: 11px;
+      border-radius: 6px;
+      background: @dlg_grid_bg;
+      border: 1px solid @dlg_grid_border;
+    }
+    QDialog#patchyTrimDialog QRadioButton::indicator:checked {
+      background: @accent_pressed_bg;
+      border-color: @dlg_focus_border;
+    }
+    QDialog#patchyTrimDialog QCheckBox::indicator {
+      width: 11px;
+      height: 11px;
+      background: @dlg_grid_bg;
+      border: 1px solid @dlg_grid_border;
+    }
+    QDialog#patchyTrimDialog QCheckBox::indicator:checked {
+      background: @accent_pressed_bg;
+      border-color: @dlg_focus_border;
+      image: url(@icon(checkmark));
+    }
+    QDialog#patchyTrimDialog QPushButton {
+      background: @dlg_raised_bg;
+      border: 1px solid @dlg_action_border;
+      border-radius: 13px;
+      color: @text_on_raised;
+      min-width: 70px;
+      min-height: 24px;
+      padding: 0 14px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    QDialog#patchyTrimDialog QPushButton:hover {
+      background: @dlg_raised_hover_bg;
+      border-color: @dlg_action_hover_border;
+    }
+    QDialog#patchyTrimDialog QPushButton:disabled {
+      color: @text_disabled;
+    }
+  )"));
+
+  auto settings = app_settings();
+  auto* layout = new QVBoxLayout(&dialog);
+  layout->setContentsMargins(15, 17, 14, 14);
+  layout->setSpacing(7);
+
+  auto* based_on_label = new QLabel(QObject::tr("Based On"), &dialog);
+  based_on_label->setProperty("sectionLabel", true);
+  layout->addWidget(based_on_label);
+  auto* transparent = new QRadioButton(QObject::tr("Transparent Pixels"), &dialog);
+  transparent->setObjectName(QStringLiteral("trimTransparentRadio"));
+  auto* top_left = new QRadioButton(QObject::tr("Top Left Pixel Color"), &dialog);
+  top_left->setObjectName(QStringLiteral("trimTopLeftRadio"));
+  auto* bottom_right = new QRadioButton(QObject::tr("Bottom Right Pixel Color"), &dialog);
+  bottom_right->setObjectName(QStringLiteral("trimBottomRightRadio"));
+  auto* basis_group = new QButtonGroup(&dialog);
+  basis_group->addButton(transparent, static_cast<int>(TrimBasis::TransparentPixels));
+  basis_group->addButton(top_left, static_cast<int>(TrimBasis::TopLeftColor));
+  basis_group->addButton(bottom_right, static_cast<int>(TrimBasis::BottomRightColor));
+  for (auto* radio : {transparent, top_left, bottom_right}) {
+    auto* row = new QHBoxLayout();
+    row->setContentsMargins(14, 0, 0, 0);
+    row->addWidget(radio);
+    row->addStretch(1);
+    layout->addLayout(row);
+  }
+  transparent->setEnabled(has_transparency);
+  if (!has_transparency) {
+    transparent->setToolTip(QObject::tr("The image has no transparent pixels"));
+  }
+  const auto remembered = parse_trim_basis(
+      settings.value(QStringLiteral("trim/basedOn")).toString().toStdString());
+  // A new user starts on Transparent Pixels when the image has transparency, as does a
+  // remembered Transparent Pixels; an opaque image falls back to the top-left color.
+  auto basis = remembered.value_or(TrimBasis::TransparentPixels);
+  if (basis == TrimBasis::TransparentPixels && !has_transparency) {
+    basis = TrimBasis::TopLeftColor;
+  }
+  basis_group->button(static_cast<int>(basis))->setChecked(true);
+
+  layout->addSpacing(6);
+  auto* trim_away_label = new QLabel(QObject::tr("Trim Away"), &dialog);
+  trim_away_label->setProperty("sectionLabel", true);
+  layout->addWidget(trim_away_label);
+  auto* sides_grid = new QGridLayout();
+  sides_grid->setContentsMargins(14, 0, 0, 0);
+  sides_grid->setHorizontalSpacing(24);
+  sides_grid->setVerticalSpacing(7);
+  auto* top = new QCheckBox(QObject::tr("Top"), &dialog);
+  top->setObjectName(QStringLiteral("trimTopCheck"));
+  auto* bottom = new QCheckBox(QObject::tr("Bottom"), &dialog);
+  bottom->setObjectName(QStringLiteral("trimBottomCheck"));
+  auto* left = new QCheckBox(QObject::tr("Left"), &dialog);
+  left->setObjectName(QStringLiteral("trimLeftCheck"));
+  auto* right = new QCheckBox(QObject::tr("Right"), &dialog);
+  right->setObjectName(QStringLiteral("trimRightCheck"));
+  top->setChecked(settings.value(QStringLiteral("trim/top"), true).toBool());
+  bottom->setChecked(settings.value(QStringLiteral("trim/bottom"), true).toBool());
+  left->setChecked(settings.value(QStringLiteral("trim/left"), true).toBool());
+  right->setChecked(settings.value(QStringLiteral("trim/right"), true).toBool());
+  sides_grid->addWidget(top, 0, 0);
+  sides_grid->addWidget(left, 0, 1);
+  sides_grid->addWidget(bottom, 1, 0);
+  sides_grid->addWidget(right, 1, 1);
+  sides_grid->setColumnStretch(2, 1);
+  layout->addLayout(sides_grid);
+  layout->addSpacing(6);
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  // With every side off there is nothing to trim.
+  auto* ok = buttons->button(QDialogButtonBox::Ok);
+  ok->setObjectName(QStringLiteral("trimOkButton"));
+  const auto refresh_ok = [ok, top, bottom, left, right] {
+    ok->setEnabled(top->isChecked() || bottom->isChecked() || left->isChecked() || right->isChecked());
+  };
+  for (auto* check : {top, bottom, left, right}) {
+    QObject::connect(check, &QCheckBox::toggled, &dialog, refresh_ok);
+  }
+  refresh_ok();
+
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  TrimSettings result;
+  result.basis = static_cast<TrimBasis>(basis_group->checkedId());
+  result.sides = TrimSides{top->isChecked(), bottom->isChecked(), left->isChecked(), right->isChecked()};
+  const auto id = trim_basis_id(result.basis);
+  settings.setValue(QStringLiteral("trim/basedOn"), QString::fromUtf8(id.data(), static_cast<qsizetype>(id.size())));
+  settings.setValue(QStringLiteral("trim/top"), result.sides.top);
+  settings.setValue(QStringLiteral("trim/bottom"), result.sides.bottom);
+  settings.setValue(QStringLiteral("trim/left"), result.sides.left);
+  settings.setValue(QStringLiteral("trim/right"), result.sides.right);
+  return result;
 }
 
 struct ImageSizeSettings {
@@ -1567,6 +1747,57 @@ void MainWindow::apply_canvas_size(Rect frame, QColor extension_color, bool crop
     return;
   }
   statusBar()->showMessage(tr("Canvas %1 x %2").arg(doc.width()).arg(doc.height()));
+}
+
+void MainWindow::trim_canvas_dialog() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  finish_active_text_editor();
+  if (refuse_crop_with_artboards()) {
+    return;
+  }
+  // The analysis reads the composite of every visible layer at the document's depth; it
+  // is made once, before the dialog, which needs it to offer Transparent Pixels.
+  const auto composite = flatten_document_for_trim(std::as_const(document()));
+  const auto settings = request_trim_settings(this, trim_composite_has_transparency(composite));
+  if (!settings.has_value()) {
+    return;
+  }
+  const auto bounds = trim_bounds(composite, settings->basis, settings->sides);
+  if (!bounds.has_value()) {
+    statusBar()->showMessage(settings->basis == TrimBasis::TransparentPixels
+                                 ? tr("Nothing to trim: the image has no visible pixels")
+                                 : tr("Nothing to trim: the whole image is one color"));
+    return;
+  }
+  auto& doc = document();
+  if (*bounds == Rect::from_size(doc.width(), doc.height())) {
+    statusBar()->showMessage(tr("Nothing to trim on the chosen sides"));
+    return;
+  }
+  if (refuse_document_geometry_change()) {
+    return;
+  }
+  auto trimmed_document = doc;
+  if (!patchy::crop_document(trimmed_document, *bounds)) {
+    return;
+  }
+  push_undo_snapshot(tr("Trim"));
+  doc = std::move(trimmed_document);
+  canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
+  canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
+  // The old pan is meaningless for the smaller document, so recenter at the current zoom.
+  canvas_->center_document_in_view();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  statusBar()->showMessage(tr("Trimmed to %1 x %2").arg(doc.width()).arg(doc.height()));
 }
 
 void MainWindow::rotate_canvas_arbitrary() {
