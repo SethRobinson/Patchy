@@ -1527,6 +1527,9 @@ private:
   void handle_shape_create_requested(CanvasTool tool, QPointF document_point);
   void create_shape_layer_from_drag(const patchy::LiveShapeParams& params);
   void add_drag_to_work_path(const patchy::LiveShapeParams& params);
+  // The combine index a shape commit uses: the options-bar setting, or Add for a
+  // shape drag pressed with Shift (GitHub issue 313; the setting itself is untouched).
+  [[nodiscard]] int effective_vector_combine_index() const;
   void create_or_extend_shape_layer(std::vector<patchy::PathSubpath> subpaths,
                                     std::optional<patchy::LiveShapeParams> origination,
                                     const QString& name_pattern);

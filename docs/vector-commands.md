@@ -155,6 +155,21 @@ Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
 `ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
 `ui_path_select_tools_show_their_own_arrow_cursors`.
 
+Shape tools (Line, Rectangle, Ellipse, Polygon, Custom Shape; GitHub issues 312 and 313).
+Ctrl is a temporary Path Select: `shape_ctrl_path_select_` follows Ctrl from hover moves
+and the key filter while idle (arrow cursor, editing overlay through
+`path_edit_tool_active()`), and a Ctrl press latches `shape_temp_path_select_` until
+release, so `path_edit_tool()` reports PathSelect and the press, drag, marquee and release
+run the Path Select handlers unchanged (one "Move shape" undo). With no path targeted the
+press first picks the topmost shape layer under it; a miss does nothing. A drag in progress
+ignores Ctrl. Shift at the press of a vector-mode drag sets `shape_press_adds_to_shape_`
+for that release's commit only: `MainWindow::effective_vector_combine_index()` reads it as
+Add, so the shape joins the active shape layer (or the work path) as a new group, any
+kind; with no shape layer active a new layer is made as before. Shift during the drag
+still constrains; the Combine combo is never written. Alt keeps its meaning (from center,
+Line's eyedropper); there is no Alt subtract. Coverage: `ui_shape_tool_ctrl_acts_as_path_select`,
+`ui_shape_tool_shift_press_adds_to_shape_layer`.
+
 ## Pen: extending and ending paths
 
 GitHub issue 248. Shift keeps a new point on a 45-degree line from the last one and a

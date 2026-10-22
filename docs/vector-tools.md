@@ -15,9 +15,9 @@ mask/channel/quick-mask targets always rasterize. Release creates a
 shape layer from live parameters (rect, rounded rect via Radius, ellipse,
 line with Weight) and the options-bar paints. Stroke alignment defaults to
 Inside, like PS. Combine (New Layer / Add / Subtract / Intersect / Exclude)
-appends a group with that op to the active shape layer. Path mode appends the
-same subpaths to the work path; Pixels keeps the legacy raster commit
-byte-identical.
+appends a group with that op to the active shape layer; Shift at the press adds
+one shape, Ctrl is Path Select ([modifiers](vector-commands.md#tool-roles)). Path
+mode appends to the work path; Pixels keeps the raster commit byte-identical.
 
 Fill/Stroke popups (No Fill / Solid / Gradient / Pattern) use app-wide
 `VectorFill` mirrors. Gradient picks resolve FG/BG stops immediately; patterns
@@ -61,9 +61,8 @@ the active one per Combine); other modes route to the work path. The overlay
 draws in canvas_widget_vector_tools.cpp (canvas_widget_pen.cpp is tablet
 input).
 
-A badge cursor shows the click action; the hover classifier, Auto
-Add/Delete, and the anchor tools are in [vector-commands.md](vector-commands.md).
-Holding Ctrl acts as Direct
+Badge cursor, hover classifier, Auto Add/Delete, anchor tools:
+[vector-commands.md](vector-commands.md). Holding Ctrl acts as Direct
 Select: with no session it latches the gesture onto the path-edit handlers
 (one "Edit path" undo entry); mid-session it drags an in-progress anchor
 (Ctrl+click away ends the path); Ctrl never inserts, deletes, closes or
