@@ -3,6 +3,8 @@
 #include "core/document.hpp"
 #include "core/vector_shape.hpp"
 
+#include <cstdint>
+#include <map>
 #include <span>
 
 namespace patchy {
@@ -32,5 +34,8 @@ void transform_vector_part_appearance(VectorShapeContent& shape, const std::arra
 // must never replace the distinct colors and strokes of a merged object.
 void update_vector_part_appearance(VectorShapeContent& shape, const VectorFill& previous_fill,
                                    const VectorStroke& previous_stroke);
+// Adds each copied group (source group -> copy) to every part that paints its
+// source, so a duplicated shape paints like its original. No-op without parts.
+void copy_vector_part_groups(VectorShapeContent& shape, const std::map<std::int32_t, std::int32_t>& copies);
 
 }  // namespace patchy

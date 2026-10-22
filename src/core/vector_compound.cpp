@@ -170,6 +170,17 @@ VectorShapeContent vector_shape_part_content(const VectorShapeContent& shape, co
   return result;
 }
 
+void copy_vector_part_groups(VectorShapeContent& shape, const std::map<std::int32_t, std::int32_t>& copies) {
+  for (auto& part : shape.parts) {
+    const auto count = part.groups.size();
+    for (std::size_t i = 0; i < count; ++i) {
+      if (const auto found = copies.find(part.groups[i]); found != copies.end()) {
+        part.groups.push_back(found->second);
+      }
+    }
+  }
+}
+
 VectorShapeContent combine_vector_appearances(std::span<const Layer* const> layers) {
   VectorShapeContent result;
   std::int64_t next_group = 0;
