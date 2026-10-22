@@ -3764,7 +3764,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   // the square/from-center constraints so a stationary cursor still snaps.
   if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
       (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat() &&
-      (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse)) {
+      (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::CustomShape)) {
     if (event->key() == Qt::Key_Shift) {
       shape_square_constrained_ = true;
     } else {

@@ -8135,10 +8135,6 @@ RGB: %2, %3, %4</translation>
         <translation>Poniżej 100% wypełnienie jest widoczne wszędzie, podobnie jak gęstość maski wektorowej w Photoshopie</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Obrysuj kontur kształtu</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Farba:</translation>
     </message>
@@ -11835,6 +11831,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Radius:</source>
         <translation>Promień:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Szerokość obrysu (0 = brak obrysu)</translation>
     </message>
 </context>
 <context>
@@ -15943,24 +15943,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Wypełnienie kształtu: brak, jednolity kolor, gradient lub wzorek</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Obrys</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Obrysuj kontur kształtu</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Obrys kształtu: jednolity kolor, gradient lub wzorek</translation>
-    </message>
-    <message>
-        <source>Stroke width:</source>
-        <translation>Szerokość obrysu:</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Szerokość obrysu</translation>
     </message>
     <message>
         <source>Width of the active shape</source>
@@ -23837,6 +23821,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Obrys:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Szerokość obrysu (0 = brak obrysu)</translation>
     </message>
     <message>
         <source>Show Sample Ring</source>

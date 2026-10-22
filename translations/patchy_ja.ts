@@ -5712,10 +5712,6 @@ Mixed selection</source>
         <translation>ペイント:</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>シェイプの輪郭に線を描く</translation>
-    </message>
-    <message>
         <source>Align:</source>
         <translation>位置:</translation>
     </message>
@@ -11765,6 +11761,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Radius:</source>
         <translation>半径:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>線の太さ (0 で線なし)</translation>
     </message>
 </context>
 <context>
@@ -19098,24 +19098,12 @@ Clipped to the layer below</source>
         <translation>シェイプの塗りの色</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>線</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>シェイプの輪郭に線を描きます</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>シェイプの線: ベタ塗り、グラデーション、またはパターン</translation>
     </message>
     <message>
         <source>Shape Stroke Color</source>
         <translation>シェイプの線の色</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>線の太さ</translation>
     </message>
     <message>
         <source>No Fill</source>
@@ -21410,10 +21398,6 @@ Clipped to the layer below</source>
         <translation>画像がウィンドウいっぱいになるまでズームします (表示 &gt; 画面全体に広げる)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>線の幅:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>既定の単位:</translation>
     </message>
@@ -23693,6 +23677,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>線:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>線の太さ (0 で線なし)</translation>
     </message>
     <message>
         <source>Show Sample Ring</source>

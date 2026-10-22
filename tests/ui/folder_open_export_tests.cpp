@@ -2,6 +2,8 @@
 #include <QImage>
 #include <QMenu>
 #include <QMenuBar>
+#include <QSignalSpy>
+#include <QTest>
 #include <QWidgetAction>
 #include "ui/canvas_widget.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -853,6 +855,90 @@ void ui_menubar_menus_share_the_text_column() {
   CHECK(std::abs(reserved_start - expected) <= 3);
 }
 
+// A click on a menu separator leaves the menu open, like a click on a disabled
+// item; Qt's QMenu closed as if the click landed outside it (GitHub issue 317).
+// MainWindow installs the guard app-wide, so a bare QMenu is covered too.
+void ui_menu_separator_click_keeps_menu_open() {
+  struct TestMenu {
+    QMenu menu;
+    QAction* first = nullptr;
+    QAction* separator = nullptr;
+    QAction* second = nullptr;
+    QMenu* submenu = nullptr;
+    QAction* sub_item = nullptr;
+    TestMenu() {
+      first = menu.addAction(QStringLiteral("First"));
+      separator = menu.addSeparator();
+      second = menu.addAction(QStringLiteral("Second"));
+      menu.addSeparator();
+      submenu = menu.addMenu(QStringLiteral("More"));
+      sub_item = submenu->addAction(QStringLiteral("Inside"));
+    }
+    void open() {
+      menu.popup(QPoint(40, 40));
+      QApplication::processEvents();
+    }
+    QPoint at(QAction* action) const { return menu.actionGeometry(action).center(); }
+  };
+
+  // Without the guard (only when no MainWindow ran earlier in this process),
+  // the separator click closes the menu: the bug reproduces here.
+  if (!qApp->property("patchyMenuSeparatorClickGuard").toBool()) {
+    TestMenu before;
+    before.open();
+    CHECK(before.menu.isVisible());
+    QTest::mouseClick(&before.menu, Qt::LeftButton, Qt::NoModifier, before.at(before.separator));
+    QApplication::processEvents();
+    std::printf("  without the guard the menu is %s after a separator click\n",
+                before.menu.isVisible() ? "open" : "closed");
+    CHECK(!before.menu.isVisible());
+    before.menu.hide();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  TestMenu test;
+  QSignalSpy triggered(&test.menu, &QMenu::triggered);
+  test.open();
+  CHECK(test.menu.isVisible());
+  const QRect separator_rect = test.menu.actionGeometry(test.separator);
+  CHECK(separator_rect.isValid() && separator_rect.height() > 0);
+  QTest::mouseClick(&test.menu, Qt::LeftButton, Qt::NoModifier, separator_rect.center());
+  QApplication::processEvents();
+  CHECK(test.menu.isVisible());
+  CHECK(triggered.count() == 0);
+  QTest::mouseDClick(&test.menu, Qt::LeftButton, Qt::NoModifier, separator_rect.center());
+  QApplication::processEvents();
+  CHECK(test.menu.isVisible());
+  CHECK(triggered.count() == 0);
+
+  // A separator in the parent menu while a submenu is open: the click reaches
+  // the submenu first and Qt forwards it to the parent.
+  test.menu.setActiveAction(test.submenu->menuAction());
+  test.submenu->popup(test.menu.mapToGlobal(test.menu.actionGeometry(test.submenu->menuAction()).topRight()));
+  QApplication::processEvents();
+  if (test.submenu->isVisible()) {
+    QTest::mouseClick(test.submenu, Qt::LeftButton, Qt::NoModifier,
+                      test.submenu->mapFromGlobal(test.menu.mapToGlobal(separator_rect.center())));
+    QApplication::processEvents();
+    CHECK(test.menu.isVisible());
+    CHECK(triggered.count() == 0);
+    test.submenu->hide();
+    QApplication::processEvents();
+  } else {
+    std::printf("  the submenu did not open offscreen; parent-separator case skipped\n");
+  }
+
+  // A normal item still runs and closes the menu.
+  CHECK(test.menu.isVisible());
+  QTest::mouseClick(&test.menu, Qt::LeftButton, Qt::NoModifier, test.at(test.second));
+  QApplication::processEvents();
+  CHECK(triggered.count() == 1);
+  CHECK(triggered.count() == 1 && triggered.front().front().value<QAction*>() == test.second);
+  CHECK(!test.menu.isVisible());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> folder_open_export_tests() {
@@ -863,6 +949,7 @@ std::vector<patchy::test::TestCase> folder_open_export_tests() {
       {"ui_folder_actions_and_commands_registered", ui_folder_actions_and_commands_registered},
       {"ui_file_export_menu_actions_registered", ui_file_export_menu_actions_registered},
       {"ui_menubar_menus_share_the_text_column", ui_menubar_menus_share_the_text_column},
+      {"ui_menu_separator_click_keeps_menu_open", ui_menu_separator_click_keeps_menu_open},
       {"ui_export_documents_to_folder_writes_numbered_files", ui_export_documents_to_folder_writes_numbered_files},
       {"ui_export_documents_to_folder_writes_layered_psd_and_aseprite",
        ui_export_documents_to_folder_writes_layered_psd_and_aseprite},

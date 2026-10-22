@@ -69,7 +69,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Gradient | Method, Opacity, Reverse, gradient stops | `gradientMethod`, `gradientOpacity`, `gradientReverse`, `gradientUseCustomStops`, `gradientStops` | yes | yes |
 | Fill | Opacity, Soft, Tol, Contiguous | `fillOpacity`, `fillSoftness`, `fillTolerance`, `fillContiguous` | yes | yes |
 | Line, Rect, Ellipse, Pen, Polygon, Custom Shape | Mode (Shape/Path/Pixels) | `vectorToolMode` | yes | yes |
-| same | Fill and Stroke paint (by pattern/gradient id), Stroke on, Stroke width, Line weight | `vectorFill*`, `vectorStroke*`, `vectorLineWeight` | yes | yes |
+| same | Fill and Stroke paint (by pattern/gradient id), Stroke width (0 = off; stored as Stroke on plus the last real width), Line weight | `vectorFill*`, `vectorStroke*`, `vectorLineWeight` | yes | yes |
 | same, Path/Direct Select | Combine (`vectorCombineCombo`) | none | no | no (session) |
 | Line | arrowheads (`lineArrow*Button`) | `lineArrowStart`, `lineArrowEnd` | yes | yes |
 | Rectangle, Ellipse (Pixels) | Fill (`shapeFillCheck`) | `shapeFill` | no | yes |

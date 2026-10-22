@@ -25,8 +25,8 @@ enter the document store at commit (`ensure_vector_fill_patterns`, honoring
 the Patt-block refusal below). Kind and preset ids persist under
 vectorFill*/vectorStrokePaint* keys; gradient/pattern PLACEMENT resets each
 launch. The controls also serve Path Select / Direct Select and next-shape
-defaults; stroke controls stay enabled when any eligible target has a
-stroke; multi-shape edits: [batch appearance](batch-appearance.md).
+defaults; [width 0 = no stroke](options-bar.md#shape-tool-rows) (bar,
+dialog); multi-shape edits: [batch appearance](batch-appearance.md).
 
 A bare click with Rectangle, Ellipse, Polygon, or Custom Shape opens the
 Create <Shape> dialog (shape_create_dialog.cpp, no shape menu): W and H share
@@ -39,10 +39,9 @@ A click releases on the press's document pixel. Line has no dialog, a
 Fixed Size click places its W x H, and Pixels mode keeps its legacy click.
 
 The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
-link button for proportional edits) mirror the active shape layer's path
-bounds: shape tools show them in Shape mode only (disabled until a shape
-layer is active), Path Select / Direct Select and Move only with an editable
-shape layer (`ui_shape_size_row_shows_in_shape_mode_only`). A debounced edit
+link button for proportional edits) mirror the active shape layer's bounds:
+shape tools show them in Shape mode (disabled without a shape layer),
+Path Select / Direct Select and Move only with an editable shape layer. A debounced edit
 scales the shape about its top-left through `transform_layer_vector_data`
 (live shapes stay live; one "Shape size" undo per edit). The Properties panel
 repeats the row (`propertiesShapeSizePanel`) for an active editable shape
@@ -56,22 +55,22 @@ pair; Shift, ends: [more](vector-commands.md#pen-extending-and-ending-paths)), c
 path (it fills its implied chord, PS's open-subpath rule), Backspace pops
 the last anchor, Escape cancels; tool switches commit, document switches
 cancel. Shape mode turns the committed path into a shape layer (or extends
-the active one per Combine); other modes route to the work path. The overlay
-draws in canvas_widget_vector_tools.cpp (canvas_widget_pen.cpp is tablet
-input).
+the active one per Combine); other modes route to the work path. Overlay:
+canvas_widget_vector_tools.cpp.
 
 Badge cursor, hover classifier, Auto Add/Delete, anchor tools:
 [vector-commands.md](vector-commands.md). Holding Ctrl acts as Direct
 Select: with no session it latches the gesture onto the path-edit handlers
 (one "Edit path" undo entry); mid-session it drags an in-progress anchor
-(Ctrl+click away ends the path); Ctrl never inserts, deletes, closes or
+(Ctrl+click away ends the path); it never inserts, deletes, closes or
 extends. Delete removes a Ctrl-selected anchor.
 
 ## Polygon, Custom Shape, and line arrowheads
 
 Polygon drags center-out with Sides and a Star inset percent (0 = plain);
-Custom Shape stamps a library shape into the drag rect (Shift keeps it
-square). Both are vector-only: the combo greys out Pixels (and the Pen) and
+Custom Shape stamps a library shape (unit box, own proportions) into the drag
+rect; Shift or the W/H link (live for this tool) keeps it square, so the shape
+keeps its proportions; Alt: from center. Both are vector-only: the combo greys out Pixels (and the Pen) and
 shows the effective mode (Path) without changing it. They write plain paths
 (PS's polygon/custom origination descriptors: unprobed). The Line tool has
 start/end arrowhead glyph toggles (head width 5x, length 10x the weight, PS's

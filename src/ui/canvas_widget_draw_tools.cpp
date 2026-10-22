@@ -166,28 +166,33 @@ QSize CanvasWidget::shape_fixed_size() const noexcept {
 }
 
 QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
-  // Geometry rect for an in-flight Rectangle/Ellipse drag, folding in the options-bar
-  // Style (Normal / Fixed Ratio / Fixed Size), the Shift square constraint, and Alt
-  // draw-from-center. The rect is an inclusive pixel rect: commit it via
+  // Geometry rect for an in-flight Rectangle/Ellipse/Custom Shape drag, folding in the
+  // options-bar Style (Normal / Fixed Ratio / Fixed Size; Rectangle and Ellipse only),
+  // the Shift square constraint, and Alt draw-from-center. A custom shape is stored in
+  // the unit box at its own proportions, so a square rect keeps them; the options-bar
+  // link does the same for it as Shift. The rect is an inclusive pixel rect: commit it via
   // (topLeft(), bottomRight()) so draw_rectangle/draw_ellipse re-derive exactly this
   // rect through normalized_rect(). Mirrors marquee_selection_rect(), kept separate on
   // purpose: the marquee variant embeds selection-only concerns (edge-clamped square
   // anchoring, Alt-at-press from-center gating) and is pinned by its own tests.
-  if (tool_ != CanvasTool::Rectangle && tool_ != CanvasTool::Ellipse) {
+  if (tool_ != CanvasTool::Rectangle && tool_ != CanvasTool::Ellipse && tool_ != CanvasTool::CustomShape) {
     return normalized_rect(anchor, current);
   }
+  const auto style = tool_ == CanvasTool::CustomShape ? MarqueeStyle::Normal : shape_style_;
+  const bool square = shape_square_constrained_ ||
+                      (tool_ == CanvasTool::CustomShape && custom_shape_keep_proportions_);
   QRect rect;
   if (shape_from_center_) {
     // Alt held mid-drag: the press point is the center, so the shape grows
     // symmetrically and is twice the drag extent.
-    if (shape_style_ == MarqueeStyle::FixedSize) {
+    if (style == MarqueeStyle::FixedSize) {
       rect = QRect(anchor - QPoint(shape_fixed_size_.width() / 2, shape_fixed_size_.height() / 2),
                    shape_fixed_size_);
     } else {
       const auto delta = current - anchor;
       auto half_w = std::abs(delta.x());
       auto half_h = std::abs(delta.y());
-      if (shape_style_ == MarqueeStyle::FixedRatio) {
+      if (style == MarqueeStyle::FixedRatio) {
         const auto ratio = std::max(1.0, static_cast<double>(shape_fixed_size_.width())) /
                            std::max(1.0, static_cast<double>(shape_fixed_size_.height()));
         if (static_cast<double>(half_w) / std::max(1, half_h) > ratio) {
@@ -195,15 +200,15 @@ QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
         } else {
           half_w = std::max(0, static_cast<int>(std::round(half_h * ratio)));
         }
-      } else if (shape_square_constrained_) {
+      } else if (square) {
         half_w = half_h = std::min(half_w, half_h);
       }
       rect = QRect(anchor.x() - half_w, anchor.y() - half_h, half_w * 2, half_h * 2);
     }
-  } else if (shape_style_ == MarqueeStyle::FixedSize) {
+  } else if (style == MarqueeStyle::FixedSize) {
     // A click places the exact W x H shape extending down-right; the drag is ignored.
     rect = QRect(anchor, shape_fixed_size_);
-  } else if (shape_style_ == MarqueeStyle::FixedRatio) {
+  } else if (style == MarqueeStyle::FixedRatio) {
     const auto ratio = std::max(1.0, static_cast<double>(shape_fixed_size_.width())) /
                        std::max(1.0, static_cast<double>(shape_fixed_size_.height()));
     const auto delta = current - anchor;
@@ -217,7 +222,7 @@ QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
     rect = QRect(anchor, anchor + QPoint(delta.x() < 0 ? -width : width,
                                          delta.y() < 0 ? -height : height))
                .normalized();
-  } else if (shape_square_constrained_) {
+  } else if (square) {
     // Shift forces a 1:1 square (circle for the ellipse), sized to the smaller drag axis.
     const auto dx = current.x() - anchor.x();
     const auto dy = current.y() - anchor.y();

@@ -957,6 +957,89 @@ void ui_crop_apply_cancel_buttons_follow_session() {
   CHECK(info_label->text().contains(QStringLiteral("1024 x 768 px")));
 }
 
+// With a ratio set the automatic frame is smaller than the canvas: Apply crops
+// to it, but the X has nothing to reset and stays off, also right after a reset
+// through the X or Esc (GitHub issue 318). Size style frames the whole canvas,
+// so both buttons start off there.
+void ui_crop_cancel_button_off_for_ratio_frame() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+  auto* ratio_w = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioWidthSpin"));
+  auto* ratio_h = window.findChild<QDoubleSpinBox*>(QStringLiteral("cropRatioHeightSpin"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("cropApplyButton"));
+  auto* cancel = window.findChild<QPushButton*>(QStringLiteral("cropCancelButton"));
+  CHECK(style != nullptr);
+  CHECK(ratio_w != nullptr);
+  CHECK(ratio_h != nullptr);
+  CHECK(apply != nullptr);
+  CHECK(cancel != nullptr);
+  if (style == nullptr || ratio_w == nullptr || ratio_h == nullptr || apply == nullptr || cancel == nullptr) {
+    return;
+  }
+  style->setCurrentIndex(0);
+  ratio_w->setValue(16.0);
+  ratio_h->setValue(9.0);
+  QApplication::processEvents();
+  const QRect fitted(0, 96, 1024, 576);
+  CHECK(canvas->crop_session_rect() == fitted);
+  CHECK(canvas->crop_session_has_changes());
+  CHECK(!canvas->crop_session_can_reset());
+  CHECK(apply->isEnabled());
+  CHECK(!cancel->isEnabled());
+
+  // A handle drag makes the box custom: the X turns on.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(1024, 384)),
+       canvas->widget_position_for_document_point(QPoint(824, 384)));
+  CHECK(canvas->crop_session_rect() != fitted);
+  CHECK(canvas->crop_session_can_reset());
+  CHECK(apply->isEnabled());
+  CHECK(cancel->isEnabled());
+
+  // The X puts the fitted frame back and turns itself off, not left pressed.
+  cancel->click();
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == fitted);
+  CHECK(apply->isEnabled());
+  CHECK(!cancel->isEnabled());
+  CHECK(!cancel->isDown());
+
+  // Esc does the same after a drag-out.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(400, 300)));
+  CHECK(cancel->isEnabled());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == fitted);
+  CHECK(apply->isEnabled());
+  CHECK(!cancel->isEnabled());
+
+  // Size style frames the whole canvas: nothing to apply or reset.
+  style->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  CHECK(!apply->isEnabled());
+  CHECK(!cancel->isEnabled());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(1024, 384)),
+       canvas->widget_position_for_document_point(QPoint(824, 384)));
+  CHECK(apply->isEnabled());
+  CHECK(cancel->isEnabled());
+  cancel->click();
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 1024, 768));
+  CHECK(!apply->isEnabled());
+  CHECK(!cancel->isEnabled());
+  CHECK(!cancel->isDown());
+}
+
 void ui_crop_overlay_renders_shield_and_thirds() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1261,6 +1344,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_enter_commits_expanding_document", ui_crop_enter_commits_expanding_document},
       {"ui_crop_escape_resets_and_tool_switch_cancels", ui_crop_escape_resets_and_tool_switch_cancels},
       {"ui_crop_apply_cancel_buttons_follow_session", ui_crop_apply_cancel_buttons_follow_session},
+      {"ui_crop_cancel_button_off_for_ratio_frame", ui_crop_cancel_button_off_for_ratio_frame},
       {"ui_crop_overlay_renders_shield_and_thirds", ui_crop_overlay_renders_shield_and_thirds},
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
       {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
