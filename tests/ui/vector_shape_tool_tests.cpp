@@ -7,6 +7,7 @@
 #include "ui/canvas_widget.hpp"
 #include "core/pattern_presets.hpp"
 #include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
 #include "ui/app_settings.hpp"
@@ -1605,6 +1606,98 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
   layer = document.find_layer(*layer_id);
   CHECK(layer != nullptr);
   CHECK(std::abs(layer->vector_shape()->stroke.width - 6.0) < 1e-9);
+}
+
+// Issues 327 and 329: the px fields (UnitSpinBox, a QDoubleSpinBox) drew the
+// platform style's dark frame because the application sheet gave its field
+// border to QSpinBox only, and the stroke Width field lost its top and bottom
+// edge once it went from disabled to enabled. Every field in the dialog draws the sheet's
+// field border, in both schemes, disabled and enabled.
+void ui_shape_appearance_unit_fields_share_spin_box_border() {
+  VectorSettingsGuard settings_guard;
+  ColorSchemeRestorer restore_scheme;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+
+  // The middle of each edge: corners are left to the style.
+  const auto edge_colors = [](QWidget& field) {
+    const auto shot = field.grab().toImage();
+    const int w = shot.width();
+    const int h = shot.height();
+    return std::array<QColor, 4>{shot.pixelColor(w / 2, 0), shot.pixelColor(w / 2, h - 1),
+                                 shot.pixelColor(0, h / 2), shot.pixelColor(w - 1, h / 2)};
+  };
+  const auto same_color = [](const QColor& a, const QColor& b) {
+    return std::abs(a.red() - b.red()) <= 2 && std::abs(a.green() - b.green()) <= 2 &&
+           std::abs(a.blue() - b.blue()) <= 2;
+  };
+  // Reports every mismatch instead of stopping at the first, and after the
+  // captures, so a failing run still leaves the pictures.
+  bool borders_match = true;
+  const auto check_border = [&](const std::string& label, QWidget& unit_field, QWidget& plain_field,
+                                const QColor& expected) {
+    const auto unit_edges = edge_colors(unit_field);
+    const auto plain_edges = edge_colors(plain_field);
+    static constexpr std::array<const char*, 4> kEdges{"top", "bottom", "left", "right"};
+    for (std::size_t edge = 0; edge < kEdges.size(); ++edge) {
+      const bool unit_ok = same_color(unit_edges[edge], expected);
+      const bool plain_ok = same_color(plain_edges[edge], expected);
+      if (!unit_ok || !plain_ok) {
+        fprintf(stderr, "  %s %s edge: unit field %s, plain field %s, want %s\n", label.c_str(), kEdges[edge],
+                qPrintable(unit_edges[edge].name()), qPrintable(plain_edges[edge].name()),
+                qPrintable(expected.name()));
+        borders_match = false;
+      }
+    }
+  };
+
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    bool sampled = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+      auto* stroke_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeStrokeOpacitySpin"));
+      auto* feather = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"));
+      auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("shapeDensitySpin"));
+      CHECK(stroke_width != nullptr && stroke_opacity != nullptr);
+      CHECK(feather != nullptr && density != nullptr);
+      if (stroke_width == nullptr || stroke_opacity == nullptr || feather == nullptr || density == nullptr) {
+        dialog->reject();
+        return;
+      }
+      const auto& palette = patchy::ui::theme();
+      // The stroke rows no longer grey out (width 0 is the off switch, #311),
+      // but the enabled-after-disabled path is the #329 one, so drive it directly.
+      stroke_width->setValue(3.0);
+      stroke_width->setEnabled(false);
+      stroke_opacity->setEnabled(false);
+      QApplication::processEvents();
+      check_border(scheme + " stroke (disabled)", *stroke_width, *stroke_opacity, palette.field_border_disabled);
+      stroke_width->setEnabled(true);
+      stroke_opacity->setEnabled(true);
+      QApplication::processEvents();
+      if (auto* page = dialog->findChild<QWidget*>(QStringLiteral("shapeAppearancePage")); page != nullptr) {
+        capture_widget_artifact("shape_appearance_fields_" + scheme, *page);
+      }
+      check_border(scheme + " stroke (enabled)", *stroke_width, *stroke_opacity, palette.field_border);
+      check_border(scheme + " feather", *feather, *density, palette.field_border);
+      sampled = true;
+      dialog->reject();
+    });
+    patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+    QApplication::processEvents();
+    CHECK(sampled);
+  }
+  CHECK(borders_match);
 }
 
 void ui_new_solid_fill_layer_uses_selection_mask() {
@@ -6029,6 +6122,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
+      {"ui_shape_appearance_unit_fields_share_spin_box_border",
+       ui_shape_appearance_unit_fields_share_spin_box_border},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",
