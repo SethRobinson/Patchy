@@ -741,6 +741,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   for (const int percent : kGuiScalePresetPercents) {
     gui_scale_combo->addItem(gui_scale_text(percent), percent);
   }
+  // A modest fixed width with room for "300%" and the caret, not the whole row.
+  gui_scale_combo->setMinimumContentsLength(7);
   gui_scale_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   const int entry_gui_scale = stored_gui_scale_percent();
   const int entry_gui_scale_index = gui_scale_combo->findData(entry_gui_scale);
