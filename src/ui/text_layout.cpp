@@ -262,6 +262,196 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
 
 namespace {
 
+// The two font fractions Photoshop's warp box uses: cap height (OS/2 sCapHeight, else the H
+// glyph's top for pre-v2 tables) and the head table's yMin below the baseline. Cached per face.
+struct WarpBoxFontFractions {
+  double cap_height{0.716};
+  double bbox_descent{0.21};
+};
+
+WarpBoxFontFractions warp_box_font_fractions(const QFont& font) {
+  static QHash<QString, WarpBoxFontFractions> cache;
+  static QMutex cache_mutex;
+  const auto key = font.families().join(QLatin1Char('|')) + QLatin1Char('#') + font.styleName() +
+                   QLatin1Char('#') + QString::number(font.weight()) + (font.italic() ? QLatin1String("i") : QLatin1String("r"));
+  {
+    QMutexLocker lock(&cache_mutex);
+    if (const auto found = cache.constFind(key); found != cache.constEnd()) {
+      return found.value();
+    }
+  }
+  WarpBoxFontFractions fractions;
+  const auto raw_font = QRawFont::fromFont(font);
+  const auto upem = raw_font.isValid() ? raw_font.unitsPerEm() : 0.0;
+  if (upem > 0.0) {
+    const auto read_i16 = [](const QByteArray& table, int offset) {
+      const auto* bytes = reinterpret_cast<const unsigned char*>(table.constData());
+      return static_cast<qint16>(static_cast<quint16>((bytes[offset] << 8) | bytes[offset + 1]));
+    };
+    const auto head = raw_font.fontTable("head");
+    if (head.size() >= 54) {
+      const auto y_min = read_i16(head, 38);
+      if (y_min < 0) {
+        fractions.bbox_descent = -static_cast<double>(y_min) / upem;
+      }
+    }
+    std::optional<double> cap;
+    const auto os2 = raw_font.fontTable("OS/2");
+    if (os2.size() >= 90 && read_i16(os2, 0) >= 2 && read_i16(os2, 88) > 0) {
+      cap = static_cast<double>(read_i16(os2, 88)) / upem;
+    } else if (const auto glyphs = raw_font.glyphIndexesForString(QStringLiteral("H")); !glyphs.isEmpty() &&
+                                                                                     glyphs.front() != 0) {
+      const auto rect = raw_font.boundingRect(glyphs.front());
+      if (rect.top() < 0.0 && raw_font.pixelSize() > 0.0) {
+        cap = -rect.top() / raw_font.pixelSize();
+      }
+    }
+    if (cap.has_value() && *cap > 0.05 && *cap < 2.0) {
+      fractions.cap_height = *cap;
+    }
+  }
+  QMutexLocker lock(&cache_mutex);
+  cache.insert(key, fractions);
+  return fractions;
+}
+
+// Calls `visit(format)` for every char format intersecting one visual line (the block's own
+// char format for an empty line).
+template <typename Visit>
+void for_each_line_format(const QTextBlock& block, const QTextLine& line, Visit&& visit) {
+  const auto line_start = block.position() + line.textStart();
+  const auto line_end = line_start + std::max(1, line.textLength());
+  bool found = false;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0 || fragment.position() + fragment.length() <= line_start ||
+        fragment.position() >= line_end) {
+      continue;
+    }
+    visit(fragment.charFormat());
+    found = true;
+  }
+  if (!found) {
+    visit(block.charFormat());
+  }
+}
+
+// The char format of the line's last non-space character, whose tracking Qt adds after the
+// final glyph (Photoshop tracks only the gaps between glyphs).
+std::optional<QTextCharFormat> line_last_char_format(const QTextBlock& block, const QTextLine& line) {
+  const auto text = block.text();
+  auto last = line.textStart() + line.textLength() - 1;
+  while (last >= line.textStart() && last < text.size() && text.at(last).isSpace()) {
+    --last;
+  }
+  if (last < line.textStart() || last >= text.size()) {
+    return std::nullopt;
+  }
+  const auto position = block.position() + last;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (fragment.isValid() && position >= fragment.position() && position < fragment.position() + fragment.length()) {
+      return fragment.charFormat();
+    }
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
+std::optional<QRectF> photoshop_warp_box(const QTextDocument& document, bool boxed, QRectF frame) {
+  const auto* layout = document.documentLayout();
+  if (layout == nullptr) {
+    return std::nullopt;
+  }
+  bool first_line = true;
+  double first_top = 0.0;
+  double baseline = 0.0;
+  double last_descent = 0.0;
+  double left = std::numeric_limits<double>::infinity();
+  double right = -std::numeric_limits<double>::infinity();
+  double previous_space_after = 0.0;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+    const auto block_format = block.blockFormat();
+    auto paragraph_fraction = 1.2;
+    if (block_format.hasProperty(kTextBlockAutoLeadFractionProperty)) {
+      const auto fraction = block_format.property(kTextBlockAutoLeadFractionProperty).toDouble();
+      if (std::isfinite(fraction) && fraction > 0.01 && fraction < 10.0) {
+        paragraph_fraction = fraction;
+      }
+    }
+    const auto block_rect = layout->blockBoundingRect(block);
+    for (int i = 0; i < text_layout->lineCount(); ++i) {
+      const auto line = text_layout->lineAt(i);
+      if (!line.isValid()) {
+        continue;
+      }
+      // Photoshop's box hangs an em centred on the cap height above each first baseline:
+      // top = baseline - (em + cap) / 2; box text puts that baseline cap height below the
+      // frame top. The bottom is the last line's baseline plus the font's head yMin.
+      double cap_top = 0.0;
+      double descent = 0.0;
+      for_each_line_format(block, line, [&](const QTextCharFormat& format) {
+        const auto size = photoshop_char_exact_size(format);
+        const auto fractions = warp_box_font_fractions(format.font());
+        cap_top = std::max(cap_top, (1.0 + fractions.cap_height) / 2.0 * size);
+        descent = std::max(descent, fractions.bbox_descent * size);
+        if (first_line && boxed) {
+          baseline = std::max(baseline, fractions.cap_height * size);
+        }
+      });
+      if (first_line) {
+        if (!boxed) {
+          baseline = block_rect.top() + line.y() + line.ascent();
+        }
+        first_top = baseline - cap_top;
+        first_line = false;
+      } else {
+        const auto space_before = i == 0 ? std::max(0.0, block_format.topMargin()) : 0.0;
+        baseline += std::max(0.01, photoshop_line_metrics(block, line, paragraph_fraction).leading) + space_before +
+                    previous_space_after;
+      }
+      previous_space_after =
+          i == text_layout->lineCount() - 1 ? std::max(0.0, block_format.bottomMargin()) : 0.0;
+      last_descent = descent;
+      if (line.textLength() <= 0 || block.text().mid(line.textStart(), line.textLength()).trimmed().isEmpty()) {
+        continue;
+      }
+      auto width = line.naturalTextWidth();
+      if (const auto last = line_last_char_format(block, line); last.has_value()) {
+        const auto font = last->font();
+        if (font.letterSpacingType() == QFont::AbsoluteSpacing) {
+          width -= font.letterSpacing();
+        }
+      }
+      const auto line_left = block_rect.left() + line.naturalTextRect().left();
+      left = std::min(left, line_left);
+      right = std::max(right, line_left + width);
+    }
+  }
+  if (first_line) {
+    return std::nullopt;
+  }
+  if (boxed) {
+    frame = frame.normalized();
+    if (frame.width() <= 0.0 || frame.height() <= 0.0) {
+      return std::nullopt;
+    }
+    return QRectF(QPointF(frame.left(), frame.top() + first_top), frame.bottomRight());
+  }
+  const auto bottom = baseline + last_descent;
+  if (!std::isfinite(left) || !std::isfinite(right) || right <= left || bottom <= first_top) {
+    return std::nullopt;
+  }
+  return QRectF(QPointF(left, first_top), QPointF(right, bottom));
+}
+
+namespace {
+
 // Per-line inflation the drawn glyphs need beyond their design boxes: the largest stretch of
 // any char format on the line (applied about each glyph origin), half the widest faux-bold
 // stroke, and the faux-italic lean of the deepest descender.

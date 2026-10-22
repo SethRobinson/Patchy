@@ -134,6 +134,16 @@ struct PhotoshopLineMetrics {
 [[nodiscard]] PhotoshopLineMetrics photoshop_line_metrics(const QTextBlock& block, const QTextLine& line,
                                                           double paragraph_fraction);
 
+// Photoshop's Warp Text reference box for a laid-out document, in its layout space (the box a
+// warped layer's TySh carries in its four-float tail). Photoshop recomputes this box from its
+// own layout on open and raises "Some text layers might need to be updated" when the stored one
+// is more than about a pixel off (Photoshop 2025 and 2026), so it is derived the way Photoshop
+// lays it out: the lines' advance extents (tracking between glyphs only), top = first baseline
+// - (em + cap height) / 2, bottom = last baseline (Photoshop leading) + the font's head yMin.
+// Box text keeps the frame and only raises its top: cap height - (em + cap height) / 2 above it.
+// nullopt for an empty document. Calibrated on 45 Windows fonts in docs/warp.md.
+[[nodiscard]] std::optional<QRectF> photoshop_warp_box(const QTextDocument& document, bool boxed, QRectF frame);
+
 // Every line intersecting `gate_rect`, clipped with the given bleeds. Whole LINES are gated,
 // never raster rows: a line straddling the frame bottom draws completely.
 [[nodiscard]] std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document,

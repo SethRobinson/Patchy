@@ -848,8 +848,8 @@ void ui_warp_text_psd_writes_baseline_anchored_geometry() {
   const auto box_height = stored->bounds_bottom - stored->bounds_top;
   CHECK(box_height > 10.0);
   // The metadata baseline sits in the box's lower half (ascent of the first line).
-  CHECK(stored->baseline > box_height * 0.5);
-  CHECK(stored->baseline < box_height);
+  CHECK(stored->baseline - stored->bounds_top > box_height * 0.5);
+  CHECK(stored->baseline - stored->bounds_top < box_height);
 
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   ensure_artifact_dir();
@@ -872,8 +872,80 @@ void ui_warp_text_psd_writes_baseline_anchored_geometry() {
   CHECK(reopened_warp->style == "warpBulge");
   // Baseline-relative box in the file: ascent above the origin, descent below.
   CHECK(reopened_warp->bounds_top < -0.5);
-  CHECK(std::abs(-reopened_warp->bounds_top - stored->baseline) < 1.0);
-  CHECK(std::abs(reopened_warp->bounds_bottom - (box_height - stored->baseline)) < 1.0);
+  CHECK(std::abs(reopened_warp->bounds_top - (stored->bounds_top - stored->baseline)) < 1.0);
+  CHECK(std::abs(reopened_warp->bounds_bottom - (stored->bounds_bottom - stored->baseline)) < 1.0);
+}
+
+void ui_warp_text_box_matches_photoshop_layout() {
+  // Photoshop recomputes a warped layer's box (the TySh's four-float tail) from its own layout on
+  // open and asks "Some text layers might need to be updated" when the stored box is more than
+  // about a pixel off (Photoshop 2025 and 2026, October 2026: +1 px opened clean, +2 px prompted).
+  // A box Patchy derives must therefore be Photoshop's: kerned advances, top = baseline -
+  // (em + cap height) / 2, bottom = last baseline + head yMin; box text raises only the frame top.
+  // The expected values are Photoshop 2026's own files (local ps2026_warptext captures).
+  skip_without_arial_for_psd_text_preview();
+  struct BoxCase {
+    const char* name;
+    const char* text;
+    bool boxed;
+    double left, top, right, bottom;
+  };
+  const BoxCase cases[] = {
+      {"Point", "Warplify", false, 0.0, -41.191, 171.562, 15.586},
+      {"TwoLines", "Warplify\nTwo Lines", false, 0.0, -41.191, 216.117, 73.186},
+      {"Frame", "Hi!", true, 0.0, -6.824, 300.0, 140.0},
+  };
+  patchy::Document built(640, 400, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background",
+                        solid_pixels(640, 400, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  std::vector<patchy::LayerId> ids;
+  for (const auto& box_case : cases) {
+    patchy::Layer text_layer(built.allocate_layer_id(), box_case.name,
+                             solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+    ids.push_back(text_layer.id());
+    text_layer.set_bounds(patchy::Rect{90, 60, 1, 1});
+    text_layer.metadata()[patchy::kLayerMetadataText] = box_case.text;
+    text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+    text_layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+    text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
+    if (box_case.boxed) {
+      text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+      text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "300";
+      text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "140";
+    }
+    built.add_layer(std::move(text_layer));
+  }
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("WarpBoxPhotoshop"));
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::TextWarp warp;
+  warp.style = "warpArc";
+  warp.value = 50.0;
+  for (const auto id : ids) {
+    auto* layer = document.find_layer(id);
+    CHECK(layer != nullptr);
+    CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *layer, warp));
+  }
+  const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  for (const auto& box_case : cases) {
+    const patchy::Layer* layer = nullptr;
+    for (const auto& candidate : reopened.layers()) {
+      if (candidate.name() == box_case.name) {
+        layer = &candidate;
+      }
+    }
+    CHECK(layer != nullptr);
+    const auto stored = patchy::text_warp_from_layer(*layer);
+    CHECK(stored.has_value());
+    std::cout << "  " << box_case.name << ": box [" << stored->bounds_left << ", " << stored->bounds_top << ", "
+              << stored->bounds_right << ", " << stored->bounds_bottom << "]\n";
+    // Photoshop opened a box within 1 px of its own clean and prompted at 2 px.
+    CHECK(std::abs(stored->bounds_left - box_case.left) < 0.75);
+    CHECK(std::abs(stored->bounds_top - box_case.top) < 0.75);
+    CHECK(std::abs(stored->bounds_right - box_case.right) < 0.75);
+    CHECK(std::abs(stored->bounds_bottom - box_case.bottom) < 0.75);
+  }
 }
 
 void ui_warp_text_survives_editor_commit() {
@@ -2892,6 +2964,7 @@ std::vector<patchy::test::TestCase> warp_tests() {
       {"ui_warp_text_box_text_warps_over_frame", ui_warp_text_box_text_warps_over_frame},
       {"ui_warp_text_psd_writes_baseline_anchored_geometry",
        ui_warp_text_psd_writes_baseline_anchored_geometry},
+      {"ui_warp_text_box_matches_photoshop_layout", ui_warp_text_box_matches_photoshop_layout},
       {"ui_warp_text_render_matches_photoshop_if_available",
        ui_warp_text_render_matches_photoshop_if_available},
       {"ui_warp_text_survives_editor_commit", ui_warp_text_survives_editor_commit},

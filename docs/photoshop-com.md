@@ -24,6 +24,7 @@ With several versions installed, `Photoshop.Application` binds to the newest; th
   images per channel (mattes merged transparency over white). The CMYK Proof PSD acceptance
   in [cmyk.md](cmyk.md) uses both.
 - Opening checks: `DialogModes.ALL` can show the file picker even with an explicit `app.open(File(...))` argument; complete that picker for warning-enabled validation. `DialogModes.ERROR` opens without the picker and still surfaces error alerts (a COM call that returns promptly saw none). `DialogModes.NO` can still block on a corrupt-layer composite-fallback prompt; a pending COM call is not proof that Photoshop is still loading.
+- **A crash in a long batch is not yet a file bug.** Over hundreds of opens in one Photoshop 2025 session, 8 of 324 files crashed it once and all 8 opened clean on a rerun in both 2025 and 2026 (October 2026). Reopen every crashing file in a fresh instance before blaming the file; a dialog, by contrast, reproduced every time.
 - **`maximizeCompatibility = true` is silently overridden by the app-level File Handling preference** (set to Never on the reference install), leaving a fake all-white merged composite. Fixture scripts must force `queryAlways` via the `fileSavePrefs` descriptor and restore it.
 - Headless one-script PSDs embed a STALE maximize-compat composite; re-saving does not fix it. Render fixtures pin PS's flatten through the sibling BMP (duplicate + flatten + BMP), never the embedded composite.
 - `photoshop-saved-channels.psd`: resource 1053 identifies alpha channels only ([channels.md](channels.md)).

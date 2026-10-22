@@ -3537,6 +3537,25 @@ std::optional<double> first_line_baseline_for_text_inputs(const LayerTextRenderI
   return std::nullopt;
 }
 
+// Photoshop's own warp box for the text, in the same layout space as the first baseline
+// above; nullopt where it is not modelled (vertical and area type), so callers keep the
+// render rect.
+std::optional<QRectF> photoshop_warp_box_for_text_inputs(const LayerTextRenderInputs& inputs) {
+  if (inputs.settings.vertical || inputs.settings.area) {
+    return std::nullopt;
+  }
+  const auto built = build_text_render_document(inputs.settings, inputs.color, inputs.max_width,
+                                                inputs.paragraph_runs, inputs.rich_text_runs, 1.0);
+  if (built.document == nullptr) {
+    return std::nullopt;
+  }
+  built.document->size();  // QTextDocument lays out lazily; force it or lineCount() is 0
+  const QRectF frame(0.0, 0.0, static_cast<qreal>(built.text_width),
+                     static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize,
+                                                 static_cast<int>(std::lround(inputs.settings.box_height)))));
+  return photoshop_warp_box(*built.document, inputs.settings.boxed, frame);
+}
+
 // Photoshop Warp Text rendering: the unwarped glyph raster (supersampled so the
 // warp samples crisp ink) is resampled through the style warp surface composed with
 // the text-local -> document transform. The warp box defaults to the fresh layout
@@ -3560,10 +3579,13 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
   }
   const QRectF window = base.local_rect;
   if (warp.bounds_right - warp.bounds_left <= 0.0 || warp.bounds_bottom - warp.bounds_top <= 0.0) {
-    warp.bounds_left = window.left();
-    warp.bounds_top = window.top();
-    warp.bounds_right = window.right();
-    warp.bounds_bottom = window.bottom();
+    // Photoshop's box, not the padded raster rect: Photoshop checks the stored box against its
+    // own layout on open and prompts to update the layer when they differ by a pixel or two.
+    const auto box = photoshop_warp_box_for_text_inputs(inputs).value_or(window);
+    warp.bounds_left = box.left();
+    warp.bounds_top = box.top();
+    warp.bounds_right = box.right();
+    warp.bounds_bottom = box.bottom();
     warp.baseline = inputs.settings.boxed
                         ? 0.0  // box-text transforms anchor at the frame origin (PS convention)
                         : first_line_baseline_for_text_inputs(inputs).value_or(0.0);
