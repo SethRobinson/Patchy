@@ -25,8 +25,8 @@ enter the document store at commit (`ensure_vector_fill_patterns`, honoring
 the Patt-block refusal below). Kind and preset ids persist under
 vectorFill*/vectorStrokePaint* keys; gradient/pattern PLACEMENT resets each
 launch. The controls also serve Path Select / Direct Select and next-shape
-defaults; stroke controls stay enabled when any eligible target has a
-stroke; multi-shape edits: [batch appearance](batch-appearance.md).
+defaults; [width 0 = no stroke](options-bar.md#shape-tool-rows) (bar,
+dialog); multi-shape edits: [batch appearance](batch-appearance.md).
 
 A bare click with Rectangle, Ellipse, Polygon, or Custom Shape opens the
 Create <Shape> dialog (shape_create_dialog.cpp, no shape menu): W and H share

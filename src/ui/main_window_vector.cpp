@@ -1585,18 +1585,29 @@ bool MainWindow::vector_appearance_controls_live() const {
 }
 
 void MainWindow::refresh_vector_stroke_controls() {
-  const auto ids = editable_selected_shape_layer_ids();
-  const bool any_enabled = std::any_of(ids.begin(), ids.end(), [&](LayerId id) {
-    const auto* layer = std::as_const(document()).find_layer(id);
-    return layer && layer->vector_shape() && layer->vector_shape()->stroke.enabled;
-  });
-  const bool enabled = has_active_document() && !preview_dialog_edit_locked() &&
-                       (current_vector_stroke_enabled_ || any_enabled);
+  // The width is the stroke switch (0 = none, GitHub issue 311), so the stroke controls
+  // stay usable whether or not a stroke is on.
+  const bool enabled = has_active_document() && !preview_dialog_edit_locked();
   for (const char* name : {"vectorStrokeSwatchButton", "vectorStrokeWidthLabel", "vectorStrokeWidthSpin"}) {
     if (auto* widget = findChild<QWidget*>(QLatin1String(name)); widget != nullptr) {
       widget->setEnabled(enabled);
     }
   }
+}
+
+double MainWindow::vector_stroke_field_value() const {
+  return current_vector_stroke_enabled_ ? current_vector_stroke_width_ : 0.0;
+}
+
+void MainWindow::set_vector_stroke_width_from_field(double value) {
+  // 0 turns the stroke off and keeps the last real width, so the model (and the
+  // PSD's vstk) never carries a zero width; any other value turns it on.
+  current_vector_stroke_enabled_ = value > 0.0;
+  if (current_vector_stroke_enabled_) {
+    current_vector_stroke_width_ = std::clamp(value, 0.1, 1000.0);
+  }
+  schedule_save_tool_settings();
+  schedule_vector_appearance_apply();
 }
 
 void MainWindow::sync_shape_appearance_options_from_active_layer() {
@@ -1609,8 +1620,8 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   const auto ids = editable_selected_shape_layer_ids();
   const auto* layer = ids.empty() ? nullptr : std::as_const(document()).find_layer(ids.front());
   if (layer == nullptr) {
-    for (const char* name : {"vectorFillSwatchButton", "vectorStrokeSwatchButton", "vectorStrokeCheck",
-                             "vectorStrokeWidthSpin", "shapeCornerRadiusSpin"})
+    for (const char* name : {"vectorFillSwatchButton", "vectorStrokeSwatchButton", "vectorStrokeWidthSpin",
+                             "shapeCornerRadiusSpin"})
       set_appearance_mixed(findChild<QWidget*>(QLatin1String(name)), false);
     if (auto* spin = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"))) {
       const QSignalBlocker blocker(spin);
@@ -1627,15 +1638,10 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   current_vector_stroke_width_ = std::clamp(content->stroke.width, 0.1, 1000.0);
   current_vector_stroke_paint_ = content->stroke.content;
   refresh_vector_stroke_controls();
-  if (auto* stroke_check = findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
-      stroke_check != nullptr) {
-    QSignalBlocker blocker(stroke_check);
-    stroke_check->setChecked(current_vector_stroke_enabled_);
-  }
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
       stroke_width != nullptr) {
     QSignalBlocker blocker(stroke_width);
-    stroke_width->setValue(current_vector_stroke_width_);
+    stroke_width->setValue(vector_stroke_field_value());  // a disabled stroke reads 0
   }
   const auto reference = shape_appearance_settings(*layer);
   const auto mixed = [&](const auto& read) {
@@ -1646,10 +1652,9 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   };
   set_appearance_mixed(vector_fill_swatch_button_, mixed([](const auto& value) { return value.fill; }));
   set_appearance_mixed(vector_stroke_swatch_button_, mixed([](const auto& value) { return value.stroke.content; }));
-  set_appearance_mixed(findChild<QWidget*>(QStringLiteral("vectorStrokeCheck")),
-                       mixed([](const auto& value) { return value.stroke.enabled; }));
-  set_appearance_mixed(findChild<QWidget*>(QStringLiteral("vectorStrokeWidthSpin")),
-                       mixed([](const auto& value) { return value.stroke.width; }));
+  set_appearance_mixed(findChild<QWidget*>(QStringLiteral("vectorStrokeWidthSpin")), mixed([](const auto& value) {
+                         return value.stroke.enabled ? value.stroke.width : 0.0;
+                       }));
   if (auto* spin = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"))) {
     std::optional<double> radius;
     bool different = false;
@@ -1769,11 +1774,15 @@ void MainWindow::queue_shape_appearance_edit(const ShapeAppearanceSettings& sett
 }
 
 void MainWindow::schedule_vector_appearance_apply() {
+  // The width field is also the stroke switch (GitHub issue 311). At 0 only the switch
+  // changes, so each selected shape keeps its own width for when the stroke comes back.
   ShapeAppearanceSettings settings;
+  settings.stroke.enabled = current_vector_stroke_enabled_;
   settings.stroke.width = current_vector_stroke_width_;
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
   for (const auto& property : shape_appearance_properties())
-    if (property.key == "stroke.width") edits->append(property.capture(settings));
+    if (property.key == "stroke.enabled" || (property.key == "stroke.width" && current_vector_stroke_enabled_))
+      edits->append(property.capture(settings));
   settings.edits = std::move(edits);
   queue_shape_appearance_edit(settings);
 }

@@ -609,7 +609,7 @@ void ui_selection_options_bars_group_their_controls() {
 }
 
 // GitHub issue 311: the shape bars follow the grouping rules (docs/options-bar.md). In Shape
-// mode each reads mode | Fill | Stroke, its swatch and width | W/H | Combine | the tool's own
+// mode each reads mode | Fill | Stroke, its width and swatch | W/H | Combine | the tool's own
 // settings | Appearance, Line's Weight now follows Combine beside the arrowheads, the Fill and
 // Stroke swatches are framed buttons with a wide chip, and the keep-proportions toggle sits
 // evenly between the W field and the H label. Every bar fits one row at 1366 px. The
@@ -672,7 +672,7 @@ void ui_shape_options_bars_group_their_controls() {
           problem(left.toStdString() + " is not followed by " + right.toStdString());
         }
       };
-      for (const char* token : {"Fill", "vectorStrokeCheck", "W", "Combine", "vectorAppearanceButton"}) {
+      for (const char* token : {"Fill", "vectorStrokeWidthLabel", "W", "Combine", "vectorAppearanceButton"}) {
         expect_separator_before(QLatin1String(token));
       }
       if (bar.own != nullptr) {
@@ -683,11 +683,16 @@ void ui_shape_options_bars_group_their_controls() {
       } else {
         expect_next_to(QStringLiteral("vectorCombineCombo"), separator);
       }
-      // One group each: Fill and its swatch; the Stroke checkbox, swatch and width.
+      // One group each: Fill and its swatch; Stroke, its width and swatch (no checkbox: 0 px
+      // is no stroke, the issue 311 follow-up).
       expect_next_to(QStringLiteral("Fill"), QStringLiteral("vectorFillSwatchButton"));
       expect_next_to(QStringLiteral("vectorFillSwatchButton"), separator);
-      expect_next_to(QStringLiteral("vectorStrokeCheck"), QStringLiteral("vectorStrokeSwatchButton"));
-      expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), QStringLiteral("vectorStrokeWidthLabel"));
+      expect_next_to(QStringLiteral("vectorStrokeWidthLabel"), QStringLiteral("vectorStrokeWidthSpin"));
+      expect_next_to(QStringLiteral("vectorStrokeWidthSpin"), QStringLiteral("vectorStrokeSwatchButton"));
+      expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), separator);
+      if (at(tokens, QStringLiteral("vectorStrokeCheck")) >= 0) {
+        problem("still shows the Stroke checkbox");
+      }
       if (std::string_view(bar.name) == "line") {
         expect_next_to(QStringLiteral("Weight"), QStringLiteral("vectorLineWeightSpin"));
         expect_next_to(QStringLiteral("vectorLineWeightSpin"), QStringLiteral("lineArrowStartButton"));
