@@ -785,29 +785,6 @@ private:
   std::function<void()> composition_changed_;
 };
 
-class TextCommitFilter final : public QObject {
-public:
-  TextCommitFilter(QPointer<QTextEdit> editor, std::function<void()> commit, QObject* parent)
-      : QObject(parent), editor_(std::move(editor)), commit_(std::move(commit)) {}
-
-protected:
-  bool eventFilter(QObject* watched, QEvent* event) override {
-    if ((watched == editor_ || (editor_ != nullptr && watched == editor_->viewport())) &&
-        event->type() == QEvent::FocusOut) {
-      QTimer::singleShot(0, this, [this] {
-        if (editor_ != nullptr && !editor_->hasFocus() && !editor_->viewport()->hasFocus()) {
-          commit_();
-        }
-      });
-    }
-    return QObject::eventFilter(watched, event);
-  }
-
-private:
-  QPointer<QTextEdit> editor_;
-  std::function<void()> commit_;
-};
-
 // scale_font_size lives in dialog_utils.hpp; every derived font size in the UI
 // goes through it so the point/pixel unit split is handled in one place.
 
@@ -6874,12 +6851,22 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
             *committed = true;
             cancel_text_editor(editor, editing_layer);
           });
-  connect(qApp, &QApplication::focusChanged, editor, [this, editor = QPointer<QTextEdit>(editor), commit](QWidget* old,
-                                                                                                          QWidget* now) {
+  // Focus that leaves the editor for nowhere (switching to another app with Alt+Tab, Cmd+Tab or the
+  // Dock, or activating a Patchy window with nothing focusable) parks the session instead of
+  // committing it (GitHub issue 330). Qt hands focus back to the editor when its window is active
+  // again; focus landing anywhere else from there counts as leaving the editor.
+  auto focus_parked = std::make_shared<bool>(false);
+  connect(qApp, &QApplication::focusChanged, editor,
+          [this, editor = QPointer<QTextEdit>(editor), commit, focus_parked](QWidget* old, QWidget* now) {
     if (shutting_down_ || editor == nullptr) {
       return;
     }
-    const auto left_editor = old == editor || editor->isAncestorOf(old);
+    const auto parked = std::exchange(*focus_parked, false);
+    const auto left_editor = old == editor || editor->isAncestorOf(old) || (parked && old == nullptr);
+    if (left_editor && now == nullptr) {
+      *focus_parked = true;
+      return;
+    }
     const auto entered_editor = now == editor || editor->isAncestorOf(now);
     const auto entered_canvas = canvas_ != nullptr && (now == canvas_ || canvas_->isAncestorOf(now));
     const auto text_color_dialog_has_focus_change = [this](QWidget* widget) {
