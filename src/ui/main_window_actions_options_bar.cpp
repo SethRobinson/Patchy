@@ -1535,6 +1535,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   connect(crop_width_spin_, &QSpinBox::valueChanged, this,
           [this](int value) { handle_crop_size_value_changed(true, value); });
+  // The link also binds handle drags on the canvas (GitHub issue 332).
+  connect(crop_link_size_button_, &QPushButton::toggled, this, [this](bool) {
+    if (canvas_ != nullptr) {
+      canvas_->set_crop_keep_proportions(crop_size_link_active());
+    }
+  });
   connect(crop_height_spin_, &QSpinBox::valueChanged, this,
           [this](int value) { handle_crop_size_value_changed(false, value); });
   connect(crop_ratio_w_spin_, &QDoubleSpinBox::valueChanged, this,

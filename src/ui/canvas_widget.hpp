@@ -940,6 +940,11 @@ public:
   void set_crop_ratio(double width, double height) noexcept;
   [[nodiscard]] double crop_ratio_width() const noexcept;
   [[nodiscard]] double crop_ratio_height() const noexcept;
+  // Size style's Width/Height link (GitHub issue 332): with no ratio set, every
+  // handle drag keeps the box's drag-start width:height, through the same
+  // constrained path a set ratio takes.
+  void set_crop_keep_proportions(bool keep) noexcept;
+  [[nodiscard]] bool crop_keep_proportions() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   // True when the displayed frame reflects the current document: no recomposite
@@ -3033,6 +3038,7 @@ private:
   bool crop_from_center_{false};
   double crop_ratio_w_{0.0};
   double crop_ratio_h_{0.0};
+  bool crop_keep_proportions_{false};
   std::function<void(QRect, double)> crop_commit_requested_callback_;
   std::function<void()> crop_session_changed_callback_;
   // Artboard tool gesture state (canvas_widget_artboard.cpp), document space.
