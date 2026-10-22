@@ -23127,10 +23127,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Ustawienia powiększenia</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Ustawia:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Pierwszy plan</translation>
     </message>
@@ -23851,6 +23847,42 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Które warstwy odczytuje pobranie: aktywną warstwę, ją i warstwy poniżej lub scalony obraz, opcjonalnie bez warstw dopasowania</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Pokaż pierścień próbkowania</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Podczas pobierania pokazuj powiększone piksele i nowy kolor nad kolorem, który zastępuje</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Pokaż przycięty obszar</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Włącz osłonę kadrowania</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Kolor:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Kolor osłony kadrowania</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Krycie osłony kadrowania</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Kolor osłony kadrowania</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Bez nakładki</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Trójpodział</translation>
     </message>
@@ -23875,24 +23907,20 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Linie kompozycji rysowane w ramce kadrowania</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Zawsze pokazuj nakładkę</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Pokazuj nakładkę tylko podczas przeciągania</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Obróć nakładkę i wybierz, kiedy ją pokazywać</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Opcje kadrowania: nakładka, przycięty obszar i osłona kadrowania</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Obróć nakładkę</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Bez nakładki</translation>
+        <source>Always Show Overlay</source>
+        <translation>Zawsze pokazuj nakładkę</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Pokazuj nakładkę tylko podczas przeciągania</translation>
     </message>
 </context>
 <context>

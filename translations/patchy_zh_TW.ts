@@ -22991,10 +22991,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>縮放預設</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>設定:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>前景色</translation>
     </message>
@@ -23707,6 +23703,42 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>取色讀取的圖層：目前圖層、目前及下方圖層或合併影像，可選擇不含調整圖層</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>顯示取樣環</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>取樣時放大顯示像素，並在被取代的顏色上方顯示新顏色</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>顯示裁切區域</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>啟用裁切遮蔽</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>顏色:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>裁切遮蔽的顏色</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>裁切遮蔽的不透明度</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>裁切遮蔽顏色</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>無疊加</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>三分法</translation>
     </message>
@@ -23731,24 +23763,20 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>在裁切框內繪製的構圖參考線</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>一律顯示疊加</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>僅在拖曳時顯示疊加</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>旋轉疊加並選擇何時顯示</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>裁切選項: 疊加、裁切區域和裁切遮蔽</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>旋轉疊加</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>無疊加</translation>
+        <source>Always Show Overlay</source>
+        <translation>一律顯示疊加</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>僅在拖曳時顯示疊加</translation>
     </message>
 </context>
 <context>

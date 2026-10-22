@@ -1707,6 +1707,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
   emit_info_for_widget_position(event->pos());
   track_brush_hover_position(event->pos());
+  track_eyedropper_sample_outline(event->pos());
   if (!preview_points_.empty()) {
     // Hover switches between the hand over a preview marker and the arrow elsewhere.
     last_mouse_position_ = event->pos();
@@ -2444,6 +2445,7 @@ void CanvasWidget::focusInEvent(QFocusEvent* event) {
 
 void CanvasWidget::leaveEvent(QEvent* event) {
   clear_move_hover_outline();
+  hide_eyedropper_sample_outline();
   if (brush_hover_position_valid_) {
     const auto stale = brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
     brush_hover_position_valid_ = false;

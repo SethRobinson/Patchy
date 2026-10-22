@@ -23059,10 +23059,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Zooms prédéfinis</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Définit :</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Premier plan</translation>
     </message>
@@ -23779,6 +23775,42 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Calques lus par la pipette : le calque actif, celui-ci et les calques inférieurs, ou l&apos;image fusionnée, avec ou sans calques de réglage</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Afficher l&apos;anneau d&apos;échantillonnage</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Pendant le prélèvement, afficher les pixels agrandis et la nouvelle couleur au-dessus de celle qu&apos;elle remplace</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Afficher la zone recadrée</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Activer le masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Couleur :</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Couleur du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacité du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Couleur du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Aucune superposition</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Règle des tiers</translation>
     </message>
@@ -23803,24 +23835,20 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Repères de composition dans le cadre de recadrage</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Toujours afficher la superposition</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Afficher la superposition seulement pendant le glissement</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Tourner la superposition et choisir quand elle s&apos;affiche</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Options de recadrage : superposition, zone recadrée et masque de recadrage</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Tourner la superposition</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Aucune superposition</translation>
+        <source>Always Show Overlay</source>
+        <translation>Toujours afficher la superposition</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Afficher la superposition seulement pendant le glissement</translation>
     </message>
 </context>
 <context>

@@ -2091,6 +2091,25 @@ void MainWindow::load_tool_settings() {
     }
   }
   canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+  {
+    CropOverlayOptions overlay;
+    overlay.show_cropped_area = stored_bool(settings, "tools/cropShowCroppedArea", overlay.show_cropped_area);
+    overlay.shield_enabled = stored_bool(settings, "tools/cropShieldEnabled", overlay.shield_enabled);
+    if (const auto color = QColor::fromString(settings.value(QStringLiteral("tools/cropShieldColor")).toString());
+        color.isValid()) {
+      overlay.shield_color = color;
+    }
+    overlay.shield_opacity_percent =
+        stored_int(settings, "tools/cropShieldOpacity", overlay.shield_opacity_percent, 0, 100);
+    current_crop_overlay_options_ = overlay;
+    for (const auto& target_session : sessions_) {
+      if (target_session != nullptr && target_session->canvas != nullptr) {
+        target_session->canvas->set_crop_overlay_options(overlay);
+      }
+    }
+    canvas_->set_crop_overlay_options(overlay);
+    sync_crop_overlay_controls();
+  }
   canvas_->set_crop_keep_proportions(crop_size_link_active());
   // The overlay is stored as its token; an unknown one is Rule of Thirds.
   current_crop_overlay_ = 1;
@@ -2167,6 +2186,9 @@ void MainWindow::load_tool_settings() {
   current_eyedropper_picks_background_ =
       settings.value(QStringLiteral("tools/eyedropperPicksBackground"), current_eyedropper_picks_background_).toBool();
   canvas_->set_eyedropper_picks_background(current_eyedropper_picks_background_);
+  current_eyedropper_show_sample_ring_ =
+      settings.value(QStringLiteral("tools/eyedropperShowSampleRing"), current_eyedropper_show_sample_ring_).toBool();
+  canvas_->set_eyedropper_show_sample_ring(current_eyedropper_show_sample_ring_);
   canvas_->set_shape_corner_radius(
       settings.value(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius()).toInt());
   // The spin resync below is signal-blocked, so mirror the loaded value by hand.
@@ -2458,6 +2480,11 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropOverlayShow"), current_crop_overlay_while_dragging_
                                                                  ? QStringLiteral("dragging")
                                                                  : QStringLiteral("always"));
+  settings.setValue(QStringLiteral("tools/cropShowCroppedArea"), current_crop_overlay_options_.show_cropped_area);
+  settings.setValue(QStringLiteral("tools/cropShieldEnabled"), current_crop_overlay_options_.shield_enabled);
+  settings.setValue(QStringLiteral("tools/cropShieldColor"),
+                    current_crop_overlay_options_.shield_color.name(QColor::HexRgb));
+  settings.setValue(QStringLiteral("tools/cropShieldOpacity"), current_crop_overlay_options_.shield_opacity_percent);
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
@@ -2487,6 +2514,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/eyedropperSampleAllLayers"),
                     current_eyedropper_sample_layers_ != SampleLayers::CurrentLayer);
   settings.setValue(QStringLiteral("tools/eyedropperPicksBackground"), current_eyedropper_picks_background_);
+  settings.setValue(QStringLiteral("tools/eyedropperShowSampleRing"), current_eyedropper_show_sample_ring_);
   settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
   settings.setValue(QStringLiteral("tools/vectorToolMode"),
                     current_vector_tool_mode_ == VectorToolMode::Path     ? QStringLiteral("path")
@@ -2747,6 +2775,57 @@ double MainWindow::effective_crop_ratio_height() const noexcept {
   return current_crop_style_ == 0 ? current_crop_ratio_h_ : 0.0;
 }
 
+void MainWindow::apply_crop_overlay_options(const CropOverlayOptions& options) {
+  current_crop_overlay_options_ = options;
+  current_crop_overlay_options_.shield_opacity_percent = std::clamp(options.shield_opacity_percent, 0, 100);
+  if (!current_crop_overlay_options_.shield_color.isValid()) {
+    current_crop_overlay_options_.shield_color = QColor(0, 0, 0);
+  }
+  current_crop_overlay_options_.shield_color.setAlpha(255);
+  for (const auto& target_session : sessions_) {
+    if (target_session != nullptr && target_session->canvas != nullptr) {
+      target_session->canvas->set_crop_overlay_options(current_crop_overlay_options_);
+    }
+  }
+  if (canvas_ != nullptr) {
+    canvas_->set_crop_overlay_options(current_crop_overlay_options_);
+  }
+  sync_crop_overlay_controls();
+  schedule_save_tool_settings();
+}
+
+void MainWindow::sync_crop_overlay_controls() {
+  const auto& options = current_crop_overlay_options_;
+  for (const auto& [action, checked] : {std::pair{crop_show_cropped_area_action_, options.show_cropped_area},
+                                        std::pair{crop_shield_action_, options.shield_enabled}}) {
+    if (action != nullptr) {
+      const QSignalBlocker blocker(action);
+      action->setChecked(checked);
+    }
+  }
+  if (crop_shield_color_button_ != nullptr) {
+    set_themed_style(*crop_shield_color_button_, color_button_style(options.shield_color));
+    crop_shield_color_button_->setEnabled(options.shield_enabled);
+  }
+  if (crop_shield_opacity_spin_ != nullptr) {
+    const QSignalBlocker blocker(crop_shield_opacity_spin_);
+    crop_shield_opacity_spin_->setValue(options.shield_opacity_percent);
+    crop_shield_opacity_spin_->setEnabled(options.shield_enabled);
+  }
+}
+
+void MainWindow::choose_crop_shield_color() {
+  // Live preview on the canvas; a cancel puts the previous color back.
+  const auto original = current_crop_overlay_options_.shield_color;
+  const auto apply = [this](QColor color) {
+    auto options = current_crop_overlay_options_;
+    options.shield_color = color;
+    apply_crop_overlay_options(options);
+  };
+  const auto chosen = request_patchy_color(this, original, tr("Crop Shield Color"), apply);
+  apply(chosen.value_or(original));
+}
+
 bool MainWindow::crop_size_link_active() const noexcept {
   return current_crop_style_ == 1 && crop_link_size_button_ != nullptr && crop_link_size_button_->isChecked();
 }
@@ -2791,15 +2870,18 @@ void MainWindow::handle_crop_size_value_changed(bool horizontal, int value) {
 }
 
 void MainWindow::sync_crop_guide_buttons_enabled(bool edit_allowed) {
-  // The turn only means something for the Triangle and the Golden Spiral, the
-  // "..." menu nothing under None (GitHub issue 325).
+  // In the Crop options menu (GitHub issue 325): the turn only means something
+  // for the Triangle and the Golden Spiral, the show choice nothing under No
+  // Overlay. The menu's button itself follows the bar (the shield options).
   const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
   if (crop_overlay_turn_action_ != nullptr) {
-    crop_overlay_turn_action_->setEnabled(overlay == CanvasWidget::CropOverlay::Triangle ||
-                                          overlay == CanvasWidget::CropOverlay::GoldenSpiral);
+    crop_overlay_turn_action_->setEnabled(edit_allowed && (overlay == CanvasWidget::CropOverlay::Triangle ||
+                                                           overlay == CanvasWidget::CropOverlay::GoldenSpiral));
   }
-  if (crop_overlay_options_button_ != nullptr) {
-    crop_overlay_options_button_->setEnabled(edit_allowed && overlay != CanvasWidget::CropOverlay::None);
+  for (auto* action : {crop_overlay_show_always_action_, crop_overlay_show_while_dragging_action_}) {
+    if (action != nullptr) {
+      action->setEnabled(edit_allowed && overlay != CanvasWidget::CropOverlay::None);
+    }
   }
 }
 
@@ -3286,6 +3368,10 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker background_blocker(eyedropper_sets_background_button_);
     (current_eyedropper_picks_background_ ? eyedropper_sets_background_button_ : eyedropper_sets_foreground_button_)
         ->setChecked(true);
+  }
+  if (eyedropper_show_sample_ring_check_ != nullptr) {
+    QSignalBlocker blocker(eyedropper_show_sample_ring_check_);
+    eyedropper_show_sample_ring_check_->setChecked(current_eyedropper_show_sample_ring_);
   }
   if (sponge_vibrance_check_ != nullptr) {
     QSignalBlocker blocker(sponge_vibrance_check_);

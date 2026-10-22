@@ -23127,10 +23127,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Предустановки масштаба</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Задаёт:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Основной</translation>
     </message>
@@ -23851,6 +23847,42 @@ Patchy может скачать обновление, заменить этот
         <translation>Какие слои читает пипетка: активный слой, его и слои ниже или сведённое изображение, при желании без корректирующих слоёв</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Показывать кольцо пробы</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Во время выбора цвета показывать увеличенные пиксели и новый цвет над заменяемым</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Показывать обрезанную область</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Включить экран кадрирования</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Цвет:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Цвет экрана кадрирования</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Непрозрачность экрана кадрирования</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Цвет экрана кадрирования</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Без наложения</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Правило третей</translation>
     </message>
@@ -23875,24 +23907,20 @@ Patchy может скачать обновление, заменить этот
         <translation>Направляющие композиции внутри рамки кадрирования</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Всегда показывать наложение</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Показывать наложение только при перетаскивании</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Повернуть наложение и выбрать, когда его показывать</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Параметры кадрирования: наложение, обрезанная область и экран кадрирования</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Повернуть наложение</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Без наложения</translation>
+        <source>Always Show Overlay</source>
+        <translation>Всегда показывать наложение</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Показывать наложение только при перетаскивании</translation>
     </message>
 </context>
 <context>

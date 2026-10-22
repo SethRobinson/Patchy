@@ -22991,10 +22991,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>ズームのプリセット</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>設定先:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>描画色</translation>
     </message>
@@ -23707,6 +23703,42 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>スポイトが読み取るレイヤー: アクティブなレイヤー、そのレイヤーと下のレイヤー、または統合画像。調整レイヤーを除くこともできます</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>サンプルリングを表示</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>抽出中、ピクセルを拡大表示し、置き換える色の上に新しい色を表示します</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>切り抜いた領域を表示</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>切り抜きシールドを有効にする</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>切り抜きシールドのカラー</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>切り抜きシールドの不透明度</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>切り抜きシールドのカラー</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>オーバーレイなし</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>三分割法</translation>
     </message>
@@ -23731,24 +23763,20 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>切り抜きボックス内に表示する構図ガイド</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>オーバーレイを常に表示</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>ドラッグ中のみオーバーレイを表示</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>オーバーレイの向きと表示するタイミングを設定</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>切り抜きオプション: オーバーレイ、切り抜いた領域と切り抜きシールド</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>オーバーレイの向きを変更</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>オーバーレイなし</translation>
+        <source>Always Show Overlay</source>
+        <translation>オーバーレイを常に表示</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>ドラッグ中のみオーバーレイを表示</translation>
     </message>
 </context>
 <context>

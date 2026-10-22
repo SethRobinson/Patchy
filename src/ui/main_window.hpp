@@ -2366,6 +2366,11 @@ private:
   // Size style with its link button down: handle drags keep the box's proportion.
   [[nodiscard]] bool crop_size_link_active() const noexcept;
   void apply_crop_style(int style);
+  // Stores the Crop options popup's values, hands them to every canvas, syncs
+  // the popup's controls and saves them.
+  void apply_crop_overlay_options(const CropOverlayOptions& options);
+  void sync_crop_overlay_controls();
+  void choose_crop_shield_color();
   // Pushes the overlay mirrors to the active canvas and syncs the overlay
   // controls (Turn Overlay only for Triangle and Golden Spiral).
   void apply_crop_guide_options();
@@ -2564,12 +2569,18 @@ private:
   // Off-Canvas Layers" (off) drops layers left fully outside the box.
   QCheckBox* crop_delete_pixels_check_{nullptr};
   QCheckBox* crop_delete_layers_check_{nullptr};
+  // The Crop options popup (GitHub issue 326): Show Cropped Area and the crop
+  // shield's on/off, color and opacity (current_crop_overlay_options_).
+  QToolButton* crop_options_button_{nullptr};
+  QAction* crop_show_cropped_area_action_{nullptr};
+  QAction* crop_shield_action_{nullptr};
+  QPushButton* crop_shield_color_button_{nullptr};
+  QSpinBox* crop_shield_opacity_spin_{nullptr};
   // Crop composition overlay (GitHub issue 325): the guide combo (items in
-  // CanvasWidget::CropOverlay order, data = the tools/cropOverlay token) and the
-  // "..." menu with Turn Overlay (Triangle and Golden Spiral) and the Always /
-  // While Dragging choice.
+  // CanvasWidget::CropOverlay order, data = the tools/cropOverlay token), and at
+  // the top of the Crop options menu Turn Overlay (Triangle and Golden Spiral)
+  // and the Always / While Dragging choice.
   QComboBox* crop_overlay_combo_{nullptr};
-  QToolButton* crop_overlay_options_button_{nullptr};
   QAction* crop_overlay_turn_action_{nullptr};
   QAction* crop_overlay_show_always_action_{nullptr};
   QAction* crop_overlay_show_while_dragging_action_{nullptr};
@@ -2614,6 +2625,7 @@ private:
   QComboBox* eyedropper_sample_layers_combo_{nullptr};
   QPushButton* eyedropper_sets_foreground_button_{nullptr};
   QPushButton* eyedropper_sets_background_button_{nullptr};
+  QCheckBox* eyedropper_show_sample_ring_check_{nullptr};
   QCheckBox* sponge_vibrance_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* fill_contiguous_check_{nullptr};
@@ -3049,6 +3061,9 @@ private:
   // off): see crop_delete_pixels_check_ / crop_delete_layers_check_.
   bool current_crop_delete_pixels_{true};
   bool current_crop_delete_layers_{false};
+  // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
+  // and tools/cropShieldOpacity; every canvas draws with these.
+  CropOverlayOptions current_crop_overlay_options_;
   // tools/cropOverlay (a token; the mirror is the CanvasWidget::CropOverlay
   // index, Rule of Thirds by default), tools/cropOverlayOrientation (0-3) and
   // tools/cropOverlayShow ("always" or "dragging").
@@ -3140,6 +3155,7 @@ private:
   int current_eyedropper_sample_size_{1};
   SampleLayers current_eyedropper_sample_layers_{SampleLayers::AllLayers};
   bool current_eyedropper_picks_background_{false};
+  bool current_eyedropper_show_sample_ring_{true};
   bool view_rulers_visible_{false};
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   std::vector<QPointer<UnitSpinBox>> ruler_unit_fields_;

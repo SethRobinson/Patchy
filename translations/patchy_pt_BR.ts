@@ -23059,10 +23059,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Predefinições de zoom</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Define:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Primeiro plano</translation>
     </message>
@@ -23779,6 +23775,42 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Quais camadas a amostra lê: a camada ativa, ela e as camadas abaixo, ou a imagem mesclada, opcionalmente sem camadas de ajuste</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostrar anel de amostragem</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Ao coletar, mostrar os pixels ampliados e a nova cor acima da cor que ela substitui</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Mostrar área cortada</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Ativar proteção de corte</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Cor:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Cor da proteção de corte</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacidade da proteção de corte</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Cor da proteção de corte</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Sem sobreposição</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Regra dos terços</translation>
     </message>
@@ -23803,24 +23835,20 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Guias de composição dentro da caixa de corte</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Sempre mostrar a sobreposição</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Mostrar a sobreposição só ao arrastar</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Girar a sobreposição e escolher quando ela aparece</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Opções de corte: sobreposição, área cortada e proteção de corte</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Girar sobreposição</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Sem sobreposição</translation>
+        <source>Always Show Overlay</source>
+        <translation>Sempre mostrar a sobreposição</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Mostrar a sobreposição só ao arrastar</translation>
     </message>
 </context>
 <context>

@@ -22986,10 +22986,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23706,6 +23702,42 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23730,15 +23762,7 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
+        <source>Crop options: overlay, cropped area and crop shield</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -23746,7 +23770,11 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No Overlay</source>
+        <source>Always Show Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

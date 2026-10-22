@@ -62,9 +62,7 @@ Image > Rotate Right / Left / 180 and Flip Horizontal / Vertical act on the whol
 
 ## Eyedropper
 
-A click sets the foreground color, Alt+click the background (GitHub issue 150; `color_pick_to_background_`, `set_background_color_picked_callback`). The paint tools' Alt eyedropper (`tool_uses_alt_left_for_color_pick`) always sets the foreground.
-
-Options (GitHub issue 151; the tool is labeled "Pick"): Sample Size (`eyedropperSampleSizeCombo`: Point Sample, 3/5/11/31/51/101 by N Average; `tools/eyedropperSampleSize`) and Sample (`eyedropperSampleLayersCombo`, GitHub issue 321: Current Layer, Current & Below, All Layers (default), All Layers No Adjustments, Current & Below No Adjustments; `SampleLayers` in core/layer_tree.hpp, token in `tools/eyedropperSampleLayers`; without it the pre-321 bool `tools/eyedropperSampleAllLayers` decides; saves still write it). MainWindow's `current_eyedropper_*` mirrors reach every canvas and the Alt eyedropper. An average is alpha-weighted over the square clipped to the document. All Layers reads the displayed composite (`compose_document_rect`; fully transparent gives black like a point pick). Current Layer reads the active pixel layer (`active_layer_sample_region`, mask and opacity in alpha); a transparent spot keeps the color, a non-pixel layer warns once per gesture. The other three render only the sample square (`qimage_from_document_rect_with_hidden_layers`) without `sample_layers_excluded_ids`: the later siblings at each level of the active layer's path, and all adjustment layers for No Adjustments; never a full composite per pick. Sets (`eyedropperSetsForegroundButton` / `eyedropperSetsBackgroundButton`; `tools/eyedropperPicksBackground`, default Foreground) names the color a click sets; Alt inverts it for that click (`eyedropper_target_is_background`). The cursor's swatch badge (`eyedropper_target_cursor`) follows Alt; the paint tools' Alt eyedropper ignores Sets. Tests: `ui_eyedropper_*`, core `sample_layers_*`.
+The Pick tool (`CanvasTool::Eyedropper`) and the paint tools' Alt eyedropper: [pick-tool.md](pick-tool.md).
 
 ## Arrow-key nudging
 

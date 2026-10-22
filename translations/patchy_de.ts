@@ -23059,10 +23059,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Zoomvorgaben</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Setzt:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Vordergrund</translation>
     </message>
@@ -23779,6 +23775,42 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Welche Ebenen ein Aufnehmen liest: die aktive Ebene, sie und die Ebenen darunter oder das zusammengefügte Bild, wahlweise ohne Einstellungsebenen</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Aufnahmering anzeigen</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Beim Aufnehmen die Pixel vergrößert und die neue Farbe über der ersetzten anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Freigestellten Bereich anzeigen</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Freistellungsschutz aktivieren</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Farbe:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Farbe des Freistellungsschutzes</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Deckkraft des Freistellungsschutzes</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Freistellungsschutzfarbe</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Keine Überlagerung</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Drittelregel</translation>
     </message>
@@ -23803,24 +23835,20 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Kompositionshilfslinien im Freistellungsrahmen</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Überlagerung immer anzeigen</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Überlagerung nur beim Ziehen anzeigen</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Überlagerung drehen und festlegen, wann sie erscheint</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Freistellungsoptionen: Überlagerung, freigestellter Bereich und Freistellungsschutz</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Überlagerung drehen</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Keine Überlagerung</translation>
+        <source>Always Show Overlay</source>
+        <translation>Überlagerung immer anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Überlagerung nur beim Ziehen anzeigen</translation>
     </message>
 </context>
 <context>

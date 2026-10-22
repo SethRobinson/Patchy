@@ -92,9 +92,11 @@
 #include <QString>
 #include <QStringLiteral>
 #include <QToolBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QVariant>
 #include <QWidget>
+#include <QWidgetAction>
 #include <Qt>
 #include <QtGlobal>
 
@@ -1372,13 +1374,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
-  // Composition overlay (GitHub issue 325): the guides inside the box, and a
-  // "..." menu that turns the Triangle and Golden Spiral and chooses whether the
-  // guides show all the time or only while the box is dragged. No label (the
+  // Composition overlay (GitHub issue 325): the guides inside the box. The Crop
+  // options menu below turns the Triangle and Golden Spiral and chooses whether
+  // the guides show all the time or only while the box is dragged. No label (the
   // entries name themselves, "No Overlay" first) and a fixed width keep the Crop
-  // bar on one row at the 1180 px test width. Items
-  // follow CanvasWidget::CropOverlay; the data is the persisted tools/cropOverlay
-  // token.
+  // bar on one row at the 1180 px test width. Items follow
+  // CanvasWidget::CropOverlay; the data is the persisted tools/cropOverlay token.
   static constexpr std::array<std::pair<const char*, const char*>, 7> kCropOverlayItems = {{
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "No Overlay"), "none"},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rule of Thirds"), "thirds"},
@@ -1417,22 +1418,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     apply_crop_guide_options();
     schedule_save_tool_settings();
   });
-  crop_overlay_options_button_ = new QToolButton(toolbar);
-  crop_overlay_options_button_->setObjectName(QStringLiteral("cropOverlayOptionsButton"));
-  // The brushSmoothingOptionsButton pattern: compact "..." text, InstantPopup,
-  // height pinned by the optionsBarMenuButton QSS rule so the 26 px row holds.
-  crop_overlay_options_button_->setText(QStringLiteral("..."));
-  crop_overlay_options_button_->setProperty("optionsBarMenuButton", true);
-  crop_overlay_options_button_->setFocusPolicy(Qt::NoFocus);
-  bind_tooltip(crop_overlay_options_button_,
-               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Turn the overlay, and choose when it shows"));
-  crop_overlay_options_button_->setPopupMode(QToolButton::InstantPopup);
+  // Crop options (GitHub issues 325 and 326): the overlay's turn and when it
+  // shows, then how the area outside the box draws. Its
+  // own group after the checkboxes (options-bar rule 1: advanced options). The
+  // moveAlignMoreButton pattern: compact "..." text, InstantPopup, height pinned
+  // by the optionsBarMenuButton QSS rule so the bar row keeps its height.
+  crop_options_button_ = new QToolButton(toolbar);
+  crop_options_button_->setObjectName(QStringLiteral("cropOptionsButton"));
+  crop_options_button_->setText(QStringLiteral("..."));
+  crop_options_button_->setProperty("optionsBarMenuButton", true);
+  crop_options_button_->setFocusPolicy(Qt::NoFocus);
+  bind_tooltip(crop_options_button_, QT_TR_NOOP("Crop options: overlay, cropped area and crop shield"));
+  crop_options_button_->setPopupMode(QToolButton::InstantPopup);
   {
-    auto* overlay_menu = new QMenu(crop_overlay_options_button_);
-    overlay_menu->setObjectName(QStringLiteral("cropOverlayOptionsMenu"));
+    auto* crop_menu = new QMenu(crop_options_button_);
+    crop_menu->setObjectName(QStringLiteral("cropOptionsMenu"));
     // Steps the orientation 0-3: the Triangle mirrors, the Golden Spiral visits
     // each corner. Enabled for those two only.
-    crop_overlay_turn_action_ = overlay_menu->addAction(tr("Turn Overlay"));
+    crop_overlay_turn_action_ = crop_menu->addAction(tr("Turn Overlay"));
     crop_overlay_turn_action_->setObjectName(QStringLiteral("cropOverlayTurnAction"));
     bind_action_text(crop_overlay_turn_action_, QT_TR_NOOP("Turn Overlay"));
     connect(crop_overlay_turn_action_, &QAction::triggered, this, [this] {
@@ -1440,12 +1443,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       apply_crop_guide_options();
       schedule_save_tool_settings();
     });
-    overlay_menu->addSeparator();
-    auto* show_group = new QActionGroup(overlay_menu);
+    crop_menu->addSeparator();
+    auto* show_group = new QActionGroup(crop_menu);
     show_group->setExclusive(true);
-    const auto add_show_choice = [this, overlay_menu, show_group](const char* source, const char* object_name,
+    const auto add_show_choice = [this, crop_menu, show_group](const char* source, const char* object_name,
                                                                   bool while_dragging) {
-      auto* action = overlay_menu->addAction(tr(source));
+      auto* action = crop_menu->addAction(tr(source));
       action->setObjectName(QLatin1String(object_name));
       bind_action_text(action, source);
       action->setCheckable(true);
@@ -1462,9 +1465,67 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
         add_show_choice(QT_TR_NOOP("Always Show Overlay"), "cropOverlayShowAlwaysAction", false);
     crop_overlay_show_while_dragging_action_ =
         add_show_choice(QT_TR_NOOP("Show Overlay Only While Dragging"), "cropOverlayShowWhileDraggingAction", true);
-    crop_overlay_options_button_->setMenu(overlay_menu);
+    crop_menu->addSeparator();
+    crop_show_cropped_area_action_ = crop_menu->addAction(tr("Show Cropped Area"));
+    crop_show_cropped_area_action_->setObjectName(QStringLiteral("cropShowCroppedAreaAction"));
+    bind_action_text(crop_show_cropped_area_action_, QT_TR_NOOP("Show Cropped Area"));
+    crop_show_cropped_area_action_->setCheckable(true);
+    connect(crop_show_cropped_area_action_, &QAction::toggled, this, [this](bool on) {
+      auto options = current_crop_overlay_options_;
+      options.show_cropped_area = on;
+      apply_crop_overlay_options(options);
+    });
+    crop_menu->addSeparator();
+    crop_shield_action_ = crop_menu->addAction(tr("Enable Crop Shield"));
+    crop_shield_action_->setObjectName(QStringLiteral("cropShieldAction"));
+    bind_action_text(crop_shield_action_, QT_TR_NOOP("Enable Crop Shield"));
+    crop_shield_action_->setCheckable(true);
+    connect(crop_shield_action_, &QAction::toggled, this, [this](bool on) {
+      auto options = current_crop_overlay_options_;
+      options.shield_enabled = on;
+      apply_crop_overlay_options(options);
+    });
+    // The shield's color and opacity share one row under the toggle.
+    auto* shield_row = new QWidget(crop_menu);
+    shield_row->setObjectName(QStringLiteral("cropShieldRow"));
+    auto* shield_layout = new QHBoxLayout(shield_row);
+    shield_layout->setContentsMargins(24, 2, 10, 4);
+    shield_layout->setSpacing(6);
+    auto* color_label = new QLabel(tr("Color:"), shield_row);
+    bind_widget_text(color_label, QT_TR_NOOP("Color:"));
+    shield_layout->addWidget(color_label);
+    crop_shield_color_button_ = new QPushButton(shield_row);
+    crop_shield_color_button_->setObjectName(QStringLiteral("cropShieldColorButton"));
+    crop_shield_color_button_->setFixedSize(36, 20);
+    bind_tooltip(crop_shield_color_button_, QT_TR_NOOP("Color of the crop shield"));
+    shield_layout->addWidget(crop_shield_color_button_);
+    shield_layout->addSpacing(8);
+    auto* opacity_label = new QLabel(tr("Opacity:"), shield_row);
+    bind_widget_text(opacity_label, QT_TR_NOOP("Opacity:"));
+    shield_layout->addWidget(opacity_label);
+    crop_shield_opacity_spin_ = new QSpinBox(shield_row);
+    crop_shield_opacity_spin_->setObjectName(QStringLiteral("cropShieldOpacitySpin"));
+    crop_shield_opacity_spin_->setRange(0, 100);
+    crop_shield_opacity_spin_->setSuffix(percent_suffix());
+    bind_tooltip(crop_shield_opacity_spin_, QT_TR_NOOP("Opacity of the crop shield"));
+    configure_dialog_spinbox(crop_shield_opacity_spin_, 64);
+    shield_layout->addWidget(crop_shield_opacity_spin_);
+    auto* shield_action = new QWidgetAction(crop_menu);
+    shield_action->setDefaultWidget(shield_row);
+    crop_menu->addAction(shield_action);
+    connect(crop_shield_opacity_spin_, &QSpinBox::valueChanged, this, [this](int percent) {
+      auto options = current_crop_overlay_options_;
+      options.shield_opacity_percent = percent;
+      apply_crop_overlay_options(options);
+    });
+    // The picker is a dialog: close the popup first so it does not hold the input grab.
+    connect(crop_shield_color_button_, &QPushButton::clicked, this, [this, crop_menu] {
+      crop_menu->close();
+      QTimer::singleShot(0, this, [this] { choose_crop_shield_color(); });
+    });
+    crop_options_button_->setMenu(crop_menu);
   }
-  add_option_widget(crop_overlay_options_button_, {CanvasTool::Crop});
+  sync_crop_overlay_controls();
   apply_crop_guide_options();
   // Canvas Size's two layer options, as Photoshop's "Delete Cropped Pixels"
   // (on by default there too) plus Patchy's own off-canvas layer delete.
@@ -1489,6 +1550,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     current_crop_delete_layers_ = checked;
     save_tool_settings();
   });
+  add_option_separator({CanvasTool::Crop});
+  add_option_widget(crop_options_button_, {CanvasTool::Crop});
   crop_apply_button_ = new QPushButton(toolbar);
   crop_apply_button_->setObjectName(QStringLiteral("cropApplyButton"));
   crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));
@@ -2864,6 +2927,51 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Sets (GitHub issue 151): which color a click sets, a two-way choice like
+  // GIMP's Pick Target. Alt inverts it for one click, and the cursor badge says
+  // which color the click will set. The pair leads the bar as the tool's mode
+  // group, unlabeled (GitHub issue 322; docs/options-bar.md rule 1).
+  auto* eyedropper_sets_group = new QButtonGroup(toolbar);
+  eyedropper_sets_group->setExclusive(true);
+  const auto add_sets_button = [&](QPushButton*& button, const char* text, const char* tooltip,
+                                   const QString& object_name, bool background) {
+    button = new QPushButton(tr(text), toolbar);
+    button->setObjectName(object_name);
+    button->setCheckable(true);
+    button->setChecked(current_eyedropper_picks_background_ == background);
+    button->setFocusPolicy(Qt::NoFocus);
+    bind_widget_text(button, text);
+    // %ALT% names Option on macOS (resolve_modifier_names), so this tooltip is
+    // set by a callback rather than bound.
+    QPointer<QPushButton> guarded(button);
+    const auto apply_tooltip = [guarded, tooltip] {
+      if (guarded != nullptr) {
+        guarded->setToolTip(resolve_modifier_names(tr(tooltip)));
+      }
+    };
+    apply_tooltip();
+    register_retranslation(apply_tooltip);
+    eyedropper_sets_group->addButton(button);
+    add_option_widget(button, {CanvasTool::Eyedropper});
+    connect(button, &QPushButton::toggled, this, [this, background](bool checked) {
+      if (!checked) {
+        return;
+      }
+      current_eyedropper_picks_background_ = background;
+      if (canvas_ != nullptr) {
+        canvas_->set_eyedropper_picks_background(background);
+      }
+      save_tool_settings();
+    });
+  };
+  add_sets_button(eyedropper_sets_foreground_button_, QT_TR_NOOP("Foreground"),
+                  QT_TR_NOOP("A click sets the foreground color; %ALT%+click sets the background"),
+                  QStringLiteral("eyedropperSetsForegroundButton"), false);
+  add_sets_button(eyedropper_sets_background_button_, QT_TR_NOOP("Background"),
+                  QT_TR_NOOP("A click sets the background color; %ALT%+click sets the foreground"),
+                  QStringLiteral("eyedropperSetsBackgroundButton"), true);
+  add_option_separator({CanvasTool::Eyedropper});
+
   // Photoshop's Eyedropper options (GitHub issue 151): Sample Size averages a
   // square around the click, Sample picks from the merged document or the
   // active layer alone. The paint tools' Alt eyedropper uses the same settings.
@@ -2933,50 +3041,22 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     save_tool_settings();
   });
-  // Sets (GitHub issue 151): which color a click sets, a two-way choice like
-  // GIMP's Pick Target. Alt inverts it for one click, and the cursor badge says
-  // which color the click will set.
+  // Show Sample Ring (GitHub issue 320): the sample loupe while a pick is held,
+  // for the Pick tool and the paint tools' Alt eyedropper alike.
   add_option_separator({CanvasTool::Eyedropper});
-  add_option_label(QT_TR_NOOP("Sets:"), {CanvasTool::Eyedropper});
-  auto* eyedropper_sets_group = new QButtonGroup(toolbar);
-  eyedropper_sets_group->setExclusive(true);
-  const auto add_sets_button = [&](QPushButton*& button, const char* text, const char* tooltip,
-                                   const QString& object_name, bool background) {
-    button = new QPushButton(tr(text), toolbar);
-    button->setObjectName(object_name);
-    button->setCheckable(true);
-    button->setChecked(current_eyedropper_picks_background_ == background);
-    button->setFocusPolicy(Qt::NoFocus);
-    bind_widget_text(button, text);
-    // %ALT% names Option on macOS (resolve_modifier_names), so this tooltip is
-    // set by a callback rather than bound.
-    QPointer<QPushButton> guarded(button);
-    const auto apply_tooltip = [guarded, tooltip] {
-      if (guarded != nullptr) {
-        guarded->setToolTip(resolve_modifier_names(tr(tooltip)));
-      }
-    };
-    apply_tooltip();
-    register_retranslation(apply_tooltip);
-    eyedropper_sets_group->addButton(button);
-    add_option_widget(button, {CanvasTool::Eyedropper});
-    connect(button, &QPushButton::toggled, this, [this, background](bool checked) {
-      if (!checked) {
-        return;
-      }
-      current_eyedropper_picks_background_ = background;
-      if (canvas_ != nullptr) {
-        canvas_->set_eyedropper_picks_background(background);
-      }
-      save_tool_settings();
-    });
-  };
-  add_sets_button(eyedropper_sets_foreground_button_, QT_TR_NOOP("Foreground"),
-                  QT_TR_NOOP("A click sets the foreground color; %ALT%+click sets the background"),
-                  QStringLiteral("eyedropperSetsForegroundButton"), false);
-  add_sets_button(eyedropper_sets_background_button_, QT_TR_NOOP("Background"),
-                  QT_TR_NOOP("A click sets the background color; %ALT%+click sets the foreground"),
-                  QStringLiteral("eyedropperSetsBackgroundButton"), true);
+  eyedropper_show_sample_ring_check_ = new CheckGlyphBox(tr("Show Sample Ring"), toolbar);
+  eyedropper_show_sample_ring_check_->setObjectName(QStringLiteral("eyedropperShowSampleRingCheck"));
+  eyedropper_show_sample_ring_check_->setChecked(current_eyedropper_show_sample_ring_);
+  bind_tooltip(eyedropper_show_sample_ring_check_,
+               QT_TR_NOOP("While picking, show the pixels enlarged and the new color above the one it replaces"));
+  add_option_widget(eyedropper_show_sample_ring_check_, {CanvasTool::Eyedropper});
+  connect(eyedropper_show_sample_ring_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_eyedropper_show_sample_ring_ = checked;
+    if (canvas_ != nullptr) {
+      canvas_->set_eyedropper_show_sample_ring(checked);
+    }
+    save_tool_settings();
+  });
   QPointer<QComboBox> eyedropper_size_combo(eyedropper_sample_size_combo_);
   QPointer<QComboBox> eyedropper_layers_combo(eyedropper_sample_layers_combo_);
   register_retranslation([eyedropper_size_combo, eyedropper_layers_combo, eyedropper_sample_size_text,

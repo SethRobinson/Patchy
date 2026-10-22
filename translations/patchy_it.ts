@@ -23059,10 +23059,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Zoom predefiniti</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Imposta:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Primo piano</translation>
     </message>
@@ -23779,6 +23775,42 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Quali livelli legge il campionamento: il livello attivo, questo e i livelli sottostanti, o l&apos;immagine unita, facoltativamente senza livelli di regolazione</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostra anello di campionamento</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Durante il campionamento, mostra i pixel ingranditi e il nuovo colore sopra quello che sostituisce</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Mostra area ritagliata</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Attiva schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Colore:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Colore della schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacità della schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Colore della schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Nessuna sovrapposizione</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Regola dei terzi</translation>
     </message>
@@ -23803,24 +23835,20 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Guide di composizione nel riquadro di ritaglio</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Mostra sempre la sovrapposizione</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Mostra la sovrapposizione solo durante il trascinamento</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Ruota la sovrapposizione e scegli quando appare</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Opzioni taglierina: sovrapposizione, area ritagliata e schermatura di ritaglio</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Ruota sovrapposizione</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Nessuna sovrapposizione</translation>
+        <source>Always Show Overlay</source>
+        <translation>Mostra sempre la sovrapposizione</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Mostra la sovrapposizione solo durante il trascinamento</translation>
     </message>
 </context>
 <context>

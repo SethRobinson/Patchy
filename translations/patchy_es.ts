@@ -23059,10 +23059,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Zoom predefinido</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Define:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Frontal</translation>
     </message>
@@ -23779,6 +23775,42 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Qué capas lee la muestra: la capa activa, ella y las capas inferiores, o la imagen combinada, opcionalmente sin capas de ajuste</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostrar anillo de muestreo</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Al tomar una muestra, mostrar los píxeles ampliados y el color nuevo sobre el que reemplaza</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Mostrar área recortada</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Activar escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Color:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Color del escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacidad del escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Color del escudo de recorte</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Sin superposición</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>Regla de los tercios</translation>
     </message>
@@ -23803,24 +23835,20 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Guías de composición dentro del cuadro de recorte</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>Mostrar siempre la superposición</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>Mostrar la superposición solo al arrastrar</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>Girar la superposición y elegir cuándo se muestra</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>Opciones de recorte: superposición, área recortada y escudo de recorte</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>Girar superposición</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>Sin superposición</translation>
+        <source>Always Show Overlay</source>
+        <translation>Mostrar siempre la superposición</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Mostrar la superposición solo al arrastrar</translation>
     </message>
 </context>
 <context>

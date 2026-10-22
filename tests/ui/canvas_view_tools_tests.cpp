@@ -763,9 +763,10 @@ void ui_shape_options_bars_group_their_controls() {
 }
 
 // GitHub issue 324: the Crop bar follows the grouping rules (docs/options-bar.md) in both
-// styles: Style | the preset, W : H pair and Clear (Ratio) or the size fields (Size) | Overlay
-// and its "..." menu (issue 325) | the two Delete checkboxes | Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both
-// styles fit one row at 1366 px. The artifacts are the issue shots, in both schemes.
+// styles: Style | the preset, W : H pair and Clear (Ratio) or the size fields (Size) | the
+// Overlay list (issue 325) | the two Delete checkboxes | the Crop options "..." (issue 326) |
+// Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both styles fit one row at
+// 1366 px. The artifacts are the issue shots, in both schemes.
 void ui_crop_options_bar_groups_its_controls() {
   std::vector<std::string> problems;
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -818,11 +819,16 @@ void ui_crop_options_bar_groups_its_controls() {
           overlay <= 0 || tokens[static_cast<std::size_t>(overlay) - 1] != separator) {
         problem("no separator before the Overlay list");
       }
-      expect_next_to(QStringLiteral("cropOverlayCombo"), QStringLiteral("cropOverlayOptionsButton"));
-      expect_next_to(QStringLiteral("cropOverlayOptionsButton"), separator);
+      expect_next_to(QStringLiteral("cropOverlayCombo"), separator);
       expect_next_to(QStringLiteral("cropDeletePixelsCheck"), QStringLiteral("cropDeleteLayersCheck"));
       expect_next_to(QStringLiteral("cropDeleteLayersCheck"), separator);
+      // The Crop options popup is its own group between the checkboxes and Apply (issue 326).
+      expect_next_to(QStringLiteral("cropOptionsButton"), separator);
       expect_next_to(QStringLiteral("cropApplyButton"), QStringLiteral("cropCancelButton"));
+      const int options_popup = at(QStringLiteral("cropOptionsButton"));
+      if (options_popup <= 0 || tokens[static_cast<std::size_t>(options_popup) - 1] != separator) {
+        problem("no separator before the Crop options button");
+      }
       const int pixels = at(QStringLiteral("cropDeletePixelsCheck"));
       const int apply = at(QStringLiteral("cropApplyButton"));
       if (pixels <= 0 || tokens[static_cast<std::size_t>(pixels) - 1] != separator) {
@@ -834,8 +840,8 @@ void ui_crop_options_bar_groups_its_controls() {
       if (tokens.empty() || tokens.back() != QStringLiteral("cropCancelButton")) {
         problem("Cancel is not last");
       }
-      if (const auto count = std::count(tokens.begin(), tokens.end(), separator); count != 4) {
-        problem(std::to_string(count) + " separators, expected 4");
+      if (const auto count = std::count(tokens.begin(), tokens.end(), separator); count != 5) {
+        problem(std::to_string(count) + " separators, expected 5");
       }
       if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
         problem("takes " + std::to_string(lines) + " rows at 1366 px (row " + std::to_string(right) + " px)");
@@ -849,6 +855,47 @@ void ui_crop_options_bar_groups_its_controls() {
     std::fprintf(stderr, "  %s\n", problem.c_str());
   }
   CHECK(problems.empty());
+}
+
+// GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
+// then a separator and the Sample Size and Sample fields, and the Show Sample Ring checkbox
+// (GitHub issue 320) after another separator, on one row at 1366 px.
+void ui_pick_options_bar_groups_its_controls() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    require_action(window, "toolPickAction")->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    const auto tokens = options_row_tokens(*options);
+    std::printf("  pick%s:", suffix.c_str());
+    for (const auto& token : tokens) {
+      std::printf(" %s", qPrintable(token));
+    }
+    std::printf("\n");
+    const std::vector<QString> expected{QStringLiteral("eyedropperSetsForegroundButton"),
+                                        QStringLiteral("eyedropperSetsBackgroundButton"),
+                                        QStringLiteral("|"),
+                                        QStringLiteral("Sample Size"),
+                                        QStringLiteral("eyedropperSampleSizeCombo"),
+                                        QStringLiteral("Sample"),
+                                        QStringLiteral("eyedropperSampleLayersCombo"),
+                                        QStringLiteral("|"),
+                                        QStringLiteral("eyedropperShowSampleRingCheck")};
+    CHECK(tokens == expected);
+    CHECK(std::find(tokens.begin(), tokens.end(), QStringLiteral("Sets")) == tokens.end());
+    CHECK(options_row_extent(*options).second == 1);
+    save_widget_artifact("ui_pick_options_bar" + suffix, *options_bar);
+  }
 }
 
 // GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
@@ -7817,6 +7864,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
+      {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},

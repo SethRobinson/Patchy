@@ -285,6 +285,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {gradient_reverse_check_, QT_TR_NOOP("Reverse")},
       {gradient_edit_stops_button_, QT_TR_NOOP("Edit Stops...")},
       {wand_contiguous_check_, QT_TR_NOOP("Contiguous")},
+      {eyedropper_show_sample_ring_check_, QT_TR_NOOP("Show Sample Ring")},
       {fill_contiguous_check_, QT_TR_NOOP("Contiguous")},
       {zoom_scrubby_check_, QT_TR_NOOP("Scrubby Zoom")},
       {zoom_actual_pixels_button_, QT_TR_NOOP("100%")},

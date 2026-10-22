@@ -22991,10 +22991,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>확대/축소 사전 설정</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>설정 대상:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>전경색</translation>
     </message>
@@ -23707,6 +23703,42 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>스포이트가 읽는 레이어: 활성 레이어, 그 레이어와 아래 레이어, 또는 병합된 이미지이며 조정 레이어를 뺄 수도 있습니다</translation>
     </message>
     <message>
+        <source>Show Sample Ring</source>
+        <translation>샘플 링 표시</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>추출하는 동안 픽셀을 확대하여 보여 주고, 새 색상을 바꿀 색상 위에 표시합니다</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>잘린 영역 표시</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>자르기 방패 사용</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>자르기 방패의 색상</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>자르기 방패의 불투명도</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>자르기 방패 색상</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>오버레이 없음</translation>
+    </message>
+    <message>
         <source>Rule of Thirds</source>
         <translation>3분할 법칙</translation>
     </message>
@@ -23731,24 +23763,20 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>자르기 상자 안에 그리는 구도 안내선</translation>
     </message>
     <message>
-        <source>Always Show Overlay</source>
-        <translation>오버레이 항상 표시</translation>
-    </message>
-    <message>
-        <source>Show Overlay Only While Dragging</source>
-        <translation>드래그하는 동안에만 오버레이 표시</translation>
-    </message>
-    <message>
-        <source>Turn the overlay, and choose when it shows</source>
-        <translation>오버레이 방향을 바꾸고 표시 시점을 선택</translation>
+        <source>Crop options: overlay, cropped area and crop shield</source>
+        <translation>자르기 옵션: 오버레이, 잘린 영역과 자르기 방패</translation>
     </message>
     <message>
         <source>Turn Overlay</source>
         <translation>오버레이 방향 바꾸기</translation>
     </message>
     <message>
-        <source>No Overlay</source>
-        <translation>오버레이 없음</translation>
+        <source>Always Show Overlay</source>
+        <translation>오버레이 항상 표시</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>드래그하는 동안에만 오버레이 표시</translation>
     </message>
 </context>
 <context>

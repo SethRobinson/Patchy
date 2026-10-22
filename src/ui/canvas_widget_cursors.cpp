@@ -330,6 +330,10 @@ void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
 
 void CanvasWidget::update_tool_cursor() {
   ZoomTraceScope trace("tool_cursor", zoom_);
+  if (sample_loupe_hides_cursor_) {
+    setCursor(Qt::BlankCursor);  // the sample loupe stands in for the pointer (GitHub issue 320)
+    return;
+  }
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     apply_hand_cursor(QApplication::keyboardModifiers());
     return;

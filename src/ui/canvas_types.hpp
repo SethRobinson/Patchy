@@ -195,6 +195,17 @@ enum class PenHoverAction {
   Continue  // an open path's end point: a click continues that path
 };
 
+// How the Crop tool draws the area outside its pending box (the Crop options
+// popup, GitHub issue 326). The defaults are the original look: a black shield
+// at 47% (alpha 120). Show Cropped Area off paints the outside as the backdrop.
+struct CropOverlayOptions {
+  bool show_cropped_area{true};
+  bool shield_enabled{true};
+  QColor shield_color{0, 0, 0};
+  int shield_opacity_percent{47};
+  friend bool operator==(const CropOverlayOptions&, const CropOverlayOptions&) = default;
+};
+
 enum class MarqueeStyle {
   Normal,
   FixedRatio,

@@ -45,8 +45,9 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Quick Select | Size, Sample All Layers, Enhance Edge | `quickSelectSize`, `...SampleAllLayers`, `...EnhanceEdge` | yes | yes |
 | Object Selection | Sample All Layers, Model | `objectSelectSampleAllLayers`, `objectSelectModel` | yes | yes |
 | Crop | Style, ratio W/H, Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
+| Crop | Crop options popup: Show Cropped Area, shield on, color, opacity (`cropOptionsButton`) | `cropShowCroppedArea`, `cropShieldEnabled`, `cropShieldColor`, `cropShieldOpacity` | no | yes |
 | Crop | Size W/H, ratio preset row, Apply/Cancel | none (live box; preset derived) | no | no (session) |
-| Crop | Overlay, Turn Overlay, Always / While Dragging (`cropOverlayCombo`, `cropOverlayTurnAction`, `cropOverlayOptionsButton`) | `cropOverlay` (token), `cropOverlayOrientation`, `cropOverlayShow` | new (issue 325) | yes |
+| Crop | Overlay, Turn Overlay, Always / While Dragging (`cropOverlayCombo`; `cropOverlayTurnAction` and the show choice in the Crop options menu) | `cropOverlay` (token), `cropOverlayOrientation`, `cropOverlayShow` | new (issue 325) | yes |
 | Artboard | Size preset, W, H, Background, Auto-nest | `artboardWidth`, `artboardHeight`, `artboardBackground`, `artboardBackgroundColor`, `artboardAutoNest` | yes | yes |
 | Brush family | Preset (`brushPresetCombo`, built-in presets) | `brushPreset` | no | yes |
 | Brush family | Size (`brushSizeSpin`, slider) | `brushSize` | no | yes |
@@ -81,7 +82,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Custom Shape | Shape (by shape id) | `customShapeId` | yes | yes |
 | Type | Font, Style, Size, Color, alignment, orientation | none | no | no (layer state) |
 | Type | Smoothing (`textSmoothingCombo`) | `textSmoothing` | yes | yes |
-| Pick | Sample Size, Sample, Sets | `eyedropperSampleSize`, `eyedropperSampleLayers` (five-way token; the older bool `eyedropperSampleAllLayers` is still written and maps on first read), `eyedropperPicksBackground` | yes | yes |
+| Pick | Sample Size, Sample, Sets, Show Sample Ring | `eyedropperSampleSize`, `eyedropperSampleLayers` (five-way token; the older bool `eyedropperSampleAllLayers` is still written and maps on first read), `eyedropperPicksBackground`, `eyedropperShowSampleRing` | yes | yes |
 | Zoom | Zoom In/Out, Scrubby | `zoomToolZoomsOut`, `zoomScrubby` | yes | yes |
 
 Counts: 55 rows (a row is one control or one group sharing a handler). 12 new keys across 11 rows: the active tool, the Brush family's preset, size, opacity, Soft, flow, Airbrush and tip, the Eraser's opacity and Soft, the Marquee radius, the pixel shapes' Fill. 35 rows were already persisted. 9 rows are deliberately session-only or layer state (the list above).

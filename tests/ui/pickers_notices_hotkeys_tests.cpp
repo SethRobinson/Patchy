@@ -10,6 +10,7 @@
 #include "core/smart_object.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/eyedropper_sample_overlay.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/compatibility_report.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -2031,6 +2032,263 @@ void ui_eyedropper_sets_option_and_alt_inverts() {
   CHECK(color_close(canvas.primary_color(), teal, 1) && canvas.secondary_color() == QColor(250, 250, 250));
 }
 
+// A small colorful document for the Pick tool's overlay shots: a two-way gradient
+// with a dark block, so outlines and the loupe read over light and dark pixels.
+patchy::Document eyedropper_overlay_document() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  for (int y = 0; y < 48; ++y) {
+    for (int x = 0; x < 64; ++x) {
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), QColor(60 + x * 3, 90 + y * 3, 230 - x * 2));
+    }
+  }
+  fill_pixel_rect(pixels, QRect(36, 8, 20, 14), QColor(30, 26, 40));
+  fill_pixel_rect(pixels, QRect(8, 28, 14, 12), QColor(250, 236, 120));
+  document.add_pixel_layer("Gradient", std::move(pixels));
+  return document;
+}
+
+// GitHub issue 319: with an average Sample Size the Pick tool outlines the square a
+// click averages, snapped to the document pixels and moving with the pointer. Point
+// Sample, a square under 4 screen pixels, the pointer off the document and other
+// tools show nothing.
+void ui_eyedropper_sample_outline_follows_the_pointer() {
+  CHECK(!patchy::ui::eyedropper_sample_outline_visible(1, 32.0));
+  CHECK(!patchy::ui::eyedropper_sample_outline_visible(3, 1.0));
+  CHECK(patchy::ui::eyedropper_sample_outline_visible(3, 4.0 / 3.0));
+  CHECK(patchy::ui::eyedropper_sample_outline_visible(5, 1.0));
+  CHECK(!patchy::ui::eyedropper_sample_outline_visible(101, 0.03));
+  CHECK(patchy::ui::eyedropper_sample_rect(QPoint(10, 10), 5, QSize(64, 48)) == QRect(8, 8, 5, 5));
+  CHECK(patchy::ui::eyedropper_sample_rect(QPoint(0, 47), 5, QSize(64, 48)) == QRect(0, 45, 3, 3));
+
+  auto document = eyedropper_overlay_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(640, 480);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.show();
+  canvas.set_zoom(1.0);
+  QApplication::processEvents();
+  const auto hover = [&canvas](QPoint document_point) {
+    send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(document_point), Qt::NoButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto expected = [&canvas](QRect area) {
+    const auto top_left = canvas.widget_position_f(QPointF(area.topLeft()));
+    const auto bottom_right = canvas.widget_position_f(QPointF(area.x() + area.width(), area.y() + area.height()));
+    return QRect(top_left.toPoint(), bottom_right.toPoint() - QPoint(1, 1));
+  };
+
+  hover(QPoint(20, 20));
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());  // Point Sample
+  canvas.set_eyedropper_sample_size(3);
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());  // 3 screen pixels
+  canvas.set_eyedropper_sample_size(5);
+  auto outline = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(outline.has_value() && outline->size() == QSize(5, 5));
+
+  canvas.set_zoom(6.0);
+  QApplication::processEvents();
+  hover(QPoint(20, 20));
+  outline = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(outline.has_value() && *outline == expected(QRect(18, 18, 5, 5)));
+  CHECK(outline.has_value() && outline->size() == QSize(30, 30));
+  // It moves with the pointer, one document pixel at a time.
+  hover(QPoint(21, 20));
+  const auto moved = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(moved.has_value() && outline.has_value() && moved->topLeft() == outline->topLeft() + QPoint(6, 0));
+  // Clipped to the document at its edge, like the average.
+  hover(QPoint(0, 0));
+  outline = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(outline.has_value() && *outline == expected(QRect(0, 0, 3, 3)));
+  hover(QPoint(24, 24));
+  save_widget_artifact("ui_eyedropper_sample_outline", canvas);
+  // Off the document: nothing.
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(0, 0)) - QPoint(30, 30),
+             Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());
+  hover(QPoint(24, 24));
+  CHECK(canvas.eyedropper_sample_outline_widget_rect().has_value());
+  // Another tool hides it.
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  hover(QPoint(24, 24));
+  CHECK(canvas.eyedropper_sample_outline_widget_rect().has_value());
+  canvas.set_eyedropper_sample_size(1);
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());
+}
+
+// GitHub issue 320: the sample loupe's geometry. It centers on the pointer, slides
+// inward near the viewport edge instead of clipping, and its lens shows the sample
+// square with three pixels of context (nine pixels across at least).
+void ui_sample_loupe_geometry_stays_inside_the_viewport() {
+  const QRectF viewport(0.0, 0.0, 400.0, 300.0);
+  const double reach = patchy::ui::kSampleLoupeBandOuterRadius + patchy::ui::kSampleLoupeMargin;
+  auto geometry = patchy::ui::sample_loupe_geometry(QPointF(200.0, 150.0), viewport);
+  CHECK(geometry.center == QPointF(200.0, 150.0) && !geometry.shifted);
+  CHECK(geometry.bounds() == QRectF(200.0 - reach, 150.0 - reach, 2.0 * reach, 2.0 * reach));
+  for (const auto pointer : {QPointF(3.0, 4.0), QPointF(398.0, 296.0), QPointF(200.0, 2.0), QPointF(1.0, 150.0)}) {
+    geometry = patchy::ui::sample_loupe_geometry(pointer, viewport);
+    CHECK(geometry.shifted);
+    CHECK(viewport.contains(geometry.bounds()));
+  }
+  geometry = patchy::ui::sample_loupe_geometry(QPointF(3.0, 4.0), viewport);
+  CHECK(geometry.center == QPointF(reach, reach));
+  // Off one edge only: the other axis stays on the pointer.
+  geometry = patchy::ui::sample_loupe_geometry(QPointF(200.0, 2.0), viewport);
+  CHECK(geometry.center == QPointF(200.0, reach));
+  // A viewport smaller than the loupe centers it.
+  geometry = patchy::ui::sample_loupe_geometry(QPointF(10.0, 10.0), QRectF(20.0, 30.0, 100.0, 80.0));
+  CHECK(geometry.center == QPointF(70.0, 70.0));
+
+  CHECK(patchy::ui::sample_loupe_view_pixels(1) == 9);
+  CHECK(patchy::ui::sample_loupe_view_pixels(3) == 9);
+  CHECK(patchy::ui::sample_loupe_view_pixels(5) == 11);
+  CHECK(patchy::ui::sample_loupe_view_pixels(11) == 17);
+  CHECK(patchy::ui::sample_loupe_view_pixels(101) == 107);
+  CHECK(patchy::ui::sample_loupe_view_rect(QPoint(20, 10), 1) == QRect(16, 6, 9, 9));
+  CHECK(patchy::ui::sample_loupe_view_rect(QPoint(20, 10), 5) == QRect(15, 5, 11, 11));
+}
+
+// GitHub issue 320: holding a pick shows the loupe (on by default), its top arc the
+// live sample and its bottom arc the color the pick replaces (foreground, or the
+// background when Sets says so), for the Pick tool and the Brush's Alt eyedropper.
+// The pointer is hidden while it shows; the loupe slides inside the canvas at its
+// edge and goes away on release or when Show Sample Ring is off.
+void ui_sample_loupe_shows_while_a_pick_is_held() {
+  auto document = eyedropper_overlay_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.show();
+  canvas.set_zoom(6.0);
+  QApplication::processEvents();
+  CHECK(canvas.eyedropper_show_sample_ring());
+  const QColor foreground(1, 2, 3);
+  const QColor background(250, 250, 250);
+  canvas.set_primary_color(foreground);
+  canvas.set_secondary_color(background);
+  const QColor dark_block(30, 26, 40);
+  const auto at = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point) + QPoint(3, 3);
+  };
+
+  // Press on the dark block, 5 by 5 average, by the block's edge.
+  canvas.set_eyedropper_sample_size(5);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(37, 12)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  auto loupe = canvas.sample_loupe_widget_rect();
+  auto colors = canvas.sample_loupe_colors();
+  CHECK(loupe.has_value() && colors.has_value());
+  CHECK(colors.has_value() && colors->second == foreground);
+  CHECK(colors.has_value() && colors->first == canvas.primary_color());
+  CHECK(canvas.cursor().shape() == Qt::BlankCursor);
+  CHECK(loupe.has_value() && loupe->contains(at(QPoint(37, 12))));
+  save_widget_artifact("ui_sample_loupe_dark", canvas);
+  // Dragging into the block: the top arc follows the live pick, the bottom keeps the old color.
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(44, 14)), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  colors = canvas.sample_loupe_colors();
+  CHECK(colors.has_value() && color_close(colors->first, dark_block, 1) && colors->second == foreground);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(44, 14)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas.sample_loupe_widget_rect().has_value());
+  CHECK(canvas.cursor().shape() != Qt::BlankCursor);
+  CHECK(color_close(canvas.primary_color(), dark_block, 1));
+
+  // Point Sample on the light (yellow) block, picking into the background.
+  canvas.set_eyedropper_sample_size(1);
+  canvas.set_eyedropper_picks_background(true);
+  canvas.set_primary_color(foreground);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(9, 29)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  colors = canvas.sample_loupe_colors();
+  CHECK(colors.has_value() && colors->second == background);
+  CHECK(colors.has_value() && color_close(colors->first, QColor(250, 236, 120), 1));
+  save_widget_artifact("ui_sample_loupe_light", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(9, 29)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  canvas.set_eyedropper_picks_background(false);
+
+  // At the canvas corner the loupe slides inward, whole.
+  const QPoint corner = canvas.widget_position_for_document_point(QPoint(0, 0)) + QPoint(1, 1);
+  send_mouse(canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  loupe = canvas.sample_loupe_widget_rect();
+  CHECK(loupe.has_value());
+  if (loupe.has_value()) {
+    const auto center = loupe->center();
+    CHECK(canvas.rect().contains(*loupe));
+    CHECK(center != corner);
+  }
+  save_widget_artifact("ui_sample_loupe_edge", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  // The Brush's Alt eyedropper shows it too, against the foreground.
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(foreground);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(20, 20)), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  QApplication::processEvents();
+  colors = canvas.sample_loupe_colors();
+  CHECK(colors.has_value() && colors->second == foreground);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(20, 20)), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(!canvas.sample_loupe_widget_rect().has_value());
+
+  // Show Sample Ring off: no loupe, the cursor stays.
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.set_eyedropper_show_sample_ring(false);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(20, 20)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas.sample_loupe_widget_rect().has_value());
+  CHECK(canvas.cursor().shape() != Qt::BlankCursor);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(20, 20)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// GitHub issue 320: deep documents reach the lens through the display conversion. The
+// lens center shows the sampled pixel as the canvas shows it at 8, 16 and 32 bits (a
+// 32-bit composite drawn as raw linear floats would come out too dark).
+void ui_sample_loupe_lens_matches_the_canvas_at_every_depth() {
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    patchy::Document document(48, 32, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Base", solid_pixels(48, 32, patchy::PixelFormat::rgba8(), QColor(200, 40, 10)));
+    auto& top =
+        document.add_pixel_layer("Top", solid_pixels(48, 32, patchy::PixelFormat::rgba8(), QColor(20, 200, 90)));
+    top.set_blend_mode(patchy::BlendMode::Multiply);
+    top.set_opacity(0.5F);
+    if (depth != patchy::BitDepth::UInt8) {
+      patchy::convert_document_depth(document, depth);
+    }
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(360, 260);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+    canvas.show();
+    canvas.set_zoom(4.0);
+    QApplication::processEvents();
+    const auto point = canvas.widget_position_for_document_point(QPoint(24, 16)) + QPoint(2, 2);
+    const auto shown = canvas.grab().toImage().pixelColor(point);
+    send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(canvas.sample_loupe_widget_rect().has_value());
+    // A point sample's cell is outlined; its middle is the pixel itself.
+    const auto lens = canvas.grab().toImage().pixelColor(point);
+    if (!color_close(lens, shown, 3)) {
+      std::fprintf(stderr, "  depth %d: lens %s, canvas %s\n", static_cast<int>(depth), qPrintable(lens.name()),
+                   qPrintable(shown.name()));
+    }
+    CHECK(color_close(lens, shown, 3));
+    send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  }
+}
+
 // The Eyedropper options row (GitHub issue 151): Sample Size and Sample combos
 // for the Eyedropper only, reaching the canvas, every new document and the
 // saved tool settings.
@@ -2063,6 +2321,9 @@ void ui_eyedropper_options_bar_sample_controls() {
   CHECK(sets_foreground->isChecked() && !sets_background->isChecked());
   CHECK(sets_foreground->toolTip().contains(QStringLiteral("+click")));
   CHECK(!sets_foreground->toolTip().contains(QStringLiteral("%ALT%")));
+  auto* show_ring = window.findChild<QCheckBox*>(QStringLiteral("eyedropperShowSampleRingCheck"));
+  CHECK(show_ring != nullptr && show_ring->isVisible() && show_ring->isChecked());
+  CHECK(show_ring != nullptr && show_ring->text() == QStringLiteral("Show Sample Ring"));
   save_widget_artifact("ui_eyedropper_options_bar", window);
 
   // The open Sample menu (GitHub issue 321). The window is grabbed before the popup
@@ -2119,8 +2380,15 @@ void ui_eyedropper_options_bar_sample_controls() {
   QApplication::processEvents();
   CHECK(sets_background->isChecked() && !sets_foreground->isChecked());
   CHECK(canvas->eyedropper_picks_background());
+  CHECK(canvas->eyedropper_show_sample_ring());
+  if (show_ring != nullptr) {
+    show_ring->click();
+  }
+  QApplication::processEvents();
+  CHECK(!canvas->eyedropper_show_sample_ring());
   {
     auto settings = patchy::ui::app_settings();
+    CHECK(!settings.value(QStringLiteral("tools/eyedropperShowSampleRing"), true).toBool());
     CHECK(settings.value(QStringLiteral("tools/eyedropperSampleSize")).toInt() == 5);
     CHECK(!settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool());
     CHECK(settings.value(QStringLiteral("tools/eyedropperSampleLayers")).toString() == QStringLiteral("current"));
@@ -2133,13 +2401,19 @@ void ui_eyedropper_options_bar_sample_controls() {
   CHECK(second->eyedropper_sample_size() == 5);
   CHECK(second->eyedropper_sample_layers() == patchy::SampleLayers::CurrentLayer);
   CHECK(second->eyedropper_picks_background());
+  CHECK(!second->eyedropper_show_sample_ring());
 
   // Back to the defaults so later tests see Photoshop's starting state.
   size_combo->setCurrentIndex(0);
   layers_combo->setCurrentIndex(2);
   sets_foreground->click();
+  if (show_ring != nullptr) {
+    show_ring->click();
+  }
   QApplication::processEvents();
+  CHECK(second->eyedropper_show_sample_ring());
   auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("tools/eyedropperShowSampleRing")).toBool());
   CHECK(!settings.value(QStringLiteral("tools/eyedropperPicksBackground")).toBool());
   CHECK(settings.value(QStringLiteral("tools/eyedropperSampleSize")).toInt() == 1);
   CHECK(settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool());
@@ -3762,6 +4036,11 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_eyedropper_alt_click_picks_the_background_color", ui_eyedropper_alt_click_picks_the_background_color},
       {"ui_eyedropper_sample_size_and_current_layer", ui_eyedropper_sample_size_and_current_layer},
       {"ui_eyedropper_sets_option_and_alt_inverts", ui_eyedropper_sets_option_and_alt_inverts},
+      {"ui_eyedropper_sample_outline_follows_the_pointer", ui_eyedropper_sample_outline_follows_the_pointer},
+      {"ui_sample_loupe_geometry_stays_inside_the_viewport", ui_sample_loupe_geometry_stays_inside_the_viewport},
+      {"ui_sample_loupe_shows_while_a_pick_is_held", ui_sample_loupe_shows_while_a_pick_is_held},
+      {"ui_sample_loupe_lens_matches_the_canvas_at_every_depth",
+       ui_sample_loupe_lens_matches_the_canvas_at_every_depth},
       {"ui_eyedropper_options_bar_sample_controls", ui_eyedropper_options_bar_sample_controls},
       {"ui_eyedropper_sample_layers_choices_pick_their_composites",
        ui_eyedropper_sample_layers_choices_pick_their_composites},
