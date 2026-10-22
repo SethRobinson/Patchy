@@ -2091,6 +2091,25 @@ void MainWindow::load_tool_settings() {
     }
   }
   canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+  {
+    CropOverlayOptions overlay;
+    overlay.show_cropped_area = stored_bool(settings, "tools/cropShowCroppedArea", overlay.show_cropped_area);
+    overlay.shield_enabled = stored_bool(settings, "tools/cropShieldEnabled", overlay.shield_enabled);
+    if (const auto color = QColor::fromString(settings.value(QStringLiteral("tools/cropShieldColor")).toString());
+        color.isValid()) {
+      overlay.shield_color = color;
+    }
+    overlay.shield_opacity_percent =
+        stored_int(settings, "tools/cropShieldOpacity", overlay.shield_opacity_percent, 0, 100);
+    current_crop_overlay_options_ = overlay;
+    for (const auto& target_session : sessions_) {
+      if (target_session != nullptr && target_session->canvas != nullptr) {
+        target_session->canvas->set_crop_overlay_options(overlay);
+      }
+    }
+    canvas_->set_crop_overlay_options(overlay);
+    sync_crop_overlay_controls();
+  }
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
   // Transparent reads as "the tool is broken" a session later. The retired
@@ -2427,6 +2446,11 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropStyle"), current_crop_style_);
   settings.setValue(QStringLiteral("tools/cropDeletePixels"), current_crop_delete_pixels_);
   settings.setValue(QStringLiteral("tools/cropDeleteLayers"), current_crop_delete_layers_);
+  settings.setValue(QStringLiteral("tools/cropShowCroppedArea"), current_crop_overlay_options_.show_cropped_area);
+  settings.setValue(QStringLiteral("tools/cropShieldEnabled"), current_crop_overlay_options_.shield_enabled);
+  settings.setValue(QStringLiteral("tools/cropShieldColor"),
+                    current_crop_overlay_options_.shield_color.name(QColor::HexRgb));
+  settings.setValue(QStringLiteral("tools/cropShieldOpacity"), current_crop_overlay_options_.shield_opacity_percent);
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
@@ -2710,6 +2734,57 @@ double MainWindow::effective_crop_ratio_width() const noexcept {
 
 double MainWindow::effective_crop_ratio_height() const noexcept {
   return current_crop_style_ == 0 ? current_crop_ratio_h_ : 0.0;
+}
+
+void MainWindow::apply_crop_overlay_options(const CropOverlayOptions& options) {
+  current_crop_overlay_options_ = options;
+  current_crop_overlay_options_.shield_opacity_percent = std::clamp(options.shield_opacity_percent, 0, 100);
+  if (!current_crop_overlay_options_.shield_color.isValid()) {
+    current_crop_overlay_options_.shield_color = QColor(0, 0, 0);
+  }
+  current_crop_overlay_options_.shield_color.setAlpha(255);
+  for (const auto& target_session : sessions_) {
+    if (target_session != nullptr && target_session->canvas != nullptr) {
+      target_session->canvas->set_crop_overlay_options(current_crop_overlay_options_);
+    }
+  }
+  if (canvas_ != nullptr) {
+    canvas_->set_crop_overlay_options(current_crop_overlay_options_);
+  }
+  sync_crop_overlay_controls();
+  schedule_save_tool_settings();
+}
+
+void MainWindow::sync_crop_overlay_controls() {
+  const auto& options = current_crop_overlay_options_;
+  for (const auto& [action, checked] : {std::pair{crop_show_cropped_area_action_, options.show_cropped_area},
+                                        std::pair{crop_shield_action_, options.shield_enabled}}) {
+    if (action != nullptr) {
+      const QSignalBlocker blocker(action);
+      action->setChecked(checked);
+    }
+  }
+  if (crop_shield_color_button_ != nullptr) {
+    set_themed_style(*crop_shield_color_button_, color_button_style(options.shield_color));
+    crop_shield_color_button_->setEnabled(options.shield_enabled);
+  }
+  if (crop_shield_opacity_spin_ != nullptr) {
+    const QSignalBlocker blocker(crop_shield_opacity_spin_);
+    crop_shield_opacity_spin_->setValue(options.shield_opacity_percent);
+    crop_shield_opacity_spin_->setEnabled(options.shield_enabled);
+  }
+}
+
+void MainWindow::choose_crop_shield_color() {
+  // Live preview on the canvas; a cancel puts the previous color back.
+  const auto original = current_crop_overlay_options_.shield_color;
+  const auto apply = [this](QColor color) {
+    auto options = current_crop_overlay_options_;
+    options.shield_color = color;
+    apply_crop_overlay_options(options);
+  };
+  const auto chosen = request_patchy_color(this, original, tr("Crop Shield Color"), apply);
+  apply(chosen.value_or(original));
 }
 
 void MainWindow::apply_crop_style(int style) {

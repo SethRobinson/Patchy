@@ -23770,6 +23770,34 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Freistellungsoptionen: freigestellter Bereich und Freistellungsschutz</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Freigestellten Bereich anzeigen</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Freistellungsschutz aktivieren</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Farbe:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Farbe des Freistellungsschutzes</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Deckkraft des Freistellungsschutzes</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Freistellungsschutzfarbe</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

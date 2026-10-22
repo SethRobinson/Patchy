@@ -23770,6 +23770,34 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Opciones de recorte: área recortada y escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Mostrar área recortada</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Activar escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Color:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Color del escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacidad del escudo de recorte</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Color del escudo de recorte</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

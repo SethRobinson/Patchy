@@ -34,10 +34,17 @@
 // commit, and the options-bar ratio/apply/reset row.
 #include "ui_test_support.hpp"
 #include "ui_test_groups.hpp"
+#include <QAction>
 #include <QCheckBox>
+#include <QDialog>
 #include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QLineEdit>
+#include <QMenu>
+#include <QPainter>
 #include <QTimer>
+#include <QToolButton>
+#include "ui/color_panel.hpp"
 #include <cstdlib>
 
 namespace {
@@ -981,6 +988,138 @@ void ui_crop_overlay_renders_shield_and_thirds() {
   send_key(*canvas, Qt::Key_Escape);
 }
 
+// The Crop options popup (GitHub issue 326): the shield's color and opacity
+// tint the area outside the box, the shield toggle leaves it untouched, Show
+// Cropped Area off hides it behind the backdrop, and every value persists.
+void ui_crop_options_popup_sets_shield_and_cropped_area() {
+  SettingsValueRestorer saved_show(QStringLiteral("tools/cropShowCroppedArea"));
+  SettingsValueRestorer saved_enabled(QStringLiteral("tools/cropShieldEnabled"));
+  SettingsValueRestorer saved_color(QStringLiteral("tools/cropShieldColor"));
+  SettingsValueRestorer saved_opacity(QStringLiteral("tools/cropShieldOpacity"));
+  for (const auto* key : {"tools/cropShowCroppedArea", "tools/cropShieldEnabled", "tools/cropShieldColor",
+                          "tools/cropShieldOpacity"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+       canvas->widget_position_for_document_point(QPoint(500, 440)));
+  CHECK(canvas->crop_session_active());
+  QApplication::processEvents();
+
+  auto* options_button = window.findChild<QToolButton*>(QStringLiteral("cropOptionsButton"));
+  auto* show_area = window.findChild<QAction*>(QStringLiteral("cropShowCroppedAreaAction"));
+  auto* shield = window.findChild<QAction*>(QStringLiteral("cropShieldAction"));
+  auto* color_button = window.findChild<QPushButton*>(QStringLiteral("cropShieldColorButton"));
+  auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("cropShieldOpacitySpin"));
+  CHECK(options_button != nullptr && options_button->isVisible() && options_button->menu() != nullptr);
+  CHECK(show_area != nullptr && shield != nullptr && color_button != nullptr && opacity != nullptr);
+  if (options_button == nullptr || options_button->menu() == nullptr || show_area == nullptr || shield == nullptr ||
+      color_button == nullptr || opacity == nullptr) {
+    return;
+  }
+  // Defaults are the original look: shield on, black, 47% (alpha 120).
+  CHECK(show_area->isChecked() && shield->isChecked());
+  CHECK(opacity->value() == 47);
+  CHECK(canvas->crop_overlay_options() == patchy::ui::CropOverlayOptions{});
+
+  const auto inside_point = canvas->widget_position_for_document_point(QPoint(350, 320));
+  const auto outside_point = canvas->widget_position_for_document_point(QPoint(60, 60));
+  const auto outside_color = [&] { return render_widget_image(*canvas).pixelColor(outside_point); };
+  const auto color_near = [](QColor actual, QColor expected) {
+    return std::abs(actual.red() - expected.red()) <= 3 && std::abs(actual.green() - expected.green()) <= 3 &&
+           std::abs(actual.blue() - expected.blue()) <= 3;
+  };
+  CHECK(color_near(outside_color(), QColor(135, 135, 135)));
+
+  // Color through the picker, then the opacity spin.
+  bool picked = false;
+  std::function<void()> pick_when_open;
+  pick_when_open = [&] {
+    auto* picker = patchy::ui::open_color_picker_dialog();
+    if (picker == nullptr) {
+      QTimer::singleShot(10, &window, pick_when_open);
+      return;
+    }
+    CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(200, 0, 0)));
+    picked = true;
+    picker->accept();
+  };
+  color_button->click();
+  QTimer::singleShot(0, &window, pick_when_open);
+  QElapsedTimer timer;
+  timer.start();
+  while (!picked && timer.elapsed() < 5000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  QApplication::processEvents();
+  CHECK(picked);
+  CHECK(canvas->crop_overlay_options().shield_color == QColor(200, 0, 0));
+  opacity->setValue(100);
+  QApplication::processEvents();
+  CHECK(color_near(outside_color(), QColor(200, 0, 0)));
+  opacity->setValue(60);
+  QApplication::processEvents();
+  // White under 60% of (200, 0, 0).
+  CHECK(color_near(outside_color(), QColor(222, 102, 102)));
+  options_button->menu()->popup(options_button->mapToGlobal(QPoint(0, options_button->height())));
+  QApplication::processEvents();
+  save_window_popup_artifact("ui_crop_options_popup", window, *options_button, *options_button->menu());
+  {
+    // The whole window with the open popup painted in place, for the issue shot.
+    auto shot = window.grab().toImage();
+    QPainter painter(&shot);
+    painter.drawPixmap(options_button->menu()->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0)),
+                       options_button->menu()->grab());
+    painter.end();
+    save_image_artifact("ui_crop_options_after", shot);
+  }
+  options_button->menu()->hide();
+  QApplication::processEvents();
+  save_widget_artifact("ui_crop_options_custom_shield", window);
+
+  // Shield off: the outside reads like the inside, and the shield fields disable.
+  shield->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!color_button->isEnabled() && !opacity->isEnabled());
+  CHECK(color_near(outside_color(), QColor(255, 255, 255)));
+
+  // Show Cropped Area off: the outside is the backdrop, the inside stays the artwork.
+  shield->setChecked(true);
+  show_area->setChecked(false);
+  QApplication::processEvents();
+  const auto hidden = render_widget_image(*canvas);
+  CHECK(color_near(hidden.pixelColor(outside_point), canvas->backdrop_color()));
+  CHECK(color_near(hidden.pixelColor(inside_point), QColor(255, 255, 255)));
+  save_widget_artifact("ui_crop_options_hide_cropped_area", *canvas);
+
+  // Everything persists into a fresh window.
+  timer.restart();
+  while (patchy::ui::app_settings().value(QStringLiteral("tools/cropShowCroppedArea")).toString() !=
+             QStringLiteral("false") &&
+         timer.elapsed() < 3000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  send_key(*canvas, Qt::Key_Escape);
+  patchy::ui::MainWindow second;
+  show_window(second);
+  auto* second_canvas = require_canvas(second);
+  patchy::ui::CropOverlayOptions expected;
+  expected.show_cropped_area = false;
+  expected.shield_color = QColor(200, 0, 0);
+  expected.shield_opacity_percent = 60;
+  CHECK(second_canvas->crop_overlay_options() == expected);
+  auto* second_opacity = second.findChild<QSpinBox*>(QStringLiteral("cropShieldOpacitySpin"));
+  auto* second_show = second.findChild<QAction*>(QStringLiteral("cropShowCroppedAreaAction"));
+  CHECK(second_opacity != nullptr && second_opacity->value() == 60);
+  CHECK(second_show != nullptr && !second_show->isChecked());
+}
+
 // Image > Crop to Selection and Crop to Selection (Advanced) act on the Crop
 // tool's pending box while the tool is active: the plain command commits like
 // Enter, the advanced one prefills the Canvas Size dialog with the box, and the
@@ -1264,5 +1403,6 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_overlay_renders_shield_and_thirds", ui_crop_overlay_renders_shield_and_thirds},
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
       {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
+      {"ui_crop_options_popup_sets_shield_and_cropped_area", ui_crop_options_popup_sets_shield_and_cropped_area},
   };
 }

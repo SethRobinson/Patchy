@@ -23770,6 +23770,34 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Opzioni taglierina: area ritagliata e schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Mostra area ritagliata</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Attiva schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Colore:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Colore della schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacità della schermatura di ritaglio</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Colore della schermatura di ritaglio</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

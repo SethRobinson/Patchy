@@ -32,7 +32,8 @@ Photoshop-style interactive crop (hotkey C; `tools.crop`). Session code in canva
 
 ## Overlay and hints
 
-- Overlay (`draw_crop_overlay`): QRegion-with-hole shield at rgba(0,0,0,120) plus rule-of-thirds cosmetic line pairs, deliberately unthemed like the marching ants; the W x H readout rides `draw_drag_size_readout`. Full-widget repaints during crop drags are accepted (the shield spans the viewport). The idle frame shields only the pasteboard.
+- Overlay (`draw_crop_overlay`): a QRegion-with-hole shield outside the box plus rule-of-thirds cosmetic line pairs, deliberately unthemed like the marching ants; the W x H readout rides `draw_drag_size_readout`. Full-widget repaints during crop drags are accepted (the shield spans the viewport). The idle frame shields only the pasteboard.
+- **Crop options popup** (`cropOptionsButton`, the "..." `optionsBarMenuButton` pattern; GitHub issue 326): Show Cropped Area (`tools/cropShowCroppedArea`, default on; off fills the outside with `backdrop_color()`, opaque) and the crop shield: Enable Crop Shield (`tools/cropShieldEnabled`, on; off draws nothing outside), Color (`tools/cropShieldColor`, `#rrggbb`, black, chosen in Patchy's picker with live preview) and Opacity (`tools/cropShieldOpacity`, 0 to 100, default 47, which is the original alpha 120). The values live in `CropOverlayOptions` (canvas_types.hpp), mirrored in `current_crop_overlay_options_` and pushed to every canvas by `apply_crop_overlay_options`. The shield color is a user setting like the grid and guide colors, so it stays outside the theme palette (`ui_crop_options_popup_sets_shield_and_cropped_area`). Photoshop's canvas-moves mode and Auto Center Preview are not implemented.
 - The activation hint (`tool_activation_hint_source`) names the handle, lay-out, rotate, Enter and Esc gestures; the Crop line in the info panel shows the pending W x H and angle.
 
 ## Image menu crop commands
@@ -42,4 +43,4 @@ Photoshop-style interactive crop (hotkey C; `tools.crop`). Session code in canva
 
 ## Coverage
 
-Core `crop_document_expanding_*`/`crop_document_mixed_crop_and_expand_*`/`crop_document_contained_rect_matches_two_arg_overload` (document_ops_filters_tests.cpp); UI `ui_crop_*` (crop_tool_tests.cpp), notably `ui_crop_tool_frames_canvas_and_fits_ratio`, `ui_crop_tool_adopts_active_selection`, `ui_crop_menu_commands_use_crop_box` and `ui_crop_delete_options_crop_and_delete_layers`.
+Core `crop_document_expanding_*`/`crop_document_mixed_crop_and_expand_*`/`crop_document_contained_rect_matches_two_arg_overload` (document_ops_filters_tests.cpp); UI `ui_crop_*` (crop_tool_tests.cpp), notably `ui_crop_tool_frames_canvas_and_fits_ratio`, `ui_crop_tool_adopts_active_selection`, `ui_crop_menu_commands_use_crop_box`, `ui_crop_delete_options_crop_and_delete_layers` and `ui_crop_options_popup_sets_shield_and_cropped_area`.

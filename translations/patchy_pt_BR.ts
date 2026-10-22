@@ -23770,6 +23770,34 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Opções de corte: área cortada e proteção de corte</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Mostrar área cortada</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Ativar proteção de corte</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Cor:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Cor da proteção de corte</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacidade da proteção de corte</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Cor da proteção de corte</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

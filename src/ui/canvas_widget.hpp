@@ -940,6 +940,10 @@ public:
   void set_crop_ratio(double width, double height) noexcept;
   [[nodiscard]] double crop_ratio_width() const noexcept;
   [[nodiscard]] double crop_ratio_height() const noexcept;
+  // How the area outside the pending crop box draws (CropOverlayOptions,
+  // canvas_types.hpp). Opacity clamps to 0..100; the color is stored opaque.
+  void set_crop_overlay_options(const CropOverlayOptions& options);
+  [[nodiscard]] const CropOverlayOptions& crop_overlay_options() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   // True when the displayed frame reflects the current document: no recomposite
@@ -3027,6 +3031,7 @@ private:
   QPointF crop_drag_start_point_;
   QPointF crop_drag_grab_offset_;
   double crop_angle_{0.0};
+  CropOverlayOptions crop_overlay_options_;
   double crop_rotate_start_angle_{0.0};
   double crop_rotate_start_vector_degrees_{0.0};
   bool crop_square_constrained_{false};

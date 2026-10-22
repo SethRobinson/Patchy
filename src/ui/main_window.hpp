@@ -2360,6 +2360,11 @@ private:
   [[nodiscard]] double effective_crop_ratio_width() const noexcept;
   [[nodiscard]] double effective_crop_ratio_height() const noexcept;
   void apply_crop_style(int style);
+  // Stores the Crop options popup's values, hands them to every canvas, syncs
+  // the popup's controls and saves them.
+  void apply_crop_overlay_options(const CropOverlayOptions& options);
+  void sync_crop_overlay_controls();
+  void choose_crop_shield_color();
   // A Size-mode field committed `value` px for one axis; the linked axis follows
   // the box's current proportion when the link button is down.
   void handle_crop_size_value_changed(bool horizontal, int value);
@@ -2554,6 +2559,13 @@ private:
   // Off-Canvas Layers" (off) drops layers left fully outside the box.
   QCheckBox* crop_delete_pixels_check_{nullptr};
   QCheckBox* crop_delete_layers_check_{nullptr};
+  // The Crop options popup (GitHub issue 326): Show Cropped Area and the crop
+  // shield's on/off, color and opacity (current_crop_overlay_options_).
+  QToolButton* crop_options_button_{nullptr};
+  QAction* crop_show_cropped_area_action_{nullptr};
+  QAction* crop_shield_action_{nullptr};
+  QPushButton* crop_shield_color_button_{nullptr};
+  QSpinBox* crop_shield_opacity_spin_{nullptr};
   QPushButton* patch_remove_object_button_{nullptr};
   QCheckBox* object_select_sample_all_layers_check_{nullptr};
   QComboBox* object_select_model_combo_{nullptr};
@@ -3030,6 +3042,9 @@ private:
   // off): see crop_delete_pixels_check_ / crop_delete_layers_check_.
   bool current_crop_delete_pixels_{true};
   bool current_crop_delete_layers_{false};
+  // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
+  // and tools/cropShieldOpacity; every canvas draws with these.
+  CropOverlayOptions current_crop_overlay_options_;
   bool current_fill_shapes_{false};
   int current_shape_corner_radius_{0};
   MarqueeStyle current_shape_style_{MarqueeStyle::Normal};

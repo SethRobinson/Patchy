@@ -23697,6 +23697,34 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>200%</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -23698,6 +23698,34 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>切り抜きオプション: 切り抜いた領域と切り抜きシールド</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>切り抜いた領域を表示</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>切り抜きシールドを有効にする</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>切り抜きシールドのカラー</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>切り抜きシールドの不透明度</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>切り抜きシールドのカラー</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

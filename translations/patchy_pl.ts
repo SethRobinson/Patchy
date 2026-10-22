@@ -23842,6 +23842,34 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Opcje kadrowania: przycięty obszar i osłona kadrowania</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Pokaż przycięty obszar</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Włącz osłonę kadrowania</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Kolor:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Kolor osłony kadrowania</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Krycie osłony kadrowania</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Kolor osłony kadrowania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

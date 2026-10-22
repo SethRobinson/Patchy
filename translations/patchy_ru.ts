@@ -23842,6 +23842,34 @@ Patchy может скачать обновление, заменить этот
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Параметры кадрирования: обрезанная область и экран кадрирования</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Показывать обрезанную область</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Включить экран кадрирования</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Цвет:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Цвет экрана кадрирования</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Непрозрачность экрана кадрирования</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Цвет экрана кадрирования</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

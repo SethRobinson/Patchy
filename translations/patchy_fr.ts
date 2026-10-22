@@ -23770,6 +23770,34 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>200%</source>
         <translation>200 %</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>Options de recadrage : zone recadrée et masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>Afficher la zone recadrée</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>Activer le masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Couleur :</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>Couleur du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>Opacité du masque de recadrage</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>Couleur du masque de recadrage</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

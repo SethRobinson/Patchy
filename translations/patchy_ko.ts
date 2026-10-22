@@ -23698,6 +23698,34 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>자르기 옵션: 잘린 영역과 자르기 방패</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>잘린 영역 표시</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>자르기 방패 사용</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>자르기 방패의 색상</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>자르기 방패의 불투명도</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>자르기 방패 색상</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

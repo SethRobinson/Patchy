@@ -23698,6 +23698,34 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Crop options: cropped area and crop shield</source>
+        <translation>裁切選項: 裁切區域和裁切遮蔽</translation>
+    </message>
+    <message>
+        <source>Show Cropped Area</source>
+        <translation>顯示裁切區域</translation>
+    </message>
+    <message>
+        <source>Enable Crop Shield</source>
+        <translation>啟用裁切遮蔽</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>顏色:</translation>
+    </message>
+    <message>
+        <source>Color of the crop shield</source>
+        <translation>裁切遮蔽的顏色</translation>
+    </message>
+    <message>
+        <source>Opacity of the crop shield</source>
+        <translation>裁切遮蔽的不透明度</translation>
+    </message>
+    <message>
+        <source>Crop Shield Color</source>
+        <translation>裁切遮蔽顏色</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
