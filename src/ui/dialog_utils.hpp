@@ -333,5 +333,11 @@ void hide_menu_action_icons(QMenu* menu);
 // its neighbours (GitHub issue 131). This gives such a menu's first action a
 // blank, hidden icon so every menu keeps the column.
 void reserve_menu_icon_column(QMenu* menu);
+// Qt's QMenu closes on a click released over a separator, as if the click
+// landed outside the menu (GitHub issue 317). This installs one application
+// event filter that swallows such clicks so every QMenu (menu bar menus,
+// submenus, context menus, tool flyouts) stays open, the way a click on a
+// disabled item already does. Safe to call more than once.
+void install_menu_separator_click_guard();
 
 }  // namespace patchy::ui

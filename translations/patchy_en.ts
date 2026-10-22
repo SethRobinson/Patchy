@@ -7726,10 +7726,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11785,6 +11781,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Radius:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15535,19 +15535,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -21420,10 +21408,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23695,6 +23679,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>200%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

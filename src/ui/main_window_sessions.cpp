@@ -45,6 +45,7 @@
 #include <QMouseEvent>
 #include <QPoint>
 #include <QProgressDialog>
+#include <QPushButton>
 #include <QRect>
 #include <QSignalBlocker>
 #include <QSize>
@@ -423,6 +424,8 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
     canvas_->set_pen_auto_add_delete(current_pen_auto_add_delete_);
     canvas_->set_polygon_sides(current_polygon_sides_);
     canvas_->set_polygon_star_inset(current_polygon_star_inset_);
+    canvas_->set_custom_shape_keep_proportions(vector_shape_link_size_button_ != nullptr &&
+                                               vector_shape_link_size_button_->isChecked());
   }
   pending_layer_thumbnail_refresh_ = false;
   apply_selection_modes_to_canvas(canvas_);

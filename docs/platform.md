@@ -129,6 +129,10 @@ The large quarantine keeps long-ago frees poisoned for the whole run, so the hos
 
 The frameless main window has no native title bar to tint; it draws its own 1px edge from the `window_border` role, overridden by the Light palette so it keeps a silhouette on a light desktop. `DWMWA_BORDER_COLOR` in `main_window_chrome.cpp` stays unconditionally `COLOR_NONE`.
 
+## Linux base widget style
+
+`AppStyle` wraps whatever style Qt picks from the platform theme's style list (measured October 2026 with a probe in each package on Wayland). The Flatpak on KDE gets Breeze (org.kde.Platform ships the Breeze style and KDE's platform theme); on other desktops it gets Fusion. The AppImage's Qt kit has only Windows and Fusion, and every theme lists Fusion ahead of Windows (KDE's after its configured Breeze), so it gets Fusion everywhere. Qt's Windows style is only the last fallback when no listed style exists; no package reaches it. The app stylesheet draws nearly every control, so the base style shows only in small parts (the arrow of a combo box the QSS leaves unstyled, menu mnemonic underlines). Following the desktop style for the rest would mean dropping the stylesheet: a design choice, not a fallback fix.
+
 ## Styled QCheckBox and QMacStyle margins
 
 A stylesheet-styled QCheckBox needs a NON-native border in some matching rule. The app stylesheet's global `QCheckBox { border: none; }` covers this; do not remove it. Qt only suppresses QMacStyle's Aqua layout-item margins (checkboxes: +2,+3,-9,-4) for styled widgets whose rule has a non-native border (qstylesheetstyle.cpp, SE_*LayoutItem). With the margins active, box layouts overlap the neighboring label ~9px into the checkbox: right for the inset native glyph, wrong for the flat 12px stylesheet indicator (the label lands ON the box). Only reproducible in the real app: the test harness never loads QMacStyle.

@@ -7734,10 +7734,6 @@ RVB : %2, %3, %4</translation>
         <translation>Ancre la grille de mosaïque à la position du calque ; décochée, elle est ancrée à l&apos;origine du document</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Appliquer un contour à la forme</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Peinture :</translation>
     </message>
@@ -11801,6 +11797,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Radius:</source>
         <translation>Rayon :</translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Épaisseur du contour (0 pour aucun contour)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15551,20 +15551,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Fond de la forme : aucun, couleur unie, dégradé ou motif</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Contour</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Tracer le contour de la forme</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Contour de la forme : couleur unie, dégradé ou motif</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Épaisseur du contour</translation>
     </message>
     <message>
         <source>Weight:</source>
@@ -21471,10 +21459,6 @@ Y : %2
         <translation>Zoomer jusqu&apos;à ce que l&apos;image remplisse la fenêtre (Affichage &gt; Remplir l&apos;écran)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>Épaisseur du contour:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>Unités par défaut:</translation>
     </message>
@@ -23769,6 +23753,14 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>200%</source>
         <translation>200 %</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Contour:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Épaisseur du contour (0 pour aucun contour)</translation>
     </message>
     <message>
         <source>Rule of Thirds</source>
