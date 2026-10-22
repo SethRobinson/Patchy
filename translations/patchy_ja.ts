@@ -11762,6 +11762,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Sides:</source>
         <translation>角数:</translation>
     </message>
+    <message>
+        <source>Radius:</source>
+        <translation>半径:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

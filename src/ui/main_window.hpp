@@ -3069,6 +3069,10 @@ private:
     double width{100.0};
     double height{100.0};
     bool from_center{false};
+    // Rectangle: the last accepted corner radii, offered again while the
+    // options-bar Radius still reads what it did then (`radii_from`).
+    std::optional<std::array<double, 4>> corner_radii;
+    int radii_from{0};
   };
   std::unordered_map<int, ShapeCreateMemory> shape_create_memory_;
   bool current_line_arrow_start_{false};

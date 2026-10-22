@@ -3581,7 +3581,8 @@ std::function<void()> shape_create_dialog_answer(bool& seen, double width, doubl
       center_check->setChecked(from_center != 0);
     }
     if (radius >= 0.0) {
-      for (const auto* name : {"shapeCreateRadiusTopLeftSpin", "shapeCreateRadiusTopRightSpin",
+      for (const auto* name : {"shapeCreateRadiusSpin", "shapeCreateRadiusTopLeftSpin",
+                               "shapeCreateRadiusTopRightSpin",
                                "shapeCreateRadiusBottomRightSpin", "shapeCreateRadiusBottomLeftSpin"}) {
         if (auto* spin = dialog->findChild<QDoubleSpinBox*>(QLatin1String(name)); spin != nullptr) {
           spin->setValue(radius);
@@ -3623,11 +3624,14 @@ void ui_shape_tap_opens_create_dialog_and_places_rectangle() {
     auto* height_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateHeightSpin"));
     auto* center_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeCreateFromCenterCheck"));
     auto* top_left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopLeftSpin"));
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
     CHECK(width_spin != nullptr && height_spin != nullptr && center_check != nullptr &&
-          top_left != nullptr);
+          top_left != nullptr && link != nullptr);
     CHECK(!center_check->isChecked());
-    // The radii prefill from the options-bar Radius (0 here).
+    // The radii prefill from the options-bar Radius (0 here), linked.
     CHECK(std::abs(top_left->value()) < 1e-9);
+    CHECK(link->isChecked());
+    link->click();  // unlink to round one corner only
     width_spin->setValue(150.0);
     height_spin->setValue(80.0);
     top_left->setValue(10.0);
@@ -3902,7 +3906,7 @@ void ui_shape_create_dialog_layout() {
     return widget != nullptr && widget->isVisible();
   };
   const std::pair<patchy::ui::CanvasTool, const char*> tools[] = {
-      {patchy::ui::CanvasTool::Rectangle, "shapeCreateRadiusTopLeftSpin"},
+      {patchy::ui::CanvasTool::Rectangle, "shapeCreateRadiusLinkButton"},
       {patchy::ui::CanvasTool::Ellipse, nullptr},
       {patchy::ui::CanvasTool::Polygon, "shapeCreateSidesSpin"},
       {patchy::ui::CanvasTool::CustomShape, "shapeCreateCustomShapeCombo"},
@@ -3936,7 +3940,7 @@ void ui_shape_create_dialog_layout() {
       title_font.setBold(true);
       CHECK(dialog->width() >=
             QFontMetrics(title_font).horizontalAdvance(dialog->windowTitle()) + 200);
-      for (const auto* field : {"shapeCreateRadiusTopLeftSpin", "shapeCreateSidesSpin",
+      for (const auto* field : {"shapeCreateRadiusLinkButton", "shapeCreateSidesSpin",
                                 "shapeCreateCustomShapeCombo"}) {
         const bool expected = own != nullptr && std::string_view(own) == field;
         CHECK(visible_child(dialog, field) == expected);
@@ -3945,6 +3949,135 @@ void ui_shape_create_dialog_layout() {
     });
     CHECK(seen);
   }
+}
+
+// Create Rectangle's Radius (GitHub issue 310): linked by default, one value
+// sets all four corners; unlinking shows the four, unequal radii reopen
+// unlinked, and a new options-bar Radius replaces the remembered corners.
+void ui_shape_create_rectangle_radius_link() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* bar_radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(bar_radius != nullptr);
+  if (bar_radius == nullptr) {
+    return;
+  }
+  const auto visible_child = [](QDialog* dialog, const char* name) {
+    auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+    return widget != nullptr && widget->isVisible();
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  bar_radius->setValue(6);
+  const auto initial_layers = document.layers().size();
+  bool seen = false;
+  shape_tap(*canvas, QPoint(100, 100), [&seen, &visible_child] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusSpin"));
+    auto* top_left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopLeftSpin"));
+    auto* top_right = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopRightSpin"));
+    auto* bottom_right =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusBottomRightSpin"));
+    CHECK(link != nullptr && radius != nullptr && top_left != nullptr && top_right != nullptr &&
+          bottom_right != nullptr);
+    if (link == nullptr || radius == nullptr || top_left == nullptr || top_right == nullptr ||
+        bottom_right == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(link->isChecked());
+    CHECK(radius->isVisible());
+    CHECK(!visible_child(dialog, "shapeCreateRadiusTopLeftSpin"));
+    CHECK(std::abs(radius->value() - 6.0) < 1e-9);
+    radius->setValue(9.0);
+    CHECK(std::abs(bottom_right->value() - 9.0) < 1e-9);
+    // Unlinking shows the four corners at the shared radius.
+    link->click();
+    QApplication::processEvents();
+    CHECK(!link->isChecked());
+    CHECK(!radius->isVisible());
+    CHECK(top_left->isVisible() && bottom_right->isVisible());
+    CHECK(std::abs(top_left->value() - 9.0) < 1e-9);
+    top_left->setValue(12.0);
+    top_right->setValue(4.0);
+    dialog->accept();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 1);
+  auto* layer = document.find_layer(*document.active_layer_id());
+  const auto* content = layer != nullptr ? layer->vector_shape() : nullptr;
+  CHECK(content != nullptr && content->origination.size() == 1);
+  if (content != nullptr && content->origination.size() == 1) {
+    const auto& radii = content->origination[0].corner_radii;
+    CHECK(std::abs(radii[0] - 12.0) < 1e-9);
+    CHECK(std::abs(radii[1] - 4.0) < 1e-9);
+    CHECK(std::abs(radii[2] - 9.0) < 1e-9);
+    CHECK(std::abs(radii[3] - 9.0) < 1e-9);
+  }
+
+  // Unequal radii reopen unlinked with every corner kept.
+  seen = false;
+  shape_tap(*canvas, QPoint(300, 100), [&seen] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+    auto* top_left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopLeftSpin"));
+    auto* top_right = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopRightSpin"));
+    CHECK(link != nullptr && top_left != nullptr && top_right != nullptr);
+    if (link == nullptr || top_left == nullptr || top_right == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(!link->isChecked());
+    CHECK(top_left->isVisible());
+    CHECK(std::abs(top_left->value() - 12.0) < 1e-9);
+    CHECK(std::abs(top_right->value() - 4.0) < 1e-9);
+    // Relinking takes the top-left radius for all four.
+    link->click();
+    QApplication::processEvents();
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusSpin"));
+    CHECK(radius != nullptr && radius->isVisible() && std::abs(radius->value() - 12.0) < 1e-9);
+    CHECK(std::abs(top_right->value() - 12.0) < 1e-9);
+    dialog->reject();
+  });
+  CHECK(seen);
+
+  // A new options-bar Radius replaces the remembered corners.
+  bar_radius->setValue(3);
+  seen = false;
+  shape_tap(*canvas, QPoint(300, 100), [&seen] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusSpin"));
+    CHECK(link != nullptr && radius != nullptr);
+    if (link != nullptr && radius != nullptr) {
+      seen = true;
+      CHECK(link->isChecked());
+      CHECK(std::abs(radius->value() - 3.0) < 1e-9);
+    }
+    dialog->reject();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 1);
 }
 
 void ui_shape_tap_line_fixed_size_and_path_mode() {
@@ -4005,8 +4138,8 @@ void ui_shape_tap_line_fixed_size_and_path_mode() {
   CHECK(std::abs(work_bounds->right - 400.0) < 1e-6);
 }
 
-// Captures each Create <Shape> dialog as opened by a tap (issue shots for
-// GitHub issue 309); nothing is created.
+// Captures each Create <Shape> dialog as opened by a tap, Rectangle also
+// unlinked (issue shots for GitHub issues 309 and 310); nothing is created.
 void ui_shape_create_dialog_captures() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -4031,6 +4164,13 @@ void ui_shape_create_dialog_captures() {
       seen = true;
       QApplication::processEvents();
       save_widget_artifact(name, *dialog);
+      // Rectangle again with the corners unlinked.
+      if (auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+          link != nullptr) {
+        link->click();
+        QApplication::processEvents();
+        save_widget_artifact(name + "_unlinked", *dialog);
+      }
       dialog->reject();
     });
     CHECK(seen);
@@ -5554,6 +5694,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tap_line_fixed_size_and_path_mode", ui_shape_tap_line_fixed_size_and_path_mode},
       {"ui_shape_create_dialog_captures", ui_shape_create_dialog_captures},
       {"ui_shape_create_dialog_layout", ui_shape_create_dialog_layout},
+      {"ui_shape_create_rectangle_radius_link", ui_shape_create_rectangle_radius_link},
       {"ui_shape_size_spins_reflect_and_resize_active_shape",
        ui_shape_size_spins_reflect_and_resize_active_shape},
       {"ui_shape_size_controls_follow_move_and_properties_selection",

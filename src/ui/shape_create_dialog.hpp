@@ -19,8 +19,8 @@ class CustomShapeLibrary;
 // (Photoshop's Create <Shape> dialog). The click point is the shape's
 // top-left corner, or its center when from_center is set. Rectangle also
 // takes per-corner radii (top-left, top-right, bottom-right, bottom-left,
-// the LiveShapeParams order), prefilled from the options-bar Radius.
-// Polygon takes its side count and Custom Shape its library
+// the LiveShapeParams order) behind one linked Radius field; unequal radii
+// open unlinked. Polygon takes its side count and Custom Shape its library
 // shape (the options bar's picker list), both prefilled from the options bar.
 // `units` shows Width/Height in the ruler unit (the radii stay px but convert
 // a typed unit at the document PPI); every value is document pixels.

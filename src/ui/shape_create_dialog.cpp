@@ -1,6 +1,7 @@
 // Create <Shape> dialog for a tapped shape tool (docs/vector-tools.md).
 #include "ui/shape_create_dialog.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
@@ -12,11 +13,14 @@
 #include <QDoubleSpinBox>
 #include <QFontMetrics>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QSpinBox>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace patchy::ui {
@@ -111,12 +115,42 @@ std::optional<ShapeCreateResult> request_shape_create_settings(QWidget* parent,
     ++row;
   }
 
-  // Rectangle: per-corner radii in the Width/Height columns.
+  // Rectangle: one Radius for all four corners while linked (the common case);
+  // unlinking shows the four corners. Corners that differ open unlinked so
+  // the dialog never flattens them.
+  QDoubleSpinBox* radius_spin = nullptr;
+  QToolButton* radius_link = nullptr;
   std::array<QDoubleSpinBox*, 4> corner_spins{nullptr, nullptr, nullptr, nullptr};
   if (request.tool == CanvasTool::Rectangle) {
     auto radius_units = request.units;  // a radius has no percent basis
     radius_units.document_width = 0.0;
     radius_units.document_height = 0.0;
+    const auto make_radius_spin = [&](const char* name, double value) {
+      auto* spin = make_spin(name, 0.0, 30000.0, value);
+      spin->set_context_provider([radius_units] { return document_field_context(radius_units, true); });
+      return spin;
+    };
+    const auto& radii = request.corner_radii;
+    const bool corners_agree = std::all_of(radii.begin(), radii.end(), [&](double radius) {
+      return std::abs(radius - radii.front()) < 1e-9;
+    });
+    radius_spin = make_radius_spin("shapeCreateRadiusSpin", radii.front());
+    radius_link = new QToolButton(&dialog);
+    radius_link->setObjectName(QStringLiteral("shapeCreateRadiusLinkButton"));
+    radius_link->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
+    radius_link->setIconSize(QSize(18, 18));
+    radius_link->setCheckable(true);
+    radius_link->setChecked(corners_agree);
+    radius_link->setToolTip(QObject::tr("Change all four corner radii together"));
+    auto* radius_row = new QHBoxLayout();
+    radius_row->setSpacing(6);
+    radius_row->addWidget(radius_spin);
+    radius_row->addWidget(radius_link);
+    radius_row->addStretch(1);
+    grid->addWidget(make_label(QObject::tr("Radius:")), row, 0);
+    grid->addLayout(radius_row, row, 1, 1, 3);
+    ++row;
+
     // Model order TL, TR, BR, BL; laid out as the corners sit.
     const std::array<const char*, 4> names{
         "shapeCreateRadiusTopLeftSpin", "shapeCreateRadiusTopRightSpin",
@@ -125,16 +159,54 @@ std::optional<ShapeCreateResult> request_shape_create_settings(QWidget* parent,
                                         QObject::tr("Bottom right:"), QObject::tr("Bottom left:")};
     const std::array<std::pair<int, int>, 4> cells{std::pair{0, 0}, std::pair{0, 2}, std::pair{1, 2},
                                                    std::pair{1, 0}};
+    std::array<QLabel*, 4> corner_labels{nullptr, nullptr, nullptr, nullptr};
     // Insert row by row, label before field, so each label scrubs its own field.
     for (const std::size_t corner : {std::size_t{0}, std::size_t{1}, std::size_t{3}, std::size_t{2}}) {
-      auto* spin = make_spin(names[corner], 0.0, 30000.0, request.corner_radii[corner]);
-      spin->set_context_provider([radius_units] { return document_field_context(radius_units, true); });
-      corner_spins[corner] = spin;
+      corner_labels[corner] = make_label(labels[corner]);
+      corner_spins[corner] = make_radius_spin(names[corner], radii[corner]);
       const auto [corner_row, column] = cells[corner];
-      grid->addWidget(make_label(labels[corner]), row + corner_row, column);
-      grid->addWidget(spin, row + corner_row, column + 1);
+      grid->addWidget(corner_labels[corner], row + corner_row, column);
+      grid->addWidget(corner_spins[corner], row + corner_row, column + 1);
     }
     row += 2;
+
+    const auto show_linked = [&dialog, radius_spin, corner_spins, corner_labels](bool linked) {
+      radius_spin->setVisible(linked);
+      for (std::size_t corner = 0; corner < 4; ++corner) {
+        corner_labels[corner]->setVisible(!linked);
+        corner_spins[corner]->setVisible(!linked);
+      }
+      if (dialog.isVisible()) {
+        dialog.adjustSize();
+      }
+    };
+    show_linked(corners_agree);
+    QObject::connect(radius_spin, &QDoubleSpinBox::valueChanged, &dialog,
+                     [radius_link, corner_spins](double value) {
+                       if (!radius_link->isChecked()) {
+                         return;
+                       }
+                       for (auto* spin : corner_spins) {
+                         spin->setValue(value);
+                       }
+                     });
+    // Linking takes the top-left corner for all four; unlinking starts every
+    // corner at the shared radius.
+    QObject::connect(radius_link, &QToolButton::toggled, &dialog,
+                     [radius_spin, corner_spins, show_linked](bool linked) {
+                       if (linked) {
+                         const double value = corner_spins[0]->value();
+                         radius_spin->setValue(value);
+                         for (auto* spin : corner_spins) {
+                           spin->setValue(value);
+                         }
+                       } else {
+                         for (auto* spin : corner_spins) {
+                           spin->setValue(radius_spin->value());
+                         }
+                       }
+                       show_linked(linked);
+                     });
   }
 
   auto* from_center = new QCheckBox(QObject::tr("From Center"), &dialog);
@@ -157,8 +229,11 @@ std::optional<ShapeCreateResult> request_shape_create_settings(QWidget* parent,
   result.width = width_spin->value();
   result.height = height_spin->value();
   result.from_center = from_center->isChecked();
-  for (std::size_t corner = 0; corner < 4; ++corner) {
-    result.corner_radii[corner] = corner_spins[corner] != nullptr ? corner_spins[corner]->value() : 0.0;
+  if (radius_spin != nullptr) {
+    const bool linked = radius_link->isChecked();
+    for (std::size_t corner = 0; corner < 4; ++corner) {
+      result.corner_radii[corner] = linked ? radius_spin->value() : corner_spins[corner]->value();
+    }
   }
   result.polygon_sides = sides_spin != nullptr ? sides_spin->value() : request.polygon_sides;
   result.custom_shape_id =

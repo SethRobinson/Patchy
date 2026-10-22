@@ -274,8 +274,11 @@ void MainWindow::handle_shape_create_requested(CanvasTool tool, QPointF document
   request.width = memory.width;
   request.height = memory.height;
   request.from_center = memory.from_center;
-  const auto radius = static_cast<double>(std::max(0, current_shape_corner_radius_));
-  request.corner_radii = {radius, radius, radius, radius};
+  const int bar_radius = std::max(0, current_shape_corner_radius_);
+  const auto radius = static_cast<double>(bar_radius);
+  request.corner_radii = memory.corner_radii.has_value() && memory.radii_from == bar_radius
+                             ? *memory.corner_radii
+                             : std::array<double, 4>{radius, radius, radius, radius};
   request.polygon_sides = canvas_->polygon_sides();
   if (tool == CanvasTool::CustomShape) {
     request.custom_shapes = &custom_shape_library();
@@ -291,6 +294,10 @@ void MainWindow::handle_shape_create_requested(CanvasTool tool, QPointF document
   memory.width = result->width;
   memory.height = result->height;
   memory.from_center = result->from_center;
+  if (tool == CanvasTool::Rectangle) {
+    memory.corner_radii = result->corner_radii;
+    memory.radii_from = bar_radius;
+  }
   // The dialog's Sides and Shape become the tool's, as if picked on the
   // options bar (its handlers update the canvas and save the setting).
   if (tool == CanvasTool::Polygon && result->polygon_sides != canvas_->polygon_sides()) {

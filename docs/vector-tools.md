@@ -31,8 +31,8 @@ stroke; multi-shape edits: [batch appearance](batch-appearance.md).
 A bare click (no drag) with Rectangle, Ellipse, Polygon, or Custom Shape
 opens the Create <Shape> dialog (shape_create_dialog.cpp; no shape
 dropdown): W and H on one row, From Center (click = center, else top-left),
-wide enough for the title. Rectangle: per-corner radii from the bar's
-Radius. Polygon: Sides; Custom Shape: the bar's picker
+wide enough for the title. Rectangle: one linked Radius (unlinked or unequal
+radii show four corners). Polygon: Sides; Custom Shape: the bar's picker
 (`populate_custom_shape_combo`), both written back to the bar. It commits
 like a drag (mode routing, Combine, vector-mask target, naming); values are
 remembered per tool for the session. A click is a release on the press's
