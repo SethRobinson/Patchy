@@ -1114,6 +1114,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_rulers(painter);
   draw_brush_hover_outline(painter);
   draw_eyedropper_sample_outline(painter);
+  draw_sample_loupe(painter);
   draw_stroke_leash_overlay(painter);
   draw_brush_adjust_overlay(painter);
   draw_processing_overlay(painter);

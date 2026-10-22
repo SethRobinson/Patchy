@@ -23693,6 +23693,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>200%</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -758,7 +758,8 @@ void ui_shape_options_bars_group_their_controls() {
 }
 
 // GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
-// then a separator and the Sample Size and Sample fields, on one row at 1366 px.
+// then a separator and the Sample Size and Sample fields, and the Show Sample Ring checkbox
+// (GitHub issue 320) after another separator, on one row at 1366 px.
 void ui_pick_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -787,7 +788,9 @@ void ui_pick_options_bar_groups_its_controls() {
                                         QStringLiteral("Sample Size"),
                                         QStringLiteral("eyedropperSampleSizeCombo"),
                                         QStringLiteral("Sample"),
-                                        QStringLiteral("eyedropperSampleLayersCombo")};
+                                        QStringLiteral("eyedropperSampleLayersCombo"),
+                                        QStringLiteral("|"),
+                                        QStringLiteral("eyedropperShowSampleRingCheck")};
     CHECK(tokens == expected);
     CHECK(std::find(tokens.begin(), tokens.end(), QStringLiteral("Sets")) == tokens.end());
     CHECK(options_row_extent(*options).second == 1);

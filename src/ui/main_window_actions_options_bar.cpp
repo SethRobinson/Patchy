@@ -2862,6 +2862,22 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     save_tool_settings();
   });
+  // Show Sample Ring (GitHub issue 320): the sample loupe while a pick is held,
+  // for the Pick tool and the paint tools' Alt eyedropper alike.
+  add_option_separator({CanvasTool::Eyedropper});
+  eyedropper_show_sample_ring_check_ = new CheckGlyphBox(tr("Show Sample Ring"), toolbar);
+  eyedropper_show_sample_ring_check_->setObjectName(QStringLiteral("eyedropperShowSampleRingCheck"));
+  eyedropper_show_sample_ring_check_->setChecked(current_eyedropper_show_sample_ring_);
+  bind_tooltip(eyedropper_show_sample_ring_check_,
+               QT_TR_NOOP("While picking, show the pixels enlarged and the new color above the one it replaces"));
+  add_option_widget(eyedropper_show_sample_ring_check_, {CanvasTool::Eyedropper});
+  connect(eyedropper_show_sample_ring_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_eyedropper_show_sample_ring_ = checked;
+    if (canvas_ != nullptr) {
+      canvas_->set_eyedropper_show_sample_ring(checked);
+    }
+    save_tool_settings();
+  });
   QPointer<QComboBox> eyedropper_size_combo(eyedropper_sample_size_combo_);
   QPointer<QComboBox> eyedropper_layers_combo(eyedropper_sample_layers_combo_);
   register_retranslation([eyedropper_size_combo, eyedropper_layers_combo, eyedropper_sample_size_text] {

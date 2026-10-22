@@ -23766,6 +23766,14 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostrar anel de amostragem</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Ao coletar, mostrar os pixels ampliados e a nova cor acima da cor que ela substitui</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1003,6 +1003,17 @@ bool CanvasWidget::eyedropper_picks_background() const noexcept {
   return eyedropper_picks_background_;
 }
 
+void CanvasWidget::set_eyedropper_show_sample_ring(bool enabled) {
+  eyedropper_show_sample_ring_ = enabled;
+  if (!enabled) {
+    clear_sample_loupe();
+  }
+}
+
+bool CanvasWidget::eyedropper_show_sample_ring() const noexcept {
+  return eyedropper_show_sample_ring_;
+}
+
 bool CanvasWidget::eyedropper_target_is_background(Qt::KeyboardModifiers modifiers) const noexcept {
   return eyedropper_picks_background_ != ((modifiers & Qt::AltModifier) != 0);
 }

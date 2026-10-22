@@ -23838,6 +23838,14 @@ Patchy может скачать обновление, заменить этот
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Показывать кольцо пробы</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Во время выбора цвета показывать увеличенные пиксели и новый цвет над заменяемым</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

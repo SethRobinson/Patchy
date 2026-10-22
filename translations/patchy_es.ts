@@ -23766,6 +23766,14 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostrar anillo de muestreo</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Al tomar una muestra, mostrar los píxeles ampliados y el color nuevo sobre el que reemplaza</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -23694,6 +23694,14 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>顯示取樣環</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>取樣時放大顯示像素，並在被取代的顏色上方顯示新顏色</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
