@@ -289,7 +289,6 @@ constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPrevie
 constexpr auto kTextEditorLineAwareBoxPreviewProperty = "patchy.lineAwareBoxPreview";
 constexpr auto kTextEditorMetricScaleProperty = "patchy.textMetricScale";
 constexpr auto kTextEditorProvisionalLayerProperty = "patchy.provisionalTextLayerId";
-constexpr auto kLayerMetadataTextLineAwareBoxPreview = "patchy.text.line_aware_box_preview";
 // Marks the empty text layer inserted the moment the Type tool starts a NEW edit (Photoshop
 // shows the layer immediately); commit/cancel remove it again, and the marker is the identity
 // check so a stale id can never delete an unrelated layer (layer ids restart per document).
@@ -3707,50 +3706,6 @@ bool text_editor_layer_is_warped(const Document& doc, const QTextEdit& editor) {
   return layer != nullptr && layer_has_active_text_warp(*layer);
 }
 
-void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 31> kTextMetadataKeys = {
-      kLayerMetadataTextArea,
-      kLayerMetadataTextGeometryProtected,
-      kLayerMetadataText,
-      kLayerMetadataTextOrientation,
-      kLayerMetadataTextHtml,
-      kLayerMetadataTextRuns,
-      kLayerMetadataTextParagraphRuns,
-      kLayerMetadataTextFlow,
-      kLayerMetadataTextBoxWidth,
-      kLayerMetadataTextBoxHeight,
-      kLayerMetadataTextFont,
-      kLayerMetadataTextSize,
-      kLayerMetadataTextColor,
-      kLayerMetadataTextBold,
-      kLayerMetadataTextItalic,
-      kLayerMetadataTextAntiAlias,
-      kLayerMetadataTextRasterStatus,
-      kLayerMetadataTextLayoutMode,
-      kLayerMetadataTextTransform,
-      kLayerMetadataTextWarp,
-      kLayerMetadataPsdTextTransform,
-      kLayerMetadataPsdTextBounds,
-      kLayerMetadataPsdTextBoundingBox,
-      kLayerMetadataPsdTextBoxBounds,
-      kLayerMetadataPsdTextTailBounds,
-      kLayerMetadataPsdTextIndex,
-      kLayerMetadataTextLineAwareBoxPreview,
-      kLayerMetadataTextFirstBaseline,
-      kLayerMetadataTextBoxBaselineInset,
-      kLayerMetadataTextAutoLeading,
-      kLayerMetadataTextRasterTop,
-  };
-  for (const auto* key : kTextMetadataKeys) {
-    layer.metadata().erase(key);
-  }
-  layer.metadata().erase(kLayerMetadataTextSourceBlock);
-  auto& blocks = layer.unknown_psd_blocks();
-  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
-    return block.key == "TySh" || block.key == "tySh";
-  });
-}
-
 void clear_layer_psd_text_source(Layer& layer) {
   layer.metadata().erase(kLayerMetadataTextSourceBlock);
   layer.metadata().erase(kLayerMetadataPsdTextTransform);
@@ -5774,6 +5729,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       return;
     }
     commit_crop_rect(rect, angle_degrees);
+  });
+  canvas->set_perspective_crop_commit_requested_callback([this, canvas](std::array<QPointF, 4> quad) {
+    if (canvas != canvas_) {
+      return;
+    }
+    commit_perspective_crop_quad(quad);
   });
   canvas->set_crop_session_changed_callback([this, canvas] {
     if (canvas != canvas_) {

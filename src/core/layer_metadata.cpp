@@ -1,9 +1,11 @@
 #include "core/layer_metadata.hpp"
 
 #include "core/smart_object.hpp"
+#include "core/text_warp.hpp"
 #include "core/vector_shape.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -409,6 +411,50 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
   (*transform)[4] += static_cast<double>(dx);
   (*transform)[5] += static_cast<double>(dy);
   found->second = serialize_layer_affine_transform(*transform);
+}
+
+void clear_layer_text_metadata(Layer& layer) {
+  static constexpr std::array<const char*, 31> kTextMetadataKeys = {
+      kLayerMetadataTextArea,
+      kLayerMetadataTextGeometryProtected,
+      kLayerMetadataText,
+      kLayerMetadataTextOrientation,
+      kLayerMetadataTextHtml,
+      kLayerMetadataTextRuns,
+      kLayerMetadataTextParagraphRuns,
+      kLayerMetadataTextFlow,
+      kLayerMetadataTextBoxWidth,
+      kLayerMetadataTextBoxHeight,
+      kLayerMetadataTextFont,
+      kLayerMetadataTextSize,
+      kLayerMetadataTextColor,
+      kLayerMetadataTextBold,
+      kLayerMetadataTextItalic,
+      kLayerMetadataTextAntiAlias,
+      kLayerMetadataTextRasterStatus,
+      kLayerMetadataTextLayoutMode,
+      kLayerMetadataTextTransform,
+      kLayerMetadataTextWarp,
+      kLayerMetadataPsdTextTransform,
+      kLayerMetadataPsdTextBounds,
+      kLayerMetadataPsdTextBoundingBox,
+      kLayerMetadataPsdTextBoxBounds,
+      kLayerMetadataPsdTextTailBounds,
+      kLayerMetadataPsdTextIndex,
+      kLayerMetadataTextLineAwareBoxPreview,
+      kLayerMetadataTextFirstBaseline,
+      kLayerMetadataTextBoxBaselineInset,
+      kLayerMetadataTextAutoLeading,
+      kLayerMetadataTextRasterTop,
+  };
+  for (const auto* key : kTextMetadataKeys) {
+    layer.metadata().erase(key);
+  }
+  layer.metadata().erase(kLayerMetadataTextSourceBlock);
+  auto& blocks = layer.unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "TySh" || block.key == "tySh";
+  });
 }
 
 }  // namespace patchy

@@ -11880,6 +11880,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Right</source>
         <translation>Prawy</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Kadrowanie perspektywiczne</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13554,6 +13558,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>Wybierz warstwę, aby próbkować ją i warstwy poniżej, albo próbkuj wszystkie warstwy</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>Nie ma czego kadrować: najpierw umieść cztery narożniki</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>Anulowano kadrowanie perspektywiczne</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Narożniki muszą tworzyć kształt wypukły</translation>
     </message>
 </context>
 <context>
@@ -23994,6 +24010,86 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Trimmed to %1 x %2</source>
         <translation>Przycięto do %1 x %2</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>Szerokość wyniku; puste pole używa odstępu narożników</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>Wysokość wyniku; puste pole używa odstępu narożników</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Rozdzielczość:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>Rozdzielczość wyniku w pikselach na cal; puste pole zachowuje rozdzielczość dokumentu</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>Obraz z przodu</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>Wpisz szerokość, wysokość i rozdzielczość tego dokumentu</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>Wyczyść szerokość, wysokość i rozdzielczość</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>Pokaż siatkę</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>Rysuj siatkę między narożnikami, aby dopasować je do obszaru</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>Zastosuj kadrowanie perspektywiczne (Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>Usuń narożniki (Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Kadrowanie perspektywiczne</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>Przeciągnij ramkę lub kliknij cztery narożniki wokół przekrzywionego obszaru, a potem przeciągnij narożniki na jego krawędzie. Enter prostuje go w prostokąt.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Kadrowanie perspektywiczne: przeciągnij ramkę lub kliknij cztery narożniki, a potem przeciągnij każdy narożnik na krawędzie obszaru. Przeciągnij wewnątrz, aby go przesunąć. Enter kadruje i prostuje, Esc usuwa narożniki.</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>Narzędzia kadrowania</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>Przełącz narzędzia kadrowania</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Narożniki muszą tworzyć kształt wypukły</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>Wykadrowano i wyprostowano</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>Narożniki: odstęp %1 x %2 px</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>Narożniki: brak</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25779,6 +25875,18 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>trim does not apply to a document with artboards.</source>
         <translation>trim nie działa w dokumencie z obszarami roboczymi.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop wymaga czterech narożników: [[x, y], [x, y], [x, y], [x, y]] lub czterech punktów {x, y}.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>Opcje perspectiveCrop to {width, height, resolution}: rozmiary od 1 do 300000, rozdzielczość 0 lub więcej.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>Narożniki perspectiveCrop muszą tworzyć kształt wypukły, a dokumentów z obszarami roboczymi nie można kadrować.</translation>
     </message>
 </context>
 <context>

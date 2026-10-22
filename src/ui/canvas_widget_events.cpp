@@ -791,6 +791,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::PerspectiveCrop && document_ != nullptr && event->button() == Qt::LeftButton) {
+    // Perspective Crop owns every left press: corners, the inside, click placement
+    // and the first drag, on the canvas or the pasteboard.
+    handle_perspective_crop_press(event);
+    event->accept();
+    update();
+    return;
+  }
+
   if (tool_ == CanvasTool::Crop && crop_session_active_ && event->button() == Qt::LeftButton) {
     // Handles adjust, the interior of a custom box moves it, a press on the
     // canvas inside the default frame lays out a new box, and a press off the
@@ -864,6 +873,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::PathSelect:
       case CanvasTool::DirectSelect:
       case CanvasTool::Crop:
+      case CanvasTool::PerspectiveCrop:
         return true;
       default:
         return false;
@@ -916,7 +926,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        effective_tool == CanvasTool::PatchTool || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
-       effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop)) {
+       effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop ||
+       effective_tool == CanvasTool::PerspectiveCrop)) {
     report_status_error(tr("This tool is unavailable while viewing a document channel"));
     event->accept();
     return;
@@ -1927,6 +1938,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::PerspectiveCrop && perspective_crop_session_pending()) {
+    clear_move_hover_outline();
+    update_perspective_crop_drag(document_position_f(event->position()));
+    last_mouse_position_ = event->pos();
+    update_perspective_crop_cursor(event->pos());
+    return;
+  }
+
   if (tool_ == CanvasTool::Crop && crop_dragging_out_) {
     clear_move_hover_outline();
     update_crop_drag_out(document_position(event->pos()), event->modifiers());
@@ -2651,6 +2670,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
+    return;
+  }
+
+  if (tool_ == CanvasTool::PerspectiveCrop &&
+      (perspective_crop_dragging_out_ || perspective_crop_drag_corner_ >= 0) &&
+      event->button() == Qt::LeftButton) {
+    finish_perspective_crop_mouse_release(event);
+    event->accept();
     return;
   }
 
@@ -3905,6 +3932,19 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
         event->accept();
         return;
       }
+    }
+  }
+
+  if (tool_ == CanvasTool::PerspectiveCrop && perspective_crop_session_pending()) {
+    if (event->key() == Qt::Key_Escape) {
+      cancel_perspective_crop_session();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      commit_perspective_crop_session();
+      event->accept();
+      return;
     }
   }
 

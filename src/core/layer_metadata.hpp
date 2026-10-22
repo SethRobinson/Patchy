@@ -79,6 +79,8 @@ inline constexpr const char* kLayerMetadataTextFirstBaseline = "patchy.text.firs
 inline constexpr const char* kLayerMetadataTextBoxBaselineInset = "patchy.text.box_baseline_inset";
 inline constexpr const char* kLayerMetadataTextAutoLeading = "patchy.text.auto_leading";
 inline constexpr const char* kLayerMetadataTextRasterTop = "patchy.text.raster_top";
+// Marks a box-text raster rendered with the line-aware box preview (main_window.cpp).
+inline constexpr const char* kLayerMetadataTextLineAwareBoxPreview = "patchy.text.line_aware_box_preview";
 
 // SVG import handoff (the Qt-free reader cannot decode PNGs or render text):
 // MainWindow's post-open pass decodes pending_image data URIs, renders
@@ -178,6 +180,9 @@ void set_layer_mask_is_document_alpha(Layer& layer, bool document_alpha);
 void set_layer_group_expanded(Layer& layer, bool expanded);
 
 [[nodiscard]] bool layer_is_text(const Layer& layer);
+// Drops every text key and the TySh block: the layer keeps its raster as plain pixels
+// (Layer > Rasterize, and Perspective Crop under a non-affine map).
+void clear_layer_text_metadata(Layer& layer);
 
 [[nodiscard]] std::optional<LayerAffineTransform> parse_layer_affine_transform(std::string_view text);
 [[nodiscard]] std::string serialize_layer_affine_transform(const LayerAffineTransform& transform);

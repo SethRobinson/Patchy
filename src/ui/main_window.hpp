@@ -1885,6 +1885,10 @@ private:
   // Commit of the Crop tool's pending rect; may expand the canvas, and a
   // nonzero box angle straightens the rotated box.
   void commit_crop_rect(QRect rect, double angle_degrees);
+  // Perspective Crop commit (GitHub issue 328): rectifies the quad (document space, TL,
+  // TR, BR, BL) onto the options bar's W x H (blank: the quad's own edge lengths) and sets
+  // its Resolution when one is given. One undo step.
+  void commit_perspective_crop_quad(const std::array<QPointF, 4>& quad);
   void rotate_canvas_clockwise();
   void rotate_canvas_counterclockwise();
   // Image > Rotate 180 / Flip Horizontal / Flip Vertical (GitHub issue 139).
@@ -2605,6 +2609,14 @@ private:
   // Frees the subject model a while after the last Select Subject (it reloads on use).
   QTimer* subject_model_release_timer_{nullptr};
   QPushButton* crop_cancel_button_{nullptr};
+  // Perspective Crop bar (GitHub issue 328): W, H and Resolution (0 shows blank: from
+  // the corners, or the document's resolution), Front Image, Clear, Show Grid, Apply/X.
+  UnitIntSpinBox* perspective_crop_width_spin_{nullptr};
+  UnitIntSpinBox* perspective_crop_height_spin_{nullptr};
+  QDoubleSpinBox* perspective_crop_resolution_spin_{nullptr};
+  QCheckBox* perspective_crop_grid_check_{nullptr};
+  QPushButton* perspective_crop_apply_button_{nullptr};
+  QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* retouch_sample_all_layers_check_{nullptr};
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
@@ -3064,6 +3076,8 @@ private:
   // off): see crop_delete_pixels_check_ / crop_delete_layers_check_.
   bool current_crop_delete_pixels_{true};
   bool current_crop_delete_layers_{false};
+  // tools/perspectiveCropShowGrid (default on): every canvas draws the grid with it.
+  bool current_perspective_crop_show_grid_{true};
   // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
   // and tools/cropShieldOpacity; every canvas draws with these.
   CropOverlayOptions current_crop_overlay_options_;

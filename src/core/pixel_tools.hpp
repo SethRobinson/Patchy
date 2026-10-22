@@ -315,6 +315,26 @@ std::size_t remove_layers_outside_canvas(Document& document, Rect canvas);
 // affine. Angles under 0.01 degrees take the exact unrotated path.
 [[nodiscard]] bool crop_document(Document& document, Rect crop, double angle_degrees,
                                  EditColor extension_color);
+// Perspective Crop (GitHub issue 328, docs/crop-tool.md): `quad` holds four document
+// corners (x, y pairs) in output order, top left, top right, bottom right, bottom left,
+// and the document becomes width x height with that quad rectified onto it. Every pixel
+// layer, mask and channel resamples through the rect-to-quad homography with the rotated
+// crop's sampler (bilinear; 16/32-bit layers in their own float domain); a "Background"
+// layer is rebuilt canvas-sized with extension_color under area the quad takes from
+// beyond the canvas, other layers get transparency there. Shape layers, vector masks and
+// paths map their points through the homography. A parallelogram quad is affine: text
+// and smart-object placements then ride it like the other crops. A true perspective quad
+// rasterizes text layers (type cannot take a perspective, as in Free Transform) and gives
+// smart objects a perspective placement. Returns false for a quad that is not strictly
+// convex, a size under 1, or a document with artboards.
+[[nodiscard]] bool perspective_crop_document(Document& document, const std::array<double, 8>& quad,
+                                             std::int32_t width, std::int32_t height,
+                                             EditColor extension_color);
+// True for four corners forming a strictly convex quad (either winding).
+[[nodiscard]] bool perspective_crop_quad_is_convex(const std::array<double, 8>& quad);
+// The output size Perspective Crop uses when W or H is left blank: the mean of the
+// quad's top and bottom edge lengths by the mean of its left and right ones, rounded.
+[[nodiscard]] std::array<std::int32_t, 2> perspective_crop_auto_size(const std::array<double, 8>& quad);
 void rotate_document_clockwise(Document& document);
 void rotate_document_counterclockwise(Document& document);
 // Two quarter turns: exact, no resampling (Image > Rotate 180, GitHub issue 139).

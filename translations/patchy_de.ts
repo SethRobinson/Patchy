@@ -11845,6 +11845,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Right</source>
         <translation>Rechts</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Perspektivisches Freistellen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13519,6 +13523,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>Wählen Sie eine Ebene, um sie und die Ebenen darunter aufzunehmen, oder nehmen Sie alle Ebenen auf</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>Nichts freizustellen: zuerst vier Ecken setzen</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>Perspektivisches Freistellen abgebrochen</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Die Ecken müssen eine konvexe Form bilden</translation>
     </message>
 </context>
 <context>
@@ -23922,6 +23938,86 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Trimmed to %1 x %2</source>
         <translation>Zugeschnitten auf %1 x %2</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>Breite des Ergebnisses; leer übernimmt den Abstand der Ecken</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>Höhe des Ergebnisses; leer übernimmt den Abstand der Ecken</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Auflösung:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>Auflösung des Ergebnisses in Pixel pro Zoll; leer behält die des Dokuments</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>Vorderes Bild</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>Breite, Höhe und Auflösung dieses Dokuments eintragen</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>Breite, Höhe und Auflösung leeren</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>Raster einblenden</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>Ein Raster zwischen den Ecken zeichnen, um sie am Bereich auszurichten</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>Perspektivisches Freistellen anwenden (Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>Ecken entfernen (Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Perspektivisches Freistellen</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>Ziehen Sie einen Rahmen auf oder klicken Sie vier Ecken um einen verzerrten Bereich, und ziehen Sie die Ecken dann auf seine Kanten. Enter richtet ihn zu einem Rechteck aus.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Perspektivisches Freistellen: Rahmen aufziehen oder vier Ecken klicken, dann jede Ecke auf die Kanten des Bereichs ziehen. Innen ziehen verschiebt ihn. Enter stellt frei und richtet aus, Esc entfernt die Ecken.</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>Freistellungswerkzeuge</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>Freistellungswerkzeuge durchschalten</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Die Ecken müssen eine konvexe Form bilden</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>Freigestellt und ausgerichtet</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>Ecken: %1 x %2 px Abstand</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>Ecken: keine gesetzt</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25706,6 +25802,18 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>trim does not apply to a document with artboards.</source>
         <translation>trim gilt nicht für ein Dokument mit Zeichenflächen.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop braucht vier Ecken: [[x, y], [x, y], [x, y], [x, y]] oder vier {x, y}-Punkte.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>perspectiveCrop-Optionen sind {width, height, resolution}: Größen von 1 bis 300000, Auflösung 0 oder mehr.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>Die Ecken für perspectiveCrop müssen eine konvexe Form bilden, und Dokumente mit Zeichenflächen können nicht freigestellt werden.</translation>
     </message>
 </context>
 <context>

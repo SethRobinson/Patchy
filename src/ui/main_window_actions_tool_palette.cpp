@@ -156,6 +156,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch");
     case CanvasTool::Crop:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop");
+    case CanvasTool::PerspectiveCrop:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Perspective Crop");
     case CanvasTool::AddAnchor:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Anchor");
     case CanvasTool::DeleteAnchor:
@@ -248,6 +250,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.patch");
     case CanvasTool::Crop:
       return QStringLiteral("tools.crop");
+    case CanvasTool::PerspectiveCrop:
+      return QStringLiteral("tools.perspective_crop");
     case CanvasTool::AddAnchor:
       return QStringLiteral("tools.add_anchor");
     case CanvasTool::DeleteAnchor:
@@ -293,6 +297,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::PolygonLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. "
              "Click the start point, double-click or press Enter to close.");
+    case CanvasTool::PerspectiveCrop:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag a box or click four corners around a skewed area, then drag the "
+             "corners onto its edges. Enter straightens it into a rectangle.");
     default:
       return nullptr;
   }
@@ -319,6 +326,10 @@ const char* tool_activation_hint_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop: drag the handles to crop or extend the canvas (%ALT% resizes about the "
              "center), drag inside to lay out a new box, drag outside it to rotate. Enter crops, Esc "
              "resets the box.");
+    case CanvasTool::PerspectiveCrop:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Perspective Crop: drag a box or click four corners, then drag each corner "
+             "onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the "
+             "corners.");
     case CanvasTool::AddAnchor:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Anchor Point: click a path segment to insert a point.");
     case CanvasTool::DeleteAnchor:
@@ -919,6 +930,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Crop:
       name = "tool-crop";
       break;
+    case CanvasTool::PerspectiveCrop:
+      name = "tool-perspective-crop";
+      break;
     case CanvasTool::AddAnchor:
       name = "tool-add-anchor";
       break;
@@ -1104,7 +1118,17 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   configure_tool_flyout(tool_palette, wand_menu, wand_tool_button, magic_wand_action, wand_actions,
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Wand Tools"),
                         "toolCycleWandAction", "tools.cycle.wand", QKeySequence(Qt::SHIFT | Qt::Key_W));
-  add_tool_action(tool_palette, tool_group, tr("Crop"), CanvasTool::Crop, QKeySequence(Qt::Key_C));
+  auto* crop_menu = new QMenu(tr("Crop Tools"), tool_palette);
+  crop_menu->setObjectName(QStringLiteral("cropToolMenu"));
+  bind_widget_text(crop_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop Tools"));
+  auto* crop_action = create_flyout_tool_action(crop_menu, tr("Crop"), CanvasTool::Crop, QKeySequence(Qt::Key_C));
+  auto* perspective_crop_action =
+      create_flyout_tool_action(crop_menu, tr("Perspective Crop"), CanvasTool::PerspectiveCrop, QKeySequence());
+  auto* crop_tool_button = new QToolButton(tool_palette);
+  crop_tool_button->setObjectName(QStringLiteral("cropToolButton"));
+  configure_tool_flyout(tool_palette, crop_menu, crop_tool_button, crop_action, {crop_action, perspective_crop_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Crop Tools"),
+                        "toolCycleCropAction", "tools.cycle.crop", QKeySequence(Qt::SHIFT | Qt::Key_C));
   tool_palette->addSeparator();
 
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);

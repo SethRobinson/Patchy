@@ -11810,6 +11810,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Right</source>
         <translation>右</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>遠近法の切り抜き</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13484,6 +13488,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>レイヤーを選択してそのレイヤーと下のレイヤーから取得するか、すべてのレイヤーから取得してください</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>切り抜く範囲がありません: 先に 4 つの角を配置してください</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>遠近法の切り抜きをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>角は凸形状になるように配置してください</translation>
     </message>
 </context>
 <context>
@@ -23850,6 +23866,86 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Trimmed to %1 x %2</source>
         <translation>%1 x %2 にトリミングしました</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>結果の幅。空欄の場合は角の間隔を使います</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>結果の高さ。空欄の場合は角の間隔を使います</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解像度:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>結果の解像度 (pixel/inch)。空欄の場合はドキュメントの解像度のままです</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>前面の画像</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>このドキュメントの幅、高さ、解像度を入力します</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>幅、高さ、解像度を消去します</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>グリッドを表示</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>角の内側にグリッドを描いて、範囲に合わせやすくします</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>遠近法の切り抜きを適用 (Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>角を消去 (Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>遠近法の切り抜き</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>ゆがんだ範囲をボックスでドラッグするか 4 つの角をクリックし、角をその辺に合わせてドラッグします。Enter で長方形に補正します。</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>遠近法の切り抜き: ボックスをドラッグするか 4 つの角をクリックし、各角を範囲の辺に合わせてドラッグします。内側をドラッグすると移動します。Enter で切り抜いて補正、Esc で角を消去します。</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>切り抜きツール</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>切り抜きツールを切り替え</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>角は凸形状になるように配置してください</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>切り抜いて補正しました</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>角: %1 x %2 px の間隔</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>角: 未配置</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25633,6 +25729,18 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>trim does not apply to a document with artboards.</source>
         <translation>trim はアートボードのあるドキュメントには使えません。</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop には 4 つの角が必要です: [[x, y], [x, y], [x, y], [x, y]] または 4 つの {x, y} 点。</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>perspectiveCrop のオプションは {width, height, resolution} です: サイズは 1 から 300000、解像度は 0 以上。</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>perspectiveCrop の角は凸形状である必要があり、アートボードのあるドキュメントは切り抜けません。</translation>
     </message>
 </context>
 <context>

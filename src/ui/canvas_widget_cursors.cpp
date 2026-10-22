@@ -367,6 +367,10 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::CrossCursor);
     return;
   }
+  if (tool_ == CanvasTool::PerspectiveCrop) {
+    update_perspective_crop_cursor(last_mouse_position_);
+    return;
+  }
   if (tool_ == CanvasTool::Crop) {
     if (crop_drag_handle_ != TransformHandle::None) {
       // Mid-drag the grabbed handle owns the cursor (Space released during the

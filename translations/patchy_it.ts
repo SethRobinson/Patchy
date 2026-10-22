@@ -11845,6 +11845,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Right</source>
         <translation>Destra</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Taglierina prospettica</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13519,6 +13523,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>Seleziona un livello per campionarlo insieme ai livelli sottostanti, oppure campiona tutti i livelli</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>Niente da ritagliare: posiziona prima quattro angoli</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>Ritaglio prospettico annullato</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Gli angoli devono formare una figura convessa</translation>
     </message>
 </context>
 <context>
@@ -23922,6 +23938,86 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>Trimmed to %1 x %2</source>
         <translation>Rifilato a %1 x %2</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>Larghezza del risultato; vuoto usa la distanza tra gli angoli</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>Altezza del risultato; vuoto usa la distanza tra gli angoli</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Risoluzione:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>Risoluzione del risultato in pixel per pollice; vuoto mantiene quella del documento</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>Immagine in primo piano</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>Inserisci larghezza, altezza e risoluzione di questo documento</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>Cancella larghezza, altezza e risoluzione</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>Mostra griglia</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>Disegna una griglia tra gli angoli per allinearli all&apos;area</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>Applica ritaglio prospettico (Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>Rimuovi gli angoli (Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Taglierina prospettica</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>Trascina un riquadro o fai clic su quattro angoli attorno a un&apos;area inclinata, poi trascina gli angoli sui suoi bordi. Invio la raddrizza in un rettangolo.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Taglierina prospettica: trascina un riquadro o fai clic su quattro angoli, poi trascina ogni angolo sui bordi dell&apos;area. Trascina all&apos;interno per spostarlo. Invio ritaglia e raddrizza, Esc rimuove gli angoli.</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>Strumenti di ritaglio</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>Alterna strumenti di ritaglio</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Gli angoli devono formare una figura convessa</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>Ritagliato e raddrizzato</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>Angoli: distanza %1 x %2 px</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>Angoli: nessuno posizionato</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25706,6 +25802,18 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>trim does not apply to a document with artboards.</source>
         <translation>trim non si applica a un documento con tavole da disegno.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop richiede quattro angoli: [[x, y], [x, y], [x, y], [x, y]] o quattro punti {x, y}.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>Le opzioni di perspectiveCrop sono {width, height, resolution}: dimensioni da 1 a 300000, risoluzione 0 o più.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>Gli angoli di perspectiveCrop devono formare una figura convessa e i documenti con tavole da disegno non possono essere ritagliati.</translation>
     </message>
 </context>
 <context>

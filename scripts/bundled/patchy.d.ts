@@ -1044,6 +1044,19 @@ interface PatchyDocument {
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
   /**
+   * Perspective Crop: rectifies the area inside four corners onto a rectangle, on every
+   * layer, mask and channel. `corners` lists them in result order, top left, top right,
+   * bottom right, bottom left, as [x, y] pairs or {x, y} points; they must form a convex
+   * shape. `width`/`height` default to the corners' mean edge lengths, `resolution`
+   * (pixels per inch) to the document's. Area the corners take from beyond the canvas is
+   * white under a Background layer and transparent elsewhere. A true perspective
+   * rasterizes type layers. Throws for a folded quad or a document with artboards.
+   */
+  perspectiveCrop(
+    corners: [number, number][] | {x: number; y: number}[],
+    options?: {width?: number; height?: number; resolution?: number},
+  ): void;
+  /**
    * Image > Trim: crops the canvas to the composite's content. basedOn picks what is cut
    * away: "transparent" (alpha 0, the default), or pixels exactly matching the "topLeft" or
    * "bottomRight" corner pixel. top/bottom/left/right (all true by default) choose the

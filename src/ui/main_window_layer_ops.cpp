@@ -5534,6 +5534,52 @@ void MainWindow::commit_crop_rect(QRect rect, double angle_degrees) {
                                : tr("Cropped"));
 }
 
+void MainWindow::commit_perspective_crop_quad(const std::array<QPointF, 4>& quad) {
+  // A refusal leaves the corners in place so the user can still adjust or Esc.
+  if (refuse_crop_with_artboards() || refuse_document_geometry_change()) {
+    return;
+  }
+  const std::array<double, 8> corners{quad[0].x(), quad[0].y(), quad[1].x(), quad[1].y(),
+                                      quad[2].x(), quad[2].y(), quad[3].x(), quad[3].y()};
+  const auto auto_size = patchy::perspective_crop_auto_size(corners);
+  const auto width = perspective_crop_width_spin_ != nullptr && perspective_crop_width_spin_->value() > 0
+                         ? perspective_crop_width_spin_->value()
+                         : auto_size[0];
+  const auto height = perspective_crop_height_spin_ != nullptr && perspective_crop_height_spin_->value() > 0
+                          ? perspective_crop_height_spin_->value()
+                          : auto_size[1];
+  const auto resolution =
+      perspective_crop_resolution_spin_ != nullptr ? perspective_crop_resolution_spin_->value() : 0.0;
+
+  auto& doc = document();
+  auto cropped_document = doc;
+  if (!patchy::perspective_crop_document(cropped_document, corners, width, height,
+                                         edit_color(canvas_->secondary_color()))) {
+    show_status_error(tr("The corners must form a convex shape"));
+    return;
+  }
+  if (resolution > 0.0) {
+    cropped_document.print_settings().horizontal_ppi = resolution;
+    cropped_document.print_settings().vertical_ppi = resolution;
+  }
+  push_undo_snapshot(tr("Perspective Crop"));
+  doc = std::move(cropped_document);
+  canvas_->cancel_perspective_crop_session();
+  canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
+  canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
+  canvas_->center_document_in_view();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  refresh_options_bar();
+  statusBar()->showMessage(tr("Cropped and straightened"));
+}
+
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
   if (refuse_document_geometry_change()) {

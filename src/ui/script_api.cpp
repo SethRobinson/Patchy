@@ -70,6 +70,7 @@
 #include <array>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <utility>
 
 namespace patchy::ui {
@@ -2803,6 +2804,76 @@ void ScriptDocumentObject::crop(int x, int y, int width, int height) {
   if (!crop_document(*document, Rect{x, y, width, height})) {
     host_.throw_js_error(ScriptEngineHost::tr("crop rectangle is outside the canvas."));
     return;
+  }
+  host_.note_structure_changed(session_id_);
+}
+
+void ScriptDocumentObject::perspectiveCrop(const QJSValue& corners, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  std::array<double, 8> quad{};
+  bool corners_ok = corners.isArray();
+  const auto finite_number = [](const QJSValue& value) {
+    return value.isNumber() && std::isfinite(value.toNumber());
+  };
+  // Four points, each [x, y] (layer.transform's quad form) or {x, y}.
+  corners_ok = corners_ok && corners.property(QStringLiteral("length")).toInt() == 4;
+  for (quint32 i = 0; i < 4U && corners_ok; ++i) {
+    const auto corner = corners.property(i);
+    const auto x = corner.isArray() ? corner.property(0U) : corner.property(QStringLiteral("x"));
+    const auto y = corner.isArray() ? corner.property(1U) : corner.property(QStringLiteral("y"));
+    corners_ok = (!corner.isArray() || corner.property(QStringLiteral("length")).toInt() == 2) &&
+                 finite_number(x) && finite_number(y);
+    quad[i * 2U] = x.toNumber();
+    quad[i * 2U + 1U] = y.toNumber();
+  }
+  if (!corners_ok) {
+    host_.throw_js_error(ScriptEngineHost::tr(
+        "perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points."));
+    return;
+  }
+  const auto auto_size = perspective_crop_auto_size(quad);
+  int width = auto_size[0];
+  int height = auto_size[1];
+  double resolution = 0.0;
+  if (!options.isUndefined() && !options.isNull()) {
+    const auto read_option = [&options, &finite_number](const char* key, double minimum,
+                                                        std::optional<double>& out) {
+      const auto value = options.property(QLatin1String(key));
+      if (value.isUndefined() || value.isNull()) {
+        return true;
+      }
+      if (!finite_number(value) || value.toNumber() < minimum) {
+        return false;
+      }
+      out = value.toNumber();
+      return true;
+    };
+    std::optional<double> width_option;
+    std::optional<double> height_option;
+    std::optional<double> resolution_option;
+    if (!options.isObject() || !read_option("width", 1.0, width_option) ||
+        !read_option("height", 1.0, height_option) || !read_option("resolution", 0.0, resolution_option) ||
+        width_option.value_or(1.0) > 300000.0 || height_option.value_or(1.0) > 300000.0) {
+      host_.throw_js_error(ScriptEngineHost::tr(
+          "perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more."));
+      return;
+    }
+    width = width_option.has_value() ? static_cast<int>(std::lround(*width_option)) : width;
+    height = height_option.has_value() ? static_cast<int>(std::lround(*height_option)) : height;
+    resolution = resolution_option.value_or(0.0);
+  }
+  auto* document = write_document();
+  if (document == nullptr) {
+    return;
+  }
+  if (!perspective_crop_document(*document, quad, width, height, EditColor{255, 255, 255, 255})) {
+    host_.throw_js_error(ScriptEngineHost::tr(
+        "perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped."));
+    return;
+  }
+  if (resolution > 0.0) {
+    document->print_settings().horizontal_ppi = resolution;
+    document->print_settings().vertical_ppi = resolution;
   }
   host_.note_structure_changed(session_id_);
 }

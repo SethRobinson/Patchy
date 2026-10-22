@@ -11880,6 +11880,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Right</source>
         <translation>Справа</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Кадрирование перспективы</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13554,6 +13558,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>Выберите слой, чтобы брать образец с него и слоёв ниже, или берите образец со всех слоёв</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>Нечего кадрировать: сначала расставьте четыре угла</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>Кадрирование перспективы отменено</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Углы должны образовывать выпуклую фигуру</translation>
     </message>
 </context>
 <context>
@@ -23994,6 +24010,86 @@ Patchy может скачать обновление, заменить этот
         <source>Trimmed to %1 x %2</source>
         <translation>Обрезано до %1 x %2</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>Ширина результата; пустое поле берёт расстояние между углами</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>Высота результата; пустое поле берёт расстояние между углами</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Разрешение:</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>Разрешение результата в пикселях на дюйм; пустое поле сохраняет разрешение документа</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>Переднее изображение</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>Подставить ширину, высоту и разрешение этого документа</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>Очистить ширину, высоту и разрешение</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>Показать сетку</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>Рисовать сетку между углами, чтобы выровнять их по области</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>Применить кадрирование перспективы (Ввод)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>Убрать углы (Esc)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Кадрирование перспективы</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>Растяните рамку или щёлкните четыре угла вокруг скошенной области, затем перетащите углы на её края. Enter выпрямляет её в прямоугольник.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Кадрирование перспективы: растяните рамку или щёлкните четыре угла, затем перетащите каждый угол на края области. Перетаскивание внутри перемещает её. Enter кадрирует и выпрямляет, Esc убирает углы.</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>Инструменты кадрирования</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>Сменить инструмент кадрирования</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Углы должны образовывать выпуклую фигуру</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>Кадрировано и выпрямлено</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>Углы: расстояние %1 x %2 пикс.</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>Углы: не расставлены</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25779,6 +25875,18 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>trim does not apply to a document with artboards.</source>
         <translation>trim не применяется к документу с монтажными областями.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop требует четыре угла: [[x, y], [x, y], [x, y], [x, y]] или четыре точки {x, y}.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>Параметры perspectiveCrop: {width, height, resolution}; размеры от 1 до 300000, разрешение 0 или больше.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>Углы perspectiveCrop должны образовывать выпуклую фигуру, а документы с монтажными областями кадрировать нельзя.</translation>
     </message>
 </context>
 <context>

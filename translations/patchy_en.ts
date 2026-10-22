@@ -11829,6 +11829,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Right</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13502,6 +13506,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -23849,6 +23865,86 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Trimmed to %1 x %2</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25632,6 +25728,18 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>trim does not apply to a document with artboards.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

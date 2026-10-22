@@ -29,6 +29,10 @@
 #include <utility>
 #include <vector>
 #include "ui_test_access.hpp"
+#include "scripting_test_support.hpp"
+#include "core/pixel_tools.hpp"
+#include "core/warp_mesh.hpp"
+#include <QTest>
 #include "local_psd_fixtures.hpp"
 // Crop tool: the canvas frame on activation, drag-out geometry, handle
 // adjustment, ratio re-fits, Enter/Esc commit-reset, canvas expansion on
@@ -2124,9 +2128,352 @@ void ui_script_trim() {
 
 }  // namespace
 
+namespace {
+
+using patchy::test::ui::scripting_support::run_script;
+
+// Perspective Crop (GitHub issue 328): paints the document's first layer with a
+// "photographed" chart, an 8 x 6 grid of colored cells seen through a perspective,
+// so a session reads in screenshots and the commit has something to straighten.
+const std::array<QPointF, 4> kPerspectiveChartQuad{QPointF(260.0, 150.0), QPointF(760.0, 210.0),
+                                                   QPointF(820.0, 620.0), QPointF(180.0, 560.0)};
+
+void paint_perspective_chart(patchy::ui::MainWindow& window) {
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(!document.layers().empty());
+  auto& layer = document.layers().front();
+  const auto format = std::as_const(layer).pixels().format();
+  patchy::PixelBuffer pixels(document.width(), document.height(), format);
+  const std::array<double, 8> quad{kPerspectiveChartQuad[0].x(), kPerspectiveChartQuad[0].y(),
+                                   kPerspectiveChartQuad[1].x(), kPerspectiveChartQuad[1].y(),
+                                   kPerspectiveChartQuad[2].x(), kPerspectiveChartQuad[2].y(),
+                                   kPerspectiveChartQuad[3].x(), kPerspectiveChartQuad[3].y()};
+  const auto forward = patchy::homography_from_rect_to_quad(0.0, 0.0, 8.0, 6.0, quad);
+  CHECK(forward.has_value());
+  const auto inverse = patchy::invert_homography(*forward);
+  CHECK(inverse.has_value());
+  const std::array<std::array<std::uint8_t, 3>, 6> palette{{{214, 69, 65},
+                                                            {242, 177, 52},
+                                                            {68, 160, 96},
+                                                            {58, 120, 200},
+                                                            {150, 90, 180},
+                                                            {240, 240, 236}}};
+  const auto channels = static_cast<std::size_t>(format.channels);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto uv = patchy::apply_homography(*inverse, x + 0.5, y + 0.5);
+      std::array<std::uint8_t, 3> color{92, 98, 106};
+      if (uv[0] >= 0.0 && uv[1] >= 0.0 && uv[0] < 8.0 && uv[1] < 6.0) {
+        const auto cell_x = static_cast<int>(uv[0]);
+        const auto cell_y = static_cast<int>(uv[1]);
+        const bool border = uv[0] - cell_x < 0.06 || uv[1] - cell_y < 0.06;
+        color = border ? std::array<std::uint8_t, 3>{30, 30, 34}
+                       : palette[static_cast<std::size_t>((cell_x + cell_y * 3) % 6)];
+      }
+      auto* pixel = pixels.pixel(x, y);
+      for (std::size_t c = 0; c < std::min<std::size_t>(channels, 3U); ++c) {
+        pixel[c] = color[c];
+      }
+      if (channels >= 4U) {
+        pixel[3] = 255;
+      }
+    }
+  }
+  layer.set_pixels(std::move(pixels));
+  layer.set_bounds(patchy::Rect{0, 0, document.width(), document.height()});
+  require_canvas(window)->document_changed();
+  QApplication::processEvents();
+}
+
+QPoint perspective_widget_point(patchy::ui::CanvasWidget& canvas, QPointF document_point) {
+  return canvas.widget_position_for_document_point(document_point.toPoint());
+}
+
+bool points_near(QPointF actual, QPointF expected, double tolerance = 3.0) {
+  return std::abs(actual.x() - expected.x()) <= tolerance && std::abs(actual.y() - expected.y()) <= tolerance;
+}
+
+// The tool sits in the Crop flyout after Crop with its own permanent command id and no
+// default key; Shift+C cycles the two, and C stays on Crop.
+void ui_perspective_crop_tool_joins_crop_flyout() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* crop = require_action(window, "toolCropAction");
+  auto* perspective = require_action(window, "toolPerspectiveCropAction");
+  CHECK(perspective->text() == QStringLiteral("Perspective Crop"));
+  CHECK(!perspective->icon().isNull());
+  CHECK(perspective->shortcut().isEmpty());
+  CHECK(crop->shortcut() == QKeySequence(Qt::Key_C));
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("cropToolButton"));
+  CHECK(button != nullptr);
+  if (button == nullptr) {
+    return;
+  }
+  CHECK(button->menu() != nullptr);
+  CHECK(button->menu()->actions().indexOf(perspective) == button->menu()->actions().indexOf(crop) + 1);
+  const auto* command = window.hotkey_registry().find_command(QStringLiteral("tools.perspective_crop"));
+  CHECK(command != nullptr);
+  CHECK(command != nullptr && command->action == perspective);
+  CHECK(command != nullptr && command->category == QStringLiteral("tools"));
+  const auto* cycle = window.hotkey_registry().find_command(QStringLiteral("tools.cycle.crop"));
+  CHECK(cycle != nullptr);
+
+  crop->trigger();
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_C, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PerspectiveCrop);
+  CHECK(button->defaultAction() == perspective);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Perspective Crop: drag a box")));
+  QTest::keyClick(canvas, Qt::Key_C, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Crop);
+}
+
+// A drag lays out a box whose corners then move one at a time, the inside moves it, Esc
+// clears it; four clicks place the corners in any order and come out upright; a fourth
+// click that would fold the quad is refused. Enter rectifies the document onto the
+// options bar's W x H with its Resolution in one undo step, and Undo restores it all.
+void ui_perspective_crop_session_commits_and_undoes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_snap_enabled(false);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto original_ppi = document.print_settings().horizontal_ppi;
+  require_action(window, "toolPerspectiveCropAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PerspectiveCrop);
+  CHECK(!canvas->perspective_crop_session_pending());
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("perspectiveCropApplyButton"));
+  auto* cancel = window.findChild<QPushButton*>(QStringLiteral("perspectiveCropCancelButton"));
+  CHECK(apply != nullptr && cancel != nullptr);
+  if (apply == nullptr || cancel == nullptr) {
+    return;
+  }
+  CHECK(!apply->isEnabled());
+  CHECK(!cancel->isEnabled());
+
+  drag(*canvas, perspective_widget_point(*canvas, QPointF(100, 100)),
+       perspective_widget_point(*canvas, QPointF(400, 300)));
+  QApplication::processEvents();
+  auto quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value());
+  if (!quad.has_value()) {
+    return;
+  }
+  CHECK(points_near((*quad)[0], QPointF(100, 100)));
+  CHECK(points_near((*quad)[2], QPointF(400, 300)));
+  CHECK(apply->isEnabled());
+  CHECK(cancel->isEnabled());
+
+  // One corner moves alone.
+  drag(*canvas, perspective_widget_point(*canvas, QPointF(400, 100)),
+       perspective_widget_point(*canvas, QPointF(450, 80)));
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value() && points_near((*quad)[1], QPointF(450, 80)));
+  CHECK(quad.has_value() && points_near((*quad)[0], QPointF(100, 100)));
+  CHECK(quad.has_value() && points_near((*quad)[2], QPointF(400, 300)));
+  // Dragging that corner through the opposite side stops where the quad would fold.
+  drag(*canvas, perspective_widget_point(*canvas, QPointF(450, 80)),
+       perspective_widget_point(*canvas, QPointF(60, 400)));
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value());
+  if (quad.has_value()) {
+    CHECK(patchy::perspective_crop_quad_is_convex({(*quad)[0].x(), (*quad)[0].y(), (*quad)[1].x(), (*quad)[1].y(),
+                                                   (*quad)[2].x(), (*quad)[2].y(), (*quad)[3].x(), (*quad)[3].y()}));
+  }
+  // Esc clears everything.
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->perspective_crop_session_pending());
+  CHECK(!cancel->isEnabled());
+
+  // Four clicks, counterclockwise and starting at the bottom right: the quad comes out
+  // upright (top left first, clockwise). The inside then moves it whole.
+  const std::array<QPointF, 4> clicks{QPointF(500, 400), QPointF(520, 150), QPointF(200, 120), QPointF(180, 380)};
+  for (std::size_t i = 0; i < 3U; ++i) {
+    const auto at = perspective_widget_point(*canvas, clicks[i]);
+    send_mouse(*canvas, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+  }
+  CHECK(canvas->perspective_crop_session_pending());
+  CHECK(!canvas->perspective_crop_session_active());
+  // A fourth click inside the triangle would fold the quad: refused, three corners stay.
+  const auto folded = perspective_widget_point(*canvas, QPointF(420, 220));
+  send_mouse(*canvas, QEvent::MouseButtonPress, folded, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, folded, Qt::LeftButton, Qt::NoButton);
+  CHECK(!canvas->perspective_crop_session_active());
+  const auto last = perspective_widget_point(*canvas, clicks[3]);
+  send_mouse(*canvas, QEvent::MouseButtonPress, last, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, last, Qt::LeftButton, Qt::NoButton);
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value());
+  if (!quad.has_value()) {
+    return;
+  }
+  CHECK(points_near((*quad)[0], clicks[2]));
+  CHECK(points_near((*quad)[1], clicks[1]));
+  CHECK(points_near((*quad)[2], clicks[0]));
+  CHECK(points_near((*quad)[3], clicks[3]));
+  drag(*canvas, perspective_widget_point(*canvas, QPointF(350, 260)),
+       perspective_widget_point(*canvas, QPointF(360, 270)));
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value() && points_near((*quad)[0], clicks[2] + QPointF(10, 10)));
+
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("perspectiveCropWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("perspectiveCropHeightSpin"));
+  auto* resolution = window.findChild<QDoubleSpinBox*>(QStringLiteral("perspectiveCropResolutionSpin"));
+  CHECK(width != nullptr && height != nullptr && resolution != nullptr);
+  if (width == nullptr || height == nullptr || resolution == nullptr) {
+    return;
+  }
+  CHECK(width->isVisible());
+  width->setValue(300);
+  height->setValue(200);
+  resolution->setValue(150.0);
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(document.width() == 300);
+  CHECK(document.height() == 200);
+  CHECK(document.print_settings().horizontal_ppi == 150.0);
+  CHECK(!canvas->perspective_crop_session_pending());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Cropped and straightened"));
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  auto& restored = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(restored.width() == 1024);
+  CHECK(restored.height() == 768);
+  CHECK(restored.print_settings().horizontal_ppi == original_ppi);
+
+  // Blank fields take the corners' own spacing.
+  width->setValue(0);
+  height->setValue(0);
+  resolution->setValue(0.0);
+  CHECK(width->text().trimmed().isEmpty());
+  CHECK(canvas->set_perspective_crop_quad({QPointF(100, 100), QPointF(300, 100), QPointF(300, 250), QPointF(100, 250)}));
+  canvas->commit_perspective_crop_session();
+  QApplication::processEvents();
+  auto& rectified = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(rectified.width() == 200);
+  CHECK(rectified.height() == 150);
+  CHECK(rectified.print_settings().horizontal_ppi == original_ppi);
+}
+
+// Front Image fills the fields from the document, Clear empties them, Show Grid draws
+// the grid inside the quad and persists. Also writes the session screenshot.
+void ui_perspective_crop_options_bar_and_grid() {
+  SettingsValueRestorer saved_grid(QStringLiteral("tools/perspectiveCropShowGrid"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  paint_perspective_chart(window);
+  require_action(window, "toolPerspectiveCropAction")->trigger();
+  QApplication::processEvents();
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("perspectiveCropWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("perspectiveCropHeightSpin"));
+  auto* resolution = window.findChild<QDoubleSpinBox*>(QStringLiteral("perspectiveCropResolutionSpin"));
+  auto* front = window.findChild<QPushButton*>(QStringLiteral("perspectiveCropFrontImageButton"));
+  auto* clear = window.findChild<QPushButton*>(QStringLiteral("perspectiveCropClearButton"));
+  auto* grid = window.findChild<QCheckBox*>(QStringLiteral("perspectiveCropShowGridCheck"));
+  CHECK(width != nullptr && height != nullptr && resolution != nullptr && front != nullptr && clear != nullptr &&
+        grid != nullptr);
+  if (width == nullptr || height == nullptr || resolution == nullptr || front == nullptr || clear == nullptr ||
+      grid == nullptr) {
+    return;
+  }
+  CHECK(front->isVisible() && clear->isVisible() && grid->isVisible());
+  front->click();
+  QApplication::processEvents();
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(width->value() == document.width());
+  CHECK(height->value() == document.height());
+  CHECK(std::abs(resolution->value() - document.print_settings().horizontal_ppi) < 0.01);
+  clear->click();
+  QApplication::processEvents();
+  CHECK(width->value() == 0 && height->value() == 0 && resolution->value() == 0.0);
+  CHECK(width->text().trimmed().isEmpty());
+  CHECK(resolution->text().trimmed().isEmpty());
+
+  // The whole quad on screen for the screenshot (and the pixel probes below).
+  require_hotkey_action(window, QStringLiteral("view.fit_on_screen"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->set_perspective_crop_quad(kPerspectiveChartQuad));
+  grid->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->perspective_crop_show_grid());
+  const auto with_grid = render_widget_image(*canvas);
+  save_widget_artifact("ui_perspective_crop_session", window);
+  grid->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->perspective_crop_show_grid());
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("tools/perspectiveCropShowGrid")).toBool());
+  const auto without_grid = render_widget_image(*canvas);
+  // The grid only draws inside the quad: the middle differs, the pasteboard does not.
+  const auto middle = canvas->widget_position_for_document_point(QPoint(500, 380));
+  bool inside_changed = false;
+  for (int dy = -40; dy <= 40 && !inside_changed; ++dy) {
+    for (int dx = -40; dx <= 40 && !inside_changed; ++dx) {
+      inside_changed = with_grid.pixelColor(middle + QPoint(dx, dy)) != without_grid.pixelColor(middle + QPoint(dx, dy));
+    }
+  }
+  CHECK(inside_changed);
+  const auto outside = canvas->widget_position_for_document_point(QPoint(40, 40));
+  CHECK(with_grid.pixelColor(outside) == without_grid.pixelColor(outside));
+
+  // Committing the chart's own corners straightens it: the cells come out upright.
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto& straightened = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(straightened.width() > 400);
+  const auto cell_w = straightened.width() / 8.0;
+  const auto cell_h = straightened.height() / 6.0;
+  const auto top_left = canvas_pixel_center(*canvas, QPoint(static_cast<int>(cell_w / 2), static_cast<int>(cell_h / 2)));
+  const auto next_row = canvas_pixel_center(
+      *canvas, QPoint(static_cast<int>(cell_w / 2), static_cast<int>(cell_h * 1.5)));
+  CHECK(color_close(top_left, QColor(214, 69, 65), 6));
+  CHECK(color_close(next_row, QColor(58, 120, 200), 6));
+  save_widget_artifact("ui_perspective_crop_result", *canvas);
+}
+
+// doc.perspectiveCrop: the scripted twin of the commit, and its refusals.
+void ui_script_document_perspective_crop() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.perspectiveCrop([[100, 100], [400, 120], [380, 330], [90, 300]],
+                                       { width: 240, height: 160, resolution: 200 });
+  )JS")));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 240);
+  CHECK(document.height() == 160);
+  CHECK(document.print_settings().horizontal_ppi == 200.0);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.perspectiveCrop([{x: 0, y: 0}, {x: 100, y: 0}, {x: 100, y: 50}, {x: 0, y: 50}]);
+  )JS")));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 100);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 50);
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.perspectiveCrop([[0, 0], [50, 50], [50, 0], [0, 50]]);")));
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.perspectiveCrop([[0, 0], [50, 0], [50, 50]]);")));
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.perspectiveCrop([[0, 0], [50, 0], [50, 50], [0, 50]], { width: 0 });")));
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 100);
+}
+
+}  // namespace
+
 std::vector<patchy::test::TestCase> crop_tool_tests() {
   return {
       {"ui_crop_tool_activates_with_c_hotkey", ui_crop_tool_activates_with_c_hotkey},
+      {"ui_perspective_crop_tool_joins_crop_flyout", ui_perspective_crop_tool_joins_crop_flyout},
+      {"ui_perspective_crop_session_commits_and_undoes", ui_perspective_crop_session_commits_and_undoes},
+      {"ui_perspective_crop_options_bar_and_grid", ui_perspective_crop_options_bar_and_grid},
+      {"ui_script_document_perspective_crop", ui_script_document_perspective_crop},
       {"ui_crop_ratio_fields_show_trimmed_numbers", ui_crop_ratio_fields_show_trimmed_numbers},
       {"ui_crop_drag_out_geometry", ui_crop_drag_out_geometry},
       {"ui_crop_tool_frames_canvas_and_fits_ratio", ui_crop_tool_frames_canvas_and_fits_ratio},

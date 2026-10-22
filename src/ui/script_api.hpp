@@ -335,6 +335,9 @@ public:
   Q_INVOKABLE void resizeCanvas(int width, int height);
   Q_INVOKABLE void convertBitDepth(int bits);
   Q_INVOKABLE void crop(int x, int y, int width, int height);
+  // Perspective Crop (GitHub issue 328): `corners` is four [x, y] or {x, y} points in
+  // output order TL, TR, BR, BL; options {width, height, resolution}.
+  Q_INVOKABLE void perspectiveCrop(const QJSValue& corners, const QJSValue& options = QJSValue());
   // Image > Trim (GitHub issue 297): {basedOn, top, bottom, left, right}; returns the kept
   // rect in the old canvas coordinates, or null when nothing was trimmed.
   Q_INVOKABLE QJSValue trim(const QJSValue& options = QJSValue());

@@ -12,10 +12,12 @@
 #include "core/pixel_depth.hpp"
 #include "core/pixel_tools_internal.hpp"
 #include "core/rect_utils.hpp"
+#include "core/artboard.hpp"
 #include "core/resample.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "core/warp_mesh.hpp"
 
 #include <algorithm>
 #include <array>
@@ -495,14 +497,18 @@ struct RotatedCropMap {
 }
 
 // Samples `source` (document-space `source_bounds`) into `destination`
-// (result-space `destination_bounds`) through the inverse crop mapping.
+// (result-space `destination_bounds`) through the inverse crop mapping:
+// `to_document(rx, ry)` takes a result-space pixel center and returns the
+// document point it shows (the rotated crop's rotation, Perspective Crop's
+// homography).
 // Bilinear with clamped edges (the convention a bilinear Image Size enlargement
 // shares, core/resample.cpp); 16/32-bit buffers that keep their format interpolate
 // floats in their own domain, other depth changes take nearest. Destination pixels whose source
 // point falls outside the buffer keep their pre-filled value. A 3->4 channel
 // promotion writes opaque alpha, like copy_resized_layer_pixel.
-void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,
-                                Rect destination_bounds, const RotatedCropMap& map) {
+template <typename ToDocument>
+void sample_mapped_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,
+                               Rect destination_bounds, const ToDocument& to_document) {
   if (source.empty() || destination.empty()) {
     return;
   }
@@ -520,10 +526,8 @@ void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, P
   const auto pixel_bytes = bytes_per_pixel(source.format());
   for (std::int32_t y = 0; y < destination.height(); ++y) {
     for (std::int32_t x = 0; x < destination.width(); ++x) {
-      const auto qx = static_cast<double>(destination_bounds.x + x) + 0.5 - map.result_center_x;
-      const auto qy = static_cast<double>(destination_bounds.y + y) + 0.5 - map.result_center_y;
-      const auto document_x = map.document_center_x + map.cos_theta * qx - map.sin_theta * qy;
-      const auto document_y = map.document_center_y + map.sin_theta * qx + map.cos_theta * qy;
+      const auto [document_x, document_y] = to_document(static_cast<double>(destination_bounds.x + x) + 0.5,
+                                                        static_cast<double>(destination_bounds.y + y) + 0.5);
       const auto local_x = document_x - static_cast<double>(source_bounds.x);
       const auto local_y = document_y - static_cast<double>(source_bounds.y);
       if (local_x < 0.0 || local_y < 0.0 || local_x >= static_cast<double>(source.width()) ||
@@ -595,6 +599,16 @@ void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, P
       }
     }
   }
+}
+
+void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,
+                                Rect destination_bounds, const RotatedCropMap& map) {
+  sample_mapped_crop_pixels(source, source_bounds, destination, destination_bounds, [&map](double rx, double ry) {
+    const auto qx = rx - map.result_center_x;
+    const auto qy = ry - map.result_center_y;
+    return std::pair<double, double>{map.document_center_x + map.cos_theta * qx - map.sin_theta * qy,
+                                     map.document_center_y + map.sin_theta * qx + map.cos_theta * qy};
+  });
 }
 
 void crop_layer_mask_rotated(Layer& layer, Rect crop, const RotatedCropMap& map) {
@@ -671,6 +685,227 @@ void crop_document_channel_rotated(DocumentChannel& channel, Rect crop, const Ro
                              Rect::from_size(crop.width, crop.height), map);
   channel.set_pixels(std::move(rotated));
 }
+
+// Perspective Crop (GitHub issue 328): result pixel q shows the document at
+// result_to_document(q), the homography taking the W x H output rect onto the
+// quad. document_to_result is its inverse, normalized so w > 0 inside the quad;
+// `affine` is true when the quad is a parallelogram (no perspective terms), where
+// text and smart-object placements ride the affine rules of the other crops.
+struct PerspectiveCropMap {
+  std::array<double, 9> result_to_document{};
+  std::array<double, 9> document_to_result{};
+  bool affine{false};
+};
+
+[[nodiscard]] std::array<double, 6> perspective_crop_affine(const PerspectiveCropMap& map) {
+  const auto& h = map.document_to_result;
+  return {h[0], h[3], h[1], h[4], h[2], h[5]};
+}
+
+// Integer bounding box of `bounds` in result space, clipped to `canvas`. A rect
+// reaching across the quad's horizon (a corner with w <= 0) has no finite image,
+// so it takes the whole canvas.
+[[nodiscard]] Rect perspective_crop_bounds(Rect bounds, const PerspectiveCropMap& map, Rect canvas) {
+  const auto& h = map.document_to_result;
+  double min_x = 0.0;
+  double min_y = 0.0;
+  double max_x = 0.0;
+  double max_y = 0.0;
+  bool first = true;
+  const std::array<std::pair<double, double>, 4> corners = {
+      std::pair<double, double>{static_cast<double>(bounds.x), static_cast<double>(bounds.y)},
+      {static_cast<double>(bounds.x + bounds.width), static_cast<double>(bounds.y)},
+      {static_cast<double>(bounds.x), static_cast<double>(bounds.y + bounds.height)},
+      {static_cast<double>(bounds.x + bounds.width), static_cast<double>(bounds.y + bounds.height)}};
+  for (const auto& [x, y] : corners) {
+    const double w = h[6] * x + h[7] * y + h[8];
+    if (!(w > 1e-9)) {
+      return canvas;
+    }
+    const double mapped_x = (h[0] * x + h[1] * y + h[2]) / w;
+    const double mapped_y = (h[3] * x + h[4] * y + h[5]) / w;
+    min_x = first ? mapped_x : std::min(min_x, mapped_x);
+    min_y = first ? mapped_y : std::min(min_y, mapped_y);
+    max_x = first ? mapped_x : std::max(max_x, mapped_x);
+    max_y = first ? mapped_y : std::max(max_y, mapped_y);
+    first = false;
+  }
+  // Keep the arithmetic inside int range before the clip: a layer far beyond a
+  // steep quad can land millions of pixels out.
+  const auto clamp_edge = [](double value) { return std::clamp(value, -1.0e8, 1.0e8); };
+  const auto left = static_cast<std::int32_t>(std::floor(clamp_edge(min_x)));
+  const auto top = static_cast<std::int32_t>(std::floor(clamp_edge(min_y)));
+  const auto right = static_cast<std::int32_t>(std::ceil(clamp_edge(max_x)));
+  const auto bottom = static_cast<std::int32_t>(std::ceil(clamp_edge(max_y)));
+  return intersect_rect(Rect{left, top, std::max(0, right - left), std::max(0, bottom - top)}, canvas);
+}
+
+void sample_perspective_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,
+                                    Rect destination_bounds, const PerspectiveCropMap& map) {
+  sample_mapped_crop_pixels(source, source_bounds, destination, destination_bounds, [&map](double rx, double ry) {
+    const auto point = apply_homography(map.result_to_document, rx, ry);
+    return std::pair<double, double>{point[0], point[1]};
+  });
+}
+
+// The rotated crop's layer rules (crop_layer_to_rect_rotated) under the homography.
+void perspective_crop_layer(Layer& layer, Rect result_canvas, const PerspectiveCropMap& map,
+                            EditColor extension_color) {
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      perspective_crop_layer(child, result_canvas, map, extension_color);
+    }
+    return;
+  }
+  if (auto& mask = layer.mask(); mask.has_value()) {
+    const auto destination_bounds = perspective_crop_bounds(mask->bounds, map, result_canvas);
+    if (destination_bounds.empty() || mask->pixels.empty()) {
+      mask->bounds = {};
+      mask->pixels = PixelBuffer(0, 0, mask->pixels.format());
+    } else {
+      PixelBuffer mapped(destination_bounds.width, destination_bounds.height, mask->pixels.format());
+      fill_coverage(mapped, mask->default_color);
+      sample_perspective_crop_pixels(mask->pixels, mask->bounds, mapped, destination_bounds, map);
+      mask->pixels = std::move(mapped);
+      mask->bounds = destination_bounds;
+    }
+  }
+  if (layer.kind() != LayerKind::Pixel) {
+    if (!layer.bounds().empty()) {
+      const auto moved = perspective_crop_bounds(layer.bounds(), map, result_canvas);
+      layer.set_bounds(moved.empty() ? Rect{} : moved);
+    }
+    return;
+  }
+
+  const auto old_bounds = layer.bounds();
+  const auto& source = std::as_const(layer).pixels();
+  if (layer.name() == "Background" && source.format().channels >= 3) {
+    // Canvas-sized rebuild with the canvas-resize fill rules under area the quad
+    // takes from beyond the canvas, as the rotated crop does.
+    PixelBuffer mapped(result_canvas.width, result_canvas.height,
+                       canvas_resized_format_for_layer(layer, source, extension_color));
+    fill_resized_layer_background(mapped, layer, extension_color);
+    sample_perspective_crop_pixels(source, old_bounds, mapped, result_canvas, map);
+    layer.set_pixels(std::move(mapped));
+    layer.set_bounds(result_canvas);
+    return;
+  }
+
+  const auto destination_bounds = perspective_crop_bounds(old_bounds, map, result_canvas);
+  if (destination_bounds.empty() || source.empty()) {
+    PixelBuffer empty(0, 0, source.format());
+    layer.set_pixels(std::move(empty));
+    layer.set_bounds({});
+    return;
+  }
+  PixelBuffer mapped(destination_bounds.width, destination_bounds.height,
+                     canvas_resized_format_for_layer(layer, source, EditColor{0, 0, 0, 0}));
+  mapped.clear(0);
+  sample_perspective_crop_pixels(source, old_bounds, mapped, destination_bounds, map);
+  layer.set_pixels(std::move(mapped));
+  layer.set_bounds(destination_bounds);
+}
+
+// Under a true perspective map type cannot stay live (Free Transform refuses
+// Distort and Perspective on type for the same reason), so text layers keep their
+// mapped raster as plain pixels; smart objects take a perspective placement
+// (map_smart_object_placement, Free Transform's rule).
+void perspective_crop_layer_metadata(std::vector<Layer>& layers, const PerspectiveCropMap& map) {
+  for (auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      perspective_crop_layer_metadata(layer.children(), map);
+      continue;
+    }
+    if (layer_is_text(std::as_const(layer))) {
+      clear_layer_text_metadata(layer);
+    }
+    if (!layer_is_smart_object(std::as_const(layer))) {
+      continue;
+    }
+    const auto placement = smart_object_placement_from_layer(std::as_const(layer));
+    if (!placement.has_value()) {
+      continue;
+    }
+    store_smart_object_placement(layer, map_smart_object_placement(*placement, map.document_to_result));
+    mark_layer_smart_object_block_dirty(layer);
+    layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+  }
+}
+
+void perspective_crop_document_channel(DocumentChannel& channel, Rect result_canvas,
+                                       const PerspectiveCropMap& map) {
+  const auto& source = std::as_const(channel).pixels();
+  PixelBuffer mapped(result_canvas.width, result_canvas.height, source.format());
+  fill_coverage(mapped, channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
+  sample_perspective_crop_pixels(source, Rect{0, 0, source.width(), source.height()}, mapped, result_canvas, map);
+  channel.set_pixels(std::move(mapped));
+}
+
+}  // namespace
+
+bool perspective_crop_quad_is_convex(const std::array<double, 8>& quad) {
+  double scale = 1.0;
+  for (const auto value : quad) {
+    if (!std::isfinite(value)) {
+      return false;
+    }
+    scale = std::max(scale, std::abs(value));
+  }
+  int winding = 0;
+  for (std::size_t i = 0; i < 4U; ++i) {
+    const auto a = i * 2U;
+    const auto b = ((i + 1U) % 4U) * 2U;
+    const auto c = ((i + 2U) % 4U) * 2U;
+    const double cross =
+        (quad[b] - quad[a]) * (quad[c + 1U] - quad[b + 1U]) - (quad[b + 1U] - quad[a + 1U]) * (quad[c] - quad[b]);
+    if (std::abs(cross) <= 1e-9 * scale * scale) {
+      return false;
+    }
+    const int sign = cross > 0.0 ? 1 : -1;
+    if (winding == 0) {
+      winding = sign;
+    } else if (sign != winding) {
+      return false;
+    }
+  }
+  return true;
+}
+
+namespace {
+
+[[nodiscard]] std::optional<PerspectiveCropMap> perspective_crop_map(const std::array<double, 8>& quad,
+                                                                     std::int32_t width, std::int32_t height) {
+  if (width <= 0 || height <= 0 || !perspective_crop_quad_is_convex(quad)) {
+    return std::nullopt;
+  }
+  const auto forward =
+      homography_from_rect_to_quad(0.0, 0.0, static_cast<double>(width), static_cast<double>(height), quad);
+  if (!forward.has_value()) {
+    return std::nullopt;
+  }
+  const auto inverse = invert_homography(*forward);
+  if (!inverse.has_value() || !std::isfinite((*inverse)[8]) || std::abs((*inverse)[8]) < 1e-300) {
+    return std::nullopt;
+  }
+  PerspectiveCropMap map;
+  map.result_to_document = *forward;
+  // Normalized so the last entry is 1: w stays positive inside the convex quad,
+  // and a parallelogram's inverse keeps exact zeros in its perspective terms.
+  const double scale = (*inverse)[8];
+  for (std::size_t i = 0; i < 9U; ++i) {
+    map.document_to_result[i] = (*inverse)[i] / scale;
+  }
+  map.document_to_result[8] = 1.0;
+  for (const auto value : map.document_to_result) {
+    if (!std::isfinite(value)) {
+      return std::nullopt;
+    }
+  }
+  map.affine = map.document_to_result[6] == 0.0 && map.document_to_result[7] == 0.0;
+  return map;
+}
+
 
 // Crop that may extend past the canvas: content outside `crop` is discarded and
 // buffers stay tight, except a pixel layer literally named "Background", which
@@ -1289,6 +1524,65 @@ bool crop_document(Document& document, Rect crop, EditColor extension_color) {
                                  Rect::from_size(crop.width, crop.height));
   return true;
 }
+
+std::array<std::int32_t, 2> perspective_crop_auto_size(const std::array<double, 8>& quad) {
+  const auto edge = [&quad](std::size_t from, std::size_t to) {
+    return std::hypot(quad[to * 2U] - quad[from * 2U], quad[to * 2U + 1U] - quad[from * 2U + 1U]);
+  };
+  const auto clamp_size = [](double value) {
+    return static_cast<std::int32_t>(std::clamp<long long>(std::llround(value), 1LL, 300000LL));
+  };
+  return {clamp_size((edge(0, 1) + edge(3, 2)) / 2.0), clamp_size((edge(0, 3) + edge(1, 2)) / 2.0)};
+}
+
+bool perspective_crop_document(Document& document, const std::array<double, 8>& quad, std::int32_t width,
+                               std::int32_t height, EditColor extension_color) {
+  if (document_has_artboards(std::as_const(document))) {
+    return false;
+  }
+  const auto map = perspective_crop_map(quad, width, height);
+  if (!map.has_value()) {
+    return false;
+  }
+  const auto result_canvas = Rect::from_size(width, height);
+  if (map->affine) {
+    const auto affine = perspective_crop_affine(*map);
+    compose_document_text_transforms(document.layers(), affine);
+    compose_document_smart_object_placements(document.layers(), affine);
+  } else {
+    perspective_crop_layer_metadata(document.layers(), *map);
+  }
+  for (auto& layer : document.layers()) {
+    perspective_crop_layer(layer, result_canvas, *map, extension_color);
+  }
+  for (auto& channel : document.channels()) {
+    perspective_crop_document_channel(channel, result_canvas, *map);
+  }
+  document.resize_canvas(width, height);
+  if (map->affine) {
+    transform_document_vector_data(document, perspective_crop_affine(*map), result_canvas);
+    return true;
+  }
+  // transform_document_vector_data's projective twin (artboards are refused above).
+  forget_psd_slices(document);
+  const auto walk = [&document, &map, result_canvas](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (layer.kind() == LayerKind::Group) {
+        self(self, layer.children());
+        continue;
+      }
+      transform_layer_vector_data_projective(document, layer, map->document_to_result, result_canvas);
+    }
+  };
+  walk(walk, document.layers());
+  for (auto& path : document.paths()) {
+    auto updated = path.path();
+    transform_vector_path_projective(updated, map->document_to_result);
+    path.set_path(std::move(updated));
+  }
+  return true;
+}
+
 
 void rotate_document_clockwise(Document& document) {
   const auto old_width = document.width();

@@ -79,7 +79,9 @@ enum class CanvasTool {
   // October 2026 Artboard tool (append-only: values ride persisted settings).
   Artboard,
   // October 2026 Polygonal Lasso (append-only: values ride persisted settings).
-  PolygonLasso
+  PolygonLasso,
+  // October 2026 Perspective Crop (append-only: values ride persisted settings).
+  PerspectiveCrop
 };
 
 // What the Artboard tool (and the artboard labels any tool can click) asks MainWindow to do;

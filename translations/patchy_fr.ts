@@ -11845,6 +11845,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Right</source>
         <translation>Droite</translation>
     </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Recadrage perspective</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13519,6 +13523,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Select a layer to sample it and the layers below, or sample all layers</source>
         <translation>Sélectionnez un calque pour échantillonner ce calque et ceux du dessous, ou échantillonnez tous les calques</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: place four corners first</source>
+        <translation>Rien à recadrer : placez d&apos;abord quatre coins</translation>
+    </message>
+    <message>
+        <source>Perspective crop cancelled</source>
+        <translation>Recadrage perspective annulé</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Les coins doivent former une forme convexe</translation>
     </message>
 </context>
 <context>
@@ -23922,6 +23938,86 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Trimmed to %1 x %2</source>
         <translation>Rogné à %1 x %2</translation>
     </message>
+    <message>
+        <source>Width of the result; blank uses the spacing of the corners</source>
+        <translation>Largeur du résultat ; vide utilise l&apos;écart entre les coins</translation>
+    </message>
+    <message>
+        <source>Height of the result; blank uses the spacing of the corners</source>
+        <translation>Hauteur du résultat ; vide utilise l&apos;écart entre les coins</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Résolution :</translation>
+    </message>
+    <message>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <translation>Résolution du résultat en pixels par pouce ; vide conserve celle du document</translation>
+    </message>
+    <message>
+        <source>Front Image</source>
+        <translation>Image de premier plan</translation>
+    </message>
+    <message>
+        <source>Fill in the width, height and resolution of this document</source>
+        <translation>Reprendre la largeur, la hauteur et la résolution de ce document</translation>
+    </message>
+    <message>
+        <source>Clear the width, height and resolution</source>
+        <translation>Effacer la largeur, la hauteur et la résolution</translation>
+    </message>
+    <message>
+        <source>Show Grid</source>
+        <translation>Afficher la grille</translation>
+    </message>
+    <message>
+        <source>Draw a grid inside the corners to line them up with the area</source>
+        <translation>Dessiner une grille entre les coins pour les aligner sur la zone</translation>
+    </message>
+    <message>
+        <source>Apply perspective crop (Enter)</source>
+        <translation>Appliquer le recadrage perspective (Enter)</translation>
+    </message>
+    <message>
+        <source>Clear the corners (Esc)</source>
+        <translation>Effacer les coins (Échap)</translation>
+    </message>
+    <message>
+        <source>Perspective Crop</source>
+        <translation>Recadrage perspective</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
+        <translation>Faites glisser un cadre ou cliquez quatre coins autour d&apos;une zone inclinée, puis faites glisser les coins sur ses bords. Entrée la redresse en rectangle.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Recadrage perspective : faites glisser un cadre ou cliquez quatre coins, puis faites glisser chaque coin sur les bords de la zone. Faites glisser à l&apos;intérieur pour le déplacer. Entrée recadre et redresse, Échap efface les coins.</translation>
+    </message>
+    <message>
+        <source>Crop Tools</source>
+        <translation>Outils de recadrage</translation>
+    </message>
+    <message>
+        <source>Cycle Crop Tools</source>
+        <translation>Alterner les outils de recadrage</translation>
+    </message>
+    <message>
+        <source>The corners must form a convex shape</source>
+        <translation>Les coins doivent former une forme convexe</translation>
+    </message>
+    <message>
+        <source>Cropped and straightened</source>
+        <translation>Recadré et redressé</translation>
+    </message>
+    <message>
+        <source>Corners: %1 x %2 px apart</source>
+        <translation>Coins : écart de %1 x %2 px</translation>
+    </message>
+    <message>
+        <source>Corners: none placed</source>
+        <translation>Coins : aucun placé</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25706,6 +25802,18 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>trim does not apply to a document with artboards.</source>
         <translation>trim ne s&apos;applique pas à un document avec des plans de travail.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop needs four corners: [[x, y], [x, y], [x, y], [x, y]] or four {x, y} points.</source>
+        <translation>perspectiveCrop exige quatre coins : [[x, y], [x, y], [x, y], [x, y]] ou quatre points {x, y}.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop options are {width, height, resolution}: sizes from 1 to 300000, resolution 0 or more.</source>
+        <translation>Les options de perspectiveCrop sont {width, height, resolution} : tailles de 1 à 300000, résolution 0 ou plus.</translation>
+    </message>
+    <message>
+        <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
+        <translation>Les coins de perspectiveCrop doivent former une forme convexe, et les documents avec plans de travail ne peuvent pas être recadrés.</translation>
     </message>
 </context>
 <context>
