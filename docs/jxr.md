@@ -27,8 +27,10 @@ Windows, so unlike HEIF there is no Store package to probe, no missing-codec mar
 Store deep link, and no codec of Patchy's own. It shares `patchy_formats`' Windows link
 of `windowscodecs` and `ole32` with the HEIF reader.
 
-No other platform has a decoder and Qt ships no JPEG XR plugin, so `read_jxr` and
-`write_jxr` always throw there. The whole filter-table row is gated on
+Linux support was [reviewed](https://github.com/SethRobinson/Patchy/issues/269) and it
+ships the original library published by Microsoft on CodePlex in 2013, but it lacks
+fuzzy fixes and contains crashes. Qt ships no JPEG XR plugin, so
+`read_jxr` and `write_jxr` always throw there. The whole filter-table row is gated on
 `jxr::is_available()`, following the PDF row's conditional-open pattern, so no platform
 offers an open or a save that could only fail.
 
