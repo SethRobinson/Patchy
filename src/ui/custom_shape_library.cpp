@@ -3,6 +3,7 @@
 #include "ui/default_custom_shapes.hpp"
 #include "ui/localization.hpp"
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -11,6 +12,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QSaveFile>
+#include <QSignalBlocker>
 #include <QUuid>
 
 #include <utility>
@@ -61,6 +63,19 @@ QString custom_shape_display_name(const CustomShapeLibraryEntry& entry) {
     }
   }
   return entry.name;
+}
+
+void populate_custom_shape_combo(QComboBox& combo, const CustomShapeLibrary& library) {
+  const auto previous = combo.currentData().toString();
+  QSignalBlocker blocker(&combo);
+  combo.setIconSize(QSize(24, 24));
+  combo.clear();
+  for (const auto& entry : library.entries()) {
+    combo.addItem(QIcon(entry.thumbnail), custom_shape_display_name(entry), entry.id);
+  }
+  if (const auto index = combo.findData(previous); index >= 0) {
+    combo.setCurrentIndex(index);
+  }
 }
 
 CustomShapeLibrary::CustomShapeLibrary(QString storage_dir, QObject* parent)

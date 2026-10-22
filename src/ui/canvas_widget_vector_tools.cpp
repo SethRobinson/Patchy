@@ -438,6 +438,41 @@ bool CanvasWidget::handle_pen_ctrl_press(QMouseEvent* event, QPointF document_po
   return handle_path_edit_press(event, document_point);
 }
 
+// Ctrl+press with a shape tool: Path Select semantics without switching tools
+// (GitHub issue 312). The gesture latches onto the path-edit handlers until
+// release; releasing Ctrl mid-drag keeps it, and the next plain press draws.
+bool CanvasWidget::handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point) {
+  if (edit_locked_) {
+    show_edit_locked_message();
+    return true;
+  }
+  if (path_edit_target_path() == nullptr) {
+    // Nothing targeted yet: a press on a shape layer picks it, like Path Select.
+    if (auto* picked = topmost_path_pick_layer_at(QPointF(event->position())); picked != nullptr) {
+      activate_layer(*picked);
+    }
+    if (path_edit_target_path() == nullptr) {
+      return true;  // nothing to select; a modifier chord should not flash an error
+    }
+  }
+  shape_temp_path_select_ = true;
+  set_shape_ctrl_path_select(true);
+  return handle_path_edit_press(event, document_point);
+}
+
+void CanvasWidget::set_shape_ctrl_path_select(bool active) {
+  if (!shape_tool_active()) {
+    active = false;
+  }
+  if (shape_ctrl_path_select_ == active) {
+    return;
+  }
+  shape_ctrl_path_select_ = active;
+  path_hover_hint_target_ = PathHoverTarget::None;
+  update_tool_cursor();
+  update();  // the path overlay shows its editing view only while Ctrl is held
+}
+
 int CanvasWidget::pen_session_anchor_at(QPointF widget_point) const {
   for (int i = 0; i < static_cast<int>(pen_anchors_.size()); ++i) {
     const auto& anchor = pen_anchors_[static_cast<std::size_t>(i)];
@@ -688,7 +723,8 @@ void CanvasWidget::draw_pen_overlay(QPainter& painter) {
 
 bool CanvasWidget::path_edit_tool_active() const noexcept {
   return tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect ||
-         pen_family_tool_active();
+         pen_family_tool_active() ||
+         (shape_tool_active() && !drawing_shape_ && (shape_ctrl_path_select_ || shape_temp_path_select_));
 }
 
 bool CanvasWidget::shape_tool_active() const noexcept {
@@ -719,6 +755,9 @@ bool CanvasWidget::pen_family_tool_active() const noexcept {
 CanvasTool CanvasWidget::path_edit_tool() const noexcept {
   if (pen_family_tool_active() && pen_temp_direct_select_) {
     return CanvasTool::DirectSelect;
+  }
+  if (shape_tool_active() && !drawing_shape_ && (shape_ctrl_path_select_ || shape_temp_path_select_)) {
+    return CanvasTool::PathSelect;
   }
   if (arrow_swap_active_) {
     // Ctrl held: the other arrow (GitHub issue 248).

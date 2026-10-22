@@ -15,9 +15,9 @@ mask/channel/quick-mask targets always rasterize. Release creates a
 shape layer from live parameters (rect, rounded rect via Radius, ellipse,
 line with Weight) and the options-bar paints. Stroke alignment defaults to
 Inside, like PS. Combine (New Layer / Add / Subtract / Intersect / Exclude)
-appends a group with that op to the active shape layer. Path mode appends the
-same subpaths to the work path; Pixels keeps the legacy raster commit
-byte-identical.
+appends a group with that op to the active shape layer (Shift at the press: Add
+once; Ctrl: [Path Select](vector-commands.md#tool-roles)). Path mode appends
+to the work path; Pixels keeps the raster commit byte-identical.
 
 Fill/Stroke popups (No Fill / Solid / Gradient / Pattern) use app-wide
 `VectorFill` mirrors. Gradient picks resolve FG/BG stops immediately; patterns
@@ -28,16 +28,15 @@ launch. The controls also serve Path Select / Direct Select and next-shape
 defaults; stroke controls stay enabled when any eligible target has a
 stroke; multi-shape edits: [batch appearance](batch-appearance.md).
 
-A bare click (no drag) with Rectangle, Ellipse, Polygon, or Custom Shape
-opens the Create <Shape> dialog (shape_create_dialog.cpp): Width, Height,
-From Center (checked, the click is the center; otherwise the top-left
-corner), and per-corner radii for rectangles prefilled from the options-bar
-Radius. The result commits exactly like a drag (mode routing, Combine,
-vector-mask target, naming); values are remembered per tool for the
-session. The click test is a release on the press's own document pixel; any
-real extent commits as a drag. Line has no dialog (Photoshop has none), a
-Fixed Size style click still places its W x H, and Pixels mode keeps its
-legacy click.
+A bare click with Rectangle, Ellipse, Polygon, or Custom Shape opens the
+Create <Shape> dialog (shape_create_dialog.cpp, no shape menu): W and H share
+a row, From Center (click = center, else top-left), the title fits.
+Rectangle: one linked Radius (unlinked or unequal radii: four corners).
+Polygon: Sides; Custom Shape: the bar's picker (`populate_custom_shape_combo`);
+both go back to the bar. It commits like a drag (mode routing, Combine,
+vector-mask target, naming); values persist per tool for the session.
+A click releases on the press's document pixel. Line has no dialog, a
+Fixed Size click places its W x H, and Pixels mode keeps its legacy click.
 
 The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
 link button for proportional edits) mirror the active shape layer's path
@@ -61,9 +60,8 @@ the active one per Combine); other modes route to the work path. The overlay
 draws in canvas_widget_vector_tools.cpp (canvas_widget_pen.cpp is tablet
 input).
 
-A badge cursor shows the click action; the hover classifier, Auto
-Add/Delete, and the anchor tools are in [vector-commands.md](vector-commands.md).
-Holding Ctrl acts as Direct
+Badge cursor, hover classifier, Auto Add/Delete, anchor tools:
+[vector-commands.md](vector-commands.md). Holding Ctrl acts as Direct
 Select: with no session it latches the gesture onto the path-edit handlers
 (one "Edit path" undo entry); mid-session it drags an in-progress anchor
 (Ctrl+click away ends the path); Ctrl never inserts, deletes, closes or

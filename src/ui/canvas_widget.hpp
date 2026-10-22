@@ -685,6 +685,10 @@ public:
   [[nodiscard]] VectorToolMode vector_tool_mode() const noexcept;
   void set_vector_shape_drawn_callback(
       std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> callback);
+  // True while a shape drag pressed with Shift commits (GitHub issue 313): the host
+  // adds that one shape to the targeted shape layer (Combine: Add) without
+  // changing the options-bar Combine setting.
+  [[nodiscard]] bool shape_drag_adds_to_shape() const noexcept { return shape_press_adds_to_shape_; }
   // A bare click (no drag) with Rectangle/Ellipse/Polygon/Custom Shape in a
   // vector mode asks the host for dimensions instead of committing a
   // degenerate shape (Photoshop's Create <Shape> dialog; the click point is
@@ -1910,6 +1914,9 @@ private:
   [[nodiscard]] PathHoverTarget path_hover_target_at(QPointF widget_point) const;
   void update_path_select_hover_hint(PathHoverTarget target);
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
+  // Ctrl with a shape tool acts as Path Select (GitHub issue 312).
+  bool handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point);
+  void set_shape_ctrl_path_select(bool active);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
   [[nodiscard]] bool path_edit_tool_active() const noexcept;
@@ -1920,7 +1927,8 @@ private:
   // own path only under a shape tool. Show Target Path, Ctrl+H and a pen session still apply.
   [[nodiscard]] bool target_path_outline_tool_allows() const;
   // The tool the path-edit handlers should behave as: DirectSelect while the
-  // Pen's Ctrl latch is held, the actual tool otherwise.
+  // Pen's Ctrl latch is held, PathSelect while a shape tool's Ctrl is, the
+  // actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
   // What owns the target path (vector mask, document path, text area, shape layer, or the
@@ -2483,6 +2491,13 @@ private:
   // Drops every per-session warp preview cache (base, its mips, patches, source mips).
   void clear_warp_preview_caches();
   [[nodiscard]] std::array<double, 8> warp_document_quad() const;
+  // Whether `candidate` keeps the warp placeable (GitHub issue 299): its control hull
+  // stays on the near side of the content->document map's horizon (a perspective
+  // stage carried into the cage), and its document quad stays within the canvas grown
+  // by twice its larger side (at least 4096 px), unless it is no worse than `current`.
+  // A handle drag that fails keeps the last good position.
+  [[nodiscard]] bool warp_mesh_placement_is_sane(const WarpMeshGrid& candidate,
+                                                 const WarpMeshGrid& current) const;
   // Bakes (mesh, content->document map) into the layer at commit quality and, for
   // smart objects, writes the mesh + hull-quad placement metadata. Shared by the
   // warp commit and the free-transform commit of a pending warp session.
@@ -2628,6 +2643,8 @@ private:
   QPoint shape_current_{};
   bool shape_square_constrained_{false};
   bool shape_from_center_{false};
+  // Shift held at the shape press: set per press, cleared once the release commits.
+  bool shape_press_adds_to_shape_{false};
   MarqueeStyle shape_style_{MarqueeStyle::Normal};
   QSize shape_fixed_size_{1024, 768};
   VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
@@ -2648,6 +2665,10 @@ private:
   // Ctrl held at press latches the gesture onto the path-edit handlers with
   // DirectSelect semantics (press -> release; releasing Ctrl mid-drag keeps it).
   bool pen_temp_direct_select_{false};
+  // Shape tools: Ctrl held while idle (cursor and overlay show Path Select), and the
+  // gesture a Ctrl press latched onto the path-edit handlers (press -> release).
+  bool shape_ctrl_path_select_{false};
+  bool shape_temp_path_select_{false};
   bool pen_auto_add_delete_{true};
   PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
   PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};
@@ -3619,6 +3640,10 @@ private:
 struct TransformedImage {
   QImage image;
   Rect bounds{};
+  // resample_warped_rgba8 only: (pixel, cell) inverse tests the walk ran, the warp
+  // renderer's work measure (GitHub issue 299: a stretched cell must not test its
+  // whole bounding box).
+  std::uint64_t cell_pixel_tests{0};
 };
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation);

@@ -8310,10 +8310,6 @@ Mixed selection</source>
         <translation>中心から</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>角の半径</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>左上:</translation>
     </message>
@@ -11757,6 +11753,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>マイルック</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>シェイプ:</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>角数:</translation>
+    </message>
+    <message>
+        <source>Radius:</source>
+        <translation>半径:</translation>
     </message>
 </context>
 <context>

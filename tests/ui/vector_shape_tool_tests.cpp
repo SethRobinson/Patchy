@@ -69,6 +69,7 @@
 #include <QTimer>
 #include <QMouseEvent>
 #include <QToolBar>
+#include <QFontMetrics>
 #include <QToolButton>
 #include <QPushButton>
 #include <QEvent>
@@ -2679,6 +2680,166 @@ void ui_pen_ctrl_drag_moves_in_progress_session_anchor() {
   CHECK(std::abs(anchors[1].out_x - 340.0) < 1.5);
 }
 
+// Ctrl with a shape tool is a temporary Path Select (GitHub issue 312): the arrow
+// cursor, click or marquee selects and deselects whole shapes, a drag moves the
+// selected shape as one undo step, and the next plain drag draws again.
+void ui_shape_tool_ctrl_acts_as_path_select() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // 100,100 - 300,220
+  shape_drag(*canvas, QPoint(400, 300), QPoint(500, 380));
+  const auto second_id = document.active_layer_id();
+  CHECK(second_id.has_value() && *second_id != first_id);
+  const auto layer_count = document.layers().size();
+  canvas->setFocus();
+
+  const auto widget = [&](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto ctrl_drag = [&](QPoint from, QPoint to) {
+    drag(*canvas, widget(from), widget(to), Qt::ControlModifier);
+    QApplication::processEvents();
+  };
+  const auto path_select_image = patchy::ui::path_select_cursor().pixmap().toImage();
+
+  // Ctrl with a stationary pointer shows the Path Select arrow, and releasing it
+  // gives the drawing cursor back.
+  send_mouse(*canvas, QEvent::MouseMove, widget(QPoint(600, 450)), Qt::NoButton, Qt::NoButton,
+             Qt::NoModifier);
+  const auto drawing_image = canvas->cursor().pixmap().toImage();
+  CHECK(drawing_image != path_select_image);
+  send_key_press(*canvas, Qt::Key_Control, Qt::NoModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == path_select_image);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == drawing_image);
+  // A hover move carrying Ctrl shows it too.
+  send_mouse(*canvas, QEvent::MouseMove, widget(QPoint(610, 450)), Qt::NoButton, Qt::NoButton,
+             Qt::ControlModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == path_select_image);
+  send_mouse(*canvas, QEvent::MouseMove, widget(QPoint(600, 450)), Qt::NoButton, Qt::NoButton,
+             Qt::NoModifier);
+
+  // Ctrl+click inside the other shape picks its layer and selects the shape; nothing is drawn.
+  ctrl_drag(QPoint(200, 160), QPoint(200, 160));
+  CHECK(document.active_layer_id() == first_id);
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(document.layers().size() == layer_count);
+  CHECK(document.find_layer(first_id)->vector_shape()->path.subpaths.size() == 1);
+  save_widget_artifact("ui_shape_tool_ctrl_acts_as_path_select", window);
+
+  // Ctrl+click on empty canvas deselects.
+  ctrl_drag(QPoint(650, 80), QPoint(650, 80));
+  CHECK(!canvas->path_edit_has_selection());
+
+  // A Ctrl marquee touching the shape selects it.
+  ctrl_drag(QPoint(50, 50), QPoint(150, 150));
+  CHECK(canvas->path_edit_has_selection());
+  ctrl_drag(QPoint(650, 80), QPoint(650, 80));
+  CHECK(!canvas->path_edit_has_selection());
+
+  // Ctrl+drag on the shape moves it by (50, 30).
+  ctrl_drag(QPoint(200, 160), QPoint(250, 190));
+  const auto* content = document.find_layer(first_id)->vector_shape();
+  CHECK(content->path.subpaths.size() == 1);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 150.0) < 1.0);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_y - 130.0) < 1.0);
+  CHECK(document.layers().size() == layer_count);
+
+  // The move is one history entry.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  content = document.find_layer(first_id)->vector_shape();
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 100.0) < 0.5);
+  CHECK(document.layers().size() == layer_count);
+
+  // Without Ctrl the tool draws a new shape layer again.
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(420, 60), QPoint(520, 140));
+  CHECK(document.layers().size() == layer_count + 1);
+}
+
+// Shift held at a shape tool's press adds that one shape to the targeted shape layer, even
+// a different kind of shape (GitHub issue 313); the drag still constrains, the options-bar
+// Combine setting stays New Layer, and the add is one undo step.
+void ui_shape_tool_shift_press_adds_to_shape_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* combine_combo = window.findChild<QComboBox*>(QStringLiteral("vectorCombineCombo"));
+  CHECK(combine_combo != nullptr);
+  const auto layers_at_start = document.layers().size();
+  const auto bounds_of = [](const patchy::PathSubpath& subpath) {
+    double left = 1e9;
+    double top = 1e9;
+    double right = -1e9;
+    double bottom = -1e9;
+    for (const auto& anchor : subpath.anchors) {
+      left = std::min(left, anchor.anchor_x);
+      top = std::min(top, anchor.anchor_y);
+      right = std::max(right, anchor.anchor_x);
+      bottom = std::max(bottom, anchor.anchor_y);
+    }
+    return QRectF(QPointF(left, top), QPointF(right, bottom));
+  };
+
+  // No shape layer targeted: Shift at the press makes a new layer as before, constrained.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(300, 220)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_at_start + 1);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  {
+    const auto& path = document.find_layer(*layer_id)->vector_shape()->path;
+    CHECK(path.subpaths.size() == 1);
+    const auto square = bounds_of(path.subpaths[0]);
+    CHECK(square.width() > 50.0);
+    CHECK(std::abs(square.width() - square.height()) < 1.0);
+  }
+
+  // The shape layer is targeted: Shift at an Ellipse press adds a circle to it.
+  canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  CHECK(combine_combo->currentIndex() == 0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(400, 250)),
+       canvas->widget_position_for_document_point(QPoint(520, 320)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_at_start + 1);
+  CHECK(document.active_layer_id() == layer_id);
+  {
+    const auto* content = document.find_layer(*layer_id)->vector_shape();
+    CHECK(content->path.subpaths.size() == 2);
+    CHECK(content->path.subpaths[1].op == patchy::PathCombineOp::Add);
+    CHECK(content->path.subpaths[1].shape_group != content->path.subpaths[0].shape_group);
+    const auto circle = bounds_of(content->path.subpaths[1]);
+    CHECK(circle.left() >= 399.0);
+    CHECK(std::abs(circle.width() - circle.height()) < 1.0);
+    CHECK(content->origination.size() == 2);
+    CHECK(content->origination[1].kind == patchy::LiveShapeKind::Ellipse);
+  }
+  CHECK(combine_combo->currentIndex() == 0);
+  save_widget_artifact("ui_shape_tool_shift_press_adds_to_shape_layer", window);
+
+  // One undo step takes the added shape back off the layer.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_at_start + 1);
+  CHECK(document.find_layer(*layer_id)->vector_shape()->path.subpaths.size() == 1);
+
+  // The Combine setting never changed: a plain drag still makes a new layer.
+  shape_drag(*canvas, QPoint(400, 250), QPoint(520, 320));
+  CHECK(document.layers().size() == layers_at_start + 2);
+  CHECK(document.find_layer(*layer_id)->vector_shape()->path.subpaths.size() == 1);
+}
+
 void ui_pen_session_start_shows_hint_message() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -3580,7 +3741,8 @@ std::function<void()> shape_create_dialog_answer(bool& seen, double width, doubl
       center_check->setChecked(from_center != 0);
     }
     if (radius >= 0.0) {
-      for (const auto* name : {"shapeCreateRadiusTopLeftSpin", "shapeCreateRadiusTopRightSpin",
+      for (const auto* name : {"shapeCreateRadiusSpin", "shapeCreateRadiusTopLeftSpin",
+                               "shapeCreateRadiusTopRightSpin",
                                "shapeCreateRadiusBottomRightSpin", "shapeCreateRadiusBottomLeftSpin"}) {
         if (auto* spin = dialog->findChild<QDoubleSpinBox*>(QLatin1String(name)); spin != nullptr) {
           spin->setValue(radius);
@@ -3622,11 +3784,14 @@ void ui_shape_tap_opens_create_dialog_and_places_rectangle() {
     auto* height_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateHeightSpin"));
     auto* center_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeCreateFromCenterCheck"));
     auto* top_left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopLeftSpin"));
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
     CHECK(width_spin != nullptr && height_spin != nullptr && center_check != nullptr &&
-          top_left != nullptr);
+          top_left != nullptr && link != nullptr);
     CHECK(!center_check->isChecked());
-    // The radii prefill from the options-bar Radius (0 here).
+    // The radii prefill from the options-bar Radius (0 here), linked.
     CHECK(std::abs(top_left->value()) < 1e-9);
+    CHECK(link->isChecked());
+    link->click();  // unlink to round one corner only
     width_spin->setValue(150.0);
     height_spin->setValue(80.0);
     top_left->setValue(10.0);
@@ -3786,6 +3951,7 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   CHECK(content != nullptr);
   CHECK(content->path.subpaths.size() == 1);
   CHECK(content->path.subpaths[0].anchors.size() == 5);
+  const auto polygon_layer_id = *document.active_layer_id();
   const auto polygon_bounds = content->path.bounds();
   CHECK(polygon_bounds.has_value());
   CHECK(std::abs(polygon_bounds->top - 400.0) < 0.5);           // apex touches the box top
@@ -3793,12 +3959,45 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   CHECK(polygon_bounds->right > 495.0 && polygon_bounds->right < 500.0);
   CHECK(polygon_bounds->bottom > 488.0 && polygon_bounds->bottom < 493.0);
 
+  // The dialog's Sides field starts at the bar's count; a new count makes the
+  // polygon and becomes the tool's (GitHub issue 309).
+  seen = false;
+  // Placed clear of the custom shape below: a click snaps to nearby shape edges.
+  shape_tap(*canvas, QPoint(600, 250), [&seen] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* sides = dialog->findChild<QSpinBox*>(QStringLiteral("shapeCreateSidesSpin"));
+    CHECK(sides != nullptr);
+    if (sides == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(sides->value() == 5);
+    sides->setValue(7);
+    dialog->accept();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 3);
+  CHECK(*document.active_layer_id() != polygon_layer_id);
+  layer = document.find_layer(*document.active_layer_id());
+  content = layer != nullptr ? layer->vector_shape() : nullptr;
+  CHECK(content != nullptr && content->path.subpaths.size() == 1);
+  if (content != nullptr && content->path.subpaths.size() == 1) {
+    CHECK(content->path.subpaths[0].anchors.size() == 7);
+  }
+  CHECK(sides_spin->value() == 7);
+  CHECK(canvas->polygon_sides() == 7);
+
   // Custom Shape: the library shape stamped into the box.
   canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
   seen = false;
   shape_tap(*canvas, QPoint(100, 500), shape_create_dialog_answer(seen, 80.0, 40.0, 0, -1.0, true));
   CHECK(seen);
-  CHECK(document.layers().size() == initial_layers + 3);
+  CHECK(document.layers().size() == initial_layers + 4);
   layer = document.find_layer(*document.active_layer_id());
   CHECK(layer != nullptr);
   CHECK(layer->name() == "Custom Shape 1");
@@ -3809,6 +4008,236 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   CHECK(custom_bounds->left >= 99.5 && custom_bounds->right <= 180.5);
   CHECK(custom_bounds->top >= 499.5 && custom_bounds->bottom <= 540.5);
   CHECK(custom_bounds->right - custom_bounds->left > 40.0);
+
+  // The dialog's Shape picker lists the bar's shapes, starts on the bar's
+  // shape, and the one picked is created and becomes the tool's (issue 309).
+  auto* bar_combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(bar_combo != nullptr && bar_combo->count() > 1);
+  if (bar_combo == nullptr || bar_combo->count() < 2) {
+    return;
+  }
+  const int picked_index = bar_combo->currentIndex() == 0 ? 1 : 0;
+  const auto picked_id = bar_combo->itemData(picked_index).toString();
+  seen = false;
+  shape_tap(*canvas, QPoint(300, 500), [&seen, bar_combo, picked_index] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeCreateCustomShapeCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(combo->count() == bar_combo->count());
+    CHECK(combo->currentData() == bar_combo->currentData());
+    CHECK(combo->itemText(picked_index) == bar_combo->itemText(picked_index));
+    combo->setCurrentIndex(picked_index);
+    dialog->accept();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 5);
+  CHECK(bar_combo->currentData().toString() == picked_id);
+  const auto* tool_shape = canvas->custom_shape_path();
+  layer = document.find_layer(*document.active_layer_id());
+  content = layer != nullptr ? layer->vector_shape() : nullptr;
+  CHECK(tool_shape != nullptr && content != nullptr);
+  if (tool_shape != nullptr && content != nullptr) {
+    CHECK(content->path.subpaths.size() == tool_shape->subpaths.size());
+    for (std::size_t i = 0; i < std::min(content->path.subpaths.size(), tool_shape->subpaths.size()); ++i) {
+      CHECK(content->path.subpaths[i].anchors.size() == tool_shape->subpaths[i].anchors.size());
+    }
+  }
+}
+
+// Layout of the four Create <Shape> dialogs (GitHub issue 309): wide enough
+// for the title, Width and Height on one row with From Center below, and per
+// tool only its own extra field.
+void ui_shape_create_dialog_layout() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto visible_child = [](QDialog* dialog, const char* name) {
+    auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+    return widget != nullptr && widget->isVisible();
+  };
+  const std::pair<patchy::ui::CanvasTool, const char*> tools[] = {
+      {patchy::ui::CanvasTool::Rectangle, "shapeCreateRadiusLinkButton"},
+      {patchy::ui::CanvasTool::Ellipse, nullptr},
+      {patchy::ui::CanvasTool::Polygon, "shapeCreateSidesSpin"},
+      {patchy::ui::CanvasTool::CustomShape, "shapeCreateCustomShapeCombo"},
+  };
+  for (const auto& [tool, own_field] : tools) {
+    canvas->set_tool(tool);
+    bool seen = false;
+    shape_tap(*canvas, QPoint(200, 200), [&seen, &visible_child, own = own_field] {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      auto* width_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateWidthSpin"));
+      auto* height_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateHeightSpin"));
+      auto* center = dialog->findChild<QCheckBox*>(QStringLiteral("shapeCreateFromCenterCheck"));
+      CHECK(width_spin != nullptr && height_spin != nullptr && center != nullptr);
+      if (width_spin == nullptr || height_spin == nullptr || center == nullptr) {
+        dialog->reject();
+        return;
+      }
+      seen = true;
+      const auto width_box = QRect(width_spin->mapTo(dialog, QPoint()), width_spin->size());
+      const auto height_box = QRect(height_spin->mapTo(dialog, QPoint()), height_spin->size());
+      const auto center_box = QRect(center->mapTo(dialog, QPoint()), center->size());
+      CHECK(std::abs(width_box.center().y() - height_box.center().y()) <= 1);
+      CHECK(height_box.left() > width_box.right());
+      CHECK(center_box.top() > width_box.bottom());
+      QFont title_font = dialog->font();
+      title_font.setBold(true);
+      CHECK(dialog->width() >=
+            QFontMetrics(title_font).horizontalAdvance(dialog->windowTitle()) + 200);
+      for (const auto* field : {"shapeCreateRadiusLinkButton", "shapeCreateSidesSpin",
+                                "shapeCreateCustomShapeCombo"}) {
+        const bool expected = own != nullptr && std::string_view(own) == field;
+        CHECK(visible_child(dialog, field) == expected);
+      }
+      dialog->reject();
+    });
+    CHECK(seen);
+  }
+}
+
+// Create Rectangle's Radius (GitHub issue 310): linked by default, one value
+// sets all four corners; unlinking shows the four, unequal radii reopen
+// unlinked, and a new options-bar Radius replaces the remembered corners.
+void ui_shape_create_rectangle_radius_link() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* bar_radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(bar_radius != nullptr);
+  if (bar_radius == nullptr) {
+    return;
+  }
+  const auto visible_child = [](QDialog* dialog, const char* name) {
+    auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+    return widget != nullptr && widget->isVisible();
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  bar_radius->setValue(6);
+  const auto initial_layers = document.layers().size();
+  bool seen = false;
+  shape_tap(*canvas, QPoint(100, 100), [&seen, &visible_child] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusSpin"));
+    auto* top_left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopLeftSpin"));
+    auto* top_right = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopRightSpin"));
+    auto* bottom_right =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusBottomRightSpin"));
+    CHECK(link != nullptr && radius != nullptr && top_left != nullptr && top_right != nullptr &&
+          bottom_right != nullptr);
+    if (link == nullptr || radius == nullptr || top_left == nullptr || top_right == nullptr ||
+        bottom_right == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(link->isChecked());
+    CHECK(radius->isVisible());
+    CHECK(!visible_child(dialog, "shapeCreateRadiusTopLeftSpin"));
+    CHECK(std::abs(radius->value() - 6.0) < 1e-9);
+    radius->setValue(9.0);
+    CHECK(std::abs(bottom_right->value() - 9.0) < 1e-9);
+    // Unlinking shows the four corners at the shared radius.
+    link->click();
+    QApplication::processEvents();
+    CHECK(!link->isChecked());
+    CHECK(!radius->isVisible());
+    CHECK(top_left->isVisible() && bottom_right->isVisible());
+    CHECK(std::abs(top_left->value() - 9.0) < 1e-9);
+    top_left->setValue(12.0);
+    top_right->setValue(4.0);
+    dialog->accept();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 1);
+  auto* layer = document.find_layer(*document.active_layer_id());
+  const auto* content = layer != nullptr ? layer->vector_shape() : nullptr;
+  CHECK(content != nullptr && content->origination.size() == 1);
+  if (content != nullptr && content->origination.size() == 1) {
+    const auto& radii = content->origination[0].corner_radii;
+    CHECK(std::abs(radii[0] - 12.0) < 1e-9);
+    CHECK(std::abs(radii[1] - 4.0) < 1e-9);
+    CHECK(std::abs(radii[2] - 9.0) < 1e-9);
+    CHECK(std::abs(radii[3] - 9.0) < 1e-9);
+  }
+
+  // Unequal radii reopen unlinked with every corner kept.
+  seen = false;
+  shape_tap(*canvas, QPoint(300, 100), [&seen] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+    auto* top_left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopLeftSpin"));
+    auto* top_right = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusTopRightSpin"));
+    CHECK(link != nullptr && top_left != nullptr && top_right != nullptr);
+    if (link == nullptr || top_left == nullptr || top_right == nullptr) {
+      dialog->reject();
+      return;
+    }
+    seen = true;
+    CHECK(!link->isChecked());
+    CHECK(top_left->isVisible());
+    CHECK(std::abs(top_left->value() - 12.0) < 1e-9);
+    CHECK(std::abs(top_right->value() - 4.0) < 1e-9);
+    // Relinking takes the top-left radius for all four.
+    link->click();
+    QApplication::processEvents();
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusSpin"));
+    CHECK(radius != nullptr && radius->isVisible() && std::abs(radius->value() - 12.0) < 1e-9);
+    CHECK(std::abs(top_right->value() - 12.0) < 1e-9);
+    dialog->reject();
+  });
+  CHECK(seen);
+
+  // A new options-bar Radius replaces the remembered corners.
+  bar_radius->setValue(3);
+  seen = false;
+  shape_tap(*canvas, QPoint(300, 100), [&seen] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeCreateRadiusSpin"));
+    CHECK(link != nullptr && radius != nullptr);
+    if (link != nullptr && radius != nullptr) {
+      seen = true;
+      CHECK(link->isChecked());
+      CHECK(std::abs(radius->value() - 3.0) < 1e-9);
+    }
+    dialog->reject();
+  });
+  CHECK(seen);
+  CHECK(document.layers().size() == initial_layers + 1);
 }
 
 void ui_shape_tap_line_fixed_size_and_path_mode() {
@@ -3867,6 +4296,45 @@ void ui_shape_tap_line_fixed_size_and_path_mode() {
   CHECK(work_bounds.has_value());
   CHECK(std::abs(work_bounds->left - 300.0) < 1e-6);
   CHECK(std::abs(work_bounds->right - 400.0) < 1e-6);
+}
+
+// Captures each Create <Shape> dialog as opened by a tap, Rectangle also
+// unlinked (issue shots for GitHub issues 309 and 310); nothing is created.
+void ui_shape_create_dialog_captures() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const std::pair<patchy::ui::CanvasTool, const char*> tools[] = {
+      {patchy::ui::CanvasTool::Rectangle, "shape_create_dialog_rectangle"},
+      {patchy::ui::CanvasTool::Ellipse, "shape_create_dialog_ellipse"},
+      {patchy::ui::CanvasTool::Polygon, "shape_create_dialog_polygon"},
+      {patchy::ui::CanvasTool::CustomShape, "shape_create_dialog_custom_shape"},
+  };
+  for (const auto& [tool, artifact] : tools) {
+    canvas->set_tool(tool);
+    bool seen = false;
+    const std::string name = artifact;
+    shape_tap(*canvas, QPoint(200, 200), [&seen, name] {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      seen = true;
+      QApplication::processEvents();
+      save_widget_artifact(name, *dialog);
+      // Rectangle again with the corners unlinked.
+      if (auto* link = dialog->findChild<QToolButton*>(QStringLiteral("shapeCreateRadiusLinkButton"));
+          link != nullptr) {
+        link->click();
+        QApplication::processEvents();
+        save_widget_artifact(name + "_unlinked", *dialog);
+      }
+      dialog->reject();
+    });
+    CHECK(seen);
+  }
 }
 
 void ui_shape_size_spins_reflect_and_resize_active_shape() {
@@ -5314,6 +5782,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws},
       {"ui_pen_ctrl_drag_moves_in_progress_session_anchor",
        ui_pen_ctrl_drag_moves_in_progress_session_anchor},
+      {"ui_shape_tool_ctrl_acts_as_path_select", ui_shape_tool_ctrl_acts_as_path_select},
+      {"ui_shape_tool_shift_press_adds_to_shape_layer",
+       ui_shape_tool_shift_press_adds_to_shape_layer},
       {"ui_pen_session_start_shows_hint_message", ui_pen_session_start_shows_hint_message},
       {"ui_vector_mode_combo_disables_pixels_for_vector_only_tools",
        ui_vector_mode_combo_disables_pixels_for_vector_only_tools},
@@ -5384,6 +5855,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tap_creates_ellipse_polygon_and_custom_shape",
        ui_shape_tap_creates_ellipse_polygon_and_custom_shape},
       {"ui_shape_tap_line_fixed_size_and_path_mode", ui_shape_tap_line_fixed_size_and_path_mode},
+      {"ui_shape_create_dialog_captures", ui_shape_create_dialog_captures},
+      {"ui_shape_create_dialog_layout", ui_shape_create_dialog_layout},
+      {"ui_shape_create_rectangle_radius_link", ui_shape_create_rectangle_radius_link},
       {"ui_shape_size_spins_reflect_and_resize_active_shape",
        ui_shape_size_spins_reflect_and_resize_active_shape},
       {"ui_shape_size_controls_follow_move_and_properties_selection",

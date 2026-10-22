@@ -1527,6 +1527,9 @@ private:
   void handle_shape_create_requested(CanvasTool tool, QPointF document_point);
   void create_shape_layer_from_drag(const patchy::LiveShapeParams& params);
   void add_drag_to_work_path(const patchy::LiveShapeParams& params);
+  // The combine index a shape commit uses: the options-bar setting, or Add for a
+  // shape drag pressed with Shift (GitHub issue 313; the setting itself is untouched).
+  [[nodiscard]] int effective_vector_combine_index() const;
   void create_or_extend_shape_layer(std::vector<patchy::PathSubpath> subpaths,
                                     std::optional<patchy::LiveShapeParams> origination,
                                     const QString& name_pattern);
@@ -3072,6 +3075,10 @@ private:
     double width{100.0};
     double height{100.0};
     bool from_center{false};
+    // Rectangle: the last accepted corner radii, offered again while the
+    // options-bar Radius still reads what it did then (`radii_from`).
+    std::optional<std::array<double, 4>> corner_radii;
+    int radii_from{0};
   };
   std::unordered_map<int, ShapeCreateMemory> shape_create_memory_;
   bool current_line_arrow_start_{false};

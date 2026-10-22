@@ -351,6 +351,10 @@ struct CanvasRenderCacheDiagnostics {
   // own level (GitHub #200: bounded by the view, never the whole layer).
   int warp_scaled_previews{0};
   std::uint64_t warp_preview_last_pixels{0};
+  // The latest preview render's (pixel, cell) inverse tests (TransformedImage::
+  // cell_pixel_tests): bounded by a small multiple of its output pixels however far a
+  // handle stretches the cells (GitHub issue 299).
+  std::uint64_t warp_preview_last_cell_tests{0};
   // Every Warp Transform preview render. A drag renders once per painted frame,
   // however many mouse moves queued up before it (GitHub #298).
   int warp_preview_renders{0};

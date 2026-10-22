@@ -6,6 +6,8 @@
 #include <QPixmap>
 #include <QString>
 
+class QComboBox;
+
 namespace patchy::ui {
 
 // One stampable custom shape: the path is normalized to the unit box and
@@ -58,5 +60,9 @@ private:
 // 40x40 outline thumbnail of a unit-box shape path.
 [[nodiscard]] QPixmap custom_shape_thumbnail(const VectorPath& path, int size = 40);
 [[nodiscard]] QString custom_shape_display_name(const CustomShapeLibraryEntry& entry);
+// Fills the Shape picker (the options bar's and the Create Custom Shape
+// dialog's): every library shape with its thumbnail and display name, the
+// shape id as item data. Keeps the current shape when it is still listed.
+void populate_custom_shape_combo(QComboBox& combo, const CustomShapeLibrary& library);
 
 }  // namespace patchy::ui

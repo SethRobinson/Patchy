@@ -8310,10 +8310,6 @@ RGB：%2, %3, %4</translation>
         <translation>从中心</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>圆角半径</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>左上:</translation>
     </message>
@@ -11757,6 +11753,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>我的风格</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>形状:</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>边数:</translation>
+    </message>
+    <message>
+        <source>Radius:</source>
+        <translation>半径:</translation>
     </message>
 </context>
 <context>
