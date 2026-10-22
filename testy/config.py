@@ -36,6 +36,9 @@ def _load_local_config() -> dict:
 LOCAL = _load_local_config()
 PORT = int(LOCAL.get("port", 8901))
 PHOTOSHOP_PROGID = (LOCAL.get("editors") or {}).get("photoshop_progid") or "Photoshop.Application"
+# Which Photoshop is the reference and which others reopen every resave; see
+# photoshop_installs() and config.example.json's "photoshop" block.
+PHOTOSHOP = LOCAL.get("photoshop") or {}
 BUILD_COMMAND = LOCAL.get("build_command") or ""
 
 
@@ -115,6 +118,70 @@ CHROME_CANDIDATES = [
 ]
 
 # The whole suite assumes Photoshop is COM-registered (PHOTOSHOP_PROGID above).
+
+
+def photoshop_installs():
+    """Every Photoshop a run can use, by label ("2025"): the COM-registered installs
+    on this PC, then config.local.json's photoshop.installs, which adds installs on a
+    remote host or overrides a discovered one. A remote entry names its host (a key
+    of photoshop.hosts) and optionally the remote install's progid or remote_label
+    (default: its own label); the agent there resolves the rest."""
+    from drivers.photoshop import PhotoshopInstall, discover_installs
+
+    installs = {install.label: install for install in discover_installs()}
+    for item in PHOTOSHOP.get("installs") or []:
+        label = str(item.get("label") or "").strip()
+        if not label:
+            print("[testy] WARNING: a photoshop.installs entry has no label; ignored")
+            continue
+        host = item.get("host") or None
+        known = installs.get(label)
+        progid = item.get("progid") or (known.progid if known and not host else "")
+        exe = item.get("exe") or (str(known.exe) if known and known.exe and not host else "")
+        if not host and not progid:
+            print(f"[testy] WARNING: photoshop install {label} has no progid; ignored")
+            continue
+        if host and host not in (PHOTOSHOP.get("hosts") or {}):
+            print(f"[testy] WARNING: photoshop install {label} names unknown host {host}; ignored")
+            continue
+        installs[label] = PhotoshopInstall(
+            label, progid or str(item.get("remote_label") or label),
+            Path(os.path.expandvars(exe)) if exe else None, host)
+    return installs
+
+
+def photoshop_host(name: str) -> dict:
+    """A remote Photoshop host's settings (photoshop.hosts in config.local.json)."""
+    return dict((PHOTOSHOP.get("hosts") or {})[name])
+
+
+def photoshop_reference(installs: dict, label: str | None = None):
+    """The Photoshop that renders the ground truth. Without a label (none given and
+    no photoshop.reference configured) it is exactly what runs always used: the
+    configured ProgID, plain Photoshop.Application by default. The install it
+    resolves to only supplies the label and exe, which keep kills and the dialog
+    guard on that one install."""
+    from drivers.photoshop import PROGID_PREFIX, PhotoshopInstall, current_progid
+
+    label = label or PHOTOSHOP.get("reference") or None
+    if label:
+        install = installs.get(str(label))
+        if install is None:
+            raise SystemExit(f"Photoshop {label} is not installed here "
+                             f"(known: {', '.join(installs) or 'none'})")
+        if install.host:
+            raise SystemExit(f"Photoshop {label} is on a remote host; the reference must be local")
+        return install
+    versioned = current_progid() if PHOTOSHOP_PROGID == PROGID_PREFIX else PHOTOSHOP_PROGID
+    for install in installs.values():
+        if install.host is None and install.progid == versioned:
+            return PhotoshopInstall(install.label, PHOTOSHOP_PROGID, install.exe)
+    return PhotoshopInstall("reference", PHOTOSHOP_PROGID, None)
+
+
+def photoshop_check_labels() -> list[str]:
+    """The versions that reopen every resave when a run names none (photoshop.check)."""
+    return [str(label) for label in PHOTOSHOP.get("check") or []]
 
 
 def _file_version(path: Path) -> str:

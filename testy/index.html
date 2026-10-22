@@ -64,6 +64,7 @@
       placeholder="one absolute .psd path per line - paste your own list here"></textarea>
     <div class="row">
       <span id="editor-boxes"></span>
+      <span id="photoshop-boxes" title="Photoshop versions that reopen every resave; a save any of them refuses is a bad save"></span>
       <label><input type="checkbox" id="opt-build" checked> rebuild Patchy first</label>
       <label><input type="checkbox" id="opt-fresh"> ignore caches</label>
       <label title="keep images only for files that fail or differ from Photoshop by more than the threshold"><input type="checkbox" id="opt-scan"> scan: keep only flagged, over
@@ -154,7 +155,25 @@ async function loadDefaults() {
       "<label><input type='checkbox' class='editor-box' value='" + esc(key) + "'" +
       (defaults.editors.includes(key) ? " checked" : "") + "> " + esc(key) + "</label>"
     ).join(" ");
+    // More than one Photoshop: choose which reopen every resave (the reference,
+    // which renders the ground truth, always does). One Photoshop shows nothing.
+    const ps = defaults.photoshop || { installs: [] };
+    document.getElementById("photoshop-boxes").innerHTML = ps.installs.length < 2 ? "" :
+      "reopen resaves in " + ps.installs.map(i => {
+        const reference = i.label === ps.reference;
+        return "<label" + (reference ? " title='the reference: renders the ground truth'" : "") +
+          "><input type='checkbox' class='photoshop-box' value='" + esc(i.label) + "'" +
+          (reference || ps.checks.includes(i.label) ? " checked" : "") + (reference ? " disabled" : "") +
+          "> PS " + esc(i.label) + (i.remote ? " (remote)" : "") + (reference ? " (reference)" : "") + "</label>";
+      }).join(" ");
   } catch (e) { /* server-less viewing of a copied page */ }
+}
+
+// The ticked Photoshop versions, or null when the panel offers no choice (the run
+// then uses the configured default, like a CLI run without --photoshop).
+function photoshopSelection() {
+  const boxes = [...document.querySelectorAll(".photoshop-box")];
+  return boxes.length ? boxes.filter(b => b.checked).map(b => b.value) : null;
 }
 
 // The New run box remembers what the last started run used (file list and options),
@@ -170,6 +189,7 @@ function saveRunForm() {
       scan: document.getElementById("opt-scan").checked,
       scanThreshold: document.getElementById("opt-scan-threshold").value,
       compare: document.getElementById("opt-compare").value,
+      photoshop: photoshopSelection(),
     }));
   } catch (e) { /* storage unavailable; defaults still work */ }
 }
@@ -189,6 +209,10 @@ function restoreRunForm() {
   if (saved.scanThreshold) document.getElementById("opt-scan-threshold").value = saved.scanThreshold;
   if (saved.compare === "strict" || saved.compare === "perceptual")
     document.getElementById("opt-compare").value = saved.compare;
+  if (Array.isArray(saved.photoshop))
+    document.querySelectorAll(".photoshop-box:not(:disabled)").forEach(box => {
+      box.checked = saved.photoshop.includes(box.value);
+    });
 }
 
 let runInProgress = false;
@@ -383,6 +407,7 @@ function startRun() {
       scan: document.getElementById("opt-scan").checked,
       scanThreshold: parseFloat(document.getElementById("opt-scan-threshold").value),
       compare: document.getElementById("opt-compare").value,
+      ...(photoshopSelection() ? { photoshop: photoshopSelection() } : {}),
     }),
   }).then(async response => {
     const result = await response.json();

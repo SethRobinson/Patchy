@@ -1,4 +1,10 @@
-"""Photoshop 2026 COM driver: ground truth and resave analysis.
+"""Photoshop COM driver: ground truth and resave analysis.
+
+One driver talks to one Photoshop install. By default that is whatever the plain
+`Photoshop.Application` ProgID resolves to (the reference, Photoshop 2026 here); a
+run that also checks resaves in other versions gives each its own driver with a
+versioned ProgID (`Photoshop.Application.190` is 2025) and the install's exe, so
+restarts, kills and the dialog guard touch only that install.
 
 One DoJavaScript call per probed file keeps every script self-contained (open,
 inspect, render, close-no-save) so a crash mid-script never leaks documents into
@@ -18,8 +24,11 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
+import re
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -58,6 +67,103 @@ LAUNCH_FAILURE_HRESULTS = frozenset({
     -2147221164,  # 0x80040154 REGDB_E_CLASSNOTREG
     -2147221005,  # 0x800401F3 CO_E_CLASSSTRING (the ProgID stopped resolving)
 })
+
+# HRESULTs that mean the Photoshop process went away under a running call: it
+# crashed (Photoshop 2025 does on some Txt2 blocks 2026 reads fine, issue 341).
+CRASH_HRESULTS = frozenset({
+    -2147023174,  # 0x800706BA RPC_S_SERVER_UNAVAILABLE
+    -2147023170,  # 0x800706BE RPC_S_CALL_FAILED
+    -2147023169,  # 0x800706BF RPC_S_CALL_FAILED_DNE
+    -2147417848,  # 0x80010108 RPC_E_DISCONNECTED
+    -2147417851,  # 0x80010105 RPC_E_SERVERFAULT
+})
+
+# Versioned ProgIDs are Photoshop.Application.<n>, n = 10 x (major version - 7) for
+# the recent releases (190 is 26.x, Photoshop 2025; 200 is 27.x, Photoshop 2026).
+PROGID_PREFIX = "Photoshop.Application"
+PROGID_NUMBERS = range(60, 410, 10)
+
+
+@dataclass(frozen=True)
+class PhotoshopInstall:
+    """One Photoshop a run can drive. `label` names it wherever a result is shown
+    ("2025"); `host` is None for this PC, else a key of config.local.json's
+    photoshop.hosts (a remote install, reached through drivers/photoshop_remote.py)."""
+    label: str
+    progid: str
+    exe: Path | None = None
+    host: str | None = None
+
+    @property
+    def display_name(self) -> str:
+        return f"PS {self.label}"
+
+
+def _registry_default(path: str) -> str | None:
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, path) as key:
+            value, _type = winreg.QueryValueEx(key, "")
+            return str(value)
+    except OSError:
+        return None
+
+
+def _server_exe(progid: str) -> Path | None:
+    """The exe a ProgID launches: its CLSID, then that class's LocalServer32 command."""
+    clsid = _registry_default(progid + r"\CLSID")
+    command = _registry_default(r"CLSID" + "\\" + clsid + r"\LocalServer32") if clsid else None
+    return command_exe(command) if command else None
+
+
+def command_exe(command: str) -> Path:
+    """The exe of a LocalServer32 command line (`...\\Photoshop.exe /Automation`)."""
+    command = command.strip()
+    if command.startswith('"'):
+        return Path(command[1:].split('"', 1)[0])
+    return Path(re.split(r"\s+/", command, maxsplit=1)[0])
+
+
+def install_label(progid: str, exe: Path | None) -> str:
+    """The year in the install folder ("Adobe Photoshop 2025"), else the ProgID number."""
+    match = re.search(r"Photoshop (\d{4})", str(exe.parent) if exe else "")
+    if match:
+        return match.group(1)
+    return progid.rsplit(".", 1)[-1] if progid != PROGID_PREFIX else "default"
+
+
+def exe_version(exe: Path | None) -> str:
+    """The exe's file version ("26.9.0.123"), read without launching Photoshop: it keys
+    the reopen-check cache, so a fully cached run never starts a checked version."""
+    if exe is None:
+        return "unknown"
+    try:
+        import win32api
+
+        info = win32api.GetFileVersionInfo(str(exe), "\\")
+        ms, ls = info["FileVersionMS"], info["FileVersionLS"]
+        return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}.{ls & 0xFFFF}"
+    except Exception:
+        return "unknown"
+
+
+def current_progid() -> str | None:
+    """The versioned ProgID the plain one resolves to on this machine (CurVer)."""
+    return _registry_default(PROGID_PREFIX + r"\CurVer")
+
+
+def discover_installs() -> list[PhotoshopInstall]:
+    """Every COM-registered Photoshop whose exe exists, oldest first. Only the
+    versioned ProgIDs Photoshop registers are read, never a walk of HKEY_CLASSES_ROOT."""
+    found: list[PhotoshopInstall] = []
+    for number in PROGID_NUMBERS:
+        progid = f"{PROGID_PREFIX}.{number}"
+        exe = _server_exe(progid)
+        if exe is not None and exe.exists():
+            found.append(PhotoshopInstall(install_label(progid, exe), progid, exe))
+    return found
+
 
 # Probes that died at launch before the driver declares Photoshop unavailable and stops
 # trying. Each probe already retries once behind a full restart, so two of them is four
@@ -467,14 +573,54 @@ def deep_render_path(render_png: Path | None) -> Path | None:
     return render_png.with_name(render_png.stem + "16" + render_png.suffix)
 
 
-def _kill_photoshop() -> None:
+def _image_path(pid: int) -> str | None:
+    """The full exe path of a running process, or None when it cannot be read."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
     try:
-        subprocess.run(["taskkill", "/IM", IMAGE_NAME, "/F"], capture_output=True, timeout=30)
+        size = wintypes.DWORD(1024)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not kernel32.QueryFullProcessImageNameW(wintypes.HANDLE(handle), 0, buffer, ctypes.byref(size)):
+            return None
+        return buffer.value
+    finally:
+        kernel32.CloseHandle(wintypes.HANDLE(handle))
+
+
+def photoshop_pids(exe: Path | None) -> set[int]:
+    """Running Photoshop.exe processes; with an exe, only that install's."""
+    pids = win_dialogs.process_ids([IMAGE_NAME])
+    if exe is None:
+        return pids
+    wanted = os.path.normcase(str(exe))
+    return {pid for pid in pids if os.path.normcase(_image_path(pid) or "") == wanted}
+
+
+def _kill_photoshop(exe: Path | None = None) -> None:
+    """Force-kill Photoshop. With an exe only that install: another version may be
+    running beside it, with someone's own documents open."""
+    try:
+        if exe is None:
+            subprocess.run(["taskkill", "/IM", IMAGE_NAME, "/F"], capture_output=True, timeout=30)
+            return
+        for pid in photoshop_pids(exe):
+            subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=30)
     except Exception:
         pass
 
 
-def _photoshop_is_running() -> bool:
+def _photoshop_is_running(exe: Path | None = None) -> bool:
+    if exe is not None:
+        try:
+            return bool(photoshop_pids(exe))
+        except Exception:
+            return True  # cannot tell; say yes so the caller still force-kills
     try:
         completed = subprocess.run(
             ["tasklist", "/FI", f"IMAGENAME eq {IMAGE_NAME}", "/NH"],
@@ -484,10 +630,11 @@ def _photoshop_is_running() -> bool:
     return IMAGE_NAME.lower() in (completed.stdout or "").lower()
 
 
-def _wait_for_photoshop_exit(seconds: float) -> bool:
-    """True once no Photoshop.exe is left, False if one is still up at the deadline."""
+def _wait_for_photoshop_exit(seconds: float, exe: Path | None = None) -> bool:
+    """True once no Photoshop.exe (of that install) is left, False if one is still up
+    at the deadline."""
     deadline = time.monotonic() + seconds
-    while _photoshop_is_running():
+    while _photoshop_is_running(exe):
         if time.monotonic() >= deadline:
             return False
         time.sleep(0.5)
@@ -500,10 +647,23 @@ def _is_launch_failure(error: Exception) -> bool:
     return bool(args) and args[0] in LAUNCH_FAILURE_HRESULTS
 
 
+def _is_crash(error: Exception) -> bool:
+    """Did the Photoshop process die under the running call?"""
+    args = getattr(error, "args", ())
+    return bool(args) and args[0] in CRASH_HRESULTS
+
+
 class PhotoshopDriver:
-    def __init__(self, log: Callable[[str], None] | None = None) -> None:
+    def __init__(self, log: Callable[[str], None] | None = None,
+                 install: PhotoshopInstall | None = None) -> None:
         self._app = None
         self._log = log
+        # No install: the configured ProgID, and kills reach every Photoshop.exe.
+        self.install = install
+        self._exe = install.exe if install is not None else None
+        # Whether this driver launched the Photoshop it talks to; quit() leaves one it
+        # found already running alone. None until the first launch.
+        self._started: bool | None = None
         self._version: str | None = None
         self._font_cache_key: str | None = None
         self._launch_failures = 0
@@ -522,11 +682,32 @@ class PhotoshopDriver:
         if self._app is None:
             import win32com.client
 
-            import config
+            if self.install is not None:
+                progid = self.install.progid
+            else:
+                import config
 
+                progid = config.PHOTOSHOP_PROGID
+            if self._started is None and self._exe is not None:
+                self._started = not photoshop_pids(self._exe)
             # The first dispatch launches Photoshop (~30s); subsequent calls reuse it.
-            self._app = win32com.client.Dispatch(config.PHOTOSHOP_PROGID)
+            self._app = win32com.client.Dispatch(progid)
         return self._app
+
+    def quit(self) -> None:
+        """Quit the Photoshop this driver launched, so a version a run only checked
+        resaves in does not sit on gigabytes afterwards. Never one it found running."""
+        if not self._started:
+            return
+        try:
+            if self._app is not None:
+                self._app.Quit()
+        except Exception:
+            pass
+        if not _wait_for_photoshop_exit(QUIT_GRACE_SECONDS, self._exe):
+            _kill_photoshop(self._exe)
+        self._app = None
+        self._started = None
 
     def restart(self) -> None:
         """Fully restart Photoshop. Photoshop's scripting engine wedges during long
@@ -545,9 +726,11 @@ class PhotoshopDriver:
         # out, and a kill landing inside that write breaks every later launch (see
         # QUIT_GRACE_SECONDS). A wedged engine never reaches the write, so nothing is
         # lost by killing it at once, which is also what happens when Quit is refused.
-        if not (quit_sent and _wait_for_photoshop_exit(QUIT_GRACE_SECONDS)):
-            _kill_photoshop()
+        if not (quit_sent and _wait_for_photoshop_exit(QUIT_GRACE_SECONDS, self._exe)):
+            _kill_photoshop(self._exe)
         self._app = None
+        if self._exe is not None:
+            self._started = True  # the relaunch below is this driver's own
         time.sleep(3.0)
         # Force a fresh launch now so the wait is spent here, not mid-probe.
         try:
@@ -649,11 +832,13 @@ class PhotoshopDriver:
         # (see the module docstring) and force-kills Photoshop.exe once nothing has
         # moved for SCRIPT_WATCHDOG_SECONDS, which makes that call raise instead of
         # blocking forever.
+        exe = self._exe
         guard = win_dialogs.DialogGuard(
             [IMAGE_NAME],
             watchdog_seconds=SCRIPT_WATCHDOG_SECONDS,
-            on_timeout=_kill_photoshop,
+            on_timeout=lambda: _kill_photoshop(exe),
             log=self._log,
+            pid_source=None if exe is None else (lambda: photoshop_pids(exe)),
         )
         try:
             with guard:
@@ -666,6 +851,8 @@ class PhotoshopDriver:
                 failure["hung"] = True  # the app, not the file: a stuck modal or a wedge
             elif _is_launch_failure(error):
                 failure["launchFailure"] = True
+            elif _is_crash(error):
+                failure["crashed"] = True
             return self._with_dialogs(guard, failure)
         try:
             return self._with_dialogs(guard, json.loads(raw))
@@ -695,6 +882,8 @@ class PhotoshopDriver:
             said = f"; Photoshop said: {guard.dismissed[-1]}" if guard.dismissed else ""
             return (f"Photoshop itself failed to start (com-error: {error}{said}) - a broken "
                     "Photoshop or machine state, not a property of this file")
+        if _is_crash(error):
+            return f"Photoshop crashed while opening the file (com-error: {error})"
         return f"com-error: {error}"
 
 
@@ -750,6 +939,23 @@ def _selftest() -> int:
     check("a missing path is still null", _js_path(None) == "null")
     check("the text suffix is NOT path-encoded", _js_string("~50%~") == '"~50%~"')
 
+    print("finding installs:")
+    exe = command_exe(r"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe /Automation")
+    check("a LocalServer32 command names its exe",
+          exe == Path(r"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe"), str(exe))
+    check("a quoted command too",
+          command_exe('"C:\\PS 2026\\Photoshop.exe" /Automation') == Path(r"C:\PS 2026\Photoshop.exe"))
+    check("an install is labeled by its folder's year",
+          install_label("Photoshop.Application.190", exe) == "2025")
+    check("... else by its ProgID number",
+          install_label("Photoshop.Application.190", Path(r"D:\ps\Photoshop.exe")) == "190")
+    check("a crash is told apart from a launch failure",
+          _is_crash(_FakeComError(-2147023174, "The RPC server is unavailable."))
+          and not _is_launch_failure(_FakeComError(-2147023174, "")))
+    check("a crash says so", "crashed" in PhotoshopDriver._failure_text(
+        types.SimpleNamespace(timed_out=False, blocked=[], dismissed=[]),
+        _FakeComError(-2147417848, "disconnected")))
+
     print("giving up:")
     driver = PhotoshopDriver()
     counts = {"probes": 0, "restarts": 0}
@@ -792,7 +998,7 @@ def _selftest() -> int:
     saved = (globals()["_kill_photoshop"], globals()["_photoshop_is_running"],
              globals()["QUIT_GRACE_SECONDS"], time.sleep)
     killed: list[bool] = []
-    globals()["_kill_photoshop"] = lambda: killed.append(True)
+    globals()["_kill_photoshop"] = lambda *_exe: killed.append(True)
     globals()["QUIT_GRACE_SECONDS"] = 0.05
     time.sleep = lambda _seconds: None
     try:
@@ -803,12 +1009,12 @@ def _selftest() -> int:
             return made
 
         quits: list[bool] = []
-        globals()["_photoshop_is_running"] = lambda: False
+        globals()["_photoshop_is_running"] = lambda *_exe: False
         driver_with_quit(lambda: quits.append(True)).restart()
         check("a quit that lands is never force-killed", quits and not killed)
 
         killed.clear()
-        globals()["_photoshop_is_running"] = lambda: True
+        globals()["_photoshop_is_running"] = lambda *_exe: True
         driver_with_quit(lambda: quits.append(True)).restart()
         check("a process still up at the deadline is force-killed", bool(killed))
 

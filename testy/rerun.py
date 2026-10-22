@@ -115,6 +115,9 @@ def apply(runs_root: Path, child_dir: Path, request: dict, *, summarize, scan_re
         if (cell.get("native", {}).get("error") and not cell.get("resaveRejected")
                 and not cell.get("resaveError")):
             raise ValueError(f"{editor} resave verification was incomplete; previous results kept")
+        if any(check.get("state") == "error" for check in (cell.get("resaveChecks") or {}).values()):
+            raise ValueError(f"{editor} resave was not reopened in every Photoshop version; "
+                             "previous results kept")
 
     revision = target / "reruns" / child_dir.name
     revision.mkdir(parents=True, exist_ok=False)
@@ -126,7 +129,7 @@ def apply(runs_root: Path, child_dir: Path, request: dict, *, summarize, scan_re
         shutil.copytree(files, revision / "files")
     relocated = _relocate_artifacts(fresh, "reruns/" + child_dir.name + "/")
     updated = copy.deepcopy(old)
-    for key in ("docSize", "layerCount", "sizeBytes", "sha1"):
+    for key in ("docSize", "layerCount", "sizeBytes", "sha1", "psVersions"):
         if key in relocated:
             updated[key] = relocated[key]
     for editor in request["editors"]:
