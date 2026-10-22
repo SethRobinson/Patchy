@@ -26,6 +26,7 @@
 #include "core/layer.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
+#include "core/vector_compound.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
@@ -1205,6 +1206,38 @@ void update_vector_shape_raster_bakes_pixels() {
   CHECK(patchy::layer_has_enabled_vector_mask(layer) == false);
 }
 
+// A copied group on a merged shape joins every part that paints its source, so
+// the copy paints in that part's color (GitHub issue 312); without parts it is a no-op.
+void vector_compound_copy_part_groups_paint_like_their_source() {
+  const Rect canvas{0, 0, 40, 40};
+  patchy::Layer layer(9, "merged", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.path.subpaths = {rect_subpath(2, 2, 10, 10, PathCombineOp::Add, 0),
+                           rect_subpath(20, 2, 28, 10, PathCombineOp::Add, 1),
+                           rect_subpath(20, 20, 28, 28, PathCombineOp::Add, 2)};  // copy of group 1
+  patchy::VectorShapePart green;
+  green.groups = {0};
+  green.fill.kind = patchy::VectorFillKind::Solid;
+  green.fill.color = patchy::RgbColor{10, 180, 90};
+  auto red = green;
+  red.groups = {1};
+  red.fill.color = patchy::RgbColor{200, 20, 30};
+  content.parts = {green, red};
+  patchy::copy_vector_part_groups(content, {{1, 2}});
+  CHECK(content.parts[0].groups == std::vector<std::int32_t>{0});
+  CHECK((content.parts[1].groups == std::vector<std::int32_t>{1, 2}));
+  layer.set_vector_shape(content);
+  patchy::update_vector_shape_raster(layer, canvas, nullptr);
+  const auto bounds = layer.bounds();
+  const auto* px = std::as_const(layer).pixels().pixel(24 - bounds.x, 24 - bounds.y);
+  CHECK(px[0] == 200 && px[1] == 20 && px[2] == 30 && px[3] == 255);
+
+  patchy::VectorShapeContent plain;
+  plain.path.subpaths = {rect_subpath(2, 2, 10, 10, PathCombineOp::Add, 0)};
+  patchy::copy_vector_part_groups(plain, {{0, 1}});
+  CHECK(plain.parts.empty());
+}
+
 // The document bake covers the whole shape, like a pixel layer keeps pixels
 // past the canvas edge: clipped to the canvas, a shape transformed onto the
 // pasteboard baked to nothing (the Move tool could no longer grab it) and a
@@ -1597,6 +1630,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"vector_mask_composites_in_flatten", vector_mask_composites_in_flatten},
       {"vector_mask_multiplies_with_raster_mask", vector_mask_multiplies_with_raster_mask},
       {"update_vector_shape_raster_bakes_pixels", update_vector_shape_raster_bakes_pixels},
+      {"vector_compound_copy_part_groups_paint_like_their_source", vector_compound_copy_part_groups_paint_like_their_source},
       {"update_vector_shape_raster_keeps_off_canvas_shape", update_vector_shape_raster_keeps_off_canvas_shape},
       {"combine_shape_layers_truth_table", combine_shape_layers_truth_table},
       {"combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers",

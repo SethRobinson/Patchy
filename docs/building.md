@@ -124,19 +124,28 @@ AGENTS.md gives the handoff command and the short rules; these are the details b
 
 CMakeLists.txt owns the MSVC Release codegen flags (`/Zi /GL` on compiles, `/DEBUG:FULL /INCREMENTAL:NO /LTCG` on links), so every configure emits `patchy.pdb` (for symbolizing WER dumps from `%LOCALAPPDATA%\CrashDumps`) and link-time optimized binaries. Never hand-edit `build\release\CMakeCache.txt`. To symbolize a dump from an older build, rebuild that commit in a temporary worktree; full links reproduce the binary layout.
 
-The translation checker is the one exception: it never ships, and `patchy` and `patchy-mcp` link only after it has linked and passed ([localization.md](localization.md)), so it links with `/LTCG:INCREMENTAL`. The linker keeps its codegen state in `patchy_translation_checks.iobj`/`.ipdb` (about 1 GB beside the exe) and regenerates only changed functions; a missing `.iobj` means one full link. Measured on the dev box (October 19, 2026), `--target patchy` after a one-line `patchy_ui` edit took 223.7 s before and 166.1 s after (checker link 103 s to 42 s). Shipped binaries keep full `/LTCG`. `/DEBUG:FASTLINK` on the checker saved only about 4 s and was not kept.
+Executables that never ship link with `/LTCG:INCREMENTAL`: the translation checker (`patchy` and `patchy-mcp` link only after it has linked and passed, [localization.md](localization.md)) and the test programs `patchy_core_tests`, `patchy_ui_visual_tests`, `patchy_perf_tests` and `patchy_curves_clipping_preview_tests`. Their objects stay `/GL`, so the tests still run link-time optimized code. The linker keeps its codegen state in `<target>.iobj`/`.ipdb` (0.4 to 0.9 GB each beside the exe) and regenerates only changed functions; a missing `.iobj` or changed link flags mean one full link. Measured on the dev box (October 19, 2026), `--target patchy` after a one-line `patchy_ui` edit took 223.7 s before and 166.1 s after (checker link 103 s to 42 s). Shipped binaries (`patchy`, `patchy-mcp`, the plug-in hosts) keep full `/LTCG`. `/DEBUG:FASTLINK` on the checker saved only about 4 s and was not kept.
 
 ## Incremental development builds
 
 Iterate on the `release` preset by building only the targets you will run:
 `--target patchy_ui_visual_tests`, `--target patchy_core_tests`, or `--target patchy`
-(several `--target` flags combine). A plain `--build --preset release` relinks five
-LTCG executables, and the links, not the compiles, dominate: measured October 2026
-on the dev box, a change touching `main_window.hpp` and `canvas_widget.hpp` compiled
-about 130 files in 90 s, then linked `patchy_ui_visual_tests.exe` in 606 s,
-`patchy_perf_tests.exe` 545 s, `patchy-mcp.exe` 433 s, `patchy_translation_checks.exe` (before its incremental LTCG)
-199 s and `patchy.exe` 166 s, running in parallel for about 12 minutes. Run the full
-release build once, at handoff (AGENTS.md; Seth, October 18, 2026).
+(several `--target` flags combine). A plain `--build --preset release` relinks every
+executable, and the links, not the compiles, dominate: measured October 2026 on the
+dev box with full LTCG everywhere, a change touching `main_window.hpp` and
+`canvas_widget.hpp` compiled about 130 files in 90 s, then linked
+`patchy_ui_visual_tests.exe` in 606 s, `patchy_perf_tests.exe` 545 s, `patchy-mcp.exe`
+433 s, `patchy_translation_checks.exe` 199 s and `patchy.exe` 166 s, running in
+parallel for about 12 minutes. The test programs now link with incremental LTCG
+(above). Measured on the 32-thread, 32 GB offload host (October 22, 2026), release
+preset: their first link (full, writes the `.iobj`) took about as long as before (UI
+suite 565 s, core 270 s, perf 316 s, all links in parallel). After a one-line
+`patchy_ui` edit, a default build relinked the UI suite in 502 s and perf in 161 s while
+`patchy` and `patchy-mcp` did full LTCG links beside them (`patchy-mcp` 1081 s, now the
+longest link there); with `--target` for the two suites only, a one-line `patchy_core`
+edit relinked the core suite in 89 s and the UI suite in 208 s, against 232 s and 379 s
+for earlier full links on that host. Run the full release build once, at handoff
+(AGENTS.md; Seth, October 18, 2026).
 
 `opt-dev` uses `RelWithDebInfo` in `build/opt-dev`: optimized MSVC code and debug
 symbols without Release's `/GL` and `/LTCG`. It is for the edit/build cycle; the

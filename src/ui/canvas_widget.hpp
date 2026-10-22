@@ -812,8 +812,10 @@ public:
   [[nodiscard]] const patchy::VectorPath* text_area_edit_target_path() const;
   // Replaces the targeted path (same target rules) and re-rasterizes WITHOUT
   // arming an undo entry: preview dialogs apply through this and own the
-  // snapshot. `touched_groups` lose their live-shape annotations.
-  void replace_path_edit_target(patchy::VectorPath path, const std::vector<int>& touched_groups);
+  // snapshot. `touched_groups` lose their live-shape annotations; on a merged
+  // shape layer each `group_copies` copy joins its source group's paint parts.
+  void replace_path_edit_target(patchy::VectorPath path, const std::vector<int>& touched_groups,
+                                const std::map<int, int>& group_copies = {});
   // Path free-transform session (Ctrl+T with a path tool active): a box over
   // the targeted path - or the Direct Select anchor subset - that moves,
   // scales, and rotates it, committed as ONE apply_path_edit undo entry.
@@ -1985,7 +1987,7 @@ private:
   mutable std::uint64_t text_area_path_revision_{0};
   [[nodiscard]] patchy::Layer* vector_mask_target_layer() const;
   void apply_path_edit(patchy::VectorPath path, const QString& label,
-                       const std::vector<int>& touched_groups);
+                       const std::vector<int>& touched_groups, const std::map<int, int>& group_copies = {});
   [[nodiscard]] QPointF path_point_to_screen(double x, double y) const;
   [[nodiscard]] std::pair<int, int> path_anchor_at(QPointF widget_point) const;
   [[nodiscard]] int path_handle_at(QPointF widget_point, std::pair<int, int>& anchor) const;
@@ -2000,7 +2002,8 @@ private:
                                     std::pair<int, int>& segment, double& segment_t) const;
   [[nodiscard]] const patchy::Layer* extra_edit_shape_layer(LayerId id) const;
   void write_shape_layer_path(patchy::Layer& layer, patchy::VectorPath path,
-                              const std::vector<int>& touched_groups);
+                              const std::vector<int>& touched_groups,
+                              const std::map<int, int>& group_copies = {});
   void arm_path_edit_undo(const QString& label);
   void prune_extra_path_selection();
   bool handle_path_edit_press(QMouseEvent* event, QPointF document_point);

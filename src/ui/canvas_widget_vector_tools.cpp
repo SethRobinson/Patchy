@@ -14,6 +14,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/text_area.hpp"
+#include "core/vector_compound.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -1186,12 +1187,12 @@ void CanvasWidget::arm_path_edit_undo(const QString& label) {
 }
 
 void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
-                                   const std::vector<int>& touched_groups) {
+                                   const std::vector<int>& touched_groups, const std::map<int, int>& group_copies) {
   if (document_ == nullptr) {
     return;
   }
   arm_path_edit_undo(label);
-  replace_path_edit_target(std::move(path), touched_groups);
+  replace_path_edit_target(std::move(path), touched_groups, group_copies);
 }
 
 namespace {
@@ -1229,7 +1230,8 @@ QRectF path_control_bounds(const VectorPath& path) {
 
 }  // namespace
 
-void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<int>& touched_groups) {
+void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<int>& touched_groups,
+                                            const std::map<int, int>& group_copies) {
   if (document_ == nullptr) {
     return;
   }
@@ -1299,7 +1301,7 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
     return;
   }
   if (auto* layer = path_edit_target_layer(); layer != nullptr) {
-    write_shape_layer_path(*layer, std::move(path), touched_groups);
+    write_shape_layer_path(*layer, std::move(path), touched_groups, group_copies);
   } else if (auto* work = document_->work_path(); work != nullptr) {
     work->set_path(std::move(path));
     update();
@@ -1310,12 +1312,15 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
 }
 
 void CanvasWidget::write_shape_layer_path(Layer& layer, VectorPath path,
-                                          const std::vector<int>& touched_groups) {
+                                          const std::vector<int>& touched_groups,
+                                          const std::map<int, int>& group_copies) {
   const auto old_effect_rect =
       to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()));
   auto content = *layer.vector_shape();
   content.path = std::move(path);
   drop_live_shape_origination(content, touched_groups);
+  // A merged shape paints only the groups its parts list (GitHub issue 312).
+  copy_vector_part_groups(content, group_copies);
   layer.set_vector_shape(std::move(content));
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
   mark_layer_vector_block_dirty(layer);
@@ -1977,7 +1982,7 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
       for (const auto& [original, copy] : copies) {
         new_groups.push_back(copy);
       }
-      apply_path_edit(std::move(working), tr("Duplicate shape"), new_groups);
+      apply_path_edit(std::move(working), tr("Duplicate shape"), new_groups, copies);
       path_selected_anchors_ = std::move(selection);
       extra_selected_anchors_.clear();
       notify_path_selection_changed();

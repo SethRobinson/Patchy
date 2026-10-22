@@ -418,7 +418,9 @@ QString photoshop_style_template() {
       color: @dock_collapse_text;
       border-color: transparent;
     }
-    QListWidget, QTreeWidget, QComboBox, QSpinBox, QSlider, QLineEdit, QTextEdit {
+    /* QDoubleSpinBox is not a QSpinBox subclass: left out, unit fields (UnitSpinBox)
+       drew the platform frame beside the plain ones (issues 327, 329). */
+    QListWidget, QTreeWidget, QComboBox, QSpinBox, QDoubleSpinBox, QSlider, QLineEdit, QTextEdit {
       background: @field_bg_large;
       color: @text_primary;
       border: 1px solid @field_border;
