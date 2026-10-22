@@ -234,7 +234,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
                                                   tool_ == CanvasTool::Text || transforming_layer_ ||
                                                   path_transform_active_ || tool_ == CanvasTool::PathSelect ||
-                                                  tool_ == CanvasTool::DirectSelect)))) {
+                                                  tool_ == CanvasTool::DirectSelect || shape_tool_active())))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -274,6 +274,12 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           pen_cursor_modifier_override_ = modifiers;
           update_tool_cursor();
           pen_cursor_modifier_override_.reset();
+        }
+      } else if (key_event->key() == Qt::Key_Control && shape_tool_active()) {
+        // Ctrl is a shape tool's temporary Path Select (GitHub issue 312): the arrow and the
+        // path overlay show with a stationary pointer; a drag in progress keeps its mode.
+        if (!drawing_shape_ && !shape_temp_path_select_) {
+          set_shape_ctrl_path_select((modifiers & Qt::ControlModifier) != 0);
         }
       } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Text) {
         // Ctrl is the Type tool's temporary Move (GitHub issue 216): the four-way cursor shows
@@ -806,6 +812,21 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (handle_path_edit_press(event, document_position_f(event->position()))) {
       event->accept();
       return;
+    }
+  }
+
+  // Ctrl with a shape tool is a temporary Path Select (GitHub issue 312), read
+  // from this press's own modifiers like the Pen's temporary Direct Select.
+  if (shape_tool_active() && event->button() == Qt::LeftButton && !drawing_shape_) {
+    shape_temp_path_select_ = false;  // a lost release never outlives the next press
+    // Ctrl on a ruler guide still drags the guide (any tool's Ctrl gesture, below).
+    if ((event->modifiers() & Qt::ControlModifier) != 0 && guide_at_widget_position(event->pos()) < 0) {
+      if (handle_shape_ctrl_press(event, document_position_f(event->position()))) {
+        event->accept();
+        return;
+      }
+    } else {
+      set_shape_ctrl_path_select(false);
     }
   }
 
@@ -1602,6 +1623,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
                            (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
                           tool_ == CanvasTool::CustomShape);
+      // Shift at the press also adds this one shape to the targeted shape layer
+      // (GitHub issue 313); Shift during the drag still only constrains.
+      shape_press_adds_to_shape_ = vector_shape_drag && (event->modifiers() & Qt::ShiftModifier) != 0;
       update();
     }
   }
@@ -1817,6 +1841,24 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     event->accept();
     return;
+  }
+
+  if (shape_temp_path_select_ && (event->buttons() & Qt::LeftButton) == 0) {
+    shape_temp_path_select_ = false;  // the release went elsewhere
+  }
+  if (shape_tool_active() && !drawing_shape_) {
+    if (!shape_temp_path_select_) {
+      set_shape_ctrl_path_select((event->modifiers() & Qt::ControlModifier) != 0);
+    }
+    if (shape_temp_path_select_ || shape_ctrl_path_select_) {
+      if (shape_temp_path_select_) {
+        handle_path_edit_move(event, document_position_f(event->position()));
+      }
+      last_mouse_position_ = event->pos();
+      update_tool_cursor();
+      event->accept();
+      return;
+    }
   }
 
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
@@ -2524,6 +2566,15 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
+  }
+
+  if (shape_temp_path_select_ && event->button() == Qt::LeftButton) {
+    handle_path_edit_release(event);
+    shape_temp_path_select_ = false;
+    set_shape_ctrl_path_select((event->modifiers() & Qt::ControlModifier) != 0);
+    update_tool_cursor();
+    event->accept();
+    return;
   }
 
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
@@ -3235,6 +3286,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
 
   if (drawing_shape_) {
+    // The Shift-at-press add (GitHub issue 313) covers only this release's commit.
+    const auto end_shape_add = qScopeGuard([this] { shape_press_adds_to_shape_ = false; });
     const auto document_point = document_position(event->pos());
     const auto snapped_point = snapped_document_point(document_point);
     if (spacebar_repositioning_drag_rect_) {
@@ -4271,6 +4324,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   cancel_spot_heal_stroke();
   cancel_patch_tool_drag();
   drawing_shape_ = dragging_text_rect_ = dragging_text_entry_selection_ = false;
+  shape_press_adds_to_shape_ = shape_temp_path_select_ = false;
   move_drag_pending_ = moving_layer_ = false;
   // After the move state above is cleared, so a resumed text session starts from a quiet canvas.
   const auto finish_text_move = qScopeGuard([this] { finish_text_layer_move(); });

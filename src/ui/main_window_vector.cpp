@@ -361,6 +361,13 @@ void MainWindow::handle_shape_create_requested(CanvasTool tool, QPointF document
   handle_vector_path_committed(std::move(path), true, VectorPathSource::CustomShape);
 }
 
+int MainWindow::effective_vector_combine_index() const {
+  if (canvas_ != nullptr && canvas_->shape_drag_adds_to_shape()) {
+    return 1;  // Add
+  }
+  return current_vector_combine_index_;
+}
+
 void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
   auto subpaths = generate_live_shape_subpaths(params);
   create_or_extend_shape_layer(std::move(subpaths), params, shape_layer_base_name(params.kind));
@@ -377,8 +384,9 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   const auto* patterns = &doc.metadata().patterns;
 
   // A non-default combine op extends the active shape layer (Photoshop's
-  // add/subtract/intersect/exclude shape-area modes).
-  if (current_vector_combine_index_ != 0) {
+  // add/subtract/intersect/exclude shape-area modes); so does Shift at the press.
+  const auto combine_index = effective_vector_combine_index();
+  if (combine_index != 0) {
     if (const auto active = doc.active_layer_id(); active.has_value()) {
       if (auto* layer = doc.find_layer(*active);
           layer != nullptr && layer_is_vector_shape(*layer) && vector_lock_reason(*layer).empty()) {
@@ -387,7 +395,7 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
             to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
         auto content = *layer->vector_shape();
         const auto group = content.path.next_shape_group();
-        const auto op = combine_op_for_index(current_vector_combine_index_);
+        const auto op = combine_op_for_index(combine_index);
         if (!content.parts.empty()) {
           if (op == PathCombineOp::Add) {
             VectorShapePart part;
@@ -504,7 +512,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
   if (subpaths.empty()) {
     return;
   }
-  const auto op = combine_op_for_index(current_vector_combine_index_);
+  const auto op = combine_op_for_index(effective_vector_combine_index());
   // A path explicitly selected in the Paths panel receives the subpaths
   // instead of the work path.
   if (active_document_path_id_.has_value()) {

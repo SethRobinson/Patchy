@@ -117,8 +117,7 @@ selection.
 
 ## Tool roles
 
-The conventional split (GitHub issue 248, Seth's follow-up): each tool owns one job, and a
-press never does another tool's.
+Each tool owns one job (GitHub issue 248); a press never does another tool's.
 
 | Tool | Owns | Never |
 |---|---|---|
@@ -143,7 +142,7 @@ undo entry with the drag (`path_drag_duplicate_pending_`). Direct Select Alt+cli
 point or segment selects its whole subpath; Alt at a handle press breaks a smooth pair
 (`path_drag_break_pair_`, the anchor turns corner and only that handle moves). A plain
 handle drag on a smooth anchor keeps the pair colinear: the opposite handle turns with it
-and keeps its own length (it is not mirrored).
+and keeps its own length.
 
 Cursors (`tool_cursors.cpp`, Patchy's own art from the shared pointer arrow, hotspot on
 the tip, theme-exempt like the other tool cursors): `path_select_cursor()` is the arrow
@@ -154,6 +153,14 @@ Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
 `ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it`,
 `ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
 `ui_path_select_tools_show_their_own_arrow_cursors`.
+
+Shape tools (issues 312, 313). Ctrl is a temporary Path Select: `shape_ctrl_path_select_`
+follows Ctrl while idle (hover, key filter: cursor, overlay); a Ctrl press latches
+`shape_temp_path_select_` to release, so `path_edit_tool()` reports PathSelect. Shift at a
+vector drag's press sets `shape_press_adds_to_shape_` for that commit:
+`effective_vector_combine_index()` reads Add (any kind joins the active shape layer; none: a
+new layer); the Combine combo is never written. Tests:
+`ui_shape_tool_ctrl_acts_as_path_select`, `ui_shape_tool_shift_press_adds_to_shape_layer`.
 
 ## Pen: extending and ending paths
 
@@ -280,12 +287,32 @@ Every entry is always listed and enabled by context (object names
 `pathMenu*Action`): Add Anchor Point (over a segment), Delete Anchor Point
 and Convert Point (over an anchor), Delete Selected Points and Deselect
 Points (with a selection; Delete Selected Shapes and Deselect Shapes under Path
-Select, whose selection is whole shapes), then Free Transform Points (Direct Select with a
+Select, whose selection is whole shapes; it is the Delete key's
+`delete_selected_path_anchors`, so a shape layer it empties is deleted too, see
+[Deleting the last shape](#deleting-the-last-shape)), then Free Transform Points (Direct Select with a
 selection) or Free Transform Path, enabled for Path/Direct Select only (the
 Pen family sees it disabled and keeps falling through to the layer
 transform). The menu uses the RAW hit, so it works with Auto Add/Delete off
 and under the anchor tools. No menu with no target path, during a Pen
 session, or in a path transform.
+
+## Deleting the last shape
+
+GitHub issue 315: `delete_selected_path_anchors` (Delete/Backspace under Path
+Select, Direct Select or the Pen's Ctrl latch, and the menu's Delete Selected
+Shapes/Points) collects every shape layer, primary target or cross-layer extra,
+whose path it left with no subpath, and hands the ids to
+`set_shape_layers_emptied_callback`. MainWindow removes them through
+`remove_layers_in_open_undo_step` (delete_layers without its own snapshot), inside
+the path edit's undo entry, so one Undo restores each layer and its path. Only
+a vector shape path counts: a vector mask, a saved path or the work path stays
+empty (Reveal All coverage). The deletion activates a pixel layer when no
+shape layer is next, so with no path target at all a Path/Direct Select press
+(and its hover) still picks the shape layer under the pointer
+(`topmost_path_pick_layer_at`) instead of refusing. Tests: `ui_path_select_delete_last_shape_removes_the_layer`,
+`ui_path_select_delete_one_of_two_shapes_keeps_the_layer`,
+`ui_path_menu_delete_last_shape_removes_the_layer`,
+`ui_direct_select_edits_points_across_selected_layers`.
 
 ## Paths panel retargeting
 

@@ -2148,6 +2148,108 @@ void ui_path_select_context_menu_names_shapes() {
   open_path_menu_at(*canvas, QPoint(600, 400));
 }
 
+// GitHub issue 315: deleting the only shape of a shape layer under Path Select
+// deletes the layer in the same undo step. An empty shape path means full
+// coverage, so keeping the layer filled the whole canvas with nothing left to
+// select. One Undo brings the layer back with its path.
+void ui_path_select_delete_last_shape_removes_the_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(340, 60), QPoint(420, 160));  // "Rectangle 2", stays active
+  const auto second_id = *document.active_layer_id();
+  CHECK(second_id != first_id);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto layers_before = document.layers().size();
+
+  pen_click(*canvas, QPoint(200, 100));  // Rectangle 1's top edge picks it
+  CHECK(document.active_layer_id() == first_id);
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  QKeyEvent override_event(QEvent::ShortcutOverride, Qt::Key_Delete, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &override_event);
+  CHECK(override_event.isAccepted());  // layer.clear never fires
+  send_key(*canvas, Qt::Key_Delete);
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(first_id) == nullptr);
+  CHECK(std::as_const(document).find_layer(second_id) != nullptr);
+  CHECK(document.layers().size() == layers_before - 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  CHECK(canvas->path_edit_selected_anchor_count() == 0);
+
+  // Path Select still picks the other shape.
+  pen_click(*canvas, QPoint(380, 60));
+  CHECK(document.active_layer_id() == second_id);
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_before);
+  CHECK(anchor_count(document, first_id) == 4);
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 100.0) < 0.5);
+}
+
+// Deleting one of two shapes on a layer keeps the layer with the other
+// (GitHub issue 315's other half).
+void ui_path_select_delete_one_of_two_shapes_keeps_the_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_two_group_shape_layer(window, *canvas);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto layers_before = document.layers().size();
+  pen_click(*canvas, QPoint(450, 220));  // the second shape
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  send_key(*canvas, Qt::Key_Delete);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_before);
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+  CHECK(layer->vector_shape()->path.subpaths.size() == 1);
+  CHECK(std::abs(group_anchor_at(document, layer_id, 0, 0).anchor_x - 100.0) < 0.5);
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(200, 160)) > 0);  // the kept shape
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(450, 160)) == 0);  // the deleted one
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(40, 300)) == 0);   // no full coverage
+}
+
+// The path context menu's Delete Selected Shapes follows the same rule as the
+// Delete key (GitHub issue 315).
+void ui_path_menu_delete_last_shape_removes_the_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto layers_before = document.layers().size();
+  pen_click(*canvas, QPoint(200, 100));
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  with_path_context_menu([](QMenu& menu) {
+    auto* action = require_menu_action(menu, "pathMenuDeleteSelectedAction");
+    CHECK(action->isEnabled());
+    action->trigger();
+  });
+  open_path_menu_at(*canvas, QPoint(600, 400));
+  CHECK(std::as_const(document).find_layer(layer_id) == nullptr);
+  CHECK(document.layers().size() == layers_before - 1);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(anchor_count(document, layer_id) == 4);
+}
+
 // Pen Ctrl latch (Seth on GitHub issue 248): a point selected with Ctrl+click keeps
 // its handle knobs on screen after the mouse button comes up, Ctrl still held, and
 // after Ctrl comes up too, as long as it stays selected, so the user can see where
@@ -2442,8 +2544,9 @@ void ui_direct_select_edits_points_across_selected_layers() {
   const auto delete_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   send_key(*canvas, Qt::Key_Delete);
   QApplication::processEvents();
-  CHECK(std::as_const(document).find_layer(first_id)->vector_shape()->path.subpaths.empty());
-  CHECK(std::as_const(document).find_layer(second_id)->vector_shape()->path.subpaths.empty());
+  // Both layers lost every subpath, so both go (GitHub issue 315).
+  CHECK(std::as_const(document).find_layer(first_id) == nullptr);
+  CHECK(std::as_const(document).find_layer(second_id) == nullptr);
   CHECK(canvas->path_edit_selected_anchor_count() == 0);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == delete_before + 1);
   patchy::ui::MainWindowTestAccess::undo(window);
@@ -2575,6 +2678,10 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_select_tools_show_their_own_arrow_cursors", ui_path_select_tools_show_their_own_arrow_cursors},
       {"ui_direct_select_drags_redraw_the_fill_live", ui_direct_select_drags_redraw_the_fill_live},
       {"ui_path_select_context_menu_names_shapes", ui_path_select_context_menu_names_shapes},
+      {"ui_path_select_delete_last_shape_removes_the_layer", ui_path_select_delete_last_shape_removes_the_layer},
+      {"ui_path_select_delete_one_of_two_shapes_keeps_the_layer",
+       ui_path_select_delete_one_of_two_shapes_keeps_the_layer},
+      {"ui_path_menu_delete_last_shape_removes_the_layer", ui_path_menu_delete_last_shape_removes_the_layer},
       {"ui_pen_ctrl_selected_point_keeps_its_knobs", ui_pen_ctrl_selected_point_keeps_its_knobs},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},

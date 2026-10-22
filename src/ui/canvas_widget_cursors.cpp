@@ -355,6 +355,10 @@ void CanvasWidget::update_tool_cursor() {
     apply_pen_cursor(QPointF(last_mouse_position_), modifiers);
     return;
   }
+  if (shape_tool_active() && (shape_ctrl_path_select_ || shape_temp_path_select_)) {
+    setCursor(path_select_cursor());  // Ctrl: temporary Path Select (GitHub issue 312)
+    return;
+  }
   if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
     setCursor(Qt::CrossCursor);
     return;
