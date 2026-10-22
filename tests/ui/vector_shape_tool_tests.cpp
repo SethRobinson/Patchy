@@ -3141,8 +3141,11 @@ void ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape() {
   }
   CHECK(content->path.subpaths[0].shape_group != content->path.subpaths[1].shape_group);
   CHECK(content->path.subpaths[1].op == content->path.subpaths[0].op);
-  CHECK(std::abs(content->path.subpaths[1].anchors[0].anchor_x - 160.0) < 1.0);
-  CHECK(std::abs(content->path.subpaths[1].anchors[0].anchor_y - 180.0) < 1.0);
+  // The copy sits the drag (60, 80) away from the original. Measured from the original, not from fixed
+  // coordinates: after earlier tests in the full suite the drawn rectangle can land a pixel or two off (100,100).
+  const auto& original_anchor = content->path.subpaths[0].anchors[0];
+  CHECK(std::abs(content->path.subpaths[1].anchors[0].anchor_x - (original_anchor.anchor_x + 60.0)) < 1.0);
+  CHECK(std::abs(content->path.subpaths[1].anchors[0].anchor_y - (original_anchor.anchor_y + 80.0)) < 1.0);
   CHECK(document.work_path() == nullptr || document.work_path()->path().subpaths.empty());
   // The copy (160,180)-(360,300) paints like the original, in the layer and on the canvas.
   CHECK(alpha_at(QPoint(340, 290)) > 200);
