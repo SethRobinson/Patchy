@@ -5865,6 +5865,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     refresh_path_point_count_chip();
   });
+  canvas->set_shape_layers_emptied_callback([this, canvas](const std::vector<LayerId>& ids) {
+    if (canvas != canvas_) {
+      return;
+    }
+    remove_layers_in_open_undo_step(ids);
+  });
   canvas->set_shape_preview_appearance_callback(
       [this]() -> std::optional<CanvasWidget::ShapePreviewAppearance> {
         // Pulled at draw time from the application-wide options-bar state, so

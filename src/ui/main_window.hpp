@@ -1768,6 +1768,9 @@ private:
                                                     const std::function<bool()>& before_mutation, QString* error);
   void delete_active_layer();
   void delete_layers(std::vector<LayerId> ids);
+  // delete_layers without its own undo entry: the caller already opened one
+  // (a path Delete that emptied shape layers, GitHub issue 315).
+  void remove_layers_in_open_undo_step(std::vector<LayerId> ids);
   void move_active_layer(int direction);
   void handle_layer_drop();
   // The Alt-drop branch of handle_layer_drop: clones the dragged roots and
