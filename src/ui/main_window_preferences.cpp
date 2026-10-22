@@ -89,6 +89,7 @@
 #include <QSize>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QValidator>
 #include <QString>
 #include <QStringList>
 #include <QStringLiteral>
@@ -275,6 +276,61 @@ QPixmap grid_overlay_preview_pixmap(QColor grid_color, QColor guide_color, int g
   painter.drawRect(preview_rect.adjusted(0, 0, -1, -1));
   return pixmap;
 }
+
+// Interface-scale text (GitHub issue 333) without its percent sign, trimmed.
+QString strip_gui_scale_suffix(QString text) {
+  text = text.trimmed();
+  const auto suffix = percent_suffix().trimmed();
+  if (!suffix.isEmpty() && text.endsWith(suffix)) {
+    text.chop(suffix.size());
+  } else if (text.endsWith(QLatin1Char('%'))) {
+    text.chop(1);
+  }
+  return text.trimmed();
+}
+
+// A whole percent, with or without the percent sign. Returns the number as typed, not
+// range-checked; nullopt for anything else.
+std::optional<int> parse_gui_scale_text(const QString& input) {
+  const auto text = strip_gui_scale_suffix(input);
+  if (text.isEmpty() || text.size() > 4) {
+    return std::nullopt;
+  }
+  for (const QChar c : text) {
+    if (c < QLatin1Char('0') || c > QLatin1Char('9')) {
+      return std::nullopt;
+    }
+  }
+  return text.toInt();
+}
+
+QString gui_scale_text(int percent) { return QString::number(percent) + percent_suffix(); }
+
+// Lets the editable interface-scale combo take any whole percent in the range. Over the
+// maximum cannot be typed; under the minimum is held as intermediate and clamped up when
+// the edit is committed, as normalize_gui_scale_percent clamps a stored value.
+class GuiScaleValidator final : public QValidator {
+ public:
+  using QValidator::QValidator;
+
+  State validate(QString& input, int& /*pos*/) const override {
+    // Empty, or only the percent sign left while the digits are retyped.
+    if (strip_gui_scale_suffix(input).isEmpty()) {
+      return Intermediate;
+    }
+    const auto value = parse_gui_scale_text(input);
+    if (!value || *value > kMaxGuiScalePercent) {
+      return Invalid;
+    }
+    return *value < kMinGuiScalePercent ? Intermediate : Acceptable;
+  }
+
+  void fixup(QString& input) const override {
+    if (const auto value = parse_gui_scale_text(input)) {
+      input = gui_scale_text(std::clamp(*value, kMinGuiScalePercent, kMaxGuiScalePercent));
+    }
+  }
+};
 
 }  // namespace
 
@@ -672,15 +728,31 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
         ThemeManager::instance().set_preference(entry_color_scheme, /*persist=*/false);
       });
 
-  // Any whole percent in the range (GitHub issue 333). stored_gui_scale_percent() is
-  // already clamped to it, so the spin box shows exactly what startup applies.
-  auto* gui_scale_spin = new QSpinBox(application_group);
-  gui_scale_spin->setObjectName(QStringLiteral("preferencesGuiScaleSpin"));
-  gui_scale_spin->setRange(kMinGuiScalePercent, kMaxGuiScalePercent);
-  gui_scale_spin->setSuffix(percent_suffix());
+  // A list of presets that also takes any whole percent in the range (GitHub issue 333).
+  // stored_gui_scale_percent() is already clamped to it, so the combo shows exactly what
+  // startup applies, as typed text when it is not a preset.
+  auto* gui_scale_combo = new QComboBox(application_group);
+  gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
+  gui_scale_combo->setEditable(true);
+  gui_scale_combo->setInsertPolicy(QComboBox::NoInsert);
+  // Inline completion would turn a typed "15" into "150%".
+  gui_scale_combo->setCompleter(nullptr);
+  gui_scale_combo->setValidator(new GuiScaleValidator(gui_scale_combo));
+  for (const int percent : kGuiScalePresetPercents) {
+    gui_scale_combo->addItem(gui_scale_text(percent), percent);
+  }
+  // A modest fixed width with room for "300%" and the caret, not the whole row.
+  gui_scale_combo->setMinimumContentsLength(7);
+  gui_scale_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   const int entry_gui_scale = stored_gui_scale_percent();
-  gui_scale_spin->setValue(entry_gui_scale);
-  application_form->addRow(tr("Interface scale:"), gui_scale_spin);
+  const int entry_gui_scale_index = gui_scale_combo->findData(entry_gui_scale);
+  if (entry_gui_scale_index >= 0) {
+    gui_scale_combo->setCurrentIndex(entry_gui_scale_index);
+  } else {
+    gui_scale_combo->setCurrentIndex(-1);
+    gui_scale_combo->setEditText(gui_scale_text(entry_gui_scale));
+  }
+  application_form->addRow(tr("Interface scale:"), gui_scale_combo);
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
   // Linux only: the desktop's own title bar and frame instead of the frameless chrome
@@ -1774,7 +1846,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                                QStringLiteral("preferencesSystemTitleBarMessageBox"));
     }
 #endif
-    const int selected_gui_scale = gui_scale_spin->value();
+    // Text the validator left short of the range clamps up, as its fixup would on Enter.
+    const auto typed_gui_scale = parse_gui_scale_text(gui_scale_combo->currentText());
+    const int selected_gui_scale =
+        typed_gui_scale ? std::clamp(*typed_gui_scale, kMinGuiScalePercent, kMaxGuiScalePercent)
+                        : entry_gui_scale;
     if (selected_gui_scale != entry_gui_scale) {
       set_stored_gui_scale_percent(selected_gui_scale);
       show_information_message(this, tr("Interface Scale"),
