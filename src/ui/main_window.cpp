@@ -4322,6 +4322,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // prompt in dialog_utils_wasm.cpp) also need the app-wide dialog guards.
   ensure_wasm_dialog_guards();
 #endif
+  // A click on a menu separator would otherwise close the menu (GitHub issue 317).
+  install_menu_separator_click_guard();
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {
