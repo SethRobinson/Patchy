@@ -1611,7 +1611,7 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
 // Issues 327 and 329: the px fields (UnitSpinBox, a QDoubleSpinBox) drew the
 // platform style's dark frame because the application sheet gave its field
 // border to QSpinBox only, and the stroke Width field lost its top and bottom
-// edge once Stroke was ticked. Every field in the dialog draws the sheet's
+// edge once it went from disabled to enabled. Every field in the dialog draws the sheet's
 // field border, in both schemes, disabled and enabled.
 void ui_shape_appearance_unit_fields_share_spin_box_border() {
   VectorSettingsGuard settings_guard;
@@ -1664,28 +1664,31 @@ void ui_shape_appearance_unit_fields_share_spin_box_border() {
       if (dialog == nullptr) {
         return;
       }
-      auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
       auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
       auto* stroke_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeStrokeOpacitySpin"));
       auto* feather = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"));
       auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("shapeDensitySpin"));
-      CHECK(stroke_check != nullptr && stroke_width != nullptr && stroke_opacity != nullptr);
+      CHECK(stroke_width != nullptr && stroke_opacity != nullptr);
       CHECK(feather != nullptr && density != nullptr);
-      if (stroke_check == nullptr || stroke_width == nullptr || stroke_opacity == nullptr ||
-          feather == nullptr || density == nullptr) {
+      if (stroke_width == nullptr || stroke_opacity == nullptr || feather == nullptr || density == nullptr) {
         dialog->reject();
         return;
       }
       const auto& palette = patchy::ui::theme();
-      CHECK(!stroke_check->isChecked());
-      check_border(scheme + " stroke (off)", *stroke_width, *stroke_opacity, palette.field_border_disabled);
-      stroke_check->setChecked(true);
+      // The stroke rows no longer grey out (width 0 is the off switch, #311),
+      // but the enabled-after-disabled path is the #329 one, so drive it directly.
+      stroke_width->setValue(3.0);
+      stroke_width->setEnabled(false);
+      stroke_opacity->setEnabled(false);
+      QApplication::processEvents();
+      check_border(scheme + " stroke (disabled)", *stroke_width, *stroke_opacity, palette.field_border_disabled);
+      stroke_width->setEnabled(true);
+      stroke_opacity->setEnabled(true);
       QApplication::processEvents();
       if (auto* page = dialog->findChild<QWidget*>(QStringLiteral("shapeAppearancePage")); page != nullptr) {
         capture_widget_artifact("shape_appearance_fields_" + scheme, *page);
       }
-      CHECK(stroke_width->isEnabled());
-      check_border(scheme + " stroke (on)", *stroke_width, *stroke_opacity, palette.field_border);
+      check_border(scheme + " stroke (enabled)", *stroke_width, *stroke_opacity, palette.field_border);
       check_border(scheme + " feather", *feather, *density, palette.field_border);
       sampled = true;
       dialog->reject();
