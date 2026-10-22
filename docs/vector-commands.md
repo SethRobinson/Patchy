@@ -117,8 +117,7 @@ selection.
 
 ## Tool roles
 
-The conventional split (GitHub issue 248, Seth's follow-up): each tool owns one job, and a
-press never does another tool's.
+Each tool owns one job (GitHub issue 248); a press never does another tool's.
 
 | Tool | Owns | Never |
 |---|---|---|
@@ -143,7 +142,7 @@ undo entry with the drag (`path_drag_duplicate_pending_`). Direct Select Alt+cli
 point or segment selects its whole subpath; Alt at a handle press breaks a smooth pair
 (`path_drag_break_pair_`, the anchor turns corner and only that handle moves). A plain
 handle drag on a smooth anchor keeps the pair colinear: the opposite handle turns with it
-and keeps its own length (it is not mirrored).
+and keeps its own length.
 
 Cursors (`tool_cursors.cpp`, Patchy's own art from the shared pointer arrow, hotspot on
 the tip, theme-exempt like the other tool cursors): `path_select_cursor()` is the arrow
@@ -155,20 +154,13 @@ Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
 `ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
 `ui_path_select_tools_show_their_own_arrow_cursors`.
 
-Shape tools (Line, Rectangle, Ellipse, Polygon, Custom Shape; GitHub issues 312 and 313).
-Ctrl is a temporary Path Select: `shape_ctrl_path_select_` follows Ctrl from hover moves
-and the key filter while idle (arrow cursor, editing overlay through
-`path_edit_tool_active()`), and a Ctrl press latches `shape_temp_path_select_` until
-release, so `path_edit_tool()` reports PathSelect and the press, drag, marquee and release
-run the Path Select handlers unchanged (one "Move shape" undo). With no path targeted the
-press first picks the topmost shape layer under it; a miss does nothing. A drag in progress
-ignores Ctrl. Shift at the press of a vector-mode drag sets `shape_press_adds_to_shape_`
-for that release's commit only: `MainWindow::effective_vector_combine_index()` reads it as
-Add, so the shape joins the active shape layer (or the work path) as a new group, any
-kind; with no shape layer active a new layer is made as before. Shift during the drag
-still constrains; the Combine combo is never written. Alt keeps its meaning (from center,
-Line's eyedropper); there is no Alt subtract. Coverage: `ui_shape_tool_ctrl_acts_as_path_select`,
-`ui_shape_tool_shift_press_adds_to_shape_layer`.
+Shape tools (issues 312, 313). Ctrl is a temporary Path Select: `shape_ctrl_path_select_`
+follows Ctrl while idle (hover, key filter: cursor, overlay); a Ctrl press latches
+`shape_temp_path_select_` to release, so `path_edit_tool()` reports PathSelect. Shift at a
+vector drag's press sets `shape_press_adds_to_shape_` for that commit:
+`effective_vector_combine_index()` reads Add (any kind joins the active shape layer; none: a
+new layer); the Combine combo is never written. Tests:
+`ui_shape_tool_ctrl_acts_as_path_select`, `ui_shape_tool_shift_press_adds_to_shape_layer`.
 
 ## Pen: extending and ending paths
 

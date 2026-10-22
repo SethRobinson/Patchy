@@ -15,9 +15,9 @@ mask/channel/quick-mask targets always rasterize. Release creates a
 shape layer from live parameters (rect, rounded rect via Radius, ellipse,
 line with Weight) and the options-bar paints. Stroke alignment defaults to
 Inside, like PS. Combine (New Layer / Add / Subtract / Intersect / Exclude)
-appends a group with that op to the active shape layer; Shift at the press adds
-one shape, Ctrl is Path Select ([modifiers](vector-commands.md#tool-roles)). Path
-mode appends to the work path; Pixels keeps the raster commit byte-identical.
+appends a group with that op to the active shape layer (Shift at the press: Add
+once; Ctrl: [Path Select](vector-commands.md#tool-roles)). Path mode appends
+to the work path; Pixels keeps the raster commit byte-identical.
 
 Fill/Stroke popups (No Fill / Solid / Gradient / Pattern) use app-wide
 `VectorFill` mirrors. Gradient picks resolve FG/BG stops immediately; patterns
@@ -28,7 +28,7 @@ launch. The controls also serve Path Select / Direct Select and next-shape
 defaults; stroke controls stay enabled when any eligible target has a
 stroke; multi-shape edits: [batch appearance](batch-appearance.md).
 
-A bare click (no drag) with Rectangle, Ellipse, Polygon, or Custom Shape
+A bare click with Rectangle, Ellipse, Polygon, or Custom Shape
 opens the Create <Shape> dialog (shape_create_dialog.cpp): Width, Height,
 From Center (checked, the click is the center; otherwise the top-left
 corner), and per-corner radii for rectangles prefilled from the options-bar
