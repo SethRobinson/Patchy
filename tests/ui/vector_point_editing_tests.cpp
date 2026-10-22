@@ -1220,6 +1220,52 @@ void ui_path_select_drag_inside_fill_moves_shape() {
   CHECK(canvas->path_edit_has_selection());
 }
 
+// GitHub #314: a Path Select drag applies once per batch of queued mouse moves, at
+// the latest pointer position. Each apply re-bakes the shape (a gradient fill renders
+// again in full) and recomposites its region; applying every queued move fell seconds
+// behind a fast pointer on Wayland and the app stopped responding.
+void ui_path_select_drag_coalesces_queued_moves() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  const auto start = canvas->widget_position_for_document_point(QPoint(200, 160));
+  const auto applies = [canvas] { return canvas->render_cache_diagnostics().path_drag_applies; };
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  const auto before = applies();
+  for (int move = 1; move <= 30; ++move) {
+    const auto position = start + QPoint(move, move / 2);
+    QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                    QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                    Qt::LeftButton, Qt::NoModifier));
+  }
+  // The apply is queued behind the moves, so it runs on the event loop's next pass.
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(applies() - before == 1);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 130.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 115.0) < 1.0);
+  // A move delivered right before the release still lands: the release applies it.
+  const auto end = start + QPoint(40, 30);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  CHECK(applies() - before == 2);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 140.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 130.0) < 1.0);
+  QApplication::processEvents();
+  CHECK(applies() - before == 2);  // the queued apply found nothing left to do
+  // The fill moved with the path, and the whole drag is one undo step.
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr && layer->bounds().x == 140 && layer->bounds().y == 130);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 100.0) < 0.5);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 0.5);
+}
+
 // GitHub issue 248, point 4: a Direct Select press on a point of a shape that
 // is not selected yet drags that point at once, on the active shape and on
 // another shape layer.
@@ -2648,6 +2694,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_select_click_picks_shape_under_pointer", ui_path_select_click_picks_shape_under_pointer},
       {"ui_path_select_marquee_touching_shape_selects_it", ui_path_select_marquee_touching_shape_selects_it},
       {"ui_path_select_drag_inside_fill_moves_shape", ui_path_select_drag_inside_fill_moves_shape},
+      {"ui_path_select_drag_coalesces_queued_moves", ui_path_select_drag_coalesces_queued_moves},
       {"ui_direct_select_drags_points_of_unselected_shapes",
        ui_direct_select_drags_points_of_unselected_shapes},
       {"ui_path_select_anchor_drag_moves_the_whole_shape", ui_path_select_anchor_drag_moves_the_whole_shape},

@@ -358,6 +358,10 @@ struct CanvasRenderCacheDiagnostics {
   // Every Warp Transform preview render. A drag renders once per painted frame,
   // however many mouse moves queued up before it (GitHub #298).
   int warp_preview_renders{0};
+  // Every Path Select / Direct Select drag step that rewrites a path (and re-bakes a
+  // shape or vector mask). A drag applies once per batch of queued mouse moves at
+  // the latest pointer position (GitHub #314).
+  int path_drag_applies{0};
 };
 
 }  // namespace patchy::ui

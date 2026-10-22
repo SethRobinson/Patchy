@@ -39,7 +39,11 @@ Select and the Pen family draw the knobs of selected points; the Pen keeps them 
 button and Ctrl come up, so a Ctrl-drag can find them, but a plain Pen click never grabs one
 (`ui_pen_ctrl_selected_point_keeps_its_knobs`). Path Select draws and grabs none
 (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). Point and handle drags
-re-render a shape layer's fill on every move (`apply_path_edit`; `ui_direct_select_drags_redraw_the_fill_live`);
+re-render a shape layer's fill live (`apply_path_edit`; `ui_direct_select_drags_redraw_the_fill_live`), once per
+batch of queued mouse moves at the latest pointer position, and the release applies a move still queued
+(`flush_pending_path_edit_drag`, `ui_path_select_drag_coalesces_queued_moves`; GitHub #314: an apply per move
+fell seconds behind fast pointers on a gradient shape; the 8-bit gradient paint in `paint_coverage` runs in row
+strips across workers above 32 K pixels, same bytes; `patchy_perf_tests gradientdrag` times both);
 tests that set up handles go through `replace_path_edit_target` (`set_target_path_through_edits`),
 never `set_vector_shape`, or captures show the old fill under the new outline. `kGlyphReach` (8 px) is how far a glyph reaches
 past its point; every repaint region around path points pads by it. The tests'

@@ -1998,6 +1998,9 @@ private:
   // state; split out of handle_path_edit_move so Shift press/release mid-drag
   // can replay it at the last raw pointer position.
   bool update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  // Applies the drag at the latest pointer position if mouse moves arrived since the
+  // last apply (handle_path_edit_move queues one apply per batch of moves).
+  void flush_pending_path_edit_drag();
   // Photoshop's vertex constraint: snaps the total drag delta onto the nearest
   // horizontal, vertical, or 45-degree axis (re-evaluated per call, no latch).
   [[nodiscard]] static QPointF constrain_drag_to_axes(QPointF total_delta) noexcept;
@@ -2728,6 +2731,12 @@ private:
   QPointF path_drag_origin_document_{};
   QPointF path_drag_raw_document_{};
   QPointF path_drag_applied_delta_{};
+  // A drag move not applied yet: each apply re-bakes the shape (a gradient fill
+  // costs a full re-render) and recomposites its region, and mouse moves can arrive
+  // faster than that (Wayland's uncompressed motion), so one queued apply takes the
+  // latest position however many moves came in before it (GitHub #314).
+  bool path_drag_apply_pending_{false};
+  Qt::KeyboardModifiers path_drag_pending_modifiers_{};
   QPointF path_marquee_start_{};
   QPointF path_marquee_current_{};
   // Last raw pointer position of the marquee drag; Shift key toggles replay

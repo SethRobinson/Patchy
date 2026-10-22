@@ -1865,7 +1865,23 @@ bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_po
     return true;
   }
   path_drag_raw_document_ = document_point;
-  return update_path_edit_drag(document_point, event->modifiers());
+  path_drag_pending_modifiers_ = event->modifiers();
+  if (!path_drag_apply_pending_) {
+    path_drag_apply_pending_ = true;
+    QMetaObject::invokeMethod(this, [this] { flush_pending_path_edit_drag(); }, Qt::QueuedConnection);
+  }
+  return true;
+}
+
+void CanvasWidget::flush_pending_path_edit_drag() {
+  if (!path_drag_apply_pending_) {
+    return;
+  }
+  path_drag_apply_pending_ = false;
+  if (path_drag_mode_ == PathEditDrag::None || path_drag_mode_ == PathEditDrag::Marquee) {
+    return;  // the drag ended or was cancelled before the apply ran
+  }
+  update_path_edit_drag(path_drag_raw_document_, path_drag_pending_modifiers_);
 }
 
 QPointF CanvasWidget::constrain_marquee_current(QPointF current,
@@ -1910,6 +1926,8 @@ QPointF CanvasWidget::constrain_drag_to_axes(QPointF total_delta) noexcept {
 }
 
 bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  // Every caller passes the latest pointer position, so a queued apply is covered.
+  path_drag_apply_pending_ = false;
   const auto edit_tool = path_edit_tool();
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
@@ -1984,6 +2002,7 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
     }
   }
   path_drag_last_document_ = document_point;
+  ++render_cache_diagnostics_.path_drag_applies;
   prune_path_edit_selection(*path);
   prune_extra_path_selection();
   const auto label = edit_tool == CanvasTool::PathSelect && path_drag_mode_ == PathEditDrag::Anchors
@@ -2105,6 +2124,8 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
     path_transform_drag_handle_ = TransformHandle::None;
     return true;
   }
+  // The last moves before the release land first, so the drop is where the pointer was.
+  flush_pending_path_edit_drag();
   if (path_drag_mode_ == PathEditDrag::Marquee) {
     const auto* path = path_edit_target_path();
     path_selection_by_path_select_ = edit_tool == CanvasTool::PathSelect;
