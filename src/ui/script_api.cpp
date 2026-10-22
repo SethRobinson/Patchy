@@ -38,6 +38,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/display_hdr_info.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/app_settings.hpp"
@@ -3267,6 +3268,37 @@ QJSValue ScriptAppObject::listFonts() {
       scripts.setProperty(script_index++, QFontDatabase::writingSystemName(system));
     }
     entry.setProperty(QStringLiteral("writingSystems"), scripts);
+    result.setProperty(index++, entry);
+  }
+  return result;
+}
+
+QJSValue ScriptAppObject::displayInfo() {
+  const ScriptApiCall api_call(host_);
+  auto* engine = host_.engine();
+  const auto nits = [](const std::optional<double>& value) {
+    return value.has_value() ? QJSValue(*value) : QJSValue(QJSValue::NullValue);
+  };
+  auto result = engine->newArray();
+  quint32 index = 0;
+  for (const auto& screen : query_display_hdr_info()) {
+    auto entry = engine->newObject();
+    entry.setProperty(QStringLiteral("name"), screen.name);
+    entry.setProperty(QStringLiteral("x"), screen.geometry.x());
+    entry.setProperty(QStringLiteral("y"), screen.geometry.y());
+    entry.setProperty(QStringLiteral("width"), screen.geometry.width());
+    entry.setProperty(QStringLiteral("height"), screen.geometry.height());
+    entry.setProperty(QStringLiteral("devicePixelRatio"), static_cast<double>(screen.device_pixel_ratio));
+    entry.setProperty(QStringLiteral("primary"), screen.primary);
+    entry.setProperty(QStringLiteral("hdrQueried"), screen.hdr.queried);
+    entry.setProperty(QStringLiteral("hdrEnabled"), screen.hdr.hdr_enabled);
+    entry.setProperty(QStringLiteral("headroom"), screen.hdr.headroom);
+    entry.setProperty(QStringLiteral("potentialHeadroom"), screen.hdr.potential_headroom);
+    entry.setProperty(QStringLiteral("sdrWhiteNits"), nits(screen.hdr.sdr_white_nits));
+    entry.setProperty(QStringLiteral("peakNits"), nits(screen.hdr.peak_nits));
+    entry.setProperty(QStringLiteral("fullFrameNits"), nits(screen.hdr.full_frame_nits));
+    entry.setProperty(QStringLiteral("minNits"), nits(screen.hdr.min_nits));
+    entry.setProperty(QStringLiteral("remoteSession"), screen.hdr.remote_session);
     result.setProperty(index++, entry);
   }
   return result;

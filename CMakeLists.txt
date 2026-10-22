@@ -151,6 +151,7 @@ add_library(patchy_core
   src/support/atomic_file_write.cpp
   src/support/startup_trace.cpp
   src/core/environment.cpp
+  src/core/hdr_display.cpp
   src/core/artboard.cpp
   src/core/document_geometry.cpp
   src/core/resample.cpp
@@ -1378,6 +1379,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/js_syntax_highlighter.cpp
       src/ui/script_api.hpp
       src/ui/script_api.cpp
+      src/ui/display_hdr_info.hpp
+      src/ui/display_hdr_info.cpp
       src/ui/script_save_options.hpp
       src/ui/script_save_options.cpp
       src/ui/script_vector.hpp
@@ -1585,6 +1588,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       target_sources(patchy_ui PRIVATE
         src/ui/coalesced_pointer_input_mac.mm
         src/ui/dialog_utils_mac.mm
+        src/ui/display_hdr_info_mac.mm
         src/ui/scanner_import_mac.mm
         src/ui/sound_effects_mac.mm
       )
@@ -1594,6 +1598,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       # NSSounds the same ARC way.
       set_source_files_properties(src/ui/scanner_import_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
       set_source_files_properties(src/ui/sound_effects_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+      set_source_files_properties(src/ui/display_hdr_info_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
       target_link_libraries(patchy_ui PUBLIC
         "-framework AppKit"
         "-framework Quartz"
@@ -1615,13 +1620,16 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     if(WIN32)
       # WIA scanner/camera acquisition (File > Import > From Scanner or Camera...).
       # legacy_plugin_runner_win.cpp drives the out-of-process 8BF host.
-      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp src/ui/legacy_plugin_runner_win.cpp)
+      # display_hdr_info_win.cpp reads DXGI outputs (dxgi; Qt6Gui already imports dxgi.dll,
+      # so linking it adds no startup load).
+      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp src/ui/legacy_plugin_runner_win.cpp
+                     src/ui/display_hdr_info_win.cpp)
       add_dependencies(patchy_ui patchy-8bf-host64 patchy_8bf_host32)
       # winmm: PlaySound for the script sound effects (sound_effects.cpp).
       # ws2_32: getaddrinfo for the network clients' own host resolve (host_resolve.cpp).
       # wintrust, crypt32: the one-click update checks the installer's Authenticode signer
     # (update_installer.cpp).
-    target_link_libraries(patchy_ui PUBLIC wiaguid winmm ws2_32 wintrust crypt32)
+    target_link_libraries(patchy_ui PUBLIC wiaguid winmm ws2_32 wintrust crypt32 dxgi)
     endif()
     patchy_configure_target(patchy_ui)
 
@@ -2121,6 +2129,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/rttex_tests.cpp
     tests/core/dds_tests.cpp
     tests/core/jxl_tests.cpp
+    tests/core/hdr_display_tests.cpp
     tests/core/hdr_import_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp

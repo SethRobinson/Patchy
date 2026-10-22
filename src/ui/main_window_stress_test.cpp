@@ -49,6 +49,7 @@
 #include "ui/cli_exit.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/display_hdr_info.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
@@ -353,6 +354,14 @@ QJsonDocument report_to_json(const StressReport& report) {
   screen.insert(QStringLiteral("width"), report.screen_size.width());
   screen.insert(QStringLiteral("height"), report.screen_size.height());
   screen.insert(QStringLiteral("device_pixel_ratio"), report.device_pixel_ratio);
+  const auto nits = [](const std::optional<double>& value) {
+    return value.has_value() ? QJsonValue(*value) : QJsonValue(QJsonValue::Null);
+  };
+  screen.insert(QStringLiteral("hdr_queried"), report.screen_hdr.queried);
+  screen.insert(QStringLiteral("hdr_enabled"), report.screen_hdr.hdr_enabled);
+  screen.insert(QStringLiteral("hdr_headroom"), report.screen_hdr.headroom);
+  screen.insert(QStringLiteral("sdr_white_nits"), nits(report.screen_hdr.sdr_white_nits));
+  screen.insert(QStringLiteral("peak_nits"), nits(report.screen_hdr.peak_nits));
   platform.insert(QStringLiteral("screen"), screen);
   root.insert(QStringLiteral("platform"), platform);
 
@@ -2911,6 +2920,7 @@ StressReport StressTestRunner::run() {
   if (auto* screen = w.screen(); screen != nullptr) {
     report_.screen_size = screen->size();
     report_.device_pixel_ratio = screen->devicePixelRatio();
+    report_.screen_hdr = query_screen_hdr(screen);
   }
   report_.baseline_tag = QLatin1String(kBaselineTag);
   if (options_.bit_depth == 16 || options_.bit_depth == 32) {

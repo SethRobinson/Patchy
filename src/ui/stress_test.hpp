@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/hdr_display.hpp"
 #include "ui/canvas_types.hpp"
 
 #include <QDateTime>
@@ -73,6 +74,7 @@ struct StressReport {
   qint64 ram_mb{-1};
   QSize screen_size;
   double device_pixel_ratio{1.0};
+  DisplayHdrCapabilities screen_hdr;  // the window's screen (ui/display_hdr_info.hpp)
   int canvas_size{0};
   QSize window_size;
   QSize canvas_viewport;

@@ -104,7 +104,9 @@ Exposure (98%).
   disabled with a tooltip, as Photoshop does in 32-bit.
 - **Display.** The canvas stays an 8-bit image. 16-bit narrows at the display
   boundary. 32-bit gets a view exposure/gamma control that changes the display only.
-  Native HDR monitor output is a later, separate phase.
+  Native HDR monitor output is a later, separate phase; its capability probe exists
+  (`app.displayInfo()`, `core/hdr_display.hpp` with the eligibility policy and the reserved
+  `PATCHY_HDR_DISPLAY` switch; docs/platform.md site inventory).
 - **32-bit scope.** At least Photoshop's 32-bit feature set, more wherever the math is
   well defined on unbounded linear values; anything else disabled.
 - **Web build.** 16-bit only; 32-bit files convert to 16-bit on open there with a

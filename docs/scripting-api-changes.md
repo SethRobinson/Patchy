@@ -8,6 +8,11 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-23 (additive): `app.displayInfo()` lists every screen (primary first) with its geometry
+and HDR capability, read fresh per call: `hdrQueried`, `hdrEnabled`, `headroom`,
+`potentialHeadroom`, and on Windows `sdrWhiteNits`, `peakNits`, `fullFrameNits`, `minNits` (null
+when unknown), plus `remoteSession` (docs/platform.md, site inventory). Permanent identifiers:
+the method name and every key. Pinned by `ui_script_display_info_reports_screens`.
 2026-10-22 (additive): `doc.perspectiveCrop(corners, options?)`, the Perspective Crop tool's
 commit (GitHub issue 328): four corners as `[x, y]` or `{x, y}` in result order (top left, top
 right, bottom right, bottom left) are rectified onto `width` x `height` (default: the corners'

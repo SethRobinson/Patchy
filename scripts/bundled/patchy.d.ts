@@ -1180,6 +1180,34 @@ interface PatchyApp {
    */
   listFonts(): {family: string; styles: string[]; writingSystems: string[]}[];
   /**
+   * Every screen, the primary first, with its geometry (device-independent pixels)
+   * and HDR capability, read fresh on each call. hdrQueried is false where Patchy
+   * cannot ask the system (Linux, the web build, offscreen and headless runs); the
+   * other HDR fields then keep their defaults. headroom is the brightest displayable
+   * value as a multiple of SDR white (at least 1): Windows divides peakNits by
+   * sdrWhiteNits while HDR is on; macOS reports the current EDR headroom, which moves
+   * with brightness, and potentialHeadroom what the screen could reach. Nits are
+   * Windows only (null elsewhere, and sdrWhiteNits is null while HDR is off).
+   */
+  displayInfo(): {
+    name: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    devicePixelRatio: number;
+    primary: boolean;
+    hdrQueried: boolean;
+    hdrEnabled: boolean;
+    headroom: number;
+    potentialHeadroom: number;
+    sdrWhiteNits: number | null;
+    peakNits: number | null;
+    fullFrameNits: number | null;
+    minNits: number | null;
+    remoteSession: boolean;
+  }[];
+  /**
    * Writes one PDF with a page per document, in array order, each page sized
    * from that document's pixels and resolution. A single document is accepted
    * in place of the array. options.lossless (default true) keeps images

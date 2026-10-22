@@ -607,6 +607,40 @@ void ui_script_list_fonts_reports_registered_families() {
   CHECK(backlog_contains(window, QStringLiteral("private=0")));
 }
 
+// app.displayInfo() (ui/display_hdr_info.hpp): one entry per screen, primary first, every key
+// typed. The offscreen platform cannot ask the system, so HDR stays unqueried there with a
+// headroom of 1 and null nits; real HDR numbers are checked by hand on HDR hardware.
+void ui_script_display_info_reports_screens() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var screens = app.displayInfo();
+    console.log('count=' + screens.length);
+    console.log('primary-first=' + (screens.length > 0 && screens[0].primary === true));
+    console.log('primaries=' + screens.filter(function (s) { return s.primary; }).length);
+    var typed = screens.every(function (s) {
+      var nits = ['sdrWhiteNits', 'peakNits', 'fullFrameNits', 'minNits'].every(function (k) {
+        return s[k] === null || typeof s[k] === 'number';
+      });
+      return typeof s.name === 'string' && ['x', 'y', 'width', 'height', 'devicePixelRatio', 'headroom',
+          'potentialHeadroom'].every(function (k) { return typeof s[k] === 'number'; }) &&
+          ['primary', 'hdrQueried', 'hdrEnabled', 'remoteSession'].every(function (k) {
+            return typeof s[k] === 'boolean'; }) && nits && s.headroom >= 1 && s.potentialHeadroom >= 1 &&
+          s.width > 0 && s.height > 0;
+    });
+    console.log('typed=' + typed);
+    var s = screens[0];
+    console.log('offscreen=' + [s.hdrQueried, s.hdrEnabled, s.headroom, s.peakNits, s.sdrWhiteNits].join(','));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("count=%1").arg(QGuiApplication::screens().size())));
+  CHECK(backlog_contains(window, QStringLiteral("primary-first=true")));
+  CHECK(backlog_contains(window, QStringLiteral("primaries=1")));
+  CHECK(backlog_contains(window, QStringLiteral("typed=true")));
+  if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+    CHECK(backlog_contains(window, QStringLiteral("offscreen=false,false,1,,")));
+  }
+}
+
 // app.listFonts() reports what addTextLayer can resolve: a family registered in this process
 // shows up with its face names and writing systems, and Qt's private families stay out.
 // The scripted conversions go through the working CMYK space (docs/cmyk.md).
@@ -2429,6 +2463,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_script_text_paragraph_reads_and_sets_metrics", ui_script_text_paragraph_reads_and_sets_metrics},
       {"ui_script_text_auto_leading_ignores_spacer_paragraphs", ui_script_text_auto_leading_ignores_spacer_paragraphs},
       {"ui_script_list_fonts_reports_registered_families", ui_script_list_fonts_reports_registered_families},
+      {"ui_script_display_info_reports_screens", ui_script_display_info_reports_screens},
       {"ui_script_cmyk_conversions_use_working_space", ui_script_cmyk_conversions_use_working_space},
       {"ui_cmyk_proof_mode_saves_cmyk", ui_cmyk_proof_mode_saves_cmyk},
       {"ui_cmyk_files_open_in_cmyk_proof", ui_cmyk_files_open_in_cmyk_proof},

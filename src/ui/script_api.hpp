@@ -400,6 +400,8 @@ public:
   Q_INVOKABLE bool exportPdf(const QJSValue& documents, const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QStringList commandIds();
   Q_INVOKABLE QJSValue listFonts();
+  // One entry per screen with its HDR capability (ui/display_hdr_info.hpp).
+  Q_INVOKABLE QJSValue displayInfo();
   // The working CMYK space (docs/cmyk.md): what it is, and single colors through it.
   Q_PROPERTY(QJSValue cmykProfile READ cmyk_profile)
   [[nodiscard]] QJSValue cmyk_profile();
