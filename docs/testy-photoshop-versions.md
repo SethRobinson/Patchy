@@ -107,7 +107,11 @@ Photoshop of the run: ground truth, Photoshop column and every resave reopen. Th
 Python 3.11+ with pywin32, Pillow and numpy, the corpus (`python testy\fetch_psd_tools_corpus.py`
 for psd-tools), a built `build\release\patchy.exe` (or `editors.patchy` in its
 `config.local.json`), and its console user logged on. The log is `testy\runs\console-run.log`
-(`-Log` changes it); a literal `%` in `-Arguments` must be written `%%`.
+(`-Log` changes it, written in UTF-8 through `PYTHONUTF8=1`); a literal `%` in `-Arguments`
+must be written `%%`. A localized Photoshop's alerts may not fit a console's code page:
+`log()` falls back to escapes and the dialog guard swallows logging errors, because an
+exception escaping the guard's `stop()` lands inside the probe's `with` block and once read
+as Photoshop rejecting the file (a Japanese Photoshop 2025, October 2026).
 
 ## Tests
 

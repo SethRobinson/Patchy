@@ -202,6 +202,53 @@ class VersionChecks(unittest.TestCase):
         self.assertEqual((installs['2025'].host, installs['2025'].progid), ('box', '2025'))
 
 
+class LocalizedPhotoshopText(unittest.TestCase):
+    """A Japanese Photoshop's alerts and errors on a console in a legacy code page (the
+    console session of a scheduled task): logging them must never fail the probe."""
+
+    ALERT = 'Adobe Photoshop: "ファイルを開けませんでした。不明なデータが含まれています。" [OK]'
+
+    def cp1252_stdout(self):
+        import io
+        buffer = io.BytesIO()
+        return buffer, io.TextIOWrapper(buffer, encoding='cp1252', errors='strict', write_through=True)
+
+    def test_log_survives_text_its_console_cannot_encode(self):
+        buffer, stream = self.cp1252_stdout()
+        with mock.patch.object(sys, 'stdout', stream):
+            testy.log(self.ALERT)
+        self.assertIn(b'\\u30d5', buffer.getvalue())
+
+    def test_a_dismissed_localized_alert_does_not_turn_a_good_probe_into_a_rejection(self):
+        import win_dialogs
+
+        class QuietGuard(win_dialogs.DialogGuard):
+            """No watcher thread (nothing touches a real Photoshop); one alert already
+            dismissed, as the probe that hit this had."""
+
+            def start(self):
+                self._pending[0] = LocalizedPhotoshopText.ALERT  # hwnd 0 is never a window
+
+        app = types.SimpleNamespace(DoJavaScript=lambda _jsx: '{"ok":true,"layers":[]}')
+        driver = photoshop.PhotoshopDriver(log=testy.log, install=OLDER)
+        driver._application = lambda: app
+        buffer, stream = self.cp1252_stdout()
+        with mock.patch.object(photoshop.win_dialogs, 'DialogGuard', QuietGuard), \
+                mock.patch.object(sys, 'stdout', stream):
+            result = driver._probe_once(Path('issue397.psd'), None, None)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['dialogs'], [self.ALERT])
+
+    def test_a_localized_com_error_keeps_its_text(self):
+        error = Exception(-2147352567, '例外が発生しました。', (0, 'Adobe Photoshop', 'エラー 8800', None, 0, -2147220261), None)
+        text = photoshop.PhotoshopDriver._failure_text(
+            types.SimpleNamespace(timed_out=False, blocked=[], dismissed=[]), error)
+        self.assertIn('エラー 8800', text)
+        buffer, stream = self.cp1252_stdout()
+        with mock.patch.object(sys, 'stdout', stream):
+            testy.log(text)
+
+
 class RemoteAgentProtocol(unittest.TestCase):
     """The client and the agent over a folder, with the agent in a thread here."""
 

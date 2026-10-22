@@ -150,7 +150,15 @@ OPT_IN_EDITORS = ["affinity", "psdtools"]
 
 
 def log(message: str) -> None:
-    print(f"[testy] {message}", flush=True)
+    line = f"[testy] {message}"
+    try:
+        print(line, flush=True)
+    except UnicodeEncodeError:
+        # A console or redirected log in a legacy code page cannot hold a localized
+        # Photoshop's alert text (Japanese on cp1252). A log line must never fail the
+        # work it reports: inside a probe that once read as Photoshop rejecting the file.
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(line.encode(encoding, errors="backslashreplace").decode(encoding), flush=True)
 
 
 def git_hash() -> str:
