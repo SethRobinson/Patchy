@@ -257,8 +257,12 @@ class DialogGuard:
         on_timeout: Callable[[], None] | None = None,
         poll_seconds: float = POLL_SECONDS,
         log: Callable[[str], None] | None = None,
+        pid_source: Callable[[], set[int]] | None = None,
     ) -> None:
         self.image_names = list(image_names)
+        # Narrows which processes are watched (one Photoshop install of several);
+        # by default every process with one of the image names.
+        self.pid_source = pid_source
         self.watchdog_seconds = watchdog_seconds
         self.on_timeout = on_timeout
         self.poll_seconds = poll_seconds
@@ -320,7 +324,8 @@ class DialogGuard:
     def _current_pids(self) -> set[int]:
         now = time.monotonic()
         if self._pids_read_at == 0.0 or now - self._pids_read_at >= PID_REFRESH_SECONDS:
-            self._pids = process_ids(self.image_names)
+            self._pids = (self.pid_source() if self.pid_source is not None
+                          else process_ids(self.image_names))
             self._pids_read_at = now
         return self._pids
 

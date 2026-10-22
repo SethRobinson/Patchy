@@ -53,6 +53,8 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   loss (PhotoDemon renames the background, and Photoshop names the one layer of a
   file saved without layer records in its interface language). The kind still has
   to hold. `MATCHING_VERSION` re-compares cached cells from their stored manifests.
+  A run can also reopen each resave in other Photoshop versions; a save any of them
+  rejects is a bad save ([testy-photoshop-versions.md](testy-photoshop-versions.md)).
 - **Round-trip render** - Photoshop's render of the editor's resave vs the
   original's render.
 - **Missing fonts** - Photoshop checks every text layer's style ranges against its

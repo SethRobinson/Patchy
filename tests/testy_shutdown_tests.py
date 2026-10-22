@@ -196,7 +196,8 @@ raise SystemExit(runner._graceful_pause_exit())
         self.assert_port_released()
 
     def test_completed_cli_dashboard_button_can_exit_main(self):
-        runner = types.SimpleNamespace(server=self.server, status={"run": {}})
+        runner = types.SimpleNamespace(server=self.server, status={"run": {}},
+                                       close_check_drivers=lambda: None)
 
         def run():
             self.server.request_stop()

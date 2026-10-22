@@ -316,6 +316,7 @@ def _child_run_command(
     scan_threshold: float | None = None,
     compare: str | None = None,
     suffix: str | None = None,
+    photoshop: dict | None = None,
 ) -> list[str]:
     """The argv for a browser-spawned child run; shared by start-run and retest.
 
@@ -336,6 +337,12 @@ def _child_run_command(
     ]
     if compare is not None:
         command.extend(["--compare", compare])
+    if photoshop is not None:
+        # {"checks": [...], "reference": label or None}: the panel's selection, or the
+        # versions of the batch a rerun or retest belongs to.
+        command.extend(["--photoshop", ",".join(photoshop.get("checks") or [])])
+        if photoshop.get("reference"):
+            command.extend(["--photoshop-reference", photoshop["reference"]])
     if suffix is not None:
         command.extend(["--suffix", suffix])
     if skip_build:
@@ -345,6 +352,16 @@ def _child_run_command(
     if scan_threshold is not None:
         command.extend(["--scan", str(scan_threshold)])
     return command
+
+
+def _batch_photoshop(run: dict) -> dict | None:
+    """The Photoshop versions a batch used, for a child run measuring part of it again
+    (None for a run that used the default reference alone)."""
+    recorded = run.get("photoshop")
+    if not recorded:
+        return None
+    return {"checks": list(recorded.get("checks") or []),
+            "reference": recorded.get("reference") if recorded.get("referenceChosen") else None}
 
 
 def _read_status(status_path: Path) -> dict | None:
@@ -575,11 +592,23 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def _send_defaults(self) -> None:
         defaults = config.default_corpus()
+        installs = config.photoshop_installs()
+        try:
+            reference = config.photoshop_reference(installs).label
+        except SystemExit:  # a configured reference that is not installed
+            reference = None
         self._send_json(
             {
                 "files": [str(f) for f in defaults if f.exists()],
                 "editors": DEFAULT_EDITORS,
                 "allEditors": [*DEFAULT_EDITORS, *OPT_IN_EDITORS],
+                # The panel's "reopen resaves in" boxes: the reference is always on.
+                "photoshop": {
+                    "reference": reference,
+                    "installs": [{"label": install.label, "remote": install.host is not None}
+                                 for install in installs.values()],
+                    "checks": config.photoshop_check_labels(),
+                },
             }
         )
 
@@ -733,6 +762,14 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         compare = str(request.get("compare") or "perceptual")
         if compare not in ("strict", "perceptual"):
             errors.append(f"unknown comparison mode: {compare}")
+        # The Photoshop versions ticked in the panel; absent (an older page) means the
+        # configured default, exactly as a CLI run without --photoshop.
+        photoshop = None
+        if isinstance(request.get("photoshop"), list):
+            known = config.photoshop_installs()
+            checks = [str(label) for label in request["photoshop"]]
+            errors.extend(f"unknown Photoshop version: {label}" for label in checks if label not in known)
+            photoshop = {"checks": checks}
         if errors:
             self._send_json({"errors": errors, "skipped": skipped}, status=400)
             return
@@ -754,6 +791,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 fresh=bool(request.get("fresh")),
                 scan_threshold=scan_threshold,
                 compare=compare,
+                photoshop=photoshop,
             )
             self._spawn_child(command)
         self._send_json({"started": True, "skipped": skipped, "files": len(files)})
@@ -806,6 +844,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 skip_build=bool(request.get("skipBuild")),
                 compare=run_options.get("compare", "strict"),
                 suffix=run_options.get("suffix"),
+                photoshop=_batch_photoshop(run_options),
             )
             self._spawn_child(command)
         self._send_json({"started": True})
@@ -832,7 +871,8 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             options = job["options"]
             command = _child_run_command(
                 f"http://127.0.0.1:{self.server.server_address[1]}", [job["source"]], editors,
-                fresh=True, compare=options.get("compare", "strict"), suffix=options.get("suffix"))
+                fresh=True, compare=options.get("compare", "strict"), suffix=options.get("suffix"),
+                photoshop=_batch_photoshop(status["run"]))
             command += ["--apply-to-run", target.name, "--expected-entry", job["expectedEntry"]]
             rerun.note_state(config.RUNS_DIR, job, "running")
             try:
@@ -1170,6 +1210,36 @@ def reference_space_key(traits: dict | None) -> str:
     return key
 
 
+def reopen_verdict(result: dict) -> dict:
+    """One Photoshop version's verdict on a file from its probe: "ok"; "rejected" (it
+    ran and would not open the file, crashed on it or hung); or "error" when it never
+    ran (a launch failure, an unreachable remote agent), which says nothing about the
+    file."""
+    if result.get("ok"):
+        return {"state": "ok"}
+    verdict = {"state": "error" if result.get("launchFailure") or result.get("agentFailure")
+               else "rejected", "error": result.get("error", "unknown")}
+    for flag in ("crashed", "hung"):
+        if result.get(flag):
+            verdict[flag] = True
+    if result.get("dialogs"):
+        verdict["dialogs"] = result["dialogs"]
+    return verdict
+
+
+def resave_rejected_by(cell: dict, photoshop_run: dict | None) -> list[str]:
+    """Labels of the Photoshop versions that refused this cell's resave: the reference
+    (resaveRejected) first, then each checked version. A run that checked no other
+    version reports the reference alone, exactly as resaveRejected always did."""
+    labels = []
+    if cell.get("resaveRejected"):
+        labels.append((photoshop_run or {}).get("reference") or "reference")
+    for label, check in (cell.get("resaveChecks") or {}).items():
+        if check.get("state") == "rejected":
+            labels.append(label)
+    return labels
+
+
 class Runner:
     def __init__(self, args: argparse.Namespace) -> None:
         global _in_process_run_dir
@@ -1221,7 +1291,8 @@ class Runner:
             self.editor_order = [e for e in self.status["run"]["editorOrder"] if e in self.editors]
         else:
             self.editor_order = [e for e in args.editors.split(",") if e in self.editors]
-        self.ps = PhotoshopDriver(log=log)
+        self._setup_photoshop_versions(args)
+        self.ps = PhotoshopDriver(log=log, install=self.ps_reference)
         self.files_dir = self.run_dir / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
         config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -1229,6 +1300,181 @@ class Runner:
         self.server_port: int | None = None
         self.server_base: str | None = None  # where dashboards/uploads are served
         _in_process_run_dir = self.run_dir
+
+    def _setup_photoshop_versions(self, args: argparse.Namespace) -> None:
+        """The reference Photoshop (ground truth, the Photoshop column, the scored
+        reopen of every resave) and the other versions that also reopen every resave
+        (--photoshop, else config.local.json's photoshop.check). A resumed run keeps
+        what it started with."""
+        installs = config.photoshop_installs()
+        recorded = self.status.get("run", {}).get("photoshop") if self.resume else None
+        if self.resume:
+            recorded = recorded or {}
+            reference_label = recorded.get("reference") if recorded.get("referenceChosen") else None
+            labels = list(recorded.get("checks") or [])
+        else:
+            reference_label = getattr(args, "photoshop_reference", None) or None
+            spec = getattr(args, "photoshop", None)
+            labels = ([label.strip() for label in spec.split(",") if label.strip()]
+                      if spec is not None else config.photoshop_check_labels())
+        self.ps_reference = config.photoshop_reference(installs, reference_label)
+        unknown = [label for label in labels if label not in installs]
+        if unknown:
+            raise SystemExit(f"--photoshop: no Photoshop {', '.join(unknown)} on this PC or in "
+                             f"config.local.json (known: {', '.join(installs) or 'none'})")
+        self.ps_checks = [installs[label] for label in dict.fromkeys(labels)
+                          if label != self.ps_reference.label]
+        self.ps_reference_chosen = bool(reference_label or config.PHOTOSHOP.get("reference"))
+        self._check_drivers: dict = {}
+        self._check_versions: dict[str, str] = {}
+        self._reopen_memo: dict[tuple[str, str], dict] = {}
+        if self.resume and recorded.get("reference") not in (None, self.ps_reference.label):
+            note = (f"resumed with Photoshop {self.ps_reference.label} as the reference; cells "
+                    f"finished earlier measured {recorded['reference']}")
+            log(f"WARNING: {note}")
+            self.status["run"].setdefault("notes", []).append(note)
+
+    def _photoshop_run_record(self) -> dict | None:
+        """status.run.photoshop: which versions this run used. Absent from a run that
+        checked no other version and kept the default reference, so its status.json
+        is exactly what it always was."""
+        if not self.ps_checks and not self.ps_reference_chosen:
+            return None
+        from drivers.photoshop import exe_version
+
+        reference = self.ps_reference
+        versions = {reference.label: {"displayName": reference.display_name,
+                                      "version": exe_version(reference.exe), "reference": True}}
+        for install in self.ps_checks:
+            versions[install.label] = {"displayName": install.display_name, "version": "unknown",
+                                       "remote": install.host is not None}
+        return {"reference": reference.label, "referenceChosen": self.ps_reference_chosen,
+                "checks": [install.label for install in self.ps_checks], "versions": versions}
+
+    # ---------- other Photoshop versions ----------
+
+    def _check_driver(self, install):
+        driver = self._check_drivers.get(install.label)
+        if driver is None:
+            if install.host is None:
+                driver = PhotoshopDriver(log=log, install=install)
+            else:
+                from drivers.photoshop_remote import RemotePhotoshop
+
+                driver = RemotePhotoshop(install, config.photoshop_host(install.host),
+                                         self.run_name, log=log)
+            self._check_drivers[install.label] = driver
+        return driver
+
+    def _check_version(self, install) -> str:
+        """The version a checked install reports, without launching Photoshop (the exe's
+        file version; a remote agent reads it there). It keys the reopen cache."""
+        if install.label not in self._check_versions:
+            if install.host is None:
+                from drivers.photoshop import exe_version
+
+                version = exe_version(install.exe)
+            else:
+                version = self._check_driver(install).version()
+            self._check_versions[install.label] = version
+            record = (self.status["run"].get("photoshop") or {}).get("versions", {}).get(install.label)
+            if record is not None and version != "unknown":
+                record["version"] = version
+        return self._check_versions[install.label]
+
+    def _reopen_in(self, install, path: Path, sha1: str) -> dict:
+        """Open `path` in another Photoshop version (no render): the probe's result,
+        from testy/cache when this exact file was opened by this exact version before.
+        A version that never ran (launch failure, unreachable agent) is not cached."""
+        memo = (install.label, sha1)
+        if memo in self._reopen_memo:
+            return self._reopen_memo[memo]
+        version = self._check_version(install)
+        cache_path = config.CACHE_DIR / (
+            f"reopen-{sha1}-{_version_slug(install.label)}-{_version_slug(version)}-{self.suffix}.json")
+        if cache_path.exists() and not self.args.fresh:
+            result = json.loads(cache_path.read_text(encoding="utf-8"))
+        else:
+            driver = self._check_driver(install)
+            if driver.unavailable:
+                result = {"ok": False, "agentFailure": True, "error": driver.unavailable_reason}
+            else:
+                result = driver.probe(path, None)
+            if version == "unknown":
+                version = self._check_version(install)  # a remote agent knows it by now
+            if version != "unknown" and reopen_verdict(result)["state"] != "error":
+                cache_path = config.CACHE_DIR / (
+                    f"reopen-{sha1}-{_version_slug(install.label)}-{_version_slug(version)}-{self.suffix}.json")
+                cache_path.write_text(json.dumps(result), encoding="utf-8")
+        self._reopen_memo[memo] = result
+        return result
+
+    def _check_original_in_versions(self, index: int, staged: staging.StagedPsd, truth: dict | None) -> None:
+        """Does each checked version open the corpus file itself? A version that
+        cannot is no judge of an editor's resave of it (entry.psVersions)."""
+        if not self.ps_checks or truth is None:
+            return
+        entry = self.file_entry(index)
+        versions = entry.setdefault("psVersions", {})
+        for install in self.ps_checks:
+            if versions.get(install.label, {}).get("state") in ("ok", "rejected"):
+                continue  # decided before a pause
+            log(f"    original in {install.display_name}...")
+            result = self._reopen_in(install, staged.original, staged.sha1)
+            versions[install.label] = reopen_verdict(result)
+            if not result.get("ok"):
+                log(f"    {install.display_name} cannot open this file: {result.get('error')}")
+        self.push()
+
+    def _check_resave_in_versions(self, index: int, editor_key: str, staged: staging.StagedPsd) -> None:
+        """Reopen this cell's resave in every checked version (cell.resaveChecks), the
+        "rejected by PS 2025" verdicts. The reference's own reopen stays resaveRejected
+        and native; each version's data-kept score is measured against that same
+        version's manifest of the original, so a feature it lacks is not a loss."""
+        if not self.ps_checks:
+            return
+        entry = self.file_entry(index)
+        cell = entry["cells"][editor_key]
+        resave = self.files_dir / artifact_dir_name(entry) / editor_key / "resave.psd"
+        if (cell.get("state") != "done" or not resave.exists()
+                or entry.get("groundTruth", {}).get("state") != "done"):
+            return
+        resave_sha1 = staging.sha1_of_file(resave)
+        checks: dict = {}
+        for install in self.ps_checks:
+            original = entry.get("psVersions", {}).get(install.label, {})
+            if original.get("state") != "ok":
+                checks[install.label] = {
+                    "state": "not checked",
+                    "reason": (f"{install.display_name} could not open the original either"
+                               if original.get("state") == "rejected"
+                               else f"{install.display_name} did not run: {original.get('error', 'not checked')}")}
+                continue
+            cell["stage"] = f"reopening resave in {install.display_name}"
+            self.push()
+            result = self._reopen_in(install, resave, resave_sha1)
+            check = reopen_verdict(result)
+            if result.get("ok"):
+                original_layers = self._reopen_in(install, staged.original, staged.sha1).get("layers")
+                if original_layers is not None:
+                    native = manifest_mod.compare_manifests(original_layers, result.get("layers") or [])
+                    check.update({key: native[key] for key in ("nativeKept", "nativeTotal", "nativeScore")})
+            elif check["state"] == "rejected":
+                log(f"    {editor_key}: resave rejected by {install.display_name}: {check.get('error')}")
+            checks[install.label] = check
+        cell.pop("stage", None)
+        cell["resaveChecks"] = checks
+        self.push()
+
+    def close_check_drivers(self) -> None:
+        """Quit the checked versions this run started (local or on a remote host)."""
+        drivers = getattr(self, "_check_drivers", {})
+        for driver in drivers.values():
+            try:
+                driver.quit()
+            except Exception as error:
+                log(f"could not close a checked Photoshop: {error}")
+        drivers.clear()
 
     @staticmethod
     def _locate_resume_dir(spec: str) -> Path:
@@ -1327,6 +1573,9 @@ class Runner:
                 entry["dir"] = name
         if self.scan_threshold is not None:
             self.status["run"]["scan"] = {"thresholdPct": self.scan_threshold * 100.0}
+        photoshop_run = self._photoshop_run_record()
+        if photoshop_run is not None:
+            self.status["run"]["photoshop"] = photoshop_run
         if getattr(self.args, "apply_to_run", None):
             if len(corpus) != 1 or not self.args.expected_entry:
                 raise ValueError("applying a rerun requires one image and its original result digest")
@@ -2343,8 +2592,14 @@ class Runner:
             ):
                 if cell.get(key):
                     reasons.append(f"{name}: {label} ({cell[key]})")
+            photoshop_run = self.status["run"].get("photoshop")
             if cell.get("resaveRejected"):
-                reasons.append(f"{name}: resave rejected by Photoshop")
+                reasons.append(f"{name}: resave rejected by Photoshop"
+                               + (f" {photoshop_run['reference']}" if photoshop_run else ""))
+            for label, check in (cell.get("resaveChecks") or {}).items():
+                if check.get("state") == "rejected":
+                    how = " (it crashed)" if check.get("crashed") else ""
+                    reasons.append(f"{name}: resave rejected by Photoshop {label}{how}")
         return reasons
 
     def _scrub_passed_file(self, entry: dict) -> None:
@@ -2618,6 +2873,7 @@ class Runner:
                 log(f"    {truth_error}")
                 self._fail_pending_cells(entry, truth_error)
                 continue
+            self._check_original_in_versions(index, staged, truth)
             for editor_key in self.editor_order:
                 cell = entry["cells"][editor_key]
                 if cell.get("state") in self.TERMINAL_CELL_STATES:
@@ -2631,6 +2887,7 @@ class Runner:
                     continue
                 log(f"    {editor_key}...")
                 self.run_cell(index, editor_key, staged, truth)
+                self._check_resave_in_versions(index, editor_key, staged)
                 # Only failures OF THE EDITOR count. A cell where the editor ran and
                 # refused the file proves the opposite (it is alive and answering), so
                 # it clears the count the same way a success does.
@@ -2687,8 +2944,13 @@ class Runner:
 
     def _aggregate(self) -> dict:
         aggregate: dict = {}
+        photoshop_run = self.status["run"].get("photoshop")
+        version_labels = ([photoshop_run["reference"], *photoshop_run.get("checks", [])]
+                          if photoshop_run and photoshop_run.get("checks") else [])
         for editor_key in self.editor_order:
             opened = total = bad_saves = 0
+            # Resaves each Photoshop version refused (multi-version runs only).
+            rejected_by = {label: 0 for label in version_labels}
             render_scores: list[float] = []
             visual_scores: list[float] = []
             native_scores: list[float] = []
@@ -2704,8 +2966,13 @@ class Runner:
                 total += 1
                 if cell.get("state") == "done" and cell.get("opens") != "fail":
                     opened += 1
-                if cell.get("resaveRejected"):
+                # A save any checked Photoshop refuses is a bad save.
+                rejecting = resave_rejected_by(cell, photoshop_run)
+                if rejecting:
                     bad_saves += 1
+                for label in rejecting:
+                    if label in rejected_by:
+                        rejected_by[label] += 1
                 metrics = cell.get("renderMetrics")
                 if metrics:
                     render_scores.append(metrics["accuracy"])
@@ -2742,15 +3009,21 @@ class Runner:
                 "deepRender": sum(deep_render) / len(deep_render) if deep_render else None,
                 "deepRoundtrip": sum(deep_roundtrip) / len(deep_roundtrip) if deep_roundtrip else None,
             }
+            if version_labels:
+                aggregate[editor_key]["badSavesBy"] = rejected_by
         return aggregate
 
     def _history_summary(self) -> dict:
-        return {
+        summary = {
             "run": self.run_name,
             "files": len(self.status["files"]),
             "patchy": self.patchy_hash,
             "editors": self._aggregate(),
         }
+        photoshop_run = self.status["run"].get("photoshop")
+        if photoshop_run:
+            summary["photoshop"] = {key: photoshop_run.get(key) for key in ("reference", "checks")}
+        return summary
 
     @classmethod
     def summarize_status(cls, status: dict) -> dict:
@@ -2771,6 +3044,7 @@ class Runner:
         view.editor_order = status["run"]["editorOrder"]
         view.editors = {k: types.SimpleNamespace(display_name=v.get("displayName", k))
                         for k, v in status["editors"].items()}
+        view.status = status
         return view._scan_flag_reasons(entry)
 
     def _print_summary(self) -> None:
@@ -2785,6 +3059,9 @@ class Runner:
                 +
                 f"opened {a['opened']}/{a['total']}"
                 + (f"   bad .psd saves {a['badSaves']}" if a["badSaves"] else "")
+                + (" (rejected by " + ", ".join(f"PS {label} {count}" for label, count
+                                                in a["badSavesBy"].items()) + ")"
+                   if a["badSaves"] and a.get("badSavesBy") else "")
                 + (f"   deep saves kept depth {a['depthKept']}/{a['depthTotal']}" if a["depthTotal"] else "")
                 + (f"   16-bit precise {a['deepRoundtrip'] * 100:.1f}% (resave)"
                    if a["deepRoundtrip"] is not None else "")
@@ -2819,6 +3096,14 @@ def main() -> int:
                              "off by more than 6/255, 'perceptual' (default) counts pixels that "
                              "look wrong (SSIM structure + CIEDE2000 color). Both numbers are "
                              "always computed and shown in the report")
+    parser.add_argument("--photoshop", default=None, metavar="LABELS",
+                        help="comma-separated Photoshop versions that reopen every resave, e.g. "
+                             "2025,2026 (labels from the install folders, or photoshop.installs in "
+                             "config.local.json); the reference is always one of them. Default: "
+                             "config.local.json's photoshop.check, else the reference alone")
+    parser.add_argument("--photoshop-reference", default=None, metavar="LABEL",
+                        help="the Photoshop that renders the ground truth (default: "
+                             "photoshop.reference, else what Photoshop.Application resolves to)")
     parser.add_argument("--no-build", action="store_true", help="skip the Patchy release build refresh")
     parser.add_argument("--fresh", action="store_true", help="ignore cached ground truth / cells")
     parser.add_argument("--resume", default=None, metavar="RUN_DIR",
@@ -2871,6 +3156,8 @@ def main() -> int:
         raise
     finally:
         _in_process_run_active = False
+        if runner is not None:
+            runner.close_check_drivers()
         if runner is not None and runner.server is not None:
             runner.server.request_stop()
             runner.server.wait_until_stopped()

@@ -274,7 +274,7 @@ function groupRollup(files, groups, editors, badFraction, limit) {
       if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
       a.total++;
       if (c.state === "done" && c.opens !== "fail") a.opened++;
-      if (c.resaveRejected) a.badSaves++;
+      if (rejectedBy(c).length) a.badSaves++;
       const bad = badFraction(c);
       if (bad != null) { a.compared++; if (bad <= limit) a.matched++; }
       if (c.native && typeof c.native.nativeScore === "number") a.native.push(c.native.nativeScore);
@@ -383,6 +383,41 @@ function refusedWithReference(f, c) {
 // an editor that cannot render a Photoshop text object (it can only show the pixels
 // Photoshop cached in the file) gets 0% for that file's render, and one that cannot
 // save a text object back out as text gets 0% for the file's "data kept in .psd save".
+// Photoshop versions that refused this cell's resave: the reference (resaveRejected)
+// first, then each other version the run reopened resaves in (resaveChecks). A run
+// that checked no other version reports the reference alone (resave_rejected_by).
+function rejectedBy(cell) {
+  const ps = S.run.photoshop;
+  const out = cell.resaveRejected ? [ps ? ps.reference : "reference"] : [];
+  Object.entries(cell.resaveChecks || {}).forEach(([label, check]) => {
+    if (check.state === "rejected") out.push(label);
+  });
+  return out;
+}
+
+// The run checked resaves in more than the reference Photoshop.
+function multiPhotoshop() {
+  return !!(S.run.photoshop && (S.run.photoshop.checks || []).length);
+}
+
+// Every version's verdict on this cell's resave, reference first: [label, text, cls].
+function reopenVerdicts(cell) {
+  const ps = S.run.photoshop;
+  const rows = [];
+  if (cell.native && (cell.native.perCategory || cell.native.error))
+    rows.push([ps.reference + " (reference)", cell.resaveRejected ? "rejected" : cell.native.error ? "did not run" : "opened",
+               cell.resaveRejected ? "bad-text" : "", cell.resaveRejected ? cell.native.error : ""]);
+  Object.entries(cell.resaveChecks || {}).forEach(([label, c]) => {
+    const kept = c.nativeTotal ? " (kept " + c.nativeKept + "/" + c.nativeTotal + ")" : "";
+    const text = c.state === "ok" ? "opened" + kept
+      : c.state === "rejected" ? (c.crashed ? "rejected: Photoshop crashed" : c.hung ? "rejected: Photoshop hung" : "rejected")
+      : c.state === "not checked" ? "not checked" : "did not run";
+    rows.push([label, text, c.state === "rejected" ? "bad-text" : c.state === "ok" ? "" : "warn-text",
+               c.error || c.reason || ""]);
+  });
+  return rows;
+}
+
 function textZeroReasons(cell) {
   const reasons = [];
   if (!cell) return reasons;
@@ -568,7 +603,12 @@ function cellSummary(cell, psCell) {
     notes.push("poor matching");
     severity = badFraction > Math.max(SEVERE_MISMATCH, poorMatchLimit()) ? 2 : 1;
   }
-  if (cell.resaveRejected) { notes.push("saves corrupted .psd"); severity = 2; }
+  const rejected = rejectedBy(cell);
+  if (rejected.length) {
+    notes.push("saves corrupted .psd" + (multiPhotoshop()
+      ? " (rejected by " + rejected.map(label => "PS " + label).join(", ") + ")" : ""));
+    severity = 2;
+  }
   const losses = cellLosses(cell);
   const lossLine = losses.length
     ? '<div class="flag">lost: ' + lossText(losses.slice(0, 3)) +
@@ -766,6 +806,9 @@ function render() {
     S.run.startedAt + "  -  " + S.files.length + " file(s)" +
     (corpusBytes ? ", " + fmtSize(corpusBytes) : "") + "  -  Patchy " + (S.run.patchyVersion || "?") +
     (S.run.compare === "perceptual" ? "  -  compare: perceptual" : "") +
+    (S.run.photoshop ? "  -  Photoshop " + S.run.photoshop.reference + " (reference)" +
+      (S.run.photoshop.checks || []).map(label => ", " + label).join("") +
+      (multiPhotoshop() ? " reopen every resave" : "") : "") +
     (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% " + compareWord + " difference" : "") +
     (S.run.reruns && S.run.reruns.length ? "  -  partial refresh: " + S.run.reruns.length + " image rerun(s); build details on each row" : "") +
     (S.run.addedEditors || []).map(a => "  -  " + a.editors.map(k => (S.editors[k] || {}).displayName || k).join(", ") +
@@ -798,16 +841,19 @@ function render() {
       ') · <a href="' + esc(artUrl(latest.previous)) + '" target="_blank">Previous results</a></div>' : "";
     const limit = knownLimit(f);
     const limitNote = limit ? '<div class="nums">known limitation: ' + esc(limit) + "</div>" : "";
+    const versionNote = Object.entries(f.psVersions || {}).filter(([, v]) => v.state !== "ok").map(([label, v]) =>
+      '<div class="nums" title="' + esc(v.error || "") + '">PS ' + esc(label) +
+      (v.state === "rejected" ? " cannot open this file (resaves not checked there)" : " did not run") + "</div>").join("");
     return "<tr" + (limit ? " class='known-limit'" : "") + "><td class='file'><b class='copyable' title='" + esc(f.source) +
       " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</b>" +
-      '<div class="nums">' + fileFacts(f) + "</div>" + limitNote + gtNote + scanNote + revision + rerunRowControls(f, fi) + "</td>" +
+      '<div class="nums">' + fileFacts(f) + "</div>" + limitNote + versionNote + gtNote + scanNote + revision + rerunRowControls(f, fi) + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
                        cellSummary((f.cells || {})[k], (f.cells || {}).photoshop) + replayNote(f, k) +
                        "</td>").join("") + "</tr>";
   }).join("");
 
   const agg = {};
-  editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
+  editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, rejectedBy: {}, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
                                    depth: [0, 0], deepRoundtrip: [],
                                    textTally: { scores: [], files: 0, noRender: 0, noSave: 0 } });
   renderKnownToggle();
@@ -817,7 +863,9 @@ function render() {
     const a = agg[k];
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
-    if (c.resaveRejected) a.badSaves++;
+    const rejecting = rejectedBy(c);
+    if (rejecting.length) a.badSaves++;
+    rejecting.forEach(label => { a.rejectedBy[label] = (a.rejectedBy[label] || 0) + 1; });
     if (c.saveDepth && c.saveDepth.original > 8) { a.depth[1]++; if (c.saveDepth.kept) a.depth[0]++; }
     if (c.deepRoundtrip && c.deepRoundtrip.state === "done") a.deepRoundtrip.push(c.deepRoundtrip.accuracy);
     if (c.renderMetrics) a.acc.push(c.renderMetrics.accuracy);
@@ -891,6 +939,12 @@ function render() {
     // cells, rolled up. Red the moment it is not 0.
     rows.push(["bad .psd saves", !a.total ? "-"
       : a.badSaves ? '<span class="bad-text">' + a.badSaves + "</span>" : "0"]);
+    // Which Photoshop refused them, when the run reopened resaves in several.
+    if (multiPhotoshop() && a.total)
+      [S.run.photoshop.reference, ...S.run.photoshop.checks].forEach(label => {
+        const n = a.rejectedBy[label] || 0;
+        rows.push(["&nbsp;&nbsp;rejected by PS " + esc(label), n ? '<span class="bad-text">' + n + "</span>" : "0"]);
+      });
     [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"],
      ["depth", "16/32-bit saves kept depth"]].forEach(([key, label]) => {
       const v = a[key];
@@ -1128,6 +1182,12 @@ function openDetail(fi, ek, keep) {
     html += "<h3>Data kept in .psd save (via Photoshop reopen)</h3>" +
       '<div class="loss-banner"><b>Resave rejected: Photoshop could not open this editor&#39;s PSD</b>' +
       '<div class="nums">' + esc(cell.native.error) + "</div></div>";
+  }
+  if (multiPhotoshop() && (cell.native || cell.resaveChecks)) {
+    html += "<h3>Resave reopened in each Photoshop</h3><table><tr><th>Photoshop</th><th>Verdict</th><th>Detail</th></tr>" +
+      reopenVerdicts(cell).map(([label, text, cls, detail]) =>
+        "<tr><td>PS " + esc(label) + '</td><td class="' + cls + '">' + esc(text) + '</td><td class="nums">' +
+        esc(String(detail).slice(0, 300)) + "</td></tr>").join("") + "</table>";
   }
   if (cell.roundtripRender) {
     const rp = cell.roundtripRender.perceptual;

@@ -22,6 +22,19 @@
     "photoshop_progid": "Photoshop.Application"
   },
 
+  "//photoshop": "Optional. Every COM-registered Photoshop on this PC is found by itself and labeled by its install folder's year (2025, 2026). reference: the one that renders the ground truth (default: what Photoshop.Application resolves to). check: versions that also reopen every resave in every run (the --photoshop flag and the panel override it). installs: add a Photoshop on another machine (host names a hosts entry; remote_label is its label there, default the same) or override a local one (label, progid, exe). hosts: ssh target, the share and the same folder as the host sees it, the console user whose session runs Photoshop, and the host's python (3.11+ with pywin32). See docs/testy.md.",
+  "photoshop": {
+    "reference": "",
+    "check": [],
+    "installs": [],
+    "hosts": {},
+    "//installs_example": [{"label": "2025", "host": "psbox", "remote_label": "2025"}],
+    "//hosts_example": {
+      "psbox": {"ssh": "psbox", "share": "\\\\psbox\\C\\temp\\testy-ps", "dir": "C:\\temp\\testy-ps",
+                "user": "you", "python": "C:\\Program Files\\Python313\\python.exe"}
+    }
+  },
+
   "//build_command": "Shell command (run via 'cmd /s /c') that refreshes the Patchy release build before a run; omit to skip rebuilding when no command fits your setup.",
   "build_command": ""
 }

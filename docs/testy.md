@@ -117,7 +117,7 @@ comparison mode) reads "opened - poor matching" with a yellow dot; a resave
 Photoshop cannot reopen reads "opened - saves corrupted .psd" with a red dot, as
 does a render wrong on more than 30% of pixels. Each editor's summary card rolls
 rejected resaves up as a "bad .psd saves" count, red when nonzero (also in the CLI
-summary and history.jsonl as `badSaves`).
+summary and history.jsonl as `badSaves`), counting a save any checked Photoshop rejects.
 
 Useful flags:
 
@@ -138,6 +138,8 @@ Useful flags:
   ground truth in `testy/cache` (never re-probed; a missing entry or changed source skips the
   cell with the reason), the history line is replaced, and the header says "added <date>".
 - `--scan [PCT]` - scan mode; see below.
+- `--photoshop 2025,2026`, `--photoshop-reference LABEL` - more Photoshop versions reopen
+  every resave (see below).
 - `--compare strict|perceptual` - which comparison drives scan flagging (default
   perceptual). Both numbers are always computed and shown either way; a resumed run
   keeps the mode it started with, and runs recorded without a mode flag strictly.
@@ -163,7 +165,7 @@ write if a local path is still left. It only ever replaces a folder an earlier e
 made (`testy-export.txt` marks it). Published runs live at
 `rtsoft.com/testy/<YYYY-MM-DD>/` and are uploaded only on Seth's explicit go-ahead (the upload
 target belongs in `agents_local.md`, never here): pack the folder (`tar --force-local -czf ...
---exclude=testy-export.txt .`, about 220 MB for 309 files), copy the one archive into a
+--exclude=testy-export.txt .`), copy the one archive into a
 `<date>.new` folder on the host, compare sha256, untar, delete the archive, then swap it in with
 two renames, so a republished run never serves half a copy. The published report requests
 `../history.jsonl` once and gets a harmless 404 (the history section stays empty).
@@ -208,15 +210,15 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
 - Photoshop 2026 via COM (`Photoshop.Application`); techniques per docs/ps-compat.md.
   The driver opens each file once per probe: manifest walk (DOM + ActionManager by
   layer id), duplicate-flatten-save render (copy-merged fallback for damaged files),
-  optional save-as-copy resave.
+  optional save-as-copy resave. Other versions can reopen every resave too:
+  [testy-photoshop-versions.md](testy-photoshop-versions.md).
 - Krita 5.3.2 runs its own Python: `kritarunner.com -s testy_krita_export -f main <in>
   <out> <report>`, started in `drivers/krita_scripts/` (kritarunner replaces PYTHONPATH,
   so the module is found through the working directory). The script opens the file,
   polls the projection until two reads match, then exports (format by extension) and
   writes its verdict to the report file. The plain CLI (`krita.com <in> --export
-  --export-filename <out>`) exports before fill and vector layers are drawn: the same
-  PSD came out drawn on one run and blank on the next, which scored Krita far below
-  what it does. It remains only as the fallback when the script leaves no verdict.
+  --export-filename <out>`) exports before fill and vector layers are drawn (drawn on
+  one run, blank on the next), so it is only the fallback when the script leaves no verdict.
   Krita's font matching still varies between launches (Arial Black on one, a fallback
   face on the next), so a PNG render is made twice, a third time if those differ, and
   the most common picture is kept with a driver note on the cell.
@@ -249,8 +251,7 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
   itself.
 - GIMP 3.2 headless Script-Fu batch: `gimp-console-3.exe -i -d -f
   --batch-interpreter plug-in-script-fu-eval -b <script> -b "(gimp-quit 0)"` (PNG
-  render and PSD resave via `gimp-file-save`, format by extension). Two hard-won
-  rules: GIMP 3 refuses batch work without an explicit `--batch-interpreter`, and a
+  render and PSD resave via `gimp-file-save`, format by extension). Two rules: GIMP 3 refuses batch work without an explicit `--batch-interpreter`, and a
   batch command that errors stops the console WITHOUT running the trailing
   `(gimp-quit 0)`, hanging forever, so the driver wraps the script body in
   Script-Fu's `catch` so the quit always runs. Success is judged by output
@@ -304,11 +305,10 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
   cell (`cell.dialogs`), and per resave (`cell.resaveDialogs`), shown in the
   detail panel, and never flag a file in scan mode.
   `python testy\win_dialogs.py --selftest` exercises the guard against real Win32
-  dialogs from a helper process; needs neither Photoshop nor a broken PSD.
+  dialogs from a helper process (no Photoshop needed).
 - A file whose ground truth failed is not probed again for the Photoshop column:
-  the cell inherits the ground-truth error. The same driver already retried it on
-  a freshly restarted Photoshop; a second probe would fail identically and cost
-  minutes and another restart.
+  the cell inherits the ground-truth error (already retried on a restarted Photoshop;
+  a second probe would fail the same way).
 - Photoshop self-heals from engine wedges: a long session can wedge the scripting
   engine so EVERY `app.open` returns error 8000 ("open options are incorrect")
   regardless of file, until a restart. On any probe failure the driver fully
@@ -350,8 +350,7 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
 - Affinity (Canva unified app 3.2+) is driven through its built-in JavaScript SDK,
   not UI automation: the app serves a local MCP endpoint (plain JSON-RPC over SSE
   on [::1]:6767, IPv6 loopback ONLY) while its connector is enabled in settings,
-  and `testy/affinity_js.py` speaks it directly with the standard library (no AI,
-  no tokens). One execute_script call per document runs Document.load plus
+  and `testy/affinity_js.py` speaks it directly with the standard library. One execute_script call per document runs Document.load plus
   doc.export for both legs (PNG render, then the "PSD (preserve editability)"
   preset; preset names resolve by enumeration with a prefix fallback).
 - Affinity JS constraints (verified on 3.2.3.4646): the server demands MCP
@@ -368,16 +367,14 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
 - Affinity staging I/O rides through `_retry_locked`, which waits out transient
   Windows sharing violations (up to ~2s) on every staged-file unlink, copy, and
   move: Affinity can briefly hold a just-loaded document's handle and antivirus
-  scans grab fresh Desktop copies. Cleanup is non-fatal; a stubbornly locked file is left
-  for the next cell's staging retry or cleanup()'s rmtree.
+  scans grab fresh Desktop copies. Cleanup is non-fatal.
 - Affinity lifecycle: Document.close is NOT_IMPLEMENTED on Windows, so opened
   documents pile up as tabs; an instance the driver launched restarts after 10
   documents and is quit at cleanup() via WM_CLOSE while UIA-dismissing whatever
   blocks it (per-document save prompts, the modeless "Opened document information"
-  notice, open-failure dialogs); the one place pywinauto remains. A force-killed
+  notice, open-failure dialogs). A force-killed
   MSIX instance leaves a zombie single-instance registration, so taskkill stays
-  the last resort. A pre-existing user instance is reused but never quit (the
-  driver notes it). The trap leg stays skipped: Affinity re-renders layers by
+  the last resort. A pre-existing user instance is reused but never quit. The trap leg stays skipped: Affinity re-renders layers by
   design, so the baked-composite trap proves nothing. Partial cells (a failed PSD
   leg) are never cached.
 
@@ -401,7 +398,8 @@ testy/
   export_static.py   one finished run as a folder a plain web host can serve
   affinity_js.py     MCP/JS client for the Affinity app (also reused by .af tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
-  drivers/           one per editor: photoshop (COM, --selftest included), patchy
+  photoshop_agent.py remote Photoshop reopen agent; remote/ runs it or Testy by ssh
+  drivers/           one per editor: photoshop (COM, --selftest included; photoshop_remote), patchy
                      (+ patchy_text_afresh.js), krita (+ krita_scripts/), gimp,
                      photodemon, photopea, photocraft, affinity, psdtools; winproc.py (error-dialog
                      suppression)
