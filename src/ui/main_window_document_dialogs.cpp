@@ -353,14 +353,14 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
     QLabel#imageSizeResampleHintLabel {
       color: @dlg_field_text;
     }
-    QSpinBox, QComboBox {
+    QSpinBox, QDoubleSpinBox, QComboBox {
       background: @dlg_button_bg;
       border: 1px solid @dlg_button_border;
       color: @text_on_raised;
       min-height: 24px;
       padding: 1px 6px;
     }
-    QSpinBox:focus {
+    QSpinBox:focus, QDoubleSpinBox:focus {
       border: 1px solid @accent;
       background: @dlg_button_focus_bg;
     }
