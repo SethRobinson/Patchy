@@ -1154,11 +1154,15 @@ void ui_crop_options_popup_sets_shield_and_cropped_area() {
   QApplication::processEvents();
   save_window_popup_artifact("ui_crop_options_popup", window, *options_button, *options_button->menu());
   {
-    // The whole window with the open popup painted in place, for the issue shot.
+    // The whole window with the open popup painted under its button, for the issue
+    // shot (the offscreen screen is narrower than the window, so Qt moves the real
+    // popup left to fit it).
     auto shot = window.grab().toImage();
+    auto* menu = options_button->menu();
+    auto origin = options_button->mapTo(&window, QPoint(0, options_button->height()));
+    origin.setX(std::min(origin.x(), window.width() - menu->width()));
     QPainter painter(&shot);
-    painter.drawPixmap(options_button->menu()->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0)),
-                       options_button->menu()->grab());
+    painter.drawPixmap(origin, menu->grab());
     painter.end();
     save_image_artifact("ui_crop_options_after", shot);
   }
