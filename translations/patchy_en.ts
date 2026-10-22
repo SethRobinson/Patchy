@@ -23726,10 +23726,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23747,6 +23743,10 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Turn Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

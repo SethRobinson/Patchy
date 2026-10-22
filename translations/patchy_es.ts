@@ -23799,10 +23799,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Espiral áurea</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Superposición:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Guías de composición dentro del cuadro de recorte</translation>
     </message>
@@ -23821,6 +23817,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>Turn Overlay</source>
         <translation>Girar superposición</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Sin superposición</translation>
     </message>
 </context>
 <context>

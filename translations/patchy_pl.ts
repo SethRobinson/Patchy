@@ -23871,10 +23871,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Złota spirala</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Nakładka:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Linie kompozycji rysowane w ramce kadrowania</translation>
     </message>
@@ -23893,6 +23889,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Turn Overlay</source>
         <translation>Obróć nakładkę</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Bez nakładki</translation>
     </message>
 </context>
 <context>

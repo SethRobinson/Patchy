@@ -23799,10 +23799,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Goldene Spirale</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Überlagerung:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Kompositionshilfslinien im Freistellungsrahmen</translation>
     </message>
@@ -23821,6 +23817,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Turn Overlay</source>
         <translation>Überlagerung drehen</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Keine Überlagerung</translation>
     </message>
 </context>
 <context>

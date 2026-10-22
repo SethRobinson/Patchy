@@ -23727,10 +23727,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>黄金螺旋</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>叠加:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>在裁剪框内绘制的构图参考线</translation>
     </message>
@@ -23749,6 +23745,10 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>Turn Overlay</source>
         <translation>旋转叠加</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>无叠加</translation>
     </message>
 </context>
 <context>

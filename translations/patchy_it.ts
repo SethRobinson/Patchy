@@ -23799,10 +23799,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Spirale aurea</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Sovrapposizione:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Guide di composizione nel riquadro di ritaglio</translation>
     </message>
@@ -23821,6 +23817,10 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Turn Overlay</source>
         <translation>Ruota sovrapposizione</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Nessuna sovrapposizione</translation>
     </message>
 </context>
 <context>

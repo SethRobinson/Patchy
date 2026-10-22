@@ -1374,12 +1374,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
   // Composition overlay (GitHub issue 325): the guides inside the box, and a
   // "..." menu that turns the Triangle and Golden Spiral and chooses whether the
-  // guides show all the time or only while the box is dragged. The list has a
-  // fixed width so the Crop bar keeps one row at the 1180 px test width. Items
+  // guides show all the time or only while the box is dragged. No label (the
+  // entries name themselves, "No Overlay" first) and a fixed width keep the Crop
+  // bar on one row at the 1180 px test width. Items
   // follow CanvasWidget::CropOverlay; the data is the persisted tools/cropOverlay
   // token.
   static constexpr std::array<std::pair<const char*, const char*>, 7> kCropOverlayItems = {{
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "None"), "none"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "No Overlay"), "none"},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rule of Thirds"), "thirds"},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Grid"), "grid"},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Diagonal"), "diagonal"},
@@ -1388,7 +1389,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Golden Spiral"), "goldenSpiral"},
   }};
   add_option_separator({CanvasTool::Crop});
-  add_option_label(QT_TR_NOOP("Overlay:"), {CanvasTool::Crop});
   crop_overlay_combo_ = new QComboBox(toolbar);
   crop_overlay_combo_->setObjectName(QStringLiteral("cropOverlayCombo"));
   for (const auto& [source, token] : kCropOverlayItems) {

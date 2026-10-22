@@ -814,11 +814,10 @@ void ui_crop_options_bar_groups_its_controls() {
       } else {
         expect_next_to(QStringLiteral("cropHeightSpin"), separator);
       }
-      if (const int overlay = at(QStringLiteral("Overlay"));
+      if (const int overlay = at(QStringLiteral("cropOverlayCombo"));
           overlay <= 0 || tokens[static_cast<std::size_t>(overlay) - 1] != separator) {
-        problem("no separator before Overlay");
+        problem("no separator before the Overlay list");
       }
-      expect_next_to(QStringLiteral("Overlay"), QStringLiteral("cropOverlayCombo"));
       expect_next_to(QStringLiteral("cropOverlayCombo"), QStringLiteral("cropOverlayOptionsButton"));
       expect_next_to(QStringLiteral("cropOverlayOptionsButton"), separator);
       expect_next_to(QStringLiteral("cropDeletePixelsCheck"), QStringLiteral("cropDeleteLayersCheck"));

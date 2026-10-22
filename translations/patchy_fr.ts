@@ -23799,10 +23799,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Spirale d&apos;or</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Superposition :</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Repères de composition dans le cadre de recadrage</translation>
     </message>
@@ -23821,6 +23817,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Turn Overlay</source>
         <translation>Tourner la superposition</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Aucune superposition</translation>
     </message>
 </context>
 <context>

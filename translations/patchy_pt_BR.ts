@@ -23799,10 +23799,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Espiral áurea</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Sobreposição:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Guias de composição dentro da caixa de corte</translation>
     </message>
@@ -23821,6 +23817,10 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Turn Overlay</source>
         <translation>Girar sobreposição</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Sem sobreposição</translation>
     </message>
 </context>
 <context>

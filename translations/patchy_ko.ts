@@ -23727,10 +23727,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>황금 나선</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>오버레이:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>자르기 상자 안에 그리는 구도 안내선</translation>
     </message>
@@ -23749,6 +23745,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Turn Overlay</source>
         <translation>오버레이 방향 바꾸기</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>오버레이 없음</translation>
     </message>
 </context>
 <context>

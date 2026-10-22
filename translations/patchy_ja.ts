@@ -23727,10 +23727,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>黄金螺旋</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>オーバーレイ:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>切り抜きボックス内に表示する構図ガイド</translation>
     </message>
@@ -23749,6 +23745,10 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Turn Overlay</source>
         <translation>オーバーレイの向きを変更</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>オーバーレイなし</translation>
     </message>
 </context>
 <context>

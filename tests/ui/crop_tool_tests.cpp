@@ -1208,7 +1208,7 @@ void ui_crop_overlay_choices_draw_their_guides() {
   }
   CHECK(combo->isVisible());
   CHECK(combo->count() == 7);
-  const QStringList expected_items = {QStringLiteral("None"),     QStringLiteral("Rule of Thirds"),
+  const QStringList expected_items = {QStringLiteral("No Overlay"), QStringLiteral("Rule of Thirds"),
                                       QStringLiteral("Grid"),     QStringLiteral("Diagonal"),
                                       QStringLiteral("Triangle"), QStringLiteral("Golden Ratio"),
                                       QStringLiteral("Golden Spiral")};

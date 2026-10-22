@@ -23871,10 +23871,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Золотая спираль</translation>
     </message>
     <message>
-        <source>Overlay:</source>
-        <translation>Наложение:</translation>
-    </message>
-    <message>
         <source>Composition guides drawn inside the crop box</source>
         <translation>Направляющие композиции внутри рамки кадрирования</translation>
     </message>
@@ -23893,6 +23889,10 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Turn Overlay</source>
         <translation>Повернуть наложение</translation>
+    </message>
+    <message>
+        <source>No Overlay</source>
+        <translation>Без наложения</translation>
     </message>
 </context>
 <context>
