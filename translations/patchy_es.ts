@@ -23059,10 +23059,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Zoom predefinido</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Define:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Frontal</translation>
     </message>
@@ -23777,6 +23773,14 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Qué capas lee la muestra: la capa activa, ella y las capas inferiores, o la imagen combinada, opcionalmente sin capas de ajuste</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostrar anillo de muestreo</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Al tomar una muestra, mostrar los píxeles ampliados y el color nuevo sobre el que reemplaza</translation>
     </message>
 </context>
 <context>

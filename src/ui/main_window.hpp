@@ -2601,6 +2601,7 @@ private:
   QComboBox* eyedropper_sample_layers_combo_{nullptr};
   QPushButton* eyedropper_sets_foreground_button_{nullptr};
   QPushButton* eyedropper_sets_background_button_{nullptr};
+  QCheckBox* eyedropper_show_sample_ring_check_{nullptr};
   QCheckBox* sponge_vibrance_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* fill_contiguous_check_{nullptr};
@@ -3121,6 +3122,7 @@ private:
   int current_eyedropper_sample_size_{1};
   SampleLayers current_eyedropper_sample_layers_{SampleLayers::AllLayers};
   bool current_eyedropper_picks_background_{false};
+  bool current_eyedropper_show_sample_ring_{true};
   bool view_rulers_visible_{false};
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   std::vector<QPointer<UnitSpinBox>> ruler_unit_fields_;

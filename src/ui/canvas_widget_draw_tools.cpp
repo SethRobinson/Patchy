@@ -17,6 +17,8 @@
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/edit_conversions.hpp"
+#include "ui/eyedropper_sample_overlay.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -37,6 +39,7 @@
 #include <QRect>
 #include <QRectF>
 #include <QRegion>
+#include <QScrollBar>
 #include <QRgb>
 #include <QSize>
 #include <QString>
@@ -1438,6 +1441,8 @@ std::optional<QColor> average_sample_color(const QImage& image) {
 void CanvasWidget::begin_color_pick(QPoint widget_position, QPoint global_position) {
   color_picking_ = true;
   color_pick_layer_warned_ = false;
+  // The loupe's bottom arc: the color this pick replaces, before any live update.
+  sample_loupe_previous_color_ = color_pick_to_background_ ? secondary_color_ : primary_color_;
   grabMouse();
   update_color_pick(widget_position, global_position);
 }
@@ -1446,9 +1451,11 @@ void CanvasWidget::update_color_pick(QPoint widget_position, QPoint global_posit
   const auto point = document_position(widget_position);
   if (document_contains(point)) {
     pick_color(point);
+    refresh_sample_loupe(widget_position, point);
     return;
   }
 
+  clear_sample_loupe();  // off the document a pick reads the screen; no loupe there
   if (const auto picked = screen_color_at_global_position(global_position); picked.has_value()) {
     set_picked_color(*picked);
   }
@@ -1458,6 +1465,7 @@ void CanvasWidget::end_color_pick() {
   if (!color_picking_) {
     return;
   }
+  clear_sample_loupe();
   color_picking_ = false;
   color_pick_to_background_ = false;
   if (QWidget::mouseGrabber() == this) {
@@ -1489,9 +1497,8 @@ void CanvasWidget::pick_color(QPoint point) {
     return;
   }
 
-  const int half = eyedropper_sample_size_ / 2;
-  const QRect area = QRect(point.x() - half, point.y() - half, 2 * half + 1, 2 * half + 1)
-                         .intersected(QRect(0, 0, document_->width(), document_->height()));
+  const QRect area =
+      eyedropper_sample_rect(point, eyedropper_sample_size_, QSize(document_->width(), document_->height()));
   if (eyedropper_sample_layers_ == SampleLayers::CurrentLayer) {
     // Current Layer: the active layer's own pixels (mask and opacity folded into
     // alpha). A transparent spot leaves the color as it was, as in Photoshop.
@@ -1532,6 +1539,144 @@ void CanvasWidget::pick_color(QPoint point) {
   }
   // Merged and fully transparent reads like the point sample there (black).
   set_picked_color(average_sample_color(compose_document_rect(area)).value_or(QColor(Qt::transparent)));
+}
+
+// The sample square's outline (GitHub issue 319): the pixels a click averages,
+// snapped to the document grid, in the brush outline's cursor ink.
+std::optional<QRect> CanvasWidget::eyedropper_sample_outline_widget_rect() const {
+  if (!eyedropper_hover_position_valid_ || tool_ != CanvasTool::Eyedropper || document_ == nullptr ||
+      spacebar_panning_ || !eyedropper_sample_outline_visible(eyedropper_sample_size_, zoom_)) {
+    return std::nullopt;
+  }
+  const auto point = document_position(eyedropper_hover_widget_position_);
+  if (!document_contains(point)) {
+    return std::nullopt;
+  }
+  const auto area =
+      eyedropper_sample_rect(point, eyedropper_sample_size_, QSize(document_->width(), document_->height()));
+  const auto top_left = widget_position_f(QPointF(area.topLeft()));
+  const auto bottom_right = widget_position_f(QPointF(area.x() + area.width(), area.y() + area.height()));
+  return QRect(top_left.toPoint(), bottom_right.toPoint() - QPoint(1, 1));
+}
+
+void CanvasWidget::track_eyedropper_sample_outline(QPoint widget_position) {
+  if (tool_ != CanvasTool::Eyedropper && !eyedropper_hover_position_valid_) {
+    return;
+  }
+  const auto old_outline = eyedropper_sample_outline_widget_rect();
+  eyedropper_hover_widget_position_ = widget_position;
+  eyedropper_hover_position_valid_ = tool_ == CanvasTool::Eyedropper;
+  const auto new_outline = eyedropper_sample_outline_widget_rect();
+  if (old_outline != new_outline) {
+    update(old_outline.value_or(QRect()).united(new_outline.value_or(QRect())).adjusted(-2, -2, 2, 2));
+  }
+}
+
+void CanvasWidget::hide_eyedropper_sample_outline() {
+  if (const auto old_outline = eyedropper_sample_outline_widget_rect(); old_outline.has_value()) {
+    update(old_outline->adjusted(-2, -2, 2, 2));
+  }
+  eyedropper_hover_position_valid_ = false;
+}
+
+// The sample loupe (GitHub issue 320). Each pointer move reads only the lens's
+// small square of the displayed composite; the paint draws from that copy.
+QRect CanvasWidget::sample_loupe_viewport() const {
+  const int left = rulers_visible_ ? kLeftRulerWidth : 0;
+  const int top = rulers_visible_ ? kTopRulerHeight : 0;
+  const int right =
+      width() - (vertical_scroll_bar_ != nullptr && vertical_scroll_bar_->isVisible() ? vertical_scroll_bar_->width() : 0);
+  const int bottom = height() - (horizontal_scroll_bar_ != nullptr && horizontal_scroll_bar_->isVisible()
+                                     ? horizontal_scroll_bar_->height()
+                                     : 0);
+  return QRect(QPoint(left, top), QPoint(right - 1, bottom - 1));
+}
+
+std::optional<QRect> CanvasWidget::sample_loupe_widget_rect() const {
+  if (!sample_loupe_visible_) {
+    return std::nullopt;
+  }
+  return sample_loupe_geometry(QPointF(sample_loupe_pointer_), QRectF(sample_loupe_viewport()))
+      .bounds()
+      .toAlignedRect();
+}
+
+std::optional<std::pair<QColor, QColor>> CanvasWidget::sample_loupe_colors() const {
+  if (!sample_loupe_visible_) {
+    return std::nullopt;
+  }
+  return std::pair{color_pick_to_background_ ? secondary_color_ : primary_color_, sample_loupe_previous_color_};
+}
+
+void CanvasWidget::refresh_sample_loupe(QPoint widget_position, QPoint document_point) {
+  if (!eyedropper_show_sample_ring_ || !color_picking_ || document_ == nullptr) {
+    clear_sample_loupe();
+    return;
+  }
+  const auto old_rect = sample_loupe_widget_rect();
+  const QSize document_size(document_->width(), document_->height());
+  sample_loupe_view_rect_ = sample_loupe_view_rect(document_point, eyedropper_sample_size_);
+  sample_loupe_source_rect_ = sample_loupe_view_rect_.intersected(QRect(QPoint(0, 0), document_size));
+  sample_loupe_sample_rect_ = eyedropper_sample_rect(document_point, eyedropper_sample_size_, document_size);
+  auto pixels = compose_document_rect(sample_loupe_source_rect_);
+  if (pixels.format() == QImage::Format_RGBA32FPx4) {
+    // Never QPainter on linear floats: encode like the canvas does (docs/high-bit-depth.md).
+    pixels = display_image_from_deep_qimage(pixels, std::as_const(*document_).color_state().view_exposure_stops);
+  }
+  sample_loupe_pixels_ = std::move(pixels);
+  sample_loupe_pointer_ = widget_position;
+  sample_loupe_visible_ = true;
+  if (!sample_loupe_hides_cursor_) {
+    // The lens center is the pointer; the eyedropper glyph would cover the lens.
+    sample_loupe_hides_cursor_ = true;
+    setCursor(Qt::BlankCursor);
+  }
+  update(old_rect.value_or(QRect()).united(sample_loupe_widget_rect().value_or(QRect())).adjusted(-1, -1, 1, 1));
+}
+
+void CanvasWidget::clear_sample_loupe() {
+  if (const auto old_rect = sample_loupe_widget_rect(); old_rect.has_value()) {
+    update(old_rect->adjusted(-1, -1, 1, 1));
+  }
+  sample_loupe_visible_ = false;
+  sample_loupe_pixels_ = QImage();
+  if (sample_loupe_hides_cursor_) {
+    sample_loupe_hides_cursor_ = false;
+    update_tool_cursor();
+  }
+}
+
+void CanvasWidget::draw_sample_loupe(QPainter& painter) const {
+  const auto colors = sample_loupe_colors();
+  if (!colors.has_value()) {
+    return;
+  }
+  SampleLoupeContent content;
+  content.pixels = sample_loupe_pixels_;
+  content.view_rect = sample_loupe_view_rect_;
+  content.source_rect = sample_loupe_source_rect_;
+  content.sample_rect = sample_loupe_sample_rect_;
+  content.sample = colors->first;
+  content.previous = colors->second;
+  content.backdrop = backdrop_color();
+  const QPointF pointer(sample_loupe_pointer_);
+  paint_sample_loupe(painter, sample_loupe_geometry(pointer, QRectF(sample_loupe_viewport())), content, pointer);
+}
+
+void CanvasWidget::draw_eyedropper_sample_outline(QPainter& painter) const {
+  const auto outline = eyedropper_sample_outline_widget_rect();
+  if (!outline.has_value()) {
+    return;
+  }
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  painter.setBrush(Qt::NoBrush);
+  // Dark outside, light inside, as the brush outline draws its footprint.
+  painter.setPen(QPen(QColor(25, 25, 25), 1));
+  painter.drawRect(outline->adjusted(-1, -1, 1, 1));
+  painter.setPen(QPen(QColor(255, 255, 255), 1));
+  painter.drawRect(*outline);
+  painter.restore();
 }
 
 }  // namespace patchy::ui

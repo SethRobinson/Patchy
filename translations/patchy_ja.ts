@@ -22991,10 +22991,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>ズームのプリセット</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>設定先:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>描画色</translation>
     </message>
@@ -23705,6 +23701,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>スポイトが読み取るレイヤー: アクティブなレイヤー、そのレイヤーと下のレイヤー、または統合画像。調整レイヤーを除くこともできます</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>サンプルリングを表示</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>抽出中、ピクセルを拡大表示し、置き換える色の上に新しい色を表示します</translation>
     </message>
 </context>
 <context>

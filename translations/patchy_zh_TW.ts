@@ -22991,10 +22991,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>縮放預設</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>設定:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>前景色</translation>
     </message>
@@ -23705,6 +23701,14 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>取色讀取的圖層：目前圖層、目前及下方圖層或合併影像，可選擇不含調整圖層</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>顯示取樣環</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>取樣時放大顯示像素，並在被取代的顏色上方顯示新顏色</translation>
     </message>
 </context>
 <context>

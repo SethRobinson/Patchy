@@ -23059,10 +23059,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Zoom predefiniti</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Imposta:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Primo piano</translation>
     </message>
@@ -23777,6 +23773,14 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Quali livelli legge il campionamento: il livello attivo, questo e i livelli sottostanti, o l&apos;immagine unita, facoltativamente senza livelli di regolazione</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostra anello di campionamento</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Durante il campionamento, mostra i pixel ingranditi e il nuovo colore sopra quello che sostituisce</translation>
     </message>
 </context>
 <context>

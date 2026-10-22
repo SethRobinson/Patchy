@@ -23059,10 +23059,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Zooms prédéfinis</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Définit :</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Premier plan</translation>
     </message>
@@ -23777,6 +23773,14 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Calques lus par la pipette : le calque actif, celui-ci et les calques inférieurs, ou l&apos;image fusionnée, avec ou sans calques de réglage</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Afficher l&apos;anneau d&apos;échantillonnage</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Pendant le prélèvement, afficher les pixels agrandis et la nouvelle couleur au-dessus de celle qu&apos;elle remplace</translation>
     </message>
 </context>
 <context>

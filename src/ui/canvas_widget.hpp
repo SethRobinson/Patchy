@@ -426,6 +426,18 @@ public:
   void set_eyedropper_picks_background(bool background);
   [[nodiscard]] bool eyedropper_picks_background() const noexcept;
   [[nodiscard]] bool eyedropper_target_is_background(Qt::KeyboardModifiers modifiers) const noexcept;
+  // The Pick tool's sample-square outline at the pointer in widget coordinates
+  // (GitHub issue 319), or nothing when it is hidden: Point Sample, a square under
+  // kEyedropperSampleOutlineMinScreenPixels on screen, or the pointer off the document.
+  [[nodiscard]] std::optional<QRect> eyedropper_sample_outline_widget_rect() const;
+  // The sample loupe while a pick is held (GitHub issue 320; the options bar's
+  // "Show Sample Ring", on by default): the Pick tool and the paint tools' Alt
+  // eyedropper. Its painted area in widget coordinates, or nothing when hidden.
+  void set_eyedropper_show_sample_ring(bool enabled);
+  [[nodiscard]] bool eyedropper_show_sample_ring() const noexcept;
+  [[nodiscard]] std::optional<QRect> sample_loupe_widget_rect() const;
+  // The loupe's two arcs: the live sample and the target color when the press began.
+  [[nodiscard]] std::optional<std::pair<QColor, QColor>> sample_loupe_colors() const;
   void set_pen_input_settings(PenInputSettings settings) noexcept;
   [[nodiscard]] const PenInputSettings& pen_input_settings() const noexcept;
   [[nodiscard]] std::optional<PenInputSample> last_pen_input_sample() const;
@@ -2605,6 +2617,13 @@ private:
   void track_brush_hover_position(QPoint widget_position);
   void invalidate_brush_hover_outline(const QRect& previous_outline);
   void draw_brush_hover_outline(QPainter& painter) const;
+  void track_eyedropper_sample_outline(QPoint widget_position);
+  void hide_eyedropper_sample_outline();
+  void draw_eyedropper_sample_outline(QPainter& painter) const;
+  [[nodiscard]] QRect sample_loupe_viewport() const;
+  void refresh_sample_loupe(QPoint widget_position, QPoint document_point);
+  void clear_sample_loupe();
+  void draw_sample_loupe(QPainter& painter) const;
   bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
@@ -3309,6 +3328,18 @@ private:
   int eyedropper_sample_size_{1};
   SampleLayers eyedropper_sample_layers_{SampleLayers::AllLayers};
   bool eyedropper_picks_background_{false};
+  QPoint eyedropper_hover_widget_position_{};
+  bool eyedropper_hover_position_valid_{false};
+  bool eyedropper_show_sample_ring_{true};
+  bool sample_loupe_visible_{false};
+  bool sample_loupe_hides_cursor_{false};
+  QPoint sample_loupe_pointer_{};
+  QColor sample_loupe_previous_color_{};
+  // Display-encoded pixels of sample_loupe_source_rect_, read once per pointer move.
+  QImage sample_loupe_pixels_{};
+  QRect sample_loupe_view_rect_{};
+  QRect sample_loupe_source_rect_{};
+  QRect sample_loupe_sample_rect_{};
   PenInputSettings pen_input_settings_{};
   std::optional<PenInputSample> active_pen_input_sample_{};
   std::optional<PenInputSample> last_pen_input_sample_{};

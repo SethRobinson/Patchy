@@ -1138,6 +1138,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   src/ui/canvas_widget_crop.cpp
       src/ui/canvas_widget_cursors.cpp
       src/ui/canvas_widget_draw_tools.cpp
+      src/ui/eyedropper_sample_overlay.hpp
+      src/ui/eyedropper_sample_overlay.cpp
       src/ui/canvas_widget_events.cpp
       src/ui/canvas_widget_guides.cpp
       src/ui/canvas_widget_move.cpp

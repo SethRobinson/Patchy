@@ -2770,6 +2770,51 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Sets (GitHub issue 151): which color a click sets, a two-way choice like
+  // GIMP's Pick Target. Alt inverts it for one click, and the cursor badge says
+  // which color the click will set. The pair leads the bar as the tool's mode
+  // group, unlabeled (GitHub issue 322; docs/options-bar.md rule 1).
+  auto* eyedropper_sets_group = new QButtonGroup(toolbar);
+  eyedropper_sets_group->setExclusive(true);
+  const auto add_sets_button = [&](QPushButton*& button, const char* text, const char* tooltip,
+                                   const QString& object_name, bool background) {
+    button = new QPushButton(tr(text), toolbar);
+    button->setObjectName(object_name);
+    button->setCheckable(true);
+    button->setChecked(current_eyedropper_picks_background_ == background);
+    button->setFocusPolicy(Qt::NoFocus);
+    bind_widget_text(button, text);
+    // %ALT% names Option on macOS (resolve_modifier_names), so this tooltip is
+    // set by a callback rather than bound.
+    QPointer<QPushButton> guarded(button);
+    const auto apply_tooltip = [guarded, tooltip] {
+      if (guarded != nullptr) {
+        guarded->setToolTip(resolve_modifier_names(tr(tooltip)));
+      }
+    };
+    apply_tooltip();
+    register_retranslation(apply_tooltip);
+    eyedropper_sets_group->addButton(button);
+    add_option_widget(button, {CanvasTool::Eyedropper});
+    connect(button, &QPushButton::toggled, this, [this, background](bool checked) {
+      if (!checked) {
+        return;
+      }
+      current_eyedropper_picks_background_ = background;
+      if (canvas_ != nullptr) {
+        canvas_->set_eyedropper_picks_background(background);
+      }
+      save_tool_settings();
+    });
+  };
+  add_sets_button(eyedropper_sets_foreground_button_, QT_TR_NOOP("Foreground"),
+                  QT_TR_NOOP("A click sets the foreground color; %ALT%+click sets the background"),
+                  QStringLiteral("eyedropperSetsForegroundButton"), false);
+  add_sets_button(eyedropper_sets_background_button_, QT_TR_NOOP("Background"),
+                  QT_TR_NOOP("A click sets the background color; %ALT%+click sets the foreground"),
+                  QStringLiteral("eyedropperSetsBackgroundButton"), true);
+  add_option_separator({CanvasTool::Eyedropper});
+
   // Photoshop's Eyedropper options (GitHub issue 151): Sample Size averages a
   // square around the click, Sample picks from the merged document or the
   // active layer alone. The paint tools' Alt eyedropper uses the same settings.
@@ -2839,50 +2884,22 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     save_tool_settings();
   });
-  // Sets (GitHub issue 151): which color a click sets, a two-way choice like
-  // GIMP's Pick Target. Alt inverts it for one click, and the cursor badge says
-  // which color the click will set.
+  // Show Sample Ring (GitHub issue 320): the sample loupe while a pick is held,
+  // for the Pick tool and the paint tools' Alt eyedropper alike.
   add_option_separator({CanvasTool::Eyedropper});
-  add_option_label(QT_TR_NOOP("Sets:"), {CanvasTool::Eyedropper});
-  auto* eyedropper_sets_group = new QButtonGroup(toolbar);
-  eyedropper_sets_group->setExclusive(true);
-  const auto add_sets_button = [&](QPushButton*& button, const char* text, const char* tooltip,
-                                   const QString& object_name, bool background) {
-    button = new QPushButton(tr(text), toolbar);
-    button->setObjectName(object_name);
-    button->setCheckable(true);
-    button->setChecked(current_eyedropper_picks_background_ == background);
-    button->setFocusPolicy(Qt::NoFocus);
-    bind_widget_text(button, text);
-    // %ALT% names Option on macOS (resolve_modifier_names), so this tooltip is
-    // set by a callback rather than bound.
-    QPointer<QPushButton> guarded(button);
-    const auto apply_tooltip = [guarded, tooltip] {
-      if (guarded != nullptr) {
-        guarded->setToolTip(resolve_modifier_names(tr(tooltip)));
-      }
-    };
-    apply_tooltip();
-    register_retranslation(apply_tooltip);
-    eyedropper_sets_group->addButton(button);
-    add_option_widget(button, {CanvasTool::Eyedropper});
-    connect(button, &QPushButton::toggled, this, [this, background](bool checked) {
-      if (!checked) {
-        return;
-      }
-      current_eyedropper_picks_background_ = background;
-      if (canvas_ != nullptr) {
-        canvas_->set_eyedropper_picks_background(background);
-      }
-      save_tool_settings();
-    });
-  };
-  add_sets_button(eyedropper_sets_foreground_button_, QT_TR_NOOP("Foreground"),
-                  QT_TR_NOOP("A click sets the foreground color; %ALT%+click sets the background"),
-                  QStringLiteral("eyedropperSetsForegroundButton"), false);
-  add_sets_button(eyedropper_sets_background_button_, QT_TR_NOOP("Background"),
-                  QT_TR_NOOP("A click sets the background color; %ALT%+click sets the foreground"),
-                  QStringLiteral("eyedropperSetsBackgroundButton"), true);
+  eyedropper_show_sample_ring_check_ = new CheckGlyphBox(tr("Show Sample Ring"), toolbar);
+  eyedropper_show_sample_ring_check_->setObjectName(QStringLiteral("eyedropperShowSampleRingCheck"));
+  eyedropper_show_sample_ring_check_->setChecked(current_eyedropper_show_sample_ring_);
+  bind_tooltip(eyedropper_show_sample_ring_check_,
+               QT_TR_NOOP("While picking, show the pixels enlarged and the new color above the one it replaces"));
+  add_option_widget(eyedropper_show_sample_ring_check_, {CanvasTool::Eyedropper});
+  connect(eyedropper_show_sample_ring_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_eyedropper_show_sample_ring_ = checked;
+    if (canvas_ != nullptr) {
+      canvas_->set_eyedropper_show_sample_ring(checked);
+    }
+    save_tool_settings();
+  });
   QPointer<QComboBox> eyedropper_size_combo(eyedropper_sample_size_combo_);
   QPointer<QComboBox> eyedropper_layers_combo(eyedropper_sample_layers_combo_);
   register_retranslation([eyedropper_size_combo, eyedropper_layers_combo, eyedropper_sample_size_text,

@@ -23059,10 +23059,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Predefinições de zoom</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Define:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Primeiro plano</translation>
     </message>
@@ -23777,6 +23773,14 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Quais camadas a amostra lê: a camada ativa, ela e as camadas abaixo, ou a imagem mesclada, opcionalmente sem camadas de ajuste</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Mostrar anel de amostragem</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Ao coletar, mostrar os pixels ampliados e a nova cor acima da cor que ela substitui</translation>
     </message>
 </context>
 <context>

@@ -23127,10 +23127,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Предустановки масштаба</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Задаёт:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Основной</translation>
     </message>
@@ -23849,6 +23845,14 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Какие слои читает пипетка: активный слой, его и слои ниже или сведённое изображение, при желании без корректирующих слоёв</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Показывать кольцо пробы</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Во время выбора цвета показывать увеличенные пиксели и новый цвет над заменяемым</translation>
     </message>
 </context>
 <context>

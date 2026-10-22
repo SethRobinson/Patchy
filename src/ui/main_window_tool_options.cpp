@@ -2153,6 +2153,9 @@ void MainWindow::load_tool_settings() {
   current_eyedropper_picks_background_ =
       settings.value(QStringLiteral("tools/eyedropperPicksBackground"), current_eyedropper_picks_background_).toBool();
   canvas_->set_eyedropper_picks_background(current_eyedropper_picks_background_);
+  current_eyedropper_show_sample_ring_ =
+      settings.value(QStringLiteral("tools/eyedropperShowSampleRing"), current_eyedropper_show_sample_ring_).toBool();
+  canvas_->set_eyedropper_show_sample_ring(current_eyedropper_show_sample_ring_);
   canvas_->set_shape_corner_radius(
       settings.value(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius()).toInt());
   // The spin resync below is signal-blocked, so mirror the loaded value by hand.
@@ -2465,6 +2468,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/eyedropperSampleAllLayers"),
                     current_eyedropper_sample_layers_ != SampleLayers::CurrentLayer);
   settings.setValue(QStringLiteral("tools/eyedropperPicksBackground"), current_eyedropper_picks_background_);
+  settings.setValue(QStringLiteral("tools/eyedropperShowSampleRing"), current_eyedropper_show_sample_ring_);
   settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
   settings.setValue(QStringLiteral("tools/vectorToolMode"),
                     current_vector_tool_mode_ == VectorToolMode::Path     ? QStringLiteral("path")
@@ -3230,6 +3234,10 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker background_blocker(eyedropper_sets_background_button_);
     (current_eyedropper_picks_background_ ? eyedropper_sets_background_button_ : eyedropper_sets_foreground_button_)
         ->setChecked(true);
+  }
+  if (eyedropper_show_sample_ring_check_ != nullptr) {
+    QSignalBlocker blocker(eyedropper_show_sample_ring_check_);
+    eyedropper_show_sample_ring_check_->setChecked(current_eyedropper_show_sample_ring_);
   }
   if (sponge_vibrance_check_ != nullptr) {
     QSignalBlocker blocker(sponge_vibrance_check_);

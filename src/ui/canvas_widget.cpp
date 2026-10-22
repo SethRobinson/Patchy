@@ -486,6 +486,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
   const auto old_transform_controls_rect = move_transform_controls_rect();
   if (tool_changed) {
     close_canvas_context_menu();
+    hide_eyedropper_sample_outline();
     if (pen_session_active_) {
       // Switching away commits the open path (Photoshop keeps the work): the
       // callback routes it to a shape layer or the work path.
@@ -970,8 +971,13 @@ bool CanvasWidget::local_protect_tones() const noexcept {
 }
 
 void CanvasWidget::set_eyedropper_sample_size(int size) noexcept {
+  const auto old_outline = eyedropper_sample_outline_widget_rect();
   // Odd sides only, so the square centers on the clicked pixel.
   eyedropper_sample_size_ = std::clamp(size, 1, 101) | 1;
+  const auto new_outline = eyedropper_sample_outline_widget_rect();
+  if (old_outline != new_outline) {
+    update(old_outline.value_or(QRect()).united(new_outline.value_or(QRect())).adjusted(-2, -2, 2, 2));
+  }
 }
 
 int CanvasWidget::eyedropper_sample_size() const noexcept {
@@ -995,6 +1001,17 @@ void CanvasWidget::set_eyedropper_picks_background(bool background) {
 
 bool CanvasWidget::eyedropper_picks_background() const noexcept {
   return eyedropper_picks_background_;
+}
+
+void CanvasWidget::set_eyedropper_show_sample_ring(bool enabled) {
+  eyedropper_show_sample_ring_ = enabled;
+  if (!enabled) {
+    clear_sample_loupe();
+  }
+}
+
+bool CanvasWidget::eyedropper_show_sample_ring() const noexcept {
+  return eyedropper_show_sample_ring_;
 }
 
 bool CanvasWidget::eyedropper_target_is_background(Qt::KeyboardModifiers modifiers) const noexcept {

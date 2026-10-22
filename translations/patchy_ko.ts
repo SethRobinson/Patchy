@@ -22991,10 +22991,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>확대/축소 사전 설정</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>설정 대상:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>전경색</translation>
     </message>
@@ -23705,6 +23701,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>스포이트가 읽는 레이어: 활성 레이어, 그 레이어와 아래 레이어, 또는 병합된 이미지이며 조정 레이어를 뺄 수도 있습니다</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>샘플 링 표시</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>추출하는 동안 픽셀을 확대하여 보여 주고, 새 색상을 바꿀 색상 위에 표시합니다</translation>
     </message>
 </context>
 <context>

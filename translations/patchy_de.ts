@@ -23059,10 +23059,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Zoomvorgaben</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Setzt:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Vordergrund</translation>
     </message>
@@ -23777,6 +23773,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Welche Ebenen ein Aufnehmen liest: die aktive Ebene, sie und die Ebenen darunter oder das zusammengefügte Bild, wahlweise ohne Einstellungsebenen</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Aufnahmering anzeigen</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Beim Aufnehmen die Pixel vergrößert und die neue Farbe über der ersetzten anzeigen</translation>
     </message>
 </context>
 <context>

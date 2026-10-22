@@ -23127,10 +23127,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Ustawienia powiększenia</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Ustawia:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Pierwszy plan</translation>
     </message>
@@ -23849,6 +23845,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation>Które warstwy odczytuje pobranie: aktywną warstwę, ją i warstwy poniżej lub scalony obraz, opcjonalnie bez warstw dopasowania</translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation>Pokaż pierścień próbkowania</translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
+        <translation>Podczas pobierania pokazuj powiększone piksele i nowy kolor nad kolorem, który zastępuje</translation>
     </message>
 </context>
 <context>

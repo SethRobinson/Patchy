@@ -22986,10 +22986,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23703,6 +23699,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Sample Ring</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>While picking, show the pixels enlarged and the new color above the one it replaces</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
