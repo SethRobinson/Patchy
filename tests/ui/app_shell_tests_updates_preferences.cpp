@@ -64,7 +64,9 @@
 #include <QStringList>
 #include <QDateTime>
 #include <QScrollArea>
-#include <QSpinBox>
+#include <QPainter>
+#include <QSizePolicy>
+#include <QValidator>
 #include <QStyle>
 #include <QTabWidget>
 #include <QTest>
@@ -108,7 +110,11 @@ struct GuiScaleDialogRun {
   bool saw_dialog{false};
   bool dismissed_message{false};
   int entry_percent{0};
+  QString entry_text;
 };
+
+// How drive_preferences_gui_scale enters its value: picked from the preset list, or typed.
+enum class GuiScaleInput { pick, type };
 
 // An APPDIR that contains this test binary, as the AppImage mount contains patchy.
 QByteArray appdir_containing_this_binary();
@@ -119,11 +125,12 @@ QByteArray appdir_containing_this_binary();
 // mouse helpers do.
 void send_wheel_notch_down(QWidget& target);
 
-// Opens Preferences, records what the interface-scale spin box shows on entry, optionally
-// types `percent` into it, and accepts. A changed scale raises a modal restart/reload notice
-// that has to be dismissed before the dialog can finish closing.
+// Opens Preferences, records what the interface-scale combo shows on entry, optionally
+// picks or types `percent`, and accepts. A changed scale raises a modal restart/reload
+// notice that has to be dismissed before the dialog can finish closing.
 GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
-                                              std::optional<int> percent);
+                                              std::optional<int> percent,
+                                              GuiScaleInput input = GuiScaleInput::type);
 
 // Drives the Preferences color-scheme combo and returns the dialog result, so the
 // persist and cancel tests differ only in how they leave the dialog.
@@ -145,7 +152,7 @@ void send_wheel_notch_down(QWidget& target) {
 }
 
 GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
-                                              std::optional<int> percent) {
+                                              std::optional<int> percent, GuiScaleInput input) {
   GuiScaleDialogRun run;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
@@ -153,33 +160,27 @@ GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
     if (dialog == nullptr) {
       return;
     }
-    auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
-    CHECK(spin != nullptr);
-    if (spin == nullptr) {
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr || combo->lineEdit() == nullptr) {
+      CHECK(combo == nullptr || combo->lineEdit() != nullptr);
       dialog->reject();
       return;
     }
-    CHECK(spin->minimum() == patchy::ui::kMinGuiScalePercent);
-    CHECK(spin->maximum() == patchy::ui::kMaxGuiScalePercent);
-    CHECK(spin->singleStep() == 1);
-    run.entry_percent = spin->value();
+    run.entry_text = combo->currentText();
+    run.entry_percent = QString(run.entry_text).remove(QLatin1Char('%')).trimmed().toInt();
     run.saw_dialog = true;
     if (percent.has_value()) {
-      // Typed the way a user enters an odd value.
-      spin->selectAll();
-      QTest::keyClicks(spin, QString::number(*percent));
-      spin->interpretText();
-      CHECK(spin->value() == *percent);
-      // Visual record of the control for review.
-      for (auto* parent = spin->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-        if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
-          scroll->ensureWidgetVisible(spin);
-          break;
-        }
+      if (input == GuiScaleInput::pick) {
+        const int index = combo->findData(*percent);
+        CHECK(index >= 0);
+        combo->setCurrentIndex(index);
+      } else {
+        // Typed the way a user enters an odd value, without the percent sign.
+        combo->lineEdit()->selectAll();
+        QTest::keyClicks(combo->lineEdit(), QString::number(*percent));
+        CHECK(combo->currentText() == QString::number(*percent));
       }
-      QApplication::processEvents();
-      ensure_artifact_dir();
-      dialog->grab().save(QStringLiteral("test-artifacts/preferences-gui-scale-%1.png").arg(*percent));
       QTimer::singleShot(0, [&] {
         auto* message = qobject_cast<QMessageBox*>(
             find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")));
@@ -1880,13 +1881,13 @@ void ui_preferences_wheel_over_unfocused_control_scrolls_the_page() {
 
     // The interface-scale spin box (GitHub issue 333) and spin boxes on the other tabs are
     // covered by the same guard.
-    auto* scale_spin = dialog.findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
-    CHECK(scale_spin != nullptr);
-    if (scale_spin != nullptr) {
-      CHECK(scale_spin->focusPolicy() != Qt::WheelFocus && (scale_spin->focusPolicy() & Qt::TabFocus) != 0);
-      const int before = scale_spin->value();
-      send_wheel_notch_down(*scale_spin);
-      CHECK(scale_spin->value() == before);
+    auto* scale_combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+    CHECK(scale_combo != nullptr);
+    if (scale_combo != nullptr) {
+      CHECK(scale_combo->focusPolicy() != Qt::WheelFocus && (scale_combo->focusPolicy() & Qt::TabFocus) != 0);
+      const auto before = scale_combo->currentText();
+      send_wheel_notch_down(*scale_combo);
+      CHECK(scale_combo->currentText() == before);
     }
     auto* spin = dialog.findChild<QAbstractSpinBox*>(QStringLiteral("preferencesGridSpacingSpin"));
     CHECK(spin != nullptr);
@@ -2284,16 +2285,16 @@ void ui_gui_scale_preference_persists_setting() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // GitHub issue 333: any whole percent, not only the old preset steps.
+  // GitHub issue 333: any whole percent typed in, not only the presets.
   const auto run = drive_preferences_gui_scale(window, 113);
   CHECK(run.saw_dialog);
   CHECK(run.dismissed_message);
-  CHECK(run.entry_percent == 100);
+  CHECK(run.entry_text == QStringLiteral("100%"));
   CHECK(patchy::ui::stored_gui_scale_percent() == 113);
 }
 
 // The values below 100% are what let a browser tab match the desktop build's apparent
-// size, so keep one of them exercised end to end through the spin box.
+// size, so keep one of them exercised end to end, picked from the preset list.
 void ui_gui_scale_preference_persists_step_below_full_size() {
   SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
   {
@@ -2305,15 +2306,138 @@ void ui_gui_scale_preference_persists_step_below_full_size() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  const auto run = drive_preferences_gui_scale(window, 75);
+  const auto run = drive_preferences_gui_scale(window, 75, GuiScaleInput::pick);
   CHECK(run.saw_dialog);
   CHECK(run.dismissed_message);
   CHECK(patchy::ui::stored_gui_scale_percent() == 75);
 }
 
+// GitHub issue 333: a stored value that is not a preset shows as typed text, and accepting
+// without touching it writes nothing and raises no notice.
+void ui_gui_scale_preference_shows_stored_value_off_the_list() {
+  SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 113);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto run = drive_preferences_gui_scale(window, std::nullopt);
+  CHECK(run.saw_dialog);
+  CHECK(!run.dismissed_message);
+  CHECK(run.entry_text == QStringLiteral("113%"));
+  CHECK(patchy::ui::stored_gui_scale_percent() == 113);
+}
+
+// A value typed below the range is held short of acceptable and clamps up to the minimum
+// when the dialog is accepted, as a stored one would.
+void ui_gui_scale_preference_clamps_typed_value_below_range() {
+  SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 100);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto run = drive_preferences_gui_scale(window, 49);
+  CHECK(run.saw_dialog);
+  CHECK(run.dismissed_message);
+  CHECK(patchy::ui::stored_gui_scale_percent() == patchy::ui::kMinGuiScalePercent);
+}
+
+// GitHub issue 333: the control is a modest-width list of presets that also takes any whole
+// percent in the range, with or without the percent sign. Also records the open list for
+// review (test-artifacts/preferences-gui-scale-list.png).
+void ui_gui_scale_preference_lists_presets_and_takes_typed_values() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      return;
+    }
+    CHECK(combo->isEditable());
+    CHECK(combo->insertPolicy() == QComboBox::NoInsert);
+    CHECK(combo->sizePolicy().horizontalPolicy() == QSizePolicy::Fixed);
+    CHECK(combo->count() == static_cast<int>(patchy::ui::kGuiScalePresetPercents.size()));
+    for (int i = 0; i < combo->count(); ++i) {
+      const int preset = patchy::ui::kGuiScalePresetPercents[static_cast<std::size_t>(i)];
+      CHECK(combo->itemData(i).toInt() == preset);
+      CHECK(combo->itemText(i) == QString::number(preset) + QStringLiteral("%"));
+    }
+    CHECK(combo->findData(67) >= 0 && combo->findData(300) >= 0);
+
+    const auto* validator = combo->validator();
+    CHECK(validator != nullptr);
+    if (validator == nullptr) {
+      return;
+    }
+    const auto state_of = [validator](QString text) {
+      int pos = 0;
+      return validator->validate(text, pos);
+    };
+    CHECK(state_of(QStringLiteral("113")) == QValidator::Acceptable);
+    CHECK(state_of(QStringLiteral("113%")) == QValidator::Acceptable);
+    CHECK(state_of(QStringLiteral(" 113 % ")) == QValidator::Acceptable);
+    CHECK(state_of(QStringLiteral("50")) == QValidator::Acceptable);
+    CHECK(state_of(QStringLiteral("300%")) == QValidator::Acceptable);
+    CHECK(state_of(QString()) == QValidator::Intermediate);
+    CHECK(state_of(QStringLiteral("%")) == QValidator::Intermediate);
+    CHECK(state_of(QStringLiteral("49")) == QValidator::Intermediate);
+    CHECK(state_of(QStringLiteral("301")) == QValidator::Invalid);
+    CHECK(state_of(QStringLiteral("abc")) == QValidator::Invalid);
+    CHECK(state_of(QStringLiteral("11.5")) == QValidator::Invalid);
+    QString short_value = QStringLiteral("49");
+    validator->fixup(short_value);
+    CHECK(short_value == QStringLiteral("50%"));
+
+    // 301 cannot be typed: the last digit is refused.
+    auto* edit = combo->lineEdit();
+    CHECK(edit != nullptr);
+    if (edit == nullptr) {
+      return;
+    }
+    edit->selectAll();
+    QTest::keyClicks(edit, QStringLiteral("301"));
+    CHECK(combo->currentText() == QStringLiteral("30"));
+
+    // Visual record: the dialog with the list open over it.
+    combo->setCurrentIndex(combo->findData(125));
+    for (auto* parent = combo->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+      if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
+        scroll->ensureWidgetVisible(combo);
+        break;
+      }
+    }
+    QApplication::processEvents();
+    combo->showPopup();
+    QApplication::processEvents();
+    auto* popup = combo->view()->window();
+    CHECK(popup != nullptr && popup->isVisible());
+    if (popup != nullptr && popup->isVisible()) {
+      QPixmap shot = dialog.grab();
+      {
+        QPainter painter(&shot);
+        painter.drawPixmap(dialog.mapFromGlobal(popup->mapToGlobal(QPoint(0, 0))), popup->grab());
+      }
+      ensure_artifact_dir();
+      shot.save(QStringLiteral("test-artifacts/preferences-gui-scale-list.png"));
+    }
+    combo->hidePopup();
+    QApplication::processEvents();
+  });
+}
+
 // A stored value outside the range (a hand-edited ini) must never reach QT_SCALE_FACTOR
 // as is: it is clamped to the range, and a non-numeric one falls back to the platform
-// default. The spin box shows the value startup applies, and accepting without touching
+// default. The combo shows the value startup applies, and accepting without touching
 // it writes nothing and raises no notice.
 void ui_gui_scale_preference_falls_back_for_unknown_step() {
   SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
@@ -2337,6 +2461,7 @@ void ui_gui_scale_preference_falls_back_for_unknown_step() {
   CHECK(run.saw_dialog);
   CHECK(!run.dismissed_message);
   CHECK(run.entry_percent == patchy::ui::kMinGuiScalePercent);
+  CHECK(run.entry_text == QStringLiteral("50%"));
 }
 
 void gui_scale_percent_normalizes_to_offered_steps() {
@@ -2652,6 +2777,9 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_gui_scale_preference_persists_setting", ui_gui_scale_preference_persists_setting},
       {"ui_gui_scale_preference_persists_step_below_full_size", ui_gui_scale_preference_persists_step_below_full_size},
       {"ui_gui_scale_preference_falls_back_for_unknown_step", ui_gui_scale_preference_falls_back_for_unknown_step},
+      {"ui_gui_scale_preference_shows_stored_value_off_the_list", ui_gui_scale_preference_shows_stored_value_off_the_list},
+      {"ui_gui_scale_preference_clamps_typed_value_below_range", ui_gui_scale_preference_clamps_typed_value_below_range},
+      {"ui_gui_scale_preference_lists_presets_and_takes_typed_values", ui_gui_scale_preference_lists_presets_and_takes_typed_values},
       {"gui_scale_percent_normalizes_to_offered_steps", gui_scale_percent_normalizes_to_offered_steps},
       {"ui_color_scheme_preference_persists_setting", ui_color_scheme_preference_persists_setting},
       {"ui_color_scheme_cancel_restores_entry_scheme", ui_color_scheme_cancel_restores_entry_scheme},
