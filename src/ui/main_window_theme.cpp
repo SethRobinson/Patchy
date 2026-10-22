@@ -11,8 +11,10 @@
 #include "ui/document_float_window.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/tool_palette_footer.hpp"
 
 #include <QApplication>
+#include <QRegularExpression>
 #include <QString>
 #include <QStyle>
 #include <QWidget>
@@ -198,19 +200,21 @@ QString photoshop_style_template() {
        column. A narrower button is centered inside the 35 px item while the
        bar is collapsed but sits at the column's left edge once an expansion
        makes every column as wide as the widest button, which moved the plain
-       tools 1 px on every expand (GitHub issue 121). */
+       tools 1 px on every expand (GitHub issue 121). The tp(n) length tokens
+       scale with the toolbar icon size and the tf(n) ones with its footer
+       (resolve_tool_palette_lengths). */
     QToolBar#toolPalette QToolButton {
-      min-width: 31px;
-      max-width: 31px;
-      min-height: 24px;
-      max-height: 24px;
+      min-width: @tp(31)px;
+      max-width: @tp(31)px;
+      min-height: @tp(24)px;
+      max-height: @tp(24)px;
       padding: 1px;
     }
     QToolBar#toolPalette QPushButton {
-      min-width: 26px;
-      max-width: 26px;
-      min-height: 24px;
-      max-height: 24px;
+      min-width: @tp(26)px;
+      max-width: @tp(26)px;
+      min-height: @tp(24)px;
+      max-height: @tp(24)px;
       padding: 0;
     }
     /* The footer's color well paints itself (tool_palette_footer.cpp); the
@@ -218,28 +222,28 @@ QString photoshop_style_template() {
        chevron keeps Qt's own extent instead of the 24 px tool button height,
        which clipped it against the bottom of the bar. */
     QToolBar#toolPalette QPushButton#foregroundColorButton, QToolBar#toolPalette QPushButton#backgroundColorButton {
-      min-width: 22px;
-      max-width: 22px;
-      min-height: 22px;
-      max-height: 22px;
+      min-width: @tf(22)px;
+      max-width: @tf(22)px;
+      min-height: @tf(22)px;
+      max-height: @tf(22)px;
       background: transparent;
       border: 0;
       padding: 0;
     }
     QToolBar#toolPalette QToolButton#colorSwapButton, QToolBar#toolPalette QToolButton#colorDefaultButton {
-      min-width: 14px;
-      max-width: 14px;
-      min-height: 14px;
-      max-height: 14px;
+      min-width: @tf(14)px;
+      max-width: @tf(14)px;
+      min-height: @tf(14)px;
+      max-height: @tf(14)px;
       background: transparent;
       border: 0;
       padding: 0;
     }
     QToolBar#toolPalette QToolButton#quickMaskButton {
-      min-width: 32px;
-      max-width: 32px;
-      min-height: 22px;
-      max-height: 22px;
+      min-width: @tf(32)px;
+      max-width: @tf(32)px;
+      min-height: @tf(22)px;
+      max-height: @tf(22)px;
     }
     QToolBar#toolPalette QToolButton#qt_toolbar_ext_button {
       min-height: 14px;
@@ -1029,9 +1033,28 @@ QString photoshop_style_template() {
       ;
 }
 
+// Resolves the template's @tp(n) and @tf(n) tool palette lengths for a toolbar icon
+// size factor (tool_palette_footer.hpp): n times the factor, or times the footer factor.
+QString resolve_tool_palette_lengths(QString sheet, double factor) {
+  const double footer_factor = tool_palette_footer_factor(factor);
+  static const QRegularExpression length_token(QStringLiteral(R"(@t([pf])\((\d+)\))"));
+  QString resolved;
+  resolved.reserve(sheet.size());
+  qsizetype last = 0;
+  for (auto it = length_token.globalMatch(sheet); it.hasNext();) {
+    const auto match = it.next();
+    resolved += QStringView(sheet).mid(last, match.capturedStart() - last);
+    const double scale = match.captured(1) == QLatin1String("p") ? factor : footer_factor;
+    resolved += QString::number(tool_palette_length(match.captured(2).toInt(), scale));
+    last = match.capturedEnd();
+  }
+  resolved += QStringView(sheet).mid(last);
+  return resolved;
+}
+
 }  // namespace
 
-QString photoshop_style() {
+QString photoshop_style(double tool_palette_factor) {
   // Keyed on theme_generation(), not on active_color_scheme(): a user-imported
   // custom palette (theme_file.hpp) is not a compile-time constant like the
   // two built-in palettes, so a 2-slot Dark/Light cache would keep serving a
@@ -1039,11 +1062,13 @@ QString photoshop_style() {
   // theme_generation() bumps on every actual palette change, built-in or
   // custom, which is the only signal available -- Qt fires no event for a
   // palette-struct change.
+  // Also keyed on the toolbar icon size factor, which sizes the tool palette rules.
   static int cached_generation = -1;
+  static double cached_factor = 0.0;
   static QString cached;
   const auto generation = theme_generation();
-  if (generation != cached_generation) {
-    auto sheet = photoshop_style_template();
+  if (generation != cached_generation || tool_palette_factor != cached_factor) {
+    auto sheet = resolve_tool_palette_lengths(photoshop_style_template(), tool_palette_factor);
     // Where the window server draws no shadow around the frameless main window
     // (X11, Wayland), widen its outline so the window still has a visible edge
     // against another window; see frameless_window_edge_width in dialog_utils.hpp.
@@ -1053,6 +1078,7 @@ QString photoshop_style() {
     }
     cached = apply_theme_tokens(sheet);
     cached_generation = generation;
+    cached_factor = tool_palette_factor;
   }
   return cached;
 }
@@ -1065,7 +1091,7 @@ void MainWindow::apply_color_scheme() {
   //    which covers every dock, panel, and parented dialog, plus
   //    DocumentFloatWindow (stylesheet propagation follows the QObject parent
   //    chain, and a float window is a child of this window).
-  setStyleSheet(photoshop_style());
+  setStyleSheet(photoshop_style(tool_palette_factor_));
 
   // 2. Top-level windows that are not in this window's child tree, plus any
   //    widget deeper in the tree that carries its own themed template (the

@@ -23914,14 +23914,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23943,6 +23935,51 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Corners: none placed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

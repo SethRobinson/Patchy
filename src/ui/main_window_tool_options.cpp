@@ -1712,8 +1712,10 @@ void MainWindow::default_colors() {
 }
 
 void MainWindow::refresh_color_buttons() {
-  const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black);
-  const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white);
+  // Every color change on the canvas ends here, so this is where the pair picks it up.
+  stash_active_colors();
+  const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
+  const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : background_color_;
   const auto named_tooltip = [this](const QString& text, QColor color) {
     if (!has_active_document()) { return text; }
     const auto name = palette_color_name(std::as_const(document()),
@@ -2640,6 +2642,66 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
   }
 }
 
+void MainWindow::stash_active_colors() {
+  // Quick Mask paints in black and white and restores the canvas's own colors on exit.
+  if (canvas_ == nullptr || canvas_->quick_mask_active()) {
+    return;
+  }
+  bool changed = false;
+  if (const auto foreground = canvas_->primary_color(); foreground != canvas_applied_foreground_) {
+    foreground_color_ = foreground;
+    canvas_applied_foreground_ = foreground;
+    changed = true;
+  }
+  if (const auto background = canvas_->secondary_color(); background != canvas_applied_background_) {
+    background_color_ = background;
+    canvas_applied_background_ = background;
+    changed = true;
+  }
+  if (changed) {
+    save_color_settings();
+  }
+}
+
+void MainWindow::apply_active_colors_to_canvas() {
+  if (canvas_ == nullptr || canvas_->quick_mask_active()) {
+    return;
+  }
+  canvas_->set_primary_color(foreground_color_);
+  canvas_->set_secondary_color(background_color_);
+  canvas_applied_foreground_ = canvas_->primary_color();
+  canvas_applied_background_ = canvas_->secondary_color();
+}
+
+namespace {
+
+// Permanent identifiers: the foreground/background pair on the next launch (GitHub issue
+// 339, docs/tool-options.md). "#rrggbb": canvas colors are 8-bit (edit_color).
+constexpr auto kForegroundColorSettingsKey = "tools/foregroundColor";
+constexpr auto kBackgroundColorSettingsKey = "tools/backgroundColor";
+
+}  // namespace
+
+void MainWindow::load_color_settings() {
+  const auto settings = app_settings();
+  const auto stored = [&settings](const char* key, QColor fallback) {
+    auto color = QColor::fromString(settings.value(QLatin1String(key)).toString());
+    if (!color.isValid()) {
+      return fallback;
+    }
+    color.setAlpha(255);
+    return color;
+  };
+  foreground_color_ = stored(kForegroundColorSettingsKey, QColor(Qt::black));
+  background_color_ = stored(kBackgroundColorSettingsKey, QColor(Qt::white));
+}
+
+void MainWindow::save_color_settings() const {
+  auto settings = app_settings();
+  settings.setValue(QLatin1String(kForegroundColorSettingsKey), foreground_color_.name(QColor::HexRgb));
+  settings.setValue(QLatin1String(kBackgroundColorSettingsKey), background_color_.name(QColor::HexRgb));
+}
+
 void MainWindow::apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas) {
   if (canvas == nullptr) {
     return;
@@ -3316,6 +3378,10 @@ void MainWindow::refresh_options_bar() {
   }
   if (crop_cancel_button_ != nullptr) {
     crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_can_reset());
+  }
+  if (perspective_crop_turn_button_ != nullptr) {
+    perspective_crop_turn_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
+                                              canvas_->perspective_crop_session_active());
   }
   if (perspective_crop_apply_button_ != nullptr) {
     perspective_crop_apply_button_->setEnabled(edit_allowed && canvas_ != nullptr &&

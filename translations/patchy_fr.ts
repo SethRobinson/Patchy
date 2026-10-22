@@ -23987,14 +23987,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Recadrage perspective</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Faites glisser un cadre ou cliquez quatre coins autour d&apos;une zone inclinée, puis faites glisser les coins sur ses bords. Entrée la redresse en rectangle.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Recadrage perspective : faites glisser un cadre ou cliquez quatre coins, puis faites glisser chaque coin sur les bords de la zone. Faites glisser à l&apos;intérieur pour le déplacer. Entrée recadre et redresse, Échap efface les coins.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Outils de recadrage</translation>
     </message>
@@ -24017,6 +24009,51 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Corners: none placed</source>
         <translation>Coins : aucun placé</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Faire pivoter le résultat d&apos;un quart de tour : le repère du haut passe au côté suivant</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Faites glisser un cadre ou cliquez quatre coins autour d&apos;une zone inclinée, puis faites glisser les coins ou les côtés sur ses bords. La flèche marque le haut du résultat ; Entrée la redresse en rectangle.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Recadrage perspective : faites glisser un cadre ou cliquez quatre coins, puis faites glisser les coins ou les côtés sur les bords de la zone. Faites glisser à l&apos;intérieur pour le déplacer, juste à l&apos;extérieur d&apos;un coin pour le faire pivoter (Maj aligne sur 15 degrés). La flèche marque le haut du résultat. Entrée recadre et redresse, Échap efface les coins.</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>Taille des icônes et des boutons de la palette d&apos;outils, par rapport à l&apos;échelle de l&apos;interface.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Très petite</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>Petite</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>Normale</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>Plus grande</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Très grande</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>Taille des icônes d&apos;outils :</translation>
     </message>
 </context>
 <context>

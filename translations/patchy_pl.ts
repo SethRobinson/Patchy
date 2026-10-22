@@ -24059,14 +24059,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Kadrowanie perspektywiczne</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Przeciągnij ramkę lub kliknij cztery narożniki wokół przekrzywionego obszaru, a potem przeciągnij narożniki na jego krawędzie. Enter prostuje go w prostokąt.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Kadrowanie perspektywiczne: przeciągnij ramkę lub kliknij cztery narożniki, a potem przeciągnij każdy narożnik na krawędzie obszaru. Przeciągnij wewnątrz, aby go przesunąć. Enter kadruje i prostuje, Esc usuwa narożniki.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Narzędzia kadrowania</translation>
     </message>
@@ -24089,6 +24081,51 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Corners: none placed</source>
         <translation>Narożniki: brak</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Obróć wynik o ćwierć obrotu: znacznik góry przechodzi na następny bok</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Przeciągnij ramkę lub kliknij cztery narożniki wokół przekrzywionego obszaru, a potem przeciągnij narożniki lub boki na jego krawędzie. Strzałka wskazuje górę wyniku; Enter prostuje go w prostokąt.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Kadrowanie perspektywiczne: przeciągnij ramkę lub kliknij cztery narożniki, a potem przeciągnij narożniki lub boki na krawędzie obszaru. Przeciągnij wewnątrz, aby go przesunąć, tuż za narożnikiem, aby go obrócić (Shift przyciąga co 15 stopni). Strzałka wskazuje górę wyniku. Enter kadruje i prostuje, Esc usuwa narożniki.</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>Rozmiar ikon i przycisków palety narzędzi względem skali interfejsu.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Najmniejszy</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>Mały</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>Normalny</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>Większy</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Największy</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>Rozmiar ikon narzędzi:</translation>
     </message>
 </context>
 <context>

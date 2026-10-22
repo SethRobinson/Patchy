@@ -1039,6 +1039,8 @@ private:
   // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
   // the steps have to run in.
   void apply_color_scheme();
+  // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
+  void apply_tool_palette_factor(double factor);
   void new_guide_dialog();
   void new_guide_layout_dialog();
   void clear_guides();
@@ -2058,6 +2060,13 @@ private:
   void schedule_save_tool_settings();
   [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
   void stash_active_brush_settings();
+  // The foreground/background pair is application-wide (GitHub issue 339): canvases hold
+  // working copies, the window holds the pair the home screen, the next document and the
+  // next launch see. Stash reads canvas_'s copy back; apply hands the pair to canvas_.
+  void stash_active_colors();
+  void apply_active_colors_to_canvas();
+  void load_color_settings();
+  void save_color_settings() const;
   void apply_active_brush_settings_to_canvas();
   void apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas);
   void refresh_pattern_stamp_pattern_combo();
@@ -2527,6 +2536,8 @@ private:
   ColorWellSwatch* primary_color_button_{nullptr};
   ColorWellSwatch* secondary_color_button_{nullptr};
   ToolPaletteFooter* tool_palette_footer_{nullptr};
+  // The toolbar icon size's factor (Preferences; app_settings.hpp), 1 at Normal.
+  double tool_palette_factor_{1.0};
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
   QComboBox* move_auto_select_target_combo_{nullptr};
@@ -2615,6 +2626,7 @@ private:
   UnitIntSpinBox* perspective_crop_height_spin_{nullptr};
   QDoubleSpinBox* perspective_crop_resolution_spin_{nullptr};
   QCheckBox* perspective_crop_grid_check_{nullptr};
+  QToolButton* perspective_crop_turn_button_{nullptr};
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
@@ -3108,6 +3120,13 @@ private:
       TransformInterpolation::Bicubic};
   int current_polygon_sides_{5};
   int current_polygon_star_inset_{0};
+  QColor foreground_color_{Qt::black};
+  QColor background_color_{Qt::white};
+  // canvas_'s colors right after the pair was applied or last stashed: a difference
+  // is a change made on the canvas. A palette document snaps its copy, which must
+  // not count as a change of the pair.
+  QColor canvas_applied_foreground_;
+  QColor canvas_applied_background_;
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the
   // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer

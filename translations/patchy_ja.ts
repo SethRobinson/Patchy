@@ -23915,14 +23915,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>遠近法の切り抜き</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>ゆがんだ範囲をボックスでドラッグするか 4 つの角をクリックし、角をその辺に合わせてドラッグします。Enter で長方形に補正します。</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>遠近法の切り抜き: ボックスをドラッグするか 4 つの角をクリックし、各角を範囲の辺に合わせてドラッグします。内側をドラッグすると移動します。Enter で切り抜いて補正、Esc で角を消去します。</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>切り抜きツール</translation>
     </message>
@@ -23945,6 +23937,51 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Corners: none placed</source>
         <translation>角: 未配置</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>結果を 90 度回転します。上のマーカーが次の辺に移ります</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>ゆがんだ範囲をボックスでドラッグするか 4 つの角をクリックし、角または辺をその縁に合わせてドラッグします。矢印は結果の上側を示します。Enter で長方形に補正します。</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>遠近法の切り抜き: ボックスをドラッグするか 4 つの角をクリックし、角または辺を範囲の縁に合わせてドラッグします。内側をドラッグすると移動、角のすぐ外側をドラッグすると回転します (Shift で 15 度単位)。矢印は結果の上側を示します。Enter で切り抜いて補正、Esc で角を消去します。</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>ツールパレットのアイコンとボタンのサイズです。インターフェースの拡大率に対する相対値です。</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>標準</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最大</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>ツールアイコンのサイズ:</translation>
     </message>
 </context>
 <context>

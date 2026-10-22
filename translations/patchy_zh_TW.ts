@@ -23915,14 +23915,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>透視裁切</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>拖出一個框或在傾斜區域周圍按一下四個角, 然後把各個角拖到其邊緣上。按 Enter 將其拉正為矩形。</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>透視裁切: 拖出一個框或按一下四個角, 然後把每個角拖到區域的邊緣上。在內部拖曳可移動它。按 Enter 裁切並拉正, 按 Esc 清除四個角。</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>裁切工具</translation>
     </message>
@@ -23945,6 +23937,51 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Corners: none placed</source>
         <translation>角: 尚未放置</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>將結果旋轉四分之一圈: 頂部標記移到下一條邊</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>拖出一個框或在傾斜區域周圍按一下四個角, 然後把各個角或邊拖到其邊緣上。箭頭標示結果的頂部; 按 Enter 將其拉正為矩形。</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>透視裁切: 拖出一個框或按一下四個角, 然後把各個角或邊拖到區域的邊緣上。在內部拖曳可移動它, 在角的外側拖曳可旋轉它 (按住 Shift 以 15 度為間隔)。箭頭標示結果的頂部。按 Enter 裁切並拉正, 按 Esc 清除四個角。</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>工具面板圖示和按鈕的大小，相對於介面縮放。</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>正常</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>較大</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>最大</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>工具圖示大小:</translation>
     </message>
 </context>
 <context>

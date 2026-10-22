@@ -23915,14 +23915,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>원근 자르기</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>기울어진 영역 주위로 상자를 드래그하거나 모서리 네 개를 클릭한 다음 모서리를 가장자리에 맞춰 드래그하세요. Enter 키를 누르면 직사각형으로 바로잡습니다.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>원근 자르기: 상자를 드래그하거나 모서리 네 개를 클릭한 다음 각 모서리를 영역 가장자리에 맞춰 드래그하세요. 안쪽을 드래그하면 이동합니다. Enter 키는 자르고 바로잡으며, Esc 키는 모서리를 지웁니다.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>자르기 도구</translation>
     </message>
@@ -23945,6 +23937,51 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Corners: none placed</source>
         <translation>모서리: 놓은 것 없음</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>결과를 90도 돌립니다. 위쪽 표시가 다음 변으로 옮겨집니다</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>기울어진 영역 주위로 상자를 드래그하거나 모서리 네 개를 클릭한 다음 모서리나 변을 가장자리에 맞춰 드래그하세요. 화살표는 결과의 위쪽을 표시합니다. Enter 키를 누르면 직사각형으로 바로잡습니다.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>원근 자르기: 상자를 드래그하거나 모서리 네 개를 클릭한 다음 모서리나 변을 영역 가장자리에 맞춰 드래그하세요. 안쪽을 드래그하면 이동하고, 모서리 바로 바깥을 드래그하면 회전합니다(Shift 키는 15도 단위로 맞춤). 화살표는 결과의 위쪽을 표시합니다. Enter 키는 자르고 바로잡으며, Esc 키는 모서리를 지웁니다.</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>도구 팔레트의 아이콘과 버튼 크기입니다. 인터페이스 배율을 기준으로 합니다.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>가장 작게</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>작게</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>보통</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>크게</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>가장 크게</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>도구 아이콘 크기:</translation>
     </message>
 </context>
 <context>

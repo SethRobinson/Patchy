@@ -1940,7 +1940,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::PerspectiveCrop && perspective_crop_session_pending()) {
     clear_move_hover_outline();
-    update_perspective_crop_drag(document_position_f(event->position()));
+    update_perspective_crop_drag(document_position_f(event->position()), event->modifiers());
     last_mouse_position_ = event->pos();
     update_perspective_crop_cursor(event->pos());
     return;
@@ -2674,7 +2674,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::PerspectiveCrop &&
-      (perspective_crop_dragging_out_ || perspective_crop_drag_corner_ >= 0) &&
+      (perspective_crop_dragging_out_ || perspective_crop_drag_part_ >= 0) &&
       event->button() == Qt::LeftButton) {
     finish_perspective_crop_mouse_release(event);
     event->accept();

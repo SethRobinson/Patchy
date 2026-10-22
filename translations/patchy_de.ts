@@ -23987,14 +23987,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Perspektivisches Freistellen</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Ziehen Sie einen Rahmen auf oder klicken Sie vier Ecken um einen verzerrten Bereich, und ziehen Sie die Ecken dann auf seine Kanten. Enter richtet ihn zu einem Rechteck aus.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Perspektivisches Freistellen: Rahmen aufziehen oder vier Ecken klicken, dann jede Ecke auf die Kanten des Bereichs ziehen. Innen ziehen verschiebt ihn. Enter stellt frei und richtet aus, Esc entfernt die Ecken.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Freistellungswerkzeuge</translation>
     </message>
@@ -24017,6 +24009,51 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Corners: none placed</source>
         <translation>Ecken: keine gesetzt</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Ergebnis um eine Vierteldrehung drehen: die Oben-Markierung wandert zur nächsten Seite</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Ziehen Sie einen Rahmen auf oder klicken Sie vier Ecken um einen verzerrten Bereich, und ziehen Sie dann die Ecken oder Seiten auf seine Kanten. Der Pfeil zeigt die Oberkante des Ergebnisses; Enter richtet ihn zu einem Rechteck aus.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Perspektivisches Freistellen: Rahmen aufziehen oder vier Ecken klicken, dann die Ecken oder Seiten auf die Kanten des Bereichs ziehen. Innen ziehen verschiebt ihn, knapp außerhalb einer Ecke ziehen dreht ihn (Umschalt rastet in 15-Grad-Schritten ein). Der Pfeil zeigt die Oberkante des Ergebnisses. Enter stellt frei und richtet aus, Esc entfernt die Ecken.</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>Größe der Symbole und Schaltflächen der Werkzeugpalette, relativ zur Oberflächenskalierung.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Am kleinsten</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>Klein</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>Normal</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>Größer</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Am größten</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>Größe der Werkzeugsymbole:</translation>
     </message>
 </context>
 <context>

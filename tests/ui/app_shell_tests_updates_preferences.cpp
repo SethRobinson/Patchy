@@ -15,6 +15,7 @@
 #include "ui/theme_file.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/tool_palette_footer.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/update_installer.hpp"
@@ -65,6 +66,8 @@
 #include <QDateTime>
 #include <QScrollArea>
 #include <QPainter>
+#include <QToolBar>
+#include <QToolButton>
 #include <QSizePolicy>
 #include <QValidator>
 #include <QStyle>
@@ -2293,6 +2296,152 @@ void ui_gui_scale_preference_persists_setting() {
   CHECK(patchy::ui::stored_gui_scale_percent() == 113);
 }
 
+// Preferences > Toolbar icon size (desk card local-005): five named steps on top of the
+// interface scale. Each one scales the tool palette's icons, buttons, collapsed column and
+// footer from the Normal lengths, the choice is stored as its token, a new window starts at
+// the stored size, and OK applies a change live.
+void ui_toolbar_icon_size_preference_scales_tool_palette() {
+  using patchy::ui::ToolbarIconSize;
+  SettingsValueRestorer restore_size(QStringLiteral("preferences/toolbarIconSize"));
+  ensure_artifact_dir();
+
+  // The tokens are the stored contract; anything else reads as Normal.
+  CHECK(patchy::ui::toolbar_icon_size_token(ToolbarIconSize::Smallest) == QStringLiteral("smallest"));
+  CHECK(patchy::ui::toolbar_icon_size_token(ToolbarIconSize::Small) == QStringLiteral("small"));
+  CHECK(patchy::ui::toolbar_icon_size_token(ToolbarIconSize::Normal) == QStringLiteral("normal"));
+  CHECK(patchy::ui::toolbar_icon_size_token(ToolbarIconSize::Bigger) == QStringLiteral("bigger"));
+  CHECK(patchy::ui::toolbar_icon_size_token(ToolbarIconSize::Biggest) == QStringLiteral("biggest"));
+  CHECK(patchy::ui::toolbar_icon_size_from_token(QStringLiteral("huge")) == ToolbarIconSize::Normal);
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/toolbarIconSize"));
+    settings.sync();
+  }
+  CHECK(patchy::ui::stored_toolbar_icon_size() == ToolbarIconSize::Normal);
+
+  // Measures one window's palette against the Normal lengths times the size's factor.
+  const auto check_palette = [](patchy::ui::MainWindow& window, ToolbarIconSize size) {
+    const double factor = patchy::ui::toolbar_icon_size_factor(size);
+    auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    auto* footer = window.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+    auto* brush = window.findChild<QToolButton*>(QStringLiteral("brushToolButton"));
+    if (brush == nullptr && palette != nullptr) {
+      // Any plain tool button of the palette (not a flyout, footer or extension button).
+      for (auto* button : palette->findChildren<QToolButton*>()) {
+        if (button->defaultAction() != nullptr && button->defaultAction()->objectName() == QStringLiteral("toolBrushAction")) {
+          brush = button;
+        }
+      }
+    }
+    auto* marquee = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+    CHECK(palette != nullptr && footer != nullptr && brush != nullptr && marquee != nullptr);
+    if (palette == nullptr || footer == nullptr || brush == nullptr || marquee == nullptr) {
+      return;
+    }
+    const int icon = qRound(20 * factor);
+    const int column = qRound(31 * factor) + 12;
+    std::printf("  %s: icon %d (want %d), brush %dx%d, palette %d (want %d), footer %dx%d\n",
+                qPrintable(patchy::ui::toolbar_icon_size_token(size)), palette->iconSize().width(), icon,
+                brush->width(), brush->height(), palette->width(), column, footer->width(), footer->height());
+    CHECK(palette->iconSize() == QSize(icon, icon));
+    // 31 x 24 content plus 1 px padding and 1 px border on each side at Normal.
+    CHECK(brush->width() == qRound(31 * factor) + 4);
+    CHECK(brush->height() == qRound(24 * factor) + 4);
+    CHECK(marquee->width() == brush->width());
+    CHECK(palette->width() == column);
+    CHECK(footer->cell_width() == column);
+    CHECK(footer->width() == column);
+    CHECK(footer->height() == qRound(patchy::ui::ToolPaletteFooter::kHeight * column / 43.0));
+    // The well and Quick Mask stay inside the footer, clear of the palette's right border.
+    for (const char* name : {"foregroundColorButton", "backgroundColorButton", "colorSwapButton", "quickMaskButton"}) {
+      auto* control = footer->findChild<QWidget*>(QString::fromLatin1(name));
+      CHECK(control != nullptr);
+      if (control != nullptr) {
+        CHECK(footer->rect().adjusted(0, 0, -1, 0).contains(control->geometry()));
+      }
+    }
+    auto* swatch = footer->findChild<QWidget*>(QStringLiteral("foregroundColorButton"));
+    CHECK(swatch != nullptr && swatch->width() == qRound(22 * column / 43.0));
+    CHECK(marquee->menu() != nullptr &&
+          marquee->menu()->style()->pixelMetric(QStyle::PM_SmallIconSize, nullptr, marquee->menu()) == icon);
+  };
+  const auto palette_shot = [](patchy::ui::MainWindow& window) {
+    auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    return palette != nullptr ? palette->grab().toImage() : QImage();
+  };
+
+  // A window started at each stored size.
+  QList<QImage> shots;
+  for (const auto size : patchy::ui::kToolbarIconSizes) {
+    patchy::ui::set_stored_toolbar_icon_size(size);
+    CHECK(patchy::ui::stored_toolbar_icon_size() == size);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("preferences/toolbarIconSize")).toString() ==
+          patchy::ui::toolbar_icon_size_token(size));
+    patchy::ui::MainWindow window;
+    window.resize(1100, 900);
+    show_window(window);
+    QApplication::processEvents();
+    check_palette(window, size);
+    shots << palette_shot(window);
+    if (size == ToolbarIconSize::Smallest || size == ToolbarIconSize::Biggest) {
+      save_image_artifact("local_005_tool_palette_" + patchy::ui::toolbar_icon_size_token(size).toStdString(),
+                          shots.back());
+    }
+  }
+  // Side by side, top-aligned, Smallest to Biggest.
+  {
+    int width = 0;
+    int height = 0;
+    for (const auto& shot : shots) {
+      width += shot.width() + 12;
+      height = std::max(height, shot.height());
+    }
+    QImage row(width, height, QImage::Format_ARGB32_Premultiplied);
+    row.fill(patchy::ui::theme().window_bg);
+    QPainter painter(&row);
+    int x = 0;
+    for (const auto& shot : shots) {
+      painter.drawImage(x, 0, shot);
+      x += shot.width() + 12;
+    }
+    painter.end();
+    save_image_artifact("local_005_tool_palette_all_sizes", row);
+  }
+
+  // Preferences lists the five steps in order with Normal current, and OK applies a pick live.
+  patchy::ui::set_stored_toolbar_icon_size(ToolbarIconSize::Normal);
+  patchy::ui::MainWindow window;
+  window.resize(1100, 900);
+  show_window(window);
+  check_palette(window, ToolbarIconSize::Normal);
+  for (const auto size : {ToolbarIconSize::Biggest, ToolbarIconSize::Smallest, ToolbarIconSize::Normal}) {
+    run_preferences_dialog(window, /*accept=*/true, [&](QDialog& dialog) {
+      auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesToolbarIconSizeCombo"));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) {
+        return;
+      }
+      CHECK(combo->count() == 5);
+      QStringList tokens;
+      for (int i = 0; i < combo->count(); ++i) {
+        tokens << combo->itemData(i).toString();
+      }
+      CHECK(tokens == QStringList({QStringLiteral("smallest"), QStringLiteral("small"), QStringLiteral("normal"),
+                                   QStringLiteral("bigger"), QStringLiteral("biggest")}));
+      if (size == ToolbarIconSize::Biggest) {
+        CHECK(combo->currentData().toString() == QStringLiteral("normal"));
+        CHECK(combo->currentText() == QStringLiteral("Normal"));
+        save_widget_artifact("local_005_preferences_toolbar_icon_size", dialog);
+      }
+      combo->setCurrentIndex(combo->findData(patchy::ui::toolbar_icon_size_token(size)));
+    });
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(patchy::ui::stored_toolbar_icon_size() == size);
+    check_palette(window, size);
+  }
+}
+
 // The values below 100% are what let a browser tab match the desktop build's apparent
 // size, so keep one of them exercised end to end, picked from the preset list.
 void ui_gui_scale_preference_persists_step_below_full_size() {
@@ -2775,6 +2924,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_update_preference_offers_daily_interval", ui_update_preference_offers_daily_interval},
       {"ui_update_prompt_skip_version_silences_until_a_newer_one", ui_update_prompt_skip_version_silences_until_a_newer_one},
       {"ui_gui_scale_preference_persists_setting", ui_gui_scale_preference_persists_setting},
+      {"ui_toolbar_icon_size_preference_scales_tool_palette", ui_toolbar_icon_size_preference_scales_tool_palette},
       {"ui_gui_scale_preference_persists_step_below_full_size", ui_gui_scale_preference_persists_step_below_full_size},
       {"ui_gui_scale_preference_falls_back_for_unknown_step", ui_gui_scale_preference_falls_back_for_unknown_step},
       {"ui_gui_scale_preference_shows_stored_value_off_the_list", ui_gui_scale_preference_shows_stored_value_off_the_list},

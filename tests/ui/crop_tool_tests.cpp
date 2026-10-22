@@ -21,6 +21,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -2439,6 +2440,252 @@ void ui_perspective_crop_options_bar_and_grid() {
 }
 
 // doc.perspectiveCrop: the scripted twin of the commit, and its refusals.
+// Paints the first layer from a per-pixel color function (document coordinates).
+void paint_first_layer(patchy::ui::MainWindow& window, const std::function<QColor(int, int)>& color_at) {
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(!document.layers().empty());
+  auto& layer = document.layers().front();
+  const auto format = std::as_const(layer).pixels().format();
+  patchy::PixelBuffer pixels(document.width(), document.height(), format);
+  const auto channels = static_cast<std::size_t>(format.channels);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto color = color_at(x, y);
+      auto* pixel = pixels.pixel(x, y);
+      const std::array<std::uint8_t, 3> rgb{static_cast<std::uint8_t>(color.red()),
+                                            static_cast<std::uint8_t>(color.green()),
+                                            static_cast<std::uint8_t>(color.blue())};
+      for (std::size_t c = 0; c < std::min<std::size_t>(channels, 3U); ++c) {
+        pixel[c] = rgb[c];
+      }
+      if (channels >= 4U) {
+        pixel[3] = 255;
+      }
+    }
+  }
+  layer.set_pixels(std::move(pixels));
+  layer.set_bounds(patchy::Rect{0, 0, document.width(), document.height()});
+  require_canvas(window)->document_changed();
+  QApplication::processEvents();
+}
+
+// A white page with ruled lines, photographed in perspective on a light desk: the up
+// marker has to read over light artwork too.
+void paint_perspective_page(patchy::ui::MainWindow& window) {
+  const std::array<double, 8> page{300.0, 140.0, 760.0, 190.0, 800.0, 640.0, 230.0, 600.0};
+  const auto forward = patchy::homography_from_rect_to_quad(0.0, 0.0, 1.0, 1.0, page);
+  CHECK(forward.has_value());
+  const auto inverse = patchy::invert_homography(*forward);
+  CHECK(inverse.has_value());
+  paint_first_layer(window, [&inverse](int x, int y) {
+    const auto uv = patchy::apply_homography(*inverse, x + 0.5, y + 0.5);
+    if (uv[0] < 0.0 || uv[1] < 0.0 || uv[0] >= 1.0 || uv[1] >= 1.0) {
+      return QColor(226, 222, 214);
+    }
+    const bool rule = uv[1] > 0.12 && std::fmod(uv[1] * 18.0, 1.0) < 0.08 && uv[0] > 0.08 && uv[0] < 0.92;
+    const bool title = uv[1] > 0.04 && uv[1] < 0.09 && uv[0] > 0.08 && uv[0] < 0.55;
+    return rule || title ? QColor(70, 74, 82) : QColor(252, 252, 250);
+  });
+}
+
+// Quadrant colors about (400, 300): red top left, green top right, blue bottom left,
+// yellow bottom right, so a commit's orientation reads from three probes.
+QColor perspective_quadrant_color(int x, int y) {
+  if (y < 300) {
+    return x < 400 ? QColor(220, 40, 40) : QColor(40, 200, 60);
+  }
+  return x < 400 ? QColor(40, 80, 220) : QColor(240, 210, 30);
+}
+
+double degrees_between(QPointF from, QPointF to, QPointF center) {
+  const auto a = std::atan2(from.y() - center.y(), from.x() - center.x());
+  const auto b = std::atan2(to.y() - center.y(), to.x() - center.x());
+  auto degrees = (b - a) * 180.0 / std::numbers::pi;
+  while (degrees > 180.0) {
+    degrees -= 360.0;
+  }
+  while (degrees < -180.0) {
+    degrees += 360.0;
+  }
+  return degrees;
+}
+
+// Rotates the finished quad by dragging from just outside its top right corner around
+// the center to `degrees` (on screen, clockwise positive).
+void rotate_perspective_quad(patchy::ui::CanvasWidget& canvas, double degrees, Qt::KeyboardModifiers modifiers) {
+  const auto quad = canvas.perspective_crop_quad();
+  CHECK(quad.has_value());
+  if (!quad.has_value()) {
+    return;
+  }
+  const auto center = ((*quad)[0] + (*quad)[1] + (*quad)[2] + (*quad)[3]) / 4.0;
+  const auto center_widget = canvas.widget_position_f(center);
+  const auto corner_widget = canvas.widget_position_f((*quad)[1]);
+  auto outward = corner_widget - center_widget;
+  outward /= std::hypot(outward.x(), outward.y());
+  const auto press = (corner_widget + outward * 14.0).toPoint();
+  const auto release = (center_widget + QTransform().rotate(degrees).map(QPointF(press) - center_widget)).toPoint();
+  const auto halfway =
+      (center_widget + QTransform().rotate(degrees / 2.0).map(QPointF(press) - center_widget)).toPoint();
+  send_mouse(canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseMove, halfway, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseMove, release, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseButtonRelease, release, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+}
+
+// The up marker: a light stroke over a dark one on the output's top edge, with an arrow
+// outside its middle. True when the arrow's stem shows just outside that edge.
+bool perspective_up_marker_at_top_edge(patchy::ui::CanvasWidget& canvas) {
+  const auto quad = canvas.perspective_crop_quad();
+  if (!quad.has_value()) {
+    return false;
+  }
+  const auto top_left = canvas.widget_position_f((*quad)[0]);
+  const auto top_right = canvas.widget_position_f((*quad)[1]);
+  const auto center = canvas.widget_position_f(((*quad)[0] + (*quad)[1] + (*quad)[2] + (*quad)[3]) / 4.0);
+  const auto middle = (top_left + top_right) / 2.0;
+  const auto outward = middle - center;
+  const auto along = top_right - top_left;
+  QPointF normal(along.y(), -along.x());
+  normal /= std::hypot(normal.x(), normal.y());
+  if (normal.x() * outward.x() + normal.y() * outward.y() < 0.0) {
+    normal = -normal;
+  }
+  const auto image = render_widget_image(canvas);
+  int light = 0;
+  const QPointF tangent = along / std::hypot(along.x(), along.y());
+  for (double distance = 11.0; distance <= 15.0; distance += 1.0) {
+    // The stem is 2 px of light ink: one of three pixels across it is fully covered.
+    bool hit = false;
+    for (const double across : {-1.0, 0.0, 1.0}) {
+      const auto probe = (middle + normal * distance + tangent * across).toPoint();
+      hit = hit || color_close(image.pixelColor(probe), QColor(245, 248, 252), 30);
+    }
+    light += hit ? 1 : 0;
+  }
+  return light >= 3;
+}
+
+// Seth (October 22, 2026): an edge drag moves its two corners, a drag just outside a
+// corner rotates the quad (Shift snaps to 15 degrees), Turn moves the top to the next
+// side, and an up marker on the output's top edge follows all of it. The commit's
+// orientation matches the marker.
+void ui_perspective_crop_edges_rotate_and_up_marker() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_snap_enabled(false);
+  paint_first_layer(window, perspective_quadrant_color);
+  require_hotkey_action(window, QStringLiteral("view.fit_on_screen"))->trigger();
+  require_action(window, "toolPerspectiveCropAction")->trigger();
+  QApplication::processEvents();
+  const std::array<QPointF, 4> box{QPointF(200, 150), QPointF(600, 150), QPointF(600, 450), QPointF(200, 450)};
+  CHECK(canvas->set_perspective_crop_quad(box));
+  CHECK(perspective_up_marker_at_top_edge(*canvas));
+
+  // The top edge's middle handle moves both top corners; the bottom stays.
+  drag(*canvas, perspective_widget_point(*canvas, QPointF(400, 150)),
+       perspective_widget_point(*canvas, QPointF(400, 110)));
+  auto quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value());
+  if (!quad.has_value()) {
+    return;
+  }
+  CHECK(points_near((*quad)[0], QPointF(200, 110), 4.0));
+  CHECK(points_near((*quad)[1], QPointF(600, 110), 4.0));
+  CHECK(points_near((*quad)[2], QPointF(600, 450), 0.01));
+  CHECK(points_near((*quad)[3], QPointF(200, 450), 0.01));
+  // The right edge's line itself (off its middle handle) grabs that side too.
+  drag(*canvas, perspective_widget_point(*canvas, QPointF(600, 360)),
+       perspective_widget_point(*canvas, QPointF(640, 360)));
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value() && points_near((*quad)[1], QPointF(640, 110), 4.0));
+  CHECK(quad.has_value() && points_near((*quad)[2], QPointF(640, 450), 4.0));
+  CHECK(quad.has_value() && points_near((*quad)[0], QPointF(200, 110), 4.0));
+
+  // A free rotate follows the pointer; Shift snaps the turn to 15 degrees.
+  CHECK(canvas->set_perspective_crop_quad(box));
+  rotate_perspective_quad(*canvas, 37.0, Qt::NoModifier);
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value());
+  const QPointF center(400, 300);
+  if (quad.has_value()) {
+    CHECK(std::abs(degrees_between(box[0], (*quad)[0], center) - 37.0) < 2.5);
+  }
+  CHECK(canvas->set_perspective_crop_quad(box));
+  rotate_perspective_quad(*canvas, 92.0, Qt::ShiftModifier);
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value());
+  if (!quad.has_value()) {
+    return;
+  }
+  // 90 degrees clockwise about (400, 300); the corners keep their output order.
+  CHECK(points_near((*quad)[0], QPointF(550, 100), 0.05));
+  CHECK(points_near((*quad)[1], QPointF(550, 500), 0.05));
+  CHECK(points_near((*quad)[2], QPointF(250, 500), 0.05));
+  CHECK(points_near((*quad)[3], QPointF(250, 100), 0.05));
+  // The marker moved with the top edge, now the quad's right side.
+  CHECK(perspective_up_marker_at_top_edge(*canvas));
+  save_widget_artifact("ui_perspective_crop_rotated", *canvas);
+
+  // Commit: the output's top is that right side, so the image comes out turned a
+  // quarter counterclockwise: green top left, yellow top right, red bottom left.
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto& rotated = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(rotated.width() == 400);
+  CHECK(rotated.height() == 300);
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(50, 50)), QColor(40, 200, 60), 4));
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(350, 50)), QColor(240, 210, 30), 4));
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(50, 250)), QColor(220, 40, 40), 4));
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 1024);
+
+  // Turn moves the top to the next side without moving a corner: the left side
+  // becomes the top, so the result turns a quarter clockwise.
+  require_action(window, "toolPerspectiveCropAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->set_perspective_crop_quad(box));
+  auto* turn = window.findChild<QToolButton*>(QStringLiteral("perspectiveCropTurnButton"));
+  CHECK(turn != nullptr);
+  if (turn == nullptr) {
+    return;
+  }
+  CHECK(turn->isVisible() && turn->isEnabled());
+  turn->click();
+  QApplication::processEvents();
+  quad = canvas->perspective_crop_quad();
+  CHECK(quad.has_value() && points_near((*quad)[0], box[3], 0.01));
+  CHECK(quad.has_value() && points_near((*quad)[1], box[0], 0.01));
+  CHECK(perspective_up_marker_at_top_edge(*canvas));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto& turned = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(turned.width() == 300);
+  CHECK(turned.height() == 400);
+  // A quarter clockwise: blue top left, red top right, yellow bottom left.
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(50, 50)), QColor(40, 80, 220), 4));
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(250, 50)), QColor(220, 40, 40), 4));
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(50, 350)), QColor(240, 210, 30), 4));
+}
+
+// The card's screenshot: a session over a light page, mid-edge handles and the up marker.
+void ui_perspective_crop_up_marker_over_light_page() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  paint_perspective_page(window);
+  require_hotkey_action(window, QStringLiteral("view.fit_on_screen"))->trigger();
+  require_action(window, "toolPerspectiveCropAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->set_perspective_crop_quad(
+      {QPointF(300, 140), QPointF(760, 190), QPointF(800, 640), QPointF(230, 600)}));
+  CHECK(perspective_up_marker_at_top_edge(*canvas));
+  save_widget_artifact("ui_perspective_crop_light_page", window);
+}
+
 void ui_script_document_perspective_crop() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2474,6 +2721,8 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_perspective_crop_session_commits_and_undoes", ui_perspective_crop_session_commits_and_undoes},
       {"ui_perspective_crop_options_bar_and_grid", ui_perspective_crop_options_bar_and_grid},
       {"ui_script_document_perspective_crop", ui_script_document_perspective_crop},
+      {"ui_perspective_crop_edges_rotate_and_up_marker", ui_perspective_crop_edges_rotate_and_up_marker},
+      {"ui_perspective_crop_up_marker_over_light_page", ui_perspective_crop_up_marker_over_light_page},
       {"ui_crop_ratio_fields_show_trimmed_numbers", ui_crop_ratio_fields_show_trimmed_numbers},
       {"ui_crop_drag_out_geometry", ui_crop_drag_out_geometry},
       {"ui_crop_tool_frames_canvas_and_fits_ratio", ui_crop_tool_frames_canvas_and_fits_ratio},

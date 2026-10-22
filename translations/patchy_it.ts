@@ -23987,14 +23987,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Taglierina prospettica</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Trascina un riquadro o fai clic su quattro angoli attorno a un&apos;area inclinata, poi trascina gli angoli sui suoi bordi. Invio la raddrizza in un rettangolo.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Taglierina prospettica: trascina un riquadro o fai clic su quattro angoli, poi trascina ogni angolo sui bordi dell&apos;area. Trascina all&apos;interno per spostarlo. Invio ritaglia e raddrizza, Esc rimuove gli angoli.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Strumenti di ritaglio</translation>
     </message>
@@ -24017,6 +24009,51 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Corners: none placed</source>
         <translation>Angoli: nessuno posizionato</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Ruota il risultato di un quarto di giro: l&apos;indicatore dell&apos;alto passa al lato successivo</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Trascina un riquadro o fai clic su quattro angoli attorno a un&apos;area inclinata, poi trascina gli angoli o i lati sui suoi bordi. La freccia indica l&apos;alto del risultato; Invio la raddrizza in un rettangolo.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Taglierina prospettica: trascina un riquadro o fai clic su quattro angoli, poi trascina gli angoli o i lati sui bordi dell&apos;area. Trascina all&apos;interno per spostarlo, appena fuori da un angolo per ruotarlo (Maiusc scatta di 15 gradi). La freccia indica l&apos;alto del risultato. Invio ritaglia e raddrizza, Esc rimuove gli angoli.</translation>
+    </message>
+    <message>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <translation>Dimensione delle icone e dei pulsanti della palette strumenti, rispetto alla scala dell&apos;interfaccia.</translation>
+    </message>
+    <message>
+        <source>Smallest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Minima</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <comment>toolbar icon size</comment>
+        <translation>Piccola</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>toolbar icon size</comment>
+        <translation>Normale</translation>
+    </message>
+    <message>
+        <source>Bigger</source>
+        <comment>toolbar icon size</comment>
+        <translation>Più grande</translation>
+    </message>
+    <message>
+        <source>Biggest</source>
+        <comment>toolbar icon size</comment>
+        <translation>Massima</translation>
+    </message>
+    <message>
+        <source>Toolbar icon size:</source>
+        <translation>Dimensione icone strumenti:</translation>
     </message>
 </context>
 <context>
