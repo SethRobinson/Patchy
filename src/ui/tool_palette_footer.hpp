@@ -19,6 +19,15 @@ class QResizeEvent;
 
 namespace patchy::ui {
 
+// Tool palette lengths at a toolbar icon size (ToolbarIconSize in app_settings.hpp): the
+// Normal length times the size's factor, rounded. The collapsed column is the scaled 31 px
+// tool button content plus its padding, border and the bar's side margins (12 px, not
+// scaled), and the footer scales with that column (footer factor = column / 43) so the
+// well fills it at every size.
+[[nodiscard]] int tool_palette_length(int normal_px, double factor);
+[[nodiscard]] int tool_palette_collapsed_width(double factor);
+[[nodiscard]] double tool_palette_footer_factor(double factor);
+
 // A swatch square of the color well. A QPushButton so the picker opens on
 // click and the tooltip, text ("FG"/"BG") and enabled state keep their
 // contract; it paints its color itself, flat, with a theme-ink border.
@@ -30,6 +39,7 @@ public:
 
   void set_color(QColor color);
   [[nodiscard]] QColor color() const noexcept { return color_; }
+  void set_side(int side);
   [[nodiscard]] QSize sizeHint() const override;
 
 protected:
@@ -37,6 +47,7 @@ protected:
 
 private:
   QColor color_{Qt::black};
+  int side_;
 };
 
 // The two small glyph buttons beside the swatches, each triggering its
@@ -48,6 +59,7 @@ public:
   enum class Glyph { Swap, Default };
   ColorWellGlyphButton(Glyph glyph, QWidget* parent = nullptr);
 
+  void set_side(int side);
   [[nodiscard]] QSize sizeHint() const override;
 
 protected:
@@ -55,13 +67,15 @@ protected:
 
 private:
   Glyph glyph_;
+  int side_;
 };
 
 class ToolPaletteFooter final : public QWidget {
   Q_OBJECT
 
 public:
-  // The collapsed palette column is 43 px; the footer is designed for it.
+  // The collapsed palette column is 43 px at the Normal toolbar icon size; the footer is
+  // designed for it. set_scale() resizes it with the column (cell_width() and friends).
   static constexpr int kWidth = 43;
   static constexpr int kWellHeight = 45;
   static constexpr int kHeight = 75;
@@ -71,8 +85,14 @@ public:
   [[nodiscard]] ColorWellSwatch* foreground() const noexcept { return foreground_; }
   [[nodiscard]] ColorWellSwatch* background() const noexcept { return background_; }
   [[nodiscard]] QToolButton* quick_mask_button() const noexcept { return quick_mask_; }
-  [[nodiscard]] QSize sizeHint() const override { return {kWidth, kHeight}; }
-  [[nodiscard]] QSize minimumSizeHint() const override { return {kWidth, kHeight}; }
+  [[nodiscard]] QSize sizeHint() const override { return {cell_width_, height_}; }
+  [[nodiscard]] QSize minimumSizeHint() const override { return {cell_width_, height_}; }
+
+  // Lays the footer out for a toolbar icon size factor (1 is Normal, the k* sizes).
+  void set_scale(double palette_factor);
+  [[nodiscard]] int cell_width() const noexcept { return cell_width_; }
+  [[nodiscard]] int well_height() const noexcept { return well_height_; }
+  [[nodiscard]] int footer_height() const noexcept { return height_; }
 
 protected:
   void resizeEvent(QResizeEvent* event) override;
@@ -89,6 +109,11 @@ private:
   ColorWellGlyphButton* swap_{nullptr};
   ColorWellGlyphButton* default_{nullptr};
   QToolButton* quick_mask_{nullptr};
+  double scale_{1.0};
+  int cell_width_{kWidth};
+  int well_height_{kWellHeight};
+  int height_{kHeight};
+  int glyph_size_{0};
 };
 
 }  // namespace patchy::ui

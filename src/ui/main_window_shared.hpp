@@ -208,7 +208,8 @@ constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 
 // The application-wide dark QSS theme (defined in main_window_theme.cpp);
 // applied once by the MainWindow constructor.
-[[nodiscard]] QString photoshop_style();
+// tool_palette_factor is the toolbar icon size's (toolbar_icon_size_factor); 1 is Normal.
+[[nodiscard]] QString photoshop_style(double tool_palette_factor = 1.0);
 
 QString translate_source(const QObject* object, const char* property_name);
 void bind_translated_text(QObject* object, const char* source, const char* context = kMainWindowTranslationContext);

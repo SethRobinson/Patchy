@@ -1039,6 +1039,8 @@ private:
   // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
   // the steps have to run in.
   void apply_color_scheme();
+  // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
+  void apply_tool_palette_factor(double factor);
   void new_guide_dialog();
   void new_guide_layout_dialog();
   void clear_guides();
@@ -2534,6 +2536,8 @@ private:
   ColorWellSwatch* primary_color_button_{nullptr};
   ColorWellSwatch* secondary_color_button_{nullptr};
   ToolPaletteFooter* tool_palette_footer_{nullptr};
+  // The toolbar icon size's factor (Preferences; app_settings.hpp), 1 at Normal.
+  double tool_palette_factor_{1.0};
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
   QComboBox* move_auto_select_target_combo_{nullptr};

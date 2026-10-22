@@ -50,6 +50,22 @@ inline constexpr int kDefaultGuiScalePercent = 100;
 // a compatibility contract, lives in exactly one place.
 void set_stored_gui_scale_percent(int percent);
 
+// Toolbar icon size (Preferences, beside the interface scale): a multiplier on top of the
+// interface scale for the tool palette's icons, buttons and footer (docs/tool-palette.md).
+// Named steps rather than percentages, because the interface scale already is one. Stored
+// under `preferences/toolbarIconSize` as the token, never the translated label; the key and
+// the tokens are compatibility contracts. An unknown or missing token reads as Normal.
+enum class ToolbarIconSize { Smallest, Small, Normal, Bigger, Biggest };
+inline constexpr std::array<ToolbarIconSize, 5> kToolbarIconSizes{
+    ToolbarIconSize::Smallest, ToolbarIconSize::Small, ToolbarIconSize::Normal, ToolbarIconSize::Bigger,
+    ToolbarIconSize::Biggest};
+[[nodiscard]] QString toolbar_icon_size_token(ToolbarIconSize size);
+[[nodiscard]] ToolbarIconSize toolbar_icon_size_from_token(const QString& token);
+// The multiplier applied to the Normal palette lengths: 0.75, 0.875, 1, 1.25, 1.5.
+[[nodiscard]] double toolbar_icon_size_factor(ToolbarIconSize size);
+[[nodiscard]] ToolbarIconSize stored_toolbar_icon_size();
+void set_stored_toolbar_icon_size(ToolbarIconSize size);
+
 // Automatic document recovery (docs/document-recovery.md): the timer interval steps
 // offered in Preferences, in minutes. Photoshop's own list.
 inline constexpr std::array<int, 5> kRecoveryIntervalMinutes{5, 10, 15, 30, 60};

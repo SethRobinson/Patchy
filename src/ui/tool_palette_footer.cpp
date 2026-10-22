@@ -33,7 +33,19 @@ QColor ink_for(const QWidget& widget) {
 
 }  // namespace
 
-ColorWellSwatch::ColorWellSwatch(QWidget* parent) : QPushButton(parent) {
+int tool_palette_length(int normal_px, double factor) {
+  return qRound(normal_px * factor);
+}
+
+int tool_palette_collapsed_width(double factor) {
+  return tool_palette_length(31, factor) + (ToolPaletteFooter::kWidth - 31);
+}
+
+double tool_palette_footer_factor(double factor) {
+  return static_cast<double>(tool_palette_collapsed_width(factor)) / ToolPaletteFooter::kWidth;
+}
+
+ColorWellSwatch::ColorWellSwatch(QWidget* parent) : QPushButton(parent), side_(kSwatchSize) {
   setFlat(true);
   setFocusPolicy(Qt::NoFocus);
   setCursor(Qt::PointingHandCursor);
@@ -49,8 +61,13 @@ void ColorWellSwatch::set_color(QColor color) {
   update();
 }
 
+void ColorWellSwatch::set_side(int side) {
+  side_ = side;
+  setFixedSize(side, side);
+}
+
 QSize ColorWellSwatch::sizeHint() const {
-  return {kSwatchSize, kSwatchSize};
+  return {side_, side_};
 }
 
 void ColorWellSwatch::paintEvent(QPaintEvent* /*event*/) {
@@ -67,7 +84,8 @@ void ColorWellSwatch::paintEvent(QPaintEvent* /*event*/) {
   painter.drawRect(box);
 }
 
-ColorWellGlyphButton::ColorWellGlyphButton(Glyph glyph, QWidget* parent) : QToolButton(parent), glyph_(glyph) {
+ColorWellGlyphButton::ColorWellGlyphButton(Glyph glyph, QWidget* parent)
+    : QToolButton(parent), glyph_(glyph), side_(kGlyphSize) {
   setAutoRaise(true);
   setFocusPolicy(Qt::NoFocus);
   setCursor(Qt::PointingHandCursor);
@@ -75,13 +93,22 @@ ColorWellGlyphButton::ColorWellGlyphButton(Glyph glyph, QWidget* parent) : QTool
   setAttribute(Qt::WA_Hover, true);
 }
 
+void ColorWellGlyphButton::set_side(int side) {
+  side_ = side;
+  setFixedSize(side, side);
+}
+
 QSize ColorWellGlyphButton::sizeHint() const {
-  return {kGlyphSize, kGlyphSize};
+  return {side_, side_};
 }
 
 void ColorWellGlyphButton::paintEvent(QPaintEvent* /*event*/) {
   QPainter painter(this);
   painter.setRenderHint(QPainter::Antialiasing, true);
+  // The glyphs are drawn on the Normal 14 px grid and scaled with the toolbar icon size.
+  if (side_ != kGlyphSize) {
+    painter.scale(static_cast<double>(side_) / kGlyphSize, static_cast<double>(side_) / kGlyphSize);
+  }
   const QColor ink = ink_for(*this);
   if (glyph_ == Glyph::Default) {
     // A tiny black-over-white pair: the default colors.
@@ -124,13 +151,9 @@ ToolPaletteFooter::ToolPaletteFooter(QAction* default_colors, QAction* swap_colo
   background_ = new ColorWellSwatch(this);
   background_->setObjectName(QStringLiteral("backgroundColorButton"));
   background_->setText(QStringLiteral("BG"));
-  // Qt places the toolbar's extension button 2 px into the bottom margin, so
-  // the well starts 3 px down.
-  background_->move(17, 19);
   foreground_ = new ColorWellSwatch(this);
   foreground_->setObjectName(QStringLiteral("foregroundColorButton"));
   foreground_->setText(QStringLiteral("FG"));
-  foreground_->move(4, 7);
   foreground_->raise();
 
   swap_ = new ColorWellGlyphButton(ColorWellGlyphButton::Glyph::Swap, this);
@@ -139,7 +162,6 @@ ToolPaletteFooter::ToolPaletteFooter(QAction* default_colors, QAction* swap_colo
   default_ = new ColorWellGlyphButton(ColorWellGlyphButton::Glyph::Default, this);
   default_->setObjectName(QStringLiteral("colorDefaultButton"));
   default_->setDefaultAction(default_colors);
-  default_->move(1, 30);
 
   quick_mask_ = new QToolButton(this);
   quick_mask_->setObjectName(QStringLiteral("quickMaskButton"));
@@ -153,7 +175,30 @@ ToolPaletteFooter::ToolPaletteFooter(QAction* default_colors, QAction* swap_colo
   quick_mask_->setIconSize(QSize(22, 22));
   // The QSS polish resizes the button after construction.
   quick_mask_->installEventFilter(this);
+  set_scale(1.0);
+}
+
+void ToolPaletteFooter::set_scale(double palette_factor) {
+  scale_ = tool_palette_footer_factor(palette_factor);
+  const auto length = [this](int normal_px) { return tool_palette_length(normal_px, scale_); };
+  cell_width_ = tool_palette_collapsed_width(palette_factor);
+  well_height_ = length(kWellHeight);
+  height_ = length(kHeight);
+  glyph_size_ = length(kGlyphSize);
+  setFixedHeight(height_);
+  setMinimumWidth(cell_width_);
+  foreground_->set_side(length(kSwatchSize));
+  background_->set_side(length(kSwatchSize));
+  swap_->set_side(glyph_size_);
+  default_->set_side(glyph_size_);
+  // Qt places the toolbar's extension button 2 px into the bottom margin, so
+  // the well starts 3 px down.
+  background_->move(length(17), length(19));
+  foreground_->move(length(4), length(7));
+  default_->move(1, length(30));
+  quick_mask_->setIconSize(QSize(length(22), length(22)));
   place_controls();
+  updateGeometry();
 }
 
 void ToolPaletteFooter::place_controls() {
@@ -164,14 +209,14 @@ void ToolPaletteFooter::place_controls() {
   // these under the well rather than spread across the wider bar. The footer
   // spans the palette's full width, so its last column is the palette's 1 px
   // right border.
-  const int cell = std::min(width(), kWidth) - kPaletteBorder;
+  const int cell = std::min(width(), cell_width_) - kPaletteBorder;
   // The swap glyph stays 2 px clear of that border (GitHub issue 251: its arrow
   // ended in the column next to it and read as touching it), and sits as far
   // above the background swatch as it sits right of the foreground swatch.
-  swap_->move(cell - kGlyphSize - 2, 5);
+  swap_->move(cell - glyph_size_ - 2, tool_palette_length(5, scale_));
   const auto size = quick_mask_->size();
   quick_mask_->move(std::max(0, (cell - size.width()) / 2),
-                    kWellHeight + std::max(0, (kHeight - kWellHeight - size.height()) / 2));
+                    well_height_ + std::max(0, (height_ - well_height_ - size.height()) / 2));
 }
 
 void ToolPaletteFooter::resizeEvent(QResizeEvent* event) {

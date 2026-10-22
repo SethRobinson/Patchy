@@ -58,6 +58,7 @@
 #include <QStringLiteral>
 #include <QTextEdit>
 #include <QTimer>
+#include <QVariant>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidget>
@@ -546,7 +547,25 @@ private:
   QPointer<QToolButton> extension_;
 };
 
-constexpr int kToolPaletteCollapsedMinWidth = 43;
+// The collapsed column width at the current toolbar icon size (43 px at Normal), kept on the
+// bar so the expansion controller follows a live size change.
+constexpr const char* kToolPaletteCollapsedWidthProperty = "toolPaletteCollapsedWidth";
+
+int tool_palette_collapsed_min_width(const QWidget* palette) {
+  const auto stored = palette != nullptr ? palette->property(kToolPaletteCollapsedWidthProperty) : QVariant();
+  return stored.isValid() ? stored.toInt() : ToolPaletteFooter::kWidth;
+}
+
+// The flyout menu's sheet: tool icons at the palette's own size, centered between the menu
+// edge and the names (kFlyoutIconLeft). The padding is set here so the centering does not
+// depend on the app sheet's QMenu::item.
+QString tool_flyout_menu_style(int icon_extent) {
+  return QStringLiteral("QMenu { icon-size: %1px; } QMenu::item { padding-left: %2px; } "
+                        "QMenu::icon { left: %3px; }")
+      .arg(icon_extent)
+      .arg(kFlyoutItemLeftPadding)
+      .arg(kFlyoutIconLeft);
+}
 
 // The overflow arrow points where the expansion goes (GitHub issue 122): right
 // while collapsed (the extra columns open to the right), left while expanded.
@@ -586,7 +605,7 @@ public:
       if (palette_ == nullptr) {
         return;
       }
-      palette_->setMinimumWidth(kToolPaletteCollapsedMinWidth);
+      palette_->setMinimumWidth(tool_palette_collapsed_min_width(palette_));
       palette_->setMaximumWidth(QWIDGETSIZE_MAX);
       // One turn later (after Qt's own collapse handling), force a toolbar
       // layout pass: when the collapsed geometry matches the expanded one (a
@@ -655,7 +674,8 @@ private:
       return;
     }
     applying_ = true;
-    palette_->setMinimumWidth(kToolPaletteCollapsedMinWidth);
+    const int collapsed_width = tool_palette_collapsed_min_width(palette_);
+    palette_->setMinimumWidth(collapsed_width);
     palette_->setMaximumWidth(QWIDGETSIZE_MAX);
     if (auto* window_layout = palette_->window()->layout(); window_layout != nullptr) {
       // setMinimumWidth short-circuits when the value is unchanged, so force
@@ -671,7 +691,7 @@ private:
     // in use (GitHub issue 124). The bar is pinned to the columns the layout
     // filled: the right edge of the rightmost visible tool plus the margin.
     const int expanded_width = std::min(palette_->width(), used_columns_width());
-    if (!fits_collapsed && expanded_width > kToolPaletteCollapsedMinWidth) {
+    if (!fits_collapsed && expanded_width > collapsed_width) {
       palette_->setMinimumWidth(expanded_width);
       palette_->setMaximumWidth(expanded_width);
     }
@@ -769,12 +789,13 @@ private:
     const auto margins = layout->contentsMargins();
     // The top margin is the style's own; the bottom one carries the footer.
     const int base = margins.top();
-    const int wanted = base + ToolPaletteFooter::kHeight;
+    const int footer_height = footer_->footer_height();
+    const int wanted = base + footer_height;
     if (margins.bottom() != wanted) {
       layout->setContentsMargins(margins.left(), base, margins.right(), wanted);
     }
-    footer_->setGeometry(0, std::max(0, palette_->height() - base - ToolPaletteFooter::kHeight),
-                         std::max(ToolPaletteFooter::kWidth, palette_->width()), ToolPaletteFooter::kHeight);
+    footer_->setGeometry(0, std::max(0, palette_->height() - base - footer_height),
+                         std::max(footer_->cell_width(), palette_->width()), footer_height);
     footer_->raise();
     seat_extension();
   }
@@ -961,14 +982,17 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   tool_palette->setFloatable(false);
   tool_palette->setAllowedAreas(Qt::LeftToolBarArea);
   tool_palette->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  tool_palette->setIconSize(QSize(20, 20));
+  // 20 px icons at the Normal toolbar icon size (Preferences; tool_palette_factor_).
+  const int icon_extent = tool_palette_length(20, tool_palette_factor_);
+  tool_palette->setIconSize(QSize(icon_extent, icon_extent));
   // Minimum, not fixed: the overflow extension button reveals hidden items by
   // widening the bar into extra columns, and a max width clamps that geometry
   // into a clipped sliver. While expanded, ToolPaletteExpansionReservation
   // raises this minimum to the measured expanded width so the layout reserves
   // the columns. QSS caps the children narrower, so the collapsed width stays
-  // exactly 43.
-  tool_palette->setMinimumWidth(kToolPaletteCollapsedMinWidth);
+  // exactly 43 at Normal.
+  tool_palette->setProperty(kToolPaletteCollapsedWidthProperty, tool_palette_collapsed_width(tool_palette_factor_));
+  tool_palette->setMinimumWidth(tool_palette_collapsed_min_width(tool_palette));
   addToolBar(Qt::LeftToolBarArea, tool_palette);
 
   auto* tool_group = new QActionGroup(this);
@@ -1021,14 +1045,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
     new ToolFlyoutMenuPlacement(button, menu);
     new ToolFlyoutCurrentMarker(button, menu);
-    // Tool icons at the palette's own size, centered between the menu edge and the names
-    // (kFlyoutIconLeft). The padding is set here so the centering does not depend on the
-    // app sheet's QMenu::item.
-    menu->setStyleSheet(QStringLiteral("QMenu { icon-size: %1px; } QMenu::item { padding-left: %2px; } "
-                                       "QMenu::icon { left: %3px; }")
-                            .arg(palette->iconSize().width())
-                            .arg(kFlyoutItemLeftPadding)
-                            .arg(kFlyoutIconLeft));
+    menu->setStyleSheet(tool_flyout_menu_style(palette->iconSize().width()));
     for (auto* action : actions) {
       QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
         button->setDefaultAction(action);
@@ -1348,6 +1365,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_hotkey(default_colors_action, "color.default", QKeySequence(Qt::Key_D), QStringLiteral("color"));
   register_hotkey(swap_colors_action, "color.swap", QKeySequence(Qt::Key_X), QStringLiteral("color"));
   tool_palette_footer_ = new ToolPaletteFooter(default_colors_action, swap_colors_action, quick_mask_action_, tool_palette);
+  tool_palette_footer_->set_scale(tool_palette_factor_);
   primary_color_button_ = tool_palette_footer_->foreground();
   secondary_color_button_ = tool_palette_footer_->background();
   primary_color_button_->setToolTip(tr("Foreground color"));
@@ -1395,6 +1413,37 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   group->addAction(action);
   register_document_action(action);
   return action;
+}
+
+// Preferences > Toolbar icon size, applied live: the palette's icon size, its collapsed
+// column, the footer, the flyout menus' icons, and the window sheet's palette lengths.
+void MainWindow::apply_tool_palette_factor(double factor) {
+  if (factor == tool_palette_factor_) {
+    return;
+  }
+  tool_palette_factor_ = factor;
+  auto* palette = findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  if (palette == nullptr) {
+    return;
+  }
+  // An open overflow expansion was measured for the old buttons: close it first.
+  if (auto* extension = palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+      extension != nullptr && extension->isChecked()) {
+    extension->click();
+  }
+  const int icon_extent = tool_palette_length(20, factor);
+  palette->setIconSize(QSize(icon_extent, icon_extent));
+  palette->setProperty(kToolPaletteCollapsedWidthProperty, tool_palette_collapsed_width(factor));
+  palette->setMinimumWidth(tool_palette_collapsed_min_width(palette));
+  if (tool_palette_footer_ != nullptr) {
+    tool_palette_footer_->set_scale(factor);
+  }
+  for (auto* button : palette->findChildren<QToolButton*>()) {
+    if (button->property("toolFlyout").toBool() && button->menu() != nullptr) {
+      button->menu()->setStyleSheet(tool_flyout_menu_style(icon_extent));
+    }
+  }
+  setStyleSheet(photoshop_style(factor));
 }
 
 }  // namespace patchy::ui
