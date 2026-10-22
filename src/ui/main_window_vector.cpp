@@ -1900,7 +1900,13 @@ void MainWindow::sync_vector_shape_size_spins() {
     }
     QSignalBlocker blocker(link_button);
     link_button->setChecked(linked);
-    link_button->setEnabled(live);
+    // The options-bar link also keeps a new custom shape in its own proportions while
+    // it is drawn, so it stays usable for the Custom Shape tool without a shape layer.
+    link_button->setEnabled(live || (link_button == vector_shape_link_size_button_ &&
+                                     current_tool_ == CanvasTool::CustomShape));
+  }
+  if (canvas_ != nullptr) {
+    canvas_->set_custom_shape_keep_proportions(linked);
   }
   if (vector_appearance_button_ != nullptr) {
     vector_appearance_button_->setEnabled(!editable_selected_shape_layer_ids().empty() && vector_appearance_controls_live());
