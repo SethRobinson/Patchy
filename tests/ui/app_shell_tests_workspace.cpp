@@ -1243,11 +1243,13 @@ void ui_panel_title_drag_reorders_sections() {
   QApplication::processEvents();
   CHECK(column->section_order() == before_escape);
 
-  // A plain click on a title row moves nothing.
+  // A plain click on a title row moves nothing (it expands the collapsed section, GitHub
+  // issue 335).
   send_mouse(*properties_header, QEvent::MouseButtonPress, QPoint(40, 4), Qt::LeftButton, Qt::LeftButton);
   send_mouse(*properties_header, QEvent::MouseButtonRelease, QPoint(40, 4), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(column->section_order() == before_escape);
+  CHECK(column->panel_expanded(QStringLiteral("propertiesDock")));
 
   // The tab group dragged by its tab bar to the bottom; a press there still picks a tab.
   auto* tabs = column->tab_bar(QStringLiteral("layersDock"));
@@ -1266,6 +1268,113 @@ void ui_panel_title_drag_reorders_sections() {
   QApplication::processEvents();
   CHECK(column->section_order() == defaults);
   check_filled("defaults again");
+}
+
+// GitHub issue 335: a click on a collapsed panel's title row expands it, a double click
+// collapses an expanded one and expands a collapsed one, and a drag from the title row or
+// a click on the collapse button toggles nothing extra. Every change goes through the
+// collapse button, so the button and the saved layout stay in step.
+void ui_panel_title_click_expands_and_double_click_collapses() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (column == nullptr) {
+    return;
+  }
+  const auto id = QStringLiteral("historyDock");
+  auto* label = column->title_label(id);
+  auto* toggle = column->collapse_button(id);
+  CHECK(label != nullptr && toggle != nullptr);
+  if (label == nullptr || toggle == nullptr) {
+    return;
+  }
+  int changes = 0;
+  QObject::connect(column, &patchy::ui::PanelColumn::panel_expanded_changed, column,
+                   [&](const QString& changed, bool) { changes += changed == id ? 1 : 0; });
+  // Presses land on the title text, which passes them up to the row as a real click does.
+  const QPoint at(30, label->height() / 2);
+  const auto click = [&] {
+    send_mouse(*label, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*label, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  // Qt's order for a double click: press, release, double click, release.
+  const auto double_click = [&] {
+    send_mouse(*label, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*label, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+    send_mouse(*label, QEvent::MouseButtonDblClick, at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*label, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto expect = [&](bool expanded, int expected_changes, const char* context) {
+    const bool ok = column->panel_expanded(id) == expanded && toggle->isChecked() == expanded &&
+                    changes == expected_changes;
+    if (!ok) {
+      std::printf("%s: expanded %d, toggle %d, changes %d (expected %d, %d)\n", context,
+                  column->panel_expanded(id) ? 1 : 0, toggle->isChecked() ? 1 : 0, changes, expanded ? 1 : 0,
+                  expected_changes);
+    }
+    CHECK(ok);
+  };
+
+  // History starts collapsed.
+  expect(false, 0, "start");
+  click();
+  expect(true, 1, "click on collapsed");
+  click();
+  expect(true, 1, "click on expanded");
+  double_click();
+  expect(false, 2, "double click on expanded");
+  double_click();
+  expect(true, 3, "double click on collapsed");
+  double_click();
+  expect(false, 4, "double click on expanded again");
+
+  // A drag from the title row may move the section but never toggles it.
+  send_mouse(*label, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+  const QPoint moved = at + QPoint(0, QApplication::startDragDistance() + 2);
+  send_mouse(*label, QEvent::MouseMove, moved, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*label, QEvent::MouseButtonRelease, moved, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  expect(false, 4, "drag from collapsed title row");
+
+  // A press released off the row is no click.
+  send_mouse(*label, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*label, QEvent::MouseButtonRelease, QPoint(at.x(), label->parentWidget()->height() + 1), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  expect(false, 4, "release off the title row");
+
+  // The collapse button keeps its own single toggle per click, double clicks included.
+  const auto button_center = toggle->rect().center();
+  send_mouse(*toggle, QEvent::MouseButtonPress, button_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*toggle, QEvent::MouseButtonRelease, button_center, Qt::LeftButton, Qt::NoButton);
+  expect(true, 5, "collapse button click");
+  send_mouse(*toggle, QEvent::MouseButtonPress, button_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*toggle, QEvent::MouseButtonRelease, button_center, Qt::LeftButton, Qt::NoButton);
+  send_mouse(*toggle, QEvent::MouseButtonDblClick, button_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*toggle, QEvent::MouseButtonRelease, button_center, Qt::LeftButton, Qt::NoButton);
+  expect(true, 7, "collapse button double click");
+
+  // The tab group's title row follows the same rule, as one section.
+  auto* layers_label = column->title_label(QStringLiteral("layersDock"));
+  CHECK(layers_label != nullptr && column->panel_expanded(QStringLiteral("layersDock")));
+  if (layers_label != nullptr) {
+    const QPoint layers_at(30, layers_label->height() / 2);
+    send_mouse(*layers_label, QEvent::MouseButtonPress, layers_at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*layers_label, QEvent::MouseButtonRelease, layers_at, Qt::LeftButton, Qt::NoButton);
+    send_mouse(*layers_label, QEvent::MouseButtonDblClick, layers_at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*layers_label, QEvent::MouseButtonRelease, layers_at, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(!column->panel_expanded(QStringLiteral("channelsDock")));
+    send_mouse(*layers_label, QEvent::MouseButtonPress, layers_at, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*layers_label, QEvent::MouseButtonRelease, layers_at, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(column->panel_expanded(QStringLiteral("channelsDock")));
+  }
+  save_widget_artifact("ui_panel_title_click_expands_and_double_click_collapses", *column);
 }
 
 // Right-clicking a panel's title row opens the panel menu (collapse or expand, close, the
@@ -3347,6 +3456,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},
+      {"ui_panel_title_click_expands_and_double_click_collapses",
+       ui_panel_title_click_expands_and_double_click_collapses},
       {"ui_panel_header_right_click_opens_panel_menu", ui_panel_header_right_click_opens_panel_menu},
       {"ui_panel_layout_returns_in_the_next_window", ui_panel_layout_returns_in_the_next_window},
       {"ui_reset_panels_restores_first_launch_layout", ui_reset_panels_restores_first_launch_layout},
