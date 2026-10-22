@@ -123,8 +123,10 @@ QSettings app_settings() {
 }
 
 int normalize_gui_scale_percent(int stored) {
-  const auto match = std::find(kGuiScalePercents.begin(), kGuiScalePercents.end(), stored);
-  return match != kGuiScalePercents.end() ? *match : kDefaultGuiScalePercent;
+  if (stored <= 0) {
+    return kDefaultGuiScalePercent;
+  }
+  return std::clamp(stored, kMinGuiScalePercent, kMaxGuiScalePercent);
 }
 
 QSettings brush_library_settings() {

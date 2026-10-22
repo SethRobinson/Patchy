@@ -87,13 +87,21 @@
       // in one consistent coordinate space. The embedded copy also scales
       // devicePixelRatio so the canvas backing store lands 1:1 on device pixels.
       //
-      // Keep the default and step list in sync with kDefaultGuiScalePercent and
-      // kGuiScalePercents in src/ui/app_settings.hpp. The stored value is written by
+      // Keep the default and range in sync with kDefaultGuiScalePercent,
+      // kMinGuiScalePercent and kMaxGuiScalePercent in src/ui/app_settings.hpp. The stored value is written by
       // the app through QSettings' localStorage backend; changing it in Preferences
       // takes effect on the next page load.
       const DEFAULT_SCALE_PERCENT = 75;
-      const SCALE_PERCENTS = [67, 75, 90, 100, 125, 150, 175, 200];
+      const MIN_SCALE_PERCENT = 50;
+      const MAX_SCALE_PERCENT = 300;
       const SCALE_KEY_SUFFIX = 'preferences/guiScalePercent';
+
+      // Mirrors normalize_gui_scale_percent: clamp to the range, default for <= 0.
+      function normalizeScalePercent(value) {
+        if (!(value > 0))
+          return DEFAULT_SCALE_PERCENT;
+        return Math.min(MAX_SCALE_PERCENT, Math.max(MIN_SCALE_PERCENT, value));
+      }
 
       function storedScalePercent() {
         try {
@@ -103,9 +111,7 @@
             // qsettings_wasm.cpp); match on the suffix so the org/app prefix can
             // never drift out from under this page.
             if (key && key.indexOf('qt-v0-') === 0 && key.endsWith(SCALE_KEY_SUFFIX)) {
-              const value = parseInt(localStorage.getItem(key), 10);
-              if (SCALE_PERCENTS.indexOf(value) >= 0)
-                return value;
+              return normalizeScalePercent(parseInt(localStorage.getItem(key), 10));
             }
           }
         } catch (e) { /* storage blocked: fall through to the default */ }
@@ -114,7 +120,7 @@
 
       function embeddedScalePercent() {
         const value = parseInt(new URLSearchParams(location.search).get('embedded'), 10);
-        return SCALE_PERCENTS.indexOf(value) >= 0 ? value : 0;
+        return value >= MIN_SCALE_PERCENT && value <= MAX_SCALE_PERCENT ? value : 0;
       }
 
       // Top-level page at a non-100% scale: replace the UI with the scaled iframe.

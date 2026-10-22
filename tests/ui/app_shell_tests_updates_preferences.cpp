@@ -64,6 +64,7 @@
 #include <QStringList>
 #include <QDateTime>
 #include <QScrollArea>
+#include <QSpinBox>
 #include <QStyle>
 #include <QTabWidget>
 #include <QTest>
@@ -118,8 +119,8 @@ QByteArray appdir_containing_this_binary();
 // mouse helpers do.
 void send_wheel_notch_down(QWidget& target);
 
-// Opens Preferences, records what the interface-scale combo shows on entry, optionally
-// selects `percent`, and accepts. A changed scale raises a modal restart/reload notice
+// Opens Preferences, records what the interface-scale spin box shows on entry, optionally
+// types `percent` into it, and accepts. A changed scale raises a modal restart/reload notice
 // that has to be dismissed before the dialog can finish closing.
 GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
                                               std::optional<int> percent);
@@ -152,18 +153,33 @@ GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
-    CHECK(combo != nullptr);
-    if (combo == nullptr) {
+    auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
+    CHECK(spin != nullptr);
+    if (spin == nullptr) {
       dialog->reject();
       return;
     }
-    run.entry_percent = combo->currentData().toInt();
+    CHECK(spin->minimum() == patchy::ui::kMinGuiScalePercent);
+    CHECK(spin->maximum() == patchy::ui::kMaxGuiScalePercent);
+    CHECK(spin->singleStep() == 1);
+    run.entry_percent = spin->value();
     run.saw_dialog = true;
     if (percent.has_value()) {
-      const int index = combo->findData(*percent);
-      CHECK(index >= 0);
-      combo->setCurrentIndex(index);
+      // Typed the way a user enters an odd value.
+      spin->selectAll();
+      QTest::keyClicks(spin, QString::number(*percent));
+      spin->interpretText();
+      CHECK(spin->value() == *percent);
+      // Visual record of the control for review.
+      for (auto* parent = spin->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+        if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
+          scroll->ensureWidgetVisible(spin);
+          break;
+        }
+      }
+      QApplication::processEvents();
+      ensure_artifact_dir();
+      dialog->grab().save(QStringLiteral("test-artifacts/preferences-gui-scale-%1.png").arg(*percent));
       QTimer::singleShot(0, [&] {
         auto* message = qobject_cast<QMessageBox*>(
             find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")));
@@ -1823,7 +1839,7 @@ void ui_preferences_wheel_over_unfocused_control_scrolls_the_page() {
   show_window(window);
   run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
     auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesIndexedOpenCombo"));
     CHECK(tabs != nullptr && combo != nullptr);
     if (tabs == nullptr || combo == nullptr) {
       return;
@@ -1862,7 +1878,16 @@ void ui_preferences_wheel_over_unfocused_control_scrolls_the_page() {
     }
     combo->clearFocus();
 
-    // Spin boxes on the other tabs are covered by the same guard.
+    // The interface-scale spin box (GitHub issue 333) and spin boxes on the other tabs are
+    // covered by the same guard.
+    auto* scale_spin = dialog.findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
+    CHECK(scale_spin != nullptr);
+    if (scale_spin != nullptr) {
+      CHECK(scale_spin->focusPolicy() != Qt::WheelFocus && (scale_spin->focusPolicy() & Qt::TabFocus) != 0);
+      const int before = scale_spin->value();
+      send_wheel_notch_down(*scale_spin);
+      CHECK(scale_spin->value() == before);
+    }
     auto* spin = dialog.findChild<QAbstractSpinBox*>(QStringLiteral("preferencesGridSpacingSpin"));
     CHECK(spin != nullptr);
     if (spin != nullptr) {
@@ -2259,15 +2284,16 @@ void ui_gui_scale_preference_persists_setting() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  const auto run = drive_preferences_gui_scale(window, 150);
+  // GitHub issue 333: any whole percent, not only the old preset steps.
+  const auto run = drive_preferences_gui_scale(window, 113);
   CHECK(run.saw_dialog);
   CHECK(run.dismissed_message);
   CHECK(run.entry_percent == 100);
-  CHECK(patchy::ui::stored_gui_scale_percent() == 150);
+  CHECK(patchy::ui::stored_gui_scale_percent() == 113);
 }
 
-// The steps below 100% are what let a browser tab match the desktop build's apparent
-// size, so keep one of them exercised end to end through the combo.
+// The values below 100% are what let a browser tab match the desktop build's apparent
+// size, so keep one of them exercised end to end through the spin box.
 void ui_gui_scale_preference_persists_step_below_full_size() {
   SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
   {
@@ -2285,17 +2311,24 @@ void ui_gui_scale_preference_persists_step_below_full_size() {
   CHECK(patchy::ui::stored_gui_scale_percent() == 75);
 }
 
-// A stored value that is not one of the offered steps (a hand-edited ini, a step a later
-// build dropped) must never reach QT_SCALE_FACTOR. The combo shows the platform default
-// instead, and accepting without touching it writes nothing and raises no notice.
+// A stored value outside the range (a hand-edited ini) must never reach QT_SCALE_FACTOR
+// as is: it is clamped to the range, and a non-numeric one falls back to the platform
+// default. The spin box shows the value startup applies, and accepting without touching
+// it writes nothing and raises no notice.
 void ui_gui_scale_preference_falls_back_for_unknown_step() {
   SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
   {
     auto settings = patchy::ui::app_settings();
-    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 110);
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), QStringLiteral("large"));
     settings.sync();
   }
   CHECK(patchy::ui::stored_gui_scale_percent() == patchy::ui::kDefaultGuiScalePercent);
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 30);
+    settings.sync();
+  }
+  CHECK(patchy::ui::stored_gui_scale_percent() == patchy::ui::kMinGuiScalePercent);
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2303,15 +2336,22 @@ void ui_gui_scale_preference_falls_back_for_unknown_step() {
   const auto run = drive_preferences_gui_scale(window, std::nullopt);
   CHECK(run.saw_dialog);
   CHECK(!run.dismissed_message);
-  CHECK(run.entry_percent == patchy::ui::kDefaultGuiScalePercent);
+  CHECK(run.entry_percent == patchy::ui::kMinGuiScalePercent);
 }
 
 void gui_scale_percent_normalizes_to_offered_steps() {
-  for (const int percent : patchy::ui::kGuiScalePercents) {
+  // GitHub issue 333: every whole percent in the range is kept, including the old preset
+  // steps that existing settings files hold.
+  for (const int percent : {50, 67, 75, 90, 100, 113, 125, 150, 175, 199, 200, 257, 300}) {
     CHECK(patchy::ui::normalize_gui_scale_percent(percent) == percent);
   }
-  // Anything off the list, in either direction, lands on the platform default.
-  for (const int percent : {-50, 0, 66, 110, 201, 400}) {
+  // Out of range clamps to the nearest end; zero or below (a missing or non-numeric
+  // value) lands on the platform default.
+  CHECK(patchy::ui::normalize_gui_scale_percent(1) == patchy::ui::kMinGuiScalePercent);
+  CHECK(patchy::ui::normalize_gui_scale_percent(49) == patchy::ui::kMinGuiScalePercent);
+  CHECK(patchy::ui::normalize_gui_scale_percent(301) == patchy::ui::kMaxGuiScalePercent);
+  CHECK(patchy::ui::normalize_gui_scale_percent(1000) == patchy::ui::kMaxGuiScalePercent);
+  for (const int percent : {-50, 0}) {
     CHECK(patchy::ui::normalize_gui_scale_percent(percent) ==
           patchy::ui::kDefaultGuiScalePercent);
   }
