@@ -423,7 +423,7 @@ if(WIN32)
   # (docs/plugins.md): one Qt-free Win32 program built twice. The 64-bit
   # helper is an ordinary target of this build; the 32-bit helper is the same
   # sources configured as their own Ninja project inside the x86 developer
-  # environment (scriptsuild-8bf-host32.bat), because a 64-bit process cannot
+  # environment (scripts\build-8bf-host32.bat), because a 64-bit process cannot
   # load a 32-bit plug-in. Both land next to patchy.exe.
   set(PATCHY_8BF_HOST_OUTPUT_DIR "${CMAKE_BINARY_DIR}")
   set(PATCHY_8BF_HOST_NAME patchy-8bf-host64)
@@ -2350,6 +2350,20 @@ if(PATCHY_BUILD_TESTS)
       patchy_configure_target(patchy_mac_a11y_tests)
     endif()
   endif()
+endif()
+
+# The test executables never ship, and their whole-program LTCG links dominated a
+# release rebuild. Like patchy_translation_checks they link with incremental LTCG
+# (state in <target>.iobj): objects stay /GL, so the tests still run link-time
+# optimized code. patchy, patchy-mcp and the plug-in hosts keep full /LTCG.
+# See docs/building.md.
+if(MSVC)
+  foreach(ltcg_test_target patchy_core_tests patchy_ui_visual_tests
+                           patchy_curves_clipping_preview_tests patchy_perf_tests)
+    if(TARGET ${ltcg_test_target})
+      target_link_options(${ltcg_test_target} PRIVATE $<$<CONFIG:Release>:/LTCG:INCREMENTAL>)
+    endif()
+  endforeach()
 endif()
 
 # Configure PCHs only after source-specific options have been attached. Keep the
