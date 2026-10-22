@@ -105,7 +105,7 @@ void apply_gui_scale_factor() {
   // preferences/guiScalePercent value from localStorage and wraps the app in a
   // CSS-transformed iframe, which keeps Qt at factor 1 with geometry and input in one
   // consistent coordinate space. kDefaultGuiScalePercent still matters here so the
-  // Preferences combo shows the right entry; the shell duplicates that default.
+  // Preferences spin box shows the right value; the shell duplicates that default.
   return;
 #endif
   if (qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {

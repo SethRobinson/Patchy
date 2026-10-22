@@ -18,26 +18,25 @@ namespace patchy::ui {
 [[nodiscard]] QSettings brush_library_settings();
 [[nodiscard]] QSettings recent_history_settings();
 
-// Interface-scale steps offered in Preferences and honored at startup, in percent. The
-// sub-100 entries are the reciprocals of the 150%/133%/111% display steps, so a browser
-// tab can be brought back to the size the desktop build renders at. Kept here because
-// main.cpp reads the stored value before QApplication exists and the Preferences dialog
-// builds its combo from the same list.
-inline constexpr std::array<int, 8> kGuiScalePercents{67, 75, 90, 100, 125, 150, 175, 200};
+// Interface-scale range offered in Preferences and honored at startup, in whole percent
+// (GitHub issue 333: any 1% step). Kept here because main.cpp reads the stored value
+// before QApplication exists and the Preferences spin box takes its range from here.
+inline constexpr int kMinGuiScalePercent = 50;
+inline constexpr int kMaxGuiScalePercent = 300;
 
 // The web build starts smaller than the desktop build: browser chrome already eats
 // vertical space and the panels read large in a tab. The web shell page
 // (packaging/web/patchy.html.in) applies the scale browser-side and duplicates this
-// default and the step list; keep them in sync when changing either.
+// default and the range; keep them in sync when changing either.
 #ifdef Q_OS_WASM
 inline constexpr int kDefaultGuiScalePercent = 75;
 #else
 inline constexpr int kDefaultGuiScalePercent = 100;
 #endif
 
-// Returns the stored percent when it is one of kGuiScalePercents. Anything else (a
-// hand-edited ini, a step a later build dropped) falls back to the platform default
-// rather than applying a scale the Preferences combo cannot show.
+// Returns the stored percent clamped to kMinGuiScalePercent..kMaxGuiScalePercent. Zero
+// or below (a missing or non-numeric value read as an int) falls back to the platform
+// default rather than shrinking the interface to the minimum.
 [[nodiscard]] int normalize_gui_scale_percent(int stored);
 
 // The effective interface scale in percent. Safe to call before QApplication exists.

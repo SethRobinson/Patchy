@@ -5,8 +5,10 @@
 // title row (collapse toggle and title) over its panel. Sections sit in a vertical
 // QSplitter, so the dividers between them drag; a collapsed section is exactly its
 // title row. Dragging a title row (or the group's tab bar) up or down moves its
-// section within the column. Patchy owns this layout: nothing floats, nothing is a
-// QDockWidget, and every size is set through plain layout and splitter calls.
+// section within the column; a click on a collapsed section's title row expands it and
+// a double click on an expanded one collapses it (GitHub issue 335). Patchy owns this
+// layout: nothing floats, nothing is a QDockWidget, and every size is set through plain
+// layout and splitter calls.
 
 #include <QByteArray>
 #include <QPoint>
@@ -140,6 +142,7 @@ private:
   [[nodiscard]] int section_floor(const Section& section) const;
   [[nodiscard]] int section_preferred(const Section& section) const;
   [[nodiscard]] Section* section_for_drag_handle(const QObject* handle) const;
+  [[nodiscard]] Page* page_for_header(const QObject* header) const;
   [[nodiscard]] int drop_slot_at(const QPoint& column_position) const;
   void show_drop_indicator(int slot);
   void end_section_drag(bool apply);
@@ -153,6 +156,10 @@ private:
   Section* drag_section_{nullptr};
   QPoint drag_press_global_;
   bool dragging_{false};
+  // The title row a left press landed on, for the click that expands it, and the section
+  // that click expanded, so the double click it starts does not collapse it again.
+  Page* click_page_{nullptr};
+  Section* expanded_by_click_{nullptr};
   int drop_slot_{-1};
   QWidget* drop_indicator_{nullptr};
 };

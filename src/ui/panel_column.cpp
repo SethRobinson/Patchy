@@ -806,6 +806,17 @@ PanelColumn::Section* PanelColumn::section_for_drag_handle(const QObject* handle
   return nullptr;
 }
 
+PanelColumn::Page* PanelColumn::page_for_header(const QObject* header) const {
+  for (const auto& section : sections_) {
+    for (const auto& member : section->pages) {
+      if (member->header == header) {
+        return member.get();
+      }
+    }
+  }
+  return nullptr;
+}
+
 int PanelColumn::drop_slot_at(const QPoint& column_position) const {
   // Above a section's middle drops above it; below every middle drops at the bottom.
   for (int index = 0; index < static_cast<int>(sections_.size()); ++index) {
@@ -897,8 +908,29 @@ bool PanelColumn::eventFilter(QObject* watched, QEvent* event) {
       if (mouse->button() == Qt::LeftButton) {
         drag_section_ = section_for_drag_handle(watched);
         drag_press_global_ = mouse->globalPosition().toPoint();
+        click_page_ = page_for_header(watched);
+        expanded_by_click_ = nullptr;
       }
       break;
+    }
+    case QEvent::MouseButtonDblClick: {
+      // The second press of a double click on a title row. An expanded section collapses,
+      // unless the first click just expanded it (a double click expands a collapsed one).
+      const auto* mouse = static_cast<QMouseEvent*>(event);
+      auto* header = page_for_header(watched);
+      if (mouse->button() != Qt::LeftButton || header == nullptr) {
+        break;
+      }
+      auto* section = section_for_drag_handle(watched);
+      const bool just_expanded = expanded_by_click_ == section;
+      expanded_by_click_ = nullptr;
+      click_page_ = nullptr;
+      drag_section_ = nullptr;
+      if (!just_expanded && section->expanded) {
+        // The collapse button's own path, so the saved layout sees the same change.
+        header->toggle->setChecked(false);
+      }
+      return true;
     }
     case QEvent::MouseMove: {
       const auto* mouse = static_cast<QMouseEvent*>(event);
@@ -925,10 +957,23 @@ bool PanelColumn::eventFilter(QObject* watched, QEvent* event) {
         break;
       }
       if (dragging_) {
+        click_page_ = nullptr;
         end_section_drag(true);
         return true;
       }
       drag_section_ = nullptr;
+      // A click (no drag) on a collapsed section's title row expands it, through the
+      // collapse button's own path. A release off the row is no click.
+      auto* clicked = click_page_;
+      click_page_ = nullptr;
+      if (clicked != nullptr && watched == clicked->header &&
+          clicked->header->rect().contains(clicked->header->mapFromGlobal(mouse->globalPosition().toPoint()))) {
+        auto* section = section_for_drag_handle(watched);
+        if (section != nullptr && !section->expanded) {
+          expanded_by_click_ = section;
+          clicked->toggle->setChecked(true);
+        }
+      }
       break;
     }
     case QEvent::KeyPress:

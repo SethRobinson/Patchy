@@ -672,15 +672,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
         ThemeManager::instance().set_preference(entry_color_scheme, /*persist=*/false);
       });
 
-  auto* gui_scale_combo = new QComboBox(application_group);
-  gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
-  for (const int percent : kGuiScalePercents) {
-    gui_scale_combo->addItem(QStringLiteral("%1%").arg(percent), percent);
-  }
-  // stored_gui_scale_percent() always returns one of the steps above, so this never misses.
+  // Any whole percent in the range (GitHub issue 333). stored_gui_scale_percent() is
+  // already clamped to it, so the spin box shows exactly what startup applies.
+  auto* gui_scale_spin = new QSpinBox(application_group);
+  gui_scale_spin->setObjectName(QStringLiteral("preferencesGuiScaleSpin"));
+  gui_scale_spin->setRange(kMinGuiScalePercent, kMaxGuiScalePercent);
+  gui_scale_spin->setSuffix(percent_suffix());
   const int entry_gui_scale = stored_gui_scale_percent();
-  gui_scale_combo->setCurrentIndex(gui_scale_combo->findData(entry_gui_scale));
-  application_form->addRow(tr("Interface scale:"), gui_scale_combo);
+  gui_scale_spin->setValue(entry_gui_scale);
+  application_form->addRow(tr("Interface scale:"), gui_scale_spin);
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
   // Linux only: the desktop's own title bar and frame instead of the frameless chrome
@@ -1774,7 +1774,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                                QStringLiteral("preferencesSystemTitleBarMessageBox"));
     }
 #endif
-    const int selected_gui_scale = gui_scale_combo->currentData().toInt();
+    const int selected_gui_scale = gui_scale_spin->value();
     if (selected_gui_scale != entry_gui_scale) {
       set_stored_gui_scale_percent(selected_gui_scale);
       show_information_message(this, tr("Interface Scale"),
