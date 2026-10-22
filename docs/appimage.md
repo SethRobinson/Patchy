@@ -93,7 +93,10 @@ numeric mode and the natural-order tests fail (`page-10` before `page-2`).
 
 `packaging/linux/appimage/AppRun` dispatches: `PatchyLinux.AppImage [files]` starts
 Patchy; `PatchyLinux.AppImage patchy-mcp [args]` (or a symlink to the AppImage named
-`patchy-mcp`) starts the bundled connector. The argument is
+`patchy-mcp`) starts the MCP connector as `usr/bin/patchy --mcp-connector [args]`. There is
+no second binary (GitHub issue 336: a separate `patchy-mcp` was 30.6 MB of the 1.16
+AppImage); the build drops the installed `usr/bin/patchy-mcp` wrapper script, which would
+only name a path inside one launch's mount. The argument is
 `kAppImageConnectorArgument` (`src/ui/appimage_environment.hpp`). The root
 `.desktop` file and icon are `com.rtsoft.patchy`.
 

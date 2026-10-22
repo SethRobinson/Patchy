@@ -19,10 +19,9 @@
 #include "ui/user_fonts.hpp"
 #include "ui/wayland_pointer_cursor.hpp"
 #include "ui/wayland_popup_anchor.hpp"
-#ifdef PATCHY_MCP_EXECUTABLE
+#ifndef Q_OS_WASM
 #include "app/mcp_server.hpp"
 #include <QTemporaryDir>
-#include <cstring>
 #endif
 
 #include <QAbstractEventDispatcher>
@@ -53,6 +52,7 @@
 #include <chrono>
 #include <clocale>
 #include <cstdio>
+#include <cstring>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -404,25 +404,43 @@ int main(int argc, char* argv[]) {
   // First, so the trace times everything after the OS created the process.
   const bool startup_benchmark_requested = patchy::startup_benchmark_flag_value(argc, argv) != nullptr;
   patchy::startup_trace::initialize(startup_benchmark_requested || startup_trace_requested());
+#ifndef Q_OS_WASM
+  // The MCP connector mode (docs/ai-control.md): the patchy-mcp executable (Windows, macOS)
+  // always runs it; the patchy binary runs it when the first argument is --mcp-connector,
+  // which is how the Linux packages start the connector. Decided before anything else so
+  // the GUI-only startup below (single-instance forwarding, the update prompt, window
+  // restore, file opens) never runs for it. The flag is dropped so the connector parses
+  // the same arguments either way.
 #ifdef PATCHY_MCP_EXECUTABLE
-  // Share brushes and recent paths with the artist, while keeping window preferences
-  // isolated. Honor an automation settings root before capturing its filename.
-  if (const auto root = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !root.isEmpty()) {
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root);
-    qputenv("PATCHY_MCP_OWNED_SETTINGS", "1");  // a suite's connector: no update check (mcp_server.cpp)
+  const bool connector_mode = true;
+#else
+  const bool connector_mode = patchy::mcp_connector_flag_first(argc, argv);
+  if (connector_mode) {
+    patchy::drop_first_argument(argc, argv);
   }
-  if (qEnvironmentVariableIsEmpty("PATCHY_BRUSH_SETTINGS_FILE"))
-    qputenv("PATCHY_BRUSH_SETTINGS_FILE", patchy::ui::app_settings().fileName().toUtf8());
-  if (qEnvironmentVariableIsEmpty("PATCHY_RECENT_SETTINGS_FILE"))
-    qputenv("PATCHY_RECENT_SETTINGS_FILE", patchy::ui::app_settings().fileName().toUtf8());
-  QTemporaryDir connector_settings(QDir::tempPath() + QStringLiteral("/patchy-mcp-XXXXXX"));
-  if (!connector_settings.isValid()) { return 2; }
-  qputenv("PATCHY_SETTINGS_DIR", connector_settings.path().toUtf8());
-  qputenv("QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES", "1");
-  qputenv("PATCHY_NO_SOUND", "1");
-  // Only the complete, valid visible invocation may select a desktop backend.
-  // Checks, help, and malformed invocations must remain safe without a display.
-  const bool connector_visible = argc == 2 && std::strcmp(argv[1], "--visible") == 0;
+#endif
+  std::optional<QTemporaryDir> connector_settings;
+  bool connector_visible = false;
+  if (connector_mode) {
+    // Share brushes and recent paths with the artist, while keeping window preferences
+    // isolated. Honor an automation settings root before capturing its filename.
+    if (const auto root = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !root.isEmpty()) {
+      QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root);
+      qputenv("PATCHY_MCP_OWNED_SETTINGS", "1");  // a suite's connector: no update check (mcp_server.cpp)
+    }
+    if (qEnvironmentVariableIsEmpty("PATCHY_BRUSH_SETTINGS_FILE"))
+      qputenv("PATCHY_BRUSH_SETTINGS_FILE", patchy::ui::app_settings().fileName().toUtf8());
+    if (qEnvironmentVariableIsEmpty("PATCHY_RECENT_SETTINGS_FILE"))
+      qputenv("PATCHY_RECENT_SETTINGS_FILE", patchy::ui::app_settings().fileName().toUtf8());
+    connector_settings.emplace(QDir::tempPath() + QStringLiteral("/patchy-mcp-XXXXXX"));
+    if (!connector_settings->isValid()) { return 2; }
+    qputenv("PATCHY_SETTINGS_DIR", connector_settings->path().toUtf8());
+    qputenv("QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES", "1");
+    qputenv("PATCHY_NO_SOUND", "1");
+    // Only the complete, valid visible invocation may select a desktop backend.
+    // Checks, help, and malformed invocations must remain safe without a display.
+    connector_visible = argc == 2 && std::strcmp(argv[1], "--visible") == 0;
+  }
 #endif
   // Automation hook (the README shot driver and similar tooling): redirect the
   // ini-backed app_settings() store so a driven run never reads or writes the
@@ -439,11 +457,7 @@ int main(int argc, char* argv[]) {
   // PATCHY_HEADLESS marks the run for src/ui (the Windows registry font rescue
   // stays off for the offscreen test suite but runs for a headless user), and
   // PATCHY_NO_SOUND because nobody is listening.
-  const bool headless_mode = patchy::headless_flag_present(argc, argv)
-#ifdef PATCHY_MCP_EXECUTABLE
-                            || !connector_visible
-#endif
-      ;
+  const bool headless_mode = patchy::headless_flag_present(argc, argv) || (connector_mode && !connector_visible);
   if (headless_mode) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     qputenv("PATCHY_HEADLESS", "1");
@@ -538,8 +552,8 @@ int main(int argc, char* argv[]) {
   patchy::ui::ThemeManager::instance().load_saved_preference();
   theme_phase.end();
 
-#ifdef PATCHY_MCP_EXECUTABLE
-  if (connector_settings.isValid()) { return patchy::run_mcp_server(app); }
+#ifndef Q_OS_WASM
+  if (connector_mode) { return patchy::run_mcp_server(app); }
 #endif
 
   // Parse command-line arguments after translations load so option descriptions are localized.

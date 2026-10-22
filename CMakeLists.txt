@@ -1755,6 +1755,23 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     endif()
     target_link_libraries(patchy PRIVATE patchy_ui)
     if(NOT EMSCRIPTEN)
+      # The MCP connector (docs/ai-control.md) is a mode of the app: `patchy --mcp-connector`.
+      target_sources(patchy PRIVATE src/app/mcp_server.cpp src/app/mcp_stdio.cpp)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      # Linux ships one app binary (GitHub issue 336): patchy-mcp is a script beside
+      # patchy that starts it in connector mode, in the build tree and installed (the
+      # Flatpak's /app/bin/patchy-mcp). The AppImage's AppRun starts the mode itself.
+      file(GENERATE OUTPUT "$<TARGET_FILE_DIR:patchy>/patchy-mcp"
+        CONTENT "#!/bin/sh
+# Patchy's MCP connector: the patchy binary beside this script in connector mode.
+exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
+"
+        FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+      install(PROGRAMS "$<TARGET_FILE_DIR:patchy>/patchy-mcp" DESTINATION ${CMAKE_INSTALL_BINDIR})
+    elseif(NOT EMSCRIPTEN)
+      # Windows and macOS still ship a separate patchy-mcp executable: the same main.cpp
+      # with the connector mode forced.
       add_executable(patchy-mcp src/app/main.cpp src/app/mcp_server.cpp src/app/mcp_stdio.cpp)
       target_link_libraries(patchy-mcp PRIVATE patchy_ui)
       target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1)
@@ -1848,7 +1865,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         COMMENT "Checking UI translations at startup and after language switches"
       )
       add_dependencies(patchy patchy_check_translation_runtime)
-      add_dependencies(patchy-mcp patchy_check_translation_runtime)
+      if(TARGET patchy-mcp)
+        add_dependencies(patchy-mcp patchy_check_translation_runtime)
+      endif()
     endif()
     if(WIN32)
       # VERSIONINFO requires four decimal components. Release names such as

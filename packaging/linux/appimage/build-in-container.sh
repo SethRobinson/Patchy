@@ -42,6 +42,9 @@ echo "== stage the AppDir =="
 APPDIR="$ROOT/build/appimage-appdir"
 rm -rf "${ROOT:?}/build/appimage-appdir"
 cmake --install build/appimage --prefix "$APPDIR/usr"
+# AppRun starts the MCP connector as usr/bin/patchy --mcp-connector (GitHub issue 336), so
+# the installed patchy-mcp wrapper script would only name a path inside one launch's mount.
+rm -f "${APPDIR:?}/usr/bin/patchy-mcp"
 # The app dlopens libonnxruntime.so.1 by name (segmentation_engine_onnx.cpp); the RUNPATH
 # linuxdeploy writes into usr/bin/patchy ($ORIGIN/../lib) finds it in usr/lib.
 mkdir -p "$APPDIR/usr/lib"
@@ -81,7 +84,6 @@ chmod 755 /tmp/AppRun
 # Keep the plug-in's AppImage beside linuxdeploy: that is where linuxdeploy looks.
 "$TOOLS/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/patchy" \
-  --executable "$APPDIR/usr/bin/patchy-mcp" \
   --library "$APPDIR/usr/lib/libonnxruntime.so.1" \
   --desktop-file "$APPDIR/usr/share/applications/com.rtsoft.patchy.desktop" \
   --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/com.rtsoft.patchy.png" \

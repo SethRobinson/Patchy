@@ -75,15 +75,23 @@ the authoritative `scripts/bundled/patchy.d.ts` and `scripting-guide.md` into it
 references. This assembled folder stays with Patchy. API docs are not duplicated in source.
 Windows stages the connector, `ai`, and `scripts` beside the application. macOS
 copies the connector into `Contents/MacOS` and the kit into `Contents/Resources/ai`;
-`macdeployqt` processes both executables. Linux installs the connector in `bin`
-and the kit in `share/patchy/ai`, including Flatpak's `/app` prefix. Package scripts
+`macdeployqt` processes both executables. Linux ships no second binary (GitHub issue
+336): the connector is `patchy --mcp-connector`, the first argument only, and CMake
+writes a two-line `patchy-mcp` script beside `patchy` (build tree and install, so the
+Flatpak's `/app/bin/patchy-mcp` and `build/<preset>/patchy-mcp` keep their names) that
+execs it. The AppImage's AppRun starts the mode itself ([appimage.md](appimage.md)).
+The kit installs in `share/patchy/ai`, including Flatpak's `/app` prefix. Package scripts
 run `patchy-mcp --check` against the staged layout. This validates startup, native
 painting, preview rendering, and installed help resources without a client.
 
 ## Workspace and protocol
 
 `src/app/main.cpp` shares Qt, fonts, localization, and theme initialization between
-the application and console connector. With no arguments, the connector creates
+the application and console connector. The connector mode is chosen before anything
+else runs: the Windows and macOS `patchy-mcp` executable is `main.cpp` built with
+`PATCHY_MCP_EXECUTABLE` (mode forced), and `patchy` takes it from a first argument
+`--mcp-connector`, which it drops so both parse the same arguments
+(`mcp_connector_flag_first` in `support/cli_flags.hpp`). With no arguments, the connector creates
 an offscreen MainWindow with temporary settings and bypasses single-instance
 forwarding, sound, and updates. `--visible` shows that separate workspace. Its
 documents and history disappear on disconnect. Closing stdin interrupts work and
