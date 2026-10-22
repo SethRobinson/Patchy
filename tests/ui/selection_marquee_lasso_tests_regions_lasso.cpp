@@ -1318,6 +1318,82 @@ void ui_marquee_drag_and_handles_stop_at_the_canvas_edge() {
   }
 }
 
+// GitHub issue 307: an Elliptical Marquee dragged past the image edge keeps its
+// shape and the canvas edge cuts it, instead of being squashed into the clipped
+// rectangle (the issue 143 clip stays for the Rectangular Marquee).
+void ui_elliptical_marquee_past_canvas_edge_is_cut_not_squashed() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::EllipticalMarquee);
+  canvas->set_snap_enabled(false);
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto w = document.width();
+  const auto h = document.height();
+  const QRect canvas_rect(0, 0, w, h);
+  const auto at = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto cut_ellipse = [&](QRect bounds) { return QRegion(bounds, QRegion::Ellipse).intersected(canvas_rect); };
+
+  // Shift circle past the bottom-right corner: a quarter of a 120 px circle
+  // centered on the corner, so the corner pixel itself is selected.
+  canvas->clear_selection();
+  drag(*canvas, at(w - 60, h - 60), at(w + 60, h + 60), Qt::ShiftModifier);
+  CHECK(canvas->selected_document_region() == cut_ellipse(QRect(w - 60, h - 60, 120, 120)));
+  CHECK(canvas->selected_document_region().contains(QPoint(w - 1, h - 1)));
+  CHECK(canvas->selected_document_region().contains(QPoint(w - 1, h - 55)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(w - 60, h - 60)));
+  auto rect = canvas->selected_document_rect();
+  CHECK(rect.has_value() && *rect == QRect(w - 60, h - 60, 60, 60));
+
+  // Shift circle past the top-left corner, dragged up and left from inside.
+  canvas->clear_selection();
+  drag(*canvas, at(60, 60), at(-60, -60), Qt::ShiftModifier);
+  CHECK(canvas->selected_document_region() == cut_ellipse(QRect(-60, -60, 120, 120)));
+  CHECK(canvas->selected_document_region().contains(QPoint(0, 0)));
+  CHECK(canvas->selected_document_region().contains(QPoint(55, 0)));
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value() && *rect == QRect(0, 0, 60, 60));
+
+  // Shift+Alt circle from the center, past the right edge.
+  canvas->clear_selection();
+  drag(*canvas, at(w - 20, 100), at(w + 20, 140), Qt::ShiftModifier | Qt::AltModifier);
+  CHECK(canvas->selected_document_region() == cut_ellipse(QRect(w - 60, 60, 80, 80)));
+  CHECK(canvas->selected_document_region().contains(QPoint(w - 1, 100)));
+
+  // The committed shape keeps the unclipped bounds, so a handle drag outward
+  // stretches the whole ellipse rather than the clipped part.
+  canvas->clear_selection();
+  drag(*canvas, at(w - 140, 40), at(w - 40, 140));
+  const auto original = canvas->selected_document_rect();
+  CHECK(original.has_value() && within_one(original->x(), w - 140) && within_one(original->width(), 100));
+  if (original.has_value()) {
+    drag_marquee_handle(*canvas, marquee_handle_position(*canvas, *original, 2, 1), at(w + 60, 90));
+    const QRect stretched(original->x(), original->y(), w + 60 - original->x(), original->height());
+    CHECK(canvas->selected_document_region() == cut_ellipse(stretched));
+    rect = canvas->selected_document_rect();
+    CHECK(rect.has_value() && rect->right() == w - 1 && rect->height() == original->height());
+  }
+
+  // A drag entirely off the canvas selects nothing; it does not collapse onto
+  // the edge the way the rectangle does.
+  canvas->clear_selection();
+  drag(*canvas, at(w + 20, 20), at(w + 80, 80), Qt::ShiftModifier);
+  CHECK(canvas->selected_document_region().isEmpty());
+
+  // A large Shift circle across the right edge with the whole canvas in view,
+  // for the issue's screenshot: half a circle, not a squashed oval.
+  canvas->clear_selection();
+  canvas->fit_to_view();
+  QApplication::processEvents();
+  drag(*canvas, at(w - 150, 60), at(w + 150, 360), Qt::ShiftModifier);
+  save_widget_artifact("ui_elliptical_marquee_past_canvas_edge", *canvas);
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value() && rect->right() == w - 1 && std::abs(rect->width() - 150) <= 2 &&
+        std::abs(rect->height() - 300) <= 2);
+  // Near the top of the arc: inside the circle, outside a 150 x 300 oval.
+  CHECK(canvas->selected_document_region().contains(QPoint(w - 30, 75)));
+}
+
 void ui_marquee_edge_handle_drag_resizes_selection() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2370,6 +2446,8 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_lasso_click_deselects", ui_lasso_click_deselects},
       {"ui_marquee_drag_moves_selection", ui_marquee_drag_moves_selection},
       {"ui_marquee_drag_and_handles_stop_at_the_canvas_edge", ui_marquee_drag_and_handles_stop_at_the_canvas_edge},
+      {"ui_elliptical_marquee_past_canvas_edge_is_cut_not_squashed",
+       ui_elliptical_marquee_past_canvas_edge_is_cut_not_squashed},
       {"ui_marquee_edge_handle_drag_resizes_selection", ui_marquee_edge_handle_drag_resizes_selection},
       {"ui_marquee_handle_drag_space_repositions_then_resumes",
        ui_marquee_handle_drag_space_repositions_then_resumes},

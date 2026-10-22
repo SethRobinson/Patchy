@@ -1209,11 +1209,22 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     } else {
       preview.addRect(widget_rect);
     }
+    if (document_ != nullptr && tool_ == CanvasTool::EllipticalMarquee) {
+      // The unclipped ellipse is trimmed where the commit will cut it (issue 307).
+      QPainterPath canvas_path;
+      canvas_path.addRect(QRectF(widget_position_f(QPointF(0.0, 0.0)),
+                                 widget_position_f(QPointF(document_->width(), document_->height()))));
+      preview = preview.intersected(canvas_path);
+    }
     stroke_marching_ants(painter, preview, selection_dash_offset_);
   }
 }
 
 QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const {
+  // The ellipse is built from the unclipped drag and the canvas edge cuts the
+  // finished shape (marquee_shape_region / marquee_shape_mask clip it), so a
+  // circle dragged past the edge stays a circle (GitHub issue 307).
+  const bool clip_to_canvas = document_ != nullptr && tool_ != CanvasTool::EllipticalMarquee;
   QRect rect;
   if (marquee_from_center_) {
     // Draw-from-center (Alt with no existing selection, or Alt pressed mid-drag):
@@ -1259,7 +1270,7 @@ QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const 
   } else if (selection_square_constrained_) {
     // 1:1 square (circle for the ellipse), sized to the smaller drag axis and
     // anchored at the canvas edge so a drag begun in the grey area starts there.
-    const auto square_anchor = document_ != nullptr ? edge_clamped_document_point(*document_, anchor) : anchor;
+    const auto square_anchor = clip_to_canvas ? edge_clamped_document_point(*document_, anchor) : anchor;
     const auto delta = current - square_anchor;
     const auto side = std::max(1, std::min(std::abs(delta.x()), std::abs(delta.y())));
     const auto signed_width = delta.x() < 0 ? -side : side;
@@ -1279,7 +1290,7 @@ QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const 
   // The marquee never leaves the image: Photoshop clips the live rectangle (and
   // its W x H readout) at the canvas edge, and a drag that begins in the grey
   // area starts at the edge it enters (GitHub issue 143).
-  if (document_ != nullptr) {
+  if (clip_to_canvas) {
     const QRect canvas(0, 0, document_->width(), document_->height());
     const auto clipped = rect.intersected(canvas);
     if (!clipped.isEmpty()) {
@@ -1436,8 +1447,10 @@ void CanvasWidget::update_marquee_resize_drag(QPoint document_point, Qt::Keyboar
     apply_marquee_resize_rect(spacebar_reposition_start_marquee_rect_.translated(delta));
     return;
   }
-  // The handles stop at the image edge, as the drag-out does (GitHub issue 143).
-  const auto point = document_ != nullptr
+  // The handles stop at the image edge, as the drag-out does (GitHub issue 143);
+  // an ellipse keeps its unclipped bounds and the canvas cuts it (issue 307).
+  const bool clip_to_canvas = document_ != nullptr && !marquee_shape_before_edit_->ellipse;
+  const auto point = clip_to_canvas
                          ? edge_clamped_document_point(*document_, snapped_document_point(document_point))
                          : snapped_document_point(document_point);
   const auto start = marquee_resize_start_rect_;
@@ -1496,7 +1509,7 @@ void CanvasWidget::update_marquee_resize_drag(QPoint document_point, Qt::Keyboar
     rect = QRect(std::min(left, right), std::min(top, bottom), std::max(1, std::abs(right - left)),
                  std::max(1, std::abs(bottom - top)));
   }
-  if (document_ != nullptr) {
+  if (clip_to_canvas) {
     // Alt's mirrored side can still reach past the edge: clip it too (issue 143).
     const auto clipped = rect.intersected(QRect(0, 0, document_->width(), document_->height()));
     if (!clipped.isEmpty()) {

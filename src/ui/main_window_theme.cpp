@@ -365,6 +365,26 @@ QString photoshop_style_template() {
       border-color: @accent_checked_border;
       color: @text_on_accent;
     }
+    /* The shape Fill and Stroke swatches: framed like the bar's push buttons so they
+       read as clickable (GitHub issue 311). */
+    QToolBar#Options QToolButton[optionsBarSwatch="true"] {
+      background: @options_button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
+      padding: 0;
+      min-width: 36px;
+      max-width: 36px;
+      min-height: 24px;
+      max-height: 24px;
+    }
+    QToolBar#Options QToolButton[optionsBarSwatch="true"]:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
+    }
+    QToolBar#Options QToolButton[optionsBarSwatch="true"]:pressed {
+      background: @accent_pressed_bg;
+      border-color: @accent_border_bright;
+    }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
     QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#paletteDockTitle {
       background: @panel_title_bg;
