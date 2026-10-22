@@ -3146,12 +3146,14 @@ void MainWindow::refresh_options_bar() {
       }
     }
   }
-  // The canvas frame the tool starts with has nothing to apply or reset.
-  const auto crop_has_changes = canvas_ != nullptr && canvas_->crop_session_has_changes();
-  for (auto* button : {crop_apply_button_, crop_cancel_button_}) {
-    if (button != nullptr) {
-      button->setEnabled(edit_allowed && crop_has_changes);
-    }
+  // The canvas frame the tool starts with has nothing to apply or reset. With a
+  // ratio set, that frame is smaller than the canvas: Apply crops to it, but the
+  // X would put back the same box, so it stays off (GitHub issue 318).
+  if (crop_apply_button_ != nullptr) {
+    crop_apply_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_has_changes());
+  }
+  if (crop_cancel_button_ != nullptr) {
+    crop_cancel_button_->setEnabled(edit_allowed && canvas_ != nullptr && canvas_->crop_session_can_reset());
   }
   if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker blocker(patch_mode_combo_);

@@ -921,9 +921,12 @@ public:
   // the document. Switching tools cancels (never commits).
   [[nodiscard]] bool crop_session_active() const noexcept;
   [[nodiscard]] std::optional<QRect> crop_session_rect() const noexcept;
-  // True once the box differs from the unrotated whole canvas: the Apply and
-  // reset buttons, the no-op commit guard, and the recovery busy check key on it.
+  // True once the box differs from the unrotated whole canvas: the Apply
+  // button, the no-op commit guard, and the recovery busy check key on it.
   [[nodiscard]] bool crop_session_has_changes() const noexcept;
+  // True when Esc or the X would change the box: it is not the automatic frame
+  // (the canvas fitted to the ratio, GitHub issue 318).
+  [[nodiscard]] bool crop_session_can_reset() const;
   // Box rotation in degrees about the rect center (0 until rotated).
   [[nodiscard]] double crop_session_angle() const noexcept;
   void commit_crop_session();
