@@ -757,6 +757,44 @@ void ui_shape_options_bars_group_their_controls() {
   CHECK(problems.empty());
 }
 
+// GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
+// then a separator and the Sample Size and Sample fields, on one row at 1366 px.
+void ui_pick_options_bar_groups_its_controls() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    require_action(window, "toolPickAction")->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    const auto tokens = options_row_tokens(*options);
+    std::printf("  pick%s:", suffix.c_str());
+    for (const auto& token : tokens) {
+      std::printf(" %s", qPrintable(token));
+    }
+    std::printf("\n");
+    const std::vector<QString> expected{QStringLiteral("eyedropperSetsForegroundButton"),
+                                        QStringLiteral("eyedropperSetsBackgroundButton"),
+                                        QStringLiteral("|"),
+                                        QStringLiteral("Sample Size"),
+                                        QStringLiteral("eyedropperSampleSizeCombo"),
+                                        QStringLiteral("Sample"),
+                                        QStringLiteral("eyedropperSampleLayersCombo")};
+    CHECK(tokens == expected);
+    CHECK(std::find(tokens.begin(), tokens.end(), QStringLiteral("Sets")) == tokens.end());
+    CHECK(options_row_extent(*options).second == 1);
+    save_widget_artifact("ui_pick_options_bar" + suffix, *options_bar);
+  }
+}
+
 // GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
 // show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
 // and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
@@ -7722,6 +7760,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
+      {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},

@@ -23007,10 +23007,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>縮放預設</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>設定:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>前景色</translation>
     </message>

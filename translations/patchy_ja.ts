@@ -23007,10 +23007,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>ズームのプリセット</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>設定先:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>描画色</translation>
     </message>

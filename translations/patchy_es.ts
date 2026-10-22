@@ -23075,10 +23075,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Zoom predefinido</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Define:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Frontal</translation>
     </message>

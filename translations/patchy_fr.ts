@@ -23075,10 +23075,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Zooms prédéfinis</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Définit :</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Premier plan</translation>
     </message>

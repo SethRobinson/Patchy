@@ -23075,10 +23075,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Zoomvorgaben</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Setzt:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Vordergrund</translation>
     </message>

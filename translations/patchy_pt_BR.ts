@@ -23075,10 +23075,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Predefinições de zoom</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Define:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Primeiro plano</translation>
     </message>

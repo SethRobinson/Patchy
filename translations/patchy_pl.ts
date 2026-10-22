@@ -23143,10 +23143,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Ustawienia powiększenia</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Ustawia:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Pierwszy plan</translation>
     </message>

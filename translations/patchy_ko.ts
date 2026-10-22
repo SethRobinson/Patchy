@@ -23007,10 +23007,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>확대/축소 사전 설정</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>설정 대상:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>전경색</translation>
     </message>

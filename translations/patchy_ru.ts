@@ -23143,10 +23143,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Предустановки масштаба</translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation>Задаёт:</translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation>Основной</translation>
     </message>

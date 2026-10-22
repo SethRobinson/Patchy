@@ -23002,10 +23002,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sets:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Foreground</source>
         <translation type="unfinished"></translation>
     </message>
