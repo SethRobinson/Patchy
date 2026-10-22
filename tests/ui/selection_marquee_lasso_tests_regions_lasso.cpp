@@ -2127,6 +2127,94 @@ void ui_marquee_handle_click_keeps_selection_and_hint_shows() {
   CHECK(canvas->cursor().shape() == Qt::SizeHorCursor);
 }
 
+void ui_marquee_drag_after_antialiased_lasso_is_fast() {
+  // GitHub issue 340: with an anti-aliased Lasso selection in place, every
+  // Replace marquee drag move combined the rectangle with the old soft mask
+  // over both selections' bounds. Replace ignores the old selection, so a move
+  // now costs only the rectangle; Add still combines on release.
+  constexpr int kWidth = 4000;
+  constexpr int kHeight = 3000;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Pixels", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), Qt::white));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Issue 340"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto widget_point = [canvas](QPointF document_point) {
+    return canvas->widget_position_for_document_point(document_point.toPoint());
+  };
+
+  // A long, wobbly freehand Lasso loop around the middle of the image.
+  canvas->set_tool(patchy::ui::CanvasTool::Lasso);
+  canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_selection_antialias(true);
+  constexpr int kLassoPoints = 600;
+  constexpr double kPi = 3.14159265358979323846;
+  const auto lasso_point = [](int i) {
+    const auto angle = 2.0 * kPi * i / kLassoPoints;
+    const auto wobble = 1.0 + 0.05 * std::sin(angle * 37.0);
+    return QPointF(2000.0 + 1500.0 * wobble * std::cos(angle), 1500.0 + 1100.0 * wobble * std::sin(angle));
+  };
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(lasso_point(0)), Qt::LeftButton, Qt::LeftButton);
+  for (int i = 1; i < kLassoPoints; ++i) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(lasso_point(i)), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(lasso_point(kLassoPoints - 1)), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->selection_has_partial_alpha());
+  CHECK(canvas->selection_alpha_at(QPoint(2000, 1500)) == 255U);
+
+  // A Replace marquee dragged from outside the lasso across most of the image.
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_selection_feather_radius(0);
+  constexpr int kMoves = 40;
+  const QPointF start(150.0, 150.0);
+  const QPointF end(3850.0, 2850.0);
+  QElapsedTimer timer;
+  timer.start();
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(start), Qt::LeftButton, Qt::LeftButton);
+  for (int i = 1; i <= kMoves; ++i) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(start + (end - start) * i / kMoves), Qt::NoButton,
+               Qt::LeftButton);
+  }
+  const auto drag_ms = timer.elapsed();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(end), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  std::cout << "  " << kMoves << " marquee moves over an anti-aliased lasso: " << drag_ms << " ms\n";
+  CHECK(drag_ms < 2000);
+  const auto replaced = canvas->selected_document_region();
+  CHECK(replaced.rectCount() == 1);
+  CHECK(replaced.boundingRect().contains(QRect(200, 200, 3600, 2600)));
+  CHECK(!canvas->selection_has_partial_alpha());
+  CHECK(canvas->selection_alpha_at(QPoint(3900, 2950)) == 0U);
+
+  // Add keeps the soft lasso and combines it with the rectangle on release.
+  canvas->set_tool(patchy::ui::CanvasTool::Lasso);
+  canvas->clear_selection();
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(lasso_point(0)), Qt::LeftButton, Qt::LeftButton);
+  for (int i = 1; i < kLassoPoints; ++i) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(lasso_point(i)), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(lasso_point(kLassoPoints - 1)), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->selection_has_partial_alpha());
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPointF(100.0, 100.0)), Qt::LeftButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPointF(400.0, 400.0)), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPointF(400.0, 400.0)), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->selection_has_partial_alpha());
+  CHECK(canvas->selection_alpha_at(QPoint(2000, 1500)) == 255U);
+  CHECK(canvas->selection_alpha_at(QPoint(250, 250)) == 255U);
+  CHECK(canvas->selection_alpha_at(QPoint(3950, 150)) == 0U);
+}
+
 void ui_lasso_drag_moves_selection() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2441,6 +2529,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_lasso_selection_draws_freeform_region", ui_lasso_selection_draws_freeform_region},
       {"ui_lasso_combines_fragmented_selection_alpha_and_history",
        ui_lasso_combines_fragmented_selection_alpha_and_history},
+      {"ui_marquee_drag_after_antialiased_lasso_is_fast", ui_marquee_drag_after_antialiased_lasso_is_fast},
       {"ui_lasso_subtract_from_noncontiguous_wand_many_spans",
        ui_lasso_subtract_from_noncontiguous_wand_many_spans},
       {"ui_lasso_click_deselects", ui_lasso_click_deselects},

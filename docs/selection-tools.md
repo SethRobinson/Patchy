@@ -97,11 +97,11 @@ pixel in place. Soft snapshots use their existing alpha image. Never query
 `QRegion::contains` per output pixel or substitute the live selection's lookup
 cache for this snapshot: a live marquee may already have changed the selection.
 This keeps anti-aliased or feathered lasso/marquee Add, Subtract and Intersect
-linear in mask area plus region spans (issue 49). The alpha arithmetic is unchanged,
-including fractional subtract coverage. Tests:
-`ui_lasso_subtract_from_noncontiguous_wand_many_spans` (196,608 isolated wand pixels)
-and `ui_lasso_combines_fragmented_selection_alpha_and_history` (all four combine
-modes, hard/soft starting coverage, anti-alias/feather, exact alpha and Undo/Redo).
+linear in mask area plus region spans (issue 49). Replace never reads the snapshot, so a marquee
+drag over a soft lasso is cheap (issue 340). Tests:
+`ui_lasso_subtract_from_noncontiguous_wand_many_spans`,
+`ui_marquee_drag_after_antialiased_lasso_is_fast` and `ui_lasso_combines_fragmented_selection_alpha_and_history` (all four modes,
+hard/soft bases, anti-alias/feather, exact alpha, Undo/Redo).
 
 ## Stroke Selection
 
