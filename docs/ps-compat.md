@@ -28,7 +28,9 @@ See [photoshop-com.md](photoshop-com.md) (entry point, dialog-mode caveats, comp
 
 - Unchanged supported 8/16-bit CMYK/gray/Lab layers can retain the original
   document mode, profile and color channels. Content edits conservatively
-  select RGB saving; see [native color preservation](psd-native-color.md).
+  select RGB saving; see [native color preservation](psd-native-color.md). Halftone and
+  transfer resources are per mode family (1012/1015 gray, 1014/1017/1018 duotone, 1013/1016
+  color); saves drop other families', like PS's mode change.
 
 - XMP resource 1060 dates require extended timezone offsets (`-07:00`, not
   `-0700`). Photoshop's XMP parser rejects the latter when importing File Info
@@ -62,15 +64,13 @@ See [photoshop-com.md](photoshop-com.md) (entry point, dialog-mode caveats, comp
   two; 8001 opens composite-only) and more than 56 channels including merged
   transparency; the writer refuses both with an error.
 - **A gradient descriptor's `Trns` list is never empty.** Photoshop's gradients carry at least
-  two transparency stops; an empty list (a scripted gradient fill without alphaStops) raises the
+  two transparency stops; an empty list (a scripted fill without alphaStops) raises the
   "discard unknown data" prompt and empties the layer. The vector fill writer supplies
   two opaque end stops when the model has none (the layer-style writers already did); a file
   that carries an empty list heals on save: the reader marks the layer's blocks dirty
   and the fill/stroke payload builders skip the byte-exact shortcut. Pinned by
-  `psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops` and
-  `psd_vector_gradient_without_transparency_stops_heals_on_save`
-  (`patchy-gradient-empty-transparency.psd`).
-- **Engine-data paragraph metrics carry a decimal point.** Photoshop reads a bare integer token as 16.16 fixed point: `/FirstLineIndent 24` read back as 0.000366 px (24/65536), losing the indent; `24.0` reads as 24 px. `engine_paragraph_metric` writes `24.0`, `-20.0`, `0.0`; pinned by `psd_writer_emits_v2_paragraph_layout`.
+  `psd_vector_gradient_without_transparency_stops_heals_on_save` and its sibling test.
+- **Engine-data paragraph metrics carry a decimal point.** PS reads a bare integer token as 16.16 fixed point (`/FirstLineIndent 24` read back as 24/65536 px); `24.0` reads as 24 px. `engine_paragraph_metric` writes `24.0`, `-20.0`, `0.0`; pinned by `psd_writer_emits_v2_paragraph_layout`.
 - **Do not author unknown per-layer tagged keys.** Even correctly padded private tags trigger Photoshop's unknown-data warning. Merged vector associations use image resource 4211 in the plug-in resource range (4000-4999) with native `lyid` references; legacy `pvcl`/`pvfi` tags stay read-only ([layer-merging.md](layer-merging.md)).
 - **Layer color labels ride Photoshop's `lclr`** (u16 index 0..7 plus six zero bytes, after `lspf`, groups too). None writes no block; an imported block goes back verbatim while its index matches, else is regenerated; an unknown index is kept and shown as none (`psd_layer_color_labels_round_trip_lclr`).
 - **Artboards are Photoshop's own `artb` folder block and global `artd` block**, regenerated in Photoshop's key order and kept verbatim while unchanged; never a private key ([artboards.md](artboards.md)).
@@ -80,7 +80,7 @@ See [photoshop-com.md](photoshop-com.md) (entry point, dialog-mode caveats, comp
 - **Multiple open strokes need separate native shapes.** Photoshop closes open contours when a stroked shape holds several subpaths, even in its own files with correct open-path selectors. Solid centered strokes use a reversible native-group export: [open-path-strokes.md](open-path-strokes.md).
 - **No orphaned lnk2 or lnkE elements.** PS refuses an embedded or linked element no layer uses; the writer omits them ([smart-objects.md](smart-objects.md)).
 - **Per-layer tagged blocks declare an even length with the pad byte inside it.** PS walks by declared length rounded up to even and never writes odd lengths; one odd block makes PS discard every later block in the record. `write_additional_layer_block` enforces it. Generated TySh instead keeps its body even internally (its 16-byte end-anchored tail must not be followed by a pad). Global-section blocks keep 4-byte alignment OUTSIDE the declared length. The reader stays exact-advance so old odd-block Patchy files load.
-- **Every pixel record except PS's Background carries a transparency channel (-1).** PS reads a record without one as the Background: opaque over the WHOLE canvas whatever its bounds, hiding every layer beneath. Only the bottom record covering exactly the canvas may omit it (`encode_layer`; `psd_opaque_rgb_layers_write_transparency_unless_background`).
+- **Every pixel record except PS's Background carries a transparency channel (-1).** PS reads a record without one as the Background: opaque over the WHOLE canvas, hiding every layer beneath. Only the bottom record covering exactly the canvas may omit it (`encode_layer`; `psd_opaque_rgb_layers_write_transparency_unless_background`).
 - **Layer record flags bit 3 must be set on every layer** or PS applies legacy semantics. The layer mask shapes effect sources regardless of link state (the chain toggle only affects move). Effect output still lands on mask-hidden areas unless 'lmgm' is set (4 bytes, first byte bool; `LayerStyle::layer_mask_hides_effects`). 'vmgm' is the vector-mask twin (`vector_mask_hides_effects`, written only when on); each mask switches on its own ([layer-effects-render.md](layer-effects-render.md)).
 - **lfx2 effect blend modes must be full stringIDs** in 'BlnM': PS reads a 4-char code inside a length-prefixed stringID as Normal; the length-0 charID encoding works. CS-era files store true charIDs; `blend_mode_from_descriptor_enum` maps both, the writer emits stringIDs. Dissolve maps as 'Dslv', 'diss', and "dissolve". See [blend-modes.md](blend-modes.md).
 - **GrFl (Gradient Overlay) is shape-sensitive**: PS resets its blend mode to Normal unless the descriptor uses PS's 14-item layout `enab, present, showInDialog, Md, Opct, Grad, Angl, Type, Rvrs, Dthr, gs99, Algn, Scl, Ofst` (other effects tolerate leaner layouts). `Mdpn` belongs to the destination stop (piecewise remap around 50%; first stop's unused); `Intr` = Classic cubic after the remap; `gs99` selects Classic/Perceptual OKLab/Linear; `Algn=true` aligns to the visible transparency bounds, not the padded channel rect. Calibrated geometry (`photoshop-gradient-overlay-geometry.psd/bmp`; constants in the LayerProjection code): centers snap to `floor(bounds + extent/2)` per axis; point-mapped types share the half-ramp `floor(projected_span * scale / 2)`; Linear holds 0.5 at the center; Reflected/Radial/Diamond run 0 (center) to 1 (half_ramp); Radial/Diamond are isotropic in the angle-rotated frame, so `Angl` matters on non-square bounds; Angle sweeps one ramp per revolution clockwise, ignores Scale, 0.25 color on the center pixel. GdFl fill layers share the anchors but not the quantized span (docs/vector-tools.md). Offset-nonzero snapping unprobed.

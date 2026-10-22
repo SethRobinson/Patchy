@@ -32,6 +32,7 @@
 #include <climits>
 #include <cstdlib>
 #include <fstream>
+#include <initializer_list>
 #include <future>
 #include <iomanip>
 #include <iterator>
@@ -80,6 +81,36 @@ void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t 
                                  [id](const ImageResource& resource) { return resource.id == id; }),
                   resources.end());
 }
+
+namespace {
+
+// Halftone screens and transfer functions come in one variant per color-mode family:
+// 1012/1015 for grayscale, multichannel and bitmap documents, 1014/1017/1018 for duotone,
+// 1013/1016 (one entry per color plane) for the color modes. Photoshop's Image > Mode
+// conversion swaps them and never leaves another family's variant in a file. Patchy 1.16
+// kept a grayscale source's 1012/1015 in an RGB save (GitHub issue 341), so a save now drops
+// the variants of other families.
+void remove_other_mode_print_resources(std::vector<ImageResource>& resources, std::uint16_t output_mode) {
+  const bool gray_family = output_mode == kColorModeGrayscale || output_mode == kColorModeMultichannel ||
+                           output_mode == kColorModeBitmap;
+  const bool duotone_family = output_mode == kColorModeDuotone;
+  const auto remove_all = [&resources](std::initializer_list<std::uint16_t> ids) {
+    for (const auto id : ids) {
+      remove_image_resource(resources, id);
+    }
+  };
+  if (!gray_family) {
+    remove_all({1012, 1015});
+  }
+  if (!duotone_family) {
+    remove_all({1014, 1017, 1018});
+  }
+  if (gray_family || duotone_family) {
+    remove_all({1013, 1016});
+  }
+}
+
+}  // namespace
 
 double fixed_16_16_to_double(std::uint32_t value) noexcept {
   return static_cast<double>(value) / 65536.0;
@@ -1162,6 +1193,7 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
       output_mode == kColorModeRgb && color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
     remove_image_resource(*parsed, kImageResourceIccProfile);
   }
+  remove_other_mode_print_resources(*parsed, output_mode);
 
   const auto had_grid_guides_resource = std::any_of(parsed->begin(), parsed->end(), [](const ImageResource& resource) {
     return resource.id == kImageResourceGridAndGuidesInfo;

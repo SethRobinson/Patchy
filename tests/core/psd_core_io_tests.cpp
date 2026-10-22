@@ -3445,6 +3445,77 @@ void psd_issue39_grayscale_fixture_imports_if_available() {
   CHECK(layer_one->pixels().height() == 7);
 }
 
+// Halftone screens and transfer functions are per color-mode family (1012/1015 gray,
+// 1013/1016 color). Photoshop's mode conversion swaps them, so every save drops the other
+// families' variants (GitHub issue 341: an RGB save still carried a grayscale 1012/1015).
+void psd_save_drops_print_resources_of_other_color_modes() {
+  const auto gray = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("smart-object-gray/dot20.psd"));
+  CHECK(gray.metadata().values.at("psd.color_mode") == "Grayscale");
+  CHECK(test_image_resource_payload(gray.metadata().raw_psd_image_resources, 1012).has_value());
+  CHECK(test_image_resource_payload(gray.metadata().raw_psd_image_resources, 1015).has_value());
+
+  patchy::psd::WriteOptions rgb_options;
+  rgb_options.preserve_source_color_mode = false;
+  const auto rgb_saved = patchy::psd::DocumentIo::write_layered_rgb8(gray, rgb_options);
+  CHECK(rgb_saved[25] == 3);
+  const auto rgb_resources = psd_raw_image_resources(rgb_saved);
+  CHECK(!test_image_resource_payload(rgb_resources, 1012).has_value());
+  CHECK(!test_image_resource_payload(rgb_resources, 1015).has_value());
+  const auto flat_resources = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(gray));
+  CHECK(!test_image_resource_payload(flat_resources, 1012).has_value());
+  CHECK(!test_image_resource_payload(flat_resources, 1015).has_value());
+
+  // A save that keeps the grayscale mode keeps the grayscale variants.
+  const auto native_saved = patchy::psd::DocumentIo::write_layered_rgb8(gray);
+  if (native_saved[25] == 1) {
+    const auto native_resources = psd_raw_image_resources(native_saved);
+    CHECK(test_image_resource_payload(native_resources, 1012).has_value());
+    CHECK(test_image_resource_payload(native_resources, 1015).has_value());
+  }
+
+  // An RGB source keeps its color variants; a stray grayscale one is dropped.
+  const std::vector<std::uint8_t> color_halftone(72, 1);
+  const std::vector<std::uint8_t> color_transfer(112, 2);
+  const std::vector<std::uint8_t> gray_transfer(28, 3);
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1013, "", color_halftone);
+  write_test_image_resource(resources, 1016, "", color_transfer);
+  write_test_image_resource(resources, 1015, "", gray_transfer);
+  const auto rgb_source = patchy::psd::DocumentIo::read(
+      flat_psd_with_test_planes(false, 3, 1, 1, {{10}, {20}, {30}}, resources.bytes()));
+  const auto rgb_resources_out = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(rgb_source));
+  CHECK(test_image_resource_payload(rgb_resources_out, 1013).value() == color_halftone);
+  CHECK(test_image_resource_payload(rgb_resources_out, 1016).value() == color_transfer);
+  CHECK(!test_image_resource_payload(rgb_resources_out, 1015).has_value());
+}
+
+// The issue 341 reporter's file: grayscale, 54 layers, most of them Photoshop type layers.
+// Patchy 1.16 saved an edit of it as RGB with the grayscale 1012/1015 resources still in
+// it, and the reporter's Photoshop 22.4 crashed opening the result.
+void psd_issue341_grayscale_text_document_saves_rgb_without_gray_print_resources_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-341/grayscale photoshop.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.metadata().values.at("psd.color_mode") == "Grayscale");
+  CHECK(test_image_resource_payload(document.metadata().raw_psd_image_resources, 1015).has_value());
+
+  patchy::psd::WriteOptions rgb_options;
+  rgb_options.preserve_source_color_mode = false;
+  const auto saved = patchy::psd::DocumentIo::write_layered_rgb8(document, rgb_options);
+  CHECK(saved[25] == 3);
+  const auto resources = psd_raw_image_resources(saved);
+  CHECK(!test_image_resource_payload(resources, 1012).has_value());
+  CHECK(!test_image_resource_payload(resources, 1015).has_value());
+  CHECK(!test_image_resource_payload(resources, 1039).has_value());
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream("test-artifacts/issue341-rgb-save.psd", std::ios::binary)
+      .write(reinterpret_cast<const char*>(saved.data()), static_cast<std::streamsize>(saved.size()));
+  const auto reread = patchy::psd::DocumentIo::read(saved);
+  CHECK(reread.metadata().values.at("psd.color_mode") == "RGB");
+  CHECK(reread.layers().size() == document.layers().size());
+}
+
 // A 256-step gray ramp saved by Photoshop with Dot Gain 20% embedded, pinned against
 // Photoshop's own Convert to Profile (sRGB, relative colorimetric, BPC, no dither) of
 // the same document. The residue is lcms2-vs-ACE curve interpolation, as for CMYK.
@@ -3701,6 +3772,9 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_issue39_grayscale_fixture_imports_if_available},
       {"psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available",
        psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available},
+      {"psd_save_drops_print_resources_of_other_color_modes", psd_save_drops_print_resources_of_other_color_modes},
+      {"psd_issue341_grayscale_text_document_saves_rgb_without_gray_print_resources_if_available",
+       psd_issue341_grayscale_text_document_saves_rgb_without_gray_print_resources_if_available},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
       {"psd_resolution_resource_units_are_display_only", psd_resolution_resource_units_are_display_only},

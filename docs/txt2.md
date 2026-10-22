@@ -195,6 +195,11 @@ numbering: 58 px), the text itself is unchanged, and the tier changes the bullet
 
 ## Not yet known
 
+- Whether Photoshop before 2026 accepts objects authored from the 2026 template. They carry
+  keys Photoshop 22.4's own objects lack (paragraph `/36`, `/37`, `/40`, style `/92`, the view's
+  `/4` engine version, frame `/11/22`). GitHub issue 341: Photoshop 22.4 crashed opening a
+  Patchy 1.16 save of its grayscale document with one edited type layer; Photoshop 2026 opens
+  that file cleanly, so the cause is unconfirmed until a 22.x install can bisect it.
 - Whether `/1/5` must grow with the object count (Patchy keeps the template's one story with
   no font versions and Photoshop accepted it); FontSet entries without `/5` version strings
   are accepted too.
