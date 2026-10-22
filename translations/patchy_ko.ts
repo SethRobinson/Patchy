@@ -23735,20 +23735,20 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>자르기 상자 안에 그리는 구도 안내선</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>삼각형 또는 황금 나선 오버레이 방향 바꾸기</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>오버레이 표시 시점</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>오버레이 항상 표시</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>드래그하는 동안에만 오버레이 표시</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>오버레이 방향을 바꾸고 표시 시점을 선택</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>오버레이 방향 바꾸기</translation>
     </message>
 </context>
 <context>

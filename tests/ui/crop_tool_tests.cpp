@@ -1175,7 +1175,7 @@ void ui_crop_overlay_renders_shield_and_thirds() {
 // GitHub issue 325: the Overlay combo picks the guides inside the box. Each
 // choice draws its lines where it should (thirds at 1/3, golden ratio at 0.382
 // and 0.618, diagonals through the corners, the spiral's first division at
-// 0.618), the turn button flips the Triangle and the Golden Spiral, "While
+// 0.618), Turn Overlay flips the Triangle and the Golden Spiral, "While
 // Dragging" hides the guides until a handle is held, and all three choices
 // survive a new window. The issue shots use a photo.
 void ui_crop_overlay_choices_draw_their_guides() {
@@ -1196,7 +1196,7 @@ void ui_crop_overlay_choices_draw_their_guides() {
   QApplication::processEvents();
   canvas->set_crop_ratio(0.0, 0.0);
   auto* combo = window.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
-  auto* turn = window.findChild<QToolButton*>(QStringLiteral("cropOverlayOrientationButton"));
+  auto* turn = window.findChild<QAction*>(QStringLiteral("cropOverlayTurnAction"));
   auto* options = window.findChild<QToolButton*>(QStringLiteral("cropOverlayOptionsButton"));
   auto* show_always = window.findChild<QAction*>(QStringLiteral("cropOverlayShowAlwaysAction"));
   auto* show_dragging = window.findChild<QAction*>(QStringLiteral("cropOverlayShowWhileDraggingAction"));
@@ -1322,14 +1322,14 @@ void ui_crop_overlay_choices_draw_their_guides() {
   expect("spiral", spiral, 0.618, 0.5, true);
   expect("spiral", spiral, 0.181, 0.293, true);
   expect("spiral", spiral, 0.382, 0.5, false);
-  turn->click();
+  turn->trigger();
   CHECK(canvas->crop_overlay_orientation() == 1);
   const auto spiral_turned = render();
   expect("spiral turned", spiral_turned, 0.382, 0.5, true);
   expect("spiral turned", spiral_turned, 0.819, 0.293, true);
   expect("spiral turned", spiral_turned, 0.618, 0.5, false);
   for (int i = 0; i < 3; ++i) {
-    turn->click();
+    turn->trigger();
   }
   CHECK(canvas->crop_overlay_orientation() == 0);
 
@@ -1339,7 +1339,7 @@ void ui_crop_overlay_choices_draw_their_guides() {
   const auto triangle = render();
   expect("triangle", triangle, 0.25, 0.25, true);
   expect("triangle", triangle, 0.75, 0.25, false);
-  turn->click();
+  turn->trigger();
   const auto triangle_turned = render();
   expect("triangle turned", triangle_turned, 0.75, 0.25, true);
   expect("triangle turned", triangle_turned, 0.25, 0.25, false);
@@ -1366,8 +1366,8 @@ void ui_crop_overlay_choices_draw_their_guides() {
 
   // The three choices persist and a new window starts with them.
   combo->setCurrentIndex(6);
-  turn->click();
-  turn->click();
+  turn->trigger();
+  turn->trigger();
   CHECK(canvas->crop_overlay_orientation() == 3);
   window.close();
   QApplication::processEvents();
@@ -1417,7 +1417,7 @@ void ui_crop_overlay_choices_draw_their_guides() {
   require_action(third, "toolCropAction")->trigger();
   QApplication::processEvents();
   auto* third_combo = third.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
-  auto* third_turn = third.findChild<QToolButton*>(QStringLiteral("cropOverlayOrientationButton"));
+  auto* third_turn = third.findChild<QAction*>(QStringLiteral("cropOverlayTurnAction"));
   CHECK(third_combo != nullptr && third_turn != nullptr);
   if (third_combo == nullptr || third_turn == nullptr) {
     return;
@@ -1451,7 +1451,7 @@ void ui_crop_overlay_choices_draw_their_guides() {
     third_combo->setCurrentIndex(index);
     if (index == 6 && photo_canvas->crop_overlay_orientation() != 0) {
       while (photo_canvas->crop_overlay_orientation() != 0) {
-        third_turn->click();
+        third_turn->trigger();
       }
     }
     QApplication::processEvents();

@@ -23807,20 +23807,20 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Guías de composición dentro del cuadro de recorte</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>Girar la superposición Triángulo o Espiral áurea</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>Cuándo se muestra la superposición</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>Mostrar siempre la superposición</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>Mostrar la superposición solo al arrastrar</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>Girar la superposición y elegir cuándo se muestra</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>Girar superposición</translation>
     </message>
 </context>
 <context>

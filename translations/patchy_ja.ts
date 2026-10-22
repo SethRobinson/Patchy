@@ -23735,20 +23735,20 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>切り抜きボックス内に表示する構図ガイド</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>三角形または黄金螺旋のオーバーレイの向きを変える</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>オーバーレイを表示するタイミング</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>オーバーレイを常に表示</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>ドラッグ中のみオーバーレイを表示</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>オーバーレイの向きと表示するタイミングを設定</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>オーバーレイの向きを変更</translation>
     </message>
 </context>
 <context>

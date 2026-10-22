@@ -23734,19 +23734,19 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

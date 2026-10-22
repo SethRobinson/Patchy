@@ -23879,20 +23879,20 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Linie kompozycji rysowane w ramce kadrowania</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>Obróć nakładkę Trójkąt lub Złota spirala</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>Kiedy pokazywać nakładkę</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>Zawsze pokazuj nakładkę</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>Pokazuj nakładkę tylko podczas przeciągania</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>Obróć nakładkę i wybierz, kiedy ją pokazywać</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>Obróć nakładkę</translation>
     </message>
 </context>
 <context>

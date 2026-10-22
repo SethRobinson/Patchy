@@ -23735,20 +23735,20 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>在裁切框內繪製的構圖參考線</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>旋轉三角形或黃金螺旋疊加</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>何時顯示疊加</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>一律顯示疊加</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>僅在拖曳時顯示疊加</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>旋轉疊加並選擇何時顯示</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>旋轉疊加</translation>
     </message>
 </context>
 <context>

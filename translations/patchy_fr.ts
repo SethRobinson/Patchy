@@ -23807,20 +23807,20 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Repères de composition dans le cadre de recadrage</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>Tourner la superposition Triangle ou Spirale d&apos;or</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>Quand la superposition s&apos;affiche</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>Toujours afficher la superposition</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>Afficher la superposition seulement pendant le glissement</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>Tourner la superposition et choisir quand elle s&apos;affiche</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>Tourner la superposition</translation>
     </message>
 </context>
 <context>

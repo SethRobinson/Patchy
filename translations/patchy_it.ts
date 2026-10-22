@@ -23807,20 +23807,20 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Guide di composizione nel riquadro di ritaglio</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>Ruota la sovrapposizione Triangolo o Spirale aurea</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>Quando appare la sovrapposizione</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>Mostra sempre la sovrapposizione</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>Mostra la sovrapposizione solo durante il trascinamento</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>Ruota la sovrapposizione e scegli quando appare</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>Ruota sovrapposizione</translation>
     </message>
 </context>
 <context>

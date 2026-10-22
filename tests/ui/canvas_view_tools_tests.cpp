@@ -764,7 +764,7 @@ void ui_shape_options_bars_group_their_controls() {
 
 // GitHub issue 324: the Crop bar follows the grouping rules (docs/options-bar.md) in both
 // styles: Style | the preset, W : H pair and Clear (Ratio) or the size fields (Size) | Overlay
-// with its turn and "..." buttons (issue 325) | the two Delete checkboxes | Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both
+// and its "..." menu (issue 325) | the two Delete checkboxes | Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both
 // styles fit one row at 1366 px. The artifacts are the issue shots, in both schemes.
 void ui_crop_options_bar_groups_its_controls() {
   std::vector<std::string> problems;
@@ -819,8 +819,7 @@ void ui_crop_options_bar_groups_its_controls() {
         problem("no separator before Overlay");
       }
       expect_next_to(QStringLiteral("Overlay"), QStringLiteral("cropOverlayCombo"));
-      expect_next_to(QStringLiteral("cropOverlayCombo"), QStringLiteral("cropOverlayOrientationButton"));
-      expect_next_to(QStringLiteral("cropOverlayOrientationButton"), QStringLiteral("cropOverlayOptionsButton"));
+      expect_next_to(QStringLiteral("cropOverlayCombo"), QStringLiteral("cropOverlayOptionsButton"));
       expect_next_to(QStringLiteral("cropOverlayOptionsButton"), separator);
       expect_next_to(QStringLiteral("cropDeletePixelsCheck"), QStringLiteral("cropDeleteLayersCheck"));
       expect_next_to(QStringLiteral("cropDeleteLayersCheck"), separator);

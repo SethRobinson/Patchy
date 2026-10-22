@@ -23879,20 +23879,20 @@ Patchy может скачать обновление, заменить этот
         <translation>Направляющие композиции внутри рамки кадрирования</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>Повернуть наложение «Треугольник» или «Золотая спираль»</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>Когда показывать наложение</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>Всегда показывать наложение</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>Показывать наложение только при перетаскивании</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>Повернуть наложение и выбрать, когда его показывать</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>Повернуть наложение</translation>
     </message>
 </context>
 <context>

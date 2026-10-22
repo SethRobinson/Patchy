@@ -1372,10 +1372,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
-  // Composition overlay (GitHub issue 325): the guides inside the box, a button
-  // that turns the Triangle and Golden Spiral, and a "..." menu choosing whether
-  // they show all the time or only while the box is dragged. Items follow
-  // CanvasWidget::CropOverlay; the data is the persisted tools/cropOverlay token.
+  // Composition overlay (GitHub issue 325): the guides inside the box, and a
+  // "..." menu that turns the Triangle and Golden Spiral and chooses whether the
+  // guides show all the time or only while the box is dragged. The list has a
+  // fixed width so the Crop bar keeps one row at the 1180 px test width. Items
+  // follow CanvasWidget::CropOverlay; the data is the persisted tools/cropOverlay
+  // token.
   static constexpr std::array<std::pair<const char*, const char*>, 7> kCropOverlayItems = {{
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "None"), "none"},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rule of Thirds"), "thirds"},
@@ -1393,6 +1395,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     crop_overlay_combo_->addItem(tr(source), QString::fromLatin1(token));
   }
   crop_overlay_combo_->setCurrentIndex(current_crop_overlay_);
+  crop_overlay_combo_->setFixedWidth(112);
   QPointer<QComboBox> crop_overlay_combo(crop_overlay_combo_);
   register_retranslation([crop_overlay_combo] {
     if (crop_overlay_combo == nullptr || crop_overlay_combo->count() != static_cast<int>(kCropOverlayItems.size())) {
@@ -1414,22 +1417,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     apply_crop_guide_options();
     schedule_save_tool_settings();
   });
-  crop_overlay_orientation_button_ = new QToolButton(toolbar);
-  crop_overlay_orientation_button_->setObjectName(QStringLiteral("cropOverlayOrientationButton"));
-  crop_overlay_orientation_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  crop_overlay_orientation_button_->setIcon(simple_icon(QStringLiteral("rotate")));
-  crop_overlay_orientation_button_->setIconSize(QSize(18, 18));
-  crop_overlay_orientation_button_->setAutoRaise(true);
-  crop_overlay_orientation_button_->setFocusPolicy(Qt::NoFocus);
-  crop_overlay_orientation_button_->setProperty("optionsBarButton", true);
-  bind_tooltip(crop_overlay_orientation_button_,
-               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Turn the Triangle or Golden Spiral overlay"));
-  add_option_widget(crop_overlay_orientation_button_, {CanvasTool::Crop});
-  connect(crop_overlay_orientation_button_, &QToolButton::clicked, this, [this] {
-    current_crop_overlay_orientation_ = (current_crop_overlay_orientation_ + 1) % 4;
-    apply_crop_guide_options();
-    schedule_save_tool_settings();
-  });
   crop_overlay_options_button_ = new QToolButton(toolbar);
   crop_overlay_options_button_->setObjectName(QStringLiteral("cropOverlayOptionsButton"));
   // The brushSmoothingOptionsButton pattern: compact "..." text, InstantPopup,
@@ -1437,11 +1424,23 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_overlay_options_button_->setText(QStringLiteral("..."));
   crop_overlay_options_button_->setProperty("optionsBarMenuButton", true);
   crop_overlay_options_button_->setFocusPolicy(Qt::NoFocus);
-  bind_tooltip(crop_overlay_options_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "When the overlay shows"));
+  bind_tooltip(crop_overlay_options_button_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Turn the overlay, and choose when it shows"));
   crop_overlay_options_button_->setPopupMode(QToolButton::InstantPopup);
   {
     auto* overlay_menu = new QMenu(crop_overlay_options_button_);
     overlay_menu->setObjectName(QStringLiteral("cropOverlayOptionsMenu"));
+    // Steps the orientation 0-3: the Triangle mirrors, the Golden Spiral visits
+    // each corner. Enabled for those two only.
+    crop_overlay_turn_action_ = overlay_menu->addAction(tr("Turn Overlay"));
+    crop_overlay_turn_action_->setObjectName(QStringLiteral("cropOverlayTurnAction"));
+    bind_action_text(crop_overlay_turn_action_, QT_TR_NOOP("Turn Overlay"));
+    connect(crop_overlay_turn_action_, &QAction::triggered, this, [this] {
+      current_crop_overlay_orientation_ = (current_crop_overlay_orientation_ + 1) % 4;
+      apply_crop_guide_options();
+      schedule_save_tool_settings();
+    });
+    overlay_menu->addSeparator();
     auto* show_group = new QActionGroup(overlay_menu);
     show_group->setExclusive(true);
     const auto add_show_choice = [this, overlay_menu, show_group](const char* source, const char* object_name,

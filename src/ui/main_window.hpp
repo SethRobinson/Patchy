@@ -2367,7 +2367,7 @@ private:
   [[nodiscard]] bool crop_size_link_active() const noexcept;
   void apply_crop_style(int style);
   // Pushes the overlay mirrors to the active canvas and syncs the overlay
-  // controls (the turn button only for Triangle and Golden Spiral).
+  // controls (Turn Overlay only for Triangle and Golden Spiral).
   void apply_crop_guide_options();
   void sync_crop_guide_buttons_enabled(bool edit_allowed);
   // A Size-mode field committed `value` px for one axis; the linked axis follows
@@ -2565,12 +2565,12 @@ private:
   QCheckBox* crop_delete_pixels_check_{nullptr};
   QCheckBox* crop_delete_layers_check_{nullptr};
   // Crop composition overlay (GitHub issue 325): the guide combo (items in
-  // CanvasWidget::CropOverlay order, data = the tools/cropOverlay token), the
-  // button that turns the Triangle and Golden Spiral, and the "..." menu with
-  // the Always / While Dragging choice.
+  // CanvasWidget::CropOverlay order, data = the tools/cropOverlay token) and the
+  // "..." menu with Turn Overlay (Triangle and Golden Spiral) and the Always /
+  // While Dragging choice.
   QComboBox* crop_overlay_combo_{nullptr};
-  QToolButton* crop_overlay_orientation_button_{nullptr};
   QToolButton* crop_overlay_options_button_{nullptr};
+  QAction* crop_overlay_turn_action_{nullptr};
   QAction* crop_overlay_show_always_action_{nullptr};
   QAction* crop_overlay_show_while_dragging_action_{nullptr};
   QPushButton* patch_remove_object_button_{nullptr};

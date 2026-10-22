@@ -23807,20 +23807,20 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Kompositionshilfslinien im Freistellungsrahmen</translation>
     </message>
     <message>
-        <source>Turn the Triangle or Golden Spiral overlay</source>
-        <translation>Dreieck- oder Goldene-Spirale-Überlagerung drehen</translation>
-    </message>
-    <message>
-        <source>When the overlay shows</source>
-        <translation>Wann die Überlagerung erscheint</translation>
-    </message>
-    <message>
         <source>Always Show Overlay</source>
         <translation>Überlagerung immer anzeigen</translation>
     </message>
     <message>
         <source>Show Overlay Only While Dragging</source>
         <translation>Überlagerung nur beim Ziehen anzeigen</translation>
+    </message>
+    <message>
+        <source>Turn the overlay, and choose when it shows</source>
+        <translation>Überlagerung drehen und festlegen, wann sie erscheint</translation>
+    </message>
+    <message>
+        <source>Turn Overlay</source>
+        <translation>Überlagerung drehen</translation>
     </message>
 </context>
 <context>

@@ -2794,9 +2794,9 @@ void MainWindow::sync_crop_guide_buttons_enabled(bool edit_allowed) {
   // The turn only means something for the Triangle and the Golden Spiral, the
   // "..." menu nothing under None (GitHub issue 325).
   const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
-  if (crop_overlay_orientation_button_ != nullptr) {
-    crop_overlay_orientation_button_->setEnabled(edit_allowed && (overlay == CanvasWidget::CropOverlay::Triangle ||
-                                                                  overlay == CanvasWidget::CropOverlay::GoldenSpiral));
+  if (crop_overlay_turn_action_ != nullptr) {
+    crop_overlay_turn_action_->setEnabled(overlay == CanvasWidget::CropOverlay::Triangle ||
+                                          overlay == CanvasWidget::CropOverlay::GoldenSpiral);
   }
   if (crop_overlay_options_button_ != nullptr) {
     crop_overlay_options_button_->setEnabled(edit_allowed && overlay != CanvasWidget::CropOverlay::None);
