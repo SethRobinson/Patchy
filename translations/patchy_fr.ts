@@ -13472,6 +13472,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Lasso polygonal</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Sélectionnez un calque pour échantillonner ce calque et ceux du dessous, ou échantillonnez tous les calques</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22711,10 +22715,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Calque actif</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Prélever dans l&apos;image fusionnée ou seulement dans le calque actif</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Retirer des dossiers récents</translation>
     </message>
@@ -23761,6 +23761,22 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Épaisseur du contour (0 pour aucun contour)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Calque actif et inférieurs</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Tous les calques sans réglages</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Calque actif et inférieurs sans réglages</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Calques lus par la pipette : le calque actif, celui-ci et les calques inférieurs, ou l&apos;image fusionnée, avec ou sans calques de réglage</translation>
     </message>
     <message>
         <source>Rule of Thirds</source>

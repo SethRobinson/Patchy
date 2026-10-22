@@ -13472,6 +13472,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Lazo poligonal</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Selecciona una capa para muestrearla junto con las capas inferiores, o muestrea todas las capas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22711,10 +22715,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Capa actual</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Tomar el color de la imagen combinada o solo de la capa activa</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Quitar de carpetas recientes</translation>
     </message>
@@ -23761,6 +23761,22 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Grosor del trazo (0 para ningún trazo)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Actual y por debajo</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Todas las capas sin ajustes</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Actual y por debajo sin ajustes</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Qué capas lee la muestra: la capa activa, ella y las capas inferiores, o la imagen combinada, opcionalmente sin capas de ajuste</translation>
     </message>
     <message>
         <source>Rule of Thirds</source>

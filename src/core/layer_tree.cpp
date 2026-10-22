@@ -170,6 +170,90 @@ bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id,
   return false;
 }
 
+std::string_view sample_layers_token(SampleLayers mode) noexcept {
+  switch (mode) {
+  case SampleLayers::CurrentLayer:
+    return "current";
+  case SampleLayers::CurrentAndBelow:
+    return "currentAndBelow";
+  case SampleLayers::AllLayers:
+    return "all";
+  case SampleLayers::AllLayersNoAdjustments:
+    return "allNoAdjustments";
+  case SampleLayers::CurrentAndBelowNoAdjustments:
+    return "currentAndBelowNoAdjustments";
+  }
+  return "all";
+}
+
+SampleLayers sample_layers_from_settings(std::optional<std::string_view> token,
+                                         std::optional<bool> legacy_sample_all_layers) noexcept {
+  if (token.has_value()) {
+    for (const auto mode : {SampleLayers::CurrentLayer, SampleLayers::CurrentAndBelow, SampleLayers::AllLayers,
+                            SampleLayers::AllLayersNoAdjustments, SampleLayers::CurrentAndBelowNoAdjustments}) {
+      if (*token == sample_layers_token(mode)) {
+        return mode;
+      }
+    }
+  }
+  if (legacy_sample_all_layers.has_value() && !*legacy_sample_all_layers) {
+    return SampleLayers::CurrentLayer;
+  }
+  return SampleLayers::AllLayers;
+}
+
+namespace {
+
+// Appends the later siblings at each level of the path to `id`; true once found.
+bool collect_layers_above(const std::vector<Layer>& siblings, LayerId id, std::vector<LayerId>& above) {
+  for (std::size_t index = 0; index < siblings.size(); ++index) {
+    const auto& layer = siblings[index];
+    if (layer.id() != id && !collect_layers_above(layer.children(), id, above)) {
+      continue;
+    }
+    for (auto later = index + 1; later < siblings.size(); ++later) {
+      above.push_back(siblings[later].id());
+    }
+    return true;
+  }
+  return false;
+}
+
+void collect_adjustment_layer_ids(const std::vector<Layer>& layers, std::vector<LayerId>& ids) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Adjustment) {
+      ids.push_back(layer.id());
+    }
+    collect_adjustment_layer_ids(layer.children(), ids);
+  }
+}
+
+}  // namespace
+
+std::optional<std::vector<LayerId>> sample_layers_excluded_ids(const std::vector<Layer>& layers,
+                                                               std::optional<LayerId> active_id, SampleLayers mode) {
+  std::vector<LayerId> excluded;
+  switch (mode) {
+  case SampleLayers::CurrentLayer:
+    return std::nullopt;
+  case SampleLayers::AllLayers:
+    return excluded;
+  case SampleLayers::AllLayersNoAdjustments:
+    collect_adjustment_layer_ids(layers, excluded);
+    return excluded;
+  case SampleLayers::CurrentAndBelow:
+  case SampleLayers::CurrentAndBelowNoAdjustments:
+    if (!active_id.has_value() || !collect_layers_above(layers, *active_id, excluded)) {
+      return std::nullopt;
+    }
+    if (mode == SampleLayers::CurrentAndBelowNoAdjustments) {
+      collect_adjustment_layer_ids(layers, excluded);
+    }
+    return excluded;
+  }
+  return std::nullopt;
+}
+
 const Layer* find_layer_in_tree(const std::vector<Layer>& layers, LayerId id) {
   for (const auto& layer : layers) {
     if (layer.id() == id) {

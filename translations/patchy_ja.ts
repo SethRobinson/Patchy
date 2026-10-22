@@ -13437,6 +13437,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>多角形選択</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>レイヤーを選択してそのレイヤーと下のレイヤーから取得するか、すべてのレイヤーから取得してください</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22643,10 +22647,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>現在のレイヤー</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>統合した画像から取得するか、アクティブなレイヤーのみから取得します</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>最近使ったフォルダーから削除</translation>
     </message>
@@ -23689,6 +23689,22 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>線の太さ (0 で線なし)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>現在のレイヤー以下</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>すべてのレイヤー (調整なし)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>現在のレイヤー以下 (調整なし)</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>スポイトが読み取るレイヤー: アクティブなレイヤー、そのレイヤーと下のレイヤー、または統合画像。調整レイヤーを除くこともできます</translation>
     </message>
     <message>
         <source>Rule of Thirds</source>

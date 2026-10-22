@@ -10,6 +10,7 @@
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/layer_alignment.hpp"
+#include "core/layer_tree.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
@@ -414,11 +415,12 @@ public:
   // Eyedropper options (GitHub issue 151), shared by the paint tools' Alt
   // eyedropper as in Photoshop: the side of the averaged square in document
   // pixels (1 = Point Sample; Photoshop's 3, 5, 11, 31, 51 and 101), and
-  // whether a pick reads the merged document or the active layer alone.
+  // which layers a pick reads (Sample; GitHub issue 321 added Current & Below
+  // and the No Adjustments choices).
   void set_eyedropper_sample_size(int size) noexcept;
   [[nodiscard]] int eyedropper_sample_size() const noexcept;
-  void set_eyedropper_sample_all_layers(bool enabled) noexcept;
-  [[nodiscard]] bool eyedropper_sample_all_layers() const noexcept;
+  void set_eyedropper_sample_layers(SampleLayers mode) noexcept;
+  [[nodiscard]] SampleLayers eyedropper_sample_layers() const noexcept;
   // The Eyedropper's Sets option: which color a click sets. Alt inverts it for
   // that click, as Alt inverts the Zoom tool's direction (GitHub issue 151).
   void set_eyedropper_picks_background(bool background);
@@ -947,6 +949,11 @@ public:
   void set_crop_ratio(double width, double height) noexcept;
   [[nodiscard]] double crop_ratio_width() const noexcept;
   [[nodiscard]] double crop_ratio_height() const noexcept;
+  // Size style's Width/Height link (GitHub issue 332): with no ratio set, every
+  // handle drag keeps the box's drag-start width:height, through the same
+  // constrained path a set ratio takes.
+  void set_crop_keep_proportions(bool keep) noexcept;
+  [[nodiscard]] bool crop_keep_proportions() const noexcept;
   // Composition guides drawn inside the crop box (GitHub issue 325). Orientation
   // flips the Triangle (0-1) and the Golden Spiral (0-3); the others ignore it.
   // only_while_dragging shows the guides only while the box is dragged, resized
@@ -3050,6 +3057,7 @@ private:
   bool crop_from_center_{false};
   double crop_ratio_w_{0.0};
   double crop_ratio_h_{0.0};
+  bool crop_keep_proportions_{false};
   CropOverlay crop_overlay_{CropOverlay::Thirds};
   int crop_overlay_orientation_{0};
   bool crop_overlay_only_while_dragging_{false};
@@ -3308,7 +3316,7 @@ private:
   SpongeMode sponge_mode_{SpongeMode::Desaturate};
   bool sponge_vibrance_{true};
   int eyedropper_sample_size_{1};
-  bool eyedropper_sample_all_layers_{true};
+  SampleLayers eyedropper_sample_layers_{SampleLayers::AllLayers};
   bool eyedropper_picks_background_{false};
   PenInputSettings pen_input_settings_{};
   std::optional<PenInputSample> active_pen_input_sample_{};

@@ -25,6 +25,7 @@
 #include "psd/psd_document_io.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
+#include <QAbstractItemView>
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <chrono>
@@ -42,6 +43,7 @@
 #include <QList>
 #include <QTemporaryDir>
 #include <QMetaObject>
+#include <QPainter>
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -1942,7 +1944,7 @@ void ui_eyedropper_sample_size_and_current_layer() {
 
   // Defaults: Point Sample over all layers, the pick unchanged from before.
   CHECK(canvas.eyedropper_sample_size() == 1);
-  CHECK(canvas.eyedropper_sample_all_layers());
+  CHECK(canvas.eyedropper_sample_layers() == patchy::SampleLayers::AllLayers);
   click(QPoint(10, 8));
   CHECK(color_close(canvas.primary_color(), QColor(255, 0, 0), 1));
 
@@ -1955,7 +1957,7 @@ void ui_eyedropper_sample_size_and_current_layer() {
   CHECK(color_close(canvas.primary_color(), QColor(255, 255, 255), 1));
 
   // Current Layer: only the dot has alpha, so the average is pure red.
-  canvas.set_eyedropper_sample_all_layers(false);
+  canvas.set_eyedropper_sample_layers(patchy::SampleLayers::CurrentLayer);
   click(QPoint(11, 9));
   CHECK(color_close(canvas.primary_color(), QColor(255, 0, 0), 1));
   // A transparent spot on the current layer keeps the color.
@@ -2047,8 +2049,13 @@ void ui_eyedropper_options_bar_sample_controls() {
   CHECK(size_combo->count() == 7);
   CHECK(size_combo->itemText(0) == QStringLiteral("Point Sample"));
   CHECK(size_combo->itemText(3) == QStringLiteral("11 by 11 Average"));
-  CHECK(layers_combo->itemText(0) == QStringLiteral("All Layers"));
-  CHECK(layers_combo->itemText(1) == QStringLiteral("Current Layer"));
+  CHECK(layers_combo->count() == 5);
+  CHECK(layers_combo->itemText(0) == QStringLiteral("Current Layer"));
+  CHECK(layers_combo->itemText(1) == QStringLiteral("Current & Below"));
+  CHECK(layers_combo->itemText(2) == QStringLiteral("All Layers"));
+  CHECK(layers_combo->itemText(3) == QStringLiteral("All Layers No Adjustments"));
+  CHECK(layers_combo->itemText(4) == QStringLiteral("Current & Below No Adjustments"));
+  CHECK(layers_combo->currentIndex() == 2);
   auto* sets_foreground = window.findChild<QPushButton*>(QStringLiteral("eyedropperSetsForegroundButton"));
   auto* sets_background = window.findChild<QPushButton*>(QStringLiteral("eyedropperSetsBackgroundButton"));
   CHECK(sets_foreground != nullptr && sets_background != nullptr);
@@ -2058,12 +2065,56 @@ void ui_eyedropper_options_bar_sample_controls() {
   CHECK(!sets_foreground->toolTip().contains(QStringLiteral("%ALT%")));
   save_widget_artifact("ui_eyedropper_options_bar", window);
 
-  size_combo->setCurrentIndex(size_combo->findData(5));
+  // The open Sample menu (GitHub issue 321). The window is grabbed before the popup
+  // opens and the list drawn over it: Qt's private popup frame around the list keeps
+  // an unthemed palette, so the shared popup capture would reject the shot.
+  CHECK(capture_theme_mismatch(window).isEmpty());
+  auto shot = window.grab().toImage();
+  bool popup_captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* list = layers_combo->view();
+    CHECK(list != nullptr && list->isVisible());
+    if (list != nullptr && list->isVisible()) {
+      CHECK(capture_theme_mismatch(*list).isEmpty());
+      const auto origin = window.mapToGlobal(QPoint(0, 0));
+      const auto list_position = list->mapToGlobal(QPoint(0, 0)) - origin;
+      {
+        QPainter painter(&shot);
+        painter.drawPixmap(list_position, list->grab());
+      }
+      const auto crop = QRect(layers_combo->mapToGlobal(QPoint(0, 0)) - origin, layers_combo->size())
+                            .united(QRect(list_position, list->size()))
+                            .adjusted(-170, -14, 48, 14)
+                            .intersected(shot.rect());
+      ensure_artifact_dir();
+      CHECK(shot.copy(crop).save(QStringLiteral("test-artifacts/issue_321_sample_menu.png")));
+      popup_captured = true;
+    }
+    layers_combo->hidePopup();
+  });
+  layers_combo->showPopup();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(popup_captured);
+
+  auto* canvas = require_canvas(window);
   layers_combo->setCurrentIndex(1);
   QApplication::processEvents();
-  auto* canvas = require_canvas(window);
+  CHECK(canvas->eyedropper_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+  layers_combo->setCurrentIndex(4);
+  QApplication::processEvents();
+  CHECK(canvas->eyedropper_sample_layers() == patchy::SampleLayers::CurrentAndBelowNoAdjustments);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/eyedropperSampleLayers")).toString() ==
+          QStringLiteral("currentAndBelowNoAdjustments"));
+    CHECK(settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool());
+  }
+  size_combo->setCurrentIndex(size_combo->findData(5));
+  layers_combo->setCurrentIndex(0);
+  QApplication::processEvents();
   CHECK(canvas->eyedropper_sample_size() == 5);
-  CHECK(!canvas->eyedropper_sample_all_layers());
+  CHECK(canvas->eyedropper_sample_layers() == patchy::SampleLayers::CurrentLayer);
   sets_background->click();
   QApplication::processEvents();
   CHECK(sets_background->isChecked() && !sets_foreground->isChecked());
@@ -2072,6 +2123,7 @@ void ui_eyedropper_options_bar_sample_controls() {
     auto settings = patchy::ui::app_settings();
     CHECK(settings.value(QStringLiteral("tools/eyedropperSampleSize")).toInt() == 5);
     CHECK(!settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool());
+    CHECK(settings.value(QStringLiteral("tools/eyedropperSampleLayers")).toString() == QStringLiteral("current"));
     CHECK(settings.value(QStringLiteral("tools/eyedropperPicksBackground")).toBool());
   }
   patchy::ui::MainWindowTestAccess::create_default_document(window);
@@ -2079,18 +2131,151 @@ void ui_eyedropper_options_bar_sample_controls() {
   auto* second = require_canvas(window);
   CHECK(second != canvas);
   CHECK(second->eyedropper_sample_size() == 5);
-  CHECK(!second->eyedropper_sample_all_layers());
+  CHECK(second->eyedropper_sample_layers() == patchy::SampleLayers::CurrentLayer);
   CHECK(second->eyedropper_picks_background());
 
   // Back to the defaults so later tests see Photoshop's starting state.
   size_combo->setCurrentIndex(0);
-  layers_combo->setCurrentIndex(0);
+  layers_combo->setCurrentIndex(2);
   sets_foreground->click();
   QApplication::processEvents();
   auto settings = patchy::ui::app_settings();
   CHECK(!settings.value(QStringLiteral("tools/eyedropperPicksBackground")).toBool());
   CHECK(settings.value(QStringLiteral("tools/eyedropperSampleSize")).toInt() == 1);
   CHECK(settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool());
+  CHECK(settings.value(QStringLiteral("tools/eyedropperSampleLayers")).toString() == QStringLiteral("all"));
+}
+
+namespace {
+
+// Seth's test stack for the Sample choices (GitHub issue 321), bottom to top: a blue
+// Background, an Invert, a half-opaque green square (the active layer), another
+// Invert, and a half-opaque red layer over everything. Inside the square each
+// Sample choice reads a different color.
+patchy::Document sample_layers_test_document() {
+  patchy::Document document(240, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(240, 160, patchy::PixelFormat::rgba8(), QColor(60, 120, 200)));
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer invert_below(document.allocate_layer_id(), "Invert below", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(invert_below, invert);
+  document.add_layer(std::move(invert_below));
+  auto square = solid_pixels(240, 160, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(square, QRect(60, 40, 120, 80), QColor(40, 160, 60));
+  auto& active = document.add_pixel_layer("Green square (select this one)", std::move(square));
+  active.set_opacity(0.5F);
+  const auto active_id = active.id();
+  patchy::Layer invert_above(document.allocate_layer_id(), "Invert above", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(invert_above, invert);
+  document.add_layer(std::move(invert_above));
+  document.add_pixel_layer("Red veil", solid_pixels(240, 160, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)))
+      .set_opacity(0.5F);
+  document.set_active_layer(active_id);
+  return document;
+}
+
+}  // namespace
+
+// Pick tool Sample choices (GitHub issue 321): each choice reads its own composite
+// through the canvas, Point Sample and averaged, and the paint tools' Alt
+// eyedropper shares the choice.
+void ui_eyedropper_sample_layers_choices_pick_their_composites() {
+  auto document = sample_layers_test_document();
+  {
+    // The stack Seth tests with, as a PSD artifact (test-files/issue-321-sample-layers.psd).
+    ensure_artifact_dir();
+    const auto path = QStringLiteral("test-artifacts/issue-321-sample-layers.psd");
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
+    const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+    CHECK(reread.layers().size() == 5);
+    CHECK(patchy::ui::qimage_from_document(reread, true).pixelColor(120, 80) ==
+          patchy::ui::qimage_from_document(document, true).pixelColor(120, 80));
+  }
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(480, 320);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.show();
+  QApplication::processEvents();
+  const auto click = [&canvas](QPoint document_point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    const auto point = canvas.widget_position_for_document_point(document_point);
+    send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  using patchy::SampleLayers;
+  const std::array<std::pair<SampleLayers, QColor>, 5> expected{{
+      {SampleLayers::CurrentLayer, QColor(40, 160, 60)},
+      {SampleLayers::CurrentAndBelow, QColor(117, 147, 57)},
+      {SampleLayers::AllLayers, QColor(179, 74, 119)},
+      {SampleLayers::AllLayersNoAdjustments, QColor(135, 90, 85)},
+      {SampleLayers::CurrentAndBelowNoAdjustments, QColor(50, 140, 130)},
+  }};
+  for (const auto size : {1, 5}) {
+    canvas.set_eyedropper_sample_size(size);
+    for (const auto& [mode, color] : expected) {
+      canvas.set_eyedropper_sample_layers(mode);
+      canvas.set_primary_color(QColor(1, 2, 3));
+      click(QPoint(120, 80));
+      CHECK(color_close(canvas.primary_color(), color, 3));
+    }
+  }
+  // Outside the square, Current & Below reads the stack under the active layer's level.
+  canvas.set_eyedropper_sample_size(1);
+  canvas.set_eyedropper_sample_layers(SampleLayers::CurrentAndBelow);
+  click(QPoint(10, 10));
+  CHECK(color_close(canvas.primary_color(), QColor(195, 135, 55), 3));
+
+  // The Brush tool's Alt eyedropper uses the same choice.
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_eyedropper_sample_layers(SampleLayers::CurrentAndBelowNoAdjustments);
+  canvas.set_primary_color(QColor(1, 2, 3));
+  click(QPoint(120, 80), Qt::AltModifier);
+  CHECK(color_close(canvas.primary_color(), QColor(50, 140, 130), 3));
+
+  // Current & Below with no active layer warns and keeps the color.
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.set_eyedropper_sample_layers(SampleLayers::CurrentAndBelow);
+  document.clear_active_layer();
+  canvas.set_primary_color(QColor(1, 2, 3));
+  click(QPoint(120, 80));
+  CHECK(canvas.primary_color() == QColor(1, 2, 3));
+  canvas.set_eyedropper_sample_layers(SampleLayers::AllLayers);
+}
+
+// The pre-321 bool still decides the first launch after the update (GitHub issue
+// 321): false opens on Current Layer, and the next save writes the new key.
+void ui_eyedropper_sample_layers_migrates_legacy_setting() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/eyedropperSampleLayers"));
+    settings.setValue(QStringLiteral("tools/eyedropperSampleAllLayers"), false);
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* layers_combo = window.findChild<QComboBox*>(QStringLiteral("eyedropperSampleLayersCombo"));
+    CHECK(layers_combo != nullptr);
+    CHECK(require_canvas(window)->eyedropper_sample_layers() == patchy::SampleLayers::CurrentLayer);
+    if (layers_combo != nullptr) {
+      CHECK(layers_combo->currentText() == QStringLiteral("Current Layer"));
+      layers_combo->setCurrentIndex(3);
+      QApplication::processEvents();
+    }
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/eyedropperSampleLayers")).toString() ==
+          QStringLiteral("allNoAdjustments"));
+    CHECK(settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool());
+  }
+  {
+    // The new key wins over the bool on the next launch.
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(require_canvas(window)->eyedropper_sample_layers() == patchy::SampleLayers::AllLayersNoAdjustments);
+  }
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("tools/eyedropperSampleLayers"));
+  settings.remove(QStringLiteral("tools/eyedropperSampleAllLayers"));
 }
 
 // The 8-bit eyedropper reads the real composite, not a per-layer approximation: an
@@ -3578,6 +3763,9 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_eyedropper_sample_size_and_current_layer", ui_eyedropper_sample_size_and_current_layer},
       {"ui_eyedropper_sets_option_and_alt_inverts", ui_eyedropper_sets_option_and_alt_inverts},
       {"ui_eyedropper_options_bar_sample_controls", ui_eyedropper_options_bar_sample_controls},
+      {"ui_eyedropper_sample_layers_choices_pick_their_composites",
+       ui_eyedropper_sample_layers_choices_pick_their_composites},
+      {"ui_eyedropper_sample_layers_migrates_legacy_setting", ui_eyedropper_sample_layers_migrates_legacy_setting},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
