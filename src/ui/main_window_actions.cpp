@@ -279,6 +279,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {clone_aligned_check_, QT_TR_NOOP("Aligned")},
       {crop_delete_pixels_check_, QT_TR_NOOP("Delete Cropped Pixels")},
       {crop_delete_layers_check_, QT_TR_NOOP("Delete Off-Canvas Layers")},
+      {perspective_crop_grid_check_, QT_TR_NOOP("Show Grid")},
       {retouch_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {mixer_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {patch_transparent_check_, QT_TR_NOOP("Transparent")},
