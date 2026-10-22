@@ -112,6 +112,8 @@ QImage display_image_from_deep_qimage(const QImage& image, float exposure_stops)
     }
   }
   return display;
+}
+
 QImage grayscale_qimage_from_pixel_buffer(const PixelBuffer& pixels) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 1) {
     return {};
