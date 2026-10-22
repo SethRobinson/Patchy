@@ -1175,6 +1175,110 @@ void ui_custom_shape_stamps_and_defines() {
   }
 }
 
+// Shift, and the options-bar W/H link, keep a custom shape in its own proportions while it
+// is drawn; Alt draws it from the center (a Discord report from Kubuntu: neither kept the
+// heart in proportion). The link leaves the Rectangle tool free.
+void ui_custom_shape_shift_and_link_keep_proportions() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* link_button = window.findChild<QPushButton*>(QStringLiteral("vectorShapeLinkSizeButton"));
+  CHECK(link_button != nullptr);
+
+  require_action(window, "toolCustomShapeAction")->trigger();
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(combo != nullptr);
+  const auto select_shape = [&](const char* id) {
+    const auto index = combo->findData(QString::fromLatin1(id));
+    CHECK(index >= 0);
+    combo->setCurrentIndex(index);
+    QApplication::processEvents();
+  };
+  // The bounds of the shape the last drag drew (Shift at the press adds it to the active
+  // shape layer, so read the newest subpath).
+  const auto last_shape_bounds = [&]() -> std::optional<patchy::VectorPathBounds> {
+    const auto* layer = document.find_layer(*document.active_layer_id());
+    if (layer == nullptr || layer->vector_shape() == nullptr || layer->vector_shape()->path.subpaths.empty()) {
+      return std::nullopt;
+    }
+    patchy::VectorPath last;
+    last.subpaths.push_back(layer->vector_shape()->path.subpaths.back());
+    return last.bounds();
+  };
+  const auto edge_near = [](double a, double b) { return std::abs(a - b) < 0.75; };
+
+  // The link stays usable for Custom Shape before any shape layer exists.
+  CHECK(link_button->isVisible());
+  CHECK(link_button->isEnabled());
+  CHECK(!link_button->isChecked());
+
+  select_shape("shape.builtin.heart");
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 200));
+  auto bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && edge_near(bounds->right - bounds->left, 200.0) &&
+        edge_near(bounds->bottom - bounds->top, 100.0));
+
+  // Shift: the heart is authored 1:1, so it comes out square, sized to the smaller axis.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(400, 100)),
+       canvas->widget_position_for_document_point(QPoint(600, 180)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && edge_near(bounds->left, 400.0) && edge_near(bounds->top, 100.0) &&
+        edge_near(bounds->right - bounds->left, 80.0) && edge_near(bounds->bottom - bounds->top, 80.0));
+
+  // Shift with a narrow shape keeps its own proportions (the bolt is 0.6:1).
+  select_shape("shape.builtin.lightning");
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 300)),
+       canvas->widget_position_for_document_point(QPoint(300, 400)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && edge_near(bounds->right - bounds->left, 60.0) &&
+        edge_near(bounds->bottom - bounds->top, 100.0));
+
+  // Alt draws from the center (the from-center rect is an inclusive pixel rect shared with
+  // Rectangle and Ellipse, so its far edges may land one pixel in).
+  select_shape("shape.builtin.heart");
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(500, 400)),
+       canvas->widget_position_for_document_point(QPoint(540, 420)), Qt::AltModifier);
+  QApplication::processEvents();
+  bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && edge_near(bounds->left, 460.0) && edge_near(bounds->top, 380.0) &&
+        bounds->right > 538.5 && bounds->right < 540.5 && bounds->bottom > 418.5 && bounds->bottom < 420.5);
+
+  // The link on: a plain drag keeps the proportions too, and a new layer is made.
+  const auto layers_before = document.layers().size();
+  link_button->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->custom_shape_keep_proportions());
+  shape_drag(*canvas, QPoint(550, 200), QPoint(750, 260));
+  CHECK(document.layers().size() == layers_before + 1);
+  bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && edge_near(bounds->left, 550.0) && edge_near(bounds->top, 200.0) &&
+        edge_near(bounds->right - bounds->left, 60.0) && edge_near(bounds->bottom - bounds->top, 60.0));
+  // Dragging up and left keeps it square at the press corner (QRect::normalized() moves an
+  // up-left drag's edges one pixel in, as for every shape tool).
+  shape_drag(*canvas, QPoint(700, 560), QPoint(500, 510));
+  bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && bounds->right > 698.5 && bounds->right < 700.5 && bounds->bottom > 558.5 &&
+        bounds->bottom < 560.5 && bounds->right - bounds->left > 47.5 &&
+        edge_near(bounds->right - bounds->left, bounds->bottom - bounds->top));
+
+  // The link leaves the Rectangle tool's drags free.
+  require_action(window, "toolRectangleAction")->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(200, 450), QPoint(400, 510));
+  bounds = last_shape_bounds();
+  CHECK(bounds.has_value() && edge_near(bounds->right - bounds->left, 200.0) &&
+        edge_near(bounds->bottom - bounds->top, 60.0));
+  link_button->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->custom_shape_keep_proportions());
+}
+
 void ui_custom_shape_builtin_geometry_refreshes() {
   // Builtin shape geometry is code-authoritative: a sidecar materialized by
   // an older build (simulated by tampering the stored path into a triangle)
@@ -5497,6 +5601,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_free_transform_shape_with_outside_stroke_lands_on_box},
       {"ui_polygon_tool_creates_polygons_and_stars", ui_polygon_tool_creates_polygons_and_stars},
       {"ui_custom_shape_stamps_and_defines", ui_custom_shape_stamps_and_defines},
+      {"ui_custom_shape_shift_and_link_keep_proportions", ui_custom_shape_shift_and_link_keep_proportions},
       {"ui_custom_shape_builtin_geometry_refreshes", ui_custom_shape_builtin_geometry_refreshes},
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},
       {"ui_shape_appearance_dialog_commits_and_cancels",

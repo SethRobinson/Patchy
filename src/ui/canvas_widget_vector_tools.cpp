@@ -198,6 +198,14 @@ const patchy::VectorPath* CanvasWidget::custom_shape_path() const noexcept {
   return custom_shape_path_.get();
 }
 
+void CanvasWidget::set_custom_shape_keep_proportions(bool keep) noexcept {
+  custom_shape_keep_proportions_ = keep;
+}
+
+bool CanvasWidget::custom_shape_keep_proportions() const noexcept {
+  return custom_shape_keep_proportions_;
+}
+
 // Center-out polygon/star: the first vertex points at the drag cursor.
 PathSubpath CanvasWidget::polygon_drag_subpath(QPointF center, QPointF radius_point) const {
   const auto dx = radius_point.x() - center.x(), dy = radius_point.y() - center.y();

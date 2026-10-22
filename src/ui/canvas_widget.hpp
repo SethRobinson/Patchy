@@ -732,6 +732,10 @@ public:
   [[nodiscard]] int polygon_star_inset() const noexcept;
   void set_custom_shape_path(std::shared_ptr<const patchy::VectorPath> path);
   [[nodiscard]] const patchy::VectorPath* custom_shape_path() const noexcept;
+  // The options-bar W/H link: on, a Custom Shape drag keeps the shape's own
+  // proportions, as Shift does.
+  void set_custom_shape_keep_proportions(bool keep) noexcept;
+  [[nodiscard]] bool custom_shape_keep_proportions() const noexcept;
   [[nodiscard]] bool pen_session_active() const noexcept;
   void commit_pen_path(bool closed);
   void cancel_pen_path();
@@ -2647,6 +2651,7 @@ private:
   int polygon_sides_{5};
   int polygon_star_inset_{0};
   std::shared_ptr<const patchy::VectorPath> custom_shape_path_;
+  bool custom_shape_keep_proportions_{false};
   std::vector<patchy::PathAnchor> pen_anchors_;
   bool pen_session_active_{false};
   bool pen_handle_dragging_{false};

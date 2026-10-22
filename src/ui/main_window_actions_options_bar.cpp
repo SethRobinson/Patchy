@@ -3009,6 +3009,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       const QSignalBlocker blocker(properties_shape_link_size_button_);
       properties_shape_link_size_button_->setChecked(checked);
     }
+    if (canvas_ != nullptr) {
+      canvas_->set_custom_shape_keep_proportions(checked);
+    }
   });
   // Even space on both sides of the toggle (GitHub issue 311, the icon-button rule in
   // docs/options-bar.md): the H label drops its text padding, so its text sits as far from the
