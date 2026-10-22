@@ -1268,12 +1268,13 @@ void ui_custom_shape_shift_and_link_keep_proportions() {
         edge_near(bounds->right - bounds->left, bounds->bottom - bounds->top));
 
   // The link leaves the Rectangle tool's drags free.
-  require_action(window, "toolRectangleAction")->trigger();
+  require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
   shape_drag(*canvas, QPoint(200, 450), QPoint(400, 510));
   bounds = last_shape_bounds();
+  // Within a pixel: the drag end snaps to the up-left heart's top edge (y 511).
   CHECK(bounds.has_value() && edge_near(bounds->right - bounds->left, 200.0) &&
-        edge_near(bounds->bottom - bounds->top, 60.0));
+        bounds->bottom - bounds->top > 59.5 && bounds->bottom - bounds->top < 61.5);
   link_button->setChecked(false);
   QApplication::processEvents();
   CHECK(!canvas->custom_shape_keep_proportions());
