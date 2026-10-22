@@ -479,7 +479,8 @@ EngineNode TextEngineBlock::author_object(const TextEngineInputs& inputs, std::s
   auto view = engine_dict_of({{"4", engine_version_node()},
                               {"5", engine_integer(0)},
                               {"0", engine_list_of({engine_dict_of({{"0", engine_integer(static_cast<long long>(frame_index))}})})},
-                              {"1", engine_dict_of({{"0", std::move(view_runs)}})}});
+                              {"1", engine_dict_of({{"0", std::move(view_runs)}})},
+                              {"2", engine_list()}});
   return engine_dict_of({{"0", std::move(model)}, {"1", std::move(view)}});
 }
 
@@ -521,9 +522,14 @@ void TextEngineBlock::strip_layout_caches() {
   if (list == nullptr) {
     return;
   }
+  // An empty list, not a missing key: Photoshop 2025 (26.9) crashes opening a block whose
+  // objects all lack the /2 key, and recomposes from the model when it is empty (GitHub
+  // issue 341); Photoshop 2026 accepts both.
   for (auto& object : list->list) {
     if (auto* view = object.find("1"); view != nullptr) {
-      view->erase("2");
+      if (const auto* cache = view->find("2"); cache == nullptr || !cache->is_list() || !cache->list.empty()) {
+        view->set("2", engine_list());
+      }
     }
   }
 }

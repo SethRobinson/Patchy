@@ -4,8 +4,8 @@
 // addressed by the layer's TySh TextIndex, which Photoshop trusts over the TySh itself.
 // Patchy parses an existing block (or starts from a Photoshop 2026 template), authors an
 // object for every regenerated type layer from the same runs the TySh gets, keeps untouched
-// objects, and writes the block back without the cached layout trees (Photoshop recomposes
-// from the model; a stale cache is what corrupts). Format and key map: docs/txt2.md.
+// objects, and writes the block back with every cached layout tree emptied (Photoshop
+// recomposes from the model; a stale cache is what corrupts). Format and key map: docs/txt2.md.
 
 #include "psd/engine_data.hpp"
 #include "psd/psd_text_runs.hpp"
@@ -82,7 +82,8 @@ class TextEngineBlock {
   std::size_t set_object(std::size_t index, const TextEngineInputs& inputs);
   // Appends an authored object; returns its index.
   std::size_t append_object(const TextEngineInputs& inputs);
-  // Drops every object's cached layout tree so Photoshop recomposes from the model.
+  // Empties every object's cached layout tree (/1/2 becomes [ ]) so Photoshop recomposes from
+  // the model.
   void strip_layout_caches();
 
   [[nodiscard]] const EngineNode& root() const noexcept { return root_; }

@@ -191,6 +191,9 @@ void text_engine_patchy_born_document_writes_a_block() {
   document.add_layer(patchy_text_layer(document, "Point", "HHHHHHHHHH", false));
   document.add_layer(patchy_text_layer(document, "Box", "First paragraph\nSecond paragraph", true));
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream("test-artifacts/text-engine-patchy-born.psd", std::ios::binary)
+      .write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   const auto payload = text_engine_payload(bytes);
   CHECK(payload.has_value());
   if (!payload.has_value()) {
@@ -220,7 +223,7 @@ void text_engine_patchy_born_document_writes_a_block() {
     CHECK(arial == std::string("ArialMT") || arial == std::string("Arial"));
   }
   // The box object: two paragraphs, the first carrying the indents (document px), Arial 24, the
-  // run color, and a frame with the 400 x 180 path. No layout cache.
+  // run color, and a frame with the 400 x 180 path. An empty layout cache.
   const auto* box = root.at_path({"1", "1", "1"});
   CHECK(box != nullptr);
   if (box == nullptr) {
@@ -255,7 +258,8 @@ void text_engine_patchy_born_document_writes_a_block() {
     CHECK(style->find("8")->raw == "0");
     CHECK(style->at_path({"53", "0", "1", "1"})->raw == ".12549");
   }
-  CHECK(box->at_path({"1", "2"}) == nullptr);
+  CHECK(box->at_path({"1", "2"}) != nullptr && box->at_path({"1", "2"})->is_list() &&
+        box->at_path({"1", "2"})->list.empty());
   CHECK(block->object_frame_index(1) == 1);
   const auto* frame = root.at_path({"0", "8", "0", "1", "0"});
   CHECK(frame != nullptr);
@@ -287,7 +291,7 @@ void text_engine_patchy_born_document_writes_a_block() {
 }
 
 // A Photoshop document with one retyped layer: that layer's object is replaced at its own index
-// (caches stripped everywhere), the untouched layer keeps its object and index, and nothing is
+// (caches emptied everywhere), the untouched layer keeps its object and index, and nothing is
 // appended. A layer whose imported index is stale gets appended instead.
 void text_engine_retyped_layer_replaces_its_object_in_place() {
   const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-tracking.psd");
@@ -325,9 +329,12 @@ void text_engine_retyped_layer_replaces_its_object_in_place() {
   CHECK(block->object_text(1 - index) == original_block->object_text(1 - index));
   CHECK(text_index_of(bytes, static_cast<int>(text_layers[0])) == static_cast<std::int32_t>(index));
   CHECK(text_index_of(bytes, static_cast<int>(text_layers[1])) == static_cast<std::int32_t>(1 - index));
-  // Every object lost its layout cache, the untouched one included.
-  CHECK(block->root().at_path({"1", "1", "0", "1", "2"}) == nullptr);
-  CHECK(block->root().at_path({"1", "1", "1", "1", "2"}) == nullptr);
+  // Every object's layout cache is emptied, the untouched one included, but the key stays:
+  // Photoshop 2025 crashes opening a block whose objects all lack it (GitHub issue 341).
+  for (const auto* object : {"0", "1"}) {
+    const auto* cache = block->root().at_path({"1", "1", object, "1", "2"});
+    CHECK(cache != nullptr && cache->is_list() && cache->list.empty());
+  }
   // The untouched layer's model is byte-identical to Photoshop's.
   CHECK(patchy::psd::serialize_engine_data(*block->root().at_path({"1", "1", std::to_string(1 - index), "0"}), false) ==
         patchy::psd::serialize_engine_data(*original_block->root().at_path({"1", "1", std::to_string(1 - index), "0"}), false));
@@ -514,6 +521,47 @@ void text_engine_area_overflow_and_protected_rasters() {
   CHECK(refused);
 }
 
+// The issue 341 reporter's grayscale document: Photoshop 22.4, 45 type layers. Photoshop 2025
+// (26.9) crashed opening Patchy's save of it because no text object kept its /1/2 cache key;
+// every object, the retyped one and the untouched ones, now carries an empty one.
+void text_engine_issue341_every_object_keeps_a_cache_key_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-341/grayscale photoshop.psd");
+  patchy::test::skip_unless_exists(path);
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::Layer* retyped = nullptr;
+  for (auto& layer : document.layers()) {
+    if (layer.name() == "esprit") {
+      retyped = &layer;
+    }
+  }
+  CHECK(retyped != nullptr);
+  if (retyped == nullptr) {
+    return;
+  }
+  retyped->metadata()[patchy::kLayerMetadataText] = "esprits";
+  retyped->metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream("test-artifacts/issue341-retyped-save.psd", std::ios::binary)
+      .write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  const auto payload = text_engine_payload(bytes);
+  CHECK(payload.has_value());
+  const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+  CHECK(block.has_value() && block->object_count() == 45);
+  if (!block.has_value()) {
+    return;
+  }
+  int retyped_objects = 0;
+  for (std::size_t i = 0; i < block->object_count(); ++i) {
+    const auto* cache = block->root().at_path({"1", "1", std::to_string(i), "1", "2"});
+    CHECK(cache != nullptr && cache->is_list() && cache->list.empty());
+    if (block->object_text(i) == std::string("esprits\r")) {
+      ++retyped_objects;
+    }
+  }
+  CHECK(retyped_objects == 1);
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
       {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
@@ -525,5 +573,7 @@ std::vector<patchy::test::TestCase> text_engine_block_tests() {
       {"text_engine_syntax_parses_and_authors_tokens", text_engine_syntax_parses_and_authors_tokens},
       {"text_engine_patchy_born_document_writes_a_block", text_engine_patchy_born_document_writes_a_block},
       {"text_engine_retyped_layer_replaces_its_object_in_place", text_engine_retyped_layer_replaces_its_object_in_place},
+      {"text_engine_issue341_every_object_keeps_a_cache_key_if_available",
+       text_engine_issue341_every_object_keeps_a_cache_key_if_available},
   };
 }

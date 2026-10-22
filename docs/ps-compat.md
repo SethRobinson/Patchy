@@ -41,9 +41,9 @@ See [photoshop-com.md](photoshop-com.md) (entry point, dialog-mode caveats, comp
 
 - **Photoshop reads type from the document-level `Txt2` block and trusts it over the TySh.**
   The block holds one text object per type layer, addressed by the TySh TextIndex; a stale
-  object silently wins (a layer retyped in Bahnschrift Light read back as Bahnschrift Bold).
+  object silently wins (a Bahnschrift Light retype read back as Bold).
   Patchy rebuilds the block on every save with type layers: an authored object per regenerated type layer,
-  untouched objects kept, no layout caches, so Patchy type opens as native text with no prompt.
+  untouched objects kept, caches emptied to `/2 [ ]` (no `/2` crashes PS 2025), so Patchy type opens as live text.
   Never drop a preserved block: every layer would demote to Photoshop's old-text path. A block
   that fails to parse stays verbatim and regenerated layers take `kRegeneratedTextIndexBase` + n,
   an index no object has, so Photoshop reads them from their TySh (`oldText = true`, the "Some

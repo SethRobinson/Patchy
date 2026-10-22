@@ -3,6 +3,7 @@
 Canonical COM workflow for capturing and verifying against Adobe Photoshop (PS 2026, the ground truth). The PSD write rules those captures pin live in [ps-compat.md](ps-compat.md). Driving Photoshop over COM is always authorized; clicking its dialogs is desktop automation and needs Seth's explicit permission.
 
 Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaScript($jsx)`.
+With several versions installed, `Photoshop.Application` binds to the newest; the versioned ProgIDs pick one (`Photoshop.Application.190` = 2025, `.200` = 2026). COM needs the logged-on desktop session: from an ssh session it fails with CO_E_SERVER_EXEC_FAILURE.
 
 - Learn an encoding: save two PSDs differing in one UI toggle and byte-diff (mask flags bit 0 = unlinked; "use global light" = `uglg` + resources 1037/1049, psd_document_io.cpp).
 - Read back interpretation with Action Manager getters (`executeActionGet` on a layer reference). Compare renders by diffing PS's exported flatten against `Compositor::flatten_rgb8`.
