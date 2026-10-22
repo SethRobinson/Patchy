@@ -7,10 +7,12 @@
 #include "core/pixel_depth.hpp"
 #include "core/pixel_grid.hpp"
 #include "core/rect_utils.hpp"
+#include "core/worker_budget.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <future>
 #include <map>
 #include <mutex>
 #include <tuple>
@@ -1691,23 +1693,47 @@ PixelBuffer paint_coverage(const CoverageBuffer& coverage, const VectorFill& fil
     // center chord of the aligned bounds and a Classic 2-stop ramp eases by
     // the clamped catmull-rom scaled by smoothness (probe5c/5d, PS 27.8).
     const Rect gradient_bounds = fill.gradient.align_with_layer ? aligned_bounds.value_or(coverage.bounds) : canvas;
-    for (std::int32_t y = 0; y < coverage.bounds.height; ++y) {
-      auto* row = out + static_cast<std::size_t>(y) * out_stride;
-      const auto* cov_row = cov + static_cast<std::size_t>(y) * cov_stride;
-      const auto document_y = coverage.bounds.y + y;
-      for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
-        const auto document_x = coverage.bounds.x + x;
-        const auto position = gradient_position(fill.gradient, gradient_bounds, document_x,
-                                                document_y, GradientSpanBasis::CenterChord);
-        const auto color =
-            gradient_color_dithered(fill.gradient, position, document_x, document_y, true);
-        const auto opacity = gradient_stop_opacity(fill.gradient, position, true);
-        row[x * 4 + 0] = color.red;
-        row[x * 4 + 1] = color.green;
-        row[x * 4 + 2] = color.blue;
-        row[x * 4 + 3] = static_cast<std::uint8_t>(
-            std::clamp<long>(std::lround(static_cast<double>(cov_row[x]) * opacity), 0L, 255L));
+    const auto paint_rows = [&](std::int32_t row_begin, std::int32_t row_end) {
+      for (std::int32_t y = row_begin; y < row_end; ++y) {
+        auto* row = out + static_cast<std::size_t>(y) * out_stride;
+        const auto* cov_row = cov + static_cast<std::size_t>(y) * cov_stride;
+        const auto document_y = coverage.bounds.y + y;
+        for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
+          const auto document_x = coverage.bounds.x + x;
+          const auto position = gradient_position(fill.gradient, gradient_bounds, document_x,
+                                                  document_y, GradientSpanBasis::CenterChord);
+          const auto color =
+              gradient_color_dithered(fill.gradient, position, document_x, document_y, true);
+          const auto opacity = gradient_stop_opacity(fill.gradient, position, true);
+          row[x * 4 + 0] = color.red;
+          row[x * 4 + 1] = color.green;
+          row[x * 4 + 2] = color.blue;
+          row[x * 4 + 3] = static_cast<std::uint8_t>(
+              std::clamp<long>(std::lround(static_cast<double>(cov_row[x]) * opacity), 0L, 255L));
+        }
       }
+    };
+    // Every pixel is a pure function of its position, so row strips on workers write the
+    // same bytes. A shape edit re-bakes on each Path Select or Direct Select drag step,
+    // and one thread took about 10 ms for a 280 px square (GitHub #314).
+    constexpr std::int64_t kParallelGradientPixels = 32 * 1024;
+    const auto height = coverage.bounds.height;
+    const int workers = static_cast<std::int64_t>(coverage.bounds.width) * height >= kParallelGradientPixels
+                            ? std::min(max_blocking_fanout_workers(std::clamp(hardware_worker_threads(), 1, 16)),
+                                       std::max(1, height / 16))
+                            : 1;
+    if (workers < 2) {
+      paint_rows(0, height);
+      return pixels;
+    }
+    const auto strip_rows = (height + workers - 1) / workers;
+    std::vector<std::future<void>> strips;
+    for (std::int32_t start = strip_rows; start < height; start += strip_rows) {
+      strips.push_back(std::async(std::launch::async, paint_rows, start, std::min(height, start + strip_rows)));
+    }
+    paint_rows(0, std::min(height, strip_rows));
+    for (auto& strip : strips) {
+      strip.get();
     }
     return pixels;
   }

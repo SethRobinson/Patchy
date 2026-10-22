@@ -8204,10 +8204,6 @@ RGB: %2, %3, %4</translation>
         <translation>Od środka</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>Promienie narożników</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>U góry po lewej:</translation>
     </message>
@@ -11823,6 +11819,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>Moje efekty</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>Kształt:</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>Boki:</translation>
+    </message>
+    <message>
+        <source>Radius:</source>
+        <translation>Promień:</translation>
     </message>
     <message>
         <source>Stroke width (0 for no stroke)</source>

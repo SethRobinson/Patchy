@@ -1,6 +1,9 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/rect_utils.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 #include "core/worker_budget.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
@@ -1853,6 +1856,174 @@ void warp_photo_perf_if_available() {
   }
 }
 
+// GitHub #314: dragging a gradient-filled shape lagged, and on Wayland the app stopped
+// responding for half a minute after the second drag (1280x720 document at 67.64%).
+// The recording drags with Path Select: each mouse move re-baked the shape's gradient
+// and recomposited its region before the next move was read. Synthetic, so it runs
+// anywhere: two rounded-rectangle shapes with a five-stop gradient on a white layer,
+// dragged twice with Path Select and with the Move tool. Each drag times 20 moves with a
+// repaint after each, then a burst of 30 queued moves (a fast pointer while a frame
+// renders), then the release. PATCHY_PERF_GRADIENTDRAG_CASE runs one case.
+void gradient_shape_drag_perf() {
+  ensure_artifact_dir();
+  const auto rounded_gradient_shape = [](patchy::Document& document, const std::string& name, double left,
+                                         double top, double right, double bottom) {
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::RoundedRectangle;
+    params.left = left;
+    params.top = top;
+    params.right = right;
+    params.bottom = bottom;
+    params.corner_radii = {40.0, 40.0, 40.0, 40.0};
+    patchy::VectorShapeContent shape;
+    shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    shape.fill.kind = patchy::VectorFillKind::Gradient;
+    shape.fill.gradient.color_stops = {{0.0F, {22, 24, 28}},
+                                       {0.3F, {90, 96, 112}},
+                                       {0.5F, {240, 242, 250}},
+                                       {0.75F, {150, 152, 160}},
+                                       {1.0F, {30, 32, 38}}};
+    shape.fill.gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+    patchy::Layer layer(document.allocate_layer_id(), name, patchy::LayerKind::Pixel);
+    layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    layer.set_vector_shape(std::move(shape));
+    patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(document.width(), document.height()),
+                                       &std::as_const(document).metadata().patterns);
+    return layer;
+  };
+  struct Result {
+    std::string name;
+    double median_ms{0.0};
+    double burst_ms{0.0};
+    double release_ms{0.0};
+  };
+  std::vector<Result> results;
+  for (const auto tool : {patchy::ui::CanvasTool::PathSelect, patchy::ui::CanvasTool::Move}) {
+    const std::string name = tool == patchy::ui::CanvasTool::PathSelect ? "path_select" : "move";
+    if (const auto only = qEnvironmentVariable("PATCHY_PERF_GRADIENTDRAG_CASE");
+        !only.isEmpty() && only != QString::fromStdString(name)) {
+      continue;
+    }
+    patchy::Document document(1280, 720, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer backdrop(1280, 720, patchy::PixelFormat::rgba8());
+    backdrop.clear(255);
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Background", std::move(backdrop)));
+    document.add_layer(rounded_gradient_shape(document, "Rounded Rectangle 1", 120.0, 100.0, 560.0, 500.0));
+    auto dragged = rounded_gradient_shape(document, "Rounded Rectangle 2", 600.0, 340.0, 880.0, 620.0);
+    const auto dragged_id = dragged.id();
+    const auto bounds_before = dragged.bounds();
+    document.add_layer(std::move(dragged));
+
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    window.show();
+    QApplication::processEvents();
+    window.add_document_session(std::move(document), QStringLiteral("Gradient Drag Perf"));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    const auto settle = [canvas] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    settle();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    for (int row = 0; row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == dragged_id) {
+        layer_list->clearSelection();
+        layer_list->setCurrentItem(item);
+        item->setSelected(true);
+      }
+    }
+    QApplication::processEvents();
+    canvas->set_view_zoom_centered(0.6764);
+    canvas->set_tool(tool);
+    QApplication::processEvents();
+    settle();
+
+    const auto before = canvas->render_cache_diagnostics();
+    std::vector<double> frames;
+    double burst_ms = 0.0;
+    double release_ms = 0.0;
+    // Two drags of the same shape, as in the recording: up and left, then back (about
+    // 440 x 220 document pixels each way at this zoom, staying on the canvas).
+    QPoint position = canvas->widget_position_for_document_point(QPoint(740, 480));
+    for (int drag = 0; drag < 2; ++drag) {
+      const QPoint step = drag == 0 ? QPoint(-6, -3) : QPoint(6, 3);
+      send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+      canvas->repaint();
+      for (int frame = 1; frame <= 20; ++frame) {
+        position += step;
+        frames.push_back(elapsed_ms([&] {
+          send_mouse(*canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+          QApplication::processEvents();
+          canvas->repaint();
+        }));
+      }
+      burst_ms = std::max(burst_ms, elapsed_ms([&] {
+        for (int move = 1; move <= 30; ++move) {
+          position += step;
+          QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                          QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                          Qt::LeftButton, Qt::NoModifier));
+        }
+        QApplication::processEvents();
+        QApplication::processEvents();  // the queued drag apply runs on the next pass
+        canvas->repaint();
+      }));
+      release_ms = std::max(release_ms, elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        canvas->repaint();
+      }));
+      CHECK(canvas->grab().save(
+          QString::fromStdString("test-artifacts/gradient_drag_" + name + "_" + std::to_string(drag + 1) + ".png")));
+    }
+    settle();
+    const auto after = canvas->render_cache_diagnostics();
+    const auto& final_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* moved = final_document.find_layer(dragged_id);
+    CHECK(moved != nullptr);
+    // Both drags travel the same distance, so the shape ends where it started.
+    if (moved != nullptr) {
+      CHECK(std::abs(moved->bounds().x - bounds_before.x) <= 2);
+      CHECK(std::abs(moved->bounds().y - bounds_before.y) <= 2);
+    }
+    auto sorted = frames;
+    std::sort(sorted.begin(), sorted.end());
+    double total = 0.0;
+    for (const auto value : frames) {
+      total += value;
+    }
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] gradientdrag 1280x720 case=" << name
+              << " view_zoom=" << canvas->view_zoom() << " frame_avg_ms=" << total / static_cast<double>(frames.size())
+              << " frame_median_ms=" << sorted[sorted.size() / 2] << " frame_max_ms=" << sorted.back()
+              << " burst30_ms=" << burst_ms << " release_ms=" << release_ms
+              << " path_drag_applies=" << (after.path_drag_applies - before.path_drag_applies)
+              << " proxy_previews=" << (after.move_proxy_previews - before.move_proxy_previews)
+              << " threads=" << patchy::hardware_worker_threads() << '\n';
+    results.push_back(Result{name, sorted[sorted.size() / 2], burst_ms, release_ms});
+  }
+  // Ceilings: a burst over its ceiling means each queued move applies again.
+  constexpr double kFrameCeilingMs = 100.0;
+  constexpr double kBurstCeilingMs = 250.0;
+  constexpr double kReleaseCeilingMs = 1000.0;
+  for (const auto& result : results) {
+    if (result.median_ms >= kFrameCeilingMs || result.burst_ms >= kBurstCeilingMs ||
+        result.release_ms >= kReleaseCeilingMs) {
+      std::cout << "[FAIL] gradientdrag case=" << result.name << " over its ceiling\n";
+    }
+    CHECK(result.median_ms < kFrameCeilingMs);
+    CHECK(result.burst_ms < kBurstCeilingMs);
+    CHECK(result.release_ms < kReleaseCeilingMs);
+  }
+}
+
 // GitHub issue 296: Liquify drag latency on large layers. The workspace edits a proxy
 // whose longest edge is 720 px, so a drag frame should not grow with the layer; Apply
 // renders the full layer once. Drives the real dialog: the open time, each Warp brush
@@ -2228,6 +2399,10 @@ int main(int argc, char* argv[]) {
       warp_photo_perf_if_available();
       return 0;
     }
+    if (argc > 1 && std::string_view(argv[1]) == "gradientdrag") {
+      gradient_shape_drag_perf();
+      return 0;
+    }
     if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
       liquify_drag_perf();
       return 0;
@@ -2257,6 +2432,7 @@ int main(int argc, char* argv[]) {
     masked_layer_rotate_perf();
     warp_drag_perf();
     warp_photo_perf_if_available();
+    gradient_shape_drag_perf();
     liquify_drag_perf();
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';

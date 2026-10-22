@@ -8204,10 +8204,6 @@ RGB: %2, %3, %4</translation>
         <translation>Из центра</translation>
     </message>
     <message>
-        <source>Corner Radii</source>
-        <translation>Угловые радиусы</translation>
-    </message>
-    <message>
         <source>Top left:</source>
         <translation>Вверху слева:</translation>
     </message>
@@ -11823,6 +11819,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>My Looks</source>
         <translation>Мои образы</translation>
+    </message>
+    <message>
+        <source>Shape:</source>
+        <translation>Фигура:</translation>
+    </message>
+    <message>
+        <source>Sides:</source>
+        <translation>Стороны:</translation>
+    </message>
+    <message>
+        <source>Radius:</source>
+        <translation>Радиус:</translation>
     </message>
     <message>
         <source>Stroke width (0 for no stroke)</source>
