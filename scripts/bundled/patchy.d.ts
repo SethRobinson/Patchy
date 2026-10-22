@@ -1043,6 +1043,20 @@ interface PatchyDocument {
   convertBitDepth(bits: 8 | 16 | 32): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
+  /**
+   * Image > Trim: crops the canvas to the composite's content. basedOn picks what is cut
+   * away: "transparent" (alpha 0, the default), or pixels exactly matching the "topLeft" or
+   * "bottomRight" corner pixel. top/bottom/left/right (all true by default) choose the
+   * sides. Returns the kept rectangle in the old canvas coordinates, or null when nothing
+   * was trimmed (no matching edges, or every pixel matches). Throws with artboards.
+   */
+  trim(options?: {
+    basedOn?: "transparent" | "topLeft" | "bottomRight";
+    top?: boolean;
+    bottom?: boolean;
+    left?: boolean;
+    right?: boolean;
+  }): PatchyRect | null;
   /** Saves to the path; the format follows the extension (.psd, .png, ...). The document
    * then points at that file (a layered document saved to a flat format keeps its own
    * path and stays modified, Photoshop's save-a-copy rule). `options` sets the format's

@@ -11766,6 +11766,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>筆畫寬度 (0 表示無筆畫)</translation>
     </message>
+    <message>
+        <source>Trim</source>
+        <translation>修剪</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>根據</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>透明像素</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>左上角像素顏色</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>右下角像素顏色</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>影像沒有透明像素</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>修剪掉</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23778,6 +23822,34 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Show Overlay Only While Dragging</source>
         <translation>僅在拖曳時顯示疊加</translation>
     </message>
+    <message>
+        <source>T&amp;rim...</source>
+        <translation>修剪(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>修掉影像透明或單色的邊緣</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>沒有可修剪的內容：影像沒有可見像素</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>沒有可修剪的內容：整個影像是單一顏色</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>所選的邊沒有可修剪的內容</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>修剪</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>已修剪為 %1 x %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25549,6 +25621,18 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>筆觸需要未鎖定的像素圖層。</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>trim 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim 的 basedOn 必須是 &quot;transparent&quot;、&quot;topLeft&quot; 或 &quot;bottomRight&quot;。</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim 不適用於含有工作區域的文件。</translation>
     </message>
 </context>
 <context>

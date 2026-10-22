@@ -11801,6 +11801,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Épaisseur du contour (0 pour aucun contour)</translation>
     </message>
+    <message>
+        <source>Trim</source>
+        <translation>Rogner</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>D&apos;après</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Pixels transparents</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Couleur du pixel en haut à gauche</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Couleur du pixel en bas à droite</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>L&apos;image n&apos;a aucun pixel transparent</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Supprimer</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Haut</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Bas</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Gauche</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Droite</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23850,6 +23894,34 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Show Overlay Only While Dragging</source>
         <translation>Afficher la superposition seulement pendant le glissement</translation>
     </message>
+    <message>
+        <source>T&amp;rim...</source>
+        <translation>&amp;Rogner...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Supprimer les bords transparents ou d&apos;une seule couleur de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Rien à rogner : l&apos;image n&apos;a aucun pixel visible</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Rien à rogner : toute l&apos;image est d&apos;une seule couleur</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Rien à rogner sur les côtés choisis</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Rogner</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Rogné à %1 x %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25622,6 +25694,18 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>Les traits nécessitent un calque de pixels non verrouillé.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>les options de trim doivent être un objet.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn doit être &quot;transparent&quot;, &quot;topLeft&quot; ou &quot;bottomRight&quot;.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim ne s&apos;applique pas à un document avec des plans de travail.</translation>
     </message>
 </context>
 <context>

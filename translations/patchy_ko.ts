@@ -11766,6 +11766,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>획 너비 (0이면 획 없음)</translation>
     </message>
+    <message>
+        <source>Trim</source>
+        <translation>재단</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>기준</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>투명 픽셀</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>왼쪽 위 픽셀 색상</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>오른쪽 아래 픽셀 색상</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>이미지에 투명 픽셀이 없습니다</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>잘라낼 쪽</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>맨 위</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>맨 아래</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>왼쪽</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>오른쪽</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23778,6 +23822,34 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Show Overlay Only While Dragging</source>
         <translation>드래그하는 동안에만 오버레이 표시</translation>
     </message>
+    <message>
+        <source>T&amp;rim...</source>
+        <translation>재단(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>이미지의 투명하거나 단색인 가장자리를 잘라냅니다</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>재단할 것이 없습니다: 이미지에 보이는 픽셀이 없습니다</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>재단할 것이 없습니다: 이미지 전체가 한 가지 색입니다</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>선택한 쪽에 재단할 것이 없습니다</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>재단</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>%1x%2(으)로 재단했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25549,6 +25621,18 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>스트로크에는 잠금 해제된 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>trim 옵션은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn은 &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot; 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim은 아트보드가 있는 문서에는 적용되지 않습니다.</translation>
     </message>
 </context>
 <context>

@@ -11785,6 +11785,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Stroke width (0 for no stroke)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Trim</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23777,6 +23821,34 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Show Overlay Only While Dragging</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>T&amp;rim...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25548,6 +25620,18 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

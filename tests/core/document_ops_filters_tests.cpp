@@ -4,7 +4,10 @@
 #include "filters/filter_registry.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "filters/smart_filter_renderer.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pixel_tools.hpp"
+#include "formats/document_trim.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
 #include "synthetic_dng.hpp"
@@ -560,6 +563,121 @@ void crop_document_contained_rect_matches_two_arg_overload() {
   const auto expanded_pixels = std::as_const(*expanded.find_layer(active_tool_layer(expanded))).pixels().data();
   CHECK(legacy_pixels.size() == expanded_pixels.size());
   CHECK(std::equal(legacy_pixels.begin(), legacy_pixels.end(), expanded_pixels.begin()));
+}
+
+// The rect trim_bounds keeps (a function, so CHECK sees one argument).
+std::optional<patchy::Rect> trim_kept(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) {
+  return patchy::Rect{x, y, width, height};
+}
+
+// Image > Trim (GitHub issue 297): a transparent canvas with two stickers.
+patchy::Document make_trim_sticker_document() {
+  patchy::Document document(20, 16, patchy::PixelFormat::rgba8());
+  patchy::Layer first(document.allocate_layer_id(), "First", solid_rgba(4, 3, 200, 30, 40, 255));
+  first.set_bounds(patchy::Rect{5, 4, 4, 3});
+  document.add_layer(std::move(first));
+  patchy::Layer second(document.allocate_layer_id(), "Second", solid_rgba(2, 2, 20, 30, 200, 128));
+  second.set_bounds(patchy::Rect{12, 9, 2, 2});
+  document.add_layer(std::move(second));
+  return document;
+}
+
+// A white Background with a red block and a blue band along the bottom two rows.
+patchy::Document make_trim_color_document() {
+  patchy::Document document(20, 16, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(20, 16, 255, 255, 255));
+  patchy::Layer block(document.allocate_layer_id(), "Block", solid_rgba(5, 5, 220, 20, 20, 255));
+  block.set_bounds(patchy::Rect{3, 2, 5, 5});
+  document.add_layer(std::move(block));
+  patchy::Layer band(document.allocate_layer_id(), "Band", solid_rgba(20, 2, 20, 40, 220, 255));
+  band.set_bounds(patchy::Rect{0, 14, 20, 2});
+  document.add_layer(std::move(band));
+  return document;
+}
+
+void trim_bounds_transparent_pixels_and_side_subsets() {
+  const auto document = make_trim_sticker_document();
+  const auto composite = patchy::flatten_document_for_trim(document);
+  CHECK(patchy::trim_composite_has_transparency(composite));
+  const auto basis = patchy::TrimBasis::TransparentPixels;
+  CHECK(patchy::trim_bounds(composite, basis, {}) == trim_kept(5, 4, 9, 7));
+  CHECK(patchy::trim_bounds(composite, basis, {true, false, false, false}) ==
+        trim_kept(0, 4, 20, 12));
+  CHECK(patchy::trim_bounds(composite, basis, {false, true, false, false}) ==
+        trim_kept(0, 0, 20, 11));
+  CHECK(patchy::trim_bounds(composite, basis, {false, false, true, true}) ==
+        trim_kept(5, 0, 9, 16));
+  CHECK(patchy::trim_bounds(composite, basis, {false, false, false, false}) ==
+        trim_kept(0, 0, 20, 16));
+  // The transparent top-left corner matches every transparent pixel too.
+  CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}) ==
+        trim_kept(5, 4, 9, 7));
+
+  auto cropped = document;
+  CHECK(patchy::crop_document(cropped, patchy::Rect{5, 4, 9, 7}));
+  CHECK(cropped.width() == 9);
+  CHECK(cropped.height() == 7);
+  CHECK(patchy::trim_bounds(patchy::flatten_document_for_trim(cropped), basis, {}) ==
+        trim_kept(0, 0, 9, 7));
+}
+
+void trim_bounds_corner_colors_match_exactly() {
+  const auto document = make_trim_color_document();
+  const auto composite = patchy::flatten_document_for_trim(document);
+  CHECK(!patchy::trim_composite_has_transparency(composite));
+  // Top left is white: everything not white is the block and the band.
+  CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}) ==
+        trim_kept(0, 2, 20, 14));
+  // Bottom right is blue: only the band rows go.
+  CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::BottomRightColor, {}) ==
+        trim_kept(0, 0, 20, 14));
+  CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::BottomRightColor, {true, false, true, true}) ==
+        trim_kept(0, 0, 20, 16));
+  CHECK(patchy::parse_trim_basis("topLeft") == std::optional{patchy::TrimBasis::TopLeftColor});
+  CHECK(patchy::parse_trim_basis("bottomRight") == std::optional{patchy::TrimBasis::BottomRightColor});
+  CHECK(patchy::parse_trim_basis("transparent") == std::optional{patchy::TrimBasis::TransparentPixels});
+  CHECK(!patchy::parse_trim_basis("TopLeft").has_value());
+}
+
+void trim_bounds_uniform_images_leave_nothing() {
+  patchy::Document flat(12, 9, patchy::PixelFormat::rgb8());
+  flat.add_pixel_layer("Background", solid_rgb(12, 9, 40, 50, 60));
+  const auto flat_composite = patchy::flatten_document_for_trim(flat);
+  CHECK(!patchy::trim_bounds(flat_composite, patchy::TrimBasis::TopLeftColor, {}).has_value());
+  CHECK(!patchy::trim_bounds(flat_composite, patchy::TrimBasis::BottomRightColor, {}).has_value());
+
+  patchy::Document empty(12, 9, patchy::PixelFormat::rgba8());
+  empty.add_pixel_layer("Layer 1", solid_rgba(12, 9, 0, 0, 0, 0));
+  const auto empty_composite = patchy::flatten_document_for_trim(empty);
+  CHECK(patchy::trim_composite_has_transparency(empty_composite));
+  CHECK(!patchy::trim_bounds(empty_composite, patchy::TrimBasis::TransparentPixels, {}).has_value());
+}
+
+// 16 and 32-bit documents trim on the composite at their depth: a red value one 16-bit
+// step below white (the same byte at 8 bits) still counts as a different color.
+void trim_bounds_deep_documents_compare_at_depth() {
+  for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    auto stickers = make_trim_sticker_document();
+    patchy::convert_document_depth(stickers, depth);
+    const auto sticker_composite = patchy::flatten_document_for_trim(stickers);
+    CHECK(sticker_composite.format().bit_depth == depth);
+    CHECK(patchy::trim_bounds(sticker_composite, patchy::TrimBasis::TransparentPixels, {}) ==
+          trim_kept(5, 4, 9, 7));
+
+    auto colors = make_trim_color_document();
+    patchy::convert_document_depth(colors, depth);
+    CHECK(patchy::trim_bounds(patchy::flatten_document_for_trim(colors), patchy::TrimBasis::BottomRightColor, {}) ==
+          trim_kept(0, 0, 20, 14));
+  }
+
+  patchy::Document near_white(12, 9, patchy::PixelFormat::rgb8());
+  const auto background_id = near_white.add_pixel_layer("Background", solid_rgb(12, 9, 255, 255, 255)).id();
+  patchy::convert_document_depth(near_white, patchy::BitDepth::UInt16);
+  auto& pixels = near_white.find_layer(background_id)->pixels();
+  const std::array<float, 4> pixel{255.0F - 1.0F / 257.0F, 255.0F, 255.0F, 255.0F};
+  patchy::store_rgba_row(pixels, 6, 7, 1, patchy::DeepDomain::Encoded, pixel);
+  CHECK(patchy::trim_bounds(patchy::flatten_document_for_trim(near_white), patchy::TrimBasis::TopLeftColor, {}) ==
+        trim_kept(7, 6, 1, 1));
 }
 
 void document_image_resize_scales_layers_and_writes_artifact() {
@@ -3203,6 +3321,10 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"crop_document_rotated_rect_straightens_content", crop_document_rotated_rect_straightens_content},
       {"crop_document_contained_rect_matches_two_arg_overload",
        crop_document_contained_rect_matches_two_arg_overload},
+      {"trim_bounds_transparent_pixels_and_side_subsets", trim_bounds_transparent_pixels_and_side_subsets},
+      {"trim_bounds_corner_colors_match_exactly", trim_bounds_corner_colors_match_exactly},
+      {"trim_bounds_uniform_images_leave_nothing", trim_bounds_uniform_images_leave_nothing},
+      {"trim_bounds_deep_documents_compare_at_depth", trim_bounds_deep_documents_compare_at_depth},
       {"document_image_resize_scales_layers_and_writes_artifact",
        document_image_resize_scales_layers_and_writes_artifact},
       {"document_rotate_clockwise_changes_canvas_and_writes_artifact",

@@ -11766,6 +11766,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>線の太さ (0 で線なし)</translation>
     </message>
+    <message>
+        <source>Trim</source>
+        <translation>トリミング</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>基準</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>透明ピクセル</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>左上のピクセルカラー</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>右下のピクセルカラー</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>画像に透明ピクセルがありません</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>トリミングする側</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23778,6 +23822,34 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Show Overlay Only While Dragging</source>
         <translation>ドラッグ中のみオーバーレイを表示</translation>
     </message>
+    <message>
+        <source>T&amp;rim...</source>
+        <translation>トリミング(&amp;R)...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>画像の透明な端または単色の端を切り取ります</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>トリミングするものがありません: 画像に表示されるピクセルがありません</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>トリミングするものがありません: 画像全体が 1 色です</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>選択した辺にトリミングするものがありません</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>トリミング</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>%1 x %2 にトリミングしました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25549,6 +25621,18 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>ストロークにはロックされていないピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>trim のオプションはオブジェクトである必要があります。</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim の basedOn は &quot;transparent&quot;、&quot;topLeft&quot;、&quot;bottomRight&quot; のいずれかである必要があります。</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim はアートボードのあるドキュメントには使えません。</translation>
     </message>
 </context>
 <context>

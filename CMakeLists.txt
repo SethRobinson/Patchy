@@ -574,6 +574,7 @@ add_library(patchy_formats
   src/formats/aseprite_document_io.cpp
   src/formats/bmp_document_io.cpp
   src/formats/document_flatten.cpp
+  src/formats/document_trim.cpp
   src/formats/font_zip.cpp
   src/formats/format_file_io.cpp
   src/formats/format_registry.cpp

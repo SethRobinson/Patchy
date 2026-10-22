@@ -1533,6 +1533,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       QT_TR_NOOP("Open Canvas Size prefilled with the selection so the crop can be adjusted before it is applied"));
   apply_bound_translation(crop_advanced_action);
   {
+    // Image > Trim... (GitHub issue 297).
+    auto* trim_action = image_menu->addAction(QString());
+    trim_action->setObjectName(QStringLiteral("imageTrimAction"));
+    bind_action_text(trim_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "T&rim..."));
+    bind_translated_status_tip(
+        trim_action, QT_TR_NOOP("Crop away the transparent or single-color edges of the image"));
+    apply_bound_translation(trim_action);
+    trim_action->setIcon(simple_icon(QStringLiteral("crop")));
+    register_hotkey(trim_action, QStringLiteral("image.trim"));
+    connect(trim_action, &QAction::triggered, this, [this] { trim_canvas_dialog(); });
+    register_document_action(trim_action);
+  }
+  {
     auto* fit_artboards_action = image_menu->addAction(QString());
     fit_artboards_action->setObjectName(QStringLiteral("imageFitCanvasToArtboardsAction"));
     bind_action_text(fit_artboards_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fit Canvas to A&rtboards"));

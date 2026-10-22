@@ -11801,6 +11801,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Largura do traço (0 para nenhum traço)</translation>
     </message>
+    <message>
+        <source>Trim</source>
+        <translation>Aparar</translation>
+    </message>
+    <message>
+        <source>Based On</source>
+        <translation>Com base em</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Pixels transparentes</translation>
+    </message>
+    <message>
+        <source>Top Left Pixel Color</source>
+        <translation>Cor do pixel superior esquerdo</translation>
+    </message>
+    <message>
+        <source>Bottom Right Pixel Color</source>
+        <translation>Cor do pixel inferior direito</translation>
+    </message>
+    <message>
+        <source>The image has no transparent pixels</source>
+        <translation>A imagem não tem pixels transparentes</translation>
+    </message>
+    <message>
+        <source>Trim Away</source>
+        <translation>Aparar</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Superior</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Inferior</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Esquerda</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Direita</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23850,6 +23894,34 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>Show Overlay Only While Dragging</source>
         <translation>Mostrar a sobreposição só ao arrastar</translation>
     </message>
+    <message>
+        <source>T&amp;rim...</source>
+        <translation>Apa&amp;rar...</translation>
+    </message>
+    <message>
+        <source>Crop away the transparent or single-color edges of the image</source>
+        <translation>Remove as bordas transparentes ou de uma só cor da imagem</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the image has no visible pixels</source>
+        <translation>Nada para aparar: a imagem não tem pixels visíveis</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: the whole image is one color</source>
+        <translation>Nada para aparar: a imagem inteira é de uma cor</translation>
+    </message>
+    <message>
+        <source>Nothing to trim on the chosen sides</source>
+        <translation>Nada para aparar nos lados escolhidos</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Aparar</translation>
+    </message>
+    <message>
+        <source>Trimmed to %1 x %2</source>
+        <translation>Aparado para %1 x %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25622,6 +25694,18 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Strokes require an unlocked pixel layer.</source>
         <translation>Os traços requerem uma camada de pixels desbloqueada.</translation>
+    </message>
+    <message>
+        <source>trim options must be an object.</source>
+        <translation>as opções de trim devem ser um objeto.</translation>
+    </message>
+    <message>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn deve ser &quot;transparent&quot;, &quot;topLeft&quot; ou &quot;bottomRight&quot;.</translation>
+    </message>
+    <message>
+        <source>trim does not apply to a document with artboards.</source>
+        <translation>trim não se aplica a um documento com pranchetas.</translation>
     </message>
 </context>
 <context>

@@ -8,6 +8,13 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-22 (additive): `doc.trim({basedOn, top, bottom, left, right})`, Image > Trim in one
+call (GitHub issue 297): `basedOn` is `"transparent"` (default), `"topLeft"` or `"bottomRight"`,
+the sides default to true; returns the kept rect in the old canvas coordinates or null when
+nothing was trimmed; throws for a document with artboards or an unknown `basedOn`. Permanent
+identifiers: the method name, the option keys and the three `basedOn` ids (also the settings
+value of `trim/basedOn`), and command id `image.trim`. Pinned by `ui_script_trim`.
+
 2026-10-21 (behavioral): `layer.drawStrokes` and `layer.strokePath` accept 16 and 32-bit pixel
 layers (they refused anything but 8 bits); the strokes run through the canvas brush, which paints
 at the layer's depth. The refusal now reads "Strokes require an unlocked pixel layer."
