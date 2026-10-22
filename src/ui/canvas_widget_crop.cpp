@@ -236,6 +236,14 @@ void CanvasWidget::begin_default_crop_session() {
   notify_crop_session_changed();
 }
 
+void CanvasWidget::set_crop_keep_proportions(bool keep) noexcept {
+  crop_keep_proportions_ = keep;
+}
+
+bool CanvasWidget::crop_keep_proportions() const noexcept {
+  return crop_keep_proportions_;
+}
+
 void CanvasWidget::follow_selection_into_crop_session() {
   if (tool_ != CanvasTool::Crop || !crop_session_active_ || crop_dragging_out_ || crop_rotating_ ||
       crop_drag_handle_ != TransformHandle::None) {
@@ -495,12 +503,15 @@ void CanvasWidget::update_crop_adjust_drag(QPointF document_point, Qt::KeyboardM
                             crop_drag_handle_ == TransformHandle::BottomRight;
   const auto corner = (moves_left || moves_right) && (moves_top || moves_bottom);
 
-  // A set ratio always constrains; otherwise Shift on a corner holds the
-  // drag-start aspect. (This is a drag-rect tool, not a transform session, so
-  // transform_drag_keeps_aspect deliberately does not apply.)
+  // A set ratio always constrains; otherwise Size style's link (any handle) or
+  // Shift on a corner holds the drag-start aspect (GitHub issue 332). (This is a
+  // drag-rect tool, not a transform session, so transform_drag_keeps_aspect
+  // deliberately does not apply.)
   double target_ratio = 0.0;
   if (crop_ratio_w_ > 0.0 && crop_ratio_h_ > 0.0) {
     target_ratio = crop_ratio_w_ / crop_ratio_h_;
+  } else if (crop_keep_proportions_ && start.height() > 0) {
+    target_ratio = static_cast<double>(start.width()) / start.height();
   } else if (corner && (modifiers & Qt::ShiftModifier) != 0 && start.height() > 0) {
     target_ratio = static_cast<double>(start.width()) / start.height();
   }

@@ -13472,6 +13472,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Lazo poligonale</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Seleziona un livello per campionarlo insieme ai livelli sottostanti, oppure campiona tutti i livelli</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22711,10 +22715,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Livello attivo</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Preleva dall&apos;immagine unita o solo dal livello attivo</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Rimuovi dalle cartelle recenti</translation>
     </message>
@@ -23757,6 +23757,22 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Spessore traccia (0 per nessuna traccia)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Attivo e sottostanti</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Tutti i livelli senza regolazioni</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Attivo e sottostanti senza regolazioni</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Quali livelli legge il campionamento: il livello attivo, questo e i livelli sottostanti, o l&apos;immagine unita, facoltativamente senza livelli di regolazione</translation>
     </message>
     <message>
         <source>Show Sample Ring</source>

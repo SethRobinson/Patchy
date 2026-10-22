@@ -13437,6 +13437,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>다각형 올가미</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>레이어를 선택해 그 레이어와 아래 레이어에서 샘플링하거나 모든 레이어에서 샘플링하세요</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22643,10 +22647,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>현재 레이어</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>병합된 이미지 또는 활성 레이어에서만 색상을 가져옵니다</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>최근 폴더에서 제거</translation>
     </message>
@@ -23685,6 +23685,22 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>획 너비 (0이면 획 없음)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>현재 및 아래</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>모든 레이어 (조정 제외)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>현재 및 아래 (조정 제외)</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>스포이트가 읽는 레이어: 활성 레이어, 그 레이어와 아래 레이어, 또는 병합된 이미지이며 조정 레이어를 뺄 수도 있습니다</translation>
     </message>
     <message>
         <source>Show Sample Ring</source>

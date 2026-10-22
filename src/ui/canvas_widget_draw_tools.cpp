@@ -1499,7 +1499,7 @@ void CanvasWidget::pick_color(QPoint point) {
 
   const QRect area =
       eyedropper_sample_rect(point, eyedropper_sample_size_, QSize(document_->width(), document_->height()));
-  if (!eyedropper_sample_all_layers_) {
+  if (eyedropper_sample_layers_ == SampleLayers::CurrentLayer) {
     // Current Layer: the active layer's own pixels (mask and opacity folded into
     // alpha). A transparent spot leaves the color as it was, as in Photoshop.
     const Layer* layer = active_pixel_layer();
@@ -1513,6 +1513,24 @@ void CanvasWidget::pick_color(QPoint point) {
     if (const auto color = average_sample_color(active_layer_sample_region(*layer, area)); color.has_value()) {
       set_picked_color(*color);
     }
+    return;
+  }
+  if (eyedropper_sample_layers_ != SampleLayers::AllLayers) {
+    // Current & Below and the No Adjustments choices (GitHub issue 321): the compositor
+    // renders only the sample square with the excluded layers hidden, so a pick costs
+    // that square, never a full composite. The exclusion list is a walk of the layer tree.
+    const auto& document = std::as_const(*document_);
+    const auto excluded =
+        sample_layers_excluded_ids(document.layers(), document.active_layer_id(), eyedropper_sample_layers_);
+    if (!excluded.has_value()) {
+      if (!color_pick_layer_warned_) {
+        color_pick_layer_warned_ = true;
+        report_status_error(tr("Select a layer to sample it and the layers below, or sample all layers"));
+      }
+      return;
+    }
+    const auto image = qimage_from_document_rect_with_hidden_layers(document, area, true, *excluded);
+    set_picked_color(average_sample_color(image).value_or(QColor(Qt::transparent)));
     return;
   }
   if (area.width() == 1 && area.height() == 1) {

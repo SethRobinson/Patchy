@@ -2363,6 +2363,8 @@ private:
   // The ratio the canvas should constrain with under the current crop style.
   [[nodiscard]] double effective_crop_ratio_width() const noexcept;
   [[nodiscard]] double effective_crop_ratio_height() const noexcept;
+  // Size style with its link button down: handle drags keep the box's proportion.
+  [[nodiscard]] bool crop_size_link_active() const noexcept;
   void apply_crop_style(int style);
   // A Size-mode field committed `value` px for one axis; the linked axis follows
   // the box's current proportion when the link button is down.
@@ -3118,7 +3120,7 @@ private:
   SpongeMode current_sponge_mode_{SpongeMode::Desaturate};
   bool current_sponge_vibrance_{true};
   int current_eyedropper_sample_size_{1};
-  bool current_eyedropper_sample_all_layers_{true};
+  SampleLayers current_eyedropper_sample_layers_{SampleLayers::AllLayers};
   bool current_eyedropper_picks_background_{false};
   bool current_eyedropper_show_sample_ring_{true};
   bool view_rulers_visible_{false};

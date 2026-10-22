@@ -13456,6 +13456,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Polygonal Lasso</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22638,10 +22642,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23683,6 +23683,22 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Stroke width (0 for no stroke)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

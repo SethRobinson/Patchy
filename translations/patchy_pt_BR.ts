@@ -13472,6 +13472,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Laço Poligonal</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Selecione uma camada para amostrá-la junto com as camadas abaixo, ou faça a amostra de todas as camadas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22711,10 +22715,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Camada atual</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Coletar da imagem mesclada ou somente da camada ativa</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Remover das pastas recentes</translation>
     </message>
@@ -23757,6 +23757,22 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Largura do traço (0 para nenhum traço)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Atual e abaixo</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Todas as camadas sem ajustes</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Atual e abaixo sem ajustes</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Quais camadas a amostra lê: a camada ativa, ela e as camadas abaixo, ou a imagem mesclada, opcionalmente sem camadas de ajuste</translation>
     </message>
     <message>
         <source>Show Sample Ring</source>
