@@ -1411,7 +1411,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       return;
     }
     current_crop_overlay_ = index;
-    apply_crop_overlay_options();
+    apply_crop_guide_options();
     schedule_save_tool_settings();
   });
   crop_overlay_orientation_button_ = new QToolButton(toolbar);
@@ -1427,7 +1427,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(crop_overlay_orientation_button_, {CanvasTool::Crop});
   connect(crop_overlay_orientation_button_, &QToolButton::clicked, this, [this] {
     current_crop_overlay_orientation_ = (current_crop_overlay_orientation_ + 1) % 4;
-    apply_crop_overlay_options();
+    apply_crop_guide_options();
     schedule_save_tool_settings();
   });
   crop_overlay_options_button_ = new QToolButton(toolbar);
@@ -1454,7 +1454,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       show_group->addAction(action);
       connect(action, &QAction::triggered, this, [this, while_dragging] {
         current_crop_overlay_while_dragging_ = while_dragging;
-        apply_crop_overlay_options();
+        apply_crop_guide_options();
         schedule_save_tool_settings();
       });
       return action;
@@ -1466,7 +1466,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     crop_overlay_options_button_->setMenu(overlay_menu);
   }
   add_option_widget(crop_overlay_options_button_, {CanvasTool::Crop});
-  apply_crop_overlay_options();
+  apply_crop_guide_options();
   // Canvas Size's two layer options, as Photoshop's "Delete Cropped Pixels"
   // (on by default there too) plus Patchy's own off-canvas layer delete.
   crop_delete_pixels_check_ = new CheckGlyphBox(tr("Delete Cropped Pixels"), toolbar);

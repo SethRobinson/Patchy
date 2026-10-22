@@ -2362,8 +2362,8 @@ private:
   void apply_crop_style(int style);
   // Pushes the overlay mirrors to the active canvas and syncs the overlay
   // controls (the turn button only for Triangle and Golden Spiral).
-  void apply_crop_overlay_options();
-  void sync_crop_overlay_buttons_enabled(bool edit_allowed);
+  void apply_crop_guide_options();
+  void sync_crop_guide_buttons_enabled(bool edit_allowed);
   // A Size-mode field committed `value` px for one axis; the linked axis follows
   // the box's current proportion when the link button is down.
   void handle_crop_size_value_changed(bool horizontal, int value);

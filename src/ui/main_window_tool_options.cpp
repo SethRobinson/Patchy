@@ -2104,7 +2104,7 @@ void MainWindow::load_tool_settings() {
       std::clamp(settings.value(QStringLiteral("tools/cropOverlayOrientation"), 0).toInt(), 0, 3);
   current_crop_overlay_while_dragging_ =
       settings.value(QStringLiteral("tools/cropOverlayShow")).toString() == QStringLiteral("dragging");
-  apply_crop_overlay_options();
+  apply_crop_guide_options();
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
   // Transparent reads as "the tool is broken" a session later. The retired
@@ -2772,7 +2772,7 @@ void MainWindow::handle_crop_size_value_changed(bool horizontal, int value) {
   canvas_->set_crop_session_size(size);  // notifies, which re-syncs both fields
 }
 
-void MainWindow::sync_crop_overlay_buttons_enabled(bool edit_allowed) {
+void MainWindow::sync_crop_guide_buttons_enabled(bool edit_allowed) {
   // The turn only means something for the Triangle and the Golden Spiral, the
   // "..." menu nothing under None (GitHub issue 325).
   const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
@@ -2785,7 +2785,7 @@ void MainWindow::sync_crop_overlay_buttons_enabled(bool edit_allowed) {
   }
 }
 
-void MainWindow::apply_crop_overlay_options() {
+void MainWindow::apply_crop_guide_options() {
   const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
   if (canvas_ != nullptr) {
     canvas_->set_crop_overlay(overlay, current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
@@ -2794,7 +2794,7 @@ void MainWindow::apply_crop_overlay_options() {
     const QSignalBlocker blocker(crop_overlay_combo_);
     crop_overlay_combo_->setCurrentIndex(current_crop_overlay_);
   }
-  sync_crop_overlay_buttons_enabled(has_active_document() && !preview_dialog_edit_locked());
+  sync_crop_guide_buttons_enabled(has_active_document() && !preview_dialog_edit_locked());
   for (const auto& [action, checked] :
        {std::pair{crop_overlay_show_always_action_, !current_crop_overlay_while_dragging_},
         std::pair{crop_overlay_show_while_dragging_action_, current_crop_overlay_while_dragging_}}) {
@@ -3208,7 +3208,7 @@ void MainWindow::refresh_options_bar() {
       button->setEnabled(edit_allowed && crop_has_changes);
     }
   }
-  sync_crop_overlay_buttons_enabled(edit_allowed);
+  sync_crop_guide_buttons_enabled(edit_allowed);
   if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker blocker(patch_mode_combo_);
     patch_mode_combo_->setCurrentIndex(
