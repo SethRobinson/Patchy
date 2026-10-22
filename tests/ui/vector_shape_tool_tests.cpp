@@ -2679,6 +2679,166 @@ void ui_pen_ctrl_drag_moves_in_progress_session_anchor() {
   CHECK(std::abs(anchors[1].out_x - 340.0) < 1.5);
 }
 
+// Ctrl with a shape tool is a temporary Path Select (GitHub issue 312): the arrow
+// cursor, click or marquee selects and deselects whole shapes, a drag moves the
+// selected shape as one undo step, and the next plain drag draws again.
+void ui_shape_tool_ctrl_acts_as_path_select() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // 100,100 - 300,220
+  shape_drag(*canvas, QPoint(400, 300), QPoint(500, 380));
+  const auto second_id = document.active_layer_id();
+  CHECK(second_id.has_value() && *second_id != first_id);
+  const auto layer_count = document.layers().size();
+  canvas->setFocus();
+
+  const auto widget = [&](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto ctrl_drag = [&](QPoint from, QPoint to) {
+    drag(*canvas, widget(from), widget(to), Qt::ControlModifier);
+    QApplication::processEvents();
+  };
+  const auto path_select_image = patchy::ui::path_select_cursor().pixmap().toImage();
+
+  // Ctrl with a stationary pointer shows the Path Select arrow, and releasing it
+  // gives the drawing cursor back.
+  send_mouse(*canvas, QEvent::MouseMove, widget(QPoint(600, 450)), Qt::NoButton, Qt::NoButton,
+             Qt::NoModifier);
+  const auto drawing_image = canvas->cursor().pixmap().toImage();
+  CHECK(drawing_image != path_select_image);
+  send_key_press(*canvas, Qt::Key_Control, Qt::NoModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == path_select_image);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == drawing_image);
+  // A hover move carrying Ctrl shows it too.
+  send_mouse(*canvas, QEvent::MouseMove, widget(QPoint(610, 450)), Qt::NoButton, Qt::NoButton,
+             Qt::ControlModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == path_select_image);
+  send_mouse(*canvas, QEvent::MouseMove, widget(QPoint(600, 450)), Qt::NoButton, Qt::NoButton,
+             Qt::NoModifier);
+
+  // Ctrl+click inside the other shape picks its layer and selects the shape; nothing is drawn.
+  ctrl_drag(QPoint(200, 160), QPoint(200, 160));
+  CHECK(document.active_layer_id() == first_id);
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(document.layers().size() == layer_count);
+  CHECK(document.find_layer(first_id)->vector_shape()->path.subpaths.size() == 1);
+  save_widget_artifact("ui_shape_tool_ctrl_acts_as_path_select", window);
+
+  // Ctrl+click on empty canvas deselects.
+  ctrl_drag(QPoint(650, 80), QPoint(650, 80));
+  CHECK(!canvas->path_edit_has_selection());
+
+  // A Ctrl marquee touching the shape selects it.
+  ctrl_drag(QPoint(50, 50), QPoint(150, 150));
+  CHECK(canvas->path_edit_has_selection());
+  ctrl_drag(QPoint(650, 80), QPoint(650, 80));
+  CHECK(!canvas->path_edit_has_selection());
+
+  // Ctrl+drag on the shape moves it by (50, 30).
+  ctrl_drag(QPoint(200, 160), QPoint(250, 190));
+  const auto* content = document.find_layer(first_id)->vector_shape();
+  CHECK(content->path.subpaths.size() == 1);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 150.0) < 1.0);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_y - 130.0) < 1.0);
+  CHECK(document.layers().size() == layer_count);
+
+  // The move is one history entry.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  content = document.find_layer(first_id)->vector_shape();
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 100.0) < 0.5);
+  CHECK(document.layers().size() == layer_count);
+
+  // Without Ctrl the tool draws a new shape layer again.
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(420, 60), QPoint(520, 140));
+  CHECK(document.layers().size() == layer_count + 1);
+}
+
+// Shift held at a shape tool's press adds that one shape to the targeted shape layer, even
+// a different kind of shape (GitHub issue 313); the drag still constrains, the options-bar
+// Combine setting stays New Layer, and the add is one undo step.
+void ui_shape_tool_shift_press_adds_to_shape_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* combine_combo = window.findChild<QComboBox*>(QStringLiteral("vectorCombineCombo"));
+  CHECK(combine_combo != nullptr);
+  const auto layers_at_start = document.layers().size();
+  const auto bounds_of = [](const patchy::PathSubpath& subpath) {
+    double left = 1e9;
+    double top = 1e9;
+    double right = -1e9;
+    double bottom = -1e9;
+    for (const auto& anchor : subpath.anchors) {
+      left = std::min(left, anchor.anchor_x);
+      top = std::min(top, anchor.anchor_y);
+      right = std::max(right, anchor.anchor_x);
+      bottom = std::max(bottom, anchor.anchor_y);
+    }
+    return QRectF(QPointF(left, top), QPointF(right, bottom));
+  };
+
+  // No shape layer targeted: Shift at the press makes a new layer as before, constrained.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(300, 220)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_at_start + 1);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  {
+    const auto& path = document.find_layer(*layer_id)->vector_shape()->path;
+    CHECK(path.subpaths.size() == 1);
+    const auto square = bounds_of(path.subpaths[0]);
+    CHECK(square.width() > 50.0);
+    CHECK(std::abs(square.width() - square.height()) < 1.0);
+  }
+
+  // The shape layer is targeted: Shift at an Ellipse press adds a circle to it.
+  canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  CHECK(combine_combo->currentIndex() == 0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(400, 250)),
+       canvas->widget_position_for_document_point(QPoint(520, 320)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_at_start + 1);
+  CHECK(document.active_layer_id() == layer_id);
+  {
+    const auto* content = document.find_layer(*layer_id)->vector_shape();
+    CHECK(content->path.subpaths.size() == 2);
+    CHECK(content->path.subpaths[1].op == patchy::PathCombineOp::Add);
+    CHECK(content->path.subpaths[1].shape_group != content->path.subpaths[0].shape_group);
+    const auto circle = bounds_of(content->path.subpaths[1]);
+    CHECK(circle.left() >= 399.0);
+    CHECK(std::abs(circle.width() - circle.height()) < 1.0);
+    CHECK(content->origination.size() == 2);
+    CHECK(content->origination[1].kind == patchy::LiveShapeKind::Ellipse);
+  }
+  CHECK(combine_combo->currentIndex() == 0);
+  save_widget_artifact("ui_shape_tool_shift_press_adds_to_shape_layer", window);
+
+  // One undo step takes the added shape back off the layer.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_at_start + 1);
+  CHECK(document.find_layer(*layer_id)->vector_shape()->path.subpaths.size() == 1);
+
+  // The Combine setting never changed: a plain drag still makes a new layer.
+  shape_drag(*canvas, QPoint(400, 250), QPoint(520, 320));
+  CHECK(document.layers().size() == layers_at_start + 2);
+  CHECK(document.find_layer(*layer_id)->vector_shape()->path.subpaths.size() == 1);
+}
+
 void ui_pen_session_start_shows_hint_message() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -5314,6 +5474,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws},
       {"ui_pen_ctrl_drag_moves_in_progress_session_anchor",
        ui_pen_ctrl_drag_moves_in_progress_session_anchor},
+      {"ui_shape_tool_ctrl_acts_as_path_select", ui_shape_tool_ctrl_acts_as_path_select},
+      {"ui_shape_tool_shift_press_adds_to_shape_layer",
+       ui_shape_tool_shift_press_adds_to_shape_layer},
       {"ui_pen_session_start_shows_hint_message", ui_pen_session_start_shows_hint_message},
       {"ui_vector_mode_combo_disables_pixels_for_vector_only_tools",
        ui_vector_mode_combo_disables_pixels_for_vector_only_tools},

@@ -685,6 +685,10 @@ public:
   [[nodiscard]] VectorToolMode vector_tool_mode() const noexcept;
   void set_vector_shape_drawn_callback(
       std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> callback);
+  // True while a shape drag pressed with Shift commits (GitHub issue 313): the host
+  // adds that one shape to the targeted shape layer (Combine: Add) without
+  // changing the options-bar Combine setting.
+  [[nodiscard]] bool shape_drag_adds_to_shape() const noexcept { return shape_press_adds_to_shape_; }
   // A bare click (no drag) with Rectangle/Ellipse/Polygon/Custom Shape in a
   // vector mode asks the host for dimensions instead of committing a
   // degenerate shape (Photoshop's Create <Shape> dialog; the click point is
@@ -790,6 +794,11 @@ public:
   // deletes, prunes); MainWindow refreshes the options-bar selected-point
   // count from it.
   void set_path_selection_changed_callback(std::function<void()> callback);
+  // Invoked when a Delete under the path tools removed the last subpath of one
+  // or more shape layers (GitHub issue 315). The path edit's undo entry is still
+  // open: MainWindow removes those layers inside it, so one Undo brings each
+  // layer back with its path.
+  void set_shape_layers_emptied_callback(std::function<void(const std::vector<LayerId>&)> callback);
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
@@ -1905,6 +1914,9 @@ private:
   [[nodiscard]] PathHoverTarget path_hover_target_at(QPointF widget_point) const;
   void update_path_select_hover_hint(PathHoverTarget target);
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
+  // Ctrl with a shape tool acts as Path Select (GitHub issue 312).
+  bool handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point);
+  void set_shape_ctrl_path_select(bool active);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
   [[nodiscard]] bool path_edit_tool_active() const noexcept;
@@ -1915,7 +1927,8 @@ private:
   // own path only under a shape tool. Show Target Path, Ctrl+H and a pen session still apply.
   [[nodiscard]] bool target_path_outline_tool_allows() const;
   // The tool the path-edit handlers should behave as: DirectSelect while the
-  // Pen's Ctrl latch is held, the actual tool otherwise.
+  // Pen's Ctrl latch is held, PathSelect while a shape tool's Ctrl is, the
+  // actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
   // What owns the target path (vector mask, document path, text area, shape layer, or the
@@ -2627,6 +2640,8 @@ private:
   QPoint shape_current_{};
   bool shape_square_constrained_{false};
   bool shape_from_center_{false};
+  // Shift held at the shape press: set per press, cleared once the release commits.
+  bool shape_press_adds_to_shape_{false};
   MarqueeStyle shape_style_{MarqueeStyle::Normal};
   QSize shape_fixed_size_{1024, 768};
   VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
@@ -2647,6 +2662,10 @@ private:
   // Ctrl held at press latches the gesture onto the path-edit handlers with
   // DirectSelect semantics (press -> release; releasing Ctrl mid-drag keeps it).
   bool pen_temp_direct_select_{false};
+  // Shape tools: Ctrl held while idle (cursor and overlay show Path Select), and the
+  // gesture a Ctrl press latched onto the path-edit handlers (press -> release).
+  bool shape_ctrl_path_select_{false};
+  bool shape_temp_path_select_{false};
   bool pen_auto_add_delete_{true};
   PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
   PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};
@@ -2706,6 +2725,7 @@ private:
   std::function<void()> path_load_selection_callback_;
   std::function<void()> path_edited_callback_;
   std::function<void()> path_selection_changed_callback_;
+  std::function<void(const std::vector<LayerId>&)> shape_layers_emptied_callback_;
   // Path free-transform session state. The affine maps the original rect onto
   // the (possibly negative-extent, i.e. flipped) current rect, then rotates
   // about the current center.
