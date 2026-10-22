@@ -2761,6 +2761,85 @@ void ui_shape_tool_ctrl_acts_as_path_select() {
   CHECK(document.layers().size() == layer_count + 1);
 }
 
+// Ctrl+Alt-drag with a shape tool duplicates the shape like Path Select's Alt-drag
+// (GitHub issue 312): the copy joins the same shape layer, paints with its fill and
+// stroke like the original, and one Undo removes it.
+void ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  shape_drag(*canvas, QPoint(420, 300), QPoint(520, 380));  // another layer is active
+  const auto second_id = document.active_layer_id();
+  CHECK(second_id.has_value());
+  const auto layer_count = document.layers().size();
+  patchy::LayerId first_id{};
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.vector_shape() != nullptr && layer.id() != *second_id) {
+      first_id = layer.id();
+    }
+  }
+  const auto alpha_at = [&](QPoint point) {
+    const auto* layer = std::as_const(document).find_layer(first_id);
+    CHECK(layer != nullptr);
+    const auto bounds = layer->bounds();
+    const QPoint local(point.x() - bounds.x, point.y() - bounds.y);
+    const auto& pixels = layer->pixels();
+    if (local.x() < 0 || local.y() < 0 || local.x() >= pixels.width() || local.y() >= pixels.height() ||
+        pixels.format().channels < 4) {
+      return 0;
+    }
+    return static_cast<int>(pixels.pixel(local.x(), local.y())[3]);
+  };
+  const auto canvas_color_at = [&](QPoint point) {
+    return canvas->grab().toImage().pixelColor(canvas->widget_position_for_document_point(point));
+  };
+  const auto original_color = canvas_color_at(QPoint(200, 160));
+  const auto background_color = canvas_color_at(QPoint(340, 290));
+  CHECK(original_color != background_color);
+  canvas->setFocus();
+
+  // Ctrl+Alt-drag from inside the first rectangle by (60, 80).
+  const auto start = canvas->widget_position_for_document_point(QPoint(200, 160));
+  const auto end = canvas->widget_position_for_document_point(QPoint(260, 240));
+  const auto modifiers = Qt::ControlModifier | Qt::AltModifier;
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(*canvas, QEvent::MouseMove, (start + end) / 2, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+  save_widget_artifact("ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape", window);
+
+  CHECK(document.layers().size() == layer_count);
+  CHECK(document.active_layer_id() == first_id);
+  const auto* content = std::as_const(document).find_layer(first_id)->vector_shape();
+  CHECK(content != nullptr && content->path.subpaths.size() == 2);
+  if (content == nullptr || content->path.subpaths.size() != 2) {
+    return;
+  }
+  CHECK(content->path.subpaths[0].shape_group != content->path.subpaths[1].shape_group);
+  CHECK(content->path.subpaths[1].op == content->path.subpaths[0].op);
+  CHECK(std::abs(content->path.subpaths[1].anchors[0].anchor_x - 160.0) < 1.0);
+  CHECK(std::abs(content->path.subpaths[1].anchors[0].anchor_y - 180.0) < 1.0);
+  CHECK(document.work_path() == nullptr || document.work_path()->path().subpaths.empty());
+  // The copy (160,180)-(360,300) paints like the original, in the layer and on the canvas.
+  CHECK(alpha_at(QPoint(340, 290)) > 200);
+  CHECK(alpha_at(QPoint(200, 160)) > 200);
+  CHECK(canvas_color_at(QPoint(340, 290)) == original_color);
+
+  // One Undo removes the copy.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(first_id)->vector_shape()->path.subpaths.size() == 1);
+  CHECK(alpha_at(QPoint(340, 290)) == 0);
+  CHECK(canvas_color_at(QPoint(340, 290)) == background_color);
+  CHECK(document.layers().size() == layer_count);
+}
+
 // Shift held at a shape tool's press adds that one shape to the targeted shape layer, even
 // a different kind of shape (GitHub issue 313); the drag still constrains, the options-bar
 // Combine setting stays New Layer, and the add is one undo step.
@@ -5783,6 +5862,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_pen_ctrl_drag_moves_in_progress_session_anchor",
        ui_pen_ctrl_drag_moves_in_progress_session_anchor},
       {"ui_shape_tool_ctrl_acts_as_path_select", ui_shape_tool_ctrl_acts_as_path_select},
+      {"ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape", ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape},
       {"ui_shape_tool_shift_press_adds_to_shape_layer",
        ui_shape_tool_shift_press_adds_to_shape_layer},
       {"ui_pen_session_start_shows_hint_message", ui_pen_session_start_shows_hint_message},

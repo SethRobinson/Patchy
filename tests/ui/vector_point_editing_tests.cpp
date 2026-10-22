@@ -30,6 +30,7 @@
 // path menu, the dedicated anchor tools in the Pen flyout, and the Paths
 // panel retargeting when a layer with its own path becomes active.
 #include "ui_test_support.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/modifier_names.hpp"
@@ -1951,7 +1952,8 @@ void ui_ctrl_swaps_the_arrow_tools() {
 }
 
 // Path Select Alt-drag duplicates the shape (GitHub issue 248): the copy moves,
-// the original stays, and one Undo removes the copy.
+// the original stays, the copy paints with the layer's fill (GitHub issue 312),
+// and one Undo removes the copy.
 void ui_path_select_alt_drag_duplicates_the_shape() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -1972,9 +1974,85 @@ void ui_path_select_alt_drag_duplicates_the_shape() {
   CHECK(std::abs(path.subpaths[1].anchors[0].anchor_x - 160.0) < 1.0);  // the copy moved
   CHECK(std::abs(path.subpaths[1].anchors[0].anchor_y - 180.0) < 1.0);
   CHECK(canvas->path_edit_selected_anchor_count() == 4);  // the copy is selected
+  // The copy (160,180)-(360,300) is filled, in the layer and on the canvas.
+  const auto canvas_dark_at = [&](QPoint document_point) {
+    return canvas->grab().toImage().pixelColor(canvas->widget_position_for_document_point(document_point)).lightness() <
+           100;
+  };
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(340, 290)) > 200);
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(120, 110)) > 200);  // the original too
+  CHECK(canvas_dark_at(QPoint(340, 290)));
   require_action_by_text(window, QStringLiteral("Undo"))->trigger();
   QApplication::processEvents();
   CHECK(std::as_const(document).find_layer(layer_id)->vector_shape()->path.subpaths.size() == 1);
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(340, 290)) == 0);
+  CHECK(!canvas_dark_at(QPoint(340, 290)));
+}
+
+// On a merged shape layer each shape paints from its own part, so an Alt-drag
+// copy joins its original's part and paints in that part's color (GitHub issue 312).
+void ui_path_select_alt_drag_duplicates_a_merged_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  {
+    // A merged layer: the black rectangle and a red (400,300)-(500,380) one, each its own part.
+    auto* layer = document.find_layer(layer_id);
+    auto content = *std::as_const(*layer).vector_shape();
+    auto red = content.path.subpaths[0];
+    red.shape_group = content.path.next_shape_group();
+    red.anchors = {};
+    for (const auto& [x, y] : std::initializer_list<std::pair<double, double>>{
+             {400.0, 300.0}, {500.0, 300.0}, {500.0, 380.0}, {400.0, 380.0}}) {
+      patchy::PathAnchor anchor;
+      anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+      anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+      red.anchors.push_back(anchor);
+    }
+    patchy::VectorShapePart black_part;
+    black_part.groups = {content.path.subpaths[0].shape_group};
+    black_part.fill = content.fill;
+    black_part.stroke = content.stroke;
+    patchy::VectorShapePart red_part = black_part;
+    red_part.groups = {red.shape_group};
+    red_part.fill.kind = patchy::VectorFillKind::Solid;
+    red_part.fill.color = {255, 0, 0};
+    content.path.subpaths.push_back(std::move(red));
+    content.parts = {black_part, red_part};
+    layer->set_vector_shape(std::move(content));
+    patchy::update_vector_shape_raster(*layer, patchy::Rect::from_size(document.width(), document.height()),
+                                       &std::as_const(document).metadata().patterns);
+  }
+  const auto pixel_at = [&](QPoint point) {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    const auto bounds = layer->bounds();
+    const auto& pixels = layer->pixels();
+    const QPoint local(point.x() - bounds.x, point.y() - bounds.y);
+    if (local.x() < 0 || local.y() < 0 || local.x() >= pixels.width() || local.y() >= pixels.height()) {
+      return std::array<int, 4>{0, 0, 0, 0};
+    }
+    const auto* p = pixels.pixel(local.x(), local.y());
+    return std::array<int, 4>{p[0], p[1], p[2], p[3]};
+  };
+  CHECK(pixel_at(QPoint(450, 340))[0] > 200 && pixel_at(QPoint(450, 340))[3] > 200);  // red, painted
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  modified_drag(*canvas, QPoint(450, 340), QPoint(450, 190), Qt::AltModifier);  // copy at (400,150)-(500,230)
+  save_widget_artifact("ui_path_select_alt_drag_duplicates_a_merged_shape", *canvas);
+  const auto& content = *std::as_const(document).find_layer(layer_id)->vector_shape();
+  CHECK(content.path.subpaths.size() == 3);
+  CHECK(content.parts.size() == 2);
+  const auto copy = pixel_at(QPoint(450, 220));
+  CHECK(copy[3] > 200 && copy[0] > 200 && copy[1] < 50);  // the copy paints red
+  CHECK(pixel_at(QPoint(450, 340))[3] > 200);             // the original stays
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(layer_id)->vector_shape()->path.subpaths.size() == 2);
+  CHECK(pixel_at(QPoint(450, 220))[3] == 0);
 }
 
 // Pen (GitHub issue 248): Shift keeps a new point and a dragged handle on a
@@ -2719,6 +2797,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it},
       {"ui_ctrl_swaps_the_arrow_tools", ui_ctrl_swaps_the_arrow_tools},
       {"ui_path_select_alt_drag_duplicates_the_shape", ui_path_select_alt_drag_duplicates_the_shape},
+      {"ui_path_select_alt_drag_duplicates_a_merged_shape", ui_path_select_alt_drag_duplicates_a_merged_shape},
       {"ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path",
        ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path},
       {"ui_pen_click_on_an_open_end_continues_the_path", ui_pen_click_on_an_open_end_continues_the_path},

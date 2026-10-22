@@ -14,25 +14,21 @@ fitting, selection coverage, stroke sampling, and mask baking through
 Which tools show the target outline (`target_path_outline_tool_allows`): path tools always,
 with their editing glyphs; otherwise only while a Paths-panel row is targeted, the work path,
 saved paths and vector masks with any tool, but a shape layer's own path only under the shape
-tools (Line, Rectangle, Ellipse, Polygon, Custom Shape). Photoshop 2026 shows none under Brush
-and only the transform box under Move; Patchy's every-tool outline read as part of the artwork
-(GitHub issue 238; `ui_shape_layer_outline_shows_only_under_path_and_shape_tools`). Under a
+tools (Line, Rectangle, Ellipse, Polygon, Custom Shape) (GitHub issue 238;
+`ui_shape_layer_outline_shows_only_under_path_and_shape_tools`). Under a
 path tool the overlay also outlines every Layers-panel-selected shape layer with hollow anchors
-(outline only under Path Select; `set_panel_selected_layer_ids`); only the target path gets filled anchors, handles, and edits.
+(outline only under Path Select; `set_panel_selected_layer_ids`); only the target gets filled anchors, handles, edits.
 
 Overlay glyphs (`draw_pen_overlay`, `draw_path_edit_overlay`, canvas_widget_vector_tools.cpp):
-visibility comes from contrast, not size (GitHub issue 105; a first, larger-only pass still
-vanished on a light pasteboard). The accent is a saturated blue (`path_overlay_accent`, 30 136
+visibility comes from contrast, not size (GitHub issue 105). The accent is a saturated blue (`path_overlay_accent`, 30 136
 255), every glyph is three-tone, and handle lines sit on a translucent dark halo
 (`draw_handle_line`: 3.5 px black at 47 percent under a 1.6 px accent line). Every path outline
 and the Pen's preview segment are a 1-device-pixel accent hairline with no halo
 (`draw_path_outline`, Photoshop's path display), shifted half a device pixel so an edge on whole
-pixels covers one row: the 2 px haloed outline issue 105 introduced read as a stroke of the
-artwork (GitHub issue 238; `ui_path_overlay_outline_is_hairline`). Anchors are 8 px
+pixels covers one row (GitHub issue 238; `ui_path_overlay_outline_is_hairline`). Anchors are 8 px
 squares with a dark 1 px edge: white with an accent inner ring when unselected (Photoshop's
 hollow anchor), accent with a white inner ring when selected. Handle knobs are 8 px white
-discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big beside
-Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
+discs with the dark edge and an accent dot, and grab from 9 px (`kHandleHitRadiusPx`; a press
 nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Knobs are
 grabbed by Direct Select alone (and the Pen's Ctrl latch, which is Direct Select). Direct
 Select and the Pen family draw the knobs of selected points; the Pen keeps them after the
@@ -41,8 +37,7 @@ button and Ctrl come up, so a Ctrl-drag can find them, but a plain Pen click nev
 (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). Point and handle drags
 re-render a shape layer's fill live (`apply_path_edit`; `ui_direct_select_drags_redraw_the_fill_live`), once per
 batch of queued mouse moves at the latest pointer position, and the release applies a move still queued
-(`flush_pending_path_edit_drag`, `ui_path_select_drag_coalesces_queued_moves`; GitHub #314: an apply per move
-fell seconds behind fast pointers on a gradient shape; the 8-bit gradient paint in `paint_coverage` runs in row
+(`flush_pending_path_edit_drag`, `ui_path_select_drag_coalesces_queued_moves`, GitHub #314; the 8-bit gradient paint in `paint_coverage` runs in row
 strips across workers above 32 K pixels, same bytes; `patchy_perf_tests gradientdrag` times both);
 tests that set up handles go through `replace_path_edit_target` (`set_target_path_through_edits`),
 never `set_vector_shape`, or captures show the old fill under the new outline. `kGlyphReach` (8 px) is how far a glyph reaches
@@ -121,7 +116,7 @@ selection.
 
 ## Tool roles
 
-Each tool owns one job (GitHub issue 248); a press never does another tool's.
+Each tool owns one job (GitHub issue 248).
 
 | Tool | Owns | Never |
 |---|---|---|
@@ -142,7 +137,9 @@ presses (`path_selection_by_path_select_`): a Direct Select press drops Path Sel
 whole-shape selection first, a Path Select press expands Direct Select's points. Path
 Select Alt-drag duplicates: the first drag move copies every selected group into new
 groups of the same path (`next_shape_group`) and drags the copies, one "Duplicate shape"
-undo entry with the drag (`path_drag_duplicate_pending_`). Direct Select Alt+click on a
+undo entry with the drag (`path_drag_duplicate_pending_`). On a merged shape layer each copy
+joins its source group's paint parts (`copy_vector_part_groups`), else it shows only an
+outline. Direct Select Alt+click on a
 point or segment selects its whole subpath; Alt at a handle press breaks a smooth pair
 (`path_drag_break_pair_`, the anchor turns corner and only that handle moves). A plain
 handle drag on a smooth anchor keeps the pair colinear: the opposite handle turns with it
@@ -156,15 +153,18 @@ Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
 `ui_direct_select_alt_click_selects_the_whole_subpath`,
 `ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it`,
 `ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
+`ui_path_select_alt_drag_duplicates_a_merged_shape`,
 `ui_path_select_tools_show_their_own_arrow_cursors`.
 
 Shape tools (issues 312, 313). Ctrl is a temporary Path Select: `shape_ctrl_path_select_`
 follows Ctrl while idle (hover, key filter: cursor, overlay); a Ctrl press latches
-`shape_temp_path_select_` to release, so `path_edit_tool()` reports PathSelect. Shift at a
+`shape_temp_path_select_` to release, so `path_edit_tool()` reports PathSelect (Ctrl+Alt-drag
+duplicates the shape into the same layer like Path Select's Alt-drag). Shift at a
 vector drag's press sets `shape_press_adds_to_shape_` for that commit:
 `effective_vector_combine_index()` reads Add (any kind joins the active shape layer; none: a
 new layer); the Combine combo is never written. Tests:
-`ui_shape_tool_ctrl_acts_as_path_select`, `ui_shape_tool_shift_press_adds_to_shape_layer`.
+`ui_shape_tool_ctrl_acts_as_path_select`, `ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape`,
+`ui_shape_tool_shift_press_adds_to_shape_layer`.
 
 ## Pen: extending and ending paths
 
@@ -200,15 +200,14 @@ and drags it ("Move shape"); anything else starts the marquee, which first
 clears the selection (blank canvas and pasteboard alike). A Path Select
 marquee selects every target group it touches (`subpath_touches_rect`:
 fill overlap for closed subpaths, outline crossing for open ones), anchors
-inside or not; Direct Select's selects the anchors inside. Not done yet: a
-marquee does not pick shapes on other layers.
+inside or not; Direct Select's selects the anchors inside. A marquee does not
+pick shapes on other layers.
 
 Path Select draws anchor squares only for the selected shape: an unselected
 target (and an unselected panel-selected extra) shows just its outline, so a
 blank click visibly deselects. Direct Select keeps hollow anchors on the
 active path. Switching from Path Select to Direct Select clears the point
-selection (`set_tool`): Path Select selects whole shapes, so its selection would
-make Direct Select's first press drag every point; switching to Path Select from
+selection (`set_tool`); switching to Path Select from
 Direct Select or the Pen expands carried-over points to their whole groups
 (`expand_path_selection_to_groups`), so Path Select never holds part of a shape.
 A Path Select press on a group (anchor, outline or fill) goes through
@@ -245,16 +244,15 @@ Direct Select (or the Pen's Ctrl latch) drags every selected anchor when the
 press lands on a selected anchor OR on a segment whose two ends are already
 selected (a marquee, then a drag on any of its lines); Shift on a segment
 adds it, an unselected segment replaces the selection with its two ends.
-Pinned by `ui_direct_select_drags_marquee_selection_by_segment`.
+Test: `ui_direct_select_drags_marquee_selection_by_segment`.
 
 Shift held during the drag constrains movement to the nearest horizontal,
 vertical, or 45-degree axis (Photoshop's vertex constraint,
 `constrain_drag_to_axes`): the constraint is re-evaluated every move against
 the total delta from the press point, never latched, and the points follow
-the mouse's projection onto the snapped axis. Anchor drags therefore track a
-total-delta ledger (`path_drag_applied_delta_`) while still applying
-per-move increments through `apply_path_edit` (`update_path_edit_drag`,
-split out of `handle_path_edit_move`). Pressing or releasing Shift with a
+the mouse's projection onto the snapped axis. Anchor drags track the total
+delta (`path_drag_applied_delta_`) and apply per-move increments
+(`update_path_edit_drag`). Pressing or releasing Shift with a
 stationary cursor replays the drag at the last raw pointer position from
 keyPressEvent/keyReleaseEvent. Shift at press keeps its additive-selection
 meaning; only move/key state during the drag drives the constraint. Handle
@@ -272,8 +270,7 @@ panel, clicks, marquees, drags, nudges, Delete, and Escape span all of them.
 Point keys on non-target layers live in `extra_selected_anchors_` (a per-layer
 map beside `path_selected_anchors_`); eligibility per layer is the
 `combine_shape_candidates` lock triple via `extra_edit_shape_layer`. Writes go
-through `write_shape_layer_path` (the shared shape re-bake tail split out of
-`replace_path_edit_target`), armed by `arm_path_edit_undo` so N layers coalesce
+through `write_shape_layer_path` (the shared shape re-bake), armed by `arm_path_edit_undo` so N layers coalesce
 into the one document-wide undo snapshot per gesture. The count chip totals
 both structures. Deliberately primary-target-only: bezier handle editing, the
 Combine op box, and Free Transform Points (`path_transform_subset_` snapshots
@@ -324,8 +321,7 @@ shape layer is next, so with no path target at all a Path/Direct Select press
 (`paths_panel_last_active_layer_`); when it changes to a layer whose
 transient row is a shape or vector-mask path, a targeted work/saved-path row
 is dropped so `path_edit_target_path` resolves to the new layer (Photoshop
-retargets on layer selection). The memory resets on a document switch so
-reused layer ids never look like a change. Explicit row clicks within one
+retargets on layer selection). The memory resets on a document switch (layer ids are reused). Explicit row clicks within one
 layer still stick. Trace Image to Shapes activates the frontmost traced
 shape for the same reason (a group has no path). The same refresh repaints
 the canvas on a layer change: a pure activation composites nothing, and the
