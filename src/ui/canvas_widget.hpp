@@ -794,6 +794,11 @@ public:
   // deletes, prunes); MainWindow refreshes the options-bar selected-point
   // count from it.
   void set_path_selection_changed_callback(std::function<void()> callback);
+  // Invoked when a Delete under the path tools removed the last subpath of one
+  // or more shape layers (GitHub issue 315). The path edit's undo entry is still
+  // open: MainWindow removes those layers inside it, so one Undo brings each
+  // layer back with its path.
+  void set_shape_layers_emptied_callback(std::function<void(const std::vector<LayerId>&)> callback);
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
@@ -2713,6 +2718,7 @@ private:
   std::function<void()> path_load_selection_callback_;
   std::function<void()> path_edited_callback_;
   std::function<void()> path_selection_changed_callback_;
+  std::function<void(const std::vector<LayerId>&)> shape_layers_emptied_callback_;
   // Path free-transform session state. The affine maps the original rect onto
   // the (possibly negative-extent, i.e. flipped) current rect, then rotates
   // about the current center.

@@ -295,12 +295,32 @@ Every entry is always listed and enabled by context (object names
 `pathMenu*Action`): Add Anchor Point (over a segment), Delete Anchor Point
 and Convert Point (over an anchor), Delete Selected Points and Deselect
 Points (with a selection; Delete Selected Shapes and Deselect Shapes under Path
-Select, whose selection is whole shapes), then Free Transform Points (Direct Select with a
+Select, whose selection is whole shapes; it is the Delete key's
+`delete_selected_path_anchors`, so a shape layer it empties is deleted too, see
+[Deleting the last shape](#deleting-the-last-shape)), then Free Transform Points (Direct Select with a
 selection) or Free Transform Path, enabled for Path/Direct Select only (the
 Pen family sees it disabled and keeps falling through to the layer
 transform). The menu uses the RAW hit, so it works with Auto Add/Delete off
 and under the anchor tools. No menu with no target path, during a Pen
 session, or in a path transform.
+
+## Deleting the last shape
+
+GitHub issue 315: `delete_selected_path_anchors` (Delete/Backspace under Path
+Select, Direct Select or the Pen's Ctrl latch, and the menu's Delete Selected
+Shapes/Points) collects every shape layer, primary target or cross-layer extra,
+whose path it left with no subpath, and hands the ids to
+`set_shape_layers_emptied_callback`. MainWindow removes them through
+`remove_layers_in_open_undo_step` (delete_layers without its own snapshot), inside
+the path edit's undo entry, so one Undo restores each layer and its path. Only
+a vector shape path counts: a vector mask, a saved path or the work path stays
+empty (Reveal All coverage). The deletion activates a pixel layer when no
+shape layer is next, so with no path target at all a Path/Direct Select press
+(and its hover) still picks the shape layer under the pointer
+(`topmost_path_pick_layer_at`) instead of refusing. Tests: `ui_path_select_delete_last_shape_removes_the_layer`,
+`ui_path_select_delete_one_of_two_shapes_keeps_the_layer`,
+`ui_path_menu_delete_last_shape_removes_the_layer`,
+`ui_direct_select_edits_points_across_selected_layers`.
 
 ## Paths panel retargeting
 

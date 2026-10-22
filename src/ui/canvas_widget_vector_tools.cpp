@@ -1070,6 +1070,11 @@ void CanvasWidget::set_path_selection_changed_callback(std::function<void()> cal
   path_selection_changed_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_shape_layers_emptied_callback(
+    std::function<void(const std::vector<LayerId>&)> callback) {
+  shape_layers_emptied_callback_ = std::move(callback);
+}
+
 void CanvasWidget::notify_path_selection_changed() {
   if (path_selected_anchors_.empty()) {
     path_selection_owner_.reset();
@@ -1568,6 +1573,20 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   drop_point_selection_if_target_changed();
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
+    // No target (a pixel layer is active, as after deleting the last shape of a
+    // shape layer): a shape layer under the pointer still takes the press
+    // (GitHub issue 315).
+    if (!path_press_repicked_) {
+      if (auto* picked = topmost_path_pick_layer_at(QPointF(event->position())); picked != nullptr) {
+        activate_layer(*picked);
+        if (path_edit_target_path() == &std::as_const(*picked).vector_shape()->path) {
+          clear_path_edit_selection();
+          path_press_repicked_ = true;
+          const auto reset = qScopeGuard([this] { path_press_repicked_ = false; });
+          return handle_path_edit_press(event, document_point);
+        }
+      }
+    }
     report_status_error(tr("Select a shape layer or draw a path first"));
     return true;
   }
@@ -2186,7 +2205,15 @@ void CanvasWidget::delete_selected_path_anchors() {
     return;
   }
   path_edit_undo_armed_ = false;
+  // A shape layer left with no subpath would fill the whole canvas (an empty
+  // path means full coverage), so the host deletes it in the same undo entry
+  // (GitHub issue 315). Vector masks, saved paths and the work path keep theirs.
+  std::vector<LayerId> emptied_shape_layers;
   if (primary) {
+    const auto* shape_layer = path_edit_target_layer();
+    const bool shape_target = layer_edit_target_ != LayerEditTarget::VectorMask &&
+                              shape_layer != nullptr && &shape_layer->vector_shape()->path == path;
+    const auto shape_layer_id = shape_target ? std::optional<LayerId>(shape_layer->id()) : std::nullopt;
     auto working = *path;
     std::vector<int> touched_groups;
     // Erase in reverse index order so earlier keys stay valid.
@@ -2201,6 +2228,9 @@ void CanvasWidget::delete_selected_path_anchors() {
     std::erase_if(working.subpaths,
                   [](const PathSubpath& subpath) { return subpath.anchors.size() < 2; });
     path_selected_anchors_.clear();
+    if (shape_layer_id.has_value() && working.subpaths.empty()) {
+      emptied_shape_layers.push_back(*shape_layer_id);
+    }
     apply_path_edit(std::move(working), tr("Delete anchors"), touched_groups);
   }
   // Cross-layer selections delete too, inside the same undo entry.
@@ -2221,11 +2251,17 @@ void CanvasWidget::delete_selected_path_anchors() {
     }
     std::erase_if(working.subpaths,
                   [](const PathSubpath& subpath) { return subpath.anchors.size() < 2; });
+    if (working.subpaths.empty()) {
+      emptied_shape_layers.push_back(id);
+    }
     arm_path_edit_undo(tr("Delete anchors"));
     write_shape_layer_path(*document_->find_layer(id), std::move(working), touched_groups);
   }
   extra_selected_anchors_.clear();
   notify_path_selection_changed();
+  if (!emptied_shape_layers.empty() && shape_layers_emptied_callback_) {
+    shape_layers_emptied_callback_(emptied_shape_layers);
+  }
   path_edit_undo_armed_ = false;
   update();
 }
@@ -2518,7 +2554,8 @@ void CanvasWidget::update_path_hover_hint(PenHoverAction action) {
 
 CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_point) const {
   if (path_edit_target_path() == nullptr) {
-    return PathHoverTarget::None;
+    return topmost_path_pick_layer_at(widget_point) != nullptr ? PathHoverTarget::Fill
+                                                               : PathHoverTarget::None;
   }
   std::pair<int, int> handle_anchor{-1, -1};
   if (path_edit_tool() == CanvasTool::DirectSelect && path_handle_at(widget_point, handle_anchor) != 0) {
