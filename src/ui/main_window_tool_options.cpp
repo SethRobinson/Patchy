@@ -2245,15 +2245,12 @@ void MainWindow::load_tool_settings() {
   current_vector_line_weight_ = std::clamp(
       settings.value(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_).toDouble(), 1.0,
       1000.0);
-  if (auto* stroke_check = findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
-      stroke_check != nullptr) {
-    QSignalBlocker blocker(stroke_check);
-    stroke_check->setChecked(current_vector_stroke_enabled_);
-  }
+  // tools/vectorStrokeEnabled keeps its key: a saved "off" shows as 0 in the width field
+  // (GitHub issue 311), and tools/vectorStrokeWidth keeps the last real width.
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
       stroke_width != nullptr) {
     QSignalBlocker blocker(stroke_width);
-    stroke_width->setValue(current_vector_stroke_width_);
+    stroke_width->setValue(vector_stroke_field_value());
   }
   if (auto* line_weight = findChild<QDoubleSpinBox*>(QStringLiteral("vectorLineWeightSpin"));
       line_weight != nullptr) {

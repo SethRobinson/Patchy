@@ -13,8 +13,10 @@
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
+#include <QDir>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <QMetaObject>
@@ -51,6 +53,8 @@
 #include "ui/pattern_library.hpp"
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/unit_spin_box.hpp"
+#include "ui/qt_paths.hpp"
+#include "psd/psd_document_io.hpp"
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
@@ -1450,17 +1454,14 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
-    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
     auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
     auto* stroke_align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
-    CHECK(stroke_check != nullptr);
+    // No Stroke checkbox (GitHub issue 311): a disabled stroke reads Width 0, and the
+    // rows stay enabled; a width above 0 turns the stroke on.
+    CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck")) == nullptr);
     CHECK(stroke_width != nullptr);
     CHECK(stroke_align != nullptr);
-    // Stroke rows grey out while the stroke is disabled.
-    CHECK(!stroke_check->isChecked());
-    CHECK(!stroke_width->isEnabled());
-    CHECK(!stroke_align->isEnabled());
-    stroke_check->setChecked(true);
+    CHECK(stroke_width->value() == 0.0);
     CHECK(stroke_width->isEnabled());
     CHECK(stroke_align->isEnabled());
     stroke_width->setValue(6.0);
@@ -1655,14 +1656,12 @@ void ui_shape_mode_drag_previews_stroke_inside_the_shape() {
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);  // Shape mode default
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
-  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
-  CHECK(radius_spin != nullptr && stroke_check != nullptr && stroke_width != nullptr);
-  if (radius_spin == nullptr || stroke_check == nullptr || stroke_width == nullptr) {
+  CHECK(radius_spin != nullptr && stroke_width != nullptr);
+  if (radius_spin == nullptr || stroke_width == nullptr) {
     return;
   }
   radius_spin->setValue(0);
-  stroke_check->setChecked(true);
   stroke_width->setValue(16);
   auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
   fill = patchy::VectorFill{};
@@ -2060,14 +2059,11 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
     offset_y_spin->setValue(-2.0);
     align_check->setChecked(false);
     // Pattern STROKE paint: enable the stroke, switch its paint to Pattern.
-    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
     auto* paint_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
     auto* stroke_pattern_combo =
         dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePatternCombo"));
     auto* stroke_color_button = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokeColorButton"));
-    CHECK(stroke_check != nullptr && paint_combo != nullptr && stroke_pattern_combo != nullptr &&
-          stroke_color_button != nullptr);
-    stroke_check->setChecked(true);
+    CHECK(paint_combo != nullptr && stroke_pattern_combo != nullptr && stroke_color_button != nullptr);
     CHECK(stroke_color_button->isVisible());  // solid paint shows the color row
     const auto pattern_paint_index =
         paint_combo->findData(static_cast<int>(patchy::VectorFillKind::Pattern));
@@ -2213,54 +2209,45 @@ void ui_options_bar_edits_selected_shape_appearance() {
   require_action_by_text(window, QStringLiteral("Path Select"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::PathSelect);
-  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
   auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
   auto* stroke_label = window.findChild<QLabel*>(QStringLiteral("vectorStrokeWidthLabel"));
-  CHECK(stroke_check != nullptr && stroke_width != nullptr);
+  CHECK(stroke_width != nullptr);
   CHECK(stroke_swatch != nullptr && stroke_label != nullptr);
   // The appearance controls show for the select tool because the active layer
-  // is an editable shape.
-  CHECK(stroke_check->isVisible());
-  CHECK(!stroke_check->isChecked());  // synced from the strokeless layer
-  CHECK(!stroke_width->isEnabled() && !stroke_swatch->isEnabled() && !stroke_label->isEnabled());
-
-  // Toggling the stroke applies to the selected shape immediately.
-  stroke_check->setChecked(true);
-  QApplication::processEvents();
+  // is an editable shape. No Stroke checkbox (GitHub issue 311): the strokeless
+  // layer reads 0 and the controls stay enabled.
+  CHECK(window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck")) == nullptr);
+  CHECK(stroke_width->isVisible());
+  CHECK(stroke_width->value() == 0.0);  // synced from the strokeless layer
   CHECK(stroke_width->isEnabled() && stroke_swatch->isEnabled() && stroke_label->isEnabled());
-  {
-    const auto* layer = std::as_const(document).find_layer(*layer_id);
-    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
-    CHECK(layer->vector_shape()->stroke.enabled);
-    CHECK(patchy::layer_vector_block_dirty(*layer));
-  }
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 1);
 
-  // Wait for the debounced edit to finish before testing subsequent gestures
-  // and Undo, so no queued width edit outranks their passive control sync.
+  // A width turns the stroke on and applies to the selected shape (debounced,
+  // one undo step); wait for it so no queued edit outranks later syncs.
   stroke_width->setValue(8.0);
   CHECK(process_events_until([&] {
     const auto* layer = std::as_const(document).find_layer(*layer_id);
-    return layer != nullptr && layer->vector_shape() != nullptr &&
+    return layer != nullptr && layer->vector_shape() != nullptr && layer->vector_shape()->stroke.enabled &&
            std::abs(layer->vector_shape()->stroke.width - 8.0) < 1e-9;
   }));
   {
     const auto* layer = std::as_const(document).find_layer(*layer_id);
+    CHECK(layer->vector_shape()->stroke.enabled);
     CHECK(std::abs(layer->vector_shape()->stroke.width - 8.0) < 1e-9);
+    CHECK(patchy::layer_vector_block_dirty(*layer));
   }
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 2);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 1);
 
   // A fill edit through the mirror (the popup pickers' backing state).
   auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
   fill.kind = patchy::VectorFillKind::Solid;
   fill.color = patchy::RgbColor{200, 30, 30};
   CHECK(patchy::ui::MainWindowTestAccess::apply_options_bar_appearance(window));
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 3);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 2);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), QColor(200, 30, 30), 8));
   // Re-applying identical values is a no-op and pushes nothing.
   CHECK(!patchy::ui::MainWindowTestAccess::apply_options_bar_appearance(window));
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 3);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 2);
 
   // Sticky: the next drawn shape inherits the edited appearance.
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
@@ -2284,15 +2271,13 @@ void ui_options_bar_edits_selected_shape_appearance() {
     CHECK(layer->vector_shape()->fill.color == (patchy::RgbColor{0, 0, 0}));
     CHECK(layer->vector_shape()->stroke.enabled);  // stroke gesture still applied
   }
-  require_action_by_text(window, QStringLiteral("Undo"))->trigger();  // width
-  require_action_by_text(window, QStringLiteral("Undo"))->trigger();  // stroke enabled
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();  // the width that turned it on
   QApplication::processEvents();
-  CHECK(!stroke_check->isChecked());
-  CHECK(!stroke_width->isEnabled() && !stroke_swatch->isEnabled() && !stroke_label->isEnabled());
+  CHECK(stroke_width->value() == 0.0);
+  CHECK(stroke_width->isEnabled() && stroke_swatch->isEnabled() && stroke_label->isEnabled());
   require_action_by_text(window, QStringLiteral("Redo"))->trigger();
   QApplication::processEvents();
-  CHECK(stroke_check->isChecked());
-  CHECK(stroke_width->isEnabled() && stroke_swatch->isEnabled() && stroke_label->isEnabled());
+  CHECK(std::abs(stroke_width->value() - 8.0) < 1e-9);
 }
 
 void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
@@ -2302,14 +2287,14 @@ void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
   show_window(window);
   window.resize(1800, 800);
   patchy::ui::MainWindowTestAccess::set_ruler_unit(window, patchy::ui::MeasurementUnit::Pixels);
-  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
   auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
   auto* stroke_label = window.findChild<QLabel*>(QStringLiteral("vectorStrokeWidthLabel"));
   auto* appearance = window.findChild<QPushButton*>(QStringLiteral("vectorAppearanceButton"));
   auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
-  CHECK(stroke_check && stroke_width && stroke_swatch && stroke_label && appearance && options);
-  CHECK(stroke_label->text() == QStringLiteral("Stroke width"));  // no colon on the bar (issue 127)
+  CHECK(stroke_width && stroke_swatch && stroke_label && appearance && options);
+  CHECK(window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck")) == nullptr);  // issue 311
+  CHECK(stroke_label->text() == QStringLiteral("Stroke"));  // no colon on the bar (issue 127)
   CHECK(stroke_width->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
   stroke_width->setValue(3.0);
 
@@ -2317,7 +2302,7 @@ void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
     require_action_by_text(window, QString::fromLatin1(tool))->trigger();
     QApplication::processEvents();
     CHECK(appearance->isVisible());
-    CHECK(stroke_check->isVisible() && stroke_swatch->isVisible() && stroke_label->isVisible());
+    CHECK(stroke_width->isVisible() && stroke_swatch->isVisible() && stroke_label->isVisible());
     const auto appearance_position = appearance->mapTo(options, QPoint());
     for (int i = 0; i < options->layout()->count(); ++i) {
       auto* widget = options->layout()->itemAt(i)->widget();
@@ -2329,16 +2314,19 @@ void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
             (position.y() <= appearance_position.y() + appearance->height() &&
              position.x() + widget->width() <= appearance_position.x()));
     }
-    stroke_check->setChecked(true);
+    // 0 is no stroke and the last real width is kept for when the stroke comes back.
+    stroke_width->setValue(0.0);
+    CHECK(!patchy::ui::MainWindowTestAccess::current_shape_appearance(window).stroke.enabled);
     CHECK(stroke_width->isEnabled() && stroke_swatch->isEnabled() && stroke_label->isEnabled());
-    stroke_check->setChecked(false);
-    CHECK(!stroke_width->isEnabled() && !stroke_swatch->isEnabled() && !stroke_label->isEnabled());
+    stroke_width->setValue(3.0);
+    CHECK(patchy::ui::MainWindowTestAccess::current_shape_appearance(window).stroke.enabled);
     CHECK(stroke_width->value() == 3.0);
   }
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
+  stroke_width->setValue(0.0);
   save_widget_artifact("shape-options-stroke-disabled", *options);
-  stroke_check->setChecked(true);
+  stroke_width->setValue(3.0);
   const auto origin = stroke_label->rect().center();
   const auto destination = origin + QPoint(QApplication::startDragDistance() + 5, 0);
   send_mouse(*stroke_label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
@@ -2417,6 +2405,138 @@ void check_swatch_outline_reads_on_bar(QToolButton& button, const char* label) {
 
 // GitHub issue 89: a black stroke swatch had no edge on Dark's options bar, and
 // a white one barely had one on Light's.
+// GitHub issue 311 follow-up: there is no Stroke checkbox, the width is the switch. 0 draws no
+// stroke and keeps the last real width in the model, so no PSD ever stores a zero width; a PSD
+// layer whose stroke is off reads 0 in the bar; typing a width again brings the stroke back in
+// the stroke paint it had.
+void ui_shape_stroke_width_zero_means_no_stroke() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  CHECK(radius_spin != nullptr && stroke_width != nullptr);
+  if (radius_spin == nullptr || stroke_width == nullptr) {
+    return;
+  }
+  CHECK(stroke_width->minimum() == 0.0);
+  radius_spin->setValue(0);
+  auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
+  fill = patchy::VectorFill{};
+  fill.color = patchy::RgbColor{255, 255, 255};
+  auto& stroke = patchy::ui::MainWindowTestAccess::current_vector_stroke_paint(window);
+  stroke = patchy::VectorFill{};
+  stroke.color = patchy::RgbColor{220, 30, 30};
+
+  // 10 px: an inside stroke along the left edge.
+  stroke_width->setValue(10.0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto stroked_id = document.active_layer_id();
+  CHECK(stroked_id.has_value());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 160)), QColor(220, 30, 30), 12));
+
+  // 0: no stroke; the fill reaches the edge, the model keeps the 10 px width. The Background is
+  // made active first, or the bar would live-edit the stroked shape (Photoshop's rule).
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Background")));
+  QApplication::processEvents();
+  stroke_width->setValue(0.0);
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(400, 100), QPoint(600, 220));
+  const auto plain_id = document.active_layer_id();
+  CHECK(plain_id.has_value() && plain_id != stroked_id);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(403, 160)), QColor(255, 255, 255), 12));
+  if (!stroked_id || !plain_id) {
+    return;
+  }
+  {
+    const auto* plain = std::as_const(document).find_layer(*plain_id);
+    CHECK(plain != nullptr && plain->vector_shape() != nullptr);
+    CHECK(!plain->vector_shape()->stroke.enabled);
+    CHECK(std::abs(plain->vector_shape()->stroke.width - 10.0) < 1e-9);
+  }
+
+  // The strokeless layer reads 0 in the bar; a width brings its stroke back in the paint it had.
+  require_action_by_text(window, QStringLiteral("Path Select"))->trigger();
+  QApplication::processEvents();
+  CHECK(stroke_width->value() == 0.0);
+  CHECK(stroke_width->isEnabled());
+  stroke_width->setValue(6.0);
+  CHECK(process_events_until([&] {
+    const auto* layer = std::as_const(document).find_layer(*plain_id);
+    return layer != nullptr && layer->vector_shape() != nullptr && layer->vector_shape()->stroke.enabled &&
+           std::abs(layer->vector_shape()->stroke.width - 6.0) < 1e-9;
+  }));
+  {
+    const auto* restroked = std::as_const(document).find_layer(*plain_id);
+    CHECK(restroked != nullptr && restroked->vector_shape() != nullptr &&
+          restroked->vector_shape()->stroke.content.color == (patchy::RgbColor{220, 30, 30}));
+  }
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(!std::as_const(document).find_layer(*plain_id)->vector_shape()->stroke.enabled);
+  CHECK(stroke_width->value() == 0.0);
+
+  // PSD round trip: the stroked layer keeps its 10 px stroke; the strokeless one writes no
+  // vstk (as Photoshop does for a filled shape without a stroke), so no zero width is ever
+  // stored, and it reads back off with a real default width.
+  ensure_artifact_dir();
+  const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(
+                                  QStringLiteral("issue_311_zero_width_stroke.psd")))
+                        .absoluteFilePath();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
+  const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  int disabled = 0;
+  int enabled = 0;
+  for (const auto& layer : reread.layers()) {
+    const auto* shape = std::as_const(layer).vector_shape();
+    if (shape == nullptr) continue;
+    std::printf("  reread %s: stroke %s, width %.2f\n", layer.name().c_str(), shape->stroke.enabled ? "on" : "off",
+                shape->stroke.width);
+    CHECK(shape->stroke.width > 0.0);
+    if (shape->stroke.enabled) {
+      CHECK(std::abs(shape->stroke.width - 10.0) < 1e-6);
+      ++enabled;
+    } else {
+      ++disabled;
+    }
+  }
+  CHECK(disabled == 1 && enabled == 1);
+
+  // Opened, the strokeless layer reads 0 in the bar and the stroked one its width.
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  require_action_by_text(window, QStringLiteral("Path Select"))->trigger();
+  QApplication::processEvents();
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Rectangle 1")));
+  QApplication::processEvents();
+  CHECK(std::abs(stroke_width->value() - 10.0) < 1e-9);
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Rectangle 2")));
+  QApplication::processEvents();
+  auto& opened = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = opened.active_layer_id();
+  CHECK(active.has_value());
+  if (!active) {
+    return;
+  }
+  const auto* active_layer = std::as_const(opened).find_layer(*active);
+  CHECK(active_layer != nullptr && active_layer->vector_shape() != nullptr &&
+        !active_layer->vector_shape()->stroke.enabled);
+  CHECK(stroke_width->value() == 0.0);
+}
+
 void ui_shape_swatches_outline_contrasts_with_options_bar() {
   VectorSettingsGuard settings_guard;
   ColorSchemeRestorer restore_scheme(patchy::ui::ColorSchemePreference::Dark);
@@ -2425,14 +2545,14 @@ void ui_shape_swatches_outline_contrasts_with_options_bar() {
   window.resize(1800, 800);
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
-  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
   auto* fill_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
   auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
-  CHECK(stroke_check != nullptr && fill_swatch != nullptr && stroke_swatch != nullptr);
-  if (stroke_check == nullptr || fill_swatch == nullptr || stroke_swatch == nullptr) {
+  CHECK(stroke_width != nullptr && fill_swatch != nullptr && stroke_swatch != nullptr);
+  if (stroke_width == nullptr || fill_swatch == nullptr || stroke_swatch == nullptr) {
     return;
   }
-  stroke_check->setChecked(true);
+  stroke_width->setValue(3.0);
   QApplication::processEvents();
   CHECK(fill_swatch->isVisible() && stroke_swatch->isVisible() && stroke_swatch->isEnabled());
 
@@ -4505,18 +4625,17 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
     }
     auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerOpacitySpin"));
     auto* fill_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerFillOpacitySpin"));
-    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
+    auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
     auto* stroke_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeStrokeOpacitySpin"));
     auto* feather = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"));
     auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("shapeDensitySpin"));
-    CHECK(opacity != nullptr && fill_opacity != nullptr && stroke_check != nullptr &&
+    CHECK(opacity != nullptr && fill_opacity != nullptr && stroke_width != nullptr &&
           stroke_opacity != nullptr && feather != nullptr && density != nullptr);
     CHECK(opacity->value() == 100 && fill_opacity->value() == 100 && density->value() == 100);
-    CHECK(!stroke_opacity->isEnabled());  // greys with the stroke
+    CHECK(stroke_opacity->isEnabled());  // the stroke rows stay enabled (issue 311)
     opacity->setValue(50);
     fill_opacity->setValue(40);
-    stroke_check->setChecked(true);
-    CHECK(stroke_opacity->isEnabled());
+    stroke_width->setValue(3.0);
     stroke_opacity->setValue(30);
     feather->setValue(4.0);
     density->setValue(60);
@@ -4788,11 +4907,9 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
     }
     // Worst case: pattern fill rows plus a gradient stroke.
     auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
-    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
     auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
-    CHECK(fill_kind != nullptr && stroke_check != nullptr && stroke_paint != nullptr);
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr);
     fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
-    stroke_check->setChecked(true);
     stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
     QApplication::processEvents();
     // Fits a 1080p screen (about 1040 px usable) even in the worst case, and
@@ -4872,10 +4989,10 @@ void ui_shape_appearance_spins_have_step_buttons() {
         dialog->findChild<QPushButton*>(QStringLiteral("shapePatternScaleSpinIncreaseButton"));
     CHECK(pattern_scale != nullptr && !pattern_scale->isVisible());
     CHECK(pattern_scale_increase != nullptr && !pattern_scale_increase->isVisible());
-    // A disabled stroke greys its buttons too (stroke off by default).
+    // The stroke width stays usable with the stroke off: it is the switch (issue 311).
     auto* stroke_width_increase =
         dialog->findChild<QPushButton*>(QStringLiteral("shapeStrokeWidthSpinIncreaseButton"));
-    CHECK(stroke_width_increase != nullptr && !stroke_width_increase->isEnabled());
+    CHECK(stroke_width_increase != nullptr && stroke_width_increase->isEnabled());
     // Stepping the width by one grows the live rect by one pixel.
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryWidthSpin"));
     auto* width_increase = dialog->findChild<QPushButton*>(QStringLiteral("shapeGeometryWidthSpinIncreaseButton"));
@@ -4913,7 +5030,6 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
       return;
     }
     auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
-    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
     auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
     auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
     auto* stroke_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeStrokeOpacitySpin"));
@@ -4922,11 +5038,10 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
     auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("shapeLayerOpacitySpin"));
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryWidthSpin"));
     auto* reset = dialog->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton"));
-    CHECK(fill_kind != nullptr && stroke_check != nullptr && stroke_paint != nullptr &&
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr &&
           stroke_width != nullptr && stroke_opacity != nullptr && feather != nullptr &&
           density != nullptr && opacity != nullptr && width != nullptr && reset != nullptr);
     fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
-    stroke_check->setChecked(true);
     stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
     stroke_width->setValue(12.0);
     stroke_opacity->setValue(40);
@@ -4939,9 +5054,8 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
     QApplication::processEvents();
     reset_seen = true;
     CHECK(fill_kind->currentData().toInt() == static_cast<int>(patchy::VectorFillKind::Solid));
-    CHECK(!stroke_check->isChecked());
     CHECK(stroke_paint->currentData().toInt() == static_cast<int>(patchy::VectorFillKind::Solid));
-    CHECK(std::abs(stroke_width->value() - 3.0) < 1e-9);
+    CHECK(stroke_width->value() == 0.0);  // the default stroke is off, which reads 0 (issue 311)
     CHECK(stroke_opacity->value() == 100);
     CHECK(std::abs(feather->value()) < 1e-9);
     CHECK(density->value() == 100);
@@ -5514,6 +5628,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_options_bar_edits_selected_shape_appearance},
       {"ui_shape_options_group_stroke_controls_and_end_with_appearance",
        ui_shape_options_group_stroke_controls_and_end_with_appearance},
+      {"ui_shape_stroke_width_zero_means_no_stroke", ui_shape_stroke_width_zero_means_no_stroke},
       {"ui_shape_swatches_outline_contrasts_with_options_bar",
        ui_shape_swatches_outline_contrasts_with_options_bar},
       {"ui_path_edits_refresh_panel_thumbnails", ui_path_edits_refresh_panel_thumbnails},

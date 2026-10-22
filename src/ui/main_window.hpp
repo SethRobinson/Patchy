@@ -1581,6 +1581,10 @@ private:
       const std::string& pattern_id);
   void sync_shape_appearance_options_from_active_layer();
   void refresh_vector_stroke_controls();
+  // The options bar's stroke width doubles as the stroke switch (GitHub issue 311): it shows
+  // 0 while the stroke is off, and a 0 entry turns it off while keeping the last real width.
+  double vector_stroke_field_value() const;
+  void set_vector_stroke_width_from_field(double value);
   bool apply_options_bar_appearance_to_active_shape(const std::vector<std::string>& fields = {});
   void schedule_vector_appearance_apply();
   void finish_pending_shape_appearance_edit();

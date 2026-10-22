@@ -7734,10 +7734,6 @@ RGB: %2, %3, %4</translation>
         <translation>Ancora la griglia delle tessere alla posizione del livello; se deselezionato, la ancora all&apos;origine del documento</translation>
     </message>
     <message>
-        <source>Stroke the shape outline</source>
-        <translation>Traccia il contorno della forma</translation>
-    </message>
-    <message>
         <source>Paint:</source>
         <translation>Colorazione:</translation>
     </message>
@@ -11793,6 +11789,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>My Looks</source>
         <translation>I miei look</translation>
     </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Spessore traccia (0 per nessuna traccia)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15543,20 +15543,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Riempimento della forma: nessuno, tinta unita, sfumatura o pattern</translation>
     </message>
     <message>
-        <source>Stroke</source>
-        <translation>Traccia</translation>
-    </message>
-    <message>
-        <source>Stroke the shape outline</source>
-        <translation>Traccia il contorno della forma</translation>
-    </message>
-    <message>
         <source>Shape stroke: solid color, gradient, or pattern</source>
         <translation>Traccia della forma: tinta unita, sfumatura o pattern</translation>
-    </message>
-    <message>
-        <source>Stroke width</source>
-        <translation>Spessore traccia</translation>
     </message>
     <message>
         <source>Weight:</source>
@@ -21463,10 +21451,6 @@ Y: %2
         <translation>Ingrandisci finché l&apos;immagine riempie la finestra (Visualizza &gt; Riempi schermo)</translation>
     </message>
     <message>
-        <source>Stroke width:</source>
-        <translation>Spessore traccia:</translation>
-    </message>
-    <message>
         <source>Default units:</source>
         <translation>Unità predefinite:</translation>
     </message>
@@ -23761,6 +23745,14 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>200%</source>
         <translation>200%</translation>
+    </message>
+    <message>
+        <source>Stroke:</source>
+        <translation>Traccia:</translation>
+    </message>
+    <message>
+        <source>Stroke width (0 for no stroke)</source>
+        <translation>Spessore traccia (0 per nessuna traccia)</translation>
     </message>
 </context>
 <context>
