@@ -46,6 +46,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Object Selection | Sample All Layers, Model | `objectSelectSampleAllLayers`, `objectSelectModel` | yes | yes |
 | Crop | Style, ratio W/H, Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
 | Crop | Size W/H, ratio preset row, Apply/Cancel | none (live box; preset derived) | no | no (session) |
+| Crop | Overlay, its turn, Always / While Dragging (`cropOverlayCombo`, `cropOverlayOrientationButton`, `cropOverlayOptionsButton`) | `cropOverlay` (token), `cropOverlayOrientation`, `cropOverlayShow` | new (issue 325) | yes |
 | Artboard | Size preset, W, H, Background, Auto-nest | `artboardWidth`, `artboardHeight`, `artboardBackground`, `artboardBackgroundColor`, `artboardAutoNest` | yes | yes |
 | Brush family | Preset (`brushPresetCombo`, built-in presets) | `brushPreset` | no | yes |
 | Brush family | Size (`brushSizeSpin`, slider) | `brushSize` | no | yes |

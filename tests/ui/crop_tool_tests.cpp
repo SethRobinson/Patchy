@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 #include "ui_test_access.hpp"
+#include "local_psd_fixtures.hpp"
 // Crop tool: the canvas frame on activation, drag-out geometry, handle
 // adjustment, ratio re-fits, Enter/Esc commit-reset, canvas expansion on
 // commit, and the options-bar ratio/apply/reset row.
@@ -37,7 +38,11 @@
 #include <QCheckBox>
 #include <QDoubleSpinBox>
 #include <QLineEdit>
+#include <QAbstractItemView>
+#include <QAction>
+#include <QPainter>
 #include <QTimer>
+#include <QToolButton>
 #include <cstdlib>
 
 namespace {
@@ -981,6 +986,293 @@ void ui_crop_overlay_renders_shield_and_thirds() {
   send_key(*canvas, Qt::Key_Escape);
 }
 
+// GitHub issue 325: the Overlay combo picks the guides inside the box. Each
+// choice draws its lines where it should (thirds at 1/3, golden ratio at 0.382
+// and 0.618, diagonals through the corners, the spiral's first division at
+// 0.618), the turn button flips the Triangle and the Golden Spiral, "While
+// Dragging" hides the guides until a handle is held, and all three choices
+// survive a new window. The issue shots use a photo.
+void ui_crop_overlay_choices_draw_their_guides() {
+  SettingsValueRestorer saved_overlay(QStringLiteral("tools/cropOverlay"));
+  SettingsValueRestorer saved_orientation(QStringLiteral("tools/cropOverlayOrientation"));
+  SettingsValueRestorer saved_show(QStringLiteral("tools/cropOverlayShow"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/cropOverlay"));
+    settings.remove(QStringLiteral("tools/cropOverlayOrientation"));
+    settings.remove(QStringLiteral("tools/cropOverlayShow"));
+  }
+  using Overlay = patchy::ui::CanvasWidget::CropOverlay;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_crop_ratio(0.0, 0.0);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
+  auto* turn = window.findChild<QToolButton*>(QStringLiteral("cropOverlayOrientationButton"));
+  auto* options = window.findChild<QToolButton*>(QStringLiteral("cropOverlayOptionsButton"));
+  auto* show_always = window.findChild<QAction*>(QStringLiteral("cropOverlayShowAlwaysAction"));
+  auto* show_dragging = window.findChild<QAction*>(QStringLiteral("cropOverlayShowWhileDraggingAction"));
+  CHECK(combo != nullptr && turn != nullptr && options != nullptr && show_always != nullptr &&
+        show_dragging != nullptr);
+  if (combo == nullptr || turn == nullptr || options == nullptr || show_always == nullptr ||
+      show_dragging == nullptr) {
+    return;
+  }
+  CHECK(combo->isVisible());
+  CHECK(combo->count() == 7);
+  const QStringList expected_items = {QStringLiteral("None"),     QStringLiteral("Rule of Thirds"),
+                                      QStringLiteral("Grid"),     QStringLiteral("Diagonal"),
+                                      QStringLiteral("Triangle"), QStringLiteral("Golden Ratio"),
+                                      QStringLiteral("Golden Spiral")};
+  for (int i = 0; i < std::min(combo->count(), static_cast<int>(expected_items.size())); ++i) {
+    CHECK(combo->itemText(i) == expected_items[i]);
+  }
+  // Rule of Thirds by default, shown all the time: today's look.
+  CHECK(combo->currentIndex() == 1);
+  CHECK(canvas->crop_overlay() == Overlay::Thirds);
+  CHECK(!canvas->crop_overlay_only_while_dragging());
+  CHECK(show_always->isChecked());
+  CHECK(!turn->isEnabled());
+
+  // A 500 x 360 box over the white canvas, inside the offscreen view (the
+  // 1024 x 768 canvas runs past its right edge at 100%). Guides read through
+  // their dark twin (the light line vanishes on white). A guide counts as
+  // present when a pixel within 2 px of the point differs from the None render.
+  canvas->set_snap_enabled(false);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(600, 460)));
+  const auto box = canvas->crop_session_rect();
+  CHECK(box.has_value());
+  if (!box.has_value()) {
+    return;
+  }
+  const auto top_left = canvas->widget_position_for_document_point(box->topLeft());
+  const auto bottom_right =
+      canvas->widget_position_for_document_point(box->topLeft() + QPoint(box->width(), box->height()));
+  CHECK(QRect(top_left, bottom_right).intersected(canvas->rect()) == QRect(top_left, bottom_right));
+  const auto at = [&](double u, double v) {
+    return QPoint(static_cast<int>(std::lround(top_left.x() + u * (bottom_right.x() - top_left.x()))),
+                  static_cast<int>(std::lround(top_left.y() + v * (bottom_right.y() - top_left.y()))));
+  };
+  const auto render = [&] {
+    QApplication::processEvents();
+    return render_widget_image(*canvas);
+  };
+  combo->setCurrentIndex(0);
+  CHECK(canvas->crop_overlay() == Overlay::None);
+  CHECK(!options->isEnabled());
+  const auto plain = render();
+  // The largest brightness change within 2 px of the point.
+  const auto change_near = [&](const QImage& image, double u, double v) {
+    const auto center = at(u, v);
+    int largest = 0;
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        const QPoint point(center.x() + dx, center.y() + dy);
+        if (image.rect().contains(point)) {
+          largest = std::max(largest, std::abs(image.pixelColor(point).value() - plain.pixelColor(point).value()));
+        }
+      }
+    }
+    return largest;
+  };
+  // Misses are collected so one run reports every one of them.
+  std::vector<std::string> misses;
+  const auto expect = [&](const char* name, const QImage& image, double u, double v, bool present) {
+    const auto change = change_near(image, u, v);
+    if ((change > 20) != present) {
+      char line[160];
+      std::snprintf(line, sizeof(line), "%s: guide at (%.3f, %.3f) %s (change %d)", name, u, v,
+                    present ? "missing" : "unexpected", change);
+      misses.emplace_back(line);
+    }
+  };
+
+  combo->setCurrentIndex(1);
+  CHECK(options->isEnabled());
+  const auto thirds = render();
+  expect("thirds", thirds, 1.0 / 3.0, 0.2, true);
+  expect("thirds", thirds, 2.0 / 3.0, 0.2, true);
+  expect("thirds", thirds, 0.1, 1.0 / 3.0, true);
+  expect("thirds", thirds, 0.1, 2.0 / 3.0, true);
+  expect("thirds", thirds, 0.382, 0.2, false);
+  expect("thirds", thirds, 0.25, 0.25, false);
+
+  // 1024 x 768: six rows and eight columns of near-square cells.
+  combo->setCurrentIndex(2);
+  CHECK(canvas->crop_overlay() == Overlay::Grid);
+  const auto grid = render();
+  expect("grid", grid, 1.0 / 8.0, 0.25, true);
+  expect("grid", grid, 3.0 / 8.0, 0.25, true);
+  expect("grid", grid, 0.06, 1.0 / 6.0, true);
+  expect("grid", grid, 0.06, 0.5, true);
+  expect("grid", grid, 1.0 / 3.0, 0.25, false);
+
+  combo->setCurrentIndex(3);
+  const auto diagonal = render();
+  expect("diagonal", diagonal, 0.25, 0.25, true);
+  expect("diagonal", diagonal, 0.75, 0.25, true);
+  expect("diagonal", diagonal, 0.6, 0.6, true);
+  expect("diagonal", diagonal, 1.0 / 3.0, 0.2, false);
+
+  combo->setCurrentIndex(5);
+  CHECK(canvas->crop_overlay() == Overlay::GoldenRatio);
+  CHECK(!turn->isEnabled());
+  const auto golden = render();
+  expect("golden ratio", golden, 0.382, 0.2, true);
+  expect("golden ratio", golden, 0.618, 0.2, true);
+  expect("golden ratio", golden, 0.1, 0.382, true);
+  expect("golden ratio", golden, 0.1, 0.618, true);
+  expect("golden ratio", golden, 1.0 / 3.0, 0.2, false);
+
+  // The spiral's first square fills the left of the box: its edge at 0.618
+  // runs the full height, its arc passes (0.181, 0.293). One turn mirrors it.
+  combo->setCurrentIndex(6);
+  CHECK(turn->isEnabled());
+  CHECK(canvas->crop_overlay_orientation() == 0);
+  const auto spiral = render();
+  expect("spiral", spiral, 0.618, 0.5, true);
+  expect("spiral", spiral, 0.181, 0.293, true);
+  expect("spiral", spiral, 0.382, 0.5, false);
+  turn->click();
+  CHECK(canvas->crop_overlay_orientation() == 1);
+  const auto spiral_turned = render();
+  expect("spiral turned", spiral_turned, 0.382, 0.5, true);
+  expect("spiral turned", spiral_turned, 0.819, 0.293, true);
+  expect("spiral turned", spiral_turned, 0.618, 0.5, false);
+  for (int i = 0; i < 3; ++i) {
+    turn->click();
+  }
+  CHECK(canvas->crop_overlay_orientation() == 0);
+
+  // Triangle: the top-left to bottom-right diagonal; a turn takes the other.
+  combo->setCurrentIndex(4);
+  CHECK(turn->isEnabled());
+  const auto triangle = render();
+  expect("triangle", triangle, 0.25, 0.25, true);
+  expect("triangle", triangle, 0.75, 0.25, false);
+  turn->click();
+  const auto triangle_turned = render();
+  expect("triangle turned", triangle_turned, 0.75, 0.25, true);
+  expect("triangle turned", triangle_turned, 0.25, 0.25, false);
+
+  // While Dragging: nothing at rest, the guides while a handle is held.
+  combo->setCurrentIndex(1);
+  show_dragging->trigger();
+  CHECK(canvas->crop_overlay_only_while_dragging());
+  CHECK(show_dragging->isChecked());
+  CHECK(!show_always->isChecked());
+  const auto resting = render();
+  expect("while dragging, at rest", resting, 1.0 / 3.0, 0.2, false);
+  const auto right_edge = at(1.0, 0.2);
+  send_mouse(*canvas, QEvent::MouseButtonPress, right_edge, Qt::LeftButton, Qt::LeftButton);
+  const auto held = render();
+  expect("while dragging, held", held, 1.0 / 3.0, 0.2, true);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, right_edge, Qt::LeftButton, Qt::NoButton);
+  const auto released = render();
+  expect("while dragging, released", released, 1.0 / 3.0, 0.2, false);
+  for (const auto& miss : misses) {
+    std::fprintf(stderr, "  %s\n", miss.c_str());
+  }
+  CHECK(misses.empty());
+
+  // The three choices persist and a new window starts with them.
+  combo->setCurrentIndex(6);
+  turn->click();
+  turn->click();
+  CHECK(canvas->crop_overlay_orientation() == 3);
+  window.close();
+  QApplication::processEvents();
+  {
+    const auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/cropOverlay")).toString() == QStringLiteral("goldenSpiral"));
+    CHECK(settings.value(QStringLiteral("tools/cropOverlayOrientation")).toInt() == 3);
+    CHECK(settings.value(QStringLiteral("tools/cropOverlayShow")).toString() == QStringLiteral("dragging"));
+  }
+  {
+    patchy::ui::MainWindow second;
+    show_window(second);
+    auto* second_canvas = require_canvas(second);
+    auto* second_combo = second.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
+    auto* second_dragging = second.findChild<QAction*>(QStringLiteral("cropOverlayShowWhileDraggingAction"));
+    CHECK(second_combo != nullptr && second_dragging != nullptr);
+    if (second_combo != nullptr && second_dragging != nullptr) {
+      CHECK(second_combo->currentIndex() == 6);
+      CHECK(second_dragging->isChecked());
+    }
+    CHECK(second_canvas->crop_overlay() == Overlay::GoldenSpiral);
+    CHECK(second_canvas->crop_overlay_orientation() == 3);
+    CHECK(second_canvas->crop_overlay_only_while_dragging());
+    second.close();
+    QApplication::processEvents();
+  }
+  // An unknown token falls back to Rule of Thirds.
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/cropOverlay"), QStringLiteral("spirograph"));
+    settings.setValue(QStringLiteral("tools/cropOverlayOrientation"), 9);
+    settings.remove(QStringLiteral("tools/cropOverlayShow"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow third;
+  show_window(third);
+  auto* third_canvas = require_canvas(third);
+  CHECK(third_canvas->crop_overlay() == Overlay::Thirds);
+  CHECK(third_canvas->crop_overlay_orientation() == 3);
+  CHECK(!third_canvas->crop_overlay_only_while_dragging());
+
+  // Issue shots: a photo with the open Overlay list, then three overlays.
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  patchy::ui::MainWindowTestAccess::open_document_path(third, QString::fromStdString(photo.string()));
+  QApplication::processEvents();
+  auto* photo_canvas = require_canvas(third);
+  require_action(third, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  auto* third_combo = third.findChild<QComboBox*>(QStringLiteral("cropOverlayCombo"));
+  auto* third_turn = third.findChild<QToolButton*>(QStringLiteral("cropOverlayOrientationButton"));
+  CHECK(third_combo != nullptr && third_turn != nullptr);
+  if (third_combo == nullptr || third_turn == nullptr) {
+    return;
+  }
+  third_combo->setCurrentIndex(1);
+  QApplication::processEvents();
+  third_combo->showPopup();
+  QApplication::processEvents();
+  if (auto* popup = third_combo->view() != nullptr ? third_combo->view()->window() : nullptr; popup != nullptr) {
+    // The list's container keeps Qt's default background under the themed view,
+    // which save_window_popup_artifact's theme check refuses; compose it here
+    // like the issue 235 blend-list shot does.
+    auto shot = third.grab().toImage();
+    const auto origin = third.mapToGlobal(QPoint(0, 0));
+    const auto popup_position = popup->mapToGlobal(QPoint(0, 0)) - origin;
+    {
+      QPainter painter(&shot);
+      painter.drawPixmap(popup_position, popup->grab());
+    }
+    const auto field_position = third_combo->mapToGlobal(QPoint(0, 0)) - origin;
+    const auto area = QRect(field_position, third_combo->size())
+                          .united(QRect(popup_position, popup->size()))
+                          .adjusted(-170, -14, 220, 14)
+                          .intersected(shot.rect());
+    save_stacked_artifact("issue_325_overlay_menu", {shot.copy(area)});
+  }
+  third_combo->hidePopup();
+  QApplication::processEvents();
+  for (const auto& [index, name] : {std::pair{2, "issue_325_grid"}, std::pair{6, "issue_325_golden_spiral"},
+                                    std::pair{4, "issue_325_triangle"}, std::pair{1, "issue_325_thirds_photo"}}) {
+    third_combo->setCurrentIndex(index);
+    if (index == 6 && photo_canvas->crop_overlay_orientation() != 0) {
+      while (photo_canvas->crop_overlay_orientation() != 0) {
+        third_turn->click();
+      }
+    }
+    QApplication::processEvents();
+    save_widget_artifact(name, *photo_canvas);
+  }
+}
+
 // Image > Crop to Selection and Crop to Selection (Advanced) act on the Crop
 // tool's pending box while the tool is active: the plain command commits like
 // Enter, the advanced one prefills the Canvas Size dialog with the box, and the
@@ -1262,6 +1554,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_escape_resets_and_tool_switch_cancels", ui_crop_escape_resets_and_tool_switch_cancels},
       {"ui_crop_apply_cancel_buttons_follow_session", ui_crop_apply_cancel_buttons_follow_session},
       {"ui_crop_overlay_renders_shield_and_thirds", ui_crop_overlay_renders_shield_and_thirds},
+      {"ui_crop_overlay_choices_draw_their_guides", ui_crop_overlay_choices_draw_their_guides},
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
       {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
   };

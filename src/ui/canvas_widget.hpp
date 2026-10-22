@@ -940,6 +940,15 @@ public:
   void set_crop_ratio(double width, double height) noexcept;
   [[nodiscard]] double crop_ratio_width() const noexcept;
   [[nodiscard]] double crop_ratio_height() const noexcept;
+  // Composition guides drawn inside the crop box (GitHub issue 325). Orientation
+  // flips the Triangle (0-1) and the Golden Spiral (0-3); the others ignore it.
+  // only_while_dragging shows the guides only while the box is dragged, resized
+  // or rotated (and while one is drawn out).
+  enum class CropOverlay { None, Thirds, Grid, Diagonal, Triangle, GoldenRatio, GoldenSpiral };
+  void set_crop_overlay(CropOverlay overlay, int orientation, bool only_while_dragging);
+  [[nodiscard]] CropOverlay crop_overlay() const noexcept;
+  [[nodiscard]] int crop_overlay_orientation() const noexcept;
+  [[nodiscard]] bool crop_overlay_only_while_dragging() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   // True when the displayed frame reflects the current document: no recomposite
@@ -3033,6 +3042,9 @@ private:
   bool crop_from_center_{false};
   double crop_ratio_w_{0.0};
   double crop_ratio_h_{0.0};
+  CropOverlay crop_overlay_{CropOverlay::Thirds};
+  int crop_overlay_orientation_{0};
+  bool crop_overlay_only_while_dragging_{false};
   std::function<void(QRect, double)> crop_commit_requested_callback_;
   std::function<void()> crop_session_changed_callback_;
   // Artboard tool gesture state (canvas_widget_artboard.cpp), document space.

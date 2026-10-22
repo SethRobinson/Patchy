@@ -23770,6 +23770,50 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>Drittelregel</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>Diagonale</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>Dreieck</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>Goldener Schnitt</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>Goldene Spirale</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>Überlagerung:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>Kompositionshilfslinien im Freistellungsrahmen</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>Dreieck- oder Goldene-Spirale-Überlagerung drehen</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>Wann die Überlagerung erscheint</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>Überlagerung immer anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Überlagerung nur beim Ziehen anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

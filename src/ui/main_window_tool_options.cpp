@@ -2091,6 +2091,20 @@ void MainWindow::load_tool_settings() {
     }
   }
   canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+  // The overlay is stored as its token; an unknown one is Rule of Thirds.
+  current_crop_overlay_ = 1;
+  if (crop_overlay_combo_ != nullptr) {
+    const auto overlay_index =
+        crop_overlay_combo_->findData(settings.value(QStringLiteral("tools/cropOverlay")).toString());
+    if (overlay_index >= 0) {
+      current_crop_overlay_ = overlay_index;
+    }
+  }
+  current_crop_overlay_orientation_ =
+      std::clamp(settings.value(QStringLiteral("tools/cropOverlayOrientation"), 0).toInt(), 0, 3);
+  current_crop_overlay_while_dragging_ =
+      settings.value(QStringLiteral("tools/cropOverlayShow")).toString() == QStringLiteral("dragging");
+  apply_crop_overlay_options();
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
   // Transparent reads as "the tool is broken" a session later. The retired
@@ -2427,6 +2441,14 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropStyle"), current_crop_style_);
   settings.setValue(QStringLiteral("tools/cropDeletePixels"), current_crop_delete_pixels_);
   settings.setValue(QStringLiteral("tools/cropDeleteLayers"), current_crop_delete_layers_);
+  if (crop_overlay_combo_ != nullptr && current_crop_overlay_ >= 0 &&
+      current_crop_overlay_ < crop_overlay_combo_->count()) {
+    settings.setValue(QStringLiteral("tools/cropOverlay"), crop_overlay_combo_->itemData(current_crop_overlay_));
+  }
+  settings.setValue(QStringLiteral("tools/cropOverlayOrientation"), current_crop_overlay_orientation_);
+  settings.setValue(QStringLiteral("tools/cropOverlayShow"), current_crop_overlay_while_dragging_
+                                                                 ? QStringLiteral("dragging")
+                                                                 : QStringLiteral("always"));
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
@@ -2748,6 +2770,39 @@ void MainWindow::handle_crop_size_value_changed(bool horizontal, int value) {
     }
   }
   canvas_->set_crop_session_size(size);  // notifies, which re-syncs both fields
+}
+
+void MainWindow::sync_crop_overlay_buttons_enabled(bool edit_allowed) {
+  // The turn only means something for the Triangle and the Golden Spiral, the
+  // "..." menu nothing under None (GitHub issue 325).
+  const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
+  if (crop_overlay_orientation_button_ != nullptr) {
+    crop_overlay_orientation_button_->setEnabled(edit_allowed && (overlay == CanvasWidget::CropOverlay::Triangle ||
+                                                                  overlay == CanvasWidget::CropOverlay::GoldenSpiral));
+  }
+  if (crop_overlay_options_button_ != nullptr) {
+    crop_overlay_options_button_->setEnabled(edit_allowed && overlay != CanvasWidget::CropOverlay::None);
+  }
+}
+
+void MainWindow::apply_crop_overlay_options() {
+  const auto overlay = static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_);
+  if (canvas_ != nullptr) {
+    canvas_->set_crop_overlay(overlay, current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
+  }
+  if (crop_overlay_combo_ != nullptr) {
+    const QSignalBlocker blocker(crop_overlay_combo_);
+    crop_overlay_combo_->setCurrentIndex(current_crop_overlay_);
+  }
+  sync_crop_overlay_buttons_enabled(has_active_document() && !preview_dialog_edit_locked());
+  for (const auto& [action, checked] :
+       {std::pair{crop_overlay_show_always_action_, !current_crop_overlay_while_dragging_},
+        std::pair{crop_overlay_show_while_dragging_action_, current_crop_overlay_while_dragging_}}) {
+    if (action != nullptr) {
+      const QSignalBlocker blocker(action);
+      action->setChecked(checked);
+    }
+  }
 }
 
 bool MainWindow::crop_option_widget_visible(QWidget* widget) const {
@@ -3153,6 +3208,7 @@ void MainWindow::refresh_options_bar() {
       button->setEnabled(edit_allowed && crop_has_changes);
     }
   }
+  sync_crop_overlay_buttons_enabled(edit_allowed);
   if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker blocker(patch_mode_combo_);
     patch_mode_combo_->setCurrentIndex(

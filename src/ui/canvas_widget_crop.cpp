@@ -18,6 +18,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QLineF>
 #include <QPen>
 #include <QPoint>
 #include <QPointF>
@@ -35,6 +36,7 @@
 #include <numbers>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -51,6 +53,190 @@ double normalized_degrees(double degrees) {
     degrees += 360.0;
   }
   return degrees;
+}
+
+// The composition guides inside the crop box, in the box's local frame (origin
+// at its center). Axis-aligned lines come in groups drawn dark-then-light per
+// group, which keeps the original rule-of-thirds pixels exact; oblique lines and
+// the spiral's arcs are drawn antialiased and clipped to the box.
+struct CropGuides {
+  std::vector<std::vector<QLineF>> axis_groups;
+  std::vector<QLineF> oblique;
+  QPainterPath arcs;
+};
+
+QLineF vertical_guide(const QRectF& box, double x) {
+  return {QPointF(x, box.top()), QPointF(x, box.bottom())};
+}
+
+QLineF horizontal_guide(const QRectF& box, double y) {
+  return {QPointF(box.left(), y), QPointF(box.right(), y)};
+}
+
+QPointF foot_on_line(QPointF point, QPointF a, QPointF b) {
+  const auto direction = b - a;
+  const auto length_squared = QPointF::dotProduct(direction, direction);
+  if (length_squared <= 0.0) {
+    return a;
+  }
+  return a + direction * (QPointF::dotProduct(point - a, direction) / length_squared);
+}
+
+// Fibonacci-style golden spiral: a golden rectangle (phi x 1) split into a
+// square and a smaller golden rectangle ten times over, one quarter arc per
+// square. It is stretched to the box, turned upright for a portrait box, and
+// flipped horizontally (orientation bit 0) and vertically (bit 1).
+void add_golden_spiral(CropGuides& guides, const QRectF& box, int orientation) {
+  constexpr double phi = std::numbers::phi;
+  const bool portrait = box.height() > box.width();
+  const auto map = [&](QPointF point) {
+    auto along = point.x() / phi;
+    auto across = point.y();
+    if ((orientation & 1) != 0) {
+      along = 1.0 - along;
+    }
+    if ((orientation & 2) != 0) {
+      across = 1.0 - across;
+    }
+    return portrait ? QPointF(box.left() + across * box.width(), box.top() + along * box.height())
+                    : QPointF(box.left() + along * box.width(), box.top() + across * box.height());
+  };
+  std::vector<QLineF> dividers;
+  QRectF rest(0.0, 0.0, phi, 1.0);
+  constexpr int kArcSamples = 24;
+  for (int step = 0; step < 10; ++step) {
+    // The square comes off the left, top, right, then bottom; each arc
+    // is centered on the square's corner that touches the remaining rectangle.
+    QRectF square;
+    QPointF center;
+    QLineF divider;
+    switch (step % 4) {
+      case 0:
+        square = QRectF(rest.left(), rest.top(), rest.height(), rest.height());
+        center = square.bottomRight();
+        divider = QLineF(square.topRight(), square.bottomRight());
+        rest.setLeft(square.right());
+        break;
+      case 1:
+        square = QRectF(rest.left(), rest.top(), rest.width(), rest.width());
+        center = square.bottomLeft();
+        divider = QLineF(square.bottomLeft(), square.bottomRight());
+        rest.setTop(square.bottom());
+        break;
+      case 2:
+        square = QRectF(rest.right() - rest.height(), rest.top(), rest.height(), rest.height());
+        center = square.topLeft();
+        divider = QLineF(square.topLeft(), square.bottomLeft());
+        rest.setRight(square.left());
+        break;
+      default:
+        square = QRectF(rest.left(), rest.bottom() - rest.width(), rest.width(), rest.width());
+        center = square.topRight();
+        divider = QLineF(square.topLeft(), square.topRight());
+        rest.setBottom(square.top());
+        break;
+    }
+    dividers.emplace_back(map(divider.p1()), map(divider.p2()));
+    // Angles in the y-down frame: each arc turns a quarter clockwise on screen,
+    // starting at 180, 270, 0 and 90 degrees for the four cuts.
+    const auto radius = square.width();
+    const auto start_degrees = 180.0 + 90.0 * (step % 4);
+    for (int i = 0; i <= kArcSamples; ++i) {
+      const auto radians = (start_degrees + 90.0 * i / kArcSamples) * std::numbers::pi / 180.0;
+      const auto point = map(center + QPointF(std::cos(radians) * radius, std::sin(radians) * radius));
+      if (step == 0 && i == 0) {
+        guides.arcs.moveTo(point);
+      } else {
+        guides.arcs.lineTo(point);
+      }
+    }
+  }
+  guides.axis_groups.push_back(std::move(dividers));
+}
+
+CropGuides crop_overlay_guides(CanvasWidget::CropOverlay overlay, int orientation, const QRectF& box) {
+  using Overlay = CanvasWidget::CropOverlay;
+  CropGuides guides;
+  const auto divide = [&](int count_x, int count_y) {
+    for (int i = 1; i < std::max(count_x, count_y); ++i) {
+      std::vector<QLineF> group;
+      if (i < count_x) {
+        group.push_back(vertical_guide(box, box.left() + box.width() * i / static_cast<double>(count_x)));
+      }
+      if (i < count_y) {
+        group.push_back(horizontal_guide(box, box.top() + box.height() * i / static_cast<double>(count_y)));
+      }
+      guides.axis_groups.push_back(std::move(group));
+    }
+  };
+  switch (overlay) {
+    case Overlay::None:
+      break;
+    case Overlay::Thirds:
+      divide(3, 3);
+      break;
+    case Overlay::Grid: {
+      // Near-square cells, six across the box's shorter side.
+      static constexpr int kShortCells = 6;
+      static constexpr int kMaxLongCells = 48;
+      const auto long_cells = [](double long_side, double short_side) {
+        return std::clamp(static_cast<int>(std::lround(kShortCells * long_side / short_side)), kShortCells,
+                          kMaxLongCells);
+      };
+      if (box.width() >= box.height()) {
+        divide(long_cells(box.width(), box.height()), kShortCells);
+      } else {
+        divide(kShortCells, long_cells(box.height(), box.width()));
+      }
+      break;
+    }
+    case Overlay::Diagonal:
+      guides.oblique = {QLineF(box.topLeft(), box.bottomRight()), QLineF(box.topRight(), box.bottomLeft())};
+      break;
+    case Overlay::Triangle: {
+      // One diagonal, plus a line from each remaining corner meeting it at a
+      // right angle; orientation 1 mirrors it.
+      const bool mirrored = (orientation & 1) != 0;
+      const auto a = mirrored ? box.topRight() : box.topLeft();
+      const auto b = mirrored ? box.bottomLeft() : box.bottomRight();
+      const auto c = mirrored ? box.topLeft() : box.topRight();
+      const auto d = mirrored ? box.bottomRight() : box.bottomLeft();
+      guides.oblique = {QLineF(a, b), QLineF(c, foot_on_line(c, a, b)), QLineF(d, foot_on_line(d, a, b))};
+      break;
+    }
+    case Overlay::GoldenRatio: {
+      // Lines at 1 / phi^2 and 1 / phi (0.382 and 0.618) of each side.
+      constexpr double near_fraction = 1.0 / (std::numbers::phi * std::numbers::phi);
+      constexpr double far_fraction = 1.0 / std::numbers::phi;
+      for (const auto fraction : {near_fraction, far_fraction}) {
+        guides.axis_groups.push_back({vertical_guide(box, box.left() + box.width() * fraction),
+                                      horizontal_guide(box, box.top() + box.height() * fraction)});
+      }
+      break;
+    }
+    case Overlay::GoldenSpiral:
+      add_golden_spiral(guides, box, orientation);
+      break;
+  }
+  return guides;
+}
+
+// The dark twin of a light guide line sits one pixel to the right of a vertical
+// line and one pixel below any other, measured square to the line so an
+// antialiased oblique twin clears the light line as fully as a straight one.
+QLineF dark_twin(const QLineF& line) {
+  if (line.dx() == 0.0) {
+    return line.translated(1.0, 0.0);
+  }
+  if (line.dy() == 0.0) {
+    return line.translated(0.0, 1.0);
+  }
+  const auto length = std::hypot(line.dx(), line.dy());
+  QPointF normal(-line.dy() / length, line.dx() / length);
+  if (normal.y() < 0.0) {
+    normal = -normal;
+  }
+  return line.translated(normal);
 }
 
 }  // namespace
@@ -133,6 +319,32 @@ double CanvasWidget::crop_ratio_width() const noexcept {
 
 double CanvasWidget::crop_ratio_height() const noexcept {
   return crop_ratio_h_;
+}
+
+void CanvasWidget::set_crop_overlay(CropOverlay overlay, int orientation, bool only_while_dragging) {
+  orientation = ((orientation % 4) + 4) % 4;
+  if (overlay == crop_overlay_ && orientation == crop_overlay_orientation_ &&
+      only_while_dragging == crop_overlay_only_while_dragging_) {
+    return;
+  }
+  crop_overlay_ = overlay;
+  crop_overlay_orientation_ = orientation;
+  crop_overlay_only_while_dragging_ = only_while_dragging;
+  if (crop_session_active_ || crop_dragging_out_) {
+    update();
+  }
+}
+
+CanvasWidget::CropOverlay CanvasWidget::crop_overlay() const noexcept {
+  return crop_overlay_;
+}
+
+int CanvasWidget::crop_overlay_orientation() const noexcept {
+  return crop_overlay_orientation_;
+}
+
+bool CanvasWidget::crop_overlay_only_while_dragging() const noexcept {
+  return crop_overlay_only_while_dragging_;
 }
 
 void CanvasWidget::set_crop_commit_requested_callback(std::function<void(QRect, double)> callback) {
@@ -661,22 +873,47 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
   painter.setRenderHint(QPainter::Antialiasing, angle != 0.0);
   painter.setTransform(box_to_widget, true);
 
-  // Rule-of-thirds guides, as a dark+light pair so they read on any artwork;
-  // skipped when the rect is too small for them to help.
-  if (widget_rect.width() >= 24.0 && widget_rect.height() >= 24.0) {
+  // Composition guides (GitHub issue 325; rule of thirds by default), as a
+  // dark+light pair so they read on any artwork; skipped when the rect is too
+  // small for them to help. "While dragging" shows them only during a gesture.
+  const bool dragging = crop_dragging_out_ || crop_rotating_ || crop_drag_handle_ != TransformHandle::None;
+  if (crop_overlay_ != CropOverlay::None && (!crop_overlay_only_while_dragging_ || dragging) &&
+      widget_rect.width() >= 24.0 && widget_rect.height() >= 24.0) {
+    const auto guides = crop_overlay_guides(crop_overlay_, crop_overlay_orientation_, local_rect);
     QPen dark_pen(QColor(10, 14, 20, 110), 1.0);
     dark_pen.setCosmetic(true);
     QPen light_pen(QColor(245, 248, 252, 110), 1.0);
     light_pen.setCosmetic(true);
-    for (int i = 1; i <= 2; ++i) {
-      const auto x = local_rect.left() + local_rect.width() * i / 3.0;
-      const auto y = local_rect.top() + local_rect.height() * i / 3.0;
+    for (const auto& group : guides.axis_groups) {
       painter.setPen(dark_pen);
-      painter.drawLine(QPointF(x + 1.0, local_rect.top()), QPointF(x + 1.0, local_rect.bottom()));
-      painter.drawLine(QPointF(local_rect.left(), y + 1.0), QPointF(local_rect.right(), y + 1.0));
+      for (const auto& line : group) {
+        painter.drawLine(dark_twin(line));
+      }
       painter.setPen(light_pen);
-      painter.drawLine(QPointF(x, local_rect.top()), QPointF(x, local_rect.bottom()));
-      painter.drawLine(QPointF(local_rect.left(), y), QPointF(local_rect.right(), y));
+      for (const auto& line : group) {
+        painter.drawLine(line);
+      }
+    }
+    if (!guides.oblique.empty() || !guides.arcs.isEmpty()) {
+      painter.save();
+      painter.setRenderHint(QPainter::Antialiasing, true);
+      painter.setClipRect(local_rect, Qt::IntersectClip);
+      painter.setBrush(Qt::NoBrush);
+      painter.setPen(dark_pen);
+      for (const auto& line : guides.oblique) {
+        painter.drawLine(dark_twin(line));
+      }
+      // The spiral's curve has no single "below": a wider dark stroke under it.
+      QPen dark_curve_pen(dark_pen);
+      dark_curve_pen.setWidthF(2.0);
+      painter.setPen(dark_curve_pen);
+      painter.drawPath(guides.arcs);
+      painter.setPen(light_pen);
+      for (const auto& line : guides.oblique) {
+        painter.drawLine(line);
+      }
+      painter.drawPath(guides.arcs);
+      painter.restore();
     }
   }
 

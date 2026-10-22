@@ -23770,6 +23770,50 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>200%</source>
         <translation>200 %</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>Règle des tiers</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>Diagonale</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>Triangle</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>Nombre d&apos;or</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>Spirale d&apos;or</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>Superposition :</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>Repères de composition dans le cadre de recadrage</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>Tourner la superposition Triangle ou Spirale d&apos;or</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>Quand la superposition s&apos;affiche</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>Toujours afficher la superposition</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Afficher la superposition seulement pendant le glissement</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

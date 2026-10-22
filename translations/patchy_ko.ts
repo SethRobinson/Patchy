@@ -23698,6 +23698,50 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>3분할 법칙</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>대각선</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>삼각형</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>황금비</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>황금 나선</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>오버레이:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>자르기 상자 안에 그리는 구도 안내선</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>삼각형 또는 황금 나선 오버레이 방향 바꾸기</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>오버레이 표시 시점</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>오버레이 항상 표시</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>드래그하는 동안에만 오버레이 표시</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

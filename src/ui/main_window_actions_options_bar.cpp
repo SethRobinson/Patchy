@@ -1372,6 +1372,101 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
+  // Composition overlay (GitHub issue 325): the guides inside the box, a button
+  // that turns the Triangle and Golden Spiral, and a "..." menu choosing whether
+  // they show all the time or only while the box is dragged. Items follow
+  // CanvasWidget::CropOverlay; the data is the persisted tools/cropOverlay token.
+  static constexpr std::array<std::pair<const char*, const char*>, 7> kCropOverlayItems = {{
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "None"), "none"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rule of Thirds"), "thirds"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Grid"), "grid"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Diagonal"), "diagonal"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Triangle"), "triangle"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Golden Ratio"), "goldenRatio"},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Golden Spiral"), "goldenSpiral"},
+  }};
+  add_option_separator({CanvasTool::Crop});
+  add_option_label(QT_TR_NOOP("Overlay:"), {CanvasTool::Crop});
+  crop_overlay_combo_ = new QComboBox(toolbar);
+  crop_overlay_combo_->setObjectName(QStringLiteral("cropOverlayCombo"));
+  for (const auto& [source, token] : kCropOverlayItems) {
+    crop_overlay_combo_->addItem(tr(source), QString::fromLatin1(token));
+  }
+  crop_overlay_combo_->setCurrentIndex(current_crop_overlay_);
+  QPointer<QComboBox> crop_overlay_combo(crop_overlay_combo_);
+  register_retranslation([crop_overlay_combo] {
+    if (crop_overlay_combo == nullptr || crop_overlay_combo->count() != static_cast<int>(kCropOverlayItems.size())) {
+      return;
+    }
+    QSignalBlocker blocker(crop_overlay_combo);
+    for (int i = 0; i < crop_overlay_combo->count(); ++i) {
+      crop_overlay_combo->setItemText(
+          i, QCoreApplication::translate("patchy::ui::MainWindow", kCropOverlayItems[static_cast<std::size_t>(i)].first));
+    }
+  });
+  bind_tooltip(crop_overlay_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Composition guides drawn inside the crop box"));
+  add_option_widget(crop_overlay_combo_, {CanvasTool::Crop});
+  connect(crop_overlay_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0) {
+      return;
+    }
+    current_crop_overlay_ = index;
+    apply_crop_overlay_options();
+    schedule_save_tool_settings();
+  });
+  crop_overlay_orientation_button_ = new QToolButton(toolbar);
+  crop_overlay_orientation_button_->setObjectName(QStringLiteral("cropOverlayOrientationButton"));
+  crop_overlay_orientation_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  crop_overlay_orientation_button_->setIcon(simple_icon(QStringLiteral("rotate")));
+  crop_overlay_orientation_button_->setIconSize(QSize(18, 18));
+  crop_overlay_orientation_button_->setAutoRaise(true);
+  crop_overlay_orientation_button_->setFocusPolicy(Qt::NoFocus);
+  crop_overlay_orientation_button_->setProperty("optionsBarButton", true);
+  bind_tooltip(crop_overlay_orientation_button_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Turn the Triangle or Golden Spiral overlay"));
+  add_option_widget(crop_overlay_orientation_button_, {CanvasTool::Crop});
+  connect(crop_overlay_orientation_button_, &QToolButton::clicked, this, [this] {
+    current_crop_overlay_orientation_ = (current_crop_overlay_orientation_ + 1) % 4;
+    apply_crop_overlay_options();
+    schedule_save_tool_settings();
+  });
+  crop_overlay_options_button_ = new QToolButton(toolbar);
+  crop_overlay_options_button_->setObjectName(QStringLiteral("cropOverlayOptionsButton"));
+  // The brushSmoothingOptionsButton pattern: compact "..." text, InstantPopup,
+  // height pinned by the optionsBarMenuButton QSS rule so the 26 px row holds.
+  crop_overlay_options_button_->setText(QStringLiteral("..."));
+  crop_overlay_options_button_->setProperty("optionsBarMenuButton", true);
+  crop_overlay_options_button_->setFocusPolicy(Qt::NoFocus);
+  bind_tooltip(crop_overlay_options_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "When the overlay shows"));
+  crop_overlay_options_button_->setPopupMode(QToolButton::InstantPopup);
+  {
+    auto* overlay_menu = new QMenu(crop_overlay_options_button_);
+    overlay_menu->setObjectName(QStringLiteral("cropOverlayOptionsMenu"));
+    auto* show_group = new QActionGroup(overlay_menu);
+    show_group->setExclusive(true);
+    const auto add_show_choice = [this, overlay_menu, show_group](const char* source, const char* object_name,
+                                                                  bool while_dragging) {
+      auto* action = overlay_menu->addAction(tr(source));
+      action->setObjectName(QLatin1String(object_name));
+      bind_action_text(action, source);
+      action->setCheckable(true);
+      action->setChecked(current_crop_overlay_while_dragging_ == while_dragging);
+      show_group->addAction(action);
+      connect(action, &QAction::triggered, this, [this, while_dragging] {
+        current_crop_overlay_while_dragging_ = while_dragging;
+        apply_crop_overlay_options();
+        schedule_save_tool_settings();
+      });
+      return action;
+    };
+    crop_overlay_show_always_action_ =
+        add_show_choice(QT_TR_NOOP("Always Show Overlay"), "cropOverlayShowAlwaysAction", false);
+    crop_overlay_show_while_dragging_action_ =
+        add_show_choice(QT_TR_NOOP("Show Overlay Only While Dragging"), "cropOverlayShowWhileDraggingAction", true);
+    crop_overlay_options_button_->setMenu(overlay_menu);
+  }
+  add_option_widget(crop_overlay_options_button_, {CanvasTool::Crop});
+  apply_crop_overlay_options();
   // Canvas Size's two layer options, as Photoshop's "Delete Cropped Pixels"
   // (on by default there too) plus Patchy's own off-canvas layer delete.
   crop_delete_pixels_check_ = new CheckGlyphBox(tr("Delete Cropped Pixels"), toolbar);

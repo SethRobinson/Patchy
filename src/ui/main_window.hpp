@@ -2360,6 +2360,10 @@ private:
   [[nodiscard]] double effective_crop_ratio_width() const noexcept;
   [[nodiscard]] double effective_crop_ratio_height() const noexcept;
   void apply_crop_style(int style);
+  // Pushes the overlay mirrors to the active canvas and syncs the overlay
+  // controls (the turn button only for Triangle and Golden Spiral).
+  void apply_crop_overlay_options();
+  void sync_crop_overlay_buttons_enabled(bool edit_allowed);
   // A Size-mode field committed `value` px for one axis; the linked axis follows
   // the box's current proportion when the link button is down.
   void handle_crop_size_value_changed(bool horizontal, int value);
@@ -2554,6 +2558,15 @@ private:
   // Off-Canvas Layers" (off) drops layers left fully outside the box.
   QCheckBox* crop_delete_pixels_check_{nullptr};
   QCheckBox* crop_delete_layers_check_{nullptr};
+  // Crop composition overlay (GitHub issue 325): the guide combo (items in
+  // CanvasWidget::CropOverlay order, data = the tools/cropOverlay token), the
+  // button that turns the Triangle and Golden Spiral, and the "..." menu with
+  // the Always / While Dragging choice.
+  QComboBox* crop_overlay_combo_{nullptr};
+  QToolButton* crop_overlay_orientation_button_{nullptr};
+  QToolButton* crop_overlay_options_button_{nullptr};
+  QAction* crop_overlay_show_always_action_{nullptr};
+  QAction* crop_overlay_show_while_dragging_action_{nullptr};
   QPushButton* patch_remove_object_button_{nullptr};
   QCheckBox* object_select_sample_all_layers_check_{nullptr};
   QComboBox* object_select_model_combo_{nullptr};
@@ -3030,6 +3043,12 @@ private:
   // off): see crop_delete_pixels_check_ / crop_delete_layers_check_.
   bool current_crop_delete_pixels_{true};
   bool current_crop_delete_layers_{false};
+  // tools/cropOverlay (a token; the mirror is the CanvasWidget::CropOverlay
+  // index, Rule of Thirds by default), tools/cropOverlayOrientation (0-3) and
+  // tools/cropOverlayShow ("always" or "dragging").
+  int current_crop_overlay_{1};
+  int current_crop_overlay_orientation_{0};
+  bool current_crop_overlay_while_dragging_{false};
   bool current_fill_shapes_{false};
   int current_shape_corner_radius_{0};
   MarqueeStyle current_shape_style_{MarqueeStyle::Normal};

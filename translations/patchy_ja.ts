@@ -23698,6 +23698,50 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>三分割法</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>対角線</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>三角形</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>黄金比</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>黄金螺旋</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>オーバーレイ:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>切り抜きボックス内に表示する構図ガイド</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>三角形または黄金螺旋のオーバーレイの向きを変える</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>オーバーレイを表示するタイミング</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>オーバーレイを常に表示</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>ドラッグ中のみオーバーレイを表示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

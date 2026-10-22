@@ -23698,6 +23698,50 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>三分法</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>对角线</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>三角形</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>黄金比例</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>黄金螺旋</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>叠加:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>在裁剪框内绘制的构图参考线</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>旋转三角形或黄金螺旋叠加</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>何时显示叠加</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>始终显示叠加</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>仅在拖动时显示叠加</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

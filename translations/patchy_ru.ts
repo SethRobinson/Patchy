@@ -23842,6 +23842,50 @@ Patchy может скачать обновление, заменить этот
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>Правило третей</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>Диагонали</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>Треугольник</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>Золотое сечение</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>Золотая спираль</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>Наложение:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>Направляющие композиции внутри рамки кадрирования</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>Повернуть наложение «Треугольник» или «Золотая спираль»</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>Когда показывать наложение</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>Всегда показывать наложение</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Показывать наложение только при перетаскивании</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

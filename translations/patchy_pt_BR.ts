@@ -23770,6 +23770,50 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>Regra dos terços</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>Diagonal</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>Triângulo</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>Proporção áurea</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>Espiral áurea</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>Sobreposição:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>Guias de composição dentro da caixa de corte</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>Girar a sobreposição Triângulo ou Espiral áurea</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>Quando a sobreposição aparece</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>Sempre mostrar a sobreposição</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Mostrar a sobreposição só ao arrastar</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

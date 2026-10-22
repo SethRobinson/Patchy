@@ -23697,6 +23697,50 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>200%</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

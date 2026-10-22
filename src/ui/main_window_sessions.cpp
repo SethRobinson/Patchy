@@ -171,6 +171,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_retouch_sample_all_layers(retouch_sample_all_layers_check_->isChecked());
   }
   session->canvas->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+  session->canvas->set_crop_overlay(static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_),
+                                    current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
   if (patch_mode_combo_ != nullptr) {
     session->canvas->set_patch_tool_mode(
         static_cast<CanvasWidget::PatchToolMode>(patch_mode_combo_->currentData().toInt()));
@@ -428,6 +430,8 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_marquee_style(current_marquee_style_);
   canvas_->set_marquee_fixed_size(marquee_fixed_size_for_canvas().width(), marquee_fixed_size_for_canvas().height());
   canvas_->set_marquee_corner_radius(current_marquee_corner_radius_);
+  canvas_->set_crop_overlay(static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_),
+                            current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
   canvas_->set_fill_shapes(current_fill_shapes_);

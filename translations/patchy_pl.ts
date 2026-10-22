@@ -23842,6 +23842,50 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>200%</source>
         <translation>200%</translation>
     </message>
+    <message>
+        <source>Rule of Thirds</source>
+        <translation>Trójpodział</translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation>Przekątne</translation>
+    </message>
+    <message>
+        <source>Triangle</source>
+        <translation>Trójkąt</translation>
+    </message>
+    <message>
+        <source>Golden Ratio</source>
+        <translation>Złoty podział</translation>
+    </message>
+    <message>
+        <source>Golden Spiral</source>
+        <translation>Złota spirala</translation>
+    </message>
+    <message>
+        <source>Overlay:</source>
+        <translation>Nakładka:</translation>
+    </message>
+    <message>
+        <source>Composition guides drawn inside the crop box</source>
+        <translation>Linie kompozycji rysowane w ramce kadrowania</translation>
+    </message>
+    <message>
+        <source>Turn the Triangle or Golden Spiral overlay</source>
+        <translation>Obróć nakładkę Trójkąt lub Złota spirala</translation>
+    </message>
+    <message>
+        <source>When the overlay shows</source>
+        <translation>Kiedy pokazywać nakładkę</translation>
+    </message>
+    <message>
+        <source>Always Show Overlay</source>
+        <translation>Zawsze pokazuj nakładkę</translation>
+    </message>
+    <message>
+        <source>Show Overlay Only While Dragging</source>
+        <translation>Pokazuj nakładkę tylko podczas przeciągania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
