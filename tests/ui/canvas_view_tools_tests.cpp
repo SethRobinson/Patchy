@@ -762,6 +762,89 @@ void ui_shape_options_bars_group_their_controls() {
   CHECK(problems.empty());
 }
 
+// GitHub issue 324: the Crop bar follows the grouping rules (docs/options-bar.md) in both
+// styles: Style | the preset, W : H pair and Clear (Ratio) or the size fields (Size) | the two
+// Delete checkboxes | Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both
+// styles fit one row at 1366 px. The artifacts are the issue shots, in both schemes.
+void ui_crop_options_bar_groups_its_controls() {
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
+    if (options_bar == nullptr || options == nullptr || style == nullptr) {
+      return;
+    }
+    const QString separator = QStringLiteral("|");
+    require_action(window, "toolCropAction")->trigger();
+    const int original = style->currentIndex();
+    for (int index = 0; index < 2; ++index) {
+      style->setCurrentIndex(index);
+      QApplication::processEvents();
+      process_events_for(20);
+      const std::string name = std::string(index == 0 ? "ratio" : "size") + suffix;
+      save_widget_artifact("issue_324_crop_options_bar_" + name, *options_bar);
+      const auto tokens = options_row_tokens(*options);
+      std::printf("  %-12s", name.c_str());
+      for (const auto& token : tokens) {
+        std::printf(" %s", qPrintable(token));
+      }
+      std::printf("\n");
+      const auto problem = [&](const std::string& what) { problems.push_back(name + ": " + what); };
+      const auto at = [&tokens](const QString& token) {
+        const auto found = std::find(tokens.begin(), tokens.end(), token);
+        return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+      };
+      const auto expect_next_to = [&](const QString& left, const QString& right) {
+        const int i = at(left);
+        if (i < 0 || i + 1 >= static_cast<int>(tokens.size()) || tokens[static_cast<std::size_t>(i) + 1] != right) {
+          problem(left.toStdString() + " is not followed by " + right.toStdString());
+        }
+      };
+      expect_next_to(QStringLiteral("cropStyleCombo"), separator);
+      if (index == 0) {
+        expect_next_to(QStringLiteral("cropRatioHeightSpin"), QStringLiteral("cropRatioClearButton"));
+        expect_next_to(QStringLiteral("cropRatioClearButton"), separator);
+      } else {
+        expect_next_to(QStringLiteral("cropHeightSpin"), separator);
+      }
+      expect_next_to(QStringLiteral("cropDeletePixelsCheck"), QStringLiteral("cropDeleteLayersCheck"));
+      expect_next_to(QStringLiteral("cropDeleteLayersCheck"), separator);
+      expect_next_to(QStringLiteral("cropApplyButton"), QStringLiteral("cropCancelButton"));
+      const int pixels = at(QStringLiteral("cropDeletePixelsCheck"));
+      const int apply = at(QStringLiteral("cropApplyButton"));
+      if (pixels <= 0 || tokens[static_cast<std::size_t>(pixels) - 1] != separator) {
+        problem("no separator before the Delete checkboxes");
+      }
+      if (apply <= 0 || tokens[static_cast<std::size_t>(apply) - 1] != separator) {
+        problem("no separator before Apply");
+      }
+      if (tokens.empty() || tokens.back() != QStringLiteral("cropCancelButton")) {
+        problem("Cancel is not last");
+      }
+      if (const auto count = std::count(tokens.begin(), tokens.end(), separator); count != 3) {
+        problem(std::to_string(count) + " separators, expected 3");
+      }
+      if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
+        problem("takes " + std::to_string(lines) + " rows at 1366 px (row " + std::to_string(right) + " px)");
+      } else {
+        std::printf("  %s: one row, %d px\n", name.c_str(), right);
+      }
+    }
+    style->setCurrentIndex(original);
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
 // GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
 // show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
 // and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
@@ -7727,6 +7810,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
+      {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
