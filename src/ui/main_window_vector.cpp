@@ -1450,11 +1450,10 @@ std::optional<PatternResource> MainWindow::resolve_vector_pattern_resource(
 
 void MainWindow::update_vector_swatch_icons() {
   const auto make_swatch = [this](const VectorFill& paint, const QToolButton& button) {
-    // Drawn at the size the button shows it (a 20x14 chip fitted to the icon
-    // size): a scaled pixmap would blur the one-pixel outline into the bar.
-    const QSize authored(20, 14);
-    const QSize fitted = authored.scaled(button.iconSize(), Qt::KeepAspectRatio);
-    const QSize size = fitted.width() < authored.width() && !fitted.isEmpty() ? fitted : authored;
+    // Drawn at the size the button shows it (the options bar's swatches are a
+    // 28x16 chip, GitHub issue 311): a scaled pixmap would blur the one-pixel
+    // outline into the bar.
+    const QSize size = button.iconSize().isEmpty() ? QSize(28, 16) : button.iconSize();
     QPixmap pixmap(size);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);

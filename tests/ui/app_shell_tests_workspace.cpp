@@ -1776,7 +1776,7 @@ void ui_main_window_renders_color_controls() {
   auto* shape_button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
   CHECK(shape_button != nullptr);
   CHECK(shape_button->menu() != nullptr);
-  CHECK(shape_button->menu()->actions().size() == 7);  // Line/Rect/Ellipse/Polygon/Custom Shape + separator + Cycle
+  CHECK(shape_button->menu()->actions().size() == 7);  // Rect/Ellipse/Polygon/Line/Custom Shape + separator + Cycle
   CHECK(shape_button->defaultAction() == require_action_by_text(window, QStringLiteral("Rect")));
 
   save_widget_artifact("ui_main_window", window);

@@ -2893,17 +2893,27 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       CanvasTool::CustomShape, CanvasTool::PathSelect, CanvasTool::DirectSelect};
   vector_shape_mode_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Fill:"), vector_appearance_tools));
+  // The Fill and Stroke swatches are framed buttons with a wide chip, so they read as
+  // something to click (GitHub issue 311); the frame is the QSS optionsBarSwatch rule.
+  const auto configure_swatch_button = [](QToolButton* button) {
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setProperty("optionsBarSwatch", true);
+    button->setIconSize(QSize(28, 16));
+    button->setFixedSize(38, 26);
+    button->setFocusPolicy(Qt::NoFocus);
+  };
   vector_fill_swatch_button_ = new QToolButton(toolbar);
   vector_fill_swatch_button_->setObjectName(QStringLiteral("vectorFillSwatchButton"));
   bind_tooltip(vector_fill_swatch_button_, QT_TR_NOOP("Shape fill: none, solid color, gradient, or pattern"));
-  vector_fill_swatch_button_->setAutoRaise(true);
-  vector_fill_swatch_button_->setProperty("optionsBarButton", true);
+  configure_swatch_button(vector_fill_swatch_button_);
   add_option_widget(vector_fill_swatch_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
   connect(vector_fill_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(false); });
+  // Fill | Stroke, its swatch and width (GitHub issue 311).
+  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                        CanvasTool::Polygon, CanvasTool::CustomShape});
   auto* vector_stroke_check = new CheckGlyphBox(tr("Stroke"), toolbar);
-
   bind_widget_text(vector_stroke_check, QT_TR_NOOP("Stroke"));
   vector_stroke_check->setObjectName(QStringLiteral("vectorStrokeCheck"));
   vector_stroke_check->setChecked(current_vector_stroke_enabled_);
@@ -2920,8 +2930,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_stroke_swatch_button_ = new QToolButton(toolbar);
   vector_stroke_swatch_button_->setObjectName(QStringLiteral("vectorStrokeSwatchButton"));
   bind_tooltip(vector_stroke_swatch_button_, QT_TR_NOOP("Shape stroke: solid color, gradient, or pattern"));
-  vector_stroke_swatch_button_->setAutoRaise(true);
-  vector_stroke_swatch_button_->setProperty("optionsBarButton", true);
+  configure_swatch_button(vector_stroke_swatch_button_);
   add_option_widget(vector_stroke_swatch_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this,
@@ -3001,8 +3010,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       properties_shape_link_size_button_->setChecked(checked);
     }
   });
+  // Even space on both sides of the toggle (GitHub issue 311, the icon-button rule in
+  // docs/options-bar.md): the H label drops its text padding, so its text sits as far from the
+  // button as the W field does.
   vector_shape_size_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("H:"), vector_shape_size_tools));
+  vector_shape_size_option_widgets_.back()->setObjectName(QStringLiteral("vectorShapeHeightLabel"));
+  vector_shape_size_option_widgets_.back()->setStyleSheet(QStringLiteral("QLabel { padding-left: 0; }"));
   vector_shape_height_spin_ =
       make_shape_size_spin("vectorShapeHeightSpin", QT_TR_NOOP("Height of the active shape"));
   // The readouts follow the ruler unit; value() stays document pixels.
@@ -3019,27 +3033,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
                         CanvasTool::Polygon, CanvasTool::CustomShape});
-  vector_vector_mode_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Weight:"), {CanvasTool::Line}));
-  // Fractional so a 0.5 mm hairline survives a ruler unit of mm; the shape
-  // model's line_weight is a double already.
-  auto* vector_line_weight = new UnitSpinBox(SpinUnit::Pixels, toolbar);
-  vector_line_weight->setObjectName(QStringLiteral("vectorLineWeightSpin"));
-  vector_line_weight->setRange(1.0, 1000.0);
-  vector_line_weight->setDecimals(1);
-  vector_line_weight->setValue(current_vector_line_weight_);
-  vector_line_weight->set_context_provider(thickness_context);
-  bind_tooltip(vector_line_weight, QT_TR_NOOP("Line thickness"));
-  vector_line_weight->setProperty(kToolbarSpinboxSliderCurvedProperty, true);
-  configure_toolbar_spinbox(vector_line_weight, 58);
-  add_option_widget(vector_line_weight, {CanvasTool::Line});
-  vector_vector_mode_option_widgets_.push_back(vector_line_weight);
-  register_ruler_unit_field(vector_line_weight);
-  connect(vector_line_weight, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-    current_vector_line_weight_ = value;
-    schedule_save_tool_settings();
-  });
-
   vector_vector_mode_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
                        CanvasTool::Polygon, CanvasTool::CustomShape,
@@ -3084,6 +3077,31 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
   update_vector_swatch_icons();
+
+  // Each tool's own settings follow Combine as one group (GitHub issue 311): Line's Weight
+  // and arrowheads, Pen's Auto Add/Delete, Polygon's Sides and Star inset, Custom Shape's
+  // Shape, and Rectangle's Radius. The Line bar used to put Weight before Combine.
+  add_option_separator({CanvasTool::Line, CanvasTool::Pen, CanvasTool::Polygon, CanvasTool::CustomShape});
+  vector_vector_mode_option_widgets_.push_back(
+      add_option_label(QT_TR_NOOP("Weight:"), {CanvasTool::Line}));
+  // Fractional so a 0.5 mm hairline survives a ruler unit of mm; the shape
+  // model's line_weight is a double already.
+  auto* vector_line_weight = new UnitSpinBox(SpinUnit::Pixels, toolbar);
+  vector_line_weight->setObjectName(QStringLiteral("vectorLineWeightSpin"));
+  vector_line_weight->setRange(1.0, 1000.0);
+  vector_line_weight->setDecimals(1);
+  vector_line_weight->setValue(current_vector_line_weight_);
+  vector_line_weight->set_context_provider(thickness_context);
+  bind_tooltip(vector_line_weight, QT_TR_NOOP("Line thickness"));
+  vector_line_weight->setProperty(kToolbarSpinboxSliderCurvedProperty, true);
+  configure_toolbar_spinbox(vector_line_weight, 58);
+  add_option_widget(vector_line_weight, {CanvasTool::Line});
+  vector_vector_mode_option_widgets_.push_back(vector_line_weight);
+  register_ruler_unit_field(vector_line_weight);
+  connect(vector_line_weight, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    current_vector_line_weight_ = value;
+    schedule_save_tool_settings();
+  });
 
   // Photoshop's Pen "Auto Add/Delete": on, a click on the target path edits
   // its anchors (add on a segment, delete on a point); off, every click draws.
@@ -3185,6 +3203,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  add_option_separator({CanvasTool::Rectangle});
   add_option_label(QT_TR_NOOP("Radius:"), {CanvasTool::Rectangle});
   auto* shape_corner_radius = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   shape_corner_radius->setObjectName(QStringLiteral("shapeCornerRadiusSpin"));
