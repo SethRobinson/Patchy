@@ -1900,7 +1900,11 @@ void CanvasWidget::finish_quick_mask_edit() {
 }
 
 void CanvasWidget::combine_selection_from_region(const QRegion& candidate) {
-  if (selection_mask_before_edit_alpha_.isNull()) {
+  // Replace ignores the selection before the edit, so a soft one (an
+  // anti-aliased Lasso) must not route each marquee drag move through a mask
+  // the size of both selections' bounds (GitHub issue 340).
+  if (selection_mask_before_edit_alpha_.isNull() ||
+      (selection_operation_ == SelectionMode::Replace && !candidate.isEmpty())) {
     set_selection_from_region(combine_selection(candidate));
     return;
   }
@@ -1923,7 +1927,7 @@ void CanvasWidget::combine_selection_from_mask(QRegion candidate, QRect candidat
     return;
   }
 
-  if (selection_mask_before_edit_alpha_.isNull() && selection_operation_ == SelectionMode::Replace) {
+  if (selection_operation_ == SelectionMode::Replace) {
     set_selection_from_mask(candidate, candidate_bounds, std::move(candidate_alpha));
     return;
   }
