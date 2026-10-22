@@ -145,6 +145,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.16" date="2026-10-22">
+      <description>
+        <ul>
+          <li>Shape tools: width 0 means no stroke, Ctrl and Shift modifiers, tidier create dialogs</li>
+          <li>Crop overlay and options, Pick tool sample choices and loupe, a Hand tool options bar</li>
+          <li>A faster Liquify with more brush options and undo, and faster Warp on large files</li>
+          <li>The Polygonal Lasso, Merge Visible, a New Layer dialog and Background layer rules</li>
+          <li>Consistent options bars, HDR AVIF and high-bit-depth HEIF at full depth, Wayland color picking</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.15" date="2026-10-21">
       <description>
         <ul>
