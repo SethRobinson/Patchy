@@ -36,6 +36,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QRectF>
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -48,6 +49,7 @@
 #include <atomic>
 #include <array>
 #include <chrono>
+#include <cstdio>
 #include <cstdint>
 #include <cmath>
 #include <cstring>
@@ -2621,6 +2623,250 @@ void ui_warp_drag_renders_once_per_frame() {
   canvas->cancel_warp_transform();
 }
 
+// A warp handle dragged far past its neighbours stretches the surface's cells into
+// long slivers and folds it over itself. The resample walks each cell's own span per
+// row, so its work stays a small multiple of the output however far the handle goes;
+// walking each cell's bounding box tested every sliver against most of the output
+// (GitHub issue 299: a middle point dragged a few inches at a zoomed-out view made
+// every frame crawl).
+void ui_warp_far_dragged_interior_point_resamples_in_bounded_work() {
+  constexpr int kWidth = 600;
+  constexpr int kHeight = 400;
+  QImage source(kWidth, kHeight, QImage::Format_RGBA8888);
+  for (int y = 0; y < kHeight; ++y) {
+    auto* row = source.scanLine(y);
+    for (int x = 0; x < kWidth; ++x) {
+      const bool band = ((x / 40) + (y / 40)) % 2 == 0;
+      row[x * 4 + 0] = static_cast<std::uint8_t>(band ? 220 : 30);
+      row[x * 4 + 1] = static_cast<std::uint8_t>((x * 255) / kWidth);
+      row[x * 4 + 2] = static_cast<std::uint8_t>((y * 255) / kHeight);
+      row[x * 4 + 3] = 255;
+    }
+  }
+  for (const double reach : {0.0, 1500.0, 6000.0}) {
+    auto mesh = patchy::identity_warp_mesh(0.0, 0.0, kWidth, kHeight, 4, 4);
+    mesh.xs[5] += reach;  // row 1, column 1: an interior point, dragged right
+    mesh.ys[5] += reach / 6.0;
+    const auto [min_x, max_x] = std::minmax_element(mesh.xs.begin(), mesh.xs.end());
+    const auto [min_y, max_y] = std::minmax_element(mesh.ys.begin(), mesh.ys.end());
+    const std::array<double, 8> quad{*min_x, *min_y, *max_x, *min_y, *max_x, *max_y, *min_x, *max_y};
+    for (const auto& [cell, cells] : std::vector<std::pair<double, int>>{{4.0, 128}, {16.0, 64}}) {
+      const auto grid = patchy::build_warp_surface_grid(mesh, quad, kWidth, kHeight, cell, cells);
+      CHECK(grid.has_value());
+      if (!grid.has_value()) {
+        continue;
+      }
+      // What walking every cell's bounding box costs.
+      std::uint64_t box_tests = 0;
+      for (int r = 0; r + 1 < grid->rows; ++r) {
+        for (int c = 0; c + 1 < grid->columns; ++c) {
+          const auto i = static_cast<std::size_t>(r * grid->columns + c);
+          const std::array<std::size_t, 4> corner{i, i + 1, i + static_cast<std::size_t>(grid->columns),
+                                                  i + static_cast<std::size_t>(grid->columns) + 1};
+          double x0 = 1e300;
+          double x1 = -1e300;
+          double y0 = 1e300;
+          double y1 = -1e300;
+          for (const auto k : corner) {
+            x0 = std::min(x0, grid->doc_xs[k]);
+            x1 = std::max(x1, grid->doc_xs[k]);
+            y0 = std::min(y0, grid->doc_ys[k]);
+            y1 = std::max(y1, grid->doc_ys[k]);
+          }
+          box_tests += static_cast<std::uint64_t>(std::ceil(x1) + 1 - std::floor(x0)) *
+                       static_cast<std::uint64_t>(std::ceil(y1) + 1 - std::floor(y0));
+        }
+      }
+      const auto started = std::chrono::steady_clock::now();
+      const auto warped =
+          patchy::ui::resample_warped_rgba8(source, *grid, patchy::ui::CanvasWidget::TransformInterpolation::Bilinear);
+      const auto elapsed_ms =
+          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+      const auto pixels = static_cast<std::uint64_t>(warped.image.width()) * warped.image.height();
+      std::printf("[INFO] issue299 warp reach %.0f cell %.0f: output %dx%d, span tests %llu (%.2f per pixel), "
+                  "box tests %llu, %.1f ms\n",
+                  reach, cell, warped.image.width(), warped.image.height(),
+                  static_cast<unsigned long long>(warped.cell_pixel_tests),
+                  pixels > 0 ? static_cast<double>(warped.cell_pixel_tests) / static_cast<double>(pixels) : 0.0,
+                  static_cast<unsigned long long>(box_tests), elapsed_ms);
+      CHECK(!warped.image.isNull());
+      // The surface stays inside the control points' hull (a Bezier surface does).
+      CHECK(warped.bounds.x >= static_cast<int>(std::floor(*min_x)) - 2 &&
+            warped.bounds.x + warped.bounds.width <= static_cast<int>(std::ceil(*max_x)) + 2);
+      CHECK(warped.cell_pixel_tests <= 4 * pixels + static_cast<std::uint64_t>(grid->rows * grid->columns) * 64);
+      if (reach > 0.0) {
+        save_image_artifact("issue299_warp_far_reach_" + std::to_string(static_cast<int>(reach)) + "_cell" +
+                                std::to_string(static_cast<int>(cell)),
+                            warped.image);
+      }
+    }
+  }
+}
+
+// The same drag through the canvas at a zoomed-out view, the way it was reported:
+// every drag frame and the resting frame keep their resample work bounded by the
+// pixels they render.
+void ui_warp_far_drag_preview_work_stays_bounded() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  constexpr int kWidth = 3300;
+  constexpr int kHeight = 2550;
+  patchy::Document built(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer backdrop(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  backdrop.clear(255);
+  built.add_layer(patchy::Layer(built.allocate_layer_id(), "Backdrop", std::move(backdrop)));
+  constexpr int kArtWidth = 1400;
+  constexpr int kArtHeight = 600;
+  patchy::PixelBuffer art(kArtWidth, kArtHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kArtHeight; ++y) {
+    for (std::int32_t x = 0; x < kArtWidth; ++x) {
+      auto* px = art.pixel(x, y);
+      const bool band = ((x / 100) + (y / 100)) % 2 == 0;
+      px[0] = static_cast<std::uint8_t>(band ? 30 : 60);
+      px[1] = static_cast<std::uint8_t>(band ? 90 : 140);
+      px[2] = static_cast<std::uint8_t>(band ? 200 : 240);
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "Ribbon", std::move(art));
+  layer.set_bounds(patchy::Rect{500, 700, kArtWidth, kArtHeight});
+  const auto layer_id = layer.id();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Far warp"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->set_zoom_centered(0.25);
+  QApplication::processEvents();
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+
+  // Handle 5 (row 1, column 1) dragged about 5 inches on screen to the right.
+  const auto start = canvas->widget_position_f(canvas->warp_handle_document_position(5)).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  const auto bounded = [](const patchy::ui::CanvasRenderCacheDiagnostics& diagnostics) {
+    return diagnostics.warp_preview_last_cell_tests <= 4 * diagnostics.warp_preview_last_pixels + 64 * 65 * 65 * 4;
+  };
+  QPoint end = start;
+  for (int frame = 1; frame <= 6; ++frame) {
+    end = start + QPoint(frame * 90, frame * 10);
+    send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+    const auto started = std::chrono::steady_clock::now();
+    canvas->repaint();
+    const auto elapsed_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    const auto diagnostics = canvas->render_cache_diagnostics();
+    std::printf("[INFO] issue299 drag frame %d: %llu px, %llu tests, %.1f ms\n", frame,
+                static_cast<unsigned long long>(diagnostics.warp_preview_last_pixels),
+                static_cast<unsigned long long>(diagnostics.warp_preview_last_cell_tests), elapsed_ms);
+    CHECK(bounded(diagnostics));
+  }
+  save_image_artifact("issue299_warp_far_drag_frame", canvas->grab().toImage());
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto resting = canvas->render_cache_diagnostics();
+  std::printf("[INFO] issue299 resting frame: %llu px, %llu tests\n",
+              static_cast<unsigned long long>(resting.warp_preview_last_pixels),
+              static_cast<unsigned long long>(resting.warp_preview_last_cell_tests));
+  CHECK(bounded(resting));
+  save_image_artifact("issue299_warp_far_drag_resting", canvas->grab().toImage());
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  const auto bounds = canvas->active_layer_document_rect();
+  CHECK(bounds.has_value());
+  if (bounds.has_value()) {
+    std::printf("[INFO] issue299 committed bounds %d,%d %dx%d\n", bounds->x(), bounds->y(), bounds->width(),
+                bounds->height());
+  }
+}
+
+// Warp after a Perspective stage (the #299 type buttons make that a two-click path):
+// the cage maps to the document through the stage's homography, which has a horizon.
+// A middle point dragged past it used to put the surface on both sides, its lattice
+// ran off to infinity, and the frame filled with streaks while every repaint crawled.
+// The handle now stops at its last good position and the surface stays finite.
+void ui_warp_after_perspective_handle_stops_at_the_horizon() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  constexpr int kWidth = 1600;
+  constexpr int kHeight = 1000;
+  patchy::Document built(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer backdrop(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  backdrop.clear(255);
+  built.add_layer(patchy::Layer(built.allocate_layer_id(), "Backdrop", std::move(backdrop)));
+  patchy::PixelBuffer art(400, 300, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 300; ++y) {
+    for (std::int32_t x = 0; x < 400; ++x) {
+      auto* px = art.pixel(x, y);
+      const bool band = ((x / 50) + (y / 50)) % 2 == 0;
+      px[0] = static_cast<std::uint8_t>(band ? 30 : 200);
+      px[1] = static_cast<std::uint8_t>(band ? 80 : 60);
+      px[2] = static_cast<std::uint8_t>(band ? 210 : 40);
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "Art", std::move(art));
+  layer.set_bounds(patchy::Rect{100, 100, 400, 300});
+  const auto layer_id = layer.id();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Perspective warp"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->set_zoom_centered(0.5);
+  QApplication::processEvents();
+  require_action(window, "editTransformPerspectiveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  // The right side shrinks to a sliver: the sides meet a little right of x = 560.
+  CHECK(canvas->set_free_transform_quad(
+      {QPointF(100, 100), QPointF(500, 230), QPointF(500, 270), QPointF(100, 400)}));
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  if (!canvas->warp_transform_active()) {
+    return;
+  }
+  const double margin = std::max(4096.0, 2.0 * std::max(kWidth, kHeight));
+  const QRectF sane(-margin, -margin, kWidth + 2 * margin, kHeight + 2 * margin);
+  const auto start = canvas->warp_handle_document_position(5);
+  for (const double reach :
+       {100.0, 130.0, 140.0, 145.0, 150.0, 153.0, 155.0, 157.0, 158.0, 159.0, 160.0, 300.0, 1200.0, 5000.0}) {
+    canvas->set_warp_handle_document_position(5, start + QPointF(reach, 20.0));
+    QApplication::processEvents();
+    const auto diagnostics = canvas->render_cache_diagnostics();
+    std::printf("[INFO] issue299 perspective reach %.0f: handle %.1f,%.1f, %llu px, %llu tests\n", reach,
+                canvas->warp_handle_document_position(5).x(), canvas->warp_handle_document_position(5).y(),
+                static_cast<unsigned long long>(diagnostics.warp_preview_last_pixels),
+                static_cast<unsigned long long>(diagnostics.warp_preview_last_cell_tests));
+    for (int handle = 0; handle < canvas->warp_handle_count(); ++handle) {
+      const auto position = canvas->warp_handle_document_position(handle);
+      CHECK(std::isfinite(position.x()) && std::isfinite(position.y()) && sane.contains(position));
+    }
+    CHECK(diagnostics.warp_preview_last_cell_tests <=
+          4 * diagnostics.warp_preview_last_pixels + 129ULL * 129ULL * 64ULL);
+  }
+  // The handle stops short of the horizon (the sides meet near x = 562), where the
+  // old code drew screen-wide streaks from about 150 px of reach on.
+  CHECK(canvas->warp_handle_document_position(5).x() < 562.0);
+  CHECK(canvas->warp_handle_document_position(5).x() > 540.0);
+  save_image_artifact("issue299_warp_perspective_far", canvas->grab().toImage());
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  const auto bounds = canvas->active_layer_document_rect();
+  CHECK(bounds.has_value() && sane.contains(QRectF(*bounds)));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> warp_tests() {
@@ -2628,6 +2874,11 @@ std::vector<patchy::test::TestCase> warp_tests() {
       {"ui_warp_resample_parallel_and_clipped_match_sequential",
        ui_warp_resample_parallel_and_clipped_match_sequential},
       {"ui_warp_drag_preview_renders_at_view_resolution", ui_warp_drag_preview_renders_at_view_resolution},
+      {"ui_warp_far_dragged_interior_point_resamples_in_bounded_work",
+       ui_warp_far_dragged_interior_point_resamples_in_bounded_work},
+      {"ui_warp_far_drag_preview_work_stays_bounded", ui_warp_far_drag_preview_work_stays_bounded},
+      {"ui_warp_after_perspective_handle_stops_at_the_horizon",
+       ui_warp_after_perspective_handle_stops_at_the_horizon},
       {"ui_warp_drag_renders_once_per_frame", ui_warp_drag_renders_once_per_frame},
       {"ui_warp_render_matches_photoshop_preview_if_available",
        ui_warp_render_matches_photoshop_preview_if_available},

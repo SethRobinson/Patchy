@@ -2475,6 +2475,13 @@ private:
   // Drops every per-session warp preview cache (base, its mips, patches, source mips).
   void clear_warp_preview_caches();
   [[nodiscard]] std::array<double, 8> warp_document_quad() const;
+  // Whether `candidate` keeps the warp placeable (GitHub issue 299): its control hull
+  // stays on the near side of the content->document map's horizon (a perspective
+  // stage carried into the cage), and its document quad stays within the canvas grown
+  // by twice its larger side (at least 4096 px), unless it is no worse than `current`.
+  // A handle drag that fails keeps the last good position.
+  [[nodiscard]] bool warp_mesh_placement_is_sane(const WarpMeshGrid& candidate,
+                                                 const WarpMeshGrid& current) const;
   // Bakes (mesh, content->document map) into the layer at commit quality and, for
   // smart objects, writes the mesh + hull-quad placement metadata. Shared by the
   // warp commit and the free-transform commit of a pending warp session.
@@ -3604,6 +3611,10 @@ private:
 struct TransformedImage {
   QImage image;
   Rect bounds{};
+  // resample_warped_rgba8 only: (pixel, cell) inverse tests the walk ran, the warp
+  // renderer's work measure (GitHub issue 299: a stretched cell must not test its
+  // whole bounding box).
+  std::uint64_t cell_pixel_tests{0};
 };
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation);

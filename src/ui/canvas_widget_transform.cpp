@@ -55,6 +55,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -702,6 +703,42 @@ std::optional<QImage::Format> deep_qimage_format(QImage::Format format) {
   }
 }
 
+// The x extent of a warp cell's corners' convex hull within the horizontal strip
+// [strip_top, strip_bottom], or nullopt when the hull misses the strip. The hull of
+// four points is the union of the six segments between them, so the extent is the
+// extent of those segments clipped to the strip.
+std::optional<std::array<double, 2>> convex_cell_span_on_row(const std::array<QPointF, 4>& corners,
+                                                             double strip_top, double strip_bottom) {
+  double low = std::numeric_limits<double>::infinity();
+  double high = -std::numeric_limits<double>::infinity();
+  for (std::size_t a = 0; a < corners.size(); ++a) {
+    for (std::size_t b = a + 1; b < corners.size(); ++b) {
+      const auto& p = corners[a];
+      const auto& q = corners[b];
+      const double y_min = std::min(p.y(), q.y());
+      const double y_max = std::max(p.y(), q.y());
+      if (y_max < strip_top || y_min > strip_bottom) {
+        continue;
+      }
+      const double dy = q.y() - p.y();
+      if (std::abs(dy) < 1e-12) {
+        low = std::min({low, p.x(), q.x()});
+        high = std::max({high, p.x(), q.x()});
+        continue;
+      }
+      for (const double y : {std::clamp(strip_top, y_min, y_max), std::clamp(strip_bottom, y_min, y_max)}) {
+        const double x = p.x() + (q.x() - p.x()) * ((y - p.y()) / dy);
+        low = std::min(low, x);
+        high = std::max(high, x);
+      }
+    }
+  }
+  if (!(low <= high)) {
+    return std::nullopt;
+  }
+  return std::array<double, 2>{low, high};
+}
+
 }  // namespace
 
 // Declared in canvas_widget.hpp: shared with the smart-object preview renderer, so it
@@ -881,7 +918,9 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
   auto* transformed_bits = transformed.bits();
   const auto transformed_stride = static_cast<std::size_t>(transformed.bytesPerLine());
   const auto transformed_width = transformed.width();
+  std::atomic<std::uint64_t> cell_pixel_tests{0};
   const auto resample_band = [&](int band_top, int band_bottom) {
+    std::uint64_t band_tests = 0;
     for (int cell_row = 0; cell_row + 1 < grid.rows; ++cell_row) {
       for (int cell_column = 0; cell_column + 1 < grid.columns; ++cell_column) {
         const auto i00 = static_cast<std::size_t>(cell_row * grid.columns + cell_column);
@@ -896,10 +935,26 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
         const int px_end = std::min(right, static_cast<int>(std::ceil(cell_max_x)) + 1);
         const int py_start = std::max(band_top, static_cast<int>(std::floor(cell_min_y)));
         const int py_end = std::min(band_bottom, static_cast<int>(std::ceil(cell_max_y)) + 1);
+        const std::array<QPointF, 4> corners{QPointF(grid.doc_xs[i00], grid.doc_ys[i00]),
+                                             QPointF(grid.doc_xs[i10], grid.doc_ys[i10]),
+                                             QPointF(grid.doc_xs[i11], grid.doc_ys[i11]),
+                                             QPointF(grid.doc_xs[i01], grid.doc_ys[i01])};
         for (int py = py_start; py < py_end; ++py) {
+          // A bilinear cell lies inside its corners' convex hull, so only the hull's
+          // span on this pixel row can invert. A handle dragged far stretches cells
+          // into long slivers whose bounding boxes cover most of the output; walking
+          // the whole box tested every cell against most pixels (GitHub issue 299).
+          // The span keeps a pixel of slack each side, so the result is unchanged.
+          const auto span = convex_cell_span_on_row(corners, static_cast<double>(py), static_cast<double>(py + 1));
+          if (!span.has_value()) {
+            continue;
+          }
+          const int row_start = std::max(px_start, static_cast<int>(std::floor((*span)[0])) - 1);
+          const int row_end = std::min(px_end, static_cast<int>(std::ceil((*span)[1])) + 1);
           auto* row = transformed_bits + static_cast<std::size_t>(py - top) * transformed_stride;
           auto* coverage_row = covered.data() + static_cast<std::size_t>(py - top) * transformed_width;
-          for (int px = px_start; px < px_end; ++px) {
+          band_tests += static_cast<std::uint64_t>(std::max(0, row_end - row_start));
+          for (int px = row_start; px < row_end; ++px) {
             if (coverage_row[px - left] != 0) {
               continue;  // first writer wins on folds (row-major cell order)
             }
@@ -946,6 +1001,7 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
         }
       }
     }
+    cell_pixel_tests.fetch_add(band_tests);
   };
 
   const auto area = static_cast<std::int64_t>(transformed.width()) * transformed.height();
@@ -969,7 +1025,7 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
   if (deep_format.has_value() && *deep_format != QImage::Format_RGBA32FPx4) {
     transformed = transformed.convertToFormat(*deep_format);
   }
-  return TransformedImage{std::move(transformed), bounds};
+  return TransformedImage{std::move(transformed), bounds, cell_pixel_tests.load()};
 }
 
 TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8_t default_color,
@@ -5015,8 +5071,19 @@ void CanvasWidget::set_warp_handle_document_position(int index, QPointF document
   }
   const auto content =
       apply_homography(warp_document_to_content_, document_point.x(), document_point.y());
-  warp_mesh_.xs[static_cast<std::size_t>(index)] = content[0];
-  warp_mesh_.ys[static_cast<std::size_t>(index)] = content[1];
+  if (!std::isfinite(content[0]) || !std::isfinite(content[1])) {
+    return;
+  }
+  auto candidate = warp_mesh_;
+  candidate.xs[static_cast<std::size_t>(index)] = content[0];
+  candidate.ys[static_cast<std::size_t>(index)] = content[1];
+  if (!warp_mesh_placement_is_sane(candidate, warp_mesh_)) {
+    // Past the horizon of a perspective stage the surface runs off to infinity, and
+    // far past the canvas it only stretches into slivers: the handle stays at its
+    // last good position, as a Free Transform corner does at a fold.
+    return;
+  }
+  warp_mesh_ = std::move(candidate);
   const bool style_changed = warp_style_ != QStringLiteral("warpCustom") || warp_style_value_ != 0.0;
   warp_style_ = QStringLiteral("warpCustom");
   warp_style_value_ = 0.0;
@@ -5195,6 +5262,78 @@ void CanvasWidget::refresh_warp_preview_for_view() {
   }
 }
 
+bool CanvasWidget::warp_mesh_placement_is_sane(const WarpMeshGrid& candidate, const WarpMeshGrid& current) const {
+  if (candidate.xs.empty() || candidate.xs.size() != candidate.ys.size() || current.xs.empty() ||
+      current.xs.size() != current.ys.size()) {
+    return false;
+  }
+  const auto& map = warp_content_to_document_;
+  const auto hull_corners = [](const WarpMeshGrid& mesh) {
+    const auto [min_x, max_x] = std::minmax_element(mesh.xs.begin(), mesh.xs.end());
+    const auto [min_y, max_y] = std::minmax_element(mesh.ys.begin(), mesh.ys.end());
+    return std::array<std::array<double, 2>, 4>{std::array<double, 2>{*min_x, *min_y},
+                                                std::array<double, 2>{*max_x, *min_y},
+                                                std::array<double, 2>{*max_x, *max_y},
+                                                std::array<double, 2>{*min_x, *max_y}};
+  };
+  // The projective denominator is linear in content space, so its sign over the hull
+  // box (which holds the whole surface) is settled by the four corners. The current
+  // hull's centre gives the sign of the visible side.
+  const auto denominator = [&map](const std::array<double, 2>& point) {
+    return map[6] * point[0] + map[7] * point[1] + map[8];
+  };
+  const auto current_corners = hull_corners(current);
+  std::array<double, 2> centre{0.0, 0.0};
+  for (const auto& corner : current_corners) {
+    centre[0] += corner[0] / 4.0;
+    centre[1] += corner[1] / 4.0;
+  }
+  const double reference = denominator(centre);
+  if (std::abs(reference) < 1e-12) {
+    return false;
+  }
+  const auto candidate_corners = hull_corners(candidate);
+  const auto lowest_ratio = [&](const std::array<std::array<double, 2>, 4>& corners) {
+    double lowest = std::numeric_limits<double>::infinity();
+    for (const auto& corner : corners) {
+      lowest = std::min(lowest, denominator(corner) / reference);
+    }
+    return lowest;
+  };
+  if (const auto candidate_ratio = lowest_ratio(candidate_corners);
+      candidate_ratio <= 1e-3 && candidate_ratio < lowest_ratio(current_corners)) {
+    return false;
+  }
+  const auto document_box = [&map](const std::array<std::array<double, 2>, 4>& corners) {
+    double left = std::numeric_limits<double>::infinity();
+    double top = std::numeric_limits<double>::infinity();
+    double right = -std::numeric_limits<double>::infinity();
+    double bottom = -std::numeric_limits<double>::infinity();
+    for (const auto& corner : corners) {
+      const auto mapped = apply_homography(map, corner[0], corner[1]);
+      left = std::min(left, mapped[0]);
+      top = std::min(top, mapped[1]);
+      right = std::max(right, mapped[0]);
+      bottom = std::max(bottom, mapped[1]);
+    }
+    return std::array<double, 4>{left, top, right, bottom};
+  };
+  const auto box = document_box(candidate_corners);
+  if (!std::isfinite(box[0]) || !std::isfinite(box[1]) || !std::isfinite(box[2]) || !std::isfinite(box[3])) {
+    return false;
+  }
+  const double canvas_width = document_ != nullptr ? document_->width() : 0.0;
+  const double canvas_height = document_ != nullptr ? document_->height() : 0.0;
+  const double margin = std::max(4096.0, 2.0 * std::max(canvas_width, canvas_height));
+  if (box[0] >= -margin && box[1] >= -margin && box[2] <= canvas_width + margin &&
+      box[3] <= canvas_height + margin) {
+    return true;
+  }
+  // A layer that already reaches past the limit may still be warped inward.
+  const auto now = document_box(current_corners);
+  return box[0] >= now[0] && box[1] >= now[1] && box[2] <= now[2] && box[3] <= now[3];
+}
+
 std::array<double, 8> CanvasWidget::warp_document_quad() const {
   const auto [min_x, max_x] = std::minmax_element(warp_mesh_.xs.begin(), warp_mesh_.xs.end());
   const auto [min_y, max_y] = std::minmax_element(warp_mesh_.ys.begin(), warp_mesh_.ys.end());
@@ -5291,6 +5430,7 @@ void CanvasWidget::refresh_warp_preview_cache() {
   }
   render_cache_diagnostics_.warp_preview_last_pixels =
       static_cast<std::uint64_t>(warped.image.width()) * static_cast<std::uint64_t>(warped.image.height());
+  render_cache_diagnostics_.warp_preview_last_cell_tests = warped.cell_pixel_tests;
   const auto warped_pixels = pixels_from_image_native(warped.image);
   // Region-limited over the base cache (which excludes the layer): the warped
   // content only contributes inside its own effect bounds, so recompositing
