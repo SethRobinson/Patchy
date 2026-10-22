@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <optional>
 #include <set>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -71,6 +72,29 @@ void apply_layer_group_disclosure(std::vector<Layer>& layers, const std::set<Lay
 [[nodiscard]] const Layer* effective_clip_base(const std::vector<Layer>& siblings, std::size_t index);
 [[nodiscard]] std::vector<std::pair<LayerId, LayerId>> layer_tree_signature(const std::vector<Layer>& layers,
                                                                             LayerId parent_id = 0);
+// The Pick tool's Sample choices (GitHub issue 321), in menu order.
+enum class SampleLayers {
+  CurrentLayer,
+  CurrentAndBelow,
+  AllLayers,
+  AllLayersNoAdjustments,
+  CurrentAndBelowNoAdjustments
+};
+// Settings tokens (`tools/eyedropperSampleLayers`); permanent identifiers.
+[[nodiscard]] std::string_view sample_layers_token(SampleLayers mode) noexcept;
+// The stored choice: a known token wins; otherwise the pre-321 bool
+// (`tools/eyedropperSampleAllLayers`: true All Layers, false Current Layer); otherwise All Layers.
+[[nodiscard]] SampleLayers sample_layers_from_settings(std::optional<std::string_view> token,
+                                                       std::optional<bool> legacy_sample_all_layers) noexcept;
+// The layers a composite Sample choice leaves out, for a hidden-layer render: for the
+// Current & Below choices, everything above `active_id` in compositing order (the later
+// siblings at each level of its ancestor path; a hidden group hides its subtree), and for
+// the No Adjustments choices every adjustment layer. Empty for All Layers. nullopt when a
+// Current & Below choice has no active layer in the tree. CurrentLayer is not a composite
+// and yields nullopt.
+[[nodiscard]] std::optional<std::vector<LayerId>> sample_layers_excluded_ids(const std::vector<Layer>& layers,
+                                                                             std::optional<LayerId> active_id,
+                                                                             SampleLayers mode);
 bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& request);
 // Ungroup: replaces the group with its children at the group's position (storage
 // order kept, so composite order is unchanged). Returns the released ids top to

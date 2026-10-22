@@ -13472,6 +13472,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Polygon-Lasso</translation>
     </message>
+    <message>
+        <source>Select a layer to sample it and the layers below, or sample all layers</source>
+        <translation>Wählen Sie eine Ebene, um sie und die Ebenen darunter aufzunehmen, oder nehmen Sie alle Ebenen auf</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22711,10 +22715,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Aktuelle Ebene</translation>
     </message>
     <message>
-        <source>Pick from the merged image or from the active layer alone</source>
-        <translation>Aus dem zusammengefügten Bild oder nur aus der aktiven Ebene aufnehmen</translation>
-    </message>
-    <message>
         <source>Remove from Recent Folders</source>
         <translation>Aus zuletzt verwendeten Ordnern entfernen</translation>
     </message>
@@ -23761,6 +23761,22 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Stroke width (0 for no stroke)</source>
         <translation>Konturbreite (0 für keine Kontur)</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below</source>
+        <translation>Aktuelle und darunter</translation>
+    </message>
+    <message>
+        <source>All Layers No Adjustments</source>
+        <translation>Alle Ebenen ohne Korrekturen</translation>
+    </message>
+    <message>
+        <source>Current &amp; Below No Adjustments</source>
+        <translation>Aktuelle und darunter ohne Korrekturen</translation>
+    </message>
+    <message>
+        <source>Which layers a pick reads: the active layer, it and the layers below, or the merged image, optionally without adjustment layers</source>
+        <translation>Welche Ebenen ein Aufnehmen liest: die aktive Ebene, sie und die Ebenen darunter oder das zusammengefügte Bild, wahlweise ohne Einstellungsebenen</translation>
     </message>
     <message>
         <source>Crop options: cropped area and crop shield</source>

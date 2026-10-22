@@ -2110,6 +2110,7 @@ void MainWindow::load_tool_settings() {
     canvas_->set_crop_overlay_options(overlay);
     sync_crop_overlay_controls();
   }
+  canvas_->set_crop_keep_proportions(crop_size_link_active());
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
   // Transparent reads as "the tool is broken" a session later. The retired
@@ -2154,9 +2155,20 @@ void MainWindow::load_tool_settings() {
   canvas_->set_eyedropper_sample_size(
       settings.value(QStringLiteral("tools/eyedropperSampleSize"), current_eyedropper_sample_size_).toInt());
   current_eyedropper_sample_size_ = canvas_->eyedropper_sample_size();  // clamped to an odd side
-  current_eyedropper_sample_all_layers_ =
-      settings.value(QStringLiteral("tools/eyedropperSampleAllLayers"), current_eyedropper_sample_all_layers_).toBool();
-  canvas_->set_eyedropper_sample_all_layers(current_eyedropper_sample_all_layers_);
+  {
+    // The five-way Sample choice (GitHub issue 321); before it, a bool that still maps
+    // on first read (true All Layers, false Current Layer).
+    std::optional<std::string> token;
+    if (settings.contains(QStringLiteral("tools/eyedropperSampleLayers"))) {
+      token = settings.value(QStringLiteral("tools/eyedropperSampleLayers")).toString().toStdString();
+    }
+    std::optional<bool> legacy_sample_all_layers;
+    if (settings.contains(QStringLiteral("tools/eyedropperSampleAllLayers"))) {
+      legacy_sample_all_layers = settings.value(QStringLiteral("tools/eyedropperSampleAllLayers")).toBool();
+    }
+    current_eyedropper_sample_layers_ = sample_layers_from_settings(token, legacy_sample_all_layers);
+  }
+  canvas_->set_eyedropper_sample_layers(current_eyedropper_sample_layers_);
   current_eyedropper_picks_background_ =
       settings.value(QStringLiteral("tools/eyedropperPicksBackground"), current_eyedropper_picks_background_).toBool();
   canvas_->set_eyedropper_picks_background(current_eyedropper_picks_background_);
@@ -2471,7 +2483,11 @@ void MainWindow::save_tool_settings() const {
                         : QStringLiteral("desaturate"));
   settings.setValue(QStringLiteral("tools/spongeVibrance"), current_sponge_vibrance_);
   settings.setValue(QStringLiteral("tools/eyedropperSampleSize"), current_eyedropper_sample_size_);
-  settings.setValue(QStringLiteral("tools/eyedropperSampleAllLayers"), current_eyedropper_sample_all_layers_);
+  settings.setValue(QStringLiteral("tools/eyedropperSampleLayers"),
+                    QString::fromLatin1(sample_layers_token(current_eyedropper_sample_layers_)));
+  // Older builds read only the bool: anything but Current Layer reads there as All Layers.
+  settings.setValue(QStringLiteral("tools/eyedropperSampleAllLayers"),
+                    current_eyedropper_sample_layers_ != SampleLayers::CurrentLayer);
   settings.setValue(QStringLiteral("tools/eyedropperPicksBackground"), current_eyedropper_picks_background_);
   settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
   settings.setValue(QStringLiteral("tools/vectorToolMode"),
@@ -2784,6 +2800,10 @@ void MainWindow::choose_crop_shield_color() {
   apply(chosen.value_or(original));
 }
 
+bool MainWindow::crop_size_link_active() const noexcept {
+  return current_crop_style_ == 1 && crop_link_size_button_ != nullptr && crop_link_size_button_->isChecked();
+}
+
 void MainWindow::apply_crop_style(int style) {
   current_crop_style_ = std::clamp(style, 0, 1);
   if (canvas_ != nullptr) {
@@ -2791,6 +2811,7 @@ void MainWindow::apply_crop_style(int style) {
     // automatic frame grows back to the canvas); Ratio mode restores the
     // remembered ratio, which re-fits the box like a fresh entry.
     canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
+    canvas_->set_crop_keep_proportions(crop_size_link_active());
   }
   schedule_save_tool_settings();
   refresh_options_bar();
@@ -3276,7 +3297,8 @@ void MainWindow::refresh_options_bar() {
   if (eyedropper_sample_layers_combo_ != nullptr) {
     QSignalBlocker blocker(eyedropper_sample_layers_combo_);
     eyedropper_sample_layers_combo_->setCurrentIndex(
-        std::max(0, eyedropper_sample_layers_combo_->findData(current_eyedropper_sample_all_layers_)));
+        std::max(0, eyedropper_sample_layers_combo_->findData(
+                        QString::fromLatin1(sample_layers_token(current_eyedropper_sample_layers_)))));
   }
   if (eyedropper_sets_foreground_button_ != nullptr && eyedropper_sets_background_button_ != nullptr) {
     QSignalBlocker foreground_blocker(eyedropper_sets_foreground_button_);

@@ -599,6 +599,109 @@ void ui_crop_handles_resize_move_and_nudge() {
 
 // GitHub issue 66: Alt while dragging a crop handle resizes the box about its
 // center (the opposite side mirrors the dragged one), free or ratio-locked.
+// Size style's Width/Height link binds handle drags too (GitHub issue 332): a
+// corner scales both sides and an edge derives the other side, both at the
+// drag-start proportion; with the link off (or in Ratio style) handles are free.
+void ui_crop_size_link_keeps_proportion_on_handle_drags() {
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("cropWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("cropHeightSpin"));
+  auto* link = window.findChild<QPushButton*>(QStringLiteral("cropLinkSizeButton"));
+  CHECK(style != nullptr);
+  CHECK(width != nullptr);
+  CHECK(height != nullptr);
+  CHECK(link != nullptr);
+  if (style == nullptr || width == nullptr || height == nullptr || link == nullptr) {
+    return;
+  }
+  style->setCurrentIndex(1);
+  link->setChecked(false);
+  width->setValue(600);
+  height->setValue(400);
+  QApplication::processEvents();
+  CHECK(canvas->crop_session_rect() == QRect(212, 184, 600, 400));
+  CHECK(!canvas->crop_keep_proportions());
+
+  const auto at = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  // 3:2 within a pixel of rounding.
+  const auto keeps_three_two = [](QRect rect) { return std::abs(rect.width() * 2 - rect.height() * 3) <= 3; };
+
+  link->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->crop_keep_proportions());
+
+  // Bottom-right corner out, mostly sideways: both sides scale, the top-left
+  // corner stays put, and the fields follow in proportion.
+  drag(*canvas, at(812, 584), at(962, 614));
+  auto rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  CHECK(rect->topLeft() == QPoint(212, 184));
+  CHECK(rect->width() > 600);
+  CHECK(rect->height() > 400);
+  CHECK(keeps_three_two(*rect));
+  CHECK(width->value() == rect->width());
+  CHECK(height->value() == rect->height());
+
+  // Right edge out by 60: the height follows, re-centered on the box; the left
+  // edge stays.
+  const auto before_edge = *rect;
+  drag(*canvas, at(before_edge.x() + before_edge.width(), before_edge.y() + before_edge.height() / 2),
+       at(before_edge.x() + before_edge.width() + 60, before_edge.y() + before_edge.height() / 2));
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  CHECK(rect->x() == before_edge.x());
+  CHECK(std::abs(rect->width() - (before_edge.width() + 60)) <= 1);
+  CHECK(rect->height() > before_edge.height());
+  CHECK(keeps_three_two(*rect));
+  CHECK(std::abs((rect->y() + rect->height() / 2) - (before_edge.y() + before_edge.height() / 2)) <= 1);
+
+  // Bottom edge in by 30: the width follows.
+  const auto before_bottom = *rect;
+  drag(*canvas, at(before_bottom.x() + before_bottom.width() / 2, before_bottom.y() + before_bottom.height()),
+       at(before_bottom.x() + before_bottom.width() / 2, before_bottom.y() + before_bottom.height() - 30));
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  CHECK(rect->y() == before_bottom.y());
+  CHECK(std::abs(rect->height() - (before_bottom.height() - 30)) <= 1);
+  CHECK(rect->width() < before_bottom.width());
+  CHECK(keeps_three_two(*rect));
+
+  // Ratio style lifts the link from the canvas (its own ratio, if any, rules).
+  style->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(!canvas->crop_keep_proportions());
+  style->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(canvas->crop_keep_proportions());
+
+  // Link off: the edge resizes one axis only, the corner is free.
+  link->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->crop_keep_proportions());
+  const auto before_free = *canvas->crop_session_rect();
+  drag(*canvas, at(before_free.x() + before_free.width(), before_free.y() + before_free.height() / 2),
+       at(before_free.x() + before_free.width() + 60, before_free.y() + before_free.height() / 2));
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  CHECK(*rect == QRect(before_free.x(), before_free.y(), before_free.width() + 60, before_free.height()));
+  const auto before_corner = *rect;
+  drag(*canvas, at(before_corner.x() + before_corner.width(), before_corner.y() + before_corner.height()),
+       at(before_corner.x() + before_corner.width() + 100, before_corner.y() + before_corner.height() + 10));
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  CHECK(*rect == QRect(before_corner.x(), before_corner.y(), before_corner.width() + 100, before_corner.height() + 10));
+}
+
 void ui_crop_alt_handle_drag_resizes_about_center() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1480,6 +1583,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_tool_adopts_active_selection", ui_crop_tool_adopts_active_selection},
       {"ui_crop_size_style_fields_mirror_and_resize_box", ui_crop_size_style_fields_mirror_and_resize_box},
       {"ui_crop_handles_resize_move_and_nudge", ui_crop_handles_resize_move_and_nudge},
+      {"ui_crop_size_link_keeps_proportion_on_handle_drags", ui_crop_size_link_keeps_proportion_on_handle_drags},
       {"ui_crop_alt_handle_drag_resizes_about_center", ui_crop_alt_handle_drag_resizes_about_center},
       {"ui_crop_alt_drag_out_draws_from_center", ui_crop_alt_drag_out_draws_from_center},
       {"ui_crop_handle_drag_space_slides_box_then_resumes", ui_crop_handle_drag_space_slides_box_then_resumes},
