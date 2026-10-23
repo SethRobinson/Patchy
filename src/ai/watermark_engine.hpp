@@ -32,8 +32,9 @@ constexpr int kTrustMarkPacketBits = 100;
 // True when this build can run the watermark models (ONNX Runtime loads), whether or not
 // they are downloaded.
 [[nodiscard]] bool trustmark_runtime_available();
-// True when ONNX Runtime loads and every watermark model file is present (downloaded folder
-// first, then the bundled models folder).
+// True when ONNX Runtime loads and every watermark model file is in the downloaded models
+// folder. Only that folder is searched, never the bundled models: packages never ship
+// Adobe's models (docs/legal-constraints.md).
 [[nodiscard]] bool trustmark_models_available();
 // English reason when unavailable; empty when available.
 [[nodiscard]] std::string trustmark_unavailable_reason();

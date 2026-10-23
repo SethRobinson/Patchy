@@ -36,7 +36,8 @@ Download, folder, lookup and deletion follow the High Quality model
 ([ai-selection.md](ai-selection.md#the-high-quality-model-desktop-download)): `start_model_download`
 into `downloaded_models_folder()` (`<AppDataLocation>/ai-models`), sessions in the one ONNX
 translation unit (`segmentation_engine_onnx.cpp`, slots `OrtState::trustmark`), released before a
-delete. Offered from File Info's Watermarks page, the Add Invisible Watermark dialog, Preferences >
+delete. Unlike the High Quality model, only the download folder is searched, never the bundled
+`ai-models` folder: no package may carry these files. Offered from File Info's Watermarks page, the Add Invisible Watermark dialog, Preferences >
 Watermarks (Download and Delete, `preferencesWatermarkModelsGroup`) and `app.downloadWatermarkModels()`;
 nothing fetches them unasked. The web build has no TrustMark. Build trees stage them into
 `<build>/ai-models-download` when setup-ai-deps provisioned all four (all or none, separate from the
