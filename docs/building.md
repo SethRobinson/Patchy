@@ -188,7 +188,9 @@ tests. Their private precompiled headers contain stable Qt/STL headers only, nev
 Patchy headers. Sources with their own flags, defines or include directories skip
 the PCH. WebAssembly and Objective-C++ do not use it. When changing includes, verify
 the affected translation units without PCH as well so cached includes cannot hide
-missing direct dependencies.
+missing direct dependencies. A build folder last built before a Visual Studio update
+fails with C1853 (the `.pch` is "from a different version of the compiler"): ninja never
+rebuilds a PCH for a new compiler, so build the `clean` target once, then build.
 
 The build date changes when runtime sources, headers, resources, catalogs, build
 definitions or compilation options change. An input-list manifest catches added
