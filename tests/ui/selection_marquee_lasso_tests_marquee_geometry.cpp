@@ -2254,16 +2254,17 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     CHECK(tabs != nullptr);
     // Windows appends a Plug-ins tab for the legacy 8BF host (docs/plugins.md).
 #ifdef Q_OS_WIN
-    CHECK(tabs->count() == 7);
-    CHECK(tabs->tabText(6) == QStringLiteral("Plug-ins"));
+    CHECK(tabs->count() == 8);
+    CHECK(tabs->tabText(7) == QStringLiteral("Plug-ins"));
 #else
-    CHECK(tabs->count() == 6);
+    CHECK(tabs->count() == 7);
 #endif
     CHECK(tabs->tabText(1) == QStringLiteral("Tools"));
-    CHECK(tabs->tabText(2) == QStringLiteral("Pen"));
-    CHECK(tabs->tabText(3) == QStringLiteral("Units && Grids"));
-    CHECK(tabs->tabText(4) == QStringLiteral("Snapping"));
-    CHECK(tabs->tabText(5) == QStringLiteral("Hotkeys"));
+    CHECK(tabs->tabText(2) == QStringLiteral("Metadata and Watermarks"));
+    CHECK(tabs->tabText(3) == QStringLiteral("Pen"));
+    CHECK(tabs->tabText(4) == QStringLiteral("Units && Grids"));
+    CHECK(tabs->tabText(5) == QStringLiteral("Snapping"));
+    CHECK(tabs->tabText(6) == QStringLiteral("Hotkeys"));
     // Tool and canvas-input behavior lives on the Tools tab, not on Application or Pen.
     auto* tools_group = dialog->findChild<QWidget*>(QStringLiteral("preferencesToolsGroup"));
     CHECK(tools_group != nullptr);
