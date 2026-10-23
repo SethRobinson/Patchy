@@ -11994,6 +11994,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24234,6 +24254,94 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Added an invisible watermark carrying “%1”</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26093,6 +26201,22 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>The watermark could not be added: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

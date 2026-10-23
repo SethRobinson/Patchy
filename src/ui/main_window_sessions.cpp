@@ -661,6 +661,7 @@ bool MainWindow::close_document_session(DocumentSession& target_session, CloseCo
   delete canvas;
   // Re-resolve after the teardown events above: they run arbitrary handlers. The
   // removed entry dies at the end of this statement, as the erase did.
+  cancel_open_watermark_check(target_id);
   (void)sessions_.remove(*live_session);
   if (canvas_ == nullptr) {
     // activate_document_session (not _canvas) so a floated successor's window is

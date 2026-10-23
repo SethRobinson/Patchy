@@ -75,6 +75,7 @@
 #include <QLabel>
 #include <QLatin1Char>
 #include <QLatin1String>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QOverload>
@@ -84,6 +85,8 @@
 #include <QPoint>
 #include <QPointer>
 #include <QPushButton>
+#include <QRegularExpressionValidator>
+#include <QRegularExpression>
 #include <QRect>
 #include <QScopeGuard>
 #include <QScrollArea>
@@ -1291,38 +1294,102 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     });
     tools_layout->addWidget(model_group);
   }
-  // The TrustMark watermark models (docs/watermarks.md): status, Download and Delete.
+#endif
+  tools_layout->addStretch(1);
+  tabs->addTab(tools_page, tr("Tools"));
+
+  // Watermarks (docs/watermarks.md, "Preferences"): the TrustMark text saves add, when they
+  // add it, the check on open, and the optional models.
+  auto [watermarks_page, watermarks_layout] = make_tab_page(tabs);
+  auto* watermark_group = new QFrame(watermarks_page);
+  watermark_group->setObjectName(QStringLiteral("preferencesWatermarksGroup"));
+  configure_panel(watermark_group);
+  auto* watermark_form = new QFormLayout(watermark_group);
+  configure_form(watermark_form);
+  const auto wrapped_note = [](const QString& text, QWidget* parent, const char* name) {
+    auto* label = new QLabel(text, parent);
+    label->setObjectName(QLatin1String(name));
+    label->setWordWrap(true);
+    return label;
+  };
+  watermark_form->addRow(wrapped_note(
+      tr("Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible "
+         "watermark. There is no key: anyone with a TrustMark reader can read it."),
+      watermark_group, "preferencesWatermarkIntro"));
+  auto* watermark_text_row = new QWidget(watermark_group);
+  watermark_text_row->setObjectName(QStringLiteral("preferencesWatermarkTextRow"));
+  auto* watermark_text_layout = new QHBoxLayout(watermark_text_row);
+  watermark_text_layout->setContentsMargins(0, 0, 0, 0);
+  auto* watermark_text_edit = new QLineEdit(stored_watermark_text(), watermark_text_row);
+  watermark_text_edit->setObjectName(QStringLiteral("preferencesWatermarkTextEdit"));
+  // TrustMark text is 7-bit ASCII; BCH_5, TrustMark's default, holds 8 characters.
+  const int watermark_capacity = trustmark::schema_text_capacity(kSaveWatermarkSchema);
+  watermark_text_edit->setValidator(new QRegularExpressionValidator(
+      QRegularExpression(QStringLiteral("[\\x20-\\x7E]*")), watermark_text_edit));
+  watermark_text_edit->setMaxLength(watermark_capacity);
+  watermark_text_edit->setPlaceholderText(tr("Your name or a short ID"));
+  auto* watermark_remaining = new QLabel(watermark_text_row);
+  watermark_remaining->setObjectName(QStringLiteral("preferencesWatermarkRemainingLabel"));
+  watermark_text_layout->addWidget(watermark_text_edit, 1);
+  watermark_text_layout->addWidget(watermark_remaining);
+  watermark_form->addRow(tr("Watermark text:"), watermark_text_row);
+  auto* watermark_save_combo = new QComboBox(watermark_group);
+  watermark_save_combo->setObjectName(QStringLiteral("preferencesWatermarkSaveCombo"));
+  watermark_save_combo->addItem(tr("Never"), watermark_save_mode_token(WatermarkSaveMode::Never));
+  watermark_save_combo->addItem(tr("Ask on save"), watermark_save_mode_token(WatermarkSaveMode::Ask));
+  watermark_save_combo->addItem(tr("Add on every save"), watermark_save_mode_token(WatermarkSaveMode::Always));
+  watermark_save_combo->setCurrentIndex(
+      std::max(0, watermark_save_combo->findData(watermark_save_mode_token(stored_watermark_save_mode()))));
+  watermark_form->addRow(tr("Add invisible watermark when saving:"), watermark_save_combo);
+  watermark_form->addRow(wrapped_note(
+      tr("Only the saved file's pixels are marked; the open document and its history do not change. PNG, JPEG, "
+         "WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, "
+         "TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under "
+         "128 pixels and images that already carry your text are skipped."),
+      watermark_group, "preferencesWatermarkSaveHelp"));
+  auto* watermark_check_open = new QCheckBox(tr("Check opened images for watermarks"), watermark_group);
+  watermark_check_open->setObjectName(QStringLiteral("preferencesWatermarkCheckOnOpenCheck"));
+  watermark_check_open->setChecked(stored_watermark_check_on_open());
+  watermark_form->addRow(watermark_check_open);
+  watermark_form->addRow(wrapped_note(
+      tr("Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion "
+         "watermark, or an Adobe TrustMark watermark once the models are downloaded."),
+      watermark_group, "preferencesWatermarkCheckHelp"));
+  watermarks_layout->addWidget(watermark_group);
+  QLabel* watermark_models_needed = nullptr;
+  std::function<void()> refresh_watermark_page;
+#if !defined(Q_OS_WASM)
+  // The TrustMark watermark models: status, Download and Delete (exactly their files).
   if (patchy::ai::trustmark_runtime_available()) {
-    auto* watermark_group = new QFrame(tools_page);
-    watermark_group->setObjectName(QStringLiteral("preferencesWatermarkModelsGroup"));
-    configure_panel(watermark_group);
-    auto* watermark_layout = new QHBoxLayout(watermark_group);
-    auto* watermark_status = new QLabel(watermark_group);
+    auto* models_group = new QFrame(watermarks_page);
+    models_group->setObjectName(QStringLiteral("preferencesWatermarkModelsGroup"));
+    configure_panel(models_group);
+    auto* models_layout = new QVBoxLayout(models_group);
+    auto* models_row = new QHBoxLayout();
+    auto* watermark_status = new QLabel(models_group);
     watermark_status->setObjectName(QStringLiteral("preferencesWatermarkModelsStatus"));
     watermark_status->setWordWrap(true);
     const auto watermark_megabytes = watermark_model_download_megabytes();
-    auto* download_watermark_button = new QPushButton(tr("Download"), watermark_group);
+    auto* download_watermark_button = new QPushButton(tr("Download"), models_group);
     download_watermark_button->setObjectName(QStringLiteral("preferencesDownloadWatermarkModelsButton"));
     download_watermark_button->setToolTip(
         tr("Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info's Scan for Watermarks then "
            "reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
             .arg(watermark_megabytes));
-    auto* delete_watermark_button = new QPushButton(tr("Delete"), watermark_group);
+    auto* delete_watermark_button = new QPushButton(tr("Delete"), models_group);
     delete_watermark_button->setObjectName(QStringLiteral("preferencesDeleteWatermarkModelsButton"));
     delete_watermark_button->setToolTip(tr("Deletes the downloaded watermark models."));
-    watermark_layout->addWidget(watermark_status, 1);
-    watermark_layout->addWidget(download_watermark_button);
-    watermark_layout->addWidget(delete_watermark_button);
-    const auto refresh_watermark_status = [watermark_status, download_watermark_button, delete_watermark_button,
-                                           watermark_megabytes] {
-      const bool present = downloaded_watermark_models_present(downloaded_models_folder());
-      watermark_status->setText(present ? tr("TrustMark watermark models: downloaded (%1 MB)").arg(watermark_megabytes)
-                                        : tr("TrustMark watermark models: not downloaded"));
-      download_watermark_button->setEnabled(!present);
-      delete_watermark_button->setEnabled(present);
-    };
-    refresh_watermark_status();
-    connect(download_watermark_button, &QPushButton::clicked, &dialog, [this, &dialog, refresh_watermark_status] {
+    models_row->addWidget(watermark_status, 1);
+    models_row->addWidget(download_watermark_button);
+    models_row->addWidget(delete_watermark_button);
+    models_layout->addLayout(models_row);
+    watermark_models_needed = wrapped_note(
+        tr("Adding watermarks when saving and the TrustMark part of the check need these models. The Stable "
+           "Diffusion check needs no download."),
+        models_group, "preferencesWatermarkModelsNeededNote");
+    models_layout->addWidget(watermark_models_needed);
+    watermarks_layout->addWidget(models_group);
+    connect(download_watermark_button, &QPushButton::clicked, &dialog, [this, &dialog, &refresh_watermark_page] {
       QString error;
       if (download_watermark_models(true, {}, &error, &dialog)) {
         statusBar()->showMessage(tr("Downloaded the watermark models"));
@@ -1331,22 +1398,51 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       } else {
         statusBar()->showMessage(tr("Download cancelled"));
       }
-      refresh_watermark_status();
+      refresh_watermark_page();
     });
-    connect(delete_watermark_button, &QPushButton::clicked, &dialog, [this, refresh_watermark_status] {
+    connect(delete_watermark_button, &QPushButton::clicked, &dialog, [this, &refresh_watermark_page] {
       QString error;
       if (delete_watermark_models(&error)) {
         statusBar()->showMessage(tr("Deleted the watermark models"));
       } else {
         show_status_error(tr("The watermark models could not be deleted: %1").arg(error));
       }
-      refresh_watermark_status();
+      refresh_watermark_page();
     });
-    tools_layout->addWidget(watermark_group);
+    refresh_watermark_page = [watermark_status, download_watermark_button, delete_watermark_button,
+                              watermark_megabytes] {
+      const bool present = downloaded_watermark_models_present(downloaded_models_folder());
+      watermark_status->setText(present ? tr("TrustMark watermark models: downloaded (%1 MB)").arg(watermark_megabytes)
+                                        : tr("TrustMark watermark models: not downloaded"));
+      download_watermark_button->setEnabled(!present);
+      delete_watermark_button->setEnabled(present);
+    };
   }
 #endif
-  tools_layout->addStretch(1);
-  tabs->addTab(tools_page, tr("Tools"));
+  const auto refresh_watermark_text = [watermark_text_edit, watermark_remaining, watermark_capacity,
+                                       watermark_save_combo, watermark_check_open, watermark_models_needed,
+                                       &refresh_watermark_page] {
+    watermark_remaining->setText(tr("%1 of %2 characters left")
+                                     .arg(watermark_capacity - static_cast<int>(watermark_text_edit->text().size()))
+                                     .arg(watermark_capacity));
+    if (refresh_watermark_page) {
+      refresh_watermark_page();
+    }
+    if (watermark_models_needed != nullptr) {
+      // Shown when a chosen option needs the models and they are missing.
+      const bool wanted =
+          watermark_save_combo->currentData().toString() != watermark_save_mode_token(WatermarkSaveMode::Never) ||
+          watermark_check_open->isChecked();
+      watermark_models_needed->setVisible(wanted && !downloaded_watermark_models_present(downloaded_models_folder()));
+    }
+  };
+  connect(watermark_text_edit, &QLineEdit::textChanged, &dialog, [refresh_watermark_text] { refresh_watermark_text(); });
+  connect(watermark_save_combo, &QComboBox::currentIndexChanged, &dialog,
+          [refresh_watermark_text] { refresh_watermark_text(); });
+  connect(watermark_check_open, &QCheckBox::toggled, &dialog, [refresh_watermark_text] { refresh_watermark_text(); });
+  refresh_watermark_text();
+  watermarks_layout->addStretch(1);
+  tabs->addTab(watermarks_page, tr("Watermarks"));
 
   auto [pen_page, pen_layout] = make_tab_page(tabs);
   auto* pen_group = new QFrame(pen_page);
@@ -1854,7 +1950,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     QDialog#patchyPreferencesDialog QWidget#preferencesUpdateCheckRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesRecoveryRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesVisibilityRow,
-    QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow {
+    QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesWatermarkTextRow {
       background: transparent;
     }
   )"));
@@ -1940,6 +2037,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       refresh_color_picker_cmyk_fields();
       refresh_proof_display();
     }
+    set_stored_watermark_text(watermark_text_edit->text().trimmed());
+    set_stored_watermark_save_mode(
+        watermark_save_mode_from_token(watermark_save_combo->currentData().toString()).value_or(WatermarkSaveMode::Never));
+    set_stored_watermark_check_on_open(watermark_check_open->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());

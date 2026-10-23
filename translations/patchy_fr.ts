@@ -12010,6 +12010,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Cette version de Patchy ne peut pas lire les filigranes TrustMark.</translation>
     </message>
     <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>Aucun filigrane invisible ajouté : l&apos;image est trop petite.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>Aucun filigrane invisible ajouté : les modèles de filigrane ne sont pas téléchargés.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>L&apos;image porte déjà votre filigrane invisible.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>Aucun filigrane invisible ajouté : TrustMark n&apos;a pas pu s&apos;exécuter.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>Votre filigrane invisible a été ajouté.</translation>
+    </message>
+    <message>
         <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
         <translation>Ceci est un fichier %1 sans extension ; Enregistrer propose l&apos;extension .%2</translation>
     </message>
@@ -24307,6 +24327,94 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Added an invisible watermark carrying “%1”</source>
         <translation>Filigrane invisible ajouté avec « %1 »</translation>
     </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy peut cacher un court texte dans les images que vous enregistrez avec Adobe TrustMark, un filigrane invisible ouvert. Il n&apos;y a pas de clé : toute personne disposant d&apos;un lecteur TrustMark peut le lire.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>Votre nom ou un court ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>Texte du filigrane :</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Jamais</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>Demander à l&apos;enregistrement</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>Ajouter à chaque enregistrement</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>Ajouter un filigrane invisible à l&apos;enregistrement :</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>Seuls les pixels du fichier enregistré sont marqués ; le document ouvert et son historique ne changent pas. Les fichiers PNG, JPEG, WebP, BMP, JPEG XL, AVIF et TIFF sans calques sont marqués, ainsi que les exportations. Les fichiers avec calques (PSD, PSB, TIFF avec calques) ne le sont pas, car cela modifierait les pixels des calques à votre insu. Les images de moins de 128 pixels et celles qui portent déjà votre texte sont ignorées.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>Rechercher des filigranes dans les images ouvertes</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>S&apos;exécute en arrière-plan à l&apos;ouverture d&apos;un fichier et affiche un avis lorsqu&apos;elle trouve un filigrane Stable Diffusion, ou un filigrane Adobe TrustMark une fois les modèles téléchargés.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>L&apos;ajout à l&apos;enregistrement et la partie TrustMark de la recherche nécessitent ces modèles. La recherche Stable Diffusion ne nécessite aucun téléchargement.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>%1 caractères restants sur %2</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Filigranes</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>Ajouter votre filigrane invisible « %1 » à ce fichier ?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>Toute personne disposant d&apos;un lecteur TrustMark peut le lire. Seul le fichier enregistré est marqué ; le document ouvert ne change pas.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Ajouter le filigrane</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>Enregistrer sans</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>Recherche de filigranes...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>Filigrane trouvé</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>Cette image porte un filigrane invisible.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>« %1 » porte un filigrane invisible.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>Afficher dans Informations sur le fichier</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26167,6 +26275,22 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>The watermark could not be added: %1</source>
         <translation>Impossible d&apos;ajouter le filigrane : %1</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences prend un objet comme {addOnSave: &quot;ask&quot;}.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences : text doit être en ASCII imprimable de %1 caractères au plus.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences : addOnSave doit valoir &quot;never&quot;, &quot;ask&quot; ou &quot;always&quot;.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences : option inconnue %1.</translation>
     </message>
 </context>
 <context>

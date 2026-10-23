@@ -12045,6 +12045,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Эта версия Patchy не может читать водяные знаки TrustMark.</translation>
     </message>
     <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>Невидимый водяной знак не добавлен: изображение слишком маленькое.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>Невидимый водяной знак не добавлен: модели водяных знаков не загружены.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>Изображение уже содержит ваш невидимый водяной знак.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>Невидимый водяной знак не добавлен: не удалось запустить TrustMark.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>Ваш невидимый водяной знак добавлен.</translation>
+    </message>
+    <message>
         <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
         <translation>Это файл %1 без расширения; при сохранении будет предложено расширение .%2</translation>
     </message>
@@ -24379,6 +24399,94 @@ Patchy может скачать обновление, заменить этот
         <source>Added an invisible watermark carrying “%1”</source>
         <translation>Добавлен невидимый водяной знак с «%1»</translation>
     </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy может скрыть короткий текст в сохраняемых изображениях с помощью Adobe TrustMark, открытого невидимого водяного знака. Ключа нет: любой, у кого есть программа чтения TrustMark, может его прочитать.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>Ваше имя или короткий ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>Текст водяного знака:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Никогда</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>Спрашивать при сохранении</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>Добавлять при каждом сохранении</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>Добавлять невидимый водяной знак при сохранении:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>Помечаются только пиксели сохранённого файла; открытый документ и его история не меняются. Помечаются PNG, JPEG, WebP, BMP, JPEG XL, AVIF и TIFF без слоёв, а также экспорт. Файлы со слоями (PSD, PSB, TIFF со слоями) — нет, поскольку это незаметно изменило бы пиксели слоёв. Изображения меньше 128 пикселей и изображения, уже содержащие ваш текст, пропускаются.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>Проверять открываемые изображения на водяные знаки</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>Работает в фоне после открытия файла и показывает уведомление, если находит водяной знак Stable Diffusion, а после загрузки моделей — и водяной знак Adobe TrustMark.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>Для добавления знаков при сохранении и для части проверки с TrustMark нужны эти модели. Проверке Stable Diffusion загрузка не нужна.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>Осталось %1 из %2 символов</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Водяные знаки</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>Добавить ваш невидимый водяной знак «%1» в этот файл?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>Любой, у кого есть программа чтения TrustMark, может его прочитать. Помечается только сохранённый файл; открытый документ не меняется.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Добавить водяной знак</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>Сохранить без него</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>Проверка водяных знаков...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>Найден водяной знак</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>Это изображение содержит невидимый водяной знак.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>«%1» содержит невидимый водяной знак.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>Показать в «Сведениях о файле»</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26240,6 +26348,22 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>The watermark could not be added: %1</source>
         <translation>Не удалось добавить водяной знак: %1</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences принимает объект, например {addOnSave: &quot;ask&quot;}.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text должен состоять из печатаемых символов ASCII, не более %1.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave должен быть &quot;never&quot;, &quot;ask&quot; или &quot;always&quot;.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: неизвестный параметр %1.</translation>
     </message>
 </context>
 <context>

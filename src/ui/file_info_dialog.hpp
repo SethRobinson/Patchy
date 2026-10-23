@@ -25,6 +25,9 @@ struct FileInfoWatermarkSupport {
   // Downloads the TrustMark watermark models with progress shown over `parent`; true when
   // they are present afterwards. Empty: the page offers no download.
   std::function<bool(QWidget* parent)> download_models;
+  // Opens on the Watermarks page with Scan for Watermarks already run (the notice of
+  // Preferences > Watermarks' check on open).
+  bool open_watermarks_and_scan{false};
 };
 
 // nullopt on Cancel or when nothing changed.

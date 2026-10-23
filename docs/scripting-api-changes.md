@@ -10,6 +10,14 @@ and those of 2026-10-01 to 2026-10-05 in
 [scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
 Every entry below is API 1.
 
+2026-10-23 (additive, behavioral): Preferences > Watermarks ([watermarks.md](watermarks.md#preferences)).
+`app.watermarkPreferences` (`{text, addOnSave, checkOnOpen}`) and `app.setWatermarkPreferences({...})`.
+With `addOnSave: "always"`, `saveAs` and `exportAs` to PNG, JPEG, WebP, BMP, flat TIFF, JPEG XL and
+AVIF write a TrustMark-marked file; `"ask"` never asks a script and adds nothing. Permanent
+identifiers: the property, method and key names, the tokens `never`, `ask`, `always`, and settings
+keys `watermarks/payloadText`, `watermarks/addOnSave`, `watermarks/checkOnOpen`. Pinned by
+`ui_watermark_preferences_page_persists`.
+
 2026-10-23 (additive): TrustMark watermarks ([watermarks.md](watermarks.md)). `doc.scanForWatermarks()`
 gains `trustmark: {available, marks: [{variant, schema, text, id, bits, correctedBits, confidence}]}`;
 `doc.addInvisibleWatermark({text?, id?, schema?, strength?})` embeds a TrustMark payload in the active

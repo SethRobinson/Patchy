@@ -38,6 +38,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -1228,6 +1229,19 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
 
   populate();
   categories->setCurrentRow(0);
+  if (watermarks.open_watermarks_and_scan) {
+    for (int row = 0; row < categories->count(); ++row) {
+      if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoWatermarksPage")) {
+        categories->setCurrentRow(row);
+      }
+    }
+    QTimer::singleShot(0, &dialog, [watermarks_page] {
+      for (auto* button : watermarks_page->findChildren<QPushButton*>(QStringLiteral("fileInfoScanWatermarksButton"))) {
+        button->click();
+        return;
+      }
+    });
+  }
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
