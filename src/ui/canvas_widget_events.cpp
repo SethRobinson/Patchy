@@ -769,6 +769,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
       transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
+      update_drag_readout_region();
       event->accept();
       return;
     }
@@ -1167,6 +1168,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           transform_drag_kind_ = TransformDragKind::Scale;
           transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
           transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
+          update_drag_readout_region();
         } else {
           cancel_free_transform();
         }

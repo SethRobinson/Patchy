@@ -1756,6 +1756,96 @@ void ui_transform_drag_readout_shows_values() {
   CHECK(!canvas->free_transform_active());
 }
 
+// Grabbing a Move-tool box handle starts Free Transform, and the full repaint of
+// that press drew the readout ("100.0% x 100.0%") without recording its rect. The
+// first drag step shortened the text, so the bounded repaint missed the old panel's
+// right end and a sliver of it stayed on the canvas for the rest of the drag
+// (GitHub issue 352). The on-screen pixels around the readout must match a fresh
+// render after each step.
+void ui_move_handle_drag_readout_leaves_no_trail() {
+  SettingsValueRestorer saved_show_transform_controls(QStringLiteral("tools/showTransformControls"));
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("tools/showTransformControls"));
+  settings.sync();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->show_transform_controls());
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 70)),
+       canvas->widget_position_for_document_point(QPoint(140, 115)));
+  const auto filled_rect = canvas->selected_document_rect();
+  CHECK(filled_rect.has_value());
+  canvas->set_primary_color(QColor(60, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto corner = canvas->widget_position_for_document_point(
+      QPoint(filled_rect->x() + filled_rect->width(), filled_rect->y() + filled_rect->height()));
+  send_mouse(*canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto canvas_offset = canvas->mapTo(&window, QPoint(0, 0));
+  // Compares the window's backing store (what is on screen) with a fresh render of
+  // the canvas over the given widget rect; saves both crops when they differ.
+  const auto on_screen_matches_fresh = [&](QRect area, const std::string& name) {
+    area = area.adjusted(-6, -6, 6, 6).intersected(canvas->rect());
+    const auto backing = grab_widget_window_image(window).copy(area.translated(canvas_offset));
+    const auto fresh = render_widget_image(*canvas).copy(area);
+    save_image_artifact(name, backing.scaled(backing.size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    if (images_equal_rgba(backing, fresh)) {
+      return true;
+    }
+    save_image_artifact(name + "_fresh", fresh.scaled(fresh.size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    if (const auto mismatch = image_mismatch_bounds_rgba(backing, fresh); mismatch.has_value()) {
+      std::cout << "  " << name << " stale pixels at " << mismatch->x() + area.x() << ","
+                << mismatch->y() + area.y() << " " << mismatch->width() << "x" << mismatch->height() << '\n';
+    }
+    return false;
+  };
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto pressed = canvas->transform_drag_readout();
+  CHECK(pressed.has_value());
+  CHECK(pressed.has_value() && pressed->canvas_lines.size() == 1 &&
+        pressed->canvas_lines[0].startsWith(QStringLiteral("100.0")));
+  const auto press_panel = canvas->drag_readout_widget_rect();
+  CHECK(!press_panel.isEmpty());
+
+  // Shrink the box a little: "9x.x% x 9x.x%" is narrower than the 100% text.
+  PaintRegionRecorder recorder(canvas);
+  canvas->installEventFilter(&recorder);
+  recorder.reset();
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(-4, -3), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  canvas->removeEventFilter(&recorder);
+  const auto step_panel = canvas->drag_readout_widget_rect();
+  CHECK(!step_panel.isEmpty());
+  CHECK(step_panel.width() < press_panel.width());
+  const bool step_matches = on_screen_matches_fresh(press_panel.united(step_panel), "ui_move_handle_drag_readout_trail");
+  CHECK(QRegion(press_panel).subtracted(recorder.region()).isEmpty());
+  CHECK(step_matches);
+
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(-12, -9), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(on_screen_matches_fresh(press_panel.united(canvas->drag_readout_widget_rect()),
+                                "ui_move_handle_drag_readout_trail_second_step"));
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(-12, -9), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->transform_drag_readout().has_value());
+  CHECK(on_screen_matches_fresh(press_panel, "ui_move_handle_drag_readout_trail_released"));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
 // The Move tool's readout reports the reference point's position (Top Left
 // here) after the drag plus the offset, and the bounded release repaint clears it.
 void ui_move_drag_readout_reports_reference_and_delta() {
@@ -3171,6 +3261,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
        ui_transform_handle_drag_on_rotated_box_uses_local_axes},
       {"ui_transform_drag_readout_shows_values", ui_transform_drag_readout_shows_values},
       {"ui_move_drag_readout_reports_reference_and_delta", ui_move_drag_readout_reports_reference_and_delta},
+      {"ui_move_handle_drag_readout_leaves_no_trail", ui_move_handle_drag_readout_leaves_no_trail},
       {"ui_transform_readout_preference_hides_hud", ui_transform_readout_preference_hides_hud},
       {"ui_free_transform_preview_follows_live_layer_style_changes",
        ui_free_transform_preview_follows_live_layer_style_changes},
