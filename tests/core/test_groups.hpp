@@ -70,5 +70,6 @@ std::vector<patchy::test::TestCase> ai_selection_tests();
 std::vector<patchy::test::TestCase> gmic_tests();
 std::vector<patchy::test::TestCase> file_info_metadata_tests();
 std::vector<patchy::test::TestCase> invisible_watermark_tests();
+std::vector<patchy::test::TestCase> trustmark_tests();
 std::vector<patchy::test::TestCase> tiff_layers_tests();
 std::vector<patchy::test::TestCase> hdr_display_tests();

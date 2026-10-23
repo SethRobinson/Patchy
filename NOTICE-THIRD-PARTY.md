@@ -284,6 +284,30 @@ modification notice are in `ai-models/MODEL-LICENSES.txt`, from `third_party/ai-
   https://github.com/ZhengPeng7/BiRefNet, MIT License), from the project's own ONNX
   export.
 
+## Adobe TrustMark watermark models (desktop download)
+
+Not shipped: on the user's request Patchy downloads Adobe's ONNX models for TrustMark variants
+Q, P and C (decoders) and Q (encoder) from the Content Authenticity Initiative's model host into
+the user's data folder (`trustmark_*.onnx`; provenance and checksums in `docs/watermarks.md`).
+TrustMark (https://github.com/adobe/trustmark), code and models:
+
+Copyright 2023 Adobe. All Rights Reserved. MIT License.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## Bundled photo-texture pattern presets (Poly Haven, CC0)
 
 The 20 photo-based pattern presets under the "Textures" folder (embedded as

@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>Standard</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>La plus robuste</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>Plus de capacité</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>Capacité maximale</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1 : %2 caractères, résiste à %3 bits endommagés</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>Ajouter un filigrane invisible</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>Cache un court message dans les pixels du calque actif avec Adobe TrustMark. Il résiste à la plupart des redimensionnements, à la compression JPEG et au partage, et la modification est trop faible pour être visible.</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>TrustMark n&apos;a pas de clé : toute personne disposant d&apos;un lecteur TrustMark gratuit, y compris les Informations sur le fichier de Patchy, peut lire le message. Utilisez-le pour étiqueter une image ou renvoyer vers une fiche la concernant, pas pour cacher quoi que ce soit ni pour prouver à lui seul la propriété.</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>Quantité de correction d&apos;erreurs qui protège le message. Standard est la valeur par défaut de TrustMark.</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>Correction d&apos;erreurs :</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>Texte :</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>ID aléatoire :</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>Nouvel ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>Intensité :</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100 % est la valeur par défaut de TrustMark. Plus bas, il est moins visible mais se perd plus facilement ; Adobe utilise 150 % pour l&apos;impression.</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>Nécessite les modèles de filigrane : un téléchargement de %1 Mo depuis Adobe.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>Télécharger les modèles de filigrane</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Ajouter le filigrane</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>%1 caractères restants sur %2</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11883,10 +11962,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Filigranes invisibles dans les pixels</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>Rechercher des filigranes examine l&apos;image telle qu&apos;elle est maintenant pour y trouver les filigranes invisibles ouverts que Stable Diffusion 1.x, 2.x et SDXL ajoutent aux images qu&apos;ils génèrent. Recadrer, redimensionner ou repeindre l&apos;image les fait généralement disparaître.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>Rechercher des filigranes</translation>
     </message>
@@ -11905,6 +11980,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>De nombreux filigranes, comme Google SynthID, ne se lisent qu&apos;avec les outils de leur propriétaire : cette recherche ne peut pas les trouver.</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>Filigrane TrustMark trouvé (variante %1, %2) contenant %3.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>Rechercher des filigranes examine l&apos;image telle qu&apos;elle est maintenant pour y trouver les filigranes invisibles ouverts que Stable Diffusion 1.x, 2.x et SDXL ajoutent aux images qu&apos;ils génèrent, et Adobe TrustMark une fois les modèles de filigrane téléchargés. Recadrer, redimensionner ou repeindre l&apos;image les fait généralement disparaître.</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>Aucun des filigranes Stable Diffusion n&apos;a été trouvé.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark n&apos;a pas pu s&apos;exécuter : %1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>Adobe TrustMark, le filigrane ouvert des Content Credentials durables, nécessite les modèles de filigrane : un téléchargement de %1 Mo depuis Adobe, effectué uniquement à votre demande.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>Télécharger les modèles de filigrane</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Cette version de Patchy ne peut pas lire les filigranes TrustMark.</translation>
     </message>
 </context>
 <context>
@@ -24108,6 +24211,94 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Toolbar icon size:</source>
         <translation>Taille des icônes d&apos;outils :</translation>
     </message>
+    <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>Ajouter un filigrane in&amp;visible...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>Cacher dans les pixels du calque actif un court message lisible par tous, avec Adobe TrustMark</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>Impossible de télécharger les modèles de filigrane : %1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Télécharge les modèles de filigrane Adobe TrustMark (%1 Mo depuis Adobe). Rechercher des filigranes dans Informations sur le fichier lit alors les filigranes TrustMark, et Image &gt; Ajouter un filigrane invisible peut en ajouter un.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>Supprime les modèles de filigrane téléchargés.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>Modèles de filigrane TrustMark : téléchargés (%1 Mo)</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>Modèles de filigrane TrustMark : non téléchargés</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>Modèles de filigrane téléchargés</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>Modèles de filigrane supprimés</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>Impossible de supprimer les modèles de filigrane : %1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>Les modèles de filigrane ne sont pas disponibles dans la version web</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>cette version de Patchy ne peut pas exécuter les modèles de filigrane</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>Téléchargement des modèles de filigrane... %1 sur %2 Mo</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>Ouvrez un document avant d&apos;ajouter un filigrane invisible</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>Les filigranes invisibles nécessitent une image 8 bits. Convertissez-la d&apos;abord avec Image &gt; Mode &gt; 8 bits/couche.</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>Sélectionnez un calque de pixels pour le filigrane invisible</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>Le calque actif doit couvrir toute l&apos;image pour que son filigrane soit lisible. Aplatissez l&apos;image ou fusionnez d&apos;abord les calques.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>Les modèles de filigrane ne sont pas téléchargés</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>Impossible d&apos;ajouter le filigrane : %1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>Ajouter un filigrane invisible</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>Filigrane invisible ajouté avec l&apos;ID %1</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>Filigrane invisible ajouté avec « %1 »</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25904,6 +26095,70 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>Les coins de perspectiveCrop doivent former une forme convexe, et les documents avec plans de travail ne peuvent pas être recadrés.</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>Impossible de télécharger les modèles de filigrane : %1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark n&apos;a pas pu s&apos;exécuter : %1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>Les options de addInvisibleWatermark doivent être un objet comme {text: &quot;Patchy&quot;}.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark : schéma inconnu %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark : strength doit être compris entre 0.1 et 2.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark accepte text ou id, pas les deux.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark : text doit être en ASCII imprimable.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark : %1 contient au plus %2 caractères.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark : id doit être hexadécimal.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark : l&apos;id dépasse %1 bits.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>Les modèles de filigrane ne sont pas téléchargés ; appelez d&apos;abord app.downloadWatermarkModels().</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark nécessite un document 8 bits.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark nécessite un calque de pixels non verrouillé.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark nécessite un calque qui couvre toute l&apos;image.</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>Impossible d&apos;ajouter le filigrane : %1</translation>
     </message>
 </context>
 <context>

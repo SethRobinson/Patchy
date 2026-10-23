@@ -33,6 +33,8 @@
 #include "ui/qt_paths.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/object_selection_model_download.hpp"
+#include "ui/watermark_model_download.hpp"
+#include "ai/watermark_engine.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/color_panel.hpp"
@@ -1271,6 +1273,59 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       refresh_model_status();
     });
     tools_layout->addWidget(model_group);
+  }
+  // The TrustMark watermark models (docs/watermarks.md): status, Download and Delete.
+  if (patchy::ai::trustmark_runtime_available()) {
+    auto* watermark_group = new QFrame(tools_page);
+    watermark_group->setObjectName(QStringLiteral("preferencesWatermarkModelsGroup"));
+    configure_panel(watermark_group);
+    auto* watermark_layout = new QHBoxLayout(watermark_group);
+    auto* watermark_status = new QLabel(watermark_group);
+    watermark_status->setObjectName(QStringLiteral("preferencesWatermarkModelsStatus"));
+    watermark_status->setWordWrap(true);
+    const auto watermark_megabytes = watermark_model_download_megabytes();
+    auto* download_watermark_button = new QPushButton(tr("Download"), watermark_group);
+    download_watermark_button->setObjectName(QStringLiteral("preferencesDownloadWatermarkModelsButton"));
+    download_watermark_button->setToolTip(
+        tr("Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info's Scan for Watermarks then "
+           "reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
+            .arg(watermark_megabytes));
+    auto* delete_watermark_button = new QPushButton(tr("Delete"), watermark_group);
+    delete_watermark_button->setObjectName(QStringLiteral("preferencesDeleteWatermarkModelsButton"));
+    delete_watermark_button->setToolTip(tr("Deletes the downloaded watermark models."));
+    watermark_layout->addWidget(watermark_status, 1);
+    watermark_layout->addWidget(download_watermark_button);
+    watermark_layout->addWidget(delete_watermark_button);
+    const auto refresh_watermark_status = [watermark_status, download_watermark_button, delete_watermark_button,
+                                           watermark_megabytes] {
+      const bool present = downloaded_watermark_models_present(downloaded_models_folder());
+      watermark_status->setText(present ? tr("TrustMark watermark models: downloaded (%1 MB)").arg(watermark_megabytes)
+                                        : tr("TrustMark watermark models: not downloaded"));
+      download_watermark_button->setEnabled(!present);
+      delete_watermark_button->setEnabled(present);
+    };
+    refresh_watermark_status();
+    connect(download_watermark_button, &QPushButton::clicked, &dialog, [this, &dialog, refresh_watermark_status] {
+      QString error;
+      if (download_watermark_models(true, {}, &error, &dialog)) {
+        statusBar()->showMessage(tr("Downloaded the watermark models"));
+      } else if (!error.isEmpty()) {
+        show_status_error(tr("The watermark models could not be downloaded: %1").arg(error));
+      } else {
+        statusBar()->showMessage(tr("Download cancelled"));
+      }
+      refresh_watermark_status();
+    });
+    connect(delete_watermark_button, &QPushButton::clicked, &dialog, [this, refresh_watermark_status] {
+      QString error;
+      if (delete_watermark_models(&error)) {
+        statusBar()->showMessage(tr("Deleted the watermark models"));
+      } else {
+        show_status_error(tr("The watermark models could not be deleted: %1").arg(error));
+      }
+      refresh_watermark_status();
+    });
+    tools_layout->addWidget(watermark_group);
   }
 #endif
   tools_layout->addStretch(1);

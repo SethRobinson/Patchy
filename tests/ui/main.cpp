@@ -435,6 +435,7 @@ int main(int argc, char* argv[]) {
            history_panel_tests,
            history_stroke_patch_tests,
            file_info_tests,
+           watermark_tests,
            layered_tiff_ui_tests,
            appimage_menu_entry_tests,
            composite_render_tests,

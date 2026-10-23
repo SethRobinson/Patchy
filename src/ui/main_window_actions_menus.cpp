@@ -1648,6 +1648,17 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       "Detect the photos in this image and open or save each one as its own image");
   register_hotkey(divide_photos_action, "image.divide_photos");
   connect(divide_photos_action, &QAction::triggered, this, [this] { divide_current_document_photos(); });
+  // TrustMark (docs/watermarks.md): embeds only; Patchy has no command that removes a watermark.
+  auto* invisible_watermark_action = image_menu->addAction(tr("Add In&visible Watermark..."));
+  bind_action_text(invisible_watermark_action, QT_TR_NOOP("Add In&visible Watermark..."));
+  invisible_watermark_action->setObjectName(QStringLiteral("imageAddInvisibleWatermarkAction"));
+  invisible_watermark_action->setMenuRole(QAction::NoRole);
+  bind_translated_status_tip(invisible_watermark_action,
+                             QT_TR_NOOP("Hide a short message that anyone can read in the active layer's pixels "
+                                        "with Adobe TrustMark"));
+  apply_bound_translation(invisible_watermark_action);
+  register_hotkey(invisible_watermark_action, "image.add_invisible_watermark");
+  connect(invisible_watermark_action, &QAction::triggered, this, [this] { add_invisible_watermark(); });
   // Image menu like GIMP (GitHub issue 97); the Layer menu is at its row bound, and the
   // Layers panel menu carries the same action where Photoshop users look for it.
   image_menu->addSeparator();
@@ -1663,7 +1674,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   for (auto* action : {adjustments_menu->menuAction(), image_rotate_flip_menu->menuAction(), image_size_action,
                        canvas_size_action, crop_action,
                        rotate_cw_action, rotate_ccw_action, rotate_arbitrary_action, shift_seams_action,
-                       divide_photos_action, image_flatten_action_}) {
+                       divide_photos_action, invisible_watermark_action, image_flatten_action_}) {
     register_document_action(action);
   }
 

@@ -173,8 +173,9 @@ canaries hold. After Strip All Metadata the next PSD save writes the XMP stamp a
 
 ## Watermarks
 
-Detection only: Patchy never embeds, removes or masks a watermark (docs/legal-constraints.md,
-"Watermark detection").
+Patchy never removes or masks a watermark (docs/legal-constraints.md, "Watermark detection").
+Adobe TrustMark, read by the same Scan for Watermarks once its models are downloaded and added
+by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
 
 - Declared in metadata: a C2PA `c2pa.soft-binding` assertion (its `alg`, such as
   `com.adobe.trustmark.Q`) or an action named `c2pa.watermarked*` (`summarize_jumbf`) adds the

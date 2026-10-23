@@ -46,6 +46,20 @@ $Models = @(
   @{ Name = 'efficientvit_sam_xl0_decoder_multi_fp16.onnx'
      Url = 'https://github.com/SethRobinson/Patchy/releases/download/ai-models-2/efficientvit_sam_xl0_decoder_multi_fp16.onnx'
      Sha256 = '632613ec55ebd52a72f0a1933c297ce67b8563ff2e970b0c2eea059373ba496b' },
+  # TrustMark watermark models (docs/watermarks.md): Adobe's fp16 ONNX files, MIT. Users download
+  # them in the app; dev trees fetch them so the watermark tests can stage them.
+  @{ Name = 'trustmark_decoder_Q.onnx'
+     Url = 'https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_Q.onnx'
+     Sha256 = 'ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df' },
+  @{ Name = 'trustmark_decoder_P.onnx'
+     Url = 'https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_P.onnx'
+     Sha256 = 'be6d7c33f8a7b376f179e75f3f7c58ff816a9ac7bb6d37fd0a729a635f624c35' },
+  @{ Name = 'trustmark_decoder_C.onnx'
+     Url = 'https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_C.onnx'
+     Sha256 = '3d92f4a278bcf87ac7dc40248c36ae664fe5fdedfd19ca265f7ca730b271100a' },
+  @{ Name = 'trustmark_encoder_Q.onnx'
+     Url = 'https://cai-watermark.adobe.net/watermarking/trustmark-models/encoder_Q.onnx'
+     Sha256 = '19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d' },
   @{ Name = 'mobile_sam_image_encoder_int8.onnx'
      Url = 'https://github.com/SethRobinson/Patchy/releases/download/ai-models-1/mobile_sam_image_encoder_int8.onnx'
      Sha256 = '6af3f249f7a5a6a8a3ef988b6814015e8c3a300977c135d1f9572ed2f2930cd7' },
