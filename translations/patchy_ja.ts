@@ -12048,6 +12048,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
         <translation>これは拡張子が .%2 の %1 ファイルです。保存時には拡張子 .%3 が提案されます</translation>
     </message>
+<message>
+        <source>Found: %1.</source>
+        <translation>検出: %1。</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>確認できた透かしはどれも見つかりませんでした。確認できなかった種類があります。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24497,7 +24505,15 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>TrustMark watermark models: not downloaded</source>
         <translation>TrustMark 透かしモデル: 未ダウンロード</translation>
     </message>
-    </context>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>透かしをスキャン(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>透かしをスキャン...</translation>
+    </message>
+</context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
     <message>
@@ -26721,6 +26737,53 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Wrap the image by half its size so the seams land in the middle for painting over. Press again to shift them back to the edges.</source>
         <translation>画像を半分ずらして巻き込み、シームを中央に移動させて塗りつぶしやすくします。もう一度押すと端に戻ります。</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>画像が 256 x 256 ピクセル未満で、この透かしを入れるには小さすぎます。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2 ビット中 %1 ビットが一致。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark を実行できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>このバージョンの Patchy は TrustMark の透かしを読み取れません。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>透かしモデルがダウンロードされていません。</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>%1 を含みます (%2)、信頼度 %3。</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>C2PA メタデータでの宣言</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>検出</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>未検出</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>未確認</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Google SynthID や Digimarc などの透かしは所有者のツールでしか読み取れないため、ここでのスキャンでは見つかりません。未検出は、上記の種類がどれも見つからなかったことだけを意味します。</translation>
     </message>
 </context>
 </TS>

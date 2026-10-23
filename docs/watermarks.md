@@ -92,6 +92,32 @@ two unmarked photos per variant (always the weak `BCH_3` code, which accepts abo
 words that claim it). Measured October 2026: marked images 9.3 to 10.9 (JPEG quality 90
 included), unmarked crops at most 1.26.
 
+## Scan results
+
+Scan for Watermarks and `doc.scanForWatermarks()` share `scan_watermarks` /
+`watermark_checks` (`src/ui/watermark_scan_report.*`): one row per kind, always all seven, in this
+order (ids permanent): `stableDiffusion1`, `stableDiffusion2`, `stableDiffusionXL`, `trustmarkQ`,
+`trustmarkP`, `trustmarkC`, `c2paDeclared` (a `c2pa.soft-binding` or `c2pa.watermarked*`
+declaration in the file's metadata, [file-info.md](file-info.md#watermarks)). Status `found`,
+`notFound` or `notChecked`; a `notChecked` row has a reason (permanent tokens): `imageTooSmall`
+(the Stable Diffusion rows under 256 x 256), `modelsNotDownloaded`, `notSupported` (a build
+without ONNX Runtime, the web build) or `failed` (the decoder threw). Found rows show the bits
+matched (Stable Diffusion) or the payload, schema and confidence (TrustMark).
+
+File > Scan for Watermarks... (`fileScanForWatermarksAction`, hotkey id
+`file.scan_for_watermarks`, no default key, under File Info) and the document tab's menu
+([document-tabs.md](document-tabs.md), for the clicked document) open File Info on this page
+with the scan already run, as the check-on-open notice does.
+
+File Info: a summary line (`fileInfoWatermarkScanResult`) over a three-column grid
+(`fileInfoWatermarkScanResults`; labels `fileInfoWatermarkCheckName`, `...Status`, `...Detail`
+with properties `watermarkCheck` = id and `watermarkStatus` = token). Status is a word; Found
+also gets the warning banner roles as a tag and Not checked `@hint_text`, so nothing relies on
+color. The Download button sits under the grid while the models are missing, and downloading
+reruns a scan already shown. The rows are rebuilt on every repopulate, so the metadata row
+follows a staged Strip All Metadata. The page ends with `watermark_scan_limits_note()`: SynthID
+and Digimarc have no public reader, so Not found everywhere is not "no watermark".
+
 ## Embed
 
 `embed_trustmark_q`, as the Python reference's `encode`: the variant Q region (whole image unless
@@ -151,7 +177,9 @@ and drops its result; CLI runs (`unattended_automation`) never check.
 ## Scripting
 
 `doc.scanForWatermarks().trustmark` = `{available, marks: [{variant, schema, text, id, bits,
-correctedBits, confidence}]}`; `doc.addInvisibleWatermark({text?, id?, schema?, strength?})` returns
+correctedBits, confidence}]}`, and `.checks` the rows above (`{id, name, status, reason,
+detail}`, plus `match` or `mark` when found and `declarations` on the C2PA row; a TrustMark
+failure still throws); `doc.addInvisibleWatermark({text?, id?, schema?, strength?})` returns
 `{schema, text, id}` (neither text nor id: a random ID); `app.downloadWatermarkModels()`,
 `app.watermarkModelsAvailable`; `app.watermarkPreferences` (`{text, addOnSave, checkOnOpen}`) and
 `app.setWatermarkPreferences({...})`. See [scripting-api-changes.md](scripting-api-changes.md).
@@ -170,7 +198,8 @@ hex, region and resize, residual; with the models staged: the reference fixtures
 round trip). Fixtures: `local-test-fixtures/trustmark/` (README.txt there; made by Adobe's Python
 package 0.9.2 with `make_fixtures.py` from the CC0 photos in `test-fixtures/readme`, variants Q,
 P and C, all four schemas, PNG and JPEG quality 90, plus an unmarked photo). The tests skip
-without the models or fixtures. UI: `ui_file_info_trustmark_*`, `ui_invisible_watermark_*`,
+without the models or fixtures. UI: `ui_watermark_scan_report_rows` (every status and reason,
+synthetic), `ui_file_info_trustmark_*`, `ui_invisible_watermark_*`,
 `ui_watermark_preferences_page_persists`, `ui_watermark_on_save_marks_flat_files_only`,
 `ui_watermark_check_on_open_shows_a_notice`;
 scripting: `ui_script_trustmark_round_trip`.

@@ -12083,6 +12083,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
         <translation>Es un archivo %1 con la extensión .%2; Guardar propone la extensión .%3</translation>
     </message>
+<message>
+        <source>Found: %1.</source>
+        <translation>Encontrada: %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>No se encontró ninguna de las marcas de agua que se pudieron comprobar. Algunos tipos no se comprobaron.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24569,7 +24577,15 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>TrustMark watermark models: not downloaded</source>
         <translation>Modelos de marca de agua TrustMark: no descargados</translation>
     </message>
-    </context>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Buscar marcas de &amp;agua...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Buscar marcas de agua...</translation>
+    </message>
+</context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
     <message>
@@ -26795,6 +26811,53 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>%1 x %2, live</source>
         <translation>%1 x %2, en directo</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>La imagen mide menos de 256 x 256 píxeles, demasiado pequeña para llevar esta marca.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>Coinciden %1 de %2 bits.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark no pudo ejecutarse: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Esta versión de Patchy no puede leer marcas de agua TrustMark.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>Los modelos de marcas de agua no están descargados.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>Lleva %1 (%2), confianza %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>Declarada en metadatos C2PA</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>Encontrada</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>No encontrada</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>No comprobada</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Algunas marcas de agua, como Google SynthID y Digimarc, solo pueden leerse con las herramientas de sus propietarios, así que ningún análisis de aquí puede encontrarlas. No encontrada solo significa que no se encontró ninguno de los tipos de arriba.</translation>
     </message>
 </context>
 </TS>

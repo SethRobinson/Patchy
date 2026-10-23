@@ -55,7 +55,14 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMap>
+#include <QStringList>
 #include <QMessageBox>
+#include <QContextMenuEvent>
+#include <QElapsedTimer>
+#include <QMenu>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QTimer>
 #include "local_psd_fixtures.hpp"
 #include <QFileInfo>
@@ -688,6 +695,24 @@ void ui_file_info_scans_for_watermarks() {
       const auto rows = tree != nullptr ? tree->findItems(QStringLiteral("Invisible watermark"),
                                                           Qt::MatchExactly | Qt::MatchRecursive)
                                         : QList<QTreeWidgetItem*>{};
+      // One row per kind, in a fixed order; TrustMark is Not checked without its models.
+      QStringList order;
+      QMap<QString, QString> statuses;
+      for (auto* label : dialog->findChildren<QLabel*>(QStringLiteral("fileInfoWatermarkCheckStatus"))) {
+        if (label->isVisible()) {
+          order.push_back(label->property("watermarkCheck").toString());
+          statuses.insert(order.back(), label->property("watermarkStatus").toString());
+        }
+      }
+      CHECK(order == QStringList({QStringLiteral("stableDiffusion1"), QStringLiteral("stableDiffusion2"),
+                                  QStringLiteral("stableDiffusionXL"), QStringLiteral("trustmarkQ"),
+                                  QStringLiteral("trustmarkP"), QStringLiteral("trustmarkC"),
+                                  QStringLiteral("c2paDeclared")}));
+      CHECK(statuses.value(QStringLiteral("stableDiffusion1")) == QStringLiteral("notFound"));
+      CHECK(statuses.value(QStringLiteral("stableDiffusionXL")) ==
+            (expect_hit ? QStringLiteral("found") : QStringLiteral("notFound")));
+      CHECK(statuses.value(QStringLiteral("trustmarkQ")) == QStringLiteral("notChecked"));
+      CHECK(statuses.value(QStringLiteral("c2paDeclared")) == QStringLiteral("notFound"));
       if (expect_hit) {
         CHECK(result != nullptr && result->text().contains(QStringLiteral("Stable Diffusion XL")));
         CHECK(banner != nullptr && !banner->isHidden() &&
@@ -700,7 +725,9 @@ void ui_file_info_scans_for_watermarks() {
         QApplication::processEvents();
         capture_widget_artifact("ui_file_info_watermark_found", *dialog);
       } else {
-        CHECK(result != nullptr && result->text() == QObject::tr("None of the Stable Diffusion watermarks was found."));
+        CHECK(result != nullptr &&
+              result->text() == QObject::tr("None of the watermarks that could be checked was found. Some kinds "
+                                            "were not checked."));
         CHECK(rows.isEmpty());
         capture_widget_artifact("ui_file_info_watermark_none", *dialog);
       }
@@ -715,6 +742,124 @@ void ui_file_info_scans_for_watermarks() {
   inspect(clean_path, false);
 }
 
+// The document tab's Scan for Watermarks... (docs/document-tabs.md): on the tab of a document
+// that is not the active one, it activates that document and opens File Info on the
+// Watermarks page with the scan already run. File > Scan for Watermarks... is the same
+// command (file.scan_for_watermarks) for the active document.
+void ui_document_tab_scan_for_watermarks() {
+  constexpr int kSize = 512;
+  const auto clean = patchy::test::watermark_fixture_image(kSize, kSize, 11);
+  const auto& known = patchy::known_invisible_watermarks();
+  const auto xl =
+      std::find_if(known.begin(), known.end(), [](const auto& item) { return item.id == "stableDiffusionXL"; });
+  CHECK(xl != known.end());
+  const auto marked_path = artifact_dir() + QStringLiteral("/tab-scan-sdxl.png");
+  const auto clean_path = artifact_dir() + QStringLiteral("/tab-scan-clean.png");
+  CHECK(rgb_qimage(patchy::test::embed_dwt_dct_reference(clean, kSize, kSize, xl->bits,
+                                                          patchy::test::WatermarkEmbedPath::Float),
+                   kSize, kSize)
+            .save(marked_path));
+  CHECK(rgb_qimage(clean, kSize, kSize).save(clean_path));
+  // Without the TrustMark models, so only the Stable Diffusion scan runs (fast and the same everywhere).
+  const auto no_models = std::filesystem::current_path() / "test-artifacts" / "watermark-no-models";
+  std::filesystem::create_directories(no_models);
+  patchy::ai::set_downloaded_model_directory(no_models);
+  struct Reset {
+    ~Reset() { patchy::ai::set_downloaded_model_directory({}); }
+  } reset;
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* file_action = require_action(window, "fileScanForWatermarksAction");
+  CHECK(file_action->text() == QObject::tr("Scan for &Watermarks..."));
+  MainWindowTestAccess::open_document_path(window, marked_path);
+  MainWindowTestAccess::open_document_path(window, clean_path);
+  QApplication::processEvents();
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  if (tabs == nullptr) {
+    return;
+  }
+  auto* tab_bar = tabs->findChild<QTabBar*>();
+  CHECK(tab_bar != nullptr);
+  int marked_tab = -1;
+  for (int index = 0; index < tabs->count(); ++index) {
+    if (tabs->tabText(index).startsWith(QStringLiteral("tab-scan-sdxl"))) {
+      marked_tab = index;
+    }
+  }
+  CHECK(marked_tab >= 0 && tabs->currentIndex() != marked_tab);  // the clean one is active
+  if (tab_bar == nullptr || marked_tab < 0) {
+    return;
+  }
+
+  bool saw_menu = false;
+  bool saw_results = false;
+  QStringList found_rows;
+  QTimer driver;
+  driver.setInterval(20);
+  QObject::connect(&driver, &QTimer::timeout, &window, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    if (dialog == nullptr) {
+      return;
+    }
+    for (auto* label : dialog->findChildren<QLabel*>(QStringLiteral("fileInfoWatermarkCheckStatus"))) {
+      if (label->isVisible() && label->property("watermarkStatus").toString() == QStringLiteral("found")) {
+        found_rows.push_back(label->property("watermarkCheck").toString());
+      }
+    }
+    if (dialog->findChild<QLabel*>(QStringLiteral("fileInfoWatermarkScanResult")) == nullptr) {
+      return;  // the scan runs right after the dialog shows
+    }
+    saw_results = true;
+    driver.stop();
+    dialog->reject();
+  });
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
+        continue;
+      }
+      saw_menu = true;
+      QAction* scan = nullptr;
+      QAction* rename = nullptr;
+      for (auto* action : menu->actions()) {
+        if (action->objectName() == QStringLiteral("documentTabScanForWatermarksAction")) {
+          scan = action;
+        } else if (action->objectName() == QStringLiteral("documentTabRenameFileAction")) {
+          rename = action;
+        }
+      }
+      CHECK(scan != nullptr && scan->isEnabled() && scan->text() == QObject::tr("Scan for Watermarks..."));
+      // Last, under the file items and their separator.
+      CHECK(rename != nullptr && menu->actions().indexOf(scan) == menu->actions().size() - 1 &&
+            menu->actions().indexOf(rename) == menu->actions().size() - 3);
+      if (scan != nullptr) {
+        menu->setActiveAction(scan);
+        save_widget_artifact("ui_document_tab_menu_scan_for_watermarks", *menu);
+        driver.start();
+        scan->trigger();
+      }
+      menu->close();
+      return;
+    }
+  });
+  const auto point = tab_bar->tabRect(marked_tab).center();
+  QContextMenuEvent event(QContextMenuEvent::Mouse, point, tab_bar->mapToGlobal(point));
+  QApplication::sendEvent(tab_bar, &event);
+  QElapsedTimer timer;
+  timer.start();
+  while (!saw_results && timer.elapsed() < 20000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  driver.stop();
+  CHECK(saw_menu);
+  CHECK(saw_results);
+  CHECK(found_rows.contains(QStringLiteral("stableDiffusionXL")));  // the clicked document, not the active one
+  CHECK(tabs->currentIndex() == marked_tab);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> file_info_tests() {
@@ -726,5 +871,6 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_psd_save_updates_exif_and_instance_id", ui_psd_save_updates_exif_and_instance_id},
       {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
+      {"ui_document_tab_scan_for_watermarks", ui_document_tab_scan_for_watermarks},
   };
 }

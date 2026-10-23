@@ -1485,6 +1485,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/model_download_dialog.cpp
       src/ui/watermark_model_download.cpp
       src/ui/watermark_settings.cpp
+      src/ui/watermark_scan_report.cpp
       src/ui/save_metadata_settings.cpp
       src/ui/user_fonts.hpp
       src/ui/user_fonts.cpp

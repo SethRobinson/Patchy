@@ -12048,6 +12048,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
         <translation>这是扩展名为 .%2 的 %1 文件；保存时会建议使用 .%3 扩展名</translation>
     </message>
+<message>
+        <source>Found: %1.</source>
+        <translation>已找到：%1。</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>未找到任何可检查的水印。有些类型未检查。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24497,7 +24505,15 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>TrustMark watermark models: not downloaded</source>
         <translation>TrustMark 水印模型：未下载</translation>
     </message>
-    </context>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>扫描水印(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>扫描水印...</translation>
+    </message>
+</context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
     <message>
@@ -26721,6 +26737,53 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>%1 x %2, live</source>
         <translation>%1 x %2，实时</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>图像小于 256 x 256 像素，太小，无法携带此水印。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2 位中有 %1 位匹配。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark 无法运行：%1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>此版本的 Patchy 无法读取 TrustMark 水印。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>尚未下载水印模型。</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>携带 %1（%2），置信度 %3。</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>在 C2PA 元数据中声明</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>已找到</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>未找到</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>未检查</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>有些水印（例如 Google SynthID 和 Digimarc）只能用其所有者的工具读取，因此这里的任何扫描都找不到它们。未找到仅表示上面的类型都没有找到。</translation>
     </message>
 </context>
 </TS>

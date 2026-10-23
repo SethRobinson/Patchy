@@ -12048,6 +12048,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
         <translation>확장자가 .%2인 %1 파일입니다. 저장할 때 .%3 확장자를 제안합니다</translation>
     </message>
+<message>
+        <source>Found: %1.</source>
+        <translation>발견됨: %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>확인할 수 있는 워터마크를 찾지 못했습니다. 일부 종류는 확인하지 않았습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24497,7 +24505,15 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>TrustMark watermark models: not downloaded</source>
         <translation>TrustMark 워터마크 모델: 다운로드 안 됨</translation>
     </message>
-    </context>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>워터마크 검사(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>워터마크 검사...</translation>
+    </message>
+</context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
     <message>
@@ -26721,6 +26737,53 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>%1 x %2, live</source>
         <translation>%1 x %2, 라이브</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>이미지가 256 x 256 픽셀보다 작아 이 워터마크를 담을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2비트 중 %1비트 일치.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>이 버전의 Patchy는 TrustMark 워터마크를 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>워터마크 모델을 다운로드하지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>%1 포함 (%2), 신뢰도 %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>C2PA 메타데이터에 선언됨</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>발견됨</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>찾지 못함</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>확인 안 함</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Google SynthID, Digimarc 같은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서는 어떤 검사로도 찾을 수 없습니다. 찾지 못함은 위의 종류 중 어느 것도 찾지 못했다는 뜻일 뿐입니다.</translation>
     </message>
 </context>
 </TS>

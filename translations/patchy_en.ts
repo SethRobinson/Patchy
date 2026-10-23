@@ -12067,6 +12067,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
         <translation type="unfinished" />
     </message>
+<message>
+        <source>Found: %1.</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation type="unfinished" />
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24496,7 +24504,15 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>TrustMark watermark models: not downloaded</source>
         <translation type="unfinished" />
     </message>
-    </context>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation type="unfinished" />
+    </message>
+</context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
     <message>
@@ -26721,6 +26737,53 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>%1 x %2, live</source>
+        <translation type="unfinished" />
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Found</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
         <translation type="unfinished" />
     </message>
 </context>
