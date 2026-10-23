@@ -24335,6 +24335,90 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Show in File Info</source>
         <translation>ファイル情報で表示</translation>
     </message>
+    <message>
+        <source>Saved metadata</source>
+        <translation>保存するメタデータ</translation>
+    </message>
+    <message>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>なし: Patchy は独自の情報を何も追加しません</translation>
+    </message>
+    <message>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>基本: 作成アプリとしての Patchy、保存日時、履歴の項目</translation>
+    </message>
+    <message>
+        <source>Basic plus my name and copyright</source>
+        <translation>基本に加えて自分の名前と著作権</translation>
+    </message>
+    <message>
+        <source>Automatically add to saved files:</source>
+        <translation>保存するファイルに自動で追加:</translation>
+    </message>
+    <message>
+        <source>Your name as the author</source>
+        <translation>作者としてのあなたの名前</translation>
+    </message>
+    <message>
+        <source>Copyright notice:</source>
+        <translation>著作権表示:</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>省略可</translation>
+    </message>
+    <message>
+        <source>Email:</source>
+        <translation>メール:</translation>
+    </message>
+    <message>
+        <source>Website:</source>
+        <translation>Web サイト:</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>ファイルに追加する前に確認する</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>まだあなたの名前がない PSD、JPEG、PNG、TIFF、WebP、GIF、JPEG XL、AVIF ファイルに、既存の作者と並べて名前、著作権、連絡先が入ります。ファイルにすでにあるメタデータは残ります。ファイル &gt; ファイル情報 &gt; すべてのメタデータを削除 で消せます。書き出しは書き出しダイアログのメタデータの選択に従います。</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>「%1」を使う</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>メタデータと透かし</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>名前と著作権を追加</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>このファイルに名前と著作権を追加しますか?</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>名前: %1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>著作権: %1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>このファイルにはすでに %1 の名前があります。あなたの名前はその横に追加され、何も置き換えられません。</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>スキップ</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>常に確認せずに追加</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26210,6 +26294,18 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences: 不明なオプション %1。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences には {mode: &quot;basic&quot;} のようなオブジェクトを渡してください。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences: mode は &quot;none&quot;、&quot;basic&quot;、&quot;personal&quot; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences: 不明なオプション %1。</translation>
     </message>
 </context>
 <context>

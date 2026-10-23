@@ -63,11 +63,12 @@ public:
   // Called after text commit, playback stop, and data-loss/color confirmations. Throws
   // writer failures to the host's existing error handler; no saved state changes on failure.
   // `watermark` (Preferences > Watermarks) marks the pixels a flat writer receives, on the
-  // writer's worker, never the open document (watermarked_save_document).
+  // writer's worker, never the open document (watermarked_save_document). `stamp_save` false
+  // (Saved metadata "None") skips the PSD/PSB save stamp.
   [[nodiscard]] std::optional<DocumentSaveResult> write_prepared(
       std::int64_t session_id, const QString& path, const QString& extension,
       const ImageSaveOptions& options, bool quiet, bool export_copy, bool discards_layers,
-      const std::optional<SaveWatermark>& watermark = std::nullopt);
+      const std::optional<SaveWatermark>& watermark = std::nullopt, bool stamp_save = true);
   static void mark_saved(DocumentSession& session);
 private:
   SaveHost& host_;

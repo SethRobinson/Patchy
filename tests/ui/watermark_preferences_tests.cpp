@@ -150,7 +150,7 @@ void ui_watermark_preferences_page_persists() {
     }
     int page = -1;
     for (int index = 0; index < tabs->count(); ++index) {
-      if (tabs->tabText(index) == QObject::tr("Watermarks")) {
+      if (tabs->tabText(index) == QObject::tr("Metadata and Watermarks")) {
         page = index;
       }
     }

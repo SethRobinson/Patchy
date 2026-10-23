@@ -24407,6 +24407,90 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Show in File Info</source>
         <translation>In Dateiinformationen zeigen</translation>
     </message>
+    <message>
+        <source>Saved metadata</source>
+        <translation>Gespeicherte Metadaten</translation>
+    </message>
+    <message>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>Keine: Patchy fügt nichts Eigenes hinzu</translation>
+    </message>
+    <message>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>Einfach: Patchy als erstellende Anwendung, die Speicherdaten und ein Verlaufseintrag</translation>
+    </message>
+    <message>
+        <source>Basic plus my name and copyright</source>
+        <translation>Einfach plus mein Name und Copyright</translation>
+    </message>
+    <message>
+        <source>Automatically add to saved files:</source>
+        <translation>Automatisch zu gespeicherten Dateien hinzufügen:</translation>
+    </message>
+    <message>
+        <source>Your name as the author</source>
+        <translation>Ihr Name als Autor</translation>
+    </message>
+    <message>
+        <source>Copyright notice:</source>
+        <translation>Copyright-Hinweis:</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Optional</translation>
+    </message>
+    <message>
+        <source>Email:</source>
+        <translation>E-Mail:</translation>
+    </message>
+    <message>
+        <source>Website:</source>
+        <translation>Website:</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>Vor dem Hinzufügen zu einer Datei fragen</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>Ihr Name, Copyright und Kontakt kommen in PSD-, JPEG-, PNG-, TIFF-, WebP-, GIF-, JPEG-XL- und AVIF-Dateien, die Sie noch nicht nennen, neben einen schon vorhandenen Autor. Metadaten, die eine Datei schon trägt, bleiben erhalten; Datei &gt; Dateiinformationen &gt; Alle Metadaten entfernen löscht sie. Exporte folgen der Metadaten-Auswahl im Exportdialog.</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>„%1“ verwenden</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>Metadaten und Wasserzeichen</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>Ihren Namen und Copyright hinzufügen</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>Ihren Namen und Ihr Copyright zu dieser Datei hinzufügen?</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>Name: %1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>Copyright: %1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>Die Datei nennt bereits %1. Ihr Name kommt daneben; nichts wird ersetzt.</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>Überspringen</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>Immer ohne Nachfrage hinzufügen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26283,6 +26367,18 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences: unbekannte Option %1.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences erwartet ein Objekt wie {mode: &quot;basic&quot;}.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences: mode muss &quot;none&quot;, &quot;basic&quot; oder &quot;personal&quot; sein.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences: unbekannte Option %1.</translation>
     </message>
 </context>
 <context>

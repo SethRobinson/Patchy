@@ -34,6 +34,7 @@
 #include "ui/hotkey_editor.hpp"
 #include "ui/object_selection_model_download.hpp"
 #include "ui/watermark_model_download.hpp"
+#include "ui/save_metadata_settings.hpp"
 #include "ai/watermark_engine.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ui/script_folders.hpp"
@@ -55,8 +56,10 @@
 #include "ui/theme_qss.hpp"
 
 #include <QAbstractItemView>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
+#include <QDate>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QDialog>
@@ -87,6 +90,7 @@
 #include <QPushButton>
 #include <QRegularExpressionValidator>
 #include <QRegularExpression>
+#include <QRadioButton>
 #include <QRect>
 #include <QScopeGuard>
 #include <QScrollArea>
@@ -114,6 +118,7 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <qlatin1stringview.h>
@@ -1281,9 +1286,111 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   tools_layout->addStretch(1);
   tabs->addTab(tools_page, tr("Tools"));
 
-  // Watermarks (docs/watermarks.md, "Preferences"): the TrustMark text saves add, when they
-  // add it, the check on open, and the optional models.
+  // Metadata and Watermarks: what saves add of Patchy's own and the user's (docs/file-info.md,
+  // "Saved metadata preference"), then the TrustMark text saves add, when they add it, the
+  // check on open, and the optional models (docs/watermarks.md, "Preferences").
   auto [watermarks_page, watermarks_layout] = make_tab_page(tabs);
+  const auto section_heading = [](const QString& text, QWidget* parent, const char* name) {
+    auto* label = new QLabel(text, parent);
+    label->setObjectName(QLatin1String(name));
+    auto font = label->font();
+    font.setBold(true);
+    label->setFont(font);
+    return label;
+  };
+  watermarks_layout->addWidget(
+      section_heading(tr("Saved metadata"), watermarks_page, "preferencesSavedMetadataHeading"));
+  auto* metadata_group = new QFrame(watermarks_page);
+  metadata_group->setObjectName(QStringLiteral("preferencesSavedMetadataGroup"));
+  configure_panel(metadata_group);
+  auto* metadata_form = new QFormLayout(metadata_group);
+  configure_form(metadata_form);
+  const auto entry_save_metadata_mode = stored_save_metadata_mode();
+  const auto entry_personal = stored_personal_save_metadata();
+  auto* metadata_none_radio = new QRadioButton(tr("None: Patchy adds nothing of its own"), metadata_group);
+  metadata_none_radio->setObjectName(QStringLiteral("preferencesSavedMetadataNoneRadio"));
+  auto* metadata_basic_radio = new QRadioButton(
+      tr("Basic: Patchy as the creating application, the save dates and a history entry"), metadata_group);
+  metadata_basic_radio->setObjectName(QStringLiteral("preferencesSavedMetadataBasicRadio"));
+  auto* metadata_personal_radio = new QRadioButton(tr("Basic plus my name and copyright"), metadata_group);
+  metadata_personal_radio->setObjectName(QStringLiteral("preferencesSavedMetadataPersonalRadio"));
+  auto* metadata_modes = new QButtonGroup(metadata_group);
+  metadata_modes->addButton(metadata_none_radio);
+  metadata_modes->addButton(metadata_basic_radio);
+  metadata_modes->addButton(metadata_personal_radio);
+  (entry_save_metadata_mode == SaveMetadataMode::None       ? metadata_none_radio
+   : entry_save_metadata_mode == SaveMetadataMode::Personal ? metadata_personal_radio
+                                                            : metadata_basic_radio)
+      ->setChecked(true);
+  auto* metadata_modes_column = new QWidget(metadata_group);
+  metadata_modes_column->setObjectName(QStringLiteral("preferencesSavedMetadataModesRow"));
+  auto* metadata_modes_layout = new QVBoxLayout(metadata_modes_column);
+  metadata_modes_layout->setContentsMargins(0, 0, 0, 0);
+  metadata_modes_layout->setSpacing(6);
+  metadata_modes_layout->addWidget(metadata_none_radio);
+  metadata_modes_layout->addWidget(metadata_basic_radio);
+  metadata_modes_layout->addWidget(metadata_personal_radio);
+  metadata_form->addRow(tr("Automatically add to saved files:"), metadata_modes_column);
+  auto* metadata_name_edit = new QLineEdit(entry_personal.name, metadata_group);
+  metadata_name_edit->setObjectName(QStringLiteral("preferencesSavedMetadataNameEdit"));
+  metadata_name_edit->setPlaceholderText(tr("Your name as the author"));
+  metadata_form->addRow(tr("Name:"), metadata_name_edit);
+  auto* metadata_copyright_row = new QWidget(metadata_group);
+  metadata_copyright_row->setObjectName(QStringLiteral("preferencesSavedMetadataCopyrightRow"));
+  auto* metadata_copyright_layout = new QHBoxLayout(metadata_copyright_row);
+  metadata_copyright_layout->setContentsMargins(0, 0, 0, 0);
+  auto* metadata_copyright_edit = new QLineEdit(entry_personal.copyright, metadata_copyright_row);
+  metadata_copyright_edit->setObjectName(QStringLiteral("preferencesSavedMetadataCopyrightEdit"));
+  auto* metadata_suggest_button = new QPushButton(metadata_copyright_row);
+  metadata_suggest_button->setObjectName(QStringLiteral("preferencesSavedMetadataSuggestButton"));
+  metadata_copyright_layout->addWidget(metadata_copyright_edit, 1);
+  metadata_copyright_layout->addWidget(metadata_suggest_button);
+  metadata_form->addRow(tr("Copyright notice:"), metadata_copyright_row);
+  auto* metadata_email_edit = new QLineEdit(entry_personal.email, metadata_group);
+  metadata_email_edit->setObjectName(QStringLiteral("preferencesSavedMetadataEmailEdit"));
+  metadata_email_edit->setPlaceholderText(tr("Optional"));
+  metadata_form->addRow(tr("Email:"), metadata_email_edit);
+  auto* metadata_website_edit = new QLineEdit(entry_personal.website, metadata_group);
+  metadata_website_edit->setObjectName(QStringLiteral("preferencesSavedMetadataWebsiteEdit"));
+  metadata_website_edit->setPlaceholderText(tr("Optional"));
+  metadata_form->addRow(tr("Website:"), metadata_website_edit);
+  auto* metadata_ask_check = new QCheckBox(tr("Ask before adding them to a file"), metadata_group);
+  metadata_ask_check->setObjectName(QStringLiteral("preferencesSavedMetadataAskCheck"));
+  metadata_ask_check->setChecked(entry_personal.ask);
+  metadata_form->addRow(metadata_ask_check);
+  auto* metadata_help = new QLabel(
+      tr("Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that "
+         "do not name you yet, beside any author already there. Metadata a file already carries is kept; File > "
+         "File Info > Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog."),
+      metadata_group);
+  metadata_help->setObjectName(QStringLiteral("preferencesSavedMetadataHelp"));
+  metadata_help->setWordWrap(true);
+  metadata_form->addRow(metadata_help);
+  watermarks_layout->addWidget(metadata_group);
+  const int current_year = QDate::currentDate().year();
+  const auto refresh_metadata_fields = [metadata_personal_radio, metadata_name_edit, metadata_copyright_edit,
+                                        metadata_suggest_button, metadata_email_edit, metadata_website_edit,
+                                        metadata_ask_check, current_year] {
+    const bool personal = metadata_personal_radio->isChecked();
+    for (QWidget* field : std::initializer_list<QWidget*>{metadata_name_edit, metadata_copyright_edit,
+                                                          metadata_email_edit, metadata_website_edit,
+                                                          metadata_ask_check}) {
+      field->setEnabled(personal);
+    }
+    const auto suggestion = suggested_copyright_notice(metadata_name_edit->text(), current_year);
+    metadata_suggest_button->setText(tr("Use \u201C%1\u201D").arg(suggestion));
+    metadata_suggest_button->setEnabled(personal && !metadata_name_edit->text().trimmed().isEmpty());
+  };
+  connect(metadata_personal_radio, &QRadioButton::toggled, &dialog,
+          [refresh_metadata_fields] { refresh_metadata_fields(); });
+  connect(metadata_name_edit, &QLineEdit::textChanged, &dialog,
+          [refresh_metadata_fields] { refresh_metadata_fields(); });
+  connect(metadata_suggest_button, &QPushButton::clicked, &dialog,
+          [metadata_copyright_edit, metadata_name_edit, current_year] {
+            metadata_copyright_edit->setText(suggested_copyright_notice(metadata_name_edit->text(), current_year));
+          });
+  refresh_metadata_fields();
+  watermarks_layout->addWidget(section_heading(tr("Watermarks"), watermarks_page, "preferencesWatermarksHeading"));
   auto* watermark_group = new QFrame(watermarks_page);
   watermark_group->setObjectName(QStringLiteral("preferencesWatermarksGroup"));
   configure_panel(watermark_group);
@@ -1425,7 +1532,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   connect(watermark_check_open, &QCheckBox::toggled, &dialog, [refresh_watermark_text] { refresh_watermark_text(); });
   refresh_watermark_text();
   watermarks_layout->addStretch(1);
-  tabs->addTab(watermarks_page, tr("Watermarks"));
+  tabs->addTab(watermarks_page, tr("Metadata and Watermarks"));
 
   auto [pen_page, pen_layout] = make_tab_page(tabs);
   auto* pen_group = new QFrame(pen_page);
@@ -1932,7 +2039,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     QDialog#patchyPreferencesDialog QWidget#preferencesUpdateCheckRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesVisibilityRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow,
-    QDialog#patchyPreferencesDialog QWidget#preferencesWatermarkTextRow {
+    QDialog#patchyPreferencesDialog QWidget#preferencesWatermarkTextRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataCopyrightRow {
+      background: transparent;
+    }
+    QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow QRadioButton {
       background: transparent;
     }
   )"));
@@ -2022,6 +2134,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     set_stored_watermark_save_mode(
         watermark_save_mode_from_token(watermark_save_combo->currentData().toString()).value_or(WatermarkSaveMode::Never));
     set_stored_watermark_check_on_open(watermark_check_open->isChecked());
+    set_stored_save_metadata_mode(metadata_none_radio->isChecked()       ? SaveMetadataMode::None
+                                  : metadata_personal_radio->isChecked() ? SaveMetadataMode::Personal
+                                                                         : SaveMetadataMode::Basic);
+    set_stored_personal_save_metadata(PersonalSaveMetadata{metadata_name_edit->text(), metadata_copyright_edit->text(),
+                                                           metadata_email_edit->text(), metadata_website_edit->text(),
+                                                           metadata_ask_check->isChecked()});
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());

@@ -77,6 +77,7 @@ std::vector<patchy::test::TestCase> history_stroke_patch_tests();
 std::vector<patchy::test::TestCase> file_info_tests();
 std::vector<patchy::test::TestCase> watermark_tests();
 std::vector<patchy::test::TestCase> watermark_preferences_tests();
+std::vector<patchy::test::TestCase> save_metadata_tests();
 std::vector<patchy::test::TestCase> layered_tiff_ui_tests();
 std::vector<patchy::test::TestCase> appimage_menu_entry_tests();
 std::vector<patchy::test::TestCase> composite_render_tests();
