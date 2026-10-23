@@ -659,12 +659,14 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         const auto& text_payload = record.additional_blocks.back().payload;
         record.text_patchy_generated_type_block =
             record.text_patchy_generated_type_block || payload_has_patchy_generated_text_signature(text_payload);
+        // The layer's 'Txt2' object (TextIndex), when the document has one.
+        const auto type_geometry = extract_type_tool_geometry(text_payload);
+        const auto* text_object = type_geometry && type_geometry->text_index >= 0 &&
+                                          static_cast<std::size_t>(type_geometry->text_index) < text_frames.size()
+                                      ? &text_frames[static_cast<std::size_t>(type_geometry->text_index)]
+                                      : nullptr;
         if (!record.text.has_value()) {
-          const auto geometry = extract_type_tool_geometry(text_payload);
-          const auto frame = geometry && geometry->text_index >= 0 &&
-                                 static_cast<std::size_t>(geometry->text_index) < text_frames.size()
-                                 ? text_frames[static_cast<std::size_t>(geometry->text_index)]
-                                 : TextFrameGeometry{};
+          const auto frame = text_object != nullptr ? *text_object : TextFrameGeometry{};
           const bool native_area = has_text_engine &&
               (frame.kind == TextFrameGeometry::Kind::Area || frame.kind == TextFrameGeometry::Kind::Unsupported);
           record.text = extract_engine_data_text(text_payload, native_area);
@@ -679,8 +681,11 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
           record.text_anti_alias = extract_engine_data_anti_alias(text_payload);
         }
         if (record.text.has_value() && !record.text_runs.has_value()) {
-          if (auto runs = extract_engine_text_runs(text_payload, *record.text, record.text_size.value_or(36),
-                                                   record.text_color.value_or(RgbColor{0, 0, 0}), cmyk);
+          if (auto runs = extract_engine_text_runs(
+                  text_payload, *record.text, record.text_size.value_or(36),
+                  record.text_color.value_or(RgbColor{0, 0, 0}), cmyk,
+                  text_object != nullptr ? std::span<const TextParagraphFontSize>(text_object->paragraph_font_sizes)
+                                         : std::span<const TextParagraphFontSize>{});
               runs.has_value()) {
             if (!runs->empty()) {
               const auto& first_run = runs->front();

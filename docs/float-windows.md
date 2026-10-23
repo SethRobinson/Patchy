@@ -109,10 +109,15 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   owned top-level would block `lastWindowClosed` (the tile-preview hazard). The float is
   released with `hide()` + `deleteLater()`, never a synchronous delete (it may be inside
   its own `closeEvent`), and its canvas is detached with `take_canvas()` first.
-- Quit stays one atomic decision: during OS session end (`QGuiApplication::
-  isSavingSession()`, Qt's default handling delivers closeEvent to every top-level) a
-  float accepts WITHOUT closing its document, the main window's confirm loop owns every
-  save prompt, and a cancelled close re-shows the floats the shutdown already hid.
+- The main window's quit loop owns every save prompt: during OS session end
+  (`QGuiApplication::isSavingSession()`, Qt's default handling delivers closeEvent to every
+  top-level) a float accepts WITHOUT closing its document, and a cancelled close re-shows
+  the floats the shutdown already hid.
+- Quit, Close All and a single close share `confirm_close_session`: Yes whose save does not
+  settle the document (Save As cancelled, a write error) asks about the same document again;
+  only Cancel ends the close (GitHub issue 359). Quit closes each modified document as soon as
+  it is answered (`CloseConfirmation::AlreadyConfirmed`), so Cancel keeps only the documents
+  not yet answered; unmodified ones stay open until the quit is settled.
 - `--screenshot` captures the main window only; floated documents are not in the grab.
 
 ## Deliberately out of scope
