@@ -163,7 +163,8 @@ ImageSaveOptions DocumentSaveCoordinator::effective_options(
 
 std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     std::int64_t session_id, const QString& path, const QString& extension,
-    const ImageSaveOptions& effective_image_options, bool quiet, bool export_copy, bool discards_layers) {
+    const ImageSaveOptions& effective_image_options, bool quiet, bool export_copy, bool discards_layers,
+    const std::optional<SaveWatermark>& watermark) {
   auto* target = host_.find_session(session_id);
   if (target == nullptr) return std::nullopt;
   std::vector<std::string> writer_notices;
@@ -209,9 +210,17 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     // of scanned pages took 10 s on this thread); PDF reports its pages.
     const Document snapshot = std::as_const(target->document);
     host_.run_write(path, /*on_worker*/ true, !quiet,
-                    [&snapshot, &path, &extension, &effective_image_options, &writer_notices](SaveProgress& progress) {
+                    [&snapshot, &path, &extension, &effective_image_options, &writer_notices,
+                     &watermark](SaveProgress& progress) {
                       const ScopedSaveProgress scope(progress);
-                      write_flat_image_file(snapshot, path, extension, effective_image_options, &writer_notices);
+                      std::optional<Document> marked;
+                      if (watermark.has_value()) {
+                        marked = watermarked_save_document(
+                            snapshot, *watermark, image_format_preserves_alpha(extension.toStdString()),
+                            &writer_notices);
+                      }
+                      write_flat_image_file(marked.has_value() ? *marked : snapshot, path, extension,
+                                            effective_image_options, &writer_notices);
                     });
   }
   host_.offer_download(path);

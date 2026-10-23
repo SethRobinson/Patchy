@@ -800,6 +800,24 @@ interface PatchyMetadataEntry {
     "machineInfo" | "timestamp" | "aiPrompt" | "provenance" | "watermark";
 }
 
+/** One Adobe TrustMark watermark `doc.scanForWatermarks()` read from the pixels. */
+interface PatchyTrustMarkMark {
+  /** The TrustMark model variant that reads it: "Q", "P" or "C". */
+  variant: "Q" | "P" | "C";
+  /** Its error-correction schema. */
+  schema: "BCH_SUPER" | "BCH_5" | "BCH_4" | "BCH_3";
+  /** The payload read as TrustMark text (7-bit ASCII), or "" when it is not text. */
+  text: string;
+  /** The payload as hexadecimal, "0x" first (the form addInvisibleWatermark's `id` takes). */
+  id: string;
+  /** The payload bits as a string of 0 and 1. */
+  bits: string;
+  /** Bits the error correction repaired. */
+  correctedBits: number;
+  /** The decoder's mean |logit|; 3 or more counts as a mark, marked images score about 9 to 11. */
+  confidence: number;
+}
+
 /** One known invisible watermark `doc.scanForWatermarks()` found in the pixels. */
 interface PatchyWatermarkMatch {
   /** Permanent id: "stableDiffusion1" | "stableDiffusion2" | "stableDiffusionXL". */
@@ -1020,10 +1038,21 @@ interface PatchyDocument {
    *  settings. Returns false when there was none. */
   removeEditHistory(): boolean;
   /** File > File Info's Scan for Watermarks: checks the composite image for the open
-   *  invisible watermarks of Stable Diffusion 1.x, 2.x and SDXL. `scanned` is false for
-   *  images under 256 x 256 pixels. Read-only. Watermarks declared in metadata are the
-   *  metadataEntries() rows with privacy "watermark". */
-  scanForWatermarks(): {scanned: boolean; matches: PatchyWatermarkMatch[]};
+   *  invisible watermarks of Stable Diffusion 1.x, 2.x and SDXL (`scanned` is false for
+   *  images under 256 x 256 pixels), and for Adobe TrustMark when the watermark models are
+   *  downloaded (`trustmark.available`; see app.downloadWatermarkModels). Read-only.
+   *  Watermarks declared in metadata are the metadataEntries() rows with privacy "watermark". */
+  scanForWatermarks(): {scanned: boolean; matches: PatchyWatermarkMatch[];
+    trustmark: {available: boolean; marks: PatchyTrustMarkMark[]}};
+  /** Image > Add Invisible Watermark: embeds an Adobe TrustMark watermark (variant Q) into the
+   *  active pixel layer, which must fill the image, in an 8-bit document. Give `text`
+   *  (printable ASCII; 8 characters with BCH_5, 5 with BCH_SUPER, 9 with BCH_4, 10 with
+   *  BCH_3) or `id` (hexadecimal, as scanForWatermarks reports it); with neither, a random ID.
+   *  `schema` defaults to "BCH_5" (TrustMark's default), `strength` to 1 (0.1 to 2). Anyone
+   *  with a TrustMark reader can read the payload: it is not secret. Needs the watermark
+   *  models (app.downloadWatermarkModels). One undo step with the rest of the run. */
+  addInvisibleWatermark(options?: {text?: string; id?: string; schema?: "BCH_5" | "BCH_SUPER" | "BCH_4" | "BCH_3";
+    strength?: number}): {schema: string; text: string; id: string};
   /** Image > Image Size. `options.method` is the resampling method (default "automatic":
    *  Bicubic Sharper for a reduction, Bicubic Smoother for an enlargement); an unknown id
    *  throws. Text layers and smart objects re-render from their sources afterwards. */
@@ -1189,6 +1218,26 @@ interface PatchyApp {
    * failed download and in the web build. See doc.selection.objectSelectionModel.
    */
   downloadObjectSelectionModel(): boolean;
+  /**
+   * Downloads the Adobe TrustMark watermark models (135 MB from Adobe, kept in Patchy's data
+   * folder) when they are missing, waiting with progress in the status bar. Returns true once
+   * they are present; throws if the download fails, and in the web build. Nothing downloads
+   * them without this call or the user asking in the app.
+   */
+  downloadWatermarkModels(): boolean;
+  /** True when the TrustMark watermark models are downloaded and can run. */
+  readonly watermarkModelsAvailable: boolean;
+  /**
+   * Preferences > Watermarks (persisted): the TrustMark text saves add (printable ASCII, at
+   * most 8 characters), when saves add it ("never", the default, "ask" or "always"; scripted
+   * saves never ask, so "ask" adds nothing to them), and whether opened images are checked
+   * in the background.
+   */
+  readonly watermarkPreferences: {text: string; addOnSave: "never" | "ask" | "always"; checkOnOpen: boolean};
+  /** Sets any of watermarkPreferences' keys; an unknown key, a bad token or text TrustMark
+   *  cannot hold throws. */
+  setWatermarkPreferences(preferences: {text?: string; addOnSave?: "never" | "ask" | "always";
+    checkOnOpen?: boolean}): void;
   /**
    * Every font family the text engine can use right now (installed and user-added),
    * with its face names and the writing systems the font declares (a declared

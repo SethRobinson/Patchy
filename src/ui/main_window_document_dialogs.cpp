@@ -1569,12 +1569,24 @@ bool MainWindow::resize_document_image(DocumentSession& target, int width, int h
   return true;
 }
 
-void MainWindow::show_file_info_dialog() {
+void MainWindow::show_file_info_dialog(bool watermarks_scan) {
   finish_active_text_editor();
   if (!has_active_document()) {
     return;
   }
-  auto edit = request_file_info_edit(this, std::as_const(document()), session().path);
+  FileInfoWatermarkSupport watermarks;
+#if !defined(Q_OS_WASM)
+  watermarks.download_models = [this](QWidget* parent) {
+    QString error;
+    const bool ok = download_watermark_models(true, {}, &error, parent);
+    if (!ok && !error.isEmpty()) {
+      show_status_error(tr("The watermark models could not be downloaded: %1").arg(error));
+    }
+    return ok;
+  };
+#endif
+  watermarks.open_watermarks_and_scan = watermarks_scan;
+  auto edit = request_file_info_edit(this, std::as_const(document()), session().path, watermarks);
   if (!edit.has_value()) {
     return;
   }

@@ -4208,6 +4208,112 @@ void ui_tool_flyout_double_click_opens_menu() {
   CHECK(button->defaultAction() == require_action(window, "toolMarqueeAction"));
 }
 
+// local-008: a left click on a flyout button selects the tool it shows without opening the
+// flyout, and holding the left button opens the flyout once the style's popup delay
+// (SH_ToolButton_PopupDelay; AppStyle answers 200 ms) runs out. The hold opens the menu
+// through showMenu(), which blocks in exec(): a queued timer records the visible menu and
+// closes it.
+void check_flyout_click_and_left_hold(QToolButton& button, QAction& shown_tool) {
+  auto* menu = button.menu();
+  CHECK(menu != nullptr);
+  CHECK(button.isEnabled());
+  CHECK(button.popupMode() == QToolButton::DelayedPopup);
+  const int delay = button.style()->styleHint(QStyle::SH_ToolButton_PopupDelay, nullptr, &button);
+  CHECK(delay > 0);
+  int shows = 0;
+  bool shown = false;
+  const auto connection = QObject::connect(menu, &QMenu::aboutToShow, menu, [&] {
+    ++shows;
+    QTimer::singleShot(0, menu, [&] {
+      shown = menu->isVisible();
+      menu->close();
+    });
+  });
+  const QPoint center = button.rect().center();
+
+  click_widget_like_a_user(button, center);
+  process_events_for(delay + 200);
+  CHECK(shows == 0);
+  CHECK(shown_tool.isChecked());
+
+  send_mouse(button, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  process_events_for(delay / 2);
+  CHECK(shows == 0);
+  process_events_until([&] { return shows > 0; }, delay + 1000);
+  send_mouse(button, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  process_events_for(20);
+  CHECK(shows == 1);
+  CHECK(shown);
+  CHECK(!menu->isVisible());
+  CHECK(shown_tool.isChecked());
+  QObject::disconnect(connection);
+}
+
+void ui_tool_flyout_left_hold_opens_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+  CHECK(button != nullptr);
+  check_flyout_click_and_left_hold(*button, *require_action(window, "toolMarqueeAction"));
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Marquee);
+}
+
+// local-008: tools work with no document open, as in Photoshop. On the home screen a click,
+// a left hold, a flyout pick and a tool hotkey all choose the tool and show its options bar,
+// the choice is stored for the next launch, and the next document starts with it. Before,
+// every tool action was a document action, so the disabled palette dropped left clicks and
+// holds while right-click and double-click still opened a flyout whose picks did nothing.
+void ui_tools_work_with_no_document_open() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+
+  auto* marquee_button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+  CHECK(marquee_button != nullptr);
+  check_flyout_click_and_left_hold(*marquee_button, *require_action(window, "toolMarqueeAction"));
+  auto* feather = window.findChild<QWidget*>(QStringLiteral("selectionFeatherSpin"));
+  CHECK(feather != nullptr);
+  CHECK(feather->isVisible());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/activeTool")).toString() ==
+        QStringLiteral("tools.marquee"));
+
+  // A flyout member picked on the home screen becomes the button's face.
+  auto* lasso_button = window.findChild<QToolButton*>(QStringLiteral("lassoToolButton"));
+  CHECK(lasso_button != nullptr);
+  auto* polygonal = require_action(window, "toolPolygonalLassoAction");
+  CHECK(polygonal->isEnabled());
+  polygonal->trigger();
+  QApplication::processEvents();
+  CHECK(polygonal->isChecked());
+  CHECK(lasso_button->defaultAction() == polygonal);
+
+  // The tool letters and the Shift+letter cycles are live too.
+  window.activateWindow();
+  QApplication::processEvents();
+  QTest::keyClick(&window, Qt::Key_E);
+  QApplication::processEvents();
+  auto* eraser = require_action(window, "toolEraserAction");
+  CHECK(eraser->isChecked());
+  QTest::keyClick(&window, Qt::Key_M, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(require_action(window, "toolEllipticalMarqueeAction")->isChecked());
+  QTest::keyClick(&window, Qt::Key_E);
+  QApplication::processEvents();
+  CHECK(eraser->isChecked());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/activeTool")).toString() ==
+        QStringLiteral("tools.eraser"));
+
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Eraser);
+  CHECK(eraser->isChecked());
+  click_widget_like_a_user(*marquee_button, marquee_button->rect().center());
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::EllipticalMarquee);
+}
+
 void ui_tool_flyout_right_click_opens_menu() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -8417,6 +8523,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order",
        ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},
+      {"ui_tool_flyout_left_hold_opens_menu", ui_tool_flyout_left_hold_opens_menu},
+      {"ui_tools_work_with_no_document_open", ui_tools_work_with_no_document_open},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_only_the_flyout", ui_tool_flyout_right_click_opens_only_the_flyout},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",

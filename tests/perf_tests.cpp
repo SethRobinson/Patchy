@@ -11,6 +11,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/brush_automation.hpp"
 #include "ui/canvas_widget.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -25,6 +26,7 @@
 #include <QByteArray>
 #include <QComboBox>
 #include <QDialog>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QItemSelectionModel>
@@ -52,6 +54,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <ctime>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -75,6 +78,7 @@
 #endif
 #include <windows.h>
 #include <dbghelp.h>
+#include <tlhelp32.h>
 #pragma comment(lib, "dbghelp.lib")
 #endif
 
@@ -100,6 +104,9 @@ class MainWindowTestAccess {
     return window.active_session() != nullptr && window.active_session()->cmyk_proof;
   }
   static void set_document_cmyk_proof(MainWindow& window, bool enabled) { window.set_document_cmyk_proof(enabled); }
+  static void new_document(MainWindow& window, int width, int height, double ppi) {
+    window.reset_document(width, height, Qt::white, QStringLiteral("New document"), ppi);
+  }
 };
 
 }  // namespace patchy::ui
@@ -2255,6 +2262,338 @@ void big_brush_stroke_perf() {
   }
 }
 
+// Process CPU time across all threads, in milliseconds.
+double process_cpu_ms() {
+#ifdef Q_OS_WIN
+  FILETIME created{};
+  FILETIME exited{};
+  FILETIME kernel{};
+  FILETIME user{};
+  if (GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) == 0) {
+    return 0.0;
+  }
+  const auto ticks = [](FILETIME time) {
+    return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32U) | time.dwLowDateTime;
+  };
+  return static_cast<double>(ticks(kernel) + ticks(user)) / 10000.0;
+#else
+  return 1000.0 * static_cast<double>(std::clock()) / static_cast<double>(CLOCKS_PER_SEC);
+#endif
+}
+
+#ifdef Q_OS_WIN
+// CPU milliseconds per thread of this process, keyed by thread id, with each thread's
+// description (worker pools name their threads).
+std::map<DWORD, std::pair<double, std::string>> thread_cpu_ms() {
+  std::map<DWORD, std::pair<double, std::string>> result;
+  const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (snapshot == INVALID_HANDLE_VALUE) {
+    return result;
+  }
+  THREADENTRY32 entry{};
+  entry.dwSize = sizeof(entry);
+  for (auto ok = Thread32First(snapshot, &entry); ok != FALSE; ok = Thread32Next(snapshot, &entry)) {
+    if (entry.th32OwnerProcessID != GetCurrentProcessId()) {
+      continue;
+    }
+    const auto thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ThreadID);
+    if (thread == nullptr) {
+      continue;
+    }
+    FILETIME created{};
+    FILETIME exited{};
+    FILETIME kernel{};
+    FILETIME user{};
+    if (GetThreadTimes(thread, &created, &exited, &kernel, &user) != 0) {
+      const auto ticks = [](FILETIME time) {
+        return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32U) | time.dwLowDateTime;
+      };
+      std::string name = entry.th32ThreadID == GetCurrentThreadId() ? "main" : "";
+      PWSTR description = nullptr;
+      if (SUCCEEDED(GetThreadDescription(thread, &description)) && description != nullptr) {
+        if (description[0] != L'\0') {
+          name += (name.empty() ? "" : " ") + QString::fromWCharArray(description).toStdString();
+        }
+        LocalFree(description);
+      }
+      result[entry.th32ThreadID] = {static_cast<double>(ticks(kernel) + ticks(user)) / 10000.0, name};
+    }
+    CloseHandle(thread);
+  }
+  CloseHandle(snapshot);
+  return result;
+}
+
+void print_busy_threads(const std::map<DWORD, std::pair<double, std::string>>& before,
+                        const std::map<DWORD, std::pair<double, std::string>>& after) {
+  for (const auto& [id, value] : after) {
+    const auto found = before.find(id);
+    const auto delta = value.first - (found == before.end() ? 0.0 : found->second.first);
+    if (delta >= 15.0) {
+      std::cout << "[perf]   thread " << id << " '" << value.second << "' cpu_ms=" << delta << '\n';
+    }
+  }
+}
+#endif
+
+// Counts what the event loop delivers while nobody touches the app: paints per widget
+// and timer events per timer owner (GitHub issue 135).
+class IdleEventCounter final : public QObject {
+ public:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Paint) {
+      ++paints[describe(watched)];
+    } else if (event->type() == QEvent::Timer) {
+      auto owner = describe(watched);
+      if (const auto* timer = qobject_cast<QTimer*>(watched); timer != nullptr) {
+        owner += " " + std::to_string(timer->interval()) + "ms";
+      }
+      if (watched->parent() != nullptr) {
+        owner += " in " + describe(watched->parent());
+      }
+      ++timers[owner];
+    }
+    return false;
+  }
+
+  static int total(const std::map<std::string, int>& counts) {
+    int sum = 0;
+    for (const auto& [name, count] : counts) {
+      sum += count;
+    }
+    return sum;
+  }
+
+  static void print_top(const char* label, const std::map<std::string, int>& counts) {
+    std::vector<std::pair<int, std::string>> sorted;
+    for (const auto& [name, count] : counts) {
+      sorted.emplace_back(count, name);
+    }
+    std::sort(sorted.rbegin(), sorted.rend());
+    for (std::size_t index = 0; index < sorted.size() && index < 8U; ++index) {
+      std::cout << "[perf]   " << label << ' ' << sorted[index].first << "x " << clean_name(sorted[index].second)
+                << '\n';
+    }
+  }
+
+  std::map<std::string, int> paints;
+  std::map<std::string, int> timers;
+
+ private:
+  static std::string describe(const QObject* object) {
+    auto text = std::string(object->metaObject()->className());
+    if (!object->objectName().isEmpty()) {
+      text += "#" + object->objectName().toStdString();
+    }
+    return text;
+  }
+};
+
+void wait_event_loop_ms(int milliseconds) {
+  QEventLoop loop;
+  QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
+  loop.exec();
+}
+
+// A fresh print-size document left alone with the Brush active must cost next to no CPU
+// (GitHub issue 135: fans spun up as soon as an A5 canvas was created).
+// PATCHY_PERF_IDLE_SECONDS sets the measured window (default 10).
+void idle_new_document_perf() {
+  isolate_perf_settings();
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  const auto seconds = std::max(1, qEnvironmentVariableIntValue("PATCHY_PERF_IDLE_SECONDS"));
+  const auto window_ms = (qEnvironmentVariableIsSet("PATCHY_PERF_IDLE_SECONDS") ? seconds : 10) * 1000;
+  struct Case {
+    const char* name;
+    int width;
+    int height;
+    double ppi;
+  };
+  for (const auto& size : {Case{"A5_300ppi", 1748, 2480, 300.0}, Case{"A4_300ppi", 2480, 3508, 300.0},
+                           Case{"A5_72ppi", 420, 595, 72.0}}) {
+    const auto create_cpu = process_cpu_ms();
+    const auto create_ms = elapsed_ms([&] {
+      patchy::ui::MainWindowTestAccess::new_document(window, size.width, size.height, size.ppi);
+      QApplication::processEvents();
+    });
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    if (canvas == nullptr) {
+      return;
+    }
+    canvas->fit_to_view();
+    canvas->set_tool(patchy::ui::CanvasTool::Brush);
+    // Creation-time work (first render, thumbnails, debounced refreshes) finishes first.
+    wait_event_loop_ms(2000);
+    const auto settle_cpu = process_cpu_ms() - create_cpu;
+    IdleEventCounter counter;
+    qApp->installEventFilter(&counter);
+#ifdef Q_OS_WIN
+    const auto threads_before = thread_cpu_ms();
+#endif
+#ifdef Q_OS_WIN
+    // PATCHY_PERF_SAMPLER=1 attributes the idle main thread's work.
+    std::unique_ptr<MainThreadSampler> sampler;
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER")) {
+      sampler = std::make_unique<MainThreadSampler>();
+    }
+#endif
+    const auto cpu_before = process_cpu_ms();
+    const auto wall_ms = elapsed_ms([&] { wait_event_loop_ms(window_ms); });
+    const auto cpu_ms = process_cpu_ms() - cpu_before;
+#ifdef Q_OS_WIN
+    if (sampler) {
+      std::cout << "[SAMPLER_PHASE] idle " << size.name << '\n';
+      sampler.reset();
+    }
+#endif
+    qApp->removeEventFilter(&counter);
+    const auto percent = 100.0 * cpu_ms / wall_ms;
+    std::cout << std::fixed << std::setprecision(2) << "[PERF] idle " << size.name << ' ' << size.width << 'x'
+              << size.height << " create_ms=" << create_ms << " first_2s_cpu_ms=" << settle_cpu
+              << " idle_cpu_ms=" << cpu_ms << " wall_ms=" << wall_ms << " cpu_pct_one_core=" << percent
+              << " paints=" << IdleEventCounter::total(counter.paints)
+              << " timer_events=" << IdleEventCounter::total(counter.timers) << '\n';
+    IdleEventCounter::print_top("paint", counter.paints);
+    IdleEventCounter::print_top("timer", counter.timers);
+#ifdef Q_OS_WIN
+    print_busy_threads(threads_before, thread_cpu_ms());
+#endif
+  }
+  // The brush preset library's once-a-second change check (a folder listing), against the
+  // full content check it replaced.
+  auto& library = window.brush_automation_library();
+  const auto median_ms = [](const std::function<void()>& work) {
+    std::vector<double> times;
+    for (int index = 0; index < 20; ++index) {
+      times.push_back(elapsed_ms(work));
+    }
+    std::sort(times.begin(), times.end());
+    return times[times.size() / 2];
+  };
+  const auto check_ms = median_ms([&] { library.refresh_if_files_changed(); });
+  const auto full_ms = median_ms([&] { library.refresh(); });
+  std::cout << std::fixed << std::setprecision(2) << "[PERF] idle brush_library check_ms=" << check_ms
+            << " full_read_ms=" << full_ms << " tips=" << library.tips().size()
+            << " presets=" << library.presets().size() << '\n';
+}
+
+// One stroke per brush size and hardness on a fresh A5 300 ppi document (GitHub issue
+// 135: lag grew with the brush size). Moves are 12 widget px apart, a brisk stroke, or 3 px
+// apart ("slow"), the short steps a high-rate mouse delivers.
+void a5_brush_stroke_perf() {
+  isolate_perf_settings();
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::new_document(window, 1748, 2480, 300.0);
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  const auto settle = [canvas] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_opacity(100);
+  const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons) {
+    QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &event);
+  };
+  struct Pass {
+    const char* label;
+    double zoom;
+    double step;
+  };
+  for (const auto& pass : {Pass{"fit", 0.0, 12.0}, Pass{"100%", 1.0, 12.0}, Pass{"100%_slow", 1.0, 3.0}}) {
+    const auto zoom = pass.zoom;
+    const std::string label = pass.label;
+    for (const int softness : {0, 100}) {
+      for (const int brush_size : {50, 300, 731}) {
+        if (zoom == 0.0) {
+          canvas->fit_to_view();
+        } else {
+          canvas->set_zoom_centered(zoom);
+        }
+        canvas->set_brush_size(brush_size);
+        canvas->set_brush_softness(softness);
+        settle();
+        const auto start = QPointF(canvas->width() * 0.2, canvas->height() * 0.5);
+        const auto at = [&](int index) {
+          return start + QPointF(pass.step * index, pass.step * 3.0 * std::sin(index * 0.15));
+        };
+        send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton);
+        canvas->repaint();
+        std::vector<double> move_ms;
+        std::vector<double> paint_ms;
+#ifdef Q_OS_WIN
+        // PATCHY_PERF_SAMPLER=1 attributes each case's moves and paints.
+        std::unique_ptr<MainThreadSampler> sampler;
+        if (qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER")) {
+          sampler = std::make_unique<MainThreadSampler>();
+        }
+#endif
+        const auto cpu_before = process_cpu_ms();
+        const auto stroke_ms = elapsed_ms([&] {
+          for (int index = 1; index <= 60; ++index) {
+            move_ms.push_back(elapsed_ms([&] { send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton); }));
+            paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+          }
+        });
+        const auto stroke_cpu = process_cpu_ms() - cpu_before;
+#ifdef Q_OS_WIN
+        if (sampler) {
+          std::cout << "[SAMPLER_PHASE] a5brush " << label << " size=" << brush_size << " softness=" << softness
+                    << '\n';
+          sampler.reset();
+        }
+#endif
+        const auto release_ms = elapsed_ms([&] {
+          send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+          QApplication::processEvents();
+          settle();
+        });
+        const auto summary = [](std::vector<double> values) {
+          std::sort(values.begin(), values.end());
+          double total = 0.0;
+          for (const auto value : values) {
+            total += value;
+          }
+          std::ostringstream text;
+          text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+               << " median=" << values[values.size() / 2] << " max=" << values.back();
+          return text.str();
+        };
+        std::cout << std::fixed << std::setprecision(2) << "[PERF] a5brush " << label << " zoom=" << canvas->zoom()
+                  << " size=" << brush_size << " softness=" << softness << " stroke_ms=" << stroke_ms
+                  << " stroke_cpu_ms=" << stroke_cpu << " release_ms=" << release_ms << " move_ms "
+                  << summary(move_ms) << " paint_ms " << summary(paint_ms) << '\n';
+        patchy::ui::MainWindowTestAccess::undo(window);
+        settle();
+      }
+    }
+  }
+}
+
 // A small 8-bit CMYK PSD painted with the Brush, in CMYK Proof and after leaving it,
 // against a plain RGB document of the same size (GitHub issue 220's second sample, ag-psd's
 // test/read/cmyk/src.psd). PATCHY_PERF_CMYK_PSD overrides the fixture path.
@@ -2381,6 +2720,14 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "brushstroke") {
       big_brush_stroke_perf();
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "idle") {
+      idle_new_document_perf();
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "a5brush") {
+      a5_brush_stroke_perf();
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {

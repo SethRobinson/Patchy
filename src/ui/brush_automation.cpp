@@ -116,6 +116,19 @@ void BrushAutomationLibrary::refresh() {
   revision_ = fingerprint;
   emit changed();
 }
+void BrushAutomationLibrary::refresh_if_files_changed() {
+  QByteArray listing;
+  for (const auto& folder : {directory_, tips_.storage_dir()}) {
+    for (const auto& file : QDir(folder).entryInfoList({"*.json", "*.png"}, QDir::Files, QDir::Name)) {
+      listing += file.fileName().toUtf8() + '/' + QByteArray::number(file.size()) + '/' +
+                 QByteArray::number(file.lastModified().toMSecsSinceEpoch()) + '\n';
+    }
+    listing += '|';
+  }
+  if (listing == file_listing_) return;
+  file_listing_ = listing;
+  refresh();
+}
 QString BrushAutomationLibrary::revision() const { return revision_; }
 QJsonObject BrushAutomationLibrary::tip_info(const QString& id) const {
   if (id == builtin_round_brush_tip_id()) return {{"id", id}, {"name", tr("Round")}, {"source", "builtin"}};

@@ -37,6 +37,7 @@
 #include "formats/metadata/metadata_view.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
 #include "formats/metadata/xmp.hpp"
+#include "ai/watermark_engine.hpp"
 #include "core/invisible_watermark.hpp"
 #include "invisible_watermark_reference.hpp"
 #include "psd/psd_document_io.hpp"
@@ -637,6 +638,13 @@ void ui_file_info_scans_for_watermarks() {
               << (scan_qimage(reloaded).matches.empty() ? "not found" : "found") << ")\n";
   }
 
+  // Without the TrustMark models (docs/watermarks.md), so only the Stable Diffusion scan runs.
+  const auto no_models = std::filesystem::current_path() / "test-artifacts" / "watermark-no-models";
+  std::filesystem::create_directories(no_models);
+  patchy::ai::set_downloaded_model_directory(no_models);
+  struct Reset {
+    ~Reset() { patchy::ai::set_downloaded_model_directory({}); }
+  } reset;
   patchy::ui::MainWindow window;
   show_window(window);
   const auto inspect = [&](const QString& path, bool expect_hit) {
@@ -692,7 +700,7 @@ void ui_file_info_scans_for_watermarks() {
         QApplication::processEvents();
         capture_widget_artifact("ui_file_info_watermark_found", *dialog);
       } else {
-        CHECK(result != nullptr && result->text() == QObject::tr("None of the known watermarks was found."));
+        CHECK(result != nullptr && result->text() == QObject::tr("None of the Stable Diffusion watermarks was found."));
         CHECK(rows.isEmpty());
         capture_widget_artifact("ui_file_info_watermark_none", *dialog);
       }

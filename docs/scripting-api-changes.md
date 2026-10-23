@@ -10,6 +10,22 @@ and those of 2026-10-01 to 2026-10-05 in
 [scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
 Every entry below is API 1.
 
+2026-10-23 (additive, behavioral): Preferences > Watermarks ([watermarks.md](watermarks.md#preferences)).
+`app.watermarkPreferences` (`{text, addOnSave, checkOnOpen}`) and `app.setWatermarkPreferences({...})`.
+With `addOnSave: "always"`, `saveAs` and `exportAs` to PNG, JPEG, WebP, BMP, flat TIFF, JPEG XL and
+AVIF write a TrustMark-marked file; `"ask"` never asks a script and adds nothing. Permanent
+identifiers: the property, method and key names, the tokens `never`, `ask`, `always`, and settings
+keys `watermarks/payloadText`, `watermarks/addOnSave`, `watermarks/checkOnOpen`. Pinned by
+`ui_watermark_preferences_page_persists`.
+
+2026-10-23 (additive): TrustMark watermarks ([watermarks.md](watermarks.md)). `doc.scanForWatermarks()`
+gains `trustmark: {available, marks: [{variant, schema, text, id, bits, correctedBits, confidence}]}`;
+`doc.addInvisibleWatermark({text?, id?, schema?, strength?})` embeds a TrustMark payload in the active
+layer and returns `{schema, text, id}`; `app.downloadWatermarkModels()` and
+`app.watermarkModelsAvailable`. Permanent identifiers: the method, property and key names, the variant
+ids `Q`, `P`, `C`, the schema ids `BCH_SUPER`, `BCH_5`, `BCH_4`, `BCH_3`, and command id
+`image.add_invisible_watermark`. Pinned by `ui_script_trustmark_round_trip`.
+
 2026-10-23 (additive): `doc.scanForWatermarks()`, File Info's Scan for Watermarks: returns
 `{scanned, matches: [{id, name, bits, differingBits, redBlueSwapped}]}` for the open invisible
 watermarks of Stable Diffusion 1.x, 2.x and SDXL found in the composite (`scanned` is false under

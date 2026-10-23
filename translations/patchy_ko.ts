@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>표준</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>가장 견고함</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>용량 더 많음</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>최대 용량</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1: %2자, 손상된 비트 %3개까지 견딤</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>보이지 않는 워터마크 추가</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>Adobe TrustMark로 활성 레이어의 픽셀에 짧은 메시지를 숨깁니다. 대부분의 크기 조정, JPEG 압축, 공유를 견디며 변화는 눈에 보이지 않을 만큼 작습니다.</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>TrustMark에는 키가 없습니다. Patchy의 파일 정보를 포함해 무료 TrustMark 판독기만 있으면 누구나 메시지를 읽을 수 있습니다. 이미지에 표시를 하거나 그 기록을 가리키는 데 쓰고, 무언가를 숨기거나 그것만으로 소유권을 증명하는 데는 쓰지 마세요.</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>메시지를 보호하는 오류 정정의 양입니다. 표준이 TrustMark의 기본값입니다.</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>오류 정정:</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>텍스트:</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>무작위 ID:</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>새 ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>강도:</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100%가 TrustMark의 기본값입니다. 낮을수록 덜 보이지만 잃기 쉽습니다. Adobe는 인쇄물에 150%를 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>워터마크 모델이 필요합니다. Adobe에서 %1MB를 다운로드합니다.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>워터마크 모델 다운로드</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>워터마크 추가</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>%2자 중 %1자 남음</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11848,10 +11927,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>픽셀 속 보이지 않는 워터마크</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>워터마크 검사는 Stable Diffusion 1.x, 2.x, SDXL이 생성한 이미지에 넣는 공개된 보이지 않는 워터마크를 현재 이미지에서 찾습니다. 자르기, 크기 조정, 다시 칠하기를 하면 보통 사라집니다.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>워터마크 검사</translation>
     </message>
@@ -11870,6 +11945,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>Google SynthID 같은 많은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서 검사해도 찾을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>TrustMark 워터마크를 찾았습니다(변형 %1, %2): %3.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>워터마크 검사는 Stable Diffusion 1.x, 2.x, SDXL이 생성한 이미지에 넣는 공개된 보이지 않는 워터마크를 현재 이미지에서 찾고, 워터마크 모델을 다운로드하면 Adobe TrustMark도 찾습니다. 자르기, 크기 조정, 다시 칠하기를 하면 보통 사라집니다.</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>Stable Diffusion 워터마크를 찾지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>지속형 콘텐츠 자격 증명의 바탕이 되는 공개 워터마크 Adobe TrustMark에는 워터마크 모델이 필요합니다. 요청할 때만 Adobe에서 %1MB를 다운로드합니다.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>워터마크 모델 다운로드</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>이 버전의 Patchy는 TrustMark 워터마크를 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>보이지 않는 워터마크를 추가하지 않았습니다: 이미지가 너무 작습니다.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>보이지 않는 워터마크를 추가하지 않았습니다: 워터마크 모델이 다운로드되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>이미지에 이미 내 보이지 않는 워터마크가 들어 있습니다.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>보이지 않는 워터마크를 추가하지 않았습니다: TrustMark를 실행할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>내 보이지 않는 워터마크를 추가했습니다.</translation>
     </message>
     <message>
         <source>Collapse the Smart Filter rows</source>
@@ -24044,6 +24167,182 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Toolbar icon size:</source>
         <translation>도구 아이콘 크기:</translation>
     </message>
+    <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>보이지 않는 워터마크 추가(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>Adobe TrustMark로 누구나 읽을 수 있는 짧은 메시지를 활성 레이어의 픽셀에 숨기기</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>워터마크 모델을 다운로드할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Adobe TrustMark 워터마크 모델을 다운로드합니다(Adobe에서 %1MB). 그러면 파일 정보의 워터마크 검사로 TrustMark 워터마크를 읽고, 이미지 &gt; 보이지 않는 워터마크 추가로 워터마크를 넣을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>다운로드한 워터마크 모델을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>TrustMark 워터마크 모델: 다운로드됨(%1MB)</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>TrustMark 워터마크 모델: 다운로드 안 됨</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>워터마크 모델을 다운로드했습니다</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>워터마크 모델을 삭제했습니다</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>워터마크 모델을 삭제할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>워터마크 모델은 웹 버전에서 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>이 버전의 Patchy는 워터마크 모델을 실행할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>워터마크 모델 다운로드 중... %2MB 중 %1MB</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>보이지 않는 워터마크를 추가하기 전에 문서를 여세요</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>보이지 않는 워터마크에는 8비트 이미지가 필요합니다. 먼저 이미지 &gt; 모드 &gt; 8비트/채널로 변환하세요.</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>보이지 않는 워터마크를 넣을 픽셀 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>워터마크를 읽을 수 있으려면 활성 레이어가 이미지 전체를 채워야 합니다. 먼저 이미지를 병합하거나 레이어를 합치세요.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>워터마크 모델이 다운로드되지 않았습니다</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>워터마크를 추가할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>보이지 않는 워터마크 추가</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>ID %1의 보이지 않는 워터마크를 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>“%1”을(를) 담은 보이지 않는 워터마크를 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy는 공개된 보이지 않는 워터마크인 Adobe TrustMark로 저장하는 이미지에 짧은 텍스트를 숨길 수 있습니다. 키가 없어서 TrustMark 판독기만 있으면 누구나 읽을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>이름 또는 짧은 ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>워터마크 텍스트:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>안 함</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>저장할 때 묻기</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>저장할 때마다 추가</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>저장할 때 보이지 않는 워터마크 추가:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>표시는 저장된 파일의 픽셀에만 들어가며, 열려 있는 문서와 그 기록은 바뀌지 않습니다. PNG, JPEG, WebP, BMP, JPEG XL, AVIF, 레이어 없는 TIFF에 들어가고 내보내기에도 들어갑니다. 레이어가 있는 파일(PSD, PSB, 레이어 있는 TIFF)에는 들어가지 않습니다. 모르는 사이에 레이어 픽셀이 바뀌기 때문입니다. 128픽셀 미만의 이미지와 이미 내 텍스트가 들어 있는 이미지는 건너뜁니다.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>연 이미지에서 워터마크 확인</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>파일을 연 뒤 백그라운드에서 실행되며, Stable Diffusion 워터마크나 모델을 다운로드한 경우 Adobe TrustMark 워터마크를 찾으면 알림을 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>저장할 때 워터마크 추가와 검사의 TrustMark 부분에는 이 모델이 필요합니다. Stable Diffusion 검사에는 다운로드가 필요하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>%2자 중 %1자 남음</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>워터마크</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>이 파일에 내 보이지 않는 워터마크 “%1”을(를) 추가할까요?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>TrustMark 판독기만 있으면 누구나 읽을 수 있습니다. 저장된 파일에만 표시되며 열려 있는 문서는 바뀌지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>워터마크 추가</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>없이 저장</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>워터마크 확인 중...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>워터마크 발견</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>이 이미지에 보이지 않는 워터마크가 있습니다.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>“%1”에 보이지 않는 워터마크가 있습니다.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>파일 정보에서 보기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25839,6 +26138,86 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>perspectiveCrop 모서리는 볼록한 모양이어야 하며 아트보드가 있는 문서는 자를 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>워터마크 모델을 다운로드할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>addInvisibleWatermark 옵션은 {text: &quot;Patchy&quot;} 같은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark: 알 수 없는 스키마 %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark: strength는 0.1에서 2 사이여야 합니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark에는 text 또는 id 중 하나만 지정하세요.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark: text는 인쇄 가능한 ASCII여야 합니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark: %1에는 최대 %2자까지 들어갑니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark: id는 16진수여야 합니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark: id가 %1비트보다 깁니다.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>워터마크 모델이 다운로드되지 않았습니다. 먼저 app.downloadWatermarkModels()를 호출하세요.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark에는 8비트 문서가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark에는 잠기지 않은 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark에는 이미지 전체를 채우는 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>워터마크를 추가할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences에는 {addOnSave: &quot;ask&quot;} 같은 객체를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text는 최대 %1자의 인쇄 가능한 ASCII여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave는 &quot;never&quot;, &quot;ask&quot;, &quot;always&quot; 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: 알 수 없는 옵션 %1.</translation>
     </message>
 </context>
 <context>

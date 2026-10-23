@@ -12,6 +12,7 @@
 #include "ui/main_window.hpp"
 #include "ui/missing_fonts_dialog.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/localization.hpp"
 #include "ui/theme_file.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/app_settings.hpp"
@@ -45,6 +46,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -1990,6 +1992,71 @@ void ui_preferences_interval_combos_fit_their_longest_entry() {
   });
 }
 
+// The interface scale and the toolbar icon size share one form row, each combo the buddy of
+// its own label, and in every shipped language the row fits the dialog's default width
+// without being what sets it (the row keeps spare room on its right).
+void ui_preferences_interface_scale_and_icon_size_share_a_row() {
+  SettingsValueRestorer restore_size(QStringLiteral("preferences/dialogSize"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/dialogSize"));
+    settings.sync();
+  }
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  for (const auto& language : manager.languages()) {
+    CHECK(manager.set_language(language.code, false));
+    QApplication::processEvents();
+    run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+      auto* row = dialog.findChild<QWidget*>(QStringLiteral("preferencesInterfaceScaleRow"));
+      auto* scale = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+      auto* icons = dialog.findChild<QComboBox*>(QStringLiteral("preferencesToolbarIconSizeCombo"));
+      auto* icons_label = dialog.findChild<QLabel*>(QStringLiteral("preferencesToolbarIconSizeLabel"));
+      CHECK(row != nullptr);
+      CHECK(scale != nullptr);
+      CHECK(icons != nullptr);
+      CHECK(icons_label != nullptr);
+      if (row == nullptr || scale == nullptr || icons == nullptr || icons_label == nullptr) {
+        return;
+      }
+      CHECK(scale->parentWidget() == row);
+      CHECK(icons->parentWidget() == row);
+      CHECK(icons_label->parentWidget() == row);
+      CHECK(icons_label->buddy() == icons);
+      auto* form = qobject_cast<QFormLayout*>(row->parentWidget()->layout());
+      CHECK(form != nullptr);
+      if (form != nullptr) {
+        auto* row_label = qobject_cast<QLabel*>(form->labelForField(row));
+        CHECK(row_label != nullptr);
+        CHECK(row_label != nullptr && row_label->buddy() == scale);
+      }
+      // One line, left to right, nothing squeezed.
+      CHECK(scale->geometry().right() < icons_label->geometry().left());
+      CHECK(icons_label->geometry().right() < icons->geometry().left());
+      CHECK(std::abs(scale->geometry().center().y() - icons->geometry().center().y()) <= 1);
+      CHECK(icons_label->width() >= icons_label->sizeHint().width());
+      CHECK(icons->width() >= icons->sizeHint().width());
+      CHECK(row->width() > row->sizeHint().width());
+      if (language.code == QStringLiteral("en") || language.code == QStringLiteral("de") ||
+          language.code == QStringLiteral("es") || language.code == QStringLiteral("fr") ||
+          language.code == QStringLiteral("ru")) {
+        const auto image =
+            capture_widget_artifact("preferences_interface_scale_row_" + language.code.toStdString(), dialog);
+        // The row container is transparent: the empty space right of the combos matches
+        // the panel in the gap just above the row, not the global QWidget background.
+        const auto probe = row->mapTo(&dialog, QPoint(row->width() - 4, row->height() / 2));
+        const auto above = row->mapTo(&dialog, QPoint(row->width() - 4, -2));
+        CHECK(!image.isNull());
+        if (!image.isNull()) {
+          CHECK(image.pixelColor(probe) == image.pixelColor(above));
+        }
+      }
+    });
+  }
+  CHECK(manager.set_language(QStringLiteral("en"), false));
+}
+
 // GitHub issue 144: Preferences answers Photoshop's Ctrl+K off macOS (Cmd+, there).
 void ui_preferences_hotkey_is_ctrl_k_off_macos() {
   patchy::ui::MainWindow window;
@@ -2917,6 +2984,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_recent_filter_matches_file_names_and_extensions", ui_recent_filter_matches_file_names_and_extensions},
       {"ui_preferences_dialog_resizes_and_remembers_its_size", ui_preferences_dialog_resizes_and_remembers_its_size},
       {"ui_preferences_interval_combos_fit_their_longest_entry", ui_preferences_interval_combos_fit_their_longest_entry},
+      {"ui_preferences_interface_scale_and_icon_size_share_a_row", ui_preferences_interface_scale_and_icon_size_share_a_row},
       {"ui_preferences_hotkey_is_ctrl_k_off_macos", ui_preferences_hotkey_is_ctrl_k_off_macos},
       {"ui_update_check_interval_gates_the_startup_check", ui_update_check_interval_gates_the_startup_check},
       {"ui_update_startup_check_honors_stored_interval", ui_update_startup_check_honors_stored_interval},

@@ -1,6 +1,6 @@
 # Binding legal and licensing constraints
 
-Read before changing a feature named below or adding an adjacent one. Claim-level records: [patent-research.md](patent-research.md), [audit](patent-research-audit.md), [inpainting](patent-research-inpainting.md), [alignment guides](patent-research-alignment.md), [automatic selection](patent-research-selection.md), [G'MIC](patent-research-gmic.md), [soft proofing](patent-research-proofing.md), [formats, codecs and trademarks](patent-research-formats.md), [artboards](patent-research-artboards.md), [Blur Gallery](patent-research-blur-gallery.md), [adjustment kinds](patent-research-adjustments.md), [Smart Sharpen](patent-research-smart-sharpen.md); compatibility records: [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), [image-trace.md](image-trace.md), [file-formats.md](file-formats.md), [af-format.md](af-format.md).
+Read before changing a feature named below or adding an adjacent one. Claim-level records: [patent-research.md](patent-research.md), [audit](patent-research-audit.md), [inpainting](patent-research-inpainting.md), [alignment guides](patent-research-alignment.md), [automatic selection](patent-research-selection.md), [G'MIC](patent-research-gmic.md), [soft proofing](patent-research-proofing.md), [formats, codecs and trademarks](patent-research-formats.md), [artboards](patent-research-artboards.md), [Blur Gallery](patent-research-blur-gallery.md), [adjustment kinds](patent-research-adjustments.md), [Smart Sharpen](patent-research-smart-sharpen.md), [watermarks](patent-research-watermarks.md); compatibility records: [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), [image-trace.md](image-trace.md), [file-formats.md](file-formats.md), [af-format.md](af-format.md).
 
 ## Selection tools
 
@@ -10,7 +10,7 @@ Read before changing a feature named below or adding an adjacent one. Claim-leve
 
 ## Filters and Smart Objects
 
-- Smart Objects, Smart Filters and the Filter Gallery are allowed within the boundaries below.
+- Smart Objects, Smart Filters and Filter Gallery are allowed within these limits.
 - **Surface Blur may not compute through a value histogram.** Median and Dust & Scratches keep exactly one window histogram updated one pixel value at a time; never introduce column, merged or slid histograms before the expirations (US 8594445, US 7920741). The calibrated outputs and constraint comments in `smart_filter_renderer.cpp` are binding.
 - **Tilt-Shift Blur draws no boundary marks.** Its overlay is the center crosshair, the rotation line and the four handle dots (decided 2026-10-20; US 8971623, audit item 3). Never add a line or bar along a band edge before 2033, and keep every mark off the image perimeter. Pinned by `ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks`; the algorithm itself is clear.
 - **Lens Blur and Iris Blur remain fixed and geometric.** Lens Blur is one explicitly selected aperture convolution with no depth inference, classification, highlight detection, or per-pixel kernel. Iris Blur computes one round blur and blends it through one explicit ellipse. Do not add multiple pins, combined blur patterns, Photoshop-style iris boundary widgets, variable-radius kernels, bokeh thresholds, learned depth/focal mattes, splatting or native `blurbTransform` authoring without a new review (US 8831371, US 9019310, US 8824793, US 12561768). Imported Blur Gallery stays preview-locked; Lens/Iris stay raster-only.
@@ -23,7 +23,7 @@ Read before changing a feature named below or adding an adjacent one. Claim-leve
 
 ## G'MIC engine
 
-Design: [gmic.md](gmic.md); record: [patent-research-gmic.md](patent-research-gmic.md).
+Design: [gmic.md](gmic.md); record linked above.
 
 - **The vendored interpreter is built without its patch-based algorithms.** The patch correspondence search (`_matchpatch` in `CImg.h`: PatchMatch propagation plus random search, the two phases of Adobe US 8285055, to 2031-04-09) and patch-based inpainting (`inpaint_patch` in `gmic.cpp`) are compiled out with `patchy_gmic_no_patch_algorithms`, not merely hidden. Never build the engine without that definition; `gmic_engine_leaves_out_programs_and_patch_algorithms` pins it. A filter that would need them at some setting fails there with "Not available in this build". Non-patch `inpaint` (neighbour averaging, no patch search) and shared diffusion/morphology helpers stay: offered filters use them internally for hole filling, color interpolation and gradients. The excluded `fx_inpaint*` filter wrappers remain blocked.
 - **Filters are offered only from `patchy_filters_allowlist.txt`.** Left out by name (`NAMED` in `scripts/dev/gmic/build_allowlist.py`): every Inpaint filter; patch-based texture synthesis, smoothing and style transfer; Seamcarve; interactive segmentation and colorization, including the lineart colorizers; neural-network filters; Blend [Seamless] (gradient-domain compositing); Blur [Motion] (a blur kernel shaped by a user-drawn point path with weight decay; Adobe US 9723204 claims 1 and 12, to 2035); Blur [Depth-of-Field] (a per-pixel blur level around a focus point; Adobe US 9019310 claim 1, to 2033); and Custom Code. Every other filter that runs in this build is offered. The named list is by rule; the family triage is in the record; adding a filter in those areas needs the same review as a native feature.
@@ -69,11 +69,11 @@ Design: [gmic.md](gmic.md); record: [patent-research-gmic.md](patent-research-gm
 
 ## Soft proof and gamut warning
 
-- **Proof Colors and Gamut Warning stay the generic ICC view** (October 2026, record in [patent-research-proofing.md](patent-research-proofing.md), design in [cmyk.md](cmyk.md)). One fixed transform through the user's chosen CMYK profile and rendering intent, and one flat fill for out-of-gamut colors, both from Little CMS, applied to the whole canvas view on the user's menu choice. Never add, without a new review: a view correction for a measured monitor, paper white or viewing condition beyond the ICC intents; a proof chosen or adjusted per region or from image content; automatic editing of pixels into gamut; learned gamut mapping.
+- **Proof Colors and Gamut Warning stay the generic ICC view** (October 2026, record linked above, design in [cmyk.md](cmyk.md)). One fixed transform through the user's chosen CMYK profile and rendering intent, and one flat fill for out-of-gamut colors, both from Little CMS, applied to the whole canvas view on the user's menu choice. Never add, without a new review: a view correction for a measured monitor, paper white or viewing condition beyond the ICC intents; a proof chosen or adjusted per region or from image content; automatic editing of pixels into gamut; learned gamut mapping.
 
 ## Watermark detection
 
-- **Detect only** (decided 2026-10-23; MIT source and method in [file-info.md](file-info.md#watermarks)): never embed, remove or mask a watermark, or add a model-based decoder (TrustMark), without a new decision.
+- **Detect and embed only** (decided 2026-10-23; [watermarks.md](watermarks.md)): no removal or other model without a new decision. Adobe's MIT TrustMark models are the one exception to the Adobe-assets rule below: downloaded on request, never bundled.
 
 ## Format, copyright, trademarks, and assets
 
