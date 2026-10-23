@@ -60,6 +60,17 @@ struct EditOptions {
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
+  // A disk (document pixel centre and radius) this stroke already painted at full coverage, so
+  // `stroke_pixel_gate` rejects every pixel inside it. The procedural hard round segment skips
+  // those pixels instead of testing each one, which keeps a short move of a big brush from
+  // costing the brush's whole area (GitHub issue 135). The caller guarantees the skipped pixels
+  // would be no-ops: same color and opacity, no partial selection coverage.
+  struct CoveredDisk {
+    double x{0.0};
+    double y{0.0};
+    double radius{0.0};
+  };
+  std::optional<CoveredDisk> stroke_covered_disk;
   // Optional per-dab color source. Called exactly once for each spatial dab, before any of that
   // dab's pixels are written. The returned alpha participates in the ordinary opacity/Flow cap.
   std::function<EditColor(double, double, const EditColor&)> dab_primary_provider;

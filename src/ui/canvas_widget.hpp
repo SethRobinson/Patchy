@@ -596,6 +596,9 @@ public:
   // Pins the marching-ants dash phase and stops its animation timer so tests
   // can grab deterministic frames at chosen phases.
   void set_selection_dash_offset_for_testing(int offset);
+  // Turns off the hard round brush's covered-disk skip (GitHub issue 135) so a test can paint
+  // the same stroke both ways and compare the bytes.
+  void set_hard_round_skip_enabled_for_testing(bool enabled) noexcept { hard_round_skip_enabled_ = enabled; }
   // Built display mip levels (0 when the chain was dropped), and whether every built
   // level equals one rebuilt from the render cache now (patch_display_mip_cache exactness).
   [[nodiscard]] int display_mip_levels_for_testing() const noexcept;
@@ -3390,6 +3393,17 @@ private:
   std::unordered_map<std::uint64_t, EditColor> brush_stroke_wet_edge_primary_;
   QRect brush_stroke_wet_edge_pending_rect_{};
   std::optional<QPointF> brush_stroke_last_stamp_position_;
+  // Where this stroke's last procedural hard round segment ended. Its end disk is fully painted,
+  // so the next segment from that point skips it (EditOptions::stroke_covered_disk, GitHub
+  // issue 135).
+  struct HardRoundSegmentEnd {
+    QPointF point;
+    int radius{0};
+    EditColor primary{};
+    bool erase{false};
+  };
+  std::optional<HardRoundSegmentEnd> brush_stroke_hard_round_end_;
+  bool hard_round_skip_enabled_{true};
   double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
