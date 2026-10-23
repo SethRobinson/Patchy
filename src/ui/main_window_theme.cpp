@@ -800,6 +800,26 @@ QString photoshop_style_template() {
       min-height: 34px;
       max-height: 34px;
     }
+    /* Flat like the footer's QToolButtons (adjustment, styles): the outline shows
+       only on hover, so the whole row reads alike (GitHub issue 354). The border
+       stays 1 px so the sizes above do not move. */
+    QPushButton[layerActionButton="true"] {
+      background: transparent;
+      border: 1px solid transparent;
+    }
+    QPushButton[layerActionButton="true"]:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
+    }
+    QPushButton[layerActionButton="true"]:pressed, QPushButton[layerActionButton="true"]:checked,
+    QToolButton[layerActionButton="true"]:pressed {
+      background: @accent_pressed_bg;
+      border-color: @accent_border_bright;
+    }
+    QPushButton[layerActionButton="true"]:disabled {
+      background: transparent;
+      border-color: transparent;
+    }
     QToolButton[channelActionButton="true"] {
       padding: 0;
       min-width: 34px;
@@ -807,7 +827,9 @@ QString photoshop_style_template() {
       min-height: 30px;
       max-height: 30px;
     }
-    QPushButton[layerDropActive="true"], QToolButton[layerDropActive="true"] {
+    /* :hover too, so the hover rule above cannot outrank a drop target under the cursor. */
+    QPushButton[layerDropActive="true"], QToolButton[layerDropActive="true"],
+    QPushButton[layerDropActive="true"]:hover, QToolButton[layerDropActive="true"]:hover {
       background: @layer_drop_bg;
       border: 2px solid @accent_bright;
       padding: 0;
