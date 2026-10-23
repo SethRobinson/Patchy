@@ -913,6 +913,18 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "(as-shot white balance, no adjustments)."));
   raw_develop_check->setChecked(settings.value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool());
   application_form->addRow(raw_develop_check);
+  // docs/rgb-profiles.md: Patchy shows every RGB document as sRGB, so other RGB profiles
+  // convert on open unless this is off.
+  auto* convert_rgb_profiles_check =
+      new QCheckBox(tr("Convert files with other RGB profiles to sRGB when opening"), application_group);
+  convert_rgb_profiles_check->setObjectName(QStringLiteral("preferencesConvertRgbProfilesCheck"));
+  convert_rgb_profiles_check->setToolTip(
+      tr("Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile "
+         "look right only after converting. When disabled, they open with their own values and keep their "
+         "profile."));
+  convert_rgb_profiles_check->setChecked(
+      settings.value(QStringLiteral("imports/convertRgbProfilesToSrgb"), true).toBool());
+  application_form->addRow(convert_rgb_profiles_check);
   auto* missing_fonts_check =
       new QCheckBox(tr("Show the Missing Fonts dialog when opening a document with missing fonts"), application_group);
   missing_fonts_check->setObjectName(QStringLiteral("preferencesShowMissingFontsDialogCheck"));
@@ -2179,6 +2191,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                                                            metadata_ask_check->isChecked()});
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
+    settings.setValue(QStringLiteral("imports/convertRgbProfilesToSrgb"), convert_rgb_profiles_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());

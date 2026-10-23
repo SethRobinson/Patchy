@@ -42,7 +42,9 @@ document tab's menu) opens File Info on the Watermarks page with the scan run.
   in the file's color space (Qt's PNG/JPEG/TIFF/WebP/GIF readers, the BMP reader, the JPEG XL
   reader for 8 and 16-bit RGB). WIC
   HEIF/JPEG XR, LibRaw and the HEIF Qt fallback convert to sRGB, so their profile is
-  display-only, as are gray and CMYK profiles; `source_icc_note` says why.
+  display-only, as are gray and CMYK profiles; `source_icc_note` says why. A kept RGB
+  profile that is not sRGB then converts to sRGB on open (on by default) and becomes
+  display-only too ([rgb-profiles.md](rgb-profiles.md)).
 - When the decoder applied the orientation (Qt `autoTransform` reported a transformation,
   the WIC HEIF reader, LibRaw), `bake_orientation` writes EXIF Orientation and XMP
   `tiff:Orientation` back as 1 and records the original as an observed item.

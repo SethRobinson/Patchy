@@ -10,6 +10,17 @@ and those of 2026-10-01 to 2026-10-05 in
 [scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
 Every entry below is API 1.
 
+2026-10-23 (additive): `doc.colorProfile` (the embedded RGB profile's name, `"sRGB IEC61966-2.1"`
+when untagged) and `doc.convertToProfile(profile, options?)`, Edit > Convert to Profile: `profile`
+is `"sRGB"` or an RGB profile file path, options `intent` (the rendering intent tokens of
+`RenderingIntent`) and `blackPointCompensation`. Throws for an unusable profile, in Indexed mode, in
+CMYK Proof, and for a 32-bit document with a table-based profile. Opening a file in another RGB
+profile converts it to sRGB unless the `imports/convertRgbProfilesToSrgb` preference is off
+([rgb-profiles.md](rgb-profiles.md)). Permanent identifiers: the property and method names, the option
+keys, command id `edit.convert_to_profile` and the settings keys `imports/convertRgbProfilesToSrgb`,
+`color/convertProfileDestination`, `color/convertProfileIntent`, `color/convertProfileBlackPoint`.
+Pinned by `ui_script_convert_to_profile`.
+
 2026-10-23 (additive, behavioral): Saved metadata ([file-info.md](file-info.md#saved-metadata-preference)).
 `app.saveMetadataPreferences` (`{mode, name, copyright, email, website, askBeforeAdding}`) and
 `app.setSaveMetadataPreferences({...})`. With mode `"none"`, PSD and PSB saves write no save stamp;

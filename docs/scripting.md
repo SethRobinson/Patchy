@@ -234,6 +234,11 @@ script is resolved.
   aligned with the BlendMode enum, never renamed.
 - **`app.apiVersion` is 1.** Bump only for breaking changes. Record additions and
   behavioral changes in [scripting-api-changes.md](scripting-api-changes.md).
+  The change log merges with git's `union` driver (`.gitattributes`), so parallel branches
+  never conflict there: write each entry as one block that starts with its date and ends
+  with a blank line, add it directly under the intro, and never edit another entry in the
+  same change. Same-day entries may land in either order, and two entries merged into one
+  spot can lose the blank line between them; add it back when you next touch the file.
   The MCP connector APIs (stable-ID lookups, strokes, previews, history access,
   structured results) are additive; their contracts are in [ai-control.md](ai-control.md).
 - **Deep documents** (16/32-bit, on by default; [high-bit-depth.md](high-bit-depth.md)):

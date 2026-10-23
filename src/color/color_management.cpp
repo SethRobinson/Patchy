@@ -547,6 +547,25 @@ namespace {
          header_is_cmyk_profile(header);
 }
 
+// An RGB profile that describes a device or color space (display, input, output, color
+// space classes), not a device link, abstract or named-color profile.
+[[nodiscard]] bool header_is_rgb_profile(std::span<const std::uint8_t> header) noexcept {
+  if (header.size() < 128 || std::memcmp(header.data() + 16, "RGB ", 4) != 0 ||
+      std::memcmp(header.data() + 36, "acsp", 4) != 0) {
+    return false;
+  }
+  const auto* device_class = header.data() + 12;
+  return std::memcmp(device_class, "mntr", 4) == 0 || std::memcmp(device_class, "scnr", 4) == 0 ||
+         std::memcmp(device_class, "prtr", 4) == 0 || std::memcmp(device_class, "spac", 4) == 0;
+}
+
+[[nodiscard]] bool file_is_rgb_profile(const std::filesystem::path& path) {
+  std::ifstream input(path, std::ios::binary);
+  std::array<std::uint8_t, 128> header{};
+  return input && input.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size())) &&
+         header_is_rgb_profile(header);
+}
+
 [[nodiscard]] std::filesystem::path environment_folder(const char* name) {
 #if defined(_WIN32)
   const std::wstring wide_name(name, name + std::strlen(name));
@@ -605,8 +624,10 @@ namespace {
   return folders;
 }
 
-// The description tag of a CMYK profile file; nullopt when it is not one Little CMS opens.
-[[nodiscard]] std::optional<std::string> cmyk_profile_file_description(const std::filesystem::path& path) {
+// The description tag of a profile file in `space`; nullopt when it is not one Little CMS
+// opens.
+[[nodiscard]] std::optional<std::string> profile_file_description(const std::filesystem::path& path,
+                                                                  cmsColorSpaceSignature space) {
   std::ifstream input(path, std::ios::binary | std::ios::ate);
   if (!input) {
     return std::nullopt;
@@ -628,7 +649,7 @@ namespace {
   std::optional<std::string> description;
   if (const auto profile = cmsOpenProfileFromMemTHR(context, bytes.data(), static_cast<cmsUInt32Number>(bytes.size()));
       profile != nullptr) {
-    if (cmsGetColorSpace(profile) == cmsSigCmykData) {
+    if (cmsGetColorSpace(profile) == space) {
       std::array<char, 256> text{};
       description = cmsGetProfileInfoASCII(profile, cmsInfoDescription, "en", "US", text.data(),
                                            static_cast<cmsUInt32Number>(text.size())) > 0
@@ -1142,7 +1163,12 @@ void set_working_cmyk_space(std::shared_ptr<const CmykWorkingSpace> space) {
   working_space_slot() = std::move(space);
 }
 
-std::vector<InstalledCmykProfile> installed_cmyk_profiles() {
+namespace {
+
+// Profiles of one color space in the operating system's and Adobe's profile folders, sorted
+// by description then path.
+std::vector<InstalledCmykProfile> installed_profiles(bool (*is_wanted)(const std::filesystem::path&),
+                                                     cmsColorSpaceSignature space) {
   auto folders = adobe_profile_folders();
   for (auto& folder : system_profile_folders()) {
     folders.push_back(std::move(folder));
@@ -1161,7 +1187,7 @@ std::vector<InstalledCmykProfile> installed_cmyk_profiles() {
       const auto path = entries->path();
       std::error_code file_error;
       if (!has_profile_extension(path) || !entries->is_regular_file(file_error) || file_error ||
-          !file_is_cmyk_profile(path)) {
+          !is_wanted(path)) {
         continue;
       }
       if (std::any_of(profiles.begin(), profiles.end(), [&path](const auto& known) { return known.path == path; })) {
@@ -1170,7 +1196,7 @@ std::vector<InstalledCmykProfile> installed_cmyk_profiles() {
       // Only the description is read: building a transform per profile took seconds with
       // Adobe's set installed, all of it while Preferences opened. A profile that turns
       // out unusable is refused when it is chosen.
-      auto description = cmyk_profile_file_description(path);
+      auto description = profile_file_description(path, space);
       if (!description.has_value()) {
         continue;
       }
@@ -1184,6 +1210,16 @@ std::vector<InstalledCmykProfile> installed_cmyk_profiles() {
     return left.description != right.description ? left.description < right.description : left.path < right.path;
   });
   return profiles;
+}
+
+}  // namespace
+
+std::vector<InstalledCmykProfile> installed_cmyk_profiles() {
+  return installed_profiles(file_is_cmyk_profile, cmsSigCmykData);
+}
+
+std::vector<InstalledRgbProfile> installed_rgb_profiles() {
+  return installed_profiles(file_is_rgb_profile, cmsSigRgbData);
 }
 
 int color_lookup_profile_grid(std::span<const std::uint8_t> profile_bytes) {

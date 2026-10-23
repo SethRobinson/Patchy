@@ -296,13 +296,18 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-// CMYK profiles found in the operating system's and Adobe's profile folders, sorted by
+// Profiles found in the operating system's and Adobe's profile folders, sorted by
 // description then path. Nothing is read beyond each file's header and description.
-struct InstalledCmykProfile {
+struct InstalledProfile {
   std::filesystem::path path;
   std::string description;
 };
+using InstalledCmykProfile = InstalledProfile;
+using InstalledRgbProfile = InstalledProfile;
 [[nodiscard]] std::vector<InstalledCmykProfile> installed_cmyk_profiles();
+// RGB display, input, output and color space profiles (no device links or abstract
+// profiles): the destinations Edit > Convert to Profile lists (docs/rgb-profiles.md).
+[[nodiscard]] std::vector<InstalledRgbProfile> installed_rgb_profiles();
 // U.S. Web Coated (SWOP) v2 where Adobe software installed it: the automatic choice when
 // present, ahead of the profile Patchy bundles (docs/cmyk.md). Empty path when absent.
 [[nodiscard]] std::filesystem::path automatic_cmyk_profile_path();

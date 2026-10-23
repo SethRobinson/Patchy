@@ -1,5 +1,6 @@
 #pragma once
 
+#include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/document.hpp"
@@ -46,6 +47,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <span>
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -647,6 +649,14 @@ private:
   // Image > Mode > 8/16/32 Bits/Channel (docs/high-bit-depth.md): undoable.
   void convert_document_bit_depth(BitDepth depth);
   void refresh_bit_depth_actions();
+  // Edit > Convert to Profile (docs/rgb-profiles.md).
+  void convert_to_profile_dialog();
+  // One undo step: converts the active document's pixels from its RGB profile to
+  // `destination` (empty = sRGB). Returns an error message, empty on success.
+  [[nodiscard]] QString convert_active_document_to_profile(std::span<const std::uint8_t> destination,
+                                                           RenderingIntent intent, bool black_point_compensation);
+  // Why Convert to Profile is unavailable for the active document; empty when it is.
+  [[nodiscard]] QString convert_to_profile_blocker() const;
   void snap_layers_to_palette(bool active_layer_only);
   void refresh_palette_panel();
   void refresh_palette_mode_chip();

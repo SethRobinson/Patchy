@@ -10,6 +10,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "color/color_management.hpp"
+#include "color/rgb_profiles.hpp"
 #include "core/psd_source_colors.hpp"
 #include "core/document_file_info.hpp"
 #include "core/pixel_buffer.hpp"
@@ -1142,6 +1143,50 @@ void capture_file_info(Document& opened, const QString& path, bool pixels_in_sou
   }
 }
 
+// A file whose RGB pixels are in another RGB profile (Display P3, Adobe RGB, ProPhoto)
+// converts to sRGB, the space Patchy edits and shows in, the same way for every format
+// (docs/rgb-profiles.md). Relative colorimetric with black point compensation, Photoshop's
+// conversion defaults. The imports/convertRgbProfilesToSrgb preference (on by default)
+// turns it off, which keeps the pixels and the tag as before.
+void convert_opened_rgb_profile(Document& opened, QStringList& import_notices, bool cmyk_source) {
+  const auto profile = std::as_const(opened).color_state().embedded_icc_profile;
+  if (cmyk_source || profile.empty() || std::as_const(opened).palette_editing().has_value() ||
+      !app_settings().value(QStringLiteral("imports/convertRgbProfilesToSrgb"), true).toBool() ||
+      !rgb_profile_needs_conversion(profile)) {
+    return;
+  }
+  if (const auto mode = opened.metadata().values.find("psd.color_mode");
+      mode != opened.metadata().values.end() && mode->second != "RGB") {
+    return;
+  }
+  const auto name = QString::fromStdString(document_rgb_profile_name(profile));
+  const auto conversion = convert_document_rgb_profile(opened, {}, RenderingIntent::RelativeColorimetric, true);
+  if (!conversion.has_value()) {
+    import_notices.push_back(
+        QObject::tr("The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile")
+            .arg(name));
+    return;
+  }
+  auto& info = opened.file_info();
+  if (!info.source_icc) {
+    info.source_icc = std::make_shared<const std::vector<std::uint8_t>>(profile);
+  }
+  info.source_icc_note = QT_TRANSLATE_NOOP(
+      "QObject", "Patchy converted the pixels to sRGB when it opened the file, so this profile is shown for "
+                 "reference only and is not written to saves.");
+  // PNG color chunks that describe the source space would mislabel the sRGB pixels.
+  std::erase_if(info.png_color_chunks, [](const FileInfoChunk& chunk) {
+    const std::string type(chunk.type.begin(), chunk.type.end());
+    return type == "sRGB" || type == "gAMA" || type == "cHRM" || type == "cICP";
+  });
+  import_notices.push_back(QObject::tr("Converted from the color profile %1 to sRGB").arg(name));
+  if (conversion->kept_stored_colors) {
+    import_notices.push_back(
+        QObject::tr("Colors stored in text, shape, fill and adjustment layers and in layer styles keep their "
+                    "values from the file; only pixels were converted to sRGB"));
+  }
+}
+
 // After a PSD reader import (a PSD, PSB or layered TIFF): force the Import Notes popup for
 // conversions a save makes permanent, open CMYK sources in CMYK Proof (`cmyk_source`), note
 // Blend If it cannot render, and put stale or missing linked smart-object files first.
@@ -1567,6 +1612,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     promote_flat_alpha_to_layer_mask(opened);
   }
   capture_file_info(opened, path, pixels_in_source_space, orientation_applied);
+  convert_opened_rgb_profile(opened, import_notices, cmyk_source);
   if (const auto default_layer_id = default_non_group_layer_id(opened.layers()); default_layer_id.has_value()) {
     opened.set_active_layer(*default_layer_id);
   } else {
