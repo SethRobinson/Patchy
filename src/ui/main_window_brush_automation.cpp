@@ -39,10 +39,12 @@ BrushAutomationLibrary& MainWindow::brush_automation_library() {
     const startup_trace::Scope library_phase("mw.lib.brush_presets");
     brush_automation_library_ = new BrushAutomationLibrary(brush_tip_library(), this);
     connect(brush_automation_library_, &BrushAutomationLibrary::changed, this, &MainWindow::refresh_automation_brush_presets);
+    // Picks up presets and tips another process wrote. The check only lists the two folders;
+    // reading and hashing every file each second kept an idle window busy (GitHub issue 135).
     auto* timer = new QTimer(this); timer->setInterval(1000);
     connect(timer, &QTimer::timeout, this, [this] {
       if ((!script_engine_host_ || !script_engine_host_->run_active()) && (!canvas_ || !canvas_->pointer_gesture_active()))
-        brush_automation_library_->refresh();
+        brush_automation_library_->refresh_if_files_changed();
     });
     timer->start();
   }

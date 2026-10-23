@@ -11608,6 +11608,14 @@ void MainWindow::register_document_action(QAction* action) {
   document_actions_.push_back(action);
 }
 
+void MainWindow::register_tool_action(QAction* action) {
+  if (action == nullptr) {
+    return;
+  }
+  action->setProperty(kWorksWithoutDocumentProperty, true);
+  tool_actions_.push_back(action);
+}
+
 void MainWindow::unregister_document_action(QAction* action) {
   std::erase(document_actions_, action);
 }
@@ -11643,6 +11651,13 @@ void MainWindow::update_document_action_state() {
   for (auto* widget : document_widgets_) {
     if (widget != nullptr) {
       widget->setEnabled(has_document && !locked);
+    }
+  }
+  // Tools are picked with or without a document, like Photoshop (local-008): the next
+  // document starts with the tool chosen on the home screen.
+  for (auto* action : tool_actions_) {
+    if (action != nullptr) {
+      action->setEnabled(!locked);
     }
   }
   if (primary_color_button_ != nullptr) {

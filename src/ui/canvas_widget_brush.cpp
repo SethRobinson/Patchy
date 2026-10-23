@@ -891,6 +891,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_layer_snapshot_.reset();
   brush_stroke_paint_mode_ = {};
   brush_stroke_last_stamp_position_.reset();
+  brush_stroke_hard_round_end_.reset();
   brush_stroke_distance_since_last_stamp_ = 0.0;
   mixer_brush_state_ = {};
   mixer_composite_snapshot_ = QImage();
@@ -2029,9 +2030,33 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
   }
 
   install_brush_stroke_compositor(options, erase);
+  // A hard round segment through the stroke gate leaves its end disk at full coverage, so the
+  // next one starting there skips that disk (GitHub issue 135). Anything that could make those
+  // pixels change again (another color or opacity, a feathered selection, per-pixel observers)
+  // breaks the chain.
+  const auto chains = hard_round_skip_enabled_ && (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) &&
+                      brush_opacity_ > 0 &&
+                      options.brush_tip == nullptr && options.brush_shape == patchy::BrushShape::Round &&
+                      std::clamp(options.brush_roundness, 1, 100) >= 99 && options.brush_softness <= 0 &&
+                      options.brush_size > 1 && options.stroke_pixel_gate && !options.selection_coverage &&
+                      !options.stroke_coverage_observer && !options.dab_primary_provider;
+  const auto radius = std::max(1, options.brush_size) / 2;
+  if (const auto& end = brush_stroke_hard_round_end_;
+      chains && end.has_value() && end->point.x() == from.x() && end->point.y() == from.y() &&
+      end->erase == erase && end->primary.r == options.primary.r &&
+      end->primary.g == options.primary.g && end->primary.b == options.primary.b &&
+      end->primary.a == options.primary.a) {
+    options.stroke_covered_disk =
+        patchy::EditOptions::CoveredDisk{from.x(), from.y(), static_cast<double>(end->radius)};
+  }
   auto dirty = to_qrect(
       patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
                                   options, erase));
+  if (chains) {
+    brush_stroke_hard_round_end_ = HardRoundSegmentEnd{to, radius, options.primary, erase};
+  } else {
+    brush_stroke_hard_round_end_.reset();
+  }
   if (stamp_endpoint) {
     dirty = united_dirty_rect(
         dirty, to_qrect(patchy::paint_brush(*document_, *document_->active_layer_id(),
