@@ -16,6 +16,7 @@
     <file alias="transform-skew.svg">icons/transform-skew.svg</file>
     <file alias="transform-distort.svg">icons/transform-distort.svg</file>
     <file alias="transform-perspective.svg">icons/transform-perspective.svg</file>
+    <file alias="warp.svg">icons/warp.svg</file>
     <file alias="mask.svg">icons/mask.svg</file>
     <file alias="quick-mask.svg">icons/quick-mask.svg</file>
     <file alias="quick-mask-on.svg">icons/quick-mask-on.svg</file>

@@ -424,6 +424,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     move_auto_select_target_combo_->setItemText(1, tr("Group"));
   });
   add_option_widget(move_auto_select_target_combo_, {CanvasTool::Move});
+  // Auto-Select and its target are one group, set apart from the transform types (GitHub
+  // issue 350).
+  add_option_separator({CanvasTool::Move});
   connect(move_auto_select_target_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0 || move_auto_select_target_combo_ == nullptr) {
       return;
@@ -434,16 +437,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     // Written by the user's choice, like tools/moveAutoSelect above.
     app_settings().setValue(QLatin1String(kMoveAutoSelectTargetSettingsKey), token);
-  });
-  move_show_transform_controls_check_ = new CheckGlyphBox(tr("Transform Controls"), toolbar);
-  move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
-  bind_tooltip(move_show_transform_controls_check_, QT_TR_NOOP("Show transform controls when selecting a layer with Move"));
-  move_show_transform_controls_check_->setChecked(canvas_defaults->show_transform_controls());
-  add_option_widget(move_show_transform_controls_check_, {CanvasTool::Move});
-  connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (canvas_ != nullptr) {
-      canvas_->set_show_transform_controls(checked);
-    }
   });
   // Transform types straight from the Move bar (GitHub issues 225 and 299): the
   // same entries as Edit > Free Transform and Edit > Transform, so any type is one
@@ -467,28 +460,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
         transform_active_layer_dialog();
       } else {
         transform_active_layer_mode(type.mode);
-      }
-    });
-  }
-  // Snap mirrors View > Snap: one persisted setting (view/snapEnabled), two
-  // surfaces. The action owns the state; the checkbox follows its toggled signal.
-  move_snap_check_ = new CheckGlyphBox(tr("Snap"), toolbar);
-  move_snap_check_->setObjectName(QStringLiteral("moveSnapCheck"));
-  bind_tooltip(move_snap_check_,
-               QT_TR_NOOP("Snap moved layers to other layers, guides, the grid, and the canvas (View > Snap). "
-                          "Choose the targets under View > Snap To."));
-  move_snap_check_->setChecked(view_snap_action_ != nullptr ? view_snap_action_->isChecked() : view_snap_enabled_);
-  add_option_widget(move_snap_check_, {CanvasTool::Move});
-  connect(move_snap_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (view_snap_action_ != nullptr) {
-      view_snap_action_->setChecked(checked);
-    }
-  });
-  if (view_snap_action_ != nullptr) {
-    connect(view_snap_action_, &QAction::toggled, this, [this](bool checked) {
-      if (move_snap_check_ != nullptr) {
-        QSignalBlocker blocker(move_snap_check_);
-        move_snap_check_->setChecked(checked);
       }
     });
   }
@@ -1773,6 +1744,40 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(artboard_add, {CanvasTool::Artboard});
   // Set apart from the Add Artboard button and the Move bar's Distribute buttons (GitHub issue 211).
   add_option_separator({CanvasTool::Artboard, CanvasTool::Move});
+  // The Move bar's checkboxes form one group with Auto-Nest Layers (GitHub issue 350,
+  // docs/options-bar.md rule 3): Transform Controls, Snap, Auto-Nest Layers.
+  move_show_transform_controls_check_ = new CheckGlyphBox(tr("Transform Controls"), toolbar);
+  move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
+  bind_tooltip(move_show_transform_controls_check_, QT_TR_NOOP("Show transform controls when selecting a layer with Move"));
+  move_show_transform_controls_check_->setChecked(canvas_defaults->show_transform_controls());
+  add_option_widget(move_show_transform_controls_check_, {CanvasTool::Move});
+  connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_show_transform_controls(checked);
+    }
+  });
+  // Snap mirrors View > Snap: one persisted setting (view/snapEnabled), two
+  // surfaces. The action owns the state; the checkbox follows its toggled signal.
+  move_snap_check_ = new CheckGlyphBox(tr("Snap"), toolbar);
+  move_snap_check_->setObjectName(QStringLiteral("moveSnapCheck"));
+  bind_tooltip(move_snap_check_,
+               QT_TR_NOOP("Snap moved layers to other layers, guides, the grid, and the canvas (View > Snap). "
+                          "Choose the targets under View > Snap To."));
+  move_snap_check_->setChecked(view_snap_action_ != nullptr ? view_snap_action_->isChecked() : view_snap_enabled_);
+  add_option_widget(move_snap_check_, {CanvasTool::Move});
+  connect(move_snap_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (view_snap_action_ != nullptr) {
+      view_snap_action_->setChecked(checked);
+    }
+  });
+  if (view_snap_action_ != nullptr) {
+    connect(view_snap_action_, &QAction::toggled, this, [this](bool checked) {
+      if (move_snap_check_ != nullptr) {
+        QSignalBlocker blocker(move_snap_check_);
+        move_snap_check_->setChecked(checked);
+      }
+    });
+  }
   artboard_auto_nest_ = app_settings().value(QStringLiteral("tools/artboardAutoNest"), true).toBool();
   auto* artboard_auto_nest = new CheckGlyphBox(tr("Auto-Nest Layers"), toolbar);
   artboard_auto_nest->setObjectName(QStringLiteral("artboardAutoNestCheck"));
@@ -3222,10 +3227,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       CanvasTool::Line,    CanvasTool::Rectangle,  CanvasTool::Ellipse,
       CanvasTool::Pen,     CanvasTool::Polygon,    CanvasTool::CustomShape,
       CanvasTool::PathSelect, CanvasTool::DirectSelect};
+  // Not on the Move bar (GitHub issue 350): there the shape's size is in the Properties panel.
   const std::initializer_list<CanvasTool> vector_shape_size_tools{
-      CanvasTool::Move,     CanvasTool::Line,       CanvasTool::Rectangle,
-      CanvasTool::Ellipse,  CanvasTool::Pen,        CanvasTool::Polygon,
-      CanvasTool::CustomShape, CanvasTool::PathSelect, CanvasTool::DirectSelect};
+      CanvasTool::Line,     CanvasTool::Rectangle,  CanvasTool::Ellipse,
+      CanvasTool::Pen,      CanvasTool::Polygon,    CanvasTool::CustomShape,
+      CanvasTool::PathSelect, CanvasTool::DirectSelect};
   vector_shape_mode_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Fill:"), vector_appearance_tools));
   // The Fill and Stroke swatches are framed buttons with a wide chip, so they read as

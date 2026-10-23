@@ -3111,7 +3111,7 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
     const auto in_row = [&](QWidget* widget, const std::vector<CanvasTool>& widget_tools) {
       const bool tool_matches =
           widget_tools.empty() || std::find(widget_tools.begin(), widget_tools.end(), tool) != widget_tools.end();
-      return tool_matches && vector_option_widget_visible(rules, widget, tool) && crop_option_widget_visible(widget) &&
+      return tool_matches && vector_option_widget_visible(rules, widget) && crop_option_widget_visible(widget) &&
              marquee_option_widget_visible(widget);
     };
     const auto stray = stray_option_separators(option_actions_, in_row);
