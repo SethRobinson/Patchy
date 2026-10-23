@@ -1670,6 +1670,11 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
     dab_options.primary = options.dab_primary_provider(x, y, dab_options.primary);
   }
   Rect dirty;
+  // A round footprint covers only part of its bounding square: each row visits the columns its
+  // circle can reach (padded a pixel), so the corners cost nothing (GitHub issue 135). Every
+  // skipped pixel has coverage 0, so the written bytes are unchanged.
+  const auto round_rows = radius > 0 && brush_shape_is_round(options);
+  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
 
   for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
     const auto local_y = py - bounds.y;
@@ -1677,8 +1682,22 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
       continue;
     }
 
+    auto first_x = dab_rect.x;
+    auto end_x = dab_rect.x + dab_rect.width;
+    if (round_rows) {
+      const auto row_offset = static_cast<double>(py) - y;
+      const auto remaining = radius_squared - row_offset * row_offset;
+      if (remaining < 0.0) {
+        report_edit_progress(options);
+        continue;
+      }
+      const auto half_width = std::sqrt(remaining);
+      first_x = std::max(first_x, static_cast<std::int32_t>(std::floor(x - half_width)) - 1);
+      end_x = std::min(end_x, static_cast<std::int32_t>(std::ceil(x + half_width)) + 2);
+    }
+
     auto row = pixels.row(local_y);
-    for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
+    for (std::int32_t px_doc = first_x; px_doc < end_x; ++px_doc) {
       const auto selected_coverage = selection_coverage(options, px_doc, py);
       if (selected_coverage <= 0.0F) {
         continue;
@@ -2010,6 +2029,23 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
   const auto dy = y1 - y0;
   const auto segment_length_squared = dx * dx + dy * dy;
   Rect dirty;
+  // The capsule is convex, so each row meets it in one run of columns: the union of the two end
+  // disks' spans and the band between them. Rows visit only that run (padded a pixel), and a
+  // covered disk's interior is skipped (GitHub issue 135). Every skipped pixel has coverage 0
+  // or is one the stroke gate would reject, so the written bytes are unchanged.
+  const auto radius_value = static_cast<double>(radius);
+  const auto radius_squared = radius_value * radius_value;
+  const auto segment_length = std::sqrt(segment_length_squared);
+  const auto has_band = segment_length > std::numeric_limits<double>::epsilon();
+  const auto normal_x = has_band ? -dy / segment_length * radius_value : 0.0;
+  const auto normal_y = has_band ? dx / segment_length * radius_value : 0.0;
+  const std::array<std::pair<double, double>, 4> band{
+      std::pair{x0 + normal_x, y0 + normal_y}, std::pair{x1 + normal_x, y1 + normal_y},
+      std::pair{x1 - normal_x, y1 - normal_y}, std::pair{x0 - normal_x, y0 - normal_y}};
+  const auto covered = options.stroke_covered_disk.has_value() && options.stroke_pixel_gate &&
+                               !options.selection_coverage && options.brush_softness <= 0
+                           ? options.stroke_covered_disk
+                           : std::nullopt;
 
   for (std::int32_t py = stroke_rect.y; py < stroke_rect.y + stroke_rect.height; ++py) {
     const auto local_y = py - bounds.y;
@@ -2017,8 +2053,64 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       continue;
     }
 
+    const auto row_y = static_cast<double>(py);
+    auto span_low = std::numeric_limits<double>::infinity();
+    auto span_high = -std::numeric_limits<double>::infinity();
+    const auto add_disk = [&](double center_x, double center_y) {
+      const auto row_offset = row_y - center_y;
+      if (std::abs(row_offset) > radius_value + 1.0) {
+        return;
+      }
+      const auto half_width = std::sqrt(std::max(0.0, radius_squared - row_offset * row_offset));
+      span_low = std::min(span_low, center_x - half_width);
+      span_high = std::max(span_high, center_x + half_width);
+    };
+    add_disk(x0, y0);
+    add_disk(x1, y1);
+    if (has_band) {
+      for (std::size_t edge = 0; edge < band.size(); ++edge) {
+        const auto [from_x, from_y] = band[edge];
+        const auto [to_x, to_y] = band[(edge + 1) % band.size()];
+        if ((from_y - row_y) * (to_y - row_y) > 0.0) {
+          continue;
+        }
+        if (from_y == to_y) {
+          span_low = std::min({span_low, from_x, to_x});
+          span_high = std::max({span_high, from_x, to_x});
+          continue;
+        }
+        const auto crossing = from_x + (row_y - from_y) * (to_x - from_x) / (to_y - from_y);
+        span_low = std::min(span_low, crossing);
+        span_high = std::max(span_high, crossing);
+      }
+    }
+    if (span_low > span_high) {
+      report_edit_progress(options);
+      continue;
+    }
+    const auto first_x =
+        std::max(stroke_rect.x, static_cast<std::int32_t>(std::floor(span_low)) - 1);
+    const auto end_x = std::min(stroke_rect.x + stroke_rect.width,
+                                static_cast<std::int32_t>(std::ceil(span_high)) + 2);
+    // Columns strictly inside the covered disk, shrunk a pixel so rounding cannot reach its rim.
+    auto skip_first = end_x;
+    auto skip_last = end_x - 1;
+    if (covered.has_value()) {
+      const auto row_offset = row_y - covered->y;
+      const auto remaining = covered->radius * covered->radius - row_offset * row_offset;
+      if (remaining > 1.0) {
+        const auto half_width = std::sqrt(remaining);
+        skip_first = static_cast<std::int32_t>(std::ceil(covered->x - half_width + 1.0));
+        skip_last = static_cast<std::int32_t>(std::floor(covered->x + half_width - 1.0));
+      }
+    }
+
     auto row = pixels.row(local_y);
-    for (std::int32_t px_doc = stroke_rect.x; px_doc < stroke_rect.x + stroke_rect.width; ++px_doc) {
+    for (std::int32_t px_doc = first_x; px_doc < end_x; ++px_doc) {
+      if (px_doc >= skip_first && px_doc <= skip_last) {
+        px_doc = skip_last;
+        continue;
+      }
       const auto along =
           segment_length_squared <= std::numeric_limits<double>::epsilon()
               ? 0.0

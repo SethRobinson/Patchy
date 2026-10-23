@@ -3613,6 +3613,55 @@ void ui_brush_stroke_paints_every_coalesced_mouse_sample() {
   }
 }
 
+// A 731 px hard round stroke in short moves, the case GitHub issue 135 lagged on. Each segment
+// skips the disk the previous one painted; the bytes must match the stroke painted without the
+// skip, for the Brush at 60% opacity and for the Eraser.
+void ui_hard_round_stroke_skip_keeps_bytes() {
+  for (const auto tool : {patchy::ui::CanvasTool::Brush, patchy::ui::CanvasTool::Eraser}) {
+    const auto paint = [tool](bool skip) {
+      patchy::Document document(900, 700, patchy::PixelFormat::rgba8());
+      const auto layer_id =
+          document.add_pixel_layer("Paint", solid_pixels(900, 700, patchy::PixelFormat::rgba8(), QColor(200, 220, 240)))
+              .id();
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(500, 400);
+      canvas.set_document(&document);
+      canvas.set_tool(tool);
+      canvas.set_zoom(0.5);
+      canvas.set_hard_round_skip_enabled_for_testing(skip);
+      canvas.set_primary_color(QColor(20, 40, 160));
+      canvas.set_brush_size(731);
+      canvas.set_brush_opacity(tool == patchy::ui::CanvasTool::Brush ? 60 : 100);
+      canvas.set_brush_softness(0);
+      canvas.show();
+      QApplication::processEvents();
+      const auto widget_point = [&canvas](double x, double y) {
+        return canvas.widget_position_for_document_point(QPoint(static_cast<int>(x), static_cast<int>(y)));
+      };
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(200.0, 330.0), Qt::LeftButton, Qt::LeftButton);
+      for (int index = 1; index <= 120; ++index) {
+        send_mouse(canvas, QEvent::MouseMove, widget_point(200.0 + 4.0 * index, 330.0 + 30.0 * std::sin(index * 0.08)),
+                   Qt::NoButton, Qt::LeftButton);
+      }
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(680.0, 330.0 + 30.0 * std::sin(9.6)),
+                 Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      return document.find_layer(layer_id)->pixels();
+    };
+    const auto skipped = paint(true);
+    const auto full = paint(false);
+    bool identical = skipped.width() == full.width() && skipped.height() == full.height();
+    for (std::int32_t y = 0; identical && y < full.height(); ++y) {
+      const auto left = skipped.row(y);
+      const auto right = full.row(y);
+      identical = std::equal(left.begin(), left.end(), right.begin(), right.end());
+    }
+    CHECK(identical);
+    // The stroke painted (or erased) the middle of the layer.
+    CHECK(std::as_const(skipped).pixel(450, 330)[0] != 200 || std::as_const(skipped).pixel(450, 330)[3] != 255);
+  }
+}
+
 void ui_coalesced_pointer_history_keeps_points_after_previous_sample() {
   using patchy::ui::PointerHistoryPoint;
   const std::vector<PointerHistoryPoint> history{
@@ -3932,6 +3981,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_smoothing_catch_up_on_end_completes_stroke},
       {"ui_brush_stroke_paints_every_coalesced_mouse_sample",
        ui_brush_stroke_paints_every_coalesced_mouse_sample},
+      {"ui_hard_round_stroke_skip_keeps_bytes", ui_hard_round_stroke_skip_keeps_bytes},
       {"ui_coalesced_pointer_history_keeps_points_after_previous_sample",
        ui_coalesced_pointer_history_keeps_points_after_previous_sample},
       {"ui_zoomed_out_brush_stroke_patches_display_mips_in_place",

@@ -92,6 +92,114 @@ void tool_wide_brush_segment_is_fast_and_writes_artifact() {
   write_bmp_artifact("tool_wide_brush_segment", document);
 }
 
+// A 731 px hard round stroke advanced in short segments, like a high-rate mouse (GitHub issue
+// 135). Each segment skips the previous segment's end disk (EditOptions::stroke_covered_disk),
+// whose pixels the stroke gate would reject: the bytes match the unskipped stroke, and a 2 px
+// step tests a sliver of the brush instead of its whole area.
+void tool_hard_round_segment_skips_its_covered_disk() {
+  constexpr std::int32_t side = 1100;
+  constexpr double radius = 365.0;  // brush_size 731
+  struct Result {
+    patchy::PixelBuffer pixels;
+    std::int64_t last_segment_tests{0};
+    std::int64_t full_segment_tests{0};
+  };
+  const auto paint = [](bool skip) {
+    patchy::Document document(side, side, patchy::PixelFormat::rgb8());
+    patchy::PixelBuffer layer_pixels(side, side, patchy::PixelFormat::rgba8());
+    layer_pixels.clear(0);
+    const auto layer_id = document.add_pixel_layer("Paint", std::move(layer_pixels)).id();
+    auto options = tool_options(30, 60, 200);
+    options.primary.a = 160;
+    options.brush_size = 731;
+    // The canvas's stroke compositor in miniature: an opacity cap per pixel.
+    const auto cap = static_cast<float>(options.primary.a) / 255.0F;
+    std::vector<float> accumulated(static_cast<std::size_t>(side) * side, 0.0F);
+    std::int64_t tests = 0;
+    options.stroke_pixel_gate = [&](std::int32_t x, std::int32_t y) {
+      ++tests;
+      return accumulated[static_cast<std::size_t>(y) * side + x] < cap - 0.0005F;
+    };
+    options.stroke_pixel_writer = [&](std::int32_t x, std::int32_t y, std::uint8_t* pixel, std::uint16_t,
+                                      float coverage, const patchy::EditColor& primary) {
+      auto& alpha = accumulated[static_cast<std::size_t>(y) * side + x];
+      const auto target = std::min(cap, 1.0F - (1.0F - alpha) * (1.0F - cap * coverage));
+      if (target <= alpha + 0.0005F) {
+        return false;
+      }
+      alpha = target;
+      pixel[0] = primary.r;
+      pixel[1] = primary.g;
+      pixel[2] = primary.b;
+      pixel[3] = static_cast<std::uint8_t>(std::lround(target * 255.0F));
+      return true;
+    };
+    Result result;
+    double x = 380.25;
+    double y = 540.5;
+    for (int step = 0; step < 90; ++step) {
+      const auto next_x = x + 2.0 + 0.25 * (step % 3);
+      const auto next_y = y + 1.5 * std::sin(step * 0.2);
+      if (skip && step > 0) {
+        options.stroke_covered_disk = patchy::EditOptions::CoveredDisk{x, y, radius};
+      }
+      const auto before = tests;
+      (void)patchy::paint_brush_segment(document, layer_id, x, y, next_x, next_y, options, false);
+      if (step == 0) {
+        result.full_segment_tests = tests - before;
+      }
+      result.last_segment_tests = tests - before;
+      x = next_x;
+      y = next_y;
+    }
+    // One long jump to the right: the skip covers only the old end disk, the rest paints.
+    if (skip) {
+      options.stroke_covered_disk = patchy::EditOptions::CoveredDisk{x, y, radius};
+    }
+    CHECK(!patchy::paint_brush_segment(document, layer_id, x, y, x + 160.0, y + 40.0, options, false).empty());
+    result.pixels = document.find_layer(layer_id)->pixels();
+    return result;
+  };
+  const auto full = paint(false);
+  const auto skipped = paint(true);
+  bool identical = full.pixels.width() == skipped.pixels.width() && full.pixels.height() == skipped.pixels.height();
+  for (std::int32_t y = 0; identical && y < full.pixels.height(); ++y) {
+    const auto left = full.pixels.row(y);
+    const auto right = skipped.pixels.row(y);
+    identical = std::equal(left.begin(), left.end(), right.begin(), right.end());
+  }
+  CHECK(identical);
+  // Unskipped, every short segment tests about the brush's whole area (420k px); skipped, a
+  // crescent and the disk's rim.
+  CHECK(full.last_segment_tests > 400000);
+  CHECK(skipped.full_segment_tests == full.full_segment_tests);
+  CHECK(skipped.last_segment_tests * 20 < full.last_segment_tests);
+}
+
+// A round dab visits only the columns its circle reaches on each row, not its bounding square's
+// corners (GitHub issue 135).
+void tool_round_dab_skips_its_bounding_square_corners() {
+  patchy::Document document(128, 128, patchy::PixelFormat::rgb8());
+  const auto layer_id = document.add_pixel_layer("Paint", solid_rgba(128, 128, 0, 0, 0, 0)).id();
+  auto options = tool_options(10, 200, 10);
+  options.brush_size = 61;
+  options.brush_softness = 100;
+  std::int64_t visits = 0;
+  options.selection_coverage = [&](std::int32_t, std::int32_t) {
+    ++visits;
+    return 1.0F;
+  };
+  const auto dirty = patchy::paint_brush_dab(document, layer_id, 60.5, 60.25, options, false);
+  CHECK(!dirty.empty());
+  // 30 px radius: the circle is 2827 px of the 61 x 61 = 3721 px square; each row adds a pixel
+  // of padding on each side.
+  CHECK(visits > 2827);
+  CHECK(visits < 3300);
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  const auto bounds = document.find_layer(layer_id)->bounds();
+  CHECK(pixels.pixel(60 - bounds.x, 60 - bounds.y)[1] == 200);
+}
+
 // A pasted layer is only as big as what was pasted; a stroke that leaves it grows it dab by
 // dab. That growth must stay cheap (it used to re-copy the whole layer per dab, freezing a
 // long stroke), and the result must match painting on a canvas-sized layer. Under a
@@ -1443,6 +1551,8 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
        tool_wide_brush_segment_is_fast_and_writes_artifact},
       {"tool_small_layer_grows_cheaply_under_a_long_stroke", tool_small_layer_grows_cheaply_under_a_long_stroke},
+      {"tool_hard_round_segment_skips_its_covered_disk", tool_hard_round_segment_skips_its_covered_disk},
+      {"tool_round_dab_skips_its_bounding_square_corners", tool_round_dab_skips_its_bounding_square_corners},
       {"tool_brush_segment_accepts_float_endpoints", tool_brush_segment_accepts_float_endpoints},
       {"tool_brush_roundness_and_angle_shape_dabs", tool_brush_roundness_and_angle_shape_dabs},
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},
