@@ -287,8 +287,10 @@ modification notice are in `ai-models/MODEL-LICENSES.txt`, from `third_party/ai-
 ## Adobe TrustMark watermark models (desktop download)
 
 Not shipped: on the user's request Patchy downloads Adobe's ONNX models for TrustMark variants
-Q, P and C (decoders) and Q (encoder) from the Content Authenticity Initiative's model host into
-the user's data folder (`trustmark_*.onnx`; provenance and checksums in `docs/watermarks.md`).
+Q, P and C (decoders) and Q (encoder), unchanged, from Patchy's `ai-models-3` GitHub release (or
+the Content Authenticity Initiative's model host) into the user's data folder, with Adobe's
+license beside them (`trustmark_*.onnx`, `trustmark_LICENSE.txt`; provenance and checksums in
+`docs/watermarks.md`).
 TrustMark (https://github.com/adobe/trustmark), code and models:
 
 Copyright 2023 Adobe. All Rights Reserved. MIT License.

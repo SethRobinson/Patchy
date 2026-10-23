@@ -1482,6 +1482,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/host_resolve.cpp
       src/ui/object_selection_model_download.hpp
       src/ui/object_selection_model_download.cpp
+      src/ui/model_download_dialog.cpp
       src/ui/watermark_model_download.cpp
       src/ui/watermark_settings.cpp
       src/ui/save_metadata_settings.cpp

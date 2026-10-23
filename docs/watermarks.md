@@ -8,11 +8,23 @@ watermark scan, the `watermark` privacy class and C2PA watermark declarations ar
 ## Models (one optional download)
 
 Adobe's own ONNX exports from github.com/adobe/trustmark (MIT for code and models; trained on
-licensed Adobe Stock, per its FAQ), fetched from the Content Authenticity Initiative's model host
-`https://cai-watermark.adobe.net/watermarking/trustmark-models/<upstream name>` and saved with a
-`trustmark_` prefix. Pinned by size and SHA-256 in `src/ui/watermark_model_download.cpp`, keep in
+licensed Adobe Stock, per its FAQ), rehosted unchanged, under the `trustmark_` names, as assets of
+the Patchy GitHub release **`ai-models-3`**
+(`https://github.com/SethRobinson/Patchy/releases/download/ai-models-3/<name>`), with the same
+rules as `ai-models-1`/`-2` ([ai-selection.md](ai-selection.md#models-and-runtime)): never marked
+Latest, assets never replaced. Each file's fallback (`DownloadableModelFile::fallback_urls`, tried
+only when the release link fails) is the Content Authenticity Initiative's model host
+`https://cai-watermark.adobe.net/watermarking/trustmark-models/<upstream name>`, where
+`scripts/setup-ai-deps.*` still fetch them. Adobe's MIT `LICENSE` travels with every copy (MIT's
+one condition): the release carries it as `trustmark_LICENSE.txt` and the download saves it beside
+the models (fallback: raw.githubusercontent.com at adobe/trustmark commit 6df5a0a2). The release
+was staged October 23, 2026 for Seth to upload (desk card local-009); until then every download
+uses the fallback. Pinned by size and SHA-256 in `src/ui/watermark_model_download.cpp`, keep in
 sync with `scripts/setup-ai-deps.*`, `PATCHY_AI_WATERMARK_MODEL_FILES` (cmake/patchy_ai.cmake),
-`trustmark_model_files()` and `packaging/windows/UninstallPatchy.cs`.
+`trustmark_model_files()` and `packaging/windows/UninstallPatchy.cs` (which also lists the
+license). "Adobe" and "TrustMark" only describe the files: no Adobe logo, nothing implying Adobe
+endorses Patchy. The offer texts say "Adobe's, MIT License" and name the release
+(`model_download_source_text`).
 
 | File | Upstream | Size | SHA-256 |
 |---|---|---|---|
@@ -20,13 +32,14 @@ sync with `scripts/setup-ai-deps.*`, `PATCHY_AI_WATERMARK_MODEL_FILES` (cmake/pa
 | `trustmark_decoder_P.onnx` | `decoder_P.onnx` | 47,400,467 | `be6d7c33f8a7b376f179e75f3f7c58ff816a9ac7bb6d37fd0a729a635f624c35` |
 | `trustmark_decoder_C.onnx` | `decoder_C.onnx` | 22,457,887 | `3d92f4a278bcf87ac7dc40248c36ae664fe5fdedfd19ca265f7ca730b271100a` |
 | `trustmark_encoder_Q.onnx` | `encoder_Q.onnx` | 17,312,208 | `19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d` |
+| `trustmark_LICENSE.txt` | `LICENSE` | 1,218 | `58d47a5cdfaaceda98925d845e8207d90336c62347a2383f95962b667b1cdaf5` |
 
 134.6 MB in all (the host's files are dated September 28, 2026). Why these: Q is TrustMark's
 default and the variant of Adobe's C2PA example; P (perceptual, higher quality) and C (compact)
 are the other variants on the C2PA soft-binding algorithm list (`com.adobe.trustmark.Q/.P/.C`); B
 only reproduces the paper. A mark decodes only with its own variant's decoder. Patchy embeds with
-Q only. The host's files can change; a replaced file fails its hash, the download refuses it, and
-the pins need a new review (rehosting on a Patchy `ai-models-N` release is the fallback).
+Q only. A host's files can change; a replaced file fails its hash and the download refuses it
+(the release's assets never change, so only the fallback can drift).
 
 **Not int8.** The graphs compute in float16 throughout (activations included, not just weights
 behind Cast nodes), so ONNX Runtime's dynamic quantizer rejects them; int8 would need a float32
