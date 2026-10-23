@@ -1008,7 +1008,7 @@ struct OpenDocumentResult {
   bool cmyk_source{false};
   // The file opened by its content because its name says another format or none (GitHub
   // issue 362): the extension of what it really is ("psd"); empty when the name fit.
-  QString content_extension;
+  QString content_extension{};
   // A PDF import's Mode and Bit Depth, applied once the pages are finished documents.
   // Unset for every other open: nothing else is converted on the way in.
   PdfImportColorMode pdf_color_mode{PdfImportColorMode::Rgb};

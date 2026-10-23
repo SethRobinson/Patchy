@@ -24,7 +24,7 @@ struct DownloadableModelFile {
   QByteArray sha256_hex;
   // Tried in order only when `url` fails (unreachable, an HTTP error, a wrong size or
   // checksum); every one serves the same pinned bytes.
-  std::vector<QUrl> fallback_urls;
+  std::vector<QUrl> fallback_urls{};
 };
 
 // Where a download comes from, for the text that offers it: "github.com/SethRobinson/Patchy

@@ -55,7 +55,7 @@ struct TextFrameGeometry {
   Kind kind{Kind::Unsupported};
   std::optional<VectorPath> area;
   // One entry per paragraph run of the object; empty when no paragraph supplies a size.
-  std::vector<TextParagraphFontSize> paragraph_font_sizes;
+  std::vector<TextParagraphFontSize> paragraph_font_sizes{};
 };
 
 // Unaddressed TySh index for regenerated text beside a verbatim legacy engine,
