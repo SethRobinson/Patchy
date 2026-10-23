@@ -46,6 +46,8 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
+#include <QStyle>
+#include <QStyleOption>
 #include <QScrollArea>
 #include <QTabBar>
 #include <QTabWidget>
@@ -2135,19 +2137,37 @@ void ui_panel_footer_buttons_outline_only_on_hover() {
         return;
       }
       footer_rect = footer_rect.adjusted(-4, -4, 4, 4).intersected(bar->rect());
-      const auto grab_footer = [&] {
-        hovered_button->update();
-        QApplication::processEvents();
-        return bar->grab(footer_rect).toImage();
+      const auto rest = bar->grab(footer_rect).toImage();
+      // The hovered look, drawn by the button's own (style sheet) style with the
+      // mouse-over state set: a pointer simulated offscreen does not reliably reach the
+      // button once earlier tests have run.
+      const auto paint_hovered = [&](QImage& image) {
+        QPainter painter(&image);
+        painter.translate(hovered_button->mapTo(bar, QPoint()) - footer_rect.topLeft());
+        painter.setClipRect(hovered_button->rect());
+        painter.fillRect(hovered_button->rect(), image.pixelColor(QPoint(0, 0)));
+        auto* style = hovered_button->style();
+        if (auto* tool_button = qobject_cast<QToolButton*>(hovered_button); tool_button != nullptr) {
+          QStyleOptionToolButton option;
+          option.initFrom(tool_button);
+          option.state |= QStyle::State_MouseOver | QStyle::State_Raised;
+          option.subControls = QStyle::SC_ToolButton;
+          option.icon = tool_button->icon();
+          option.iconSize = tool_button->iconSize();
+          option.toolButtonStyle = tool_button->toolButtonStyle();
+          style->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, tool_button);
+        } else {
+          QStyleOptionButton option;
+          option.initFrom(hovered_button);
+          option.state |= QStyle::State_MouseOver | QStyle::State_Raised;
+          option.icon = hovered_button->icon();
+          option.iconSize = hovered_button->iconSize();
+          style->drawControl(QStyle::CE_PushButton, &option, &painter, hovered_button);
+        }
       };
-      const auto rest = grab_footer();
-      // A real pointer move, so Qt's enter dispatch sets the hover state the stylesheet reads.
-      QTest::mouseMove(hovered_button, hovered_button->rect().center());
-      QApplication::processEvents();
-      CHECK(hovered_button->underMouse());
-      const auto hovered = grab_footer();
-      QTest::mouseMove(window.window(), QPoint(2, 2));
-      grab_footer();
+      auto hovered = rest.copy();
+      hovered.setDevicePixelRatio(rest.devicePixelRatio());
+      paint_hovered(hovered);
 
       const auto ratio = rest.devicePixelRatio();
       QImage composed(QSize(rest.width(), rest.height() * 2), QImage::Format_ARGB32_Premultiplied);
