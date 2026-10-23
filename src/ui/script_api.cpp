@@ -52,12 +52,14 @@
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
+#include "color/rgb_profiles.hpp"
 #include "ui/qt_text_file.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/script_save_options.hpp"
 #include "ui/script_vector.hpp"
+#include "ui/watermark_scan_report.hpp"
 #include "core/text_area.hpp"
 
 #include <QColor>
@@ -77,6 +79,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 namespace patchy::ui {
@@ -1825,6 +1828,15 @@ void ScriptDocumentObject::set_cmyk_proof(bool enabled) {
   }
 }
 
+QString ScriptDocumentObject::color_profile() const {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return {};
+  }
+  return QString::fromStdString(document_rgb_profile_name(document->color_state().embedded_icc_profile));
+}
+
 int ScriptDocumentObject::bit_depth() const {
   const ScriptApiCall api_call(host_);
   const auto* document = read_document();
@@ -2136,59 +2148,84 @@ QJSValue ScriptDocumentObject::scanForWatermarks() const {
   if (document == nullptr) {
     return result;
   }
-  const auto scan = scan_invisible_watermarks(Compositor{}.flatten_rgb8(*document));
-  result.setProperty(QStringLiteral("scanned"), scan.scanned);
-  auto matches = engine.newArray(static_cast<quint32>(scan.matches.size()));
-  for (quint32 i = 0; i < static_cast<quint32>(scan.matches.size()); ++i) {
-    const auto& match = scan.matches[i];
+  // TrustMark runs when its models are downloaded (docs/watermarks.md).
+  configure_automatic_selection_models();
+  const bool available = patchy::ai::trustmark_models_available();
+  const auto report = scan_watermarks(Compositor{}.flatten_rgb8(*document), document->file_info().observed);
+  if (!report.trustmark_error.empty()) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("TrustMark could not run: %1").arg(QString::fromStdString(report.trustmark_error)));
+    return {};
+  }
+  const auto latin1 = [](std::string_view text) {
+    return QString::fromLatin1(text.data(), static_cast<qsizetype>(text.size()));
+  };
+  const auto match_object = [&](const InvisibleWatermarkMatch& match) {
     auto row = engine.newObject();
-    row.setProperty(QStringLiteral("id"),
-                    QString::fromLatin1(match.id.data(), static_cast<qsizetype>(match.id.size())));
-    row.setProperty(QStringLiteral("name"),
-                    QString::fromLatin1(match.name.data(), static_cast<qsizetype>(match.name.size())));
+    row.setProperty(QStringLiteral("id"), latin1(match.id));
+    row.setProperty(QStringLiteral("name"), latin1(match.name));
     row.setProperty(QStringLiteral("bits"), match.bit_count);
     row.setProperty(QStringLiteral("differingBits"), match.differing_bits);
     row.setProperty(QStringLiteral("redBlueSwapped"), match.red_blue_swapped);
-    matches.setProperty(i, row);
+    return row;
+  };
+  const auto mark_object = [&](const patchy::ai::TrustMarkMark& mark) {
+    auto row = engine.newObject();
+    row.setProperty(QStringLiteral("variant"), latin1(patchy::ai::trustmark_variant_name(mark.variant)));
+    row.setProperty(QStringLiteral("schema"), latin1(trustmark::schema_name(mark.schema)));
+    row.setProperty(QStringLiteral("text"), QString::fromStdString(mark.text));
+    row.setProperty(QStringLiteral("id"), QString::fromStdString(mark.hex));
+    QString bits;
+    for (const auto bit : mark.data_bits) {
+      bits.append(bit != 0 ? QLatin1Char('1') : QLatin1Char('0'));
+    }
+    row.setProperty(QStringLiteral("bits"), bits);
+    row.setProperty(QStringLiteral("correctedBits"), mark.corrected_bits);
+    row.setProperty(QStringLiteral("confidence"), static_cast<double>(mark.confidence));
+    return row;
+  };
+  result.setProperty(QStringLiteral("scanned"), report.stable_diffusion.scanned);
+  const auto& sd_matches = report.stable_diffusion.matches;
+  auto matches = engine.newArray(static_cast<quint32>(sd_matches.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(sd_matches.size()); ++i) {
+    matches.setProperty(i, match_object(sd_matches[i]));
   }
   result.setProperty(QStringLiteral("matches"), matches);
-  // TrustMark, when its models are downloaded (docs/watermarks.md).
-  configure_automatic_selection_models();
   auto trustmark = engine.newObject();
-  const bool available = patchy::ai::trustmark_models_available();
   trustmark.setProperty(QStringLiteral("available"), available);
-  auto marks = engine.newArray(0);
-  if (available) {
-    try {
-      const auto found = patchy::ai::scan_trustmark(Compositor{}.flatten_rgb8(*document));
-      marks = engine.newArray(static_cast<quint32>(found.marks.size()));
-      for (quint32 i = 0; i < static_cast<quint32>(found.marks.size()); ++i) {
-        const auto& mark = found.marks[i];
-        auto row = engine.newObject();
-        const auto variant = patchy::ai::trustmark_variant_name(mark.variant);
-        const auto schema = trustmark::schema_name(mark.schema);
-        row.setProperty(QStringLiteral("variant"),
-                        QString::fromLatin1(variant.data(), static_cast<qsizetype>(variant.size())));
-        row.setProperty(QStringLiteral("schema"),
-                        QString::fromLatin1(schema.data(), static_cast<qsizetype>(schema.size())));
-        row.setProperty(QStringLiteral("text"), QString::fromStdString(mark.text));
-        row.setProperty(QStringLiteral("id"), QString::fromStdString(mark.hex));
-        QString bits;
-        for (const auto bit : mark.data_bits) {
-          bits.append(bit != 0 ? QLatin1Char('1') : QLatin1Char('0'));
-        }
-        row.setProperty(QStringLiteral("bits"), bits);
-        row.setProperty(QStringLiteral("correctedBits"), mark.corrected_bits);
-        row.setProperty(QStringLiteral("confidence"), static_cast<double>(mark.confidence));
-        marks.setProperty(i, row);
-      }
-    } catch (const std::exception& error) {
-      host_.throw_js_error(ScriptEngineHost::tr("TrustMark could not run: %1").arg(QString::fromUtf8(error.what())));
-      return {};
-    }
+  const auto found_marks = report.trustmark.has_value() ? report.trustmark->marks : std::vector<patchy::ai::TrustMarkMark>{};
+  auto marks = engine.newArray(static_cast<quint32>(found_marks.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(found_marks.size()); ++i) {
+    marks.setProperty(i, mark_object(found_marks[i]));
   }
   trustmark.setProperty(QStringLiteral("marks"), marks);
   result.setProperty(QStringLiteral("trustmark"), trustmark);
+  // One row per kind checked, in File Info's order (docs/watermarks.md, "Scan results").
+  auto checks = engine.newArray(static_cast<quint32>(report.checks.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(report.checks.size()); ++i) {
+    const auto& check = report.checks[i];
+    auto row = engine.newObject();
+    row.setProperty(QStringLiteral("id"), check.id);
+    row.setProperty(QStringLiteral("name"), check.name);
+    row.setProperty(QStringLiteral("status"), watermark_check_status_token(check.status));
+    row.setProperty(QStringLiteral("reason"), check.reason);
+    row.setProperty(QStringLiteral("detail"), check.detail);
+    if (check.match) {
+      row.setProperty(QStringLiteral("match"), match_object(*check.match));
+    }
+    if (check.mark) {
+      row.setProperty(QStringLiteral("mark"), mark_object(*check.mark));
+    }
+    if (check.id == QStringLiteral("c2paDeclared")) {
+      auto declarations = engine.newArray(static_cast<quint32>(check.declarations.size()));
+      for (quint32 k = 0; k < static_cast<quint32>(check.declarations.size()); ++k) {
+        declarations.setProperty(k, QString::fromStdString(check.declarations[k]));
+      }
+      row.setProperty(QStringLiteral("declarations"), declarations);
+    }
+    checks.setProperty(i, row);
+  }
+  result.setProperty(QStringLiteral("checks"), checks);
   return result;
 }
 
@@ -2992,6 +3029,69 @@ void ScriptDocumentObject::convertBitDepth(int bits) {
     return;
   }
   convert_document_depth(*document, depth);
+  host_.note_structure_changed(session_id_);
+}
+
+void ScriptDocumentObject::convertToProfile(const QString& profile, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  auto intent = RenderingIntent::RelativeColorimetric;
+  bool black_point_compensation = true;
+  if (!options.isUndefined() && !options.isNull()) {
+    if (!options.isObject()) {
+      host_.throw_js_error(ScriptEngineHost::tr("convertToProfile options must be an object."));
+      return;
+    }
+    if (const auto value = options.property(QStringLiteral("intent")); !value.isUndefined()) {
+      const auto parsed = rendering_intent_from_token(value.toString().toStdString());
+      if (!value.isString() || !parsed.has_value()) {
+        host_.throw_js_error(ScriptEngineHost::tr("intent must be \"perceptual\", \"relative-colorimetric\", "
+                                                  "\"saturation\" or \"absolute-colorimetric\"."));
+        return;
+      }
+      intent = *parsed;
+    }
+    if (const auto value = options.property(QStringLiteral("blackPointCompensation")); !value.isUndefined()) {
+      if (!value.isBool()) {
+        host_.throw_js_error(ScriptEngineHost::tr("blackPointCompensation must be true or false."));
+        return;
+      }
+      black_point_compensation = value.toBool();
+    }
+  }
+  std::vector<std::uint8_t> destination;
+  if (profile.compare(QStringLiteral("sRGB"), Qt::CaseInsensitive) != 0) {
+    destination = read_rgb_profile(to_filesystem_path(profile));
+    if (destination.empty()) {
+      host_.throw_js_error(
+          ScriptEngineHost::tr("convertToProfile takes \"sRGB\" or the path of an RGB profile file: %1").arg(profile));
+      return;
+    }
+  }
+  const auto* current = read_document();
+  if (current == nullptr) {
+    return;
+  }
+  if (current->palette_editing().has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("Convert an Indexed document to RGB Color first."));
+    return;
+  }
+  if (host_.session_cmyk_proof(session_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Leave CMYK Proof before converting to another RGB profile."));
+    return;
+  }
+  // Converted on a copy, so an unusable combination leaves the document and its history alone.
+  auto converted = *current;
+  if (!convert_document_rgb_profile(converted, destination, intent, black_point_compensation).has_value()) {
+    host_.throw_js_error(current->color_state().bit_depth == BitDepth::Float32
+                             ? ScriptEngineHost::tr("32-bit documents convert only between matrix-based RGB profiles.")
+                             : ScriptEngineHost::tr("The profile cannot be used for this conversion."));
+    return;
+  }
+  auto* document = write_document();
+  if (document == nullptr) {
+    return;
+  }
+  *document = std::move(converted);
   host_.note_structure_changed(session_id_);
 }
 

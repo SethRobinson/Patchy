@@ -913,6 +913,18 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "(as-shot white balance, no adjustments)."));
   raw_develop_check->setChecked(settings.value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool());
   application_form->addRow(raw_develop_check);
+  // docs/rgb-profiles.md: Patchy shows every RGB document as sRGB, so other RGB profiles
+  // convert on open unless this is off.
+  auto* convert_rgb_profiles_check =
+      new QCheckBox(tr("Convert files with other RGB profiles to sRGB when opening"), application_group);
+  convert_rgb_profiles_check->setObjectName(QStringLiteral("preferencesConvertRgbProfilesCheck"));
+  convert_rgb_profiles_check->setToolTip(
+      tr("Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile "
+         "look right only after converting. When disabled, they open with their own values and keep their "
+         "profile."));
+  convert_rgb_profiles_check->setChecked(
+      settings.value(QStringLiteral("imports/convertRgbProfilesToSrgb"), true).toBool());
+  application_form->addRow(convert_rgb_profiles_check);
   auto* missing_fonts_check =
       new QCheckBox(tr("Show the Missing Fonts dialog when opening a document with missing fonts"), application_group);
   missing_fonts_check->setObjectName(QStringLiteral("preferencesShowMissingFontsDialogCheck"));
@@ -1257,9 +1269,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     auto* download_model_button = new QPushButton(tr("Download"), model_group);
     download_model_button->setObjectName(QStringLiteral("preferencesDownloadObjectSelectionModelButton"));
     download_model_button->setToolTip(
-        tr("Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately "
+        tr("Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately "
            "with it.")
-            .arg(model_megabytes));
+            .arg(model_megabytes)
+            .arg(model_download_source_text(high_quality_model_files())));
     auto* delete_model_button = new QPushButton(tr("Delete"), model_group);
     delete_model_button->setObjectName(QStringLiteral("preferencesDeleteObjectSelectionModelButton"));
     delete_model_button->setToolTip(tr("Deletes the downloaded High Quality model. Object Selection then uses the "
@@ -1270,7 +1283,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     const auto refresh_model_status = [model_status, download_model_button, delete_model_button, model_megabytes] {
       const bool present = downloaded_high_quality_model_present(downloaded_models_folder());
       model_status->setText(present ? tr("High Quality Object Selection model: downloaded (%1 MB)").arg(model_megabytes)
-                                    : tr("High Quality Object Selection model: not downloaded"));
+                                    : tr("High Quality Object Selection model: not downloaded (%1 MB from %2)")
+                                          .arg(model_megabytes)
+                                          .arg(model_download_source_text(high_quality_model_files())));
       download_model_button->setEnabled(!present);
       delete_model_button->setEnabled(present);
     };
@@ -1480,9 +1495,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     auto* download_watermark_button = new QPushButton(tr("Download"), models_group);
     download_watermark_button->setObjectName(QStringLiteral("preferencesDownloadWatermarkModelsButton"));
     download_watermark_button->setToolTip(
-        tr("Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info's Scan for Watermarks then "
-           "reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
-            .arg(watermark_megabytes));
+        tr("Downloads the Adobe TrustMark watermark models (Adobe's, MIT License; %1 MB from %2). File Info's Scan "
+           "for Watermarks then reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
+            .arg(watermark_megabytes)
+            .arg(model_download_source_text(watermark_model_files())));
     auto* delete_watermark_button = new QPushButton(tr("Delete"), models_group);
     delete_watermark_button->setObjectName(QStringLiteral("preferencesDeleteWatermarkModelsButton"));
     delete_watermark_button->setToolTip(tr("Deletes the downloaded watermark models."));
@@ -1520,7 +1536,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                               watermark_megabytes] {
       const bool present = downloaded_watermark_models_present(downloaded_models_folder());
       watermark_status->setText(present ? tr("TrustMark watermark models: downloaded (%1 MB)").arg(watermark_megabytes)
-                                        : tr("TrustMark watermark models: not downloaded"));
+                                        : tr("TrustMark watermark models: not downloaded (%1 MB from %2)")
+                                              .arg(watermark_megabytes)
+                                              .arg(model_download_source_text(watermark_model_files())));
       download_watermark_button->setEnabled(!present);
       delete_watermark_button->setEnabled(present);
     };
@@ -2173,6 +2191,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                                                            metadata_ask_check->isChecked()});
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
+    settings.setValue(QStringLiteral("imports/convertRgbProfilesToSrgb"), convert_rgb_profiles_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());

@@ -126,10 +126,6 @@
         <translation>100% 是 TrustMark 的預設值。數值越低越不明顯，但越容易遺失；Adobe 為印刷品使用 150%。</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>需要浮水印模型：從 Adobe 下載 %1 MB。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>下載浮水印模型</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>剩餘 %1/%2 個字元</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>需要浮水印模型（Adobe 提供，MIT 授權）：從 %2 下載 %1 MB。</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>外掛程式回報了一個錯誤。</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1（發行版 %2）</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>複製連結</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>正在下載</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>來源：</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>檔案 %1/%2：%3（%4 MB）</translation>
     </message>
 </context>
 <context>
@@ -11931,40 +11961,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>掃描浮水印</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>影像太小，無法帶有這些浮水印：至少需要 256 x 256 像素。</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>未找到任何已知的浮水印。</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>找到 %1 浮水印：%3 位元中有 %2 位元相符。</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>許多浮水印（例如 Google SynthID）只能用其擁有者的工具讀取，因此這裡的掃描無法找到它們。</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>找到 TrustMark 浮水印（變體 %1，%2），內容為 %3。</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>「掃描浮水印」會檢查影像目前的樣子，尋找 Stable Diffusion 1.x、2.x 和 SDXL 在產生的影像中加入的公開不可見浮水印；下載浮水印模型後也會尋找 Adobe TrustMark。裁切、調整大小或重新繪製影像通常會去除這些浮水印。</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>未找到任何 Stable Diffusion 浮水印。</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>無法執行 TrustMark：%1</translation>
-    </message>
-    <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark 是持久內容憑證背後的公開浮水印，需要浮水印模型：僅在你要求時從 Adobe 下載 %1 MB。</translation>
     </message>
     <message>
         <source>Download Watermark Models</source>
@@ -11993,6 +11995,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>已加入你的不可見浮水印。</translation>
+    </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>收合智慧型濾鏡列</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>展開智慧型濾鏡列</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark 是持久 Content Credentials 背後的開放浮水印，需要浮水印模型（Adobe 提供，MIT 授權）：從 %2 下載 %1 MB，僅在你要求時下載。</translation>
+    </message>
+    <message>
+        <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
+        <translation>這是沒有副檔名的 %1 檔案；儲存時會建議使用 .%2 副檔名</translation>
+    </message>
+    <message>
+        <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
+        <translation>這是副檔名為 .%2 的 %1 檔案；儲存時會建議使用 .%3 副檔名</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>已找到：%1。</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>未找到任何可檢查的浮水印。有些類型未檢查。</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>轉換為描述檔</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>目前描述檔:</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>選擇描述檔檔案...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>選擇 RGB 描述檔</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>ICC 描述檔 (*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>「%1」不是 Patchy 可以使用的 RGB 描述檔。</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>目的地描述檔:</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>相對公制色度</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>絕對公制色度</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>色彩轉換方式:</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>黑版控制點補償</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy 會將 RGB 色彩以 sRGB 顯示。轉換為其他描述檔的文件在這裡的螢幕上看起來會不同，儲存的檔案會帶有該描述檔。</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>無法將色彩描述檔 %1 轉換為 sRGB，因此檔案保留其色彩與描述檔</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>已從色彩描述檔 %1 轉換為 sRGB</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>文字、形狀、填色和調整圖層以及圖層樣式中儲存的色彩保留檔案中的數值；只有像素已轉換為 sRGB</translation>
     </message>
 </context>
 <context>
@@ -12105,6 +12195,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>像素檢視:動態向量預視無法算繪此檢視。</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>影像小於 256 x 256 像素，太小，無法帶有此浮水印。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2 位元中有 %1 位元相符。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark 無法執行：%1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>此版本的 Patchy 無法讀取 TrustMark 浮水印。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>尚未下載浮水印模型。</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>帶有 %1（%2），信賴度 %3。</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>在 C2PA 中繼資料中宣告</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>已找到</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>未找到</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>未檢查</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>有些浮水印（例如 Google SynthID 和 Digimarc）只能用其擁有者的工具讀取，因此這裡的任何掃描都找不到它們。未找到僅表示上面的類型都沒有找到。</translation>
     </message>
 </context>
 <context>
@@ -22168,10 +22305,6 @@ Baked into images: %1.</source>
         <translation>要下載物件選取的高品質模型嗎？</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>它找到物件的準確度遠高於內建模型。將從 GitHub 下載 %1 MB，並保存在這台電腦上。你可以隨時在物件選取的選項列中切換模型。</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>物件選取現在使用高品質模型</translation>
     </message>
@@ -22204,20 +22337,12 @@ Baked into images: %1.</source>
         <translation>物件選取高品質模型：已下載（%1 MB）</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>物件選取高品質模型：未下載</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>已刪除物件選取高品質模型</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>無法刪除高品質模型：%1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>下載高品質模型（從 GitHub 下載 %1 MB）。使用它時，物件選取能更準確地找到物件。</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24172,20 +24297,12 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>無法下載浮水印模型：%1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>下載 Adobe TrustMark 浮水印模型（從 Adobe 下載 %1 MB）。之後「檔案資訊」中的「掃描浮水印」可以讀取 TrustMark 浮水印，「影像 &gt; 加入不可見浮水印」可以加入浮水印。</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>刪除已下載的浮水印模型。</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark 浮水印模型：已下載（%1 MB）</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark 浮水印模型：未下載</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24418,6 +24535,78 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Always add without asking</source>
         <translation>一律加入而不詢問</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>它找到物件的準確度遠高於內建模型。將從 %2 下載 %1 MB，並保存在這台電腦上。你可以隨時在物件選取的選項列中切換模型。</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>下載高品質模型（從 %2 下載 %1 MB）。使用它時，物件選取能更準確地找到物件。</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>物件選取高品質模型：未下載（來自 %2 的 %1 MB）</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>下載 Adobe TrustMark 浮水印模型（Adobe 提供，MIT 授權；來自 %2 的 %1 MB）。之後檔案資訊的掃描浮水印可讀取 TrustMark 浮水印，影像 &gt; 加入隱形浮水印可加入浮水印。</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark 浮水印模型：未下載（來自 %2 的 %1 MB）</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>浮水印模型</translation>
+    </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>掃描浮水印(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>掃描浮水印...</translation>
+    </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>轉換為描述檔(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>請先開啟文件</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>轉換為其他描述檔前請先轉換為 RGB 色彩</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>轉換為其他 RGB 描述檔前請先結束 CMYK 校樣</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>32 位元文件只能在矩陣式 RGB 描述檔之間轉換</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>此描述檔無法用於這次轉換</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>轉換為描述檔</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>已從 %1 轉換為 %2</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>開啟檔案時將其他 RGB 描述檔轉換為 sRGB</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy 以 sRGB 顯示及編輯 RGB 色彩。Display P3、Adobe RGB 或其他 RGB 描述檔的檔案只有轉換後才會正確顯示。關閉時，檔案會以原本的數值開啟並保留其描述檔。</translation>
     </message>
 </context>
 <context>
@@ -26306,6 +26495,38 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>convertToProfile 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent 必須是 &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot; 或 &quot;absolute-colorimetric&quot;。</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation 必須是 true 或 false。</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile 接受 &quot;sRGB&quot; 或 RGB 描述檔檔案的路徑：%1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>請先將索引色文件轉換為 RGB 色彩。</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>轉換為其他 RGB 描述檔前請先結束 CMYK 校樣。</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>32 位元文件只能在矩陣式 RGB 描述檔之間轉換。</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>此描述檔無法用於這次轉換。</translation>
     </message>
 </context>
 <context>

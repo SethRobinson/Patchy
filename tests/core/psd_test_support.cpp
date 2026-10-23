@@ -71,6 +71,35 @@ std::string read_pascal_padded(patchy::psd::BigEndianReader& reader, std::size_t
   return std::string(bytes.begin(), bytes.end());
 }
 
+std::vector<std::pair<std::string, std::size_t>> psd_raw_layer_record_flag_offsets(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
+  reader.skip(reader.read_u32());  // color mode data
+  reader.skip(reader.read_u32());  // image resources
+  CHECK(reader.read_u32() > 0);    // layer and mask information
+  CHECK(reader.read_u32() > 0);    // layer info
+  const auto layer_count_raw = static_cast<std::int16_t>(reader.read_u16());
+  const auto layer_count = layer_count_raw < 0 ? -layer_count_raw : layer_count_raw;
+  std::vector<std::pair<std::string, std::size_t>> records;
+  for (std::int16_t index = 0; index < layer_count; ++index) {
+    reader.skip(16);  // bounds
+    const auto channel_count = reader.read_u16();
+    reader.skip(static_cast<std::size_t>(channel_count) * 6U);
+    reader.skip(10);  // blend signature/key, opacity, clipping
+    const auto flags_offset = reader.position();
+    reader.skip(2);  // flags, filler
+    const auto extra_length = reader.read_u32();
+    const auto extra_end = reader.position() + extra_length;
+    reader.skip(reader.read_u32());  // mask data
+    reader.skip(reader.read_u32());  // blending ranges
+    records.emplace_back(read_pascal_padded(reader, 4), flags_offset);
+    if (reader.position() < extra_end) {
+      reader.skip(extra_end - reader.position());
+    }
+  }
+  return records;
+}
+
 std::vector<std::string> psd_raw_layer_record_names(std::span<const std::uint8_t> bytes) {
   patchy::psd::BigEndianReader reader(bytes);
   (void)patchy::psd::read_header(reader);

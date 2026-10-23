@@ -8,11 +8,23 @@ watermark scan, the `watermark` privacy class and C2PA watermark declarations ar
 ## Models (one optional download)
 
 Adobe's own ONNX exports from github.com/adobe/trustmark (MIT for code and models; trained on
-licensed Adobe Stock, per its FAQ), fetched from the Content Authenticity Initiative's model host
-`https://cai-watermark.adobe.net/watermarking/trustmark-models/<upstream name>` and saved with a
-`trustmark_` prefix. Pinned by size and SHA-256 in `src/ui/watermark_model_download.cpp`, keep in
+licensed Adobe Stock, per its FAQ), rehosted unchanged, under the `trustmark_` names, as assets of
+the Patchy GitHub release **`ai-models-3`**
+(`https://github.com/SethRobinson/Patchy/releases/download/ai-models-3/<name>`), with the same
+rules as `ai-models-1`/`-2` ([ai-selection.md](ai-selection.md#models-and-runtime)): never marked
+Latest, assets never replaced. Each file's fallback (`DownloadableModelFile::fallback_urls`, tried
+only when the release link fails) is the Content Authenticity Initiative's model host
+`https://cai-watermark.adobe.net/watermarking/trustmark-models/<upstream name>`, where
+`scripts/setup-ai-deps.*` still fetch them. Adobe's MIT `LICENSE` travels with every copy (MIT's
+one condition): the release carries it as `trustmark_LICENSE.txt` and the download saves it beside
+the models (fallback: raw.githubusercontent.com at adobe/trustmark commit 6df5a0a2). The release
+was staged October 23, 2026 for Seth to upload (desk card local-009); until then every download
+uses the fallback. Pinned by size and SHA-256 in `src/ui/watermark_model_download.cpp`, keep in
 sync with `scripts/setup-ai-deps.*`, `PATCHY_AI_WATERMARK_MODEL_FILES` (cmake/patchy_ai.cmake),
-`trustmark_model_files()` and `packaging/windows/UninstallPatchy.cs`.
+`trustmark_model_files()` and `packaging/windows/UninstallPatchy.cs` (which also lists the
+license). "Adobe" and "TrustMark" only describe the files: no Adobe logo, nothing implying Adobe
+endorses Patchy. The offer texts say "Adobe's, MIT License" and name the release
+(`model_download_source_text`).
 
 | File | Upstream | Size | SHA-256 |
 |---|---|---|---|
@@ -20,13 +32,14 @@ sync with `scripts/setup-ai-deps.*`, `PATCHY_AI_WATERMARK_MODEL_FILES` (cmake/pa
 | `trustmark_decoder_P.onnx` | `decoder_P.onnx` | 47,400,467 | `be6d7c33f8a7b376f179e75f3f7c58ff816a9ac7bb6d37fd0a729a635f624c35` |
 | `trustmark_decoder_C.onnx` | `decoder_C.onnx` | 22,457,887 | `3d92f4a278bcf87ac7dc40248c36ae664fe5fdedfd19ca265f7ca730b271100a` |
 | `trustmark_encoder_Q.onnx` | `encoder_Q.onnx` | 17,312,208 | `19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d` |
+| `trustmark_LICENSE.txt` | `LICENSE` | 1,218 | `58d47a5cdfaaceda98925d845e8207d90336c62347a2383f95962b667b1cdaf5` |
 
 134.6 MB in all (the host's files are dated September 28, 2026). Why these: Q is TrustMark's
 default and the variant of Adobe's C2PA example; P (perceptual, higher quality) and C (compact)
 are the other variants on the C2PA soft-binding algorithm list (`com.adobe.trustmark.Q/.P/.C`); B
 only reproduces the paper. A mark decodes only with its own variant's decoder. Patchy embeds with
-Q only. The host's files can change; a replaced file fails its hash, the download refuses it, and
-the pins need a new review (rehosting on a Patchy `ai-models-N` release is the fallback).
+Q only. A host's files can change; a replaced file fails its hash and the download refuses it
+(the release's assets never change, so only the fallback can drift).
 
 **Not int8.** The graphs compute in float16 throughout (activations included, not just weights
 behind Cast nodes), so ONNX Runtime's dynamic quantizer rejects them; int8 would need a float32
@@ -78,6 +91,32 @@ A packet counts only when its BCH check passes **and** its mean |logit| is at le
 two unmarked photos per variant (always the weak `BCH_3` code, which accepts about 7% of random
 words that claim it). Measured October 2026: marked images 9.3 to 10.9 (JPEG quality 90
 included), unmarked crops at most 1.26.
+
+## Scan results
+
+Scan for Watermarks and `doc.scanForWatermarks()` share `scan_watermarks` /
+`watermark_checks` (`src/ui/watermark_scan_report.*`): one row per kind, always all seven, in this
+order (ids permanent): `stableDiffusion1`, `stableDiffusion2`, `stableDiffusionXL`, `trustmarkQ`,
+`trustmarkP`, `trustmarkC`, `c2paDeclared` (a `c2pa.soft-binding` or `c2pa.watermarked*`
+declaration in the file's metadata, [file-info.md](file-info.md#watermarks)). Status `found`,
+`notFound` or `notChecked`; a `notChecked` row has a reason (permanent tokens): `imageTooSmall`
+(the Stable Diffusion rows under 256 x 256), `modelsNotDownloaded`, `notSupported` (a build
+without ONNX Runtime, the web build) or `failed` (the decoder threw). Found rows show the bits
+matched (Stable Diffusion) or the payload, schema and confidence (TrustMark).
+
+File > Scan for Watermarks... (`fileScanForWatermarksAction`, hotkey id
+`file.scan_for_watermarks`, no default key, under File Info) and the document tab's menu
+([document-tabs.md](document-tabs.md), for the clicked document) open File Info on this page
+with the scan already run, as the check-on-open notice does.
+
+File Info: a summary line (`fileInfoWatermarkScanResult`) over a three-column grid
+(`fileInfoWatermarkScanResults`; labels `fileInfoWatermarkCheckName`, `...Status`, `...Detail`
+with properties `watermarkCheck` = id and `watermarkStatus` = token). Status is a word; Found
+also gets the warning banner roles as a tag and Not checked `@hint_text`, so nothing relies on
+color. The Download button sits under the grid while the models are missing, and downloading
+reruns a scan already shown. The rows are rebuilt on every repopulate, so the metadata row
+follows a staged Strip All Metadata. The page ends with `watermark_scan_limits_note()`: SynthID
+and Digimarc have no public reader, so Not found everywhere is not "no watermark".
 
 ## Embed
 
@@ -138,7 +177,9 @@ and drops its result; CLI runs (`unattended_automation`) never check.
 ## Scripting
 
 `doc.scanForWatermarks().trustmark` = `{available, marks: [{variant, schema, text, id, bits,
-correctedBits, confidence}]}`; `doc.addInvisibleWatermark({text?, id?, schema?, strength?})` returns
+correctedBits, confidence}]}`, and `.checks` the rows above (`{id, name, status, reason,
+detail}`, plus `match` or `mark` when found and `declarations` on the C2PA row; a TrustMark
+failure still throws); `doc.addInvisibleWatermark({text?, id?, schema?, strength?})` returns
 `{schema, text, id}` (neither text nor id: a random ID); `app.downloadWatermarkModels()`,
 `app.watermarkModelsAvailable`; `app.watermarkPreferences` (`{text, addOnSave, checkOnOpen}`) and
 `app.setWatermarkPreferences({...})`. See [scripting-api-changes.md](scripting-api-changes.md).
@@ -157,7 +198,8 @@ hex, region and resize, residual; with the models staged: the reference fixtures
 round trip). Fixtures: `local-test-fixtures/trustmark/` (README.txt there; made by Adobe's Python
 package 0.9.2 with `make_fixtures.py` from the CC0 photos in `test-fixtures/readme`, variants Q,
 P and C, all four schemas, PNG and JPEG quality 90, plus an unmarked photo). The tests skip
-without the models or fixtures. UI: `ui_file_info_trustmark_*`, `ui_invisible_watermark_*`,
+without the models or fixtures. UI: `ui_watermark_scan_report_rows` (every status and reason,
+synthetic), `ui_file_info_trustmark_*`, `ui_invisible_watermark_*`,
 `ui_watermark_preferences_page_persists`, `ui_watermark_on_save_marks_flat_files_only`,
 `ui_watermark_check_on_open_shows_a_notice`;
 scripting: `ui_script_trustmark_round_trip`.

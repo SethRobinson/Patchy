@@ -348,6 +348,16 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(file_info_action, "file.file_info", QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_I));
   connect(file_info_action, &QAction::triggered, this, [this] { show_file_info_dialog(); });
   register_document_action(file_info_action);
+  // File Info opened on its Watermarks page with the scan already run (docs/watermarks.md);
+  // also on the document tab's context menu, for the clicked document.
+  auto* scan_watermarks_action = file_menu->addAction(tr("Scan for &Watermarks..."));
+  bind_action_text(scan_watermarks_action, QT_TR_NOOP("Scan for &Watermarks..."));
+  scan_watermarks_action->setObjectName(QStringLiteral("fileScanForWatermarksAction"));
+  scan_watermarks_action->setMenuRole(QAction::NoRole);
+  register_hotkey(scan_watermarks_action, "file.scan_for_watermarks");
+  connect(scan_watermarks_action, &QAction::triggered, this,
+          [this] { show_file_info_dialog(/*watermarks_scan*/ true); });
+  register_document_action(scan_watermarks_action);
   auto* strip_metadata_action = file_menu->addAction(tr("Strip All Metadata..."));
   bind_action_text(strip_metadata_action, QT_TR_NOOP("Strip All Metadata..."));
   strip_metadata_action->setObjectName(QStringLiteral("fileStripMetadataAction"));
@@ -665,6 +675,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(define_custom_shape_svg_action, "edit.define_custom_shape_svg");
   connect(define_custom_shape_svg_action, &QAction::triggered, this,
           [this] { define_custom_shape_from_svg_file(); });
+  // Edit > Convert to Profile (docs/rgb-profiles.md): converts the pixels from the
+  // document's RGB profile to another one. Refused in CMYK Proof and Indexed modes.
+  edit_menu->addSeparator();
+  auto* convert_to_profile_action = edit_menu->addAction(tr("Convert to Pro&file..."));
+  bind_action_text(convert_to_profile_action, QT_TR_NOOP("Convert to Pro&file..."));
+  convert_to_profile_action->setObjectName(QStringLiteral("editConvertToProfileAction"));
+  register_hotkey(convert_to_profile_action, "edit.convert_to_profile");
+  connect(convert_to_profile_action, &QAction::triggered, this, [this] { convert_to_profile_dialog(); });
+  register_document_action(convert_to_profile_action);
   select_all_action->setObjectName(QStringLiteral("editSelectAllAction"));
   clear_selection_action->setObjectName(QStringLiteral("editDeselectAction"));
   reselect_action->setObjectName(QStringLiteral("selectReselectAction"));

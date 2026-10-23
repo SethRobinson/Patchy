@@ -126,10 +126,6 @@
         <translation>100 % est la valeur par défaut de TrustMark. Plus bas, il est moins visible mais se perd plus facilement ; Adobe utilise 150 % pour l&apos;impression.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>Nécessite les modèles de filigrane : un téléchargement de %1 Mo depuis Adobe.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Télécharger les modèles de filigrane</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>%1 caractères restants sur %2</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>Nécessite les modèles de filigrane (d&apos;Adobe, licence MIT) : un téléchargement de %1 Mo depuis %2.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>Le module externe a signalé une erreur.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (version %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>Copier le lien</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Téléchargement</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Depuis :</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>Fichier %1 sur %2 : %3 (%4 Mo)</translation>
     </message>
 </context>
 <context>
@@ -11966,40 +11996,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Rechercher des filigranes</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>L&apos;image est trop petite pour porter ces filigranes : il leur faut au moins 256 x 256 pixels.</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>Aucun des filigranes connus n&apos;a été trouvé.</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>Filigrane %1 trouvé : %2 bits sur %3 correspondent.</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>De nombreux filigranes, comme Google SynthID, ne se lisent qu&apos;avec les outils de leur propriétaire : cette recherche ne peut pas les trouver.</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>Filigrane TrustMark trouvé (variante %1, %2) contenant %3.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>Rechercher des filigranes examine l&apos;image telle qu&apos;elle est maintenant pour y trouver les filigranes invisibles ouverts que Stable Diffusion 1.x, 2.x et SDXL ajoutent aux images qu&apos;ils génèrent, et Adobe TrustMark une fois les modèles de filigrane téléchargés. Recadrer, redimensionner ou repeindre l&apos;image les fait généralement disparaître.</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Aucun des filigranes Stable Diffusion n&apos;a été trouvé.</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>TrustMark n&apos;a pas pu s&apos;exécuter : %1</translation>
-    </message>
-    <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark, le filigrane ouvert des Content Credentials durables, nécessite les modèles de filigrane : un téléchargement de %1 Mo depuis Adobe, effectué uniquement à votre demande.</translation>
     </message>
     <message>
         <source>Download Watermark Models</source>
@@ -12028,6 +12030,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>Votre filigrane invisible a été ajouté.</translation>
+    </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>Replier les lignes de filtres dynamiques</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>Déplier les lignes de filtres dynamiques</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark, le filigrane ouvert derrière les Content Credentials durables, nécessite les modèles de filigrane (d&apos;Adobe, licence MIT) : un téléchargement de %1 Mo depuis %2, fait seulement à votre demande.</translation>
+    </message>
+    <message>
+        <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
+        <translation>Ceci est un fichier %1 sans extension ; Enregistrer propose l&apos;extension .%2</translation>
+    </message>
+    <message>
+        <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
+        <translation>Ceci est un fichier %1 avec l&apos;extension .%2 ; Enregistrer propose l&apos;extension .%3</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>Trouvé : %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>Aucun des filigranes vérifiables n&apos;a été trouvé. Certains types n&apos;ont pas été vérifiés.</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>Convertir en profil</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>Profil actuel :</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>Choisir un fichier de profil...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>Choisir un profil RVB</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>Profils ICC (*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>« %1 » n&apos;est pas un profil RVB utilisable par Patchy.</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>Profil de destination :</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>Colorimétrie relative</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>Colorimétrie absolue</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>Mode de rendu :</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>Compensation du point noir</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy affiche les couleurs RVB en sRGB. Un document converti dans un autre profil paraît différent ici à l&apos;écran, et ses enregistrements portent ce profil.</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>Le profil colorimétrique %1 n&apos;a pas pu être converti en sRGB : le fichier garde ses couleurs et son profil</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>Converti du profil colorimétrique %1 en sRGB</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>Les couleurs enregistrées dans les calques de texte, de forme, de remplissage et de réglage et dans les styles de calque gardent leurs valeurs du fichier ; seuls les pixels ont été convertis en sRGB</translation>
     </message>
 </context>
 <context>
@@ -12140,6 +12230,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>Vue en pixels : l&apos;aperçu vectoriel dynamique n&apos;a pas pu afficher cette vue.</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>L&apos;image fait moins de 256 x 256 pixels, trop petite pour porter cette marque.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%1 bits sur %2 correspondent.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark n&apos;a pas pu s&apos;exécuter : %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Cette version de Patchy ne peut pas lire les filigranes TrustMark.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>Les modèles de filigrane ne sont pas téléchargés.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>Porte %1 (%2), confiance %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>Déclaré dans les métadonnées C2PA</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>Trouvé</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>Non trouvé</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>Non vérifié</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Certains filigranes, comme Google SynthID et Digimarc, ne peuvent être lus qu&apos;avec les outils de leurs propriétaires : aucune analyse ici ne peut les trouver. Non trouvé signifie seulement qu&apos;aucun des types ci-dessus n&apos;a été trouvé.</translation>
     </message>
 </context>
 <context>
@@ -22231,10 +22368,6 @@ Convertis en images : %1.</translation>
         <translation>Télécharger le modèle haute qualité pour la sélection d&apos;objet ?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Il trouve les objets bien plus précisément que le modèle intégré. Le téléchargement fait %1 Mo depuis GitHub et reste sur cet ordinateur. Vous pouvez changer de modèle à tout moment dans la barre d&apos;options de la sélection d&apos;objet.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>La sélection d&apos;objet utilise maintenant le modèle haute qualité</translation>
     </message>
@@ -22267,20 +22400,12 @@ Convertis en images : %1.</translation>
         <translation>Modèle haute qualité de la sélection d&apos;objet : téléchargé (%1 Mo)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Modèle haute qualité de la sélection d&apos;objet : non téléchargé</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>Le modèle haute qualité de la sélection d&apos;objet a été supprimé</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>Impossible de supprimer le modèle haute qualité : %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Télécharge le modèle haute qualité (%1 Mo depuis GitHub). Avec lui, la sélection d&apos;objet trouve les objets plus précisément.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24244,20 +24369,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Impossible de télécharger les modèles de filigrane : %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Télécharge les modèles de filigrane Adobe TrustMark (%1 Mo depuis Adobe). Rechercher des filigranes dans Informations sur le fichier lit alors les filigranes TrustMark, et Image &gt; Ajouter un filigrane invisible peut en ajouter un.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>Supprime les modèles de filigrane téléchargés.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>Modèles de filigrane TrustMark : téléchargés (%1 Mo)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>Modèles de filigrane TrustMark : non téléchargés</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24490,6 +24607,78 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Always add without asking</source>
         <translation>Toujours ajouter sans demander</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>Il trouve les objets bien plus précisément que le modèle intégré. Le téléchargement fait %1 Mo depuis %2 et reste sur cet ordinateur. Vous pouvez changer de modèle à tout moment dans la barre d&apos;options de la sélection d&apos;objet.</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>Télécharge le modèle haute qualité (%1 Mo depuis %2). Avec lui, la sélection d&apos;objet trouve les objets plus précisément.</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>Modèle haute qualité de la sélection d&apos;objet : non téléchargé (%1 Mo depuis %2)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Télécharge les modèles de filigrane Adobe TrustMark (d&apos;Adobe, licence MIT ; %1 Mo depuis %2). La recherche de filigranes des Informations sur le fichier lit alors les filigranes TrustMark, et Image &gt; Ajouter un filigrane invisible peut en ajouter un.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>Modèles de filigrane TrustMark : non téléchargés (%1 Mo depuis %2)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>Modèles de filigrane</translation>
+    </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Rechercher des &amp;filigranes...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Rechercher des filigranes...</translation>
+    </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>Convertir en pro&amp;fil...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>Ouvrez d&apos;abord un document</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>Convertissez en couleurs RVB avant de convertir dans un autre profil</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>Quittez l&apos;épreuve CMJN avant de convertir dans un autre profil RVB</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>Les documents 32 bits ne se convertissent qu&apos;entre profils RVB à matrice</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>Le profil ne peut pas servir à cette conversion</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>Convertir en profil</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>Converti de %1 en %2</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>Convertir en sRGB les fichiers ayant un autre profil RVB à l&apos;ouverture</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy affiche et modifie les couleurs RVB en sRGB. Les fichiers en Display P3, Adobe RGB ou un autre profil RVB ne s&apos;affichent correctement qu&apos;une fois convertis. Désactivé, ils s&apos;ouvrent avec leurs propres valeurs et gardent leur profil.</translation>
     </message>
 </context>
 <context>
@@ -26379,6 +26568,38 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>Les options de convertToProfile doivent être un objet.</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent doit valoir &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; ou &quot;absolute-colorimetric&quot;.</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation doit valoir true ou false.</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile accepte &quot;sRGB&quot; ou le chemin d&apos;un fichier de profil RVB : %1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>Convertissez d&apos;abord un document indexé en couleurs RVB.</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>Quittez l&apos;épreuve CMJN avant de convertir dans un autre profil RVB.</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>Les documents 32 bits ne se convertissent qu&apos;entre profils RVB à matrice.</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>Le profil ne peut pas servir à cette conversion.</translation>
     </message>
 </context>
 <context>

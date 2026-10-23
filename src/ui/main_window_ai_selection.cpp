@@ -8,6 +8,7 @@
 #include "core/pixel_buffer.hpp"
 #include "core/layer.hpp"
 #include "ui/main_window.hpp"
+#include "ui/model_download_dialog.hpp"
 #include <QComboBox>
 #include <QPushButton>
 #include <QStatusBar>
@@ -161,9 +162,10 @@ bool MainWindow::offer_high_quality_object_selection_model() {
   box.setWindowTitle(tr("High Quality Object Selection"));
   box.setText(tr("Download the High Quality model for Object Selection?"));
   box.setInformativeText(tr("It finds objects much more accurately than the built-in model. The download is %1 MB "
-                            "from GitHub and is kept on this computer. You can switch models at any time on the "
+                            "from %2 and is kept on this computer. You can switch models at any time on the "
                             "Object Selection options bar.")
-                             .arg(megabytes(high_quality_model_download_bytes())));
+                             .arg(megabytes(high_quality_model_download_bytes()))
+                             .arg(model_download_source_text(high_quality_model_files())));
   auto* download_button = box.addButton(tr("Download"), QMessageBox::AcceptRole);
   box.addButton(tr("Not Now"), QMessageBox::RejectRole);
   box.setDefaultButton(download_button);
@@ -208,14 +210,14 @@ bool MainWindow::download_high_quality_object_selection_model(bool show_dialog, 
   const auto progress_text = [total_mb](qint64 received) {
     return tr("Downloading the High Quality model... %1 of %2 MB").arg(megabytes(received)).arg(total_mb);
   };
-  std::optional<QProgressDialog> dialog;
+  std::optional<ModelDownloadDialog> dialog;
   if (show_dialog) {
-    dialog.emplace(progress_text(0), tr("Cancel"), 0, 1000, dialog_parent != nullptr ? dialog_parent : this);
+    dialog.emplace(dialog_parent != nullptr ? dialog_parent : this);
     dialog->setObjectName(QStringLiteral("objectSelectionModelDownloadDialog"));
-    dialog->setWindowModality(Qt::WindowModal);
-    dialog->setMinimumDuration(0);
+    dialog->setWindowTitle(tr("High Quality Object Selection"));
+    dialog->set_heading(progress_text(0));
     remember_dialog_position(*dialog);
-    dialog->setValue(0);
+    dialog->show();
   } else {
     statusBar()->showMessage(progress_text(0));
   }
@@ -224,12 +226,12 @@ bool MainWindow::download_high_quality_object_selection_model(bool show_dialog, 
   QEventLoop wait_loop;
   auto job = start_model_download(
       this, downloaded_models_folder(), high_quality_model_files(),
-      [&](qint64 received, qint64 total) {
+      [&](const ModelDownloadProgress& progress) {
         if (dialog.has_value()) {
-          dialog->setLabelText(progress_text(received));
-          dialog->setValue(total > 0 ? static_cast<int>(received * 1000 / total) : 0);
+          dialog->set_heading(progress_text(progress.received));
+          dialog->set_progress(progress);
         } else {
-          statusBar()->showMessage(progress_text(received));
+          statusBar()->showMessage(progress_text(progress.received));
         }
       },
       [&](ModelDownloadResult finished) {
@@ -238,7 +240,7 @@ bool MainWindow::download_high_quality_object_selection_model(bool show_dialog, 
         wait_loop.quit();
       });
   if (dialog.has_value()) {
-    connect(&*dialog, &QProgressDialog::canceled, this, [&job] { job->cancel(); });
+    connect(&*dialog, &QDialog::rejected, this, [&job] { job->cancel(); });
   }
   QTimer keep_alive_timer;
   if (keep_alive) {

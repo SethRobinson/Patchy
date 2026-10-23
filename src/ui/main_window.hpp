@@ -1,5 +1,6 @@
 #pragma once
 
+#include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/document.hpp"
@@ -46,6 +47,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <span>
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -647,6 +649,14 @@ private:
   // Image > Mode > 8/16/32 Bits/Channel (docs/high-bit-depth.md): undoable.
   void convert_document_bit_depth(BitDepth depth);
   void refresh_bit_depth_actions();
+  // Edit > Convert to Profile (docs/rgb-profiles.md).
+  void convert_to_profile_dialog();
+  // One undo step: converts the active document's pixels from its RGB profile to
+  // `destination` (empty = sRGB). Returns an error message, empty on success.
+  [[nodiscard]] QString convert_active_document_to_profile(std::span<const std::uint8_t> destination,
+                                                           RenderingIntent intent, bool black_point_compensation);
+  // Why Convert to Profile is unavailable for the active document; empty when it is.
+  [[nodiscard]] QString convert_to_profile_blocker() const;
   void snap_layers_to_palette(bool active_layer_only);
   void refresh_palette_panel();
   void refresh_palette_mode_chip();
@@ -1545,10 +1555,13 @@ private:
   // The effect row's own right-click menu: Edit, Hide/Show, Delete.
   void show_layer_effect_context_menu(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
                                       QPoint global_position);
-  // The effect rows' disclosure state (session only): closed by default; opening a layer's
-  // list, and `reveal_layer_effects` (an effect added this session) marks it open.
+  // The effect rows' disclosure state: closed by default; opening a layer's list, and
+  // `reveal_layer_effects` (an effect added this session) marks it open. Saved with the file
+  // (PSD flags bit 5, issue 361); a toggle is not an edit.
   void toggle_layer_effects_expanded(LayerId layer_id);
   void reveal_layer_effects(LayerId layer_id);
+  // The Smart Filter rows' disclosure state (issue 361): open by default; adding a filter opens it.
+  void toggle_layer_smart_filters_expanded(LayerId layer_id);
   bool apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
                                    const std::function<bool(LayerStyle&)>& edit);
   void copy_active_layer_style();

@@ -26,7 +26,9 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/model_download_dialog.hpp"
 #include "ui/object_selection_model_download.hpp"
+#include "ui/watermark_model_download.hpp"
 #include "ui/qt_paths.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "core/pixel_depth.hpp"
@@ -37,6 +39,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QCryptographicHash>
 #include <QDir>
@@ -428,16 +431,20 @@ void ui_object_selection_model_download_verifies_files() {
   };
   const auto target = QDir(root).filePath(QStringLiteral("models"));
   QObject owner;
-  const auto run = [&owner, &target](std::vector<patchy::ui::DownloadableModelFile> list, qint64* last_received) {
+  std::vector<patchy::ui::ModelDownloadProgress> reports;
+  const auto run = [&owner, &target, &reports](std::vector<patchy::ui::DownloadableModelFile> list,
+                                               qint64* last_received) {
     patchy::ui::ModelDownloadResult result;
     bool done = false;
     QEventLoop loop;
     QTimer::singleShot(30000, &loop, &QEventLoop::quit);
+    reports.clear();
     auto job = patchy::ui::start_model_download(
         &owner, target, std::move(list),
-        [last_received](qint64 received, qint64) {
+        [last_received, &reports](const patchy::ui::ModelDownloadProgress& progress) {
+          reports.push_back(progress);
           if (last_received != nullptr) {
-            *last_received = received;
+            *last_received = progress.received;
           }
         },
         [&](patchy::ui::ModelDownloadResult finished) {
@@ -456,6 +463,13 @@ void ui_object_selection_model_download_verifies_files() {
   auto result = run(files, &received);
   CHECK(result.ok && !result.cancelled);
   CHECK(received == first.size() + second.size());
+  // Each file is announced with its link before any byte arrives, then numbered and sized.
+  CHECK(!reports.empty() && reports.front().file_number == 1 && reports.front().file_count == 2 &&
+        reports.front().file_received == 0 && reports.front().url == files[0].url &&
+        reports.front().file_name == QStringLiteral("first.onnx") && reports.front().file_size == first.size());
+  CHECK(std::any_of(reports.begin(), reports.end(), [&](const patchy::ui::ModelDownloadProgress& report) {
+    return report.file_number == 2 && report.file_received == 0 && report.url == files[1].url;
+  }));
   QFile landed(QDir(target).filePath(QStringLiteral("second.onnx")));
   CHECK(landed.open(QIODevice::ReadOnly) && landed.readAll() == second);
   landed.close();
@@ -474,6 +488,132 @@ void ui_object_selection_model_download_verifies_files() {
   CHECK(!QFile::exists(QDir(target).filePath(QStringLiteral("wrong.onnx"))));
   CHECK(QDir(target).entryList(QDir::Files).size() == 2);
 
+  // A link that fails moves on to the file's fallback link, which the progress names.
+  auto fallback = files;
+  fallback.resize(1);
+  fallback[0].name = QStringLiteral("third.onnx");
+  const auto good = fallback[0].url;
+  fallback[0].url = QUrl::fromLocalFile(QDir(root).filePath(QStringLiteral("source/missing.onnx")));
+  fallback[0].fallback_urls = {good};
+  result = run(fallback, nullptr);
+  CHECK(result.ok);
+  CHECK(QFile::exists(QDir(target).filePath(QStringLiteral("third.onnx"))));
+  CHECK(std::any_of(reports.begin(), reports.end(),
+                    [&](const patchy::ui::ModelDownloadProgress& report) { return report.url == fallback[0].url; }));
+  CHECK(std::any_of(reports.begin(), reports.end(), [&](const patchy::ui::ModelDownloadProgress& report) {
+    return report.url == good && report.file_received == fallback[0].size;
+  }));
+  // Every link failing reports the last failure and keeps nothing.
+  auto broken = fallback;
+  broken[0].name = QStringLiteral("fourth.onnx");
+  broken[0].fallback_urls = {QUrl::fromLocalFile(QDir(root).filePath(QStringLiteral("source/also-missing.onnx")))};
+  result = run(broken, nullptr);
+  CHECK(!result.ok && !result.cancelled && !result.error.isEmpty());
+  CHECK(!QFile::exists(QDir(target).filePath(QStringLiteral("fourth.onnx"))));
+
+  remove_test_scratch_dir(root);
+}
+
+// The download dialog every model download and the one-click update use: the heading, file
+// N of M with its size, and the full link (selectable when it fits, elided in the middle with
+// the full link in the tooltip and Copy Link when it does not), driven by a real transfer
+// from file:// links; the offer texts name the source release.
+void ui_model_download_dialog_shows_the_link() {
+  CHECK(patchy::ui::model_download_source_text(patchy::ui::watermark_model_files()) ==
+        QStringLiteral("github.com/SethRobinson/Patchy (release ai-models-3)"));
+  CHECK(patchy::ui::model_download_source_text(patchy::ui::high_quality_model_files()) ==
+        QStringLiteral("github.com/SethRobinson/Patchy (release ai-models-2)"));
+  for (const auto& file : patchy::ui::watermark_model_files()) {
+    CHECK(file.url.toString().startsWith(
+        QStringLiteral("https://github.com/SethRobinson/Patchy/releases/download/ai-models-3/")));
+    CHECK(file.fallback_urls.size() == 1);  // Adobe's own host, used only when the release fails
+  }
+
+  QWidget parent;
+  parent.resize(800, 500);
+  parent.show();
+  QApplication::processEvents();
+  patchy::ui::ModelDownloadDialog dialog(&parent);
+  dialog.setObjectName(QStringLiteral("watermarkModelDownloadDialog"));
+  dialog.setWindowTitle(QStringLiteral("Watermark Models"));
+  dialog.set_heading(QStringLiteral("Downloading the watermark models... 52 of 135 MB"));
+  dialog.show();
+  QApplication::processEvents();
+  const auto& files = patchy::ui::watermark_model_files();
+  patchy::ui::ModelDownloadProgress progress;
+  progress.received = files[0].size + files[1].size / 10;
+  progress.total = patchy::ui::watermark_model_download_bytes();
+  progress.file_number = 2;
+  progress.file_count = static_cast<int>(files.size());
+  progress.file_name = files[1].name;
+  progress.file_size = files[1].size;
+  progress.file_received = files[1].size / 10;
+  progress.url = files[1].url;
+  dialog.set_progress(progress);
+  QApplication::processEvents();
+  auto* link = dialog.link_label();
+  CHECK(link != nullptr);
+  CHECK(dialog.file_text() == QStringLiteral("File 2 of 5: trustmark_decoder_P.onnx (47 MB)"));
+  CHECK(link->link() == files[1].url.toString() && link->toolTip() == files[1].url.toString());
+  CHECK(!link->elided() && link->text() == files[1].url.toString());
+  CHECK(link->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+  auto* copy = dialog.findChild<QPushButton*>(QStringLiteral("modelDownloadCopyLinkButton"));
+  CHECK(copy != nullptr && copy->isEnabled());
+  if (copy != nullptr) {
+    QApplication::clipboard()->clear();
+    copy->click();
+    CHECK(QApplication::clipboard()->text() == files[1].url.toString());
+  }
+  capture_widget_artifact("ui_model_download_dialog", dialog);
+
+  // A link too long to fit: elided in the middle, not selectable, still copied whole.
+  const auto long_link = QStringLiteral("https://github.com/SethRobinson/Patchy/releases/download/ai-models-3/") +
+                         QString(120, QLatin1Char('x')) + QStringLiteral(".onnx");
+  progress.url = QUrl(long_link);
+  dialog.set_progress(progress);
+  QApplication::processEvents();
+  CHECK(link->elided() && link->text() != long_link && link->text().contains(QChar(0x2026)));
+  CHECK(link->text().startsWith(QStringLiteral("https://")) && link->text().endsWith(QStringLiteral(".onnx")));
+  CHECK(link->toolTip() == long_link);
+  CHECK(!link->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+  if (copy != nullptr) {
+    copy->click();
+    CHECK(QApplication::clipboard()->text() == long_link);
+  }
+
+  // Wired as the app wires it, through a real transfer: the dialog ends on the last file.
+  const auto root = patchy::ui::to_qstring(
+      std::filesystem::absolute(patchy::test::unicode_artifact_dir(patchy::test::kUnicodeCombinedStem)));
+  QDir(root).mkpath(QStringLiteral("dialog-source"));
+  const auto source = [&root](const QString& name, int bytes) {
+    QFile file(QDir(root).filePath(QStringLiteral("dialog-source/") + name));
+    const QByteArray data(bytes, 'z');
+    CHECK(file.open(QIODevice::WriteOnly) && file.write(data) == data.size());
+    return patchy::ui::DownloadableModelFile{name, QUrl::fromLocalFile(file.fileName()), data.size(),
+                                             QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex(), {}};
+  };
+  std::vector<patchy::ui::DownloadableModelFile> list{source(QStringLiteral("one.onnx"), 4000),
+                                                      source(QStringLiteral("two.onnx"), 9000)};
+  const auto target = QDir(root).filePath(QStringLiteral("dialog-models"));
+  bool done = false;
+  bool ok = false;
+  QEventLoop loop;
+  QTimer::singleShot(30000, &loop, &QEventLoop::quit);
+  auto job = patchy::ui::start_model_download(
+      &dialog, target, list, [&dialog](const patchy::ui::ModelDownloadProgress& report) { dialog.set_progress(report); },
+      [&](patchy::ui::ModelDownloadResult result) {
+        ok = result.ok;
+        done = true;
+        loop.quit();
+      });
+  QObject::connect(&dialog, &QDialog::rejected, &dialog, [&job] { job->cancel(); });
+  if (!done) {
+    loop.exec();
+  }
+  CHECK(done && ok);
+  CHECK(dialog.file_text().startsWith(QStringLiteral("File 2 of 2: two.onnx")));
+  CHECK(link->link() == QDir::toNativeSeparators(list[1].url.toLocalFile()) || link->link() == list[1].url.toLocalFile());
+  dialog.close();
   remove_test_scratch_dir(root);
 }
 
@@ -1010,6 +1150,7 @@ std::vector<patchy::test::TestCase> ai_selection_ui_tests() {
       {"ui_object_select_tool_and_options_are_listed", ui_object_select_tool_and_options_are_listed},
       {"ui_object_select_model_option_and_zoomed_box", ui_object_select_model_option_and_zoomed_box},
       {"ui_object_selection_model_download_verifies_files", ui_object_selection_model_download_verifies_files},
+      {"ui_model_download_dialog_shows_the_link", ui_model_download_dialog_shows_the_link},
       {"ui_object_selection_model_offer_not_now_keeps_standard",
        ui_object_selection_model_offer_not_now_keeps_standard},
       {"ui_preferences_deletes_only_the_downloaded_model_files",

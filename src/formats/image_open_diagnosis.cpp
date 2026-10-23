@@ -50,6 +50,7 @@ using namespace std::string_view_literals;
 [[nodiscard]] std::string extension_family(std::string_view extension) {
   const auto ext = lower_ascii(extension);
   if (ext == "jpg" || ext == "jpeg" || ext == "jpe" || ext == "jfif" || ext == "jif") return "jpeg";
+  if (ext == "png" || ext == "apng") return "png";
   if (ext == "tif" || ext == "tiff") return "tiff";
   if (ext == "heic" || ext == "heif" || ext == "hif") return "heic";
   if (ext == "avif" || ext == "avifs") return "avif";
@@ -383,6 +384,18 @@ UndecodableImageDiagnosis diagnose_undecodable_image(std::span<const std::uint8_
     result.reason = Reason::TiffUnreadable;
   }
   return result;
+}
+
+std::optional<SniffedImageFormat> sniff_openable_image_format(std::span<const std::uint8_t> bytes) noexcept {
+  const auto detected = detect_container(bytes);
+  if (!detected.has_value() || detected->extension[0] == '\0') {
+    return std::nullopt;
+  }
+  return SniffedImageFormat{detected->name, detected->extension};
+}
+
+bool extensions_share_format(std::string_view a, std::string_view b) noexcept {
+  return extension_family(a) == extension_family(b);
 }
 
 }  // namespace patchy::formats

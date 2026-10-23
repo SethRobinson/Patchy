@@ -1593,7 +1593,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                    set_layer_effect_enabled = {},
                                std::function<void(LayerId, LayerStyleEffect, std::size_t)> edit_layer_effect = {},
                                bool effects_expanded = false,
-                               std::function<void(LayerId)> toggle_effects_expanded = {}) {
+                               std::function<void(LayerId)> toggle_effects_expanded = {},
+                               bool smart_filters_expanded = true,
+                               std::function<void(LayerId)> toggle_smart_filters_expanded = {}) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -2050,8 +2052,31 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       return pixmap;
     };
     const auto nested_row_tooltip = stack_changeable ? QString() : preservation_tooltip;
+    // The header leads with a disclosure arrow like the Layer Styles header (issue 361); its eye
+    // then sits in the same column as the Layer Styles eye.
     auto [header, header_layout] =
-        make_nested_row(QStringLiteral("layerSmartFiltersRow"), kNestedEyeIndent, nested_row_tooltip);
+        make_nested_row(QStringLiteral("layerSmartFiltersRow"), 0, nested_row_tooltip);
+    auto* smart_filters_disclosure = new QToolButton(header);
+    smart_filters_disclosure->setObjectName(QStringLiteral("layerSmartFiltersDisclosureButton"));
+    smart_filters_disclosure->setCheckable(true);
+    smart_filters_disclosure->setChecked(smart_filters_expanded);
+    smart_filters_disclosure->setArrowType(smart_filters_expanded ? Qt::DownArrow : Qt::RightArrow);
+    smart_filters_disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    smart_filters_disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    smart_filters_disclosure->setFocusPolicy(Qt::NoFocus);
+    smart_filters_disclosure->setToolTip(smart_filters_expanded ? QObject::tr("Collapse the Smart Filter rows")
+                                                                : QObject::tr("Expand the Smart Filter rows"));
+    if (list_parent != nullptr) {
+      smart_filters_disclosure->installEventFilter(list_parent);
+    }
+    QObject::connect(smart_filters_disclosure, &QToolButton::clicked, row,
+                     [parent, id = layer.id(), toggle_smart_filters_expanded] {
+      if (toggle_smart_filters_expanded) {
+        // Deferred: the toggle rebuilds the rows, deleting this button.
+        QTimer::singleShot(0, parent, [id, toggle_smart_filters_expanded] { toggle_smart_filters_expanded(id); });
+      }
+    });
+    header_layout->addWidget(smart_filters_disclosure, 0, Qt::AlignVCenter);
     auto* stack_visibility = new QToolButton(header);
     stack_visibility->setObjectName(QStringLiteral("layerSmartFiltersVisibilityButton"));
     auto toggled_stack = *smart_filters;
@@ -2170,7 +2195,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     });
     header_layout->addWidget(stack_more_button, 0, Qt::AlignVCenter);
 
-    for (std::size_t execution_index = smart_filters->entries.size(); execution_index-- > 0;) {
+    for (std::size_t execution_index = smart_filters_expanded ? smart_filters->entries.size() : 0U;
+         execution_index-- > 0;) {
       const auto& entry = smart_filters->entries[execution_index];
       const bool entry_modeled = entry.kind != SmartFilterKind::Unsupported;
       auto [entry_row, entry_layout] =
@@ -3839,9 +3865,10 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                            .arg(folder_detail)
                            .arg(row_clipped ? tr("\nClipped to the layer below") : QString()));
       const auto* smart_filters = it->smart_filter_stack();
+      const auto smart_filters_expanded = !session().collapsed_smart_filters.contains(it->id());
       const auto smart_filter_row_count =
           smart_filters != nullptr
-              ? 1 + static_cast<int>(smart_filters->entries.size())
+              ? 1 + (smart_filters_expanded ? static_cast<int>(smart_filters->entries.size()) : 0)
               : 0;
       const auto effect_count = it->layer_style().effect_count();
       const auto effects_expanded = session().expanded_layer_effects.contains(it->id());
@@ -4004,7 +4031,9 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                         edit_layer_effect(layer_id, effect, index);
                                       },
                                       session().expanded_layer_effects.contains(layer.id()),
-                                      [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); });
+                                      [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); },
+                                      !session().collapsed_smart_filters.contains(layer.id()),
+                                      [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); });
     widget_ms += phase_ms(widget_started);
     if (session_layer == layer.id() && layer_is_text(layer)) {
       // The content tile above came without the badge; the tooltip has to agree.

@@ -14,11 +14,18 @@ menu `documentTabContextMenu` fresh on each right-click:
 | Reveal in Explorer (Finder, file manager) | `documentTabRevealAction` | per-platform label |
 | Copy File Path | `documentTabCopyPathAction` | native separators |
 | Rename File... | `documentTabRenameFileAction` | below; hidden on wasm |
+| Scan for Watermarks... | `documentTabScanForWatermarksAction` | after a separator; File > Scan for Watermarks for the clicked document |
 
 The file items act on the session under the clicked tab (by session id, since the session
 may close while the menu is open) and are disabled when it has no path: a never-saved
 document or an embedded Smart Object's tab. Rename File is also disabled on a linked Smart
 Object's tab, whose path is the parent's link target.
+
+Scan for Watermarks works on any document, saved or not. It activates the clicked document
+(after the menu has closed), then runs `show_file_info_dialog(true)`: File Info on its
+Watermarks page with the scan already run ([watermarks.md](watermarks.md#scan-results)). The
+item shows the shortcut of File > Scan for Watermarks... (`fileScanForWatermarksAction`, hotkey
+id `file.scan_for_watermarks`, no default key), which owns the key.
 
 ## Rename File
 
@@ -71,4 +78,6 @@ modified, then Save to the new name; an existing target refused with both files 
 a case-only rename; invalid names and the unchanged name; the item disabled for an
 untitled document; Unicode folder and names; Dark and Light captures
 (`rename_file_tab_menu_*`, `rename_file_dialog_*`). The other menu items:
-`ui_document_tab_context_menu` (tests/ui/layer_context_lifecycle_tests.cpp).
+`ui_document_tab_context_menu` (tests/ui/layer_context_lifecycle_tests.cpp); Scan for
+Watermarks: `ui_document_tab_scan_for_watermarks` (tests/ui/file_info_tests.cpp, capture
+`ui_document_tab_menu_scan_for_watermarks`).

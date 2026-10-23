@@ -5,6 +5,8 @@ Patchy can read from the document's source file, edits the Photoshop-style Descr
 IPTC fields, and stages Strip All Metadata, Remove Location and Remove Edit History. File >
 Strip All Metadata (`file.strip_metadata`, no default key) strips without opening the dialog.
 Both are undoable (`push_undo_snapshot`) and change the file only on the next save.
+File > Scan for Watermarks... (`file.scan_for_watermarks`, no default key; also on the
+document tab's menu) opens File Info on the Watermarks page with the scan run.
 
 ## Model
 
@@ -40,7 +42,9 @@ Both are undoable (`push_undo_snapshot`) and change the file only on the next sa
   in the file's color space (Qt's PNG/JPEG/TIFF/WebP/GIF readers, the BMP reader, the JPEG XL
   reader for 8 and 16-bit RGB). WIC
   HEIF/JPEG XR, LibRaw and the HEIF Qt fallback convert to sRGB, so their profile is
-  display-only, as are gray and CMYK profiles; `source_icc_note` says why.
+  display-only, as are gray and CMYK profiles; `source_icc_note` says why. A kept RGB
+  profile that is not sRGB then converts to sRGB on open (on by default) and becomes
+  display-only too ([rgb-profiles.md](rgb-profiles.md)).
 - When the decoder applied the orientation (Qt `autoTransform` reported a transformation,
   the WIC HEIF reader, LibRaw), `bake_orientation` writes EXIF Orientation and XMP
   `tiff:Orientation` back as 1 and records the original as an observed item.
@@ -210,7 +214,7 @@ by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
   observed item "Watermark declared in Content Credentials", privacy `watermark`. IPTC
   DigitalSourceType says how an image was made, not that it carries a mark, and stays aiPrompt.
 - Pixel scan: the Watermarks page's Scan for Watermarks (`fileInfoScanWatermarksButton`,
-  result `fileInfoWatermarkScanResult`) and `doc.scanForWatermarks()`. It runs only on that
+  per-kind results in [watermarks.md](watermarks.md#scan-results)) and `doc.scanForWatermarks()`. It runs only on that
   request, never at open or per repaint: `Compositor::flatten_rgb8` of the document as it is
   now, then `scan_invisible_watermarks` (`src/core/invisible_watermark.cpp`). A hit adds a
   "Pixel scan" / "Invisible watermark" row (privacy watermark) to All Metadata and a banner
@@ -254,8 +258,7 @@ by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
   lives in fine chroma detail, and in `ui_file_info_scans_for_watermarks` a marked SDXL image
   still decodes exactly after Qt's JPEG at quality 100 but keeps 6 of 48 bits wrong at 95 and
   19 at 90 (not found). Many watermarks have no public
-  decoder (Google SynthID); the page says so. Adobe TrustMark needs a downloaded ONNX model
-  and is not included.
+  decoder (Google SynthID, Digimarc); the page says so under the results.
 
 ## Tests
 

@@ -818,6 +818,26 @@ interface PatchyTrustMarkMark {
   confidence: number;
 }
 
+/** One kind of watermark `doc.scanForWatermarks()` checked, in File Info's order. */
+interface PatchyWatermarkCheck {
+  /** Permanent id: "stableDiffusion1" | "stableDiffusion2" | "stableDiffusionXL" | "trustmarkQ" |
+   *  "trustmarkP" | "trustmarkC" | "c2paDeclared" (a watermark the file's C2PA metadata declares). */
+  id: string;
+  /** Display name, for example "Adobe TrustMark Q". */
+  name: string;
+  status: "found" | "notFound" | "notChecked";
+  /** Why a "notChecked" kind was skipped; "" otherwise. */
+  reason: "" | "imageTooSmall" | "modelsNotDownloaded" | "notSupported" | "failed";
+  /** File Info's text for the row: what was found, or why it was not checked (translated). */
+  detail: string;
+  /** Stable Diffusion rows, when found. */
+  match?: PatchyWatermarkMatch;
+  /** TrustMark rows, when found. */
+  mark?: PatchyTrustMarkMark;
+  /** The C2PA row: each declaration's summary. */
+  declarations?: string[];
+}
+
 /** One known invisible watermark `doc.scanForWatermarks()` found in the pixels. */
 interface PatchyWatermarkMatch {
   /** Permanent id: "stableDiffusion1" | "stableDiffusion2" | "stableDiffusionXL". */
@@ -894,6 +914,11 @@ interface PatchyDocument {
   readonly xmp: string;
   /** Bits per channel: 8, 16 or 32 (32 is floating point, linear light). */
   readonly bitDepth: 8 | 16 | 32;
+  /**
+   * The name of the document's RGB color profile: the embedded profile's description, or
+   * "sRGB IEC61966-2.1" when the document has none (Patchy treats untagged RGB as sRGB).
+   */
+  readonly colorProfile: string;
   /**
    * Image > Mode > CMYK Proof: the canvas shows the document through the working CMYK
    * profile, and saves to .jpg, .tif and flattened .pdf write CMYK unless the options give
@@ -1041,9 +1066,10 @@ interface PatchyDocument {
    *  invisible watermarks of Stable Diffusion 1.x, 2.x and SDXL (`scanned` is false for
    *  images under 256 x 256 pixels), and for Adobe TrustMark when the watermark models are
    *  downloaded (`trustmark.available`; see app.downloadWatermarkModels). Read-only.
-   *  Watermarks declared in metadata are the metadataEntries() rows with privacy "watermark". */
+   *  Watermarks declared in metadata are the metadataEntries() rows with privacy "watermark".
+   *  `checks` lists every kind checked, always all seven, with its status. */
   scanForWatermarks(): {scanned: boolean; matches: PatchyWatermarkMatch[];
-    trustmark: {available: boolean; marks: PatchyTrustMarkMark[]}};
+    trustmark: {available: boolean; marks: PatchyTrustMarkMark[]}; checks: PatchyWatermarkCheck[]};
   /** Image > Add Invisible Watermark: embeds an Adobe TrustMark watermark (variant Q) into the
    *  active pixel layer, which must fill the image, in an 8-bit document. Give `text`
    *  (printable ASCII; 8 characters with BCH_5, 5 with BCH_SUPER, 9 with BCH_4, 10 with
@@ -1089,6 +1115,22 @@ interface PatchyDocument {
   /** Image > Mode > 8/16/32 Bits/Channel: converts every layer, mask and channel.
    *  16 and 32 need deep editing to be on; Indexed documents stay 8-bit. */
   convertBitDepth(bits: 8 | 16 | 32): void;
+  /**
+   * Edit > Convert to Profile: converts the pixels from the document's RGB profile to
+   * `profile`, "sRGB" or the path of an RGB .icc/.icm file, which becomes the embedded
+   * profile (none for sRGB). Pixel layers, Smart Object previews and the imported palette
+   * convert; text, shape, fill and adjustment colors and layer styles keep their values.
+   * `intent` defaults to "relative-colorimetric", `blackPointCompensation` to true.
+   * Throws for an unusable profile, in Indexed mode and in CMYK Proof; 32-bit documents
+   * convert only between matrix-based profiles.
+   */
+  convertToProfile(
+    profile: string,
+    options?: {
+      intent?: "perceptual" | "relative-colorimetric" | "saturation" | "absolute-colorimetric";
+      blackPointCompensation?: boolean;
+    },
+  ): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
   /**

@@ -35,6 +35,11 @@ struct DocumentSession {
   Document document;
   QString title;
   QString path;
+  // The file at `path` opened by its content because its name says another format or none
+  // (GitHub issue 362): the extension of what it really is ("psd"). Save goes to Save As
+  // with that extension suggested, so a mislabeled file never gets bytes its name hides;
+  // cleared once a save gives the document a file of its own.
+  QString content_extension;
   // Added in the background (SessionActivation::Background): its canvas has never been
   // shown, so it has no real size to fit to yet. The first activation fits it.
   bool fit_view_on_first_activation{false};
@@ -76,9 +81,11 @@ struct DocumentSession {
   int floated_from_tab_index{-1};
   SessionHistory history;
   std::set<LayerId> collapsed_layer_groups;
-  // Layers whose effect rows are open in the Layers panel (GitHub issue 256 follow-up):
-  // closed by default, remembered for the session only, never written to the file.
+  // Layers whose effect rows are open in the Layers panel (GitHub issue 256 follow-up): closed by
+  // default. Seeded from the file at open and written back on save like the folders (issue 361).
   std::set<LayerId> expanded_layer_effects;
+  // Layers whose Smart Filter rows are closed in the Layers panel: open by default (issue 361).
+  std::set<LayerId> collapsed_smart_filters;
   // Alt-click eye isolation. `saved` is the pre-isolation visibility snapshot
   // (pre-order); `applied` is the state right after isolating, so any outside
   // visibility change invalidates the restore and the next Alt-click starts a
@@ -94,10 +101,12 @@ struct DocumentSession {
 
   // The document as a layered save writes it: a copy-on-write copy whose groups carry the
   // Layers panel's open/closed state (`collapsed_layer_groups`, which layer metadata only
-  // seeds at open), so the file reopens with the folders the user left open (issue 179).
+  // seeds at open), so the file reopens with the folders the user left open (issue 179), and
+  // whose layers carry the open/closed state of their layer style and Smart Filter rows (issue 361).
   [[nodiscard]] Document document_for_write() const {
     Document copy = document;
     apply_layer_group_disclosure(copy.layers(), collapsed_layer_groups);
+    apply_layer_fx_disclosure(copy.layers(), expanded_layer_effects, collapsed_smart_filters);
     return copy;
   }
 };

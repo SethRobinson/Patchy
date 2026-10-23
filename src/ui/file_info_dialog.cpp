@@ -9,6 +9,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/object_selection_model_download.hpp"
 #include "ui/watermark_model_download.hpp"
+#include "ui/watermark_scan_report.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -43,6 +44,7 @@
 #include <QVBoxLayout>
 
 #include <functional>
+#include <initializer_list>
 #include <map>
 #include <string>
 
@@ -376,20 +378,6 @@ QString privacy_summary_text(const std::map<md::PrivacyClass, std::size_t>& coun
   return text;
 }
 
-// The payload as TrustMark text when it reads as text, otherwise its hexadecimal ID.
-QString trustmark_payload_text(const patchy::ai::TrustMarkMark& mark) {
-  return mark.text.empty() ? QString::fromStdString(mark.hex)
-                           : QStringLiteral("“%1”").arg(QString::fromStdString(mark.text));
-}
-
-QString trustmark_mark_text(const patchy::ai::TrustMarkMark& mark) {
-  const auto variant = patchy::ai::trustmark_variant_name(mark.variant);
-  const auto schema = patchy::trustmark::schema_name(mark.schema);
-  return QObject::tr("Found a TrustMark watermark (variant %1, %2) carrying %3.")
-      .arg(QString::fromLatin1(variant.data(), static_cast<qsizetype>(variant.size())),
-           QString::fromLatin1(schema.data(), static_cast<qsizetype>(schema.size())), trustmark_payload_text(mark));
-}
-
 // All Metadata's untranslated value for a TrustMark hit.
 std::string trustmark_mark_identifiers(const patchy::ai::TrustMarkMark& mark) {
   std::string value = "variant " + std::string(patchy::ai::trustmark_variant_name(mark.variant)) + ", " +
@@ -486,6 +474,18 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
       padding-top: 8px;
     }
     QLabel#fileInfoNote {
+      color: @hint_text;
+    }
+    QLabel#fileInfoWatermarkCheckStatus[watermarkStatus="found"] {
+      background: @warning_banner_bg;
+      border: 1px solid @warning_banner_border;
+      border-radius: 3px;
+      color: @warning_banner_text;
+      font-weight: bold;
+      padding: 1px 6px;
+    }
+    QLabel#fileInfoWatermarkCheckStatus[watermarkStatus="notChecked"],
+    QLabel#fileInfoWatermarkCheckDetail[watermarkStatus="notChecked"] {
       color: @hint_text;
     }
     QLabel#fileInfoPrivacyBanner {
@@ -727,10 +727,7 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
   std::vector<md::MetadataEntry> entries;
   std::function<void()> populate;
   // Scan for Watermarks reads the pixels only when asked (never at open or per repaint).
-  std::optional<InvisibleWatermarkScan> watermark_scan;
-  // TrustMark's part of the same scan; empty when its models are not downloaded.
-  std::optional<patchy::ai::TrustMarkScan> trustmark_scan;
-  QString trustmark_error;
+  std::optional<WatermarkScanReport> watermark_report;
   configure_downloaded_object_selection_model();  // points the engine at the download folder
 
   // Folds pending field edits into the working copy before a staged operation.
@@ -975,76 +972,94 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
                           "image usually removes them."));
     auto* scan_button = new QPushButton(QObject::tr("Scan for Watermarks"), content);
     scan_button->setObjectName(QStringLiteral("fileInfoScanWatermarksButton"));
-    QObject::connect(scan_button, &QPushButton::clicked, &dialog, [&] {
-      commit_fields();
+    const auto run_scan = [&] {
       QGuiApplication::setOverrideCursor(Qt::WaitCursor);
-      const auto flattened = Compositor{}.flatten_rgb8(document);
-      watermark_scan = scan_invisible_watermarks(flattened);
-      trustmark_scan.reset();
-      trustmark_error.clear();
-      if (patchy::ai::trustmark_models_available()) {
-        try {
-          trustmark_scan = patchy::ai::scan_trustmark(flattened);
-        } catch (const std::exception& error) {
-          trustmark_error = QString::fromUtf8(error.what());
-        }
-      }
+      watermark_report = scan_watermarks(Compositor{}.flatten_rgb8(document), working.observed);
       QGuiApplication::restoreOverrideCursor();
+    };
+    QObject::connect(scan_button, &QPushButton::clicked, &dialog, [&, run_scan] {
+      commit_fields();
+      run_scan();
       populate();
     });
     rows.widget(scan_button);
-    if (watermark_scan) {
-      QStringList lines;
-      if (!watermark_scan->scanned) {
-        lines.push_back(QObject::tr("The image is too small to carry these watermarks: they need at least 256 x 256 "
-                                    "pixels."));
-      }
-      for (const auto& match : watermark_scan->matches) {
-        lines.push_back(QObject::tr("Found the %1 watermark: %2 of %3 bits match.")
-                            .arg(QString::fromLatin1(match.name.data(), static_cast<qsizetype>(match.name.size())))
-                            .arg(match.bit_count - match.differing_bits)
-                            .arg(match.bit_count));
-      }
-      const bool trustmark_found = trustmark_scan.has_value() && !trustmark_scan->marks.empty();
-      if (trustmark_scan.has_value()) {
-        for (const auto& mark : trustmark_scan->marks) {
-          lines.push_back(trustmark_mark_text(mark));
+    if (watermark_report) {
+      // Rebuilt on every populate so the metadata row follows a staged Strip All Metadata.
+      watermark_report->checks = watermark_checks(watermark_report->stable_diffusion, watermark_report->trustmark,
+                                                  watermark_report->trustmark_error, working.observed);
+      QStringList found;
+      bool unchecked = false;
+      for (const auto& check : watermark_report->checks) {
+        if (check.status == WatermarkCheckStatus::Found) {
+          found.push_back(check.name);
         }
+        unchecked = unchecked || check.status == WatermarkCheckStatus::NotChecked;
       }
-      if (watermark_scan->matches.empty() && !trustmark_found) {
-        if (trustmark_scan.has_value()) {
-          lines.push_back(QObject::tr("None of the known watermarks was found."));
-        } else if (watermark_scan->scanned) {
-          lines.push_back(QObject::tr("None of the Stable Diffusion watermarks was found."));
-        }
+      QString summary;
+      if (!found.isEmpty()) {
+        summary = QObject::tr("Found: %1.").arg(found.join(QStringLiteral(", ")));
+      } else if (unchecked) {
+        summary = QObject::tr("None of the watermarks that could be checked was found. Some kinds were not checked.");
+      } else {
+        summary = QObject::tr("None of the known watermarks was found.");
       }
-      if (!trustmark_error.isEmpty()) {
-        lines.push_back(QObject::tr("TrustMark could not run: %1").arg(trustmark_error));
-      }
-      auto* label = value_label(lines.join(QLatin1Char('\n')), content);
+      auto* label = value_label(summary, content);
       label->setObjectName(QStringLiteral("fileInfoWatermarkScanResult"));
       rows.widget(label);
+
+      auto* table = new QWidget(content);
+      table->setObjectName(QStringLiteral("fileInfoWatermarkScanResults"));
+      auto* grid = new QGridLayout(table);
+      grid->setContentsMargins(0, 2, 0, 2);
+      grid->setHorizontalSpacing(14);
+      grid->setVerticalSpacing(5);
+      grid->setColumnStretch(2, 1);
+      int row = 0;
+      for (const auto& check : watermark_report->checks) {
+        const auto token = watermark_check_status_token(check.status);
+        auto* name_label = value_label(check.name, table);
+        name_label->setObjectName(QStringLiteral("fileInfoWatermarkCheckName"));
+        name_label->setWordWrap(false);
+        auto* status_label = value_label(watermark_check_status_text(check.status), table);
+        status_label->setObjectName(QStringLiteral("fileInfoWatermarkCheckStatus"));
+        status_label->setWordWrap(false);
+        auto* detail_label = value_label(check.detail, table);
+        detail_label->setObjectName(QStringLiteral("fileInfoWatermarkCheckDetail"));
+        for (auto* cell : {name_label, status_label, detail_label}) {
+          cell->setProperty("watermarkCheck", check.id);
+          cell->setProperty("watermarkStatus", token);
+        }
+        grid->addWidget(name_label, row, 0, Qt::AlignLeft | Qt::AlignVCenter);
+        grid->addWidget(status_label, row, 1, Qt::AlignLeft | Qt::AlignVCenter);
+        grid->addWidget(detail_label, row, 2, Qt::AlignVCenter);
+        ++row;
+      }
+      rows.widget(table);
     }
     if (!patchy::ai::trustmark_models_available()) {
       if (patchy::ai::trustmark_runtime_available() && watermarks.download_models) {
         rows.note(QObject::tr("Adobe TrustMark, the open watermark behind durable Content Credentials, needs the "
-                              "watermark models: a %1 MB download from Adobe, made only when you ask.")
-                      .arg(watermark_model_download_megabytes()));
+                              "watermark models (Adobe's, MIT License): a %1 MB download from %2, made only when "
+                              "you ask.")
+                      .arg(watermark_model_download_megabytes())
+                      .arg(model_download_source_text(watermark_model_files())));
         auto* download_button = new QPushButton(QObject::tr("Download Watermark Models"), content);
         download_button->setObjectName(QStringLiteral("fileInfoDownloadWatermarkModelsButton"));
-        QObject::connect(download_button, &QPushButton::clicked, &dialog, [&] {
+        QObject::connect(download_button, &QPushButton::clicked, &dialog, [&, run_scan] {
           commit_fields();
           if (watermarks.download_models(&dialog)) {
+            if (watermark_report) {
+              run_scan();  // the TrustMark rows were Not checked; fill them in
+            }
             populate();
           }
         });
         rows.widget(download_button);
-      } else {
+      } else if (!watermark_report) {
         rows.note(QObject::tr("This version of Patchy cannot read TrustMark watermarks."));
       }
     }
-    rows.note(QObject::tr("Many watermarks, such as Google SynthID, can only be read with their owners' tools, so "
-                          "no scan here can find them."));
+    rows.note(watermark_scan_limits_note());
     layout->addStretch(1);
     replace_page_content(watermarks_page, content);
   };
@@ -1151,8 +1166,8 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     entries = md::describe_file_info(working, working_icc);
     QStringList pixel_watermarks;
     const auto counts = md::privacy_summary(entries);
-    if (watermark_scan) {
-      for (const auto& match : watermark_scan->matches) {
+    if (watermark_report) {
+      for (const auto& match : watermark_report->stable_diffusion.matches) {
         const auto name = QString::fromLatin1(match.name.data(), static_cast<qsizetype>(match.name.size()));
         pixel_watermarks.push_back(name);
         // All Metadata values are untranslated identifiers (docs/file-info.md).
@@ -1164,9 +1179,9 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
             "pixels", md::PrivacyClass::Watermark});
       }
     }
-    if (trustmark_scan.has_value() && !trustmark_scan->marks.empty()) {
+    if (watermark_report && watermark_report->trustmark.has_value() && !watermark_report->trustmark->marks.empty()) {
       pixel_watermarks.push_back(QStringLiteral("TrustMark"));
-      for (const auto& mark : trustmark_scan->marks) {
+      for (const auto& mark : watermark_report->trustmark->marks) {
         entries.push_back(md::MetadataEntry{"Pixel scan", "TrustMark watermark", trustmark_mark_identifiers(mark),
                                             "pixels", md::PrivacyClass::Watermark});
       }

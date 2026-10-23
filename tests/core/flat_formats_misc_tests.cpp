@@ -1549,6 +1549,42 @@ void webp_animation_millisecond_tokens_preserve_gif_rounding() {
   }
 }
 
+// GitHub issue 362: a file opens by its content when its name says another format or
+// none. The sniff names what Patchy can open and nothing else.
+void sniff_openable_image_format_names_what_patchy_opens() {
+  using patchy::formats::extensions_share_format;
+  using patchy::formats::sniff_openable_image_format;
+  using Bytes = std::vector<std::uint8_t>;
+  const auto of = [](std::string_view text) {
+    return Bytes(text.begin(), text.end());
+  };
+  const auto extension_of = [&](const Bytes& bytes) {
+    const auto sniffed = sniff_openable_image_format(bytes);
+    return sniffed.has_value() ? sniffed->extension : std::string("(none)");
+  };
+  const auto psd = of(std::string_view("8BPS\0\x01\0\0\0\0\0\0\0\x03", 14));
+  CHECK(extension_of(psd) == "psd");
+  CHECK(sniff_openable_image_format(psd)->name == "Photoshop");
+  CHECK(extension_of(of("\x89PNG\r\n\x1a\n")) == "png");
+  CHECK(extension_of(Bytes{0xff, 0xd8, 0xff, 0xe0, 0, 16}) == "jpg");
+  CHECK(extension_of(of("GIF89a....")) == "gif");
+  CHECK(extension_of(of("%PDF-1.7 ...")) == "pdf");
+  // Formats Patchy cannot open, unrecognized bytes, text and an empty file: nothing.
+  CHECK(extension_of(of("qoif....")) == "(none)");
+  CHECK(extension_of(of("PK\x03\x04 zip")) == "(none)");
+  CHECK(extension_of(Bytes{0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0xfe, 0xfd}) == "(none)");
+  CHECK(extension_of(of("just some text")) == "(none)");
+  CHECK(extension_of(Bytes{}) == "(none)");
+
+  CHECK(extensions_share_format("jpg", "JPEG"));
+  CHECK(extensions_share_format("tif", "tiff"));
+  CHECK(extensions_share_format("psd", "PSB"));
+  CHECK(extensions_share_format("png", "apng"));
+  CHECK(!extensions_share_format("psd", "bin"));
+  CHECK(!extensions_share_format("png", "jpg"));
+  CHECK(!extensions_share_format("psd", ""));
+}
+
 // GitHub issue 117: the reason a rejected JPEG or TIFF could not be opened, from its bytes.
 void undecodable_image_diagnosis_names_the_real_reason() {
   using patchy::formats::diagnose_undecodable_image;
@@ -2133,6 +2169,7 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"gif_document_write_quantizes_and_round_trips", gif_document_write_quantizes_and_round_trips},
       {"gif_animation_encodes_frames_delays_and_loop", gif_animation_encodes_frames_delays_and_loop},
       {"gif_layer_name_delay_token_round_trips", gif_layer_name_delay_token_round_trips},
+      {"sniff_openable_image_format_names_what_patchy_opens", sniff_openable_image_format_names_what_patchy_opens},
       {"undecodable_image_diagnosis_names_the_real_reason", undecodable_image_diagnosis_names_the_real_reason},
       {"hdr_rgbe_round_trips_linear_values", hdr_rgbe_round_trips_linear_values},
       {"exr_round_trips_float_rgba", exr_round_trips_float_rgba},

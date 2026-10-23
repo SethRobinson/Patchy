@@ -126,10 +126,6 @@
         <translation>100% to domyślne ustawienie TrustMark. Niższa wartość jest mniej widoczna, ale łatwiej ją utracić; Adobe używa 150% do wydruków.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>Wymaga modeli znaków wodnych: pobranie %1 MB od Adobe.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Pobierz modele znaków wodnych</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>Pozostało %1 z %2 znaków</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>Wymaga modeli znaków wodnych (od Adobe, licencja MIT): pobranie %1 MB z %2.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>Wtyczka zgłosiła błąd.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (wydanie %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>Kopiuj link</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Pobieranie</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Z:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>Plik %1 z %2: %3 (%4 MB)</translation>
     </message>
 </context>
 <context>
@@ -12001,40 +12031,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Skanuj w poszukiwaniu znaków wodnych</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>Obraz jest za mały, by zawierać te znaki wodne: potrzebują co najmniej 256 x 256 pikseli.</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>Nie znaleziono żadnego ze znanych znaków wodnych.</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>Znaleziono znak wodny %1: zgadza się %2 z %3 bitów.</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>Wiele znaków wodnych, na przykład Google SynthID, można odczytać tylko narzędziami ich właścicieli, więc ten skan ich nie znajdzie.</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>Znaleziono znak wodny TrustMark (wariant %1, %2) zawierający %3.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>Skanuj w poszukiwaniu znaków wodnych sprawdza obraz w obecnym stanie pod kątem otwartych niewidocznych znaków wodnych, które Stable Diffusion 1.x, 2.x i SDXL dodają do generowanych obrazów, a po pobraniu modeli znaków wodnych także Adobe TrustMark. Kadrowanie, zmiana rozmiaru lub zamalowanie obrazu zwykle je usuwa.</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Nie znaleziono żadnego znaku wodnego Stable Diffusion.</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>Nie udało się uruchomić TrustMark: %1</translation>
-    </message>
-    <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark, otwarty znak wodny trwałych Content Credentials, wymaga modeli znaków wodnych: pobrania %1 MB od Adobe, tylko na Twoje żądanie.</translation>
     </message>
     <message>
         <source>Download Watermark Models</source>
@@ -12063,6 +12065,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>Dodano Twój niewidoczny znak wodny.</translation>
+    </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>Zwiń wiersze inteligentnych filtrów</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>Rozwiń wiersze inteligentnych filtrów</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark, otwarty znak wodny stojący za trwałymi Content Credentials, wymaga modeli znaków wodnych (od Adobe, licencja MIT): pobranie %1 MB z %2, tylko na Twoje żądanie.</translation>
+    </message>
+    <message>
+        <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
+        <translation>To jest plik %1 bez rozszerzenia; Zapisz proponuje rozszerzenie .%2</translation>
+    </message>
+    <message>
+        <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
+        <translation>To jest plik %1 z rozszerzeniem .%2; Zapisz proponuje rozszerzenie .%3</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>Znaleziono: %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>Nie znaleziono żadnego ze sprawdzalnych znaków wodnych. Niektórych rodzajów nie sprawdzono.</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>Konwertuj na profil</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>Bieżący profil:</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>Wybierz plik profilu...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>Wybierz profil RGB</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>Profile ICC (*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>&quot;%1&quot; nie jest profilem RGB, którego Patchy może użyć.</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>Profil docelowy:</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>Względny kolorymetryczny</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>Bezwzględny kolorymetryczny</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>Metoda konwersji kolorów:</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>Kompensacja punktu czerni</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy wyświetla kolory RGB jako sRGB. Dokument przekonwertowany na inny profil wygląda tu na ekranie inaczej, a jego zapisy zawierają ten profil.</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>Nie udało się przekonwertować profilu kolorów %1 na sRGB, więc plik zachowuje swoje kolory i profil</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>Przekonwertowano z profilu kolorów %1 na sRGB</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>Kolory zapisane w warstwach tekstowych, kształtów, wypełnienia i dopasowania oraz w stylach warstw zachowują wartości z pliku; na sRGB przekonwertowano tylko piksele</translation>
     </message>
 </context>
 <context>
@@ -12175,6 +12265,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>Widok pikseli: dynamiczny podgląd wektorowy nie mógł wyrenderować tego widoku.</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>Obraz ma mniej niż 256 x 256 pikseli, jest za mały na ten znak.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>Zgodnych bitów: %1 z %2.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>Nie można uruchomić TrustMark: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Ta wersja Patchy nie odczytuje znaków wodnych TrustMark.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>Modele znaków wodnych nie są pobrane.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>Zawiera %1 (%2), pewność %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>Zadeklarowany w metadanych C2PA</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>Znaleziono</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>Nie znaleziono</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>Nie sprawdzono</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Niektóre znaki wodne, takie jak Google SynthID i Digimarc, można odczytać tylko narzędziami ich właścicieli, więc żadne skanowanie tutaj ich nie znajdzie. Nie znaleziono oznacza tylko, że nie znaleziono żadnego z powyższych rodzajów.</translation>
     </message>
 </context>
 <context>
@@ -22294,10 +22431,6 @@ Y: %2
         <translation>Pobrać model wysokiej jakości do zaznaczania obiektu?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Znajduje obiekty znacznie dokładniej niż wbudowany model. Pobieranie ma %1 MB z serwisu GitHub, a plik zostaje na tym komputerze. Model można zmienić w dowolnej chwili na pasku opcji zaznaczania obiektu.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>Zaznaczanie obiektu używa teraz modelu wysokiej jakości</translation>
     </message>
@@ -22330,20 +22463,12 @@ Y: %2
         <translation>Model wysokiej jakości do zaznaczania obiektu: pobrany (%1 MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Model wysokiej jakości do zaznaczania obiektu: niepobrany</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>Usunięto model wysokiej jakości do zaznaczania obiektu</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>Nie udało się usunąć modelu wysokiej jakości: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Pobiera model wysokiej jakości (%1 MB z serwisu GitHub). Zaznaczanie obiektu dokładniej wykrywa z nim obiekty.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24316,20 +24441,12 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Nie udało się pobrać modeli znaków wodnych: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Pobiera modele znaków wodnych Adobe TrustMark (%1 MB od Adobe). Skanowanie w poszukiwaniu znaków wodnych w Informacjach o pliku odczyta wtedy znaki TrustMark, a Obraz &gt; Dodaj niewidoczny znak wodny może go dodać.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>Usuwa pobrane modele znaków wodnych.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>Modele znaków wodnych TrustMark: pobrane (%1 MB)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>Modele znaków wodnych TrustMark: nie pobrano</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24562,6 +24679,78 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Always add without asking</source>
         <translation>Zawsze dodawaj bez pytania</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>Znajduje obiekty znacznie dokładniej niż wbudowany model. Pobieranie ma %1 MB z serwisu %2, a plik zostaje na tym komputerze. Model można zmienić w dowolnej chwili na pasku opcji zaznaczania obiektu.</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>Pobiera model wysokiej jakości (%1 MB z serwisu %2). Zaznaczanie obiektu dokładniej wykrywa z nim obiekty.</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>Model wysokiej jakości do zaznaczania obiektu: niepobrany (%1 MB z %2)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Pobiera modele znaków wodnych Adobe TrustMark (od Adobe, licencja MIT; %1 MB z %2). Skanowanie znaków wodnych w Informacjach o pliku odczyta wtedy znaki TrustMark, a Obraz &gt; Dodaj niewidoczny znak wodny może taki dodać.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>Modele znaków wodnych TrustMark: nie pobrano (%1 MB z %2)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>Modele znaków wodnych</translation>
+    </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Skanuj w poszukiwaniu znaków &amp;wodnych...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Skanuj w poszukiwaniu znaków wodnych...</translation>
+    </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>Konwertuj na pro&amp;fil...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>Najpierw otwórz dokument</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>Przed konwersją na inny profil przekonwertuj na kolory RGB</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>Przed konwersją na inny profil RGB wyjdź z próby CMYK</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>Dokumenty 32-bitowe konwertuje się tylko między profilami RGB opartymi na macierzy</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>Tego profilu nie można użyć do tej konwersji</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>Konwertuj na profil</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>Przekonwertowano z %1 na %2</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>Przy otwieraniu konwertuj pliki z innymi profilami RGB na sRGB</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy wyświetla i edytuje kolory RGB jako sRGB. Pliki w Display P3, Adobe RGB lub innym profilu RGB wyglądają poprawnie dopiero po konwersji. Po wyłączeniu otwierają się z własnymi wartościami i zachowują swój profil.</translation>
     </message>
 </context>
 <context>
@@ -26452,6 +26641,38 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>Opcje convertToProfile muszą być obiektem.</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent musi mieć wartość &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; lub &quot;absolute-colorimetric&quot;.</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation musi mieć wartość true lub false.</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile przyjmuje &quot;sRGB&quot; lub ścieżkę pliku profilu RGB: %1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>Najpierw przekonwertuj dokument indeksowany na kolory RGB.</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>Przed konwersją na inny profil RGB wyjdź z próby CMYK.</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>Dokumenty 32-bitowe konwertuje się tylko między profilami RGB opartymi na macierzy.</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>Tego profilu nie można użyć do tej konwersji.</translation>
     </message>
 </context>
 <context>

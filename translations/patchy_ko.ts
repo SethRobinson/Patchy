@@ -126,10 +126,6 @@
         <translation>100%가 TrustMark의 기본값입니다. 낮을수록 덜 보이지만 잃기 쉽습니다. Adobe는 인쇄물에 150%를 사용합니다.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>워터마크 모델이 필요합니다. Adobe에서 %1MB를 다운로드합니다.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>워터마크 모델 다운로드</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>%2자 중 %1자 남음</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>워터마크 모델(Adobe 제작, MIT 라이선스)이 필요합니다: %2에서 %1MB 다운로드.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>플러그인에서 오류를 보고했습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (릴리스 %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>링크 복사</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>다운로드 중</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>출처:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>취소</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>파일 %1/%2: %3 (%4MB)</translation>
     </message>
 </context>
 <context>
@@ -11931,40 +11961,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>워터마크 검사</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>이미지가 너무 작아 이 워터마크가 들어갈 수 없습니다. 최소 256 x 256 픽셀이 필요합니다.</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>알려진 워터마크를 찾지 못했습니다.</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>%1 워터마크를 찾았습니다: %3비트 중 %2비트 일치.</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>Google SynthID 같은 많은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서 검사해도 찾을 수 없습니다.</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>TrustMark 워터마크를 찾았습니다(변형 %1, %2): %3.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>워터마크 검사는 Stable Diffusion 1.x, 2.x, SDXL이 생성한 이미지에 넣는 공개된 보이지 않는 워터마크를 현재 이미지에서 찾고, 워터마크 모델을 다운로드하면 Adobe TrustMark도 찾습니다. 자르기, 크기 조정, 다시 칠하기를 하면 보통 사라집니다.</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Stable Diffusion 워터마크를 찾지 못했습니다.</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
-    </message>
-    <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>지속형 콘텐츠 자격 증명의 바탕이 되는 공개 워터마크 Adobe TrustMark에는 워터마크 모델이 필요합니다. 요청할 때만 Adobe에서 %1MB를 다운로드합니다.</translation>
     </message>
     <message>
         <source>Download Watermark Models</source>
@@ -11993,6 +11995,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>내 보이지 않는 워터마크를 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>스마트 필터 행 접기</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>스마트 필터 행 펼치기</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>지속적인 Content Credentials를 뒷받침하는 공개 워터마크 Adobe TrustMark에는 워터마크 모델(Adobe 제작, MIT 라이선스)이 필요합니다: %2에서 %1MB 다운로드하며, 요청할 때만 받습니다.</translation>
+    </message>
+    <message>
+        <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
+        <translation>확장자가 없는 %1 파일입니다. 저장할 때 .%2 확장자를 제안합니다</translation>
+    </message>
+    <message>
+        <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
+        <translation>확장자가 .%2인 %1 파일입니다. 저장할 때 .%3 확장자를 제안합니다</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>발견됨: %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>확인할 수 있는 워터마크를 찾지 못했습니다. 일부 종류는 확인하지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>프로파일로 변환</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>현재 프로파일:</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>프로파일 파일 선택...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>RGB 프로파일 선택</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>ICC 프로파일(*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>&quot;%1&quot;은(는) Patchy에서 사용할 수 있는 RGB 프로파일이 아닙니다.</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>대상 프로파일:</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>상대 색도계</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>절대 색도계</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>렌더링 의도:</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>검은 점 보정</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy는 RGB 색상을 sRGB로 표시합니다. 다른 프로파일로 변환한 문서는 여기 화면에서 다르게 보이며, 저장하면 그 프로파일이 포함됩니다.</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>색상 프로파일 %1을(를) sRGB로 변환할 수 없어 파일의 색상과 프로파일을 그대로 유지합니다</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>색상 프로파일 %1에서 sRGB로 변환했습니다</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>텍스트, 모양, 칠, 조정 레이어와 레이어 스타일에 저장된 색상은 파일의 값을 유지하며, sRGB로 변환된 것은 픽셀뿐입니다</translation>
     </message>
 </context>
 <context>
@@ -12105,6 +12195,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>픽셀 보기: 동적 벡터 미리 보기가 이 보기를 렌더링할 수 없습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>이미지가 256 x 256 픽셀보다 작아 이 워터마크를 담을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2비트 중 %1비트 일치.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>이 버전의 Patchy는 TrustMark 워터마크를 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>워터마크 모델을 다운로드하지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>%1 포함 (%2), 신뢰도 %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>C2PA 메타데이터에 선언됨</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>발견됨</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>찾지 못함</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>확인 안 함</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Google SynthID, Digimarc 같은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서는 어떤 검사로도 찾을 수 없습니다. 찾지 못함은 위의 종류 중 어느 것도 찾지 못했다는 뜻일 뿐입니다.</translation>
     </message>
 </context>
 <context>
@@ -22168,10 +22305,6 @@ Y: %2
         <translation>개체 선택용 고품질 모델을 다운로드하시겠습니까?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>기본 제공 모델보다 개체를 훨씬 더 정확하게 찾습니다. GitHub에서 %1MB를 다운로드하며 이 컴퓨터에 보관됩니다. 개체 선택 옵션 막대에서 언제든지 모델을 바꿀 수 있습니다.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>이제 개체 선택에서 고품질 모델을 사용합니다</translation>
     </message>
@@ -22204,20 +22337,12 @@ Y: %2
         <translation>개체 선택 고품질 모델: 다운로드됨(%1MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>개체 선택 고품질 모델: 다운로드되지 않음</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>개체 선택 고품질 모델을 삭제했습니다</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>고품질 모델을 삭제할 수 없습니다: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>고품질 모델을 다운로드합니다(GitHub에서 %1MB). 개체 선택이 개체를 더 정확하게 찾습니다.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24172,20 +24297,12 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>워터마크 모델을 다운로드할 수 없습니다: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Adobe TrustMark 워터마크 모델을 다운로드합니다(Adobe에서 %1MB). 그러면 파일 정보의 워터마크 검사로 TrustMark 워터마크를 읽고, 이미지 &gt; 보이지 않는 워터마크 추가로 워터마크를 넣을 수 있습니다.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>다운로드한 워터마크 모델을 삭제합니다.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark 워터마크 모델: 다운로드됨(%1MB)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark 워터마크 모델: 다운로드 안 됨</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24418,6 +24535,78 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Always add without asking</source>
         <translation>항상 묻지 않고 추가</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>기본 제공 모델보다 개체를 훨씬 더 정확하게 찾습니다. %2에서 %1MB를 다운로드하며 이 컴퓨터에 보관됩니다. 개체 선택 옵션 막대에서 언제든지 모델을 바꿀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>고품질 모델을 다운로드합니다(%2에서 %1MB). 개체 선택이 개체를 더 정확하게 찾습니다.</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>개체 선택 고품질 모델: 다운로드되지 않음 (%2에서 %1MB)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Adobe TrustMark 워터마크 모델을 다운로드합니다(Adobe 제작, MIT 라이선스, %2에서 %1MB). 그러면 파일 정보의 워터마크 검사가 TrustMark 워터마크를 읽고, 이미지 &gt; 보이지 않는 워터마크 추가로 워터마크를 넣을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark 워터마크 모델: 다운로드 안 됨 (%2에서 %1MB)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>워터마크 모델</translation>
+    </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>워터마크 검사(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>워터마크 검사...</translation>
+    </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>프로파일로 변환(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>먼저 문서를 여세요</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>다른 프로파일로 변환하기 전에 RGB 색상으로 변환하세요</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>다른 RGB 프로파일로 변환하기 전에 CMYK 교정을 끝내세요</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>32비트 문서는 행렬 기반 RGB 프로파일 사이에서만 변환됩니다</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>이 프로파일은 이 변환에 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>프로파일로 변환</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>%1에서 %2(으)로 변환했습니다</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>다른 RGB 프로파일이 있는 파일을 열 때 sRGB로 변환</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy는 RGB 색상을 sRGB로 표시하고 편집합니다. Display P3, Adobe RGB 또는 다른 RGB 프로파일의 파일은 변환해야 올바르게 보입니다. 끄면 파일이 원래 값으로 열리고 프로파일도 유지됩니다.</translation>
     </message>
 </context>
 <context>
@@ -26306,6 +26495,38 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>convertToProfile 옵션은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent는 &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; 또는 &quot;absolute-colorimetric&quot;이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation는 true 또는 false여야 합니다.</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile에는 &quot;sRGB&quot; 또는 RGB 프로파일 파일의 경로를 지정합니다: %1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>인덱스 색상 문서는 먼저 RGB 색상으로 변환하세요.</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>다른 RGB 프로파일로 변환하기 전에 CMYK 교정을 끝내세요.</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>32비트 문서는 행렬 기반 RGB 프로파일 사이에서만 변환됩니다.</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
     </message>
 </context>
 <context>

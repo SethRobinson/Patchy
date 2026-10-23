@@ -38,6 +38,8 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/palette_convert_dialog.hpp"
+#include "ui/convert_profile_dialog.hpp"
+#include "color/rgb_profiles.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/update_checker.hpp"
 
@@ -1042,6 +1044,67 @@ void MainWindow::convert_document_bit_depth(BitDepth depth) {
   refresh_hdr_exposure_control();
   update_document_action_state();
   statusBar()->showMessage(tr("Converted to %1").arg(label));
+}
+
+QString MainWindow::convert_to_profile_blocker() const {
+  if (!has_active_document()) {
+    return tr("Open a document first");
+  }
+  if (std::as_const(document()).palette_editing().has_value()) {
+    return tr("Convert to RGB Color before converting to another profile");
+  }
+  if (session().cmyk_proof) {
+    return tr("Leave CMYK Proof before converting to another RGB profile");
+  }
+  return {};
+}
+
+QString MainWindow::convert_active_document_to_profile(std::span<const std::uint8_t> destination,
+                                                       RenderingIntent intent, bool black_point_compensation) {
+  if (const auto blocker = convert_to_profile_blocker(); !blocker.isEmpty()) {
+    return blocker;
+  }
+  // Converting on a copy keeps the document untouched when a profile turns out unusable,
+  // and the undo snapshot is only taken for a real conversion.
+  auto converted = std::as_const(document());
+  const auto conversion = convert_document_rgb_profile(converted, destination, intent, black_point_compensation);
+  if (!conversion.has_value()) {
+    return std::as_const(document()).color_state().bit_depth == BitDepth::Float32
+               ? tr("32-bit documents convert only between matrix-based RGB profiles")
+               : tr("The profile cannot be used for this conversion");
+  }
+  push_undo_snapshot(tr("Convert to Profile"));
+  document() = std::move(converted);
+  if (canvas_ != nullptr) {
+    canvas_->document_changed();
+  }
+  refresh_layer_list();
+  refresh_document_info();
+  refresh_status_document_info();
+  update_document_action_state();
+  statusBar()->showMessage(tr("Converted from %1 to %2")
+                               .arg(QString::fromStdString(conversion->source_name),
+                                    QString::fromStdString(conversion->destination_name)));
+  return {};
+}
+
+void MainWindow::convert_to_profile_dialog() {
+  finish_active_text_editor();
+  if (const auto blocker = convert_to_profile_blocker(); !blocker.isEmpty()) {
+    show_status_error(blocker);
+    return;
+  }
+  const auto current = QString::fromStdString(
+      document_rgb_profile_name(std::as_const(document()).color_state().embedded_icc_profile));
+  const auto choice = request_convert_to_profile(this, current);
+  if (!choice.has_value() || !has_active_document()) {
+    return;
+  }
+  if (const auto error =
+          convert_active_document_to_profile(choice->destination, choice->intent, choice->black_point_compensation);
+      !error.isEmpty()) {
+    show_status_error(error);
+  }
 }
 
 void MainWindow::refresh_hdr_exposure_control() {

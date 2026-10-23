@@ -115,6 +115,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->title = std::move(title);
   session->path = std::move(path);
   collect_initially_collapsed_layer_groups(session->document.layers(), session->collapsed_layer_groups);
+  collect_initial_layer_fx_disclosure(session->document.layers(), session->expanded_layer_effects,
+                                      session->collapsed_smart_filters);
   session->canvas = new CanvasWidget(document_tabs_);
   session->canvas->setAcceptDrops(true);
   session->canvas->installEventFilter(this);
@@ -1218,6 +1220,9 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
 #endif
   auto* copy_path_action = menu.addAction(tr("Copy File Path"));
   auto* rename_file_action = menu.addAction(tr("Rename File..."));
+  menu.addSeparator();
+  // File > Scan for Watermarks for the clicked document (docs/document-tabs.md).
+  auto* scan_watermarks_action = menu.addAction(tr("Scan for Watermarks..."));
   close_action->setObjectName(QStringLiteral("documentTabCloseAction"));
   close_others_action->setObjectName(QStringLiteral("documentTabCloseOthersAction"));
   close_all_action->setObjectName(QStringLiteral("documentTabCloseAllAction"));
@@ -1226,6 +1231,11 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   reveal_action->setObjectName(QStringLiteral("documentTabRevealAction"));
   copy_path_action->setObjectName(QStringLiteral("documentTabCopyPathAction"));
   rename_file_action->setObjectName(QStringLiteral("documentTabRenameFileAction"));
+  scan_watermarks_action->setObjectName(QStringLiteral("documentTabScanForWatermarksAction"));
+  if (const auto* file_scan = findChild<QAction*>(QStringLiteral("fileScanForWatermarksAction")); file_scan != nullptr) {
+    scan_watermarks_action->setShortcut(file_scan->shortcut());  // shown only; the File action owns the key
+    scan_watermarks_action->setShortcutContext(Qt::WidgetShortcut);
+  }
   close_others_action->setEnabled(sessions_.size() > 1);
 #ifdef Q_OS_WASM
   // Float windows are off on wasm; see float_document_session. A rename would only
@@ -1273,6 +1283,15 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
     statusBar()->showMessage(tr("File path copied"));
   });
   connect(rename_file_action, &QAction::triggered, this, [this, session_id] { rename_document_file(session_id); });
+  connect(scan_watermarks_action, &QAction::triggered, this, [this, session_id] {
+    // After the menu has closed, so File Info is not opened from inside the menu's loop.
+    QTimer::singleShot(0, this, [this, session_id] {
+      if (auto* target = session_with_id(session_id); target != nullptr) {
+        activate_document_session(*target);
+        show_file_info_dialog(/*watermarks_scan*/ true);
+      }
+    });
+  });
   menu.exec(tab_bar->mapToGlobal(position));
 }
 

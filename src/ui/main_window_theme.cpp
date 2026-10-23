@@ -668,7 +668,8 @@ QString photoshop_style_template() {
     QListWidget#layerList {
       min-height: 120px;
     }
-    QToolButton#layerFolderDisclosureButton, QToolButton#layerEffectsDisclosureButton {
+    QToolButton#layerFolderDisclosureButton, QToolButton#layerEffectsDisclosureButton,
+    QToolButton#layerSmartFiltersDisclosureButton {
       background: transparent;
       color: @layer_glyph_text;
       border: 1px solid transparent;
@@ -679,16 +680,19 @@ QString photoshop_style_template() {
       min-height: 20px;
       max-height: 20px;
     }
-    QToolButton#layerFolderDisclosureButton:hover, QToolButton#layerEffectsDisclosureButton:hover {
+    QToolButton#layerFolderDisclosureButton:hover, QToolButton#layerEffectsDisclosureButton:hover,
+    QToolButton#layerSmartFiltersDisclosureButton:hover {
       border-color: @layer_button_hover_border;
       background: @layer_button_hover_bg;
     }
     QToolButton#layerFolderDisclosureButton[layerDragActive="true"]:hover,
-    QToolButton#layerEffectsDisclosureButton[layerDragActive="true"]:hover {
+    QToolButton#layerEffectsDisclosureButton[layerDragActive="true"]:hover,
+    QToolButton#layerSmartFiltersDisclosureButton[layerDragActive="true"]:hover {
       border-color: transparent;
       background: transparent;
     }
-    QToolButton#layerFolderDisclosureButton:disabled, QToolButton#layerEffectsDisclosureButton:disabled {
+    QToolButton#layerFolderDisclosureButton:disabled, QToolButton#layerEffectsDisclosureButton:disabled,
+    QToolButton#layerSmartFiltersDisclosureButton:disabled {
       color: transparent;
       border-color: transparent;
       background: transparent;
