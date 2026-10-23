@@ -35,6 +35,11 @@ struct DocumentSession {
   Document document;
   QString title;
   QString path;
+  // The file at `path` opened by its content because its name says another format or none
+  // (GitHub issue 362): the extension of what it really is ("psd"). Save goes to Save As
+  // with that extension suggested, so a mislabeled file never gets bytes its name hides;
+  // cleared once a save gives the document a file of its own.
+  QString content_extension;
   // Added in the background (SessionActivation::Background): its canvas has never been
   // shown, so it has no real size to fit to yet. The first activation fits it.
   bool fit_view_on_first_activation{false};
