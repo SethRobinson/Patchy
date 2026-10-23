@@ -136,6 +136,7 @@ add_library(patchy_core
   src/core/adjustment_deep.cpp
   src/core/adjustment_layer.cpp
   src/core/ink_space.cpp
+  src/core/invisible_watermark.cpp
   src/core/blend_math.cpp
   src/core/blend_math_deep.cpp
   src/core/brush_dynamics.cpp
@@ -2113,6 +2114,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/layer_alignment_tests.cpp
     tests/core/layer_metadata_tests.cpp
     tests/core/file_info_metadata_tests.cpp
+    tests/core/invisible_watermark_tests.cpp
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp

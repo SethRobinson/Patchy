@@ -29,6 +29,7 @@ enum class MetadataPrivacy : std::uint8_t {
   Timestamp,       // capture and edit dates (time-zone offsets hint at location)
   AiPrompt,        // generator prompts, workflows, digital source type
   Provenance,      // C2PA / Content Credentials
+  Watermark,       // a watermark declared in metadata or found in the pixels
 };
 
 enum class FileInfoTextKind : std::uint8_t {

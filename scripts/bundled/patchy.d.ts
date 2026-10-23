@@ -797,7 +797,21 @@ interface PatchyMetadataEntry {
   value: string;
   source: string;
   privacy: "none" | "location" | "deviceIdentity" | "personal" | "hiddenImage" | "editHistory" |
-    "machineInfo" | "timestamp" | "aiPrompt" | "provenance";
+    "machineInfo" | "timestamp" | "aiPrompt" | "provenance" | "watermark";
+}
+
+/** One known invisible watermark `doc.scanForWatermarks()` found in the pixels. */
+interface PatchyWatermarkMatch {
+  /** Permanent id: "stableDiffusion1" | "stableDiffusion2" | "stableDiffusionXL". */
+  id: string;
+  /** Display name, for example "Stable Diffusion XL". */
+  name: string;
+  /** Payload length in bits. */
+  bits: number;
+  /** Decoded bits that differ from the payload (at most one in twelve counts as found). */
+  differingBits: number;
+  /** True when it matched with the red and blue channels exchanged. */
+  redBlueSwapped: boolean;
 }
 
 interface PatchyDocument {
@@ -1010,6 +1024,11 @@ interface PatchyDocument {
   /** Removes XMP edit history, document ancestors, the text-layer cache and Camera Raw
    *  settings. Returns false when there was none. */
   removeEditHistory(): boolean;
+  /** File > File Info's Scan for Watermarks: checks the composite image for the open
+   *  invisible watermarks of Stable Diffusion 1.x, 2.x and SDXL. `scanned` is false for
+   *  images under 256 x 256 pixels. Read-only. Watermarks declared in metadata are the
+   *  metadataEntries() rows with privacy "watermark". */
+  scanForWatermarks(): {scanned: boolean; matches: PatchyWatermarkMatch[]};
   /** Image > Image Size. `options.method` is the resampling method (default "automatic":
    *  Bicubic Sharper for a reduction, Bicubic Smoother for an enlargement); an unknown id
    *  throws. Text layers and smart objects re-render from their sources afterwards. */

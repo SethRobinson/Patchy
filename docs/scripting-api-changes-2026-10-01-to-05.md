@@ -1,8 +1,8 @@
-# Scripting API changes: 2026-10-01 to 2026-10-05
+# Scripting API changes: archive 2026-10-01 to 2026-10-05
 
 Entries of the permanent scripting API change log, moved here unchanged when
-[scripting-api-changes.md](scripting-api-changes.md) reached its size limit. Newer
-entries live there, older ones in
+[scripting-api-changes.md](scripting-api-changes.md) reached its size limit. Newer entries
+live there, older ones in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 `app.apiVersion` stayed 1 throughout. Newest first.
 

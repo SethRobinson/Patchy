@@ -5,8 +5,8 @@ behavioral change is recorded here, newest first, in the same change that makes 
 entries are a permanent record. Entries through 2026-09-30 (the July 2026 API, MCP
 attachment, palettes, vector automation, brushes, Slow mode and Pause, text direction,
 Remove Object, Align/Distribute and smart objects) are in
-[scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md). Entries from
-2026-10-01 to 2026-10-05 are in
+[scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md),
+and those of 2026-10-01 to 2026-10-05 in
 [scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
 Every entry below is API 1.
 
@@ -20,6 +20,15 @@ profile converts it to sRGB unless the `imports/convertRgbProfilesToSrgb` prefer
 keys, command id `edit.convert_to_profile` and the settings keys `imports/convertRgbProfilesToSrgb`,
 `color/convertProfileDestination`, `color/convertProfileIntent`, `color/convertProfileBlackPoint`.
 Pinned by `ui_script_convert_to_profile`.
+
+2026-10-23 (additive): `doc.scanForWatermarks()`, File Info's Scan for Watermarks: returns
+`{scanned, matches: [{id, name, bits, differingBits, redBlueSwapped}]}` for the open invisible
+watermarks of Stable Diffusion 1.x, 2.x and SDXL found in the composite (`scanned` is false under
+256 x 256 pixels). `metadataEntries()` rows gain the privacy class `"watermark"` for watermarks
+declared in C2PA manifests. Permanent identifiers: the method name, every key, the match ids
+`stableDiffusion1`, `stableDiffusion2`, `stableDiffusionXL` and the privacy id `watermark`. Pinned
+by `ui_script_scan_for_watermarks`. See [file-info.md](file-info.md#watermarks).
+
 2026-10-23 (additive): `app.displayInfo()` lists every screen (primary first) with its geometry
 and HDR capability, read fresh per call: `hdrQueried`, `hdrEnabled`, `headroom`,
 `potentialHeadroom`, and on Windows `sdrWhiteNits`, `peakNits`, `fullFrameNits`, `minNits` (null

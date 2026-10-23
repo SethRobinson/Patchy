@@ -329,6 +329,15 @@ struct BoxWalker {
           if (!generator.empty()) {
             summary.claim_generator = generator;
           }
+        } else if (label.starts_with("c2pa.soft-binding")) {
+          // C2PA 2.x soft-binding assertion: {alg, blocks: [...], ...}.
+          auto algorithm = text_of(map_value(root, "alg"));
+          if (algorithm.empty()) {
+            algorithm = "unnamed algorithm";
+          }
+          if (summary.soft_bindings.size() < 16) {
+            summary.soft_bindings.push_back(std::move(algorithm));
+          }
         } else if (label.starts_with("c2pa.actions")) {
           if (const auto* actions = map_value(root, "actions"); actions != nullptr &&
                                                                 actions->type == CborItem::Type::Array) {
@@ -344,6 +353,10 @@ struct BoxWalker {
               const auto agent = text_of(map_value(action, "softwareAgent"));
               if (!agent.empty()) {
                 text += " by " + agent;
+              }
+              const auto name = text_of(map_value(action, "action"));
+              if (name.starts_with("c2pa.watermarked") && summary.watermark_actions.size() < 16) {
+                summary.watermark_actions.push_back(name);
               }
               if (!text.empty() && summary.actions.size() < 64) {
                 summary.actions.push_back(std::move(text));

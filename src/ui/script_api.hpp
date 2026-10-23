@@ -330,6 +330,9 @@ public:
   Q_INVOKABLE void stripMetadata(const QJSValue& options = QJSValue());
   Q_INVOKABLE bool removeLocation();
   Q_INVOKABLE bool removeEditHistory();
+  // File Info's Scan for Watermarks: the composite checked for the known open invisible
+  // watermarks (core/invisible_watermark.hpp). Read-only; never runs on its own.
+  Q_INVOKABLE QJSValue scanForWatermarks() const;
   [[nodiscard]] QJSValue file_info() const;
   [[nodiscard]] QString xmp() const;
   // `options.method`: a resample id (core/resample.hpp), default "automatic".

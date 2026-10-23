@@ -16,6 +16,13 @@ struct JumbfSummary {
   std::string claim_generator;      // from the active claim, when present
   std::vector<std::string> actions; // "c2pa.created (trainedAlgorithmicMedia)", ...
   std::string digital_source_type;  // first digitalSourceType seen in the actions
+  // Watermarks the manifest declares: each c2pa.soft-binding assertion's "alg" (for
+  // example "com.adobe.trustmark.Q"), and actions named c2pa.watermarked*.
+  std::vector<std::string> soft_bindings;
+  std::vector<std::string> watermark_actions;
+  [[nodiscard]] bool declares_watermark() const noexcept {
+    return !soft_bindings.empty() || !watermark_actions.empty();
+  }
 };
 
 [[nodiscard]] JumbfSummary summarize_jumbf(std::span<const std::uint8_t> bytes);

@@ -11820,64 +11820,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>검색 결과</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>프로파일로 변환</translation>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>픽셀에 보이지 않는 워터마크(%1)가 들어 있습니다. 메타데이터를 제거해도 지워지지 않습니다.</translation>
     </message>
     <message>
-        <source>Current profile:</source>
-        <translation>현재 프로파일:</translation>
+        <source>watermarks</source>
+        <translation>워터마크</translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
-        <translation>프로파일 파일 선택...</translation>
+        <source>Watermarks</source>
+        <translation>워터마크</translation>
     </message>
     <message>
-        <source>Choose RGB Profile</source>
-        <translation>RGB 프로파일 선택</translation>
+        <source>Declared in metadata</source>
+        <translation>메타데이터에 선언됨</translation>
     </message>
     <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC 프로파일(*.icc *.icm)</translation>
+        <source>Content Credentials:</source>
+        <translation>콘텐츠 자격 증명:</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot;은(는) Patchy에서 사용할 수 있는 RGB 프로파일이 아닙니다.</translation>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>파일 메타데이터에 선언된 워터마크가 없습니다.</translation>
     </message>
     <message>
-        <source>Destination profile:</source>
-        <translation>대상 프로파일:</translation>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>픽셀 속 보이지 않는 워터마크</translation>
     </message>
     <message>
-        <source>Relative Colorimetric</source>
-        <translation>상대 색도계</translation>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>워터마크 검사는 Stable Diffusion 1.x, 2.x, SDXL이 생성한 이미지에 넣는 공개된 보이지 않는 워터마크를 현재 이미지에서 찾습니다. 자르기, 크기 조정, 다시 칠하기를 하면 보통 사라집니다.</translation>
     </message>
     <message>
-        <source>Absolute Colorimetric</source>
-        <translation>절대 색도계</translation>
+        <source>Scan for Watermarks</source>
+        <translation>워터마크 검사</translation>
     </message>
     <message>
-        <source>Rendering intent:</source>
-        <translation>렌더링 의도:</translation>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>이미지가 너무 작아 이 워터마크가 들어갈 수 없습니다. 최소 256 x 256 픽셀이 필요합니다.</translation>
     </message>
     <message>
-        <source>Black point compensation</source>
-        <translation>검은 점 보정</translation>
+        <source>None of the known watermarks was found.</source>
+        <translation>알려진 워터마크를 찾지 못했습니다.</translation>
     </message>
     <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy는 RGB 색상을 sRGB로 표시합니다. 다른 프로파일로 변환한 문서는 여기 화면에서 다르게 보이며, 저장하면 그 프로파일이 포함됩니다.</translation>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>%1 워터마크를 찾았습니다: %3비트 중 %2비트 일치.</translation>
     </message>
     <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>색상 프로파일 %1을(를) sRGB로 변환할 수 없어 파일의 색상과 프로파일을 그대로 유지합니다</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>색상 프로파일 %1에서 sRGB로 변환했습니다</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>텍스트, 모양, 칠, 조정 레이어와 레이어 스타일에 저장된 색상은 파일의 값을 유지하며, sRGB로 변환된 것은 픽셀뿐입니다</translation>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Google SynthID 같은 많은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서 검사해도 찾을 수 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -24044,46 +24036,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Toolbar icon size:</source>
         <translation>도구 아이콘 크기:</translation>
     </message>
-    <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>프로파일로 변환(&amp;F)...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>먼저 문서를 여세요</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>다른 프로파일로 변환하기 전에 RGB 색상으로 변환하세요</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>다른 RGB 프로파일로 변환하기 전에 CMYK 교정을 끝내세요</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32비트 문서는 행렬 기반 RGB 프로파일 사이에서만 변환됩니다</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>이 프로파일은 이 변환에 사용할 수 없습니다</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>프로파일로 변환</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>%1에서 %2(으)로 변환했습니다</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>다른 RGB 프로파일이 있는 파일을 열 때 sRGB로 변환</translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy는 RGB 색상을 sRGB로 표시하고 편집합니다. Display P3, Adobe RGB 또는 다른 RGB 프로파일의 파일은 변환해야 올바르게 보입니다. 끄면 파일이 원래 값으로 열리고 프로파일도 유지됩니다.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25879,38 +25831,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>perspectiveCrop 모서리는 볼록한 모양이어야 하며 아트보드가 있는 문서는 자를 수 없습니다.</translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>convertToProfile 옵션은 객체여야 합니다.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent는 &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; 또는 &quot;absolute-colorimetric&quot;이어야 합니다.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation는 true 또는 false여야 합니다.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile에는 &quot;sRGB&quot; 또는 RGB 프로파일 파일의 경로를 지정합니다: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>인덱스 색상 문서는 먼저 RGB 색상으로 변환하세요.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>다른 RGB 프로파일로 변환하기 전에 CMYK 교정을 끝내세요.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32비트 문서는 행렬 기반 RGB 프로파일 사이에서만 변환됩니다.</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
     </message>
 </context>
 <context>

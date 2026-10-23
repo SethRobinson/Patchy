@@ -410,7 +410,7 @@ Keys you leave out follow your Save Options defaults and the document (a documen
 
 ### File Info (metadata)
 
-`doc.fileInfo` holds the File > File Info fields (title, authors, description, keywords, copyright, IPTC location and contact fields). `doc.setFileInfo({...})` changes any of them; `doc.metadataEntries()` lists every EXIF, XMP, IPTC, ICC and text item with a privacy class; `doc.xmp` is the XMP packet. `doc.stripMetadata()` removes everything but the color profile (`{keepColorProfile: false}` removes that too), and `doc.removeLocation()` / `doc.removeEditHistory()` remove parts. Changes reach the file on the next save.
+`doc.fileInfo` holds the File > File Info fields (title, authors, description, keywords, copyright, IPTC location and contact fields). `doc.setFileInfo({...})` changes any of them; `doc.metadataEntries()` lists every EXIF, XMP, IPTC, ICC and text item with a privacy class; `doc.xmp` is the XMP packet. `doc.stripMetadata()` removes everything but the color profile (`{keepColorProfile: false}` removes that too), and `doc.removeLocation()` / `doc.removeEditHistory()` remove parts. Changes reach the file on the next save. `doc.scanForWatermarks()` checks the pixels for the open Stable Diffusion invisible watermarks and returns `{scanned, matches: [{id, name, bits, differingBits, redBlueSwapped}]}`; watermarks declared in Content Credentials are the `metadataEntries()` rows whose privacy is `"watermark"`.
 
 ```js
 const doc = app.activeDocument;

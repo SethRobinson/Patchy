@@ -11820,64 +11820,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>搜索结果</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>转换为配置文件</translation>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>像素中带有不可见水印（%1）。删除元数据不会去除它。</translation>
     </message>
     <message>
-        <source>Current profile:</source>
-        <translation>当前配置文件:</translation>
+        <source>watermarks</source>
+        <translation>水印</translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
-        <translation>选择配置文件...</translation>
+        <source>Watermarks</source>
+        <translation>水印</translation>
     </message>
     <message>
-        <source>Choose RGB Profile</source>
-        <translation>选择 RGB 配置文件</translation>
+        <source>Declared in metadata</source>
+        <translation>元数据中声明</translation>
     </message>
     <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC 配置文件 (*.icc *.icm)</translation>
+        <source>Content Credentials:</source>
+        <translation>内容凭证：</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>“%1”不是 Patchy 可以使用的 RGB 配置文件。</translation>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>文件的元数据未声明水印。</translation>
     </message>
     <message>
-        <source>Destination profile:</source>
-        <translation>目标配置文件:</translation>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>像素中的不可见水印</translation>
     </message>
     <message>
-        <source>Relative Colorimetric</source>
-        <translation>相对比色</translation>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>“扫描水印”会检查图像当前的样子，查找 Stable Diffusion 1.x、2.x 和 SDXL 在生成的图像中加入的公开不可见水印。裁剪、调整大小或重新绘制图像通常会去除这些水印。</translation>
     </message>
     <message>
-        <source>Absolute Colorimetric</source>
-        <translation>绝对比色</translation>
+        <source>Scan for Watermarks</source>
+        <translation>扫描水印</translation>
     </message>
     <message>
-        <source>Rendering intent:</source>
-        <translation>渲染意图:</translation>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>图像太小，无法带有这些水印：至少需要 256 x 256 像素。</translation>
     </message>
     <message>
-        <source>Black point compensation</source>
-        <translation>黑场补偿</translation>
+        <source>None of the known watermarks was found.</source>
+        <translation>未找到任何已知水印。</translation>
     </message>
     <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy 将 RGB 颜色按 sRGB 显示。转换为其他配置文件的文档在这里的屏幕上看起来会不同，保存的文件会带有该配置文件。</translation>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>找到 %1 水印：%3 位中有 %2 位匹配。</translation>
     </message>
     <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>无法将颜色配置文件 %1 转换为 sRGB，因此文件保留其颜色和配置文件</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>已从颜色配置文件 %1 转换为 sRGB</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>文字、形状、填充和调整图层以及图层样式中存储的颜色保留文件中的数值；只有像素已转换为 sRGB</translation>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>许多水印（如 Google SynthID）只能用其所有者的工具读取，因此这里的扫描无法找到它们。</translation>
     </message>
 </context>
 <context>
@@ -24044,46 +24036,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Toolbar icon size:</source>
         <translation>工具图标大小:</translation>
     </message>
-    <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>转换为配置文件(&amp;F)...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>请先打开文档</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>转换为其他配置文件前请先转换为 RGB 颜色</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>转换为其他 RGB 配置文件前请先退出 CMYK 校样</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32 位文档只能在基于矩阵的 RGB 配置文件之间转换</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>该配置文件不能用于此转换</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>转换为配置文件</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>已从 %1 转换为 %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>打开文件时将其他 RGB 配置文件转换为 sRGB</translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy 以 sRGB 显示和编辑 RGB 颜色。Display P3、Adobe RGB 或其他 RGB 配置文件的文件只有转换后才显示正确。关闭时，文件按原有数值打开并保留其配置文件。</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25879,38 +25831,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>perspectiveCrop 的四个角必须构成凸形, 且无法裁剪带画板的文档。</translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>convertToProfile 的选项必须是对象。</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent 必须是 &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot; 或 &quot;absolute-colorimetric&quot;。</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation 必须是 true 或 false。</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile 接受 &quot;sRGB&quot; 或 RGB 配置文件的路径：%1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>请先将索引颜色文档转换为 RGB 颜色。</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>转换为其他 RGB 配置文件前请先退出 CMYK 校样。</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32 位文档只能在基于矩阵的 RGB 配置文件之间转换。</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>该配置文件不能用于此转换。</translation>
     </message>
 </context>
 <context>

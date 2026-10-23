@@ -12,6 +12,7 @@
 
 #include "core/artboard.hpp"
 #include "core/document_depth.hpp"
+#include "core/invisible_watermark.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/image_document_io.hpp"
 #include "formats/metadata/metadata_edit.hpp"
@@ -2131,6 +2132,33 @@ bool ScriptDocumentObject::removeLocation() {
   }
   document->file_info() = std::move(probe);
   return true;
+}
+
+QJSValue ScriptDocumentObject::scanForWatermarks() const {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  auto& engine = *host_.engine();
+  auto result = engine.newObject();
+  if (document == nullptr) {
+    return result;
+  }
+  const auto scan = scan_invisible_watermarks(Compositor{}.flatten_rgb8(*document));
+  result.setProperty(QStringLiteral("scanned"), scan.scanned);
+  auto matches = engine.newArray(static_cast<quint32>(scan.matches.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(scan.matches.size()); ++i) {
+    const auto& match = scan.matches[i];
+    auto row = engine.newObject();
+    row.setProperty(QStringLiteral("id"),
+                    QString::fromLatin1(match.id.data(), static_cast<qsizetype>(match.id.size())));
+    row.setProperty(QStringLiteral("name"),
+                    QString::fromLatin1(match.name.data(), static_cast<qsizetype>(match.name.size())));
+    row.setProperty(QStringLiteral("bits"), match.bit_count);
+    row.setProperty(QStringLiteral("differingBits"), match.differing_bits);
+    row.setProperty(QStringLiteral("redBlueSwapped"), match.red_blue_swapped);
+    matches.setProperty(i, row);
+  }
+  result.setProperty(QStringLiteral("matches"), matches);
+  return result;
 }
 
 bool ScriptDocumentObject::removeEditHistory() {

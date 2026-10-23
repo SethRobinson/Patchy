@@ -11839,63 +11839,55 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Current profile:</source>
+        <source>watermarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
+        <source>Watermarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Choose RGB Profile</source>
+        <source>Declared in metadata</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>ICC profiles (*.icc *.icm)</source>
+        <source>Content Credentials:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <source>The file&apos;s metadata declares no watermark.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Destination profile:</source>
+        <source>Invisible watermarks in the pixels</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Relative Colorimetric</source>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Absolute Colorimetric</source>
+        <source>Scan for Watermarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Rendering intent:</source>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Black point compensation</source>
+        <source>None of the known watermarks was found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24043,46 +24035,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Toolbar icon size:</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25878,38 +25830,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

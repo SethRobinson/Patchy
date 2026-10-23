@@ -1,6 +1,8 @@
 #include <QStatusBar>
 #include "formats/metadata/metadata_containers.hpp"
 #include "formats/metadata/metadata_edit.hpp"
+#include "core/invisible_watermark.hpp"
+#include "invisible_watermark_reference.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
 #include "ui/image_document_io.hpp"
@@ -54,6 +56,7 @@
 #include <QToolTip>
 #include <span>
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -139,6 +142,48 @@ if (d.fileInfo.title !== "" || d.xmp !== "") throw new Error("strip");
   const auto none = patchy::metadata::extract_file_info_from_path(patchy::ui::to_filesystem_path(bare));
   CHECK(none.xmp == nullptr);
   CHECK(!patchy::ui::MainWindowTestAccess::document(window).file_info().has_metadata());
+}
+
+// doc.scanForWatermarks (docs/file-info.md, "Watermarks"): an SD 1.x mark is found,
+// a clean image and a tiny one report none, and the scan leaves no undo step.
+void ui_script_scan_for_watermarks() {
+  constexpr int kSize = 512;
+  const auto clean = patchy::test::watermark_fixture_image(kSize, kSize, 3);
+  const auto& known = patchy::known_invisible_watermarks();
+  const auto sd1 =
+      std::find_if(known.begin(), known.end(), [](const auto& item) { return item.id == "stableDiffusion1"; });
+  CHECK(sd1 != known.end());
+  const auto marked = patchy::test::embed_dwt_dct_reference(clean, kSize, kSize, sd1->bits,
+                                                            patchy::test::WatermarkEmbedPath::Uint8);
+  QImage image(kSize, kSize, QImage::Format_RGB888);
+  for (int y = 0; y < kSize; ++y) {
+    std::memcpy(image.scanLine(y), marked.data() + static_cast<std::size_t>(y) * kSize * 3,
+                static_cast<std::size_t>(kSize) * 3);
+  }
+  QDir().mkpath(QStringLiteral("test-artifacts/file-info"));
+  const auto path =
+      QDir(QStringLiteral("test-artifacts/file-info")).absoluteFilePath(QStringLiteral("script-sd1.png"));
+  CHECK(image.save(path));
+  const auto quoted = QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact)).chopped(1).mid(1);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+var d = app.open(%1);
+var undoBefore = d.canUndo;
+var r = d.scanForWatermarks();
+if (!r.scanned || r.matches.length !== 1) throw new Error("expected one match, got " + JSON.stringify(r));
+var m = r.matches[0];
+if (m.id !== "stableDiffusion1" || m.name !== "Stable Diffusion 1.x" || m.bits !== 136) throw new Error(JSON.stringify(m));
+if (m.differingBits > 11 || m.redBlueSwapped !== false) throw new Error(JSON.stringify(m));
+if (d.canUndo !== undoBefore) throw new Error("the scan left an undo step");
+var blank = app.newDocument(600, 400);
+var none = blank.scanForWatermarks();
+if (!none.scanned || none.matches.length !== 0) throw new Error("blank " + JSON.stringify(none));
+var tiny = app.newDocument(64, 64).scanForWatermarks();
+if (tiny.scanned || tiny.matches.length !== 0) throw new Error("tiny " + JSON.stringify(tiny));
+console.log("watermark-ok");
+)JS").arg(quoted)));
+  CHECK(backlog_contains(window, QStringLiteral("watermark-ok")));
 }
 
 // doc.importFilesAsLayers: array and string forms, argument order, the copy suffix
@@ -2123,6 +2168,7 @@ void ui_text_face_name_table_parser_prefers_windows_records() {
 std::vector<patchy::test::TestCase> scripting_tests_part1() {
   return {
       {"ui_script_file_info_reads_edits_and_strips", ui_script_file_info_reads_edits_and_strips},
+      {"ui_script_scan_for_watermarks", ui_script_scan_for_watermarks},
       {"ui_script_import_files_as_layers", ui_script_import_files_as_layers},
       {"ui_script_export_pdf_writes_pages", ui_script_export_pdf_writes_pages},
       {"ui_script_layer_move_to_rounds_like_photoshop", ui_script_layer_move_to_rounds_like_photoshop},

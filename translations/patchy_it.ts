@@ -11855,64 +11855,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Risultati della ricerca</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Converti in profilo</translation>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>I pixel contengono una filigrana invisibile (%1). Rimuovere i metadati non la elimina.</translation>
     </message>
     <message>
-        <source>Current profile:</source>
-        <translation>Profilo attuale:</translation>
+        <source>watermarks</source>
+        <translation>filigrane</translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
-        <translation>Scegli file del profilo...</translation>
+        <source>Watermarks</source>
+        <translation>Filigrane</translation>
     </message>
     <message>
-        <source>Choose RGB Profile</source>
-        <translation>Scegli profilo RGB</translation>
+        <source>Declared in metadata</source>
+        <translation>Dichiarate nei metadati</translation>
     </message>
     <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>Profili ICC (*.icc *.icm)</translation>
+        <source>Content Credentials:</source>
+        <translation>Content Credentials:</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot; non è un profilo RGB utilizzabile da Patchy.</translation>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>I metadati del file non dichiarano alcuna filigrana.</translation>
     </message>
     <message>
-        <source>Destination profile:</source>
-        <translation>Profilo di destinazione:</translation>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>Filigrane invisibili nei pixel</translation>
     </message>
     <message>
-        <source>Relative Colorimetric</source>
-        <translation>Colorimetrico relativo</translation>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>Cerca filigrane controlla l&apos;immagine così com&apos;è ora alla ricerca delle filigrane invisibili aperte che Stable Diffusion 1.x, 2.x e SDXL aggiungono alle immagini che generano. Ritagliare, ridimensionare o ridipingere l&apos;immagine di solito le rimuove.</translation>
     </message>
     <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Colorimetrico assoluto</translation>
+        <source>Scan for Watermarks</source>
+        <translation>Cerca filigrane</translation>
     </message>
     <message>
-        <source>Rendering intent:</source>
-        <translation>Intento di rendering:</translation>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>L&apos;immagine è troppo piccola per contenere queste filigrane: servono almeno 256 x 256 pixel.</translation>
     </message>
     <message>
-        <source>Black point compensation</source>
-        <translation>Compensazione punto nero</translation>
+        <source>None of the known watermarks was found.</source>
+        <translation>Nessuna delle filigrane note è stata trovata.</translation>
     </message>
     <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy mostra i colori RGB come sRGB. Un documento convertito in un altro profilo appare diverso qui sullo schermo, e i suoi salvataggi includono quel profilo.</translation>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>Trovata la filigrana di %1: corrispondono %2 bit su %3.</translation>
     </message>
     <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Il profilo colore %1 non è stato convertito in sRGB, quindi il file mantiene i suoi colori e il suo profilo</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Convertito dal profilo colore %1 a sRGB</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>I colori memorizzati nei livelli di testo, forma, riempimento e regolazione e negli stili di livello mantengono i valori del file; solo i pixel sono stati convertiti in sRGB</translation>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Molte filigrane, come Google SynthID, si possono leggere solo con gli strumenti dei loro proprietari, quindi questa ricerca non può trovarle.</translation>
     </message>
 </context>
 <context>
@@ -24116,46 +24108,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>Toolbar icon size:</source>
         <translation>Dimensione icone strumenti:</translation>
     </message>
-    <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Converti in pro&amp;filo...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>Apri prima un documento</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Converti in colore RGB prima di convertire in un altro profilo</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Esci dalla prova CMYK prima di convertire in un altro profilo RGB</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>I documenti a 32 bit si convertono solo tra profili RGB basati su matrice</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Il profilo non può essere usato per questa conversione</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>Converti in profilo</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Convertito da %1 a %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Converti in sRGB all&apos;apertura i file con altri profili RGB</translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy mostra e modifica i colori RGB come sRGB. I file in Display P3, Adobe RGB o un altro profilo RGB appaiono corretti solo dopo la conversione. Se disattivato, si aprono con i propri valori e mantengono il loro profilo.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25952,38 +25904,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>Gli angoli di perspectiveCrop devono formare una figura convessa e i documenti con tavole da disegno non possono essere ritagliati.</translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Le opzioni di convertToProfile devono essere un oggetto.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent deve essere &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; o &quot;absolute-colorimetric&quot;.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation deve essere true o false.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile accetta &quot;sRGB&quot; o il percorso di un file di profilo RGB: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Converti prima un documento indicizzato in colore RGB.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Esci dalla prova CMYK prima di convertire in un altro profilo RGB.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>I documenti a 32 bit si convertono solo tra profili RGB basati su matrice.</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Il profilo non può essere usato per questa conversione.</translation>
     </message>
 </context>
 <context>
