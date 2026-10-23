@@ -9,6 +9,8 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/theme_manager.hpp"
+#include "local_psd_fixtures.hpp"
+#include "smart_filter_test_support.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -40,6 +42,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -105,8 +108,8 @@ QWidget* effect_entry_row(QWidget& row, const QString& name) {
 }
 
 // The effect rows start closed: opens them through the header's disclosure arrow.
-void expand_effects(QListWidget& list) {
-  auto* row = badge_row(list);
+void expand_effects(QListWidget& list, const QString& layer_name = QStringLiteral("Badge")) {
+  auto* row = list.itemWidget(require_layer_item(list, layer_name));
   CHECK(row != nullptr);
   auto* disclosure = row->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton"));
   CHECK(disclosure != nullptr && !disclosure->isChecked());
@@ -430,6 +433,126 @@ void ui_layer_effect_rows_align_under_the_layer_styles_eye() {
   CHECK(aligned());
 }
 
+// A Smart Object with Smart Filters and a layer style (GitHub issue 349): the "Smart Filters"
+// eye and each filter's eye sit in the Layer Styles eye column, the names under "Layer Styles",
+// and a click where a filter's eye is drawn toggles that filter.
+void ui_layer_smart_filter_eyes_align_with_layer_style_eyes() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(
+                  patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd").wstring()));
+  QApplication::processEvents();
+  const auto layer_name = QStringLiteral("Applied Median then Gaussian");
+  const auto layer_id = select_named_layer(window, layer_name);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer = [&] { return std::as_const(doc).find_layer(layer_id); };
+  CHECK(layer() != nullptr && layer()->smart_filter_stack() != nullptr);
+  CHECK(layer()->smart_filter_stack()->entries.size() == 2U);
+  CHECK(layer()->smart_filter_stack()->entries[1].enabled);
+  {
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    overlay.color = patchy::RgbColor{20, 200, 40};
+    overlay.opacity = 0.5F;
+    doc.find_layer(layer_id)->layer_style().color_overlays.push_back(overlay);
+    patchy::LayerStroke stroke;
+    stroke.enabled = true;
+    stroke.size = 2.0F;
+    stroke.color = patchy::RgbColor{20, 40, 220};
+    doc.find_layer(layer_id)->layer_style().strokes.push_back(stroke);
+  }
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  expand_effects(*list, layer_name);
+  const auto row = [&] { return list->itemWidget(require_layer_item(*list, layer_name)); };
+  list->scrollToItem(require_layer_item(*list, layer_name));
+  QApplication::processEvents();
+
+  // Read in each state and checked at the end, so every state's image is saved.
+  const auto aligned = [&] {
+    auto* current = row();
+    auto* viewport = list->viewport();
+    if (current == nullptr) {
+      return false;
+    }
+    const auto left_of = [viewport](QWidget* widget) {
+      return widget == nullptr ? -1 : widget->mapTo(viewport, QPoint()).x();
+    };
+    const auto styles_eye = left_of(current->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+    const auto styles_label = left_of(current->findChild<QLabel*>(QStringLiteral("layerEffectsLabel")));
+    const auto filters_eye =
+        left_of(current->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton")));
+    const auto filters_label = left_of(current->findChild<QLabel*>(QStringLiteral("layerSmartFiltersLabel")));
+    const auto effect_entries = current->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"));
+    const auto filter_entries = current->findChildren<QWidget*>(QStringLiteral("layerSmartFilterEntryRow"));
+    bool ok = styles_eye >= 0 && styles_label >= 0 && effect_entries.size() == 2 && filter_entries.size() == 2 &&
+              filters_eye == styles_eye && filters_label == styles_label;
+    if (!ok) {
+      std::cerr << "smart filter header eye x " << filters_eye << " label x " << filters_label
+                << ", layer styles eye x " << styles_eye << " label x " << styles_label << '\n';
+    }
+    for (auto* entry : effect_entries) {
+      ok = ok && left_of(entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"))) == styles_eye;
+    }
+    for (auto* entry : filter_entries) {
+      const auto eye = left_of(entry->findChild<QToolButton*>(QStringLiteral("layerSmartFilterVisibilityButton")));
+      const auto label = left_of(entry->findChild<QLabel*>(QStringLiteral("layerSmartFilterEntryLabel")));
+      auto* more = entry->findChild<QToolButton*>(QStringLiteral("layerSmartFilterMoreButton"));
+      if (more == nullptr || more->mapTo(viewport, QPoint()).x() + more->width() > viewport->width()) {
+        std::cerr << "smart filter entry More button is outside the list\n";
+        ok = false;
+      }
+      if (eye != styles_eye || label != styles_label) {
+        std::cerr << "smart filter entry eye x " << eye << " label x " << label << ", layer styles eye x "
+                  << styles_eye << " label x " << styles_label << '\n';
+        ok = false;
+      }
+    }
+    return ok;
+  };
+  save_widget_artifact("issue349_smart_filter_eyes_dark", *layers_dock);
+  const bool dark_aligned = aligned();
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  QApplication::processEvents();
+  save_widget_artifact("issue349_smart_filter_eyes_light", *layers_dock);
+  const bool light_aligned = aligned();
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
+      window, patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window));
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  list->scrollToItem(require_layer_item(*list, layer_name));
+  QApplication::processEvents();
+  save_widget_artifact("issue349_smart_filter_eyes_compact_dark", *layers_dock);
+  const bool compact_aligned = aligned();
+  CHECK(dark_aligned);
+  CHECK(light_aligned);
+  CHECK(compact_aligned);
+
+  // A real click at the center of the first filter row's eye (the Gaussian on top) hides it.
+  QToolButton* eye = nullptr;
+  for (auto* entry : row()->findChildren<QWidget*>(QStringLiteral("layerSmartFilterEntryRow"))) {
+    if (entry->property("smartFilterExecutionIndex").toULongLong() == 1U) {
+      eye = entry->findChild<QToolButton*>(QStringLiteral("layerSmartFilterVisibilityButton"));
+    }
+  }
+  CHECK(eye != nullptr && eye->isEnabled() && eye->isChecked());
+  const auto eye_center = list->viewport()->mapFromGlobal(eye->mapToGlobal(eye->rect().center()));
+  click_widget_like_a_user(*list->viewport(), eye_center);
+  CHECK(process_events_until([&] {
+    return layer() != nullptr && layer()->smart_filter_stack() != nullptr &&
+           !layer()->smart_filter_stack()->entries[1].enabled;
+  }));
+  CHECK(layer()->smart_filter_stack()->entries[0].enabled);
+}
+
 // With the master eye off, each effect's eye draws dimmed (not slashed) and still toggles
 // that effect's own flag; the composite stays unstyled until the master is back on.
 void ui_layer_effect_rows_grey_eyes_under_master_off() {
@@ -625,6 +748,7 @@ std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
       {"ui_layer_effect_rows_start_collapsed_and_remember_state", ui_layer_effect_rows_start_collapsed_and_remember_state},
       {"ui_layer_effect_rows_grey_eyes_under_master_off", ui_layer_effect_rows_grey_eyes_under_master_off},
       {"ui_layer_effect_rows_align_under_the_layer_styles_eye", ui_layer_effect_rows_align_under_the_layer_styles_eye},
+      {"ui_layer_smart_filter_eyes_align_with_layer_style_eyes", ui_layer_smart_filter_eyes_align_with_layer_style_eyes},
       {"ui_layer_effect_row_context_menu_edits_hides_and_deletes",
        ui_layer_effect_row_context_menu_edits_hides_and_deletes},
       {"ui_layer_effect_rows_toggle_effects_and_render", ui_layer_effect_rows_toggle_effects_and_render},
