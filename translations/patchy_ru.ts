@@ -24510,6 +24510,90 @@ Patchy может скачать обновление, заменить этот
         <source>Show in File Info</source>
         <translation>Показать в «Сведениях о файле»</translation>
     </message>
+    <message>
+        <source>Saved metadata</source>
+        <translation>Сохраняемые метаданные</translation>
+    </message>
+    <message>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>Нет: Patchy ничего не добавляет от себя</translation>
+    </message>
+    <message>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>Базовые: Patchy как программа-создатель, даты сохранения и запись в истории</translation>
+    </message>
+    <message>
+        <source>Basic plus my name and copyright</source>
+        <translation>Базовые плюс моё имя и авторские права</translation>
+    </message>
+    <message>
+        <source>Automatically add to saved files:</source>
+        <translation>Автоматически добавлять в сохраняемые файлы:</translation>
+    </message>
+    <message>
+        <source>Your name as the author</source>
+        <translation>Ваше имя как автора</translation>
+    </message>
+    <message>
+        <source>Copyright notice:</source>
+        <translation>Уведомление об авторских правах:</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Необязательно</translation>
+    </message>
+    <message>
+        <source>Email:</source>
+        <translation>Эл. почта:</translation>
+    </message>
+    <message>
+        <source>Website:</source>
+        <translation>Веб-сайт:</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>Спрашивать перед добавлением в файл</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>Ваше имя, авторские права и контакты добавляются в файлы PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL и AVIF, где вас ещё нет, рядом с уже указанным автором. Метаданные, которые уже есть в файле, сохраняются; «Файл &gt; Сведения о файле &gt; Удалить все метаданные» их убирает. Экспорт следует выбору «Метаданные» в окне экспорта.</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>Использовать «%1»</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>Метаданные и водяные знаки</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>Добавить имя и авторские права</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>Добавить ваше имя и авторские права в этот файл?</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>Имя: %1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>Авторские права: %1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>В файле уже указан %1. Ваше имя добавляется рядом; ничего не заменяется.</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>Пропустить</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>Всегда добавлять без вопроса</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26387,6 +26471,18 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences принимает объект, например {mode: &quot;basic&quot;}.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences: mode должен быть &quot;none&quot;, &quot;basic&quot; или &quot;personal&quot;.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences: неизвестный параметр %1.</translation>
     </message>
 </context>
 <context>

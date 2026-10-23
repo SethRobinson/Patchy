@@ -24510,6 +24510,90 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Show in File Info</source>
         <translation>Pokaż w Informacjach o pliku</translation>
     </message>
+    <message>
+        <source>Saved metadata</source>
+        <translation>Zapisywane metadane</translation>
+    </message>
+    <message>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>Brak: Patchy nie dodaje nic od siebie</translation>
+    </message>
+    <message>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>Podstawowe: Patchy jako aplikacja tworząca, daty zapisu i wpis historii</translation>
+    </message>
+    <message>
+        <source>Basic plus my name and copyright</source>
+        <translation>Podstawowe plus moje imię i prawa autorskie</translation>
+    </message>
+    <message>
+        <source>Automatically add to saved files:</source>
+        <translation>Automatycznie dodawaj do zapisywanych plików:</translation>
+    </message>
+    <message>
+        <source>Your name as the author</source>
+        <translation>Twoje imię jako autora</translation>
+    </message>
+    <message>
+        <source>Copyright notice:</source>
+        <translation>Informacja o prawach autorskich:</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>Opcjonalnie</translation>
+    </message>
+    <message>
+        <source>Email:</source>
+        <translation>E-mail:</translation>
+    </message>
+    <message>
+        <source>Website:</source>
+        <translation>Witryna:</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>Pytaj przed dodaniem do pliku</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>Twoje imię, prawa autorskie i kontakt trafiają do plików PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL i AVIF, które jeszcze Cię nie wymieniają, obok autora, który już tam jest. Metadane, które plik już ma, zostają; Plik &gt; Informacje o pliku &gt; Usuń wszystkie metadane je usuwa. Eksporty stosują wybór Metadane w oknie Eksportuj.</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>Użyj „%1”</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>Metadane i znaki wodne</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>Dodaj imię i prawa autorskie</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>Dodać Twoje imię i prawa autorskie do tego pliku?</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>Imię: %1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>Prawa autorskie: %1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>Plik wymienia już %1. Twoje imię zostanie dodane obok; nic nie zostanie zastąpione.</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>Pomiń</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>Zawsze dodawaj bez pytania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26387,6 +26471,18 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences przyjmuje obiekt, np. {mode: &quot;basic&quot;}.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences: mode musi mieć wartość &quot;none&quot;, &quot;basic&quot; lub &quot;personal&quot;.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences: nieznana opcja %1.</translation>
     </message>
 </context>
 <context>

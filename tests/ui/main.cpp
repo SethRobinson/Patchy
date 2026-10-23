@@ -437,6 +437,7 @@ int main(int argc, char* argv[]) {
            file_info_tests,
            watermark_tests,
            watermark_preferences_tests,
+           save_metadata_tests,
            layered_tiff_ui_tests,
            appimage_menu_entry_tests,
            composite_render_tests,

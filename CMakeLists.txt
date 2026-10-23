@@ -1276,6 +1276,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_layer_ops.cpp
       src/ui/main_window_ai_selection.cpp
       src/ui/main_window_watermarks.cpp
+      src/ui/main_window_save_metadata.cpp
       src/ui/main_window_appimage_menu_entry.cpp
       src/ui/main_window_layer_panel.cpp
       src/ui/main_window_palette.cpp
@@ -1484,6 +1485,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/watermark_model_download.cpp
       src/ui/watermark_settings.cpp
       src/ui/watermark_scan_report.cpp
+      src/ui/save_metadata_settings.cpp
       src/ui/user_fonts.hpp
       src/ui/user_fonts.cpp
       src/ui/warp_text_dialog.hpp
@@ -2315,6 +2317,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/file_info_tests.cpp
       tests/ui/watermark_tests.cpp
       tests/ui/watermark_preferences_tests.cpp
+      tests/ui/save_metadata_tests.cpp
       tests/ui/layered_tiff_tests.cpp
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/composite_render_tests.cpp

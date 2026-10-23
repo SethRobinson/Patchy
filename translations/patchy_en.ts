@@ -24365,6 +24365,90 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Show in File Info</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Saved metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Basic plus my name and copyright</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatically add to saved files:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your name as the author</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copyright notice:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Email:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Website:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26240,6 +26324,18 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

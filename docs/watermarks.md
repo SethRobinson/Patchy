@@ -38,7 +38,7 @@ into `downloaded_models_folder()` (`<AppDataLocation>/ai-models`), sessions in t
 translation unit (`segmentation_engine_onnx.cpp`, slots `OrtState::trustmark`), released before a
 delete. Unlike the High Quality model, only the download folder is searched, never the bundled
 `ai-models` folder: no package may carry these files. Offered from File Info's Watermarks page, the Add Invisible Watermark dialog, Preferences >
-Watermarks (Download and Delete, `preferencesWatermarkModelsGroup`) and `app.downloadWatermarkModels()`;
+Metadata and Watermarks (Download and Delete, `preferencesWatermarkModelsGroup`) and `app.downloadWatermarkModels()`;
 nothing fetches them unasked. The web build has no TrustMark. Build trees stage them into
 `<build>/ai-models-download` when setup-ai-deps provisioned all four (all or none, separate from the
 High Quality pair).
@@ -122,7 +122,9 @@ strength 50 to 150%. Without the models it shows the download and keeps Add Wate
 
 ## Preferences
 
-Preferences > Watermarks (`main_window_preferences.cpp`, applied on OK; `ui/watermark_settings.*`).
+Preferences > Metadata and Watermarks, the "Watermarks" group under "Saved metadata"
+([file-info.md](file-info.md#saved-metadata-preference)) (`main_window_preferences.cpp`, applied
+on OK; `ui/watermark_settings.*`).
 Settings keys, permanent: `watermarks/payloadText` (printable ASCII, at most 8 characters, the
 `BCH_5` capacity), `watermarks/addOnSave` (`never` default, `ask`, `always`; also the scripting
 tokens) and `watermarks/checkOnOpen` (false). The models row moved here from Preferences > Tools; a

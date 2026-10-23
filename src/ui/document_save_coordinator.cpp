@@ -164,7 +164,7 @@ ImageSaveOptions DocumentSaveCoordinator::effective_options(
 std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     std::int64_t session_id, const QString& path, const QString& extension,
     const ImageSaveOptions& effective_image_options, bool quiet, bool export_copy, bool discards_layers,
-    const std::optional<SaveWatermark>& watermark) {
+    const std::optional<SaveWatermark>& watermark, bool stamp_save) {
   auto* target = host_.find_session(session_id);
   if (target == nullptr) return std::nullopt;
   std::vector<std::string> writer_notices;
@@ -179,7 +179,9 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     // Photoshop's save record in the XMP and EXIF: the modify and metadata dates, a new
     // instance, and on the first save the creation date and Patchy as the creator
     // (docs/file-info.md, "Save stamp").
-    metadata::stamp_file_info_for_save(target->document.file_info(), save_stamp_now());
+    if (stamp_save) {
+      metadata::stamp_file_info_for_save(target->document.file_info(), save_stamp_now());
+    }
     // The writer reads a copy-on-write snapshot on a worker, so the window keeps painting
     // the Saving dialog through the composite (recovery writes the same way).
     const Document snapshot = std::as_const(*target).document_for_write();

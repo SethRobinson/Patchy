@@ -24366,6 +24366,90 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Show in File Info</source>
         <translation>在檔案資訊中顯示</translation>
     </message>
+    <message>
+        <source>Saved metadata</source>
+        <translation>儲存的中繼資料</translation>
+    </message>
+    <message>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>無：Patchy 不加入任何自身資訊</translation>
+    </message>
+    <message>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>基本：Patchy 作為建立程式、儲存日期和一筆記錄項目</translation>
+    </message>
+    <message>
+        <source>Basic plus my name and copyright</source>
+        <translation>基本加上我的名字和版權</translation>
+    </message>
+    <message>
+        <source>Automatically add to saved files:</source>
+        <translation>自動加入儲存的檔案：</translation>
+    </message>
+    <message>
+        <source>Your name as the author</source>
+        <translation>作為作者的你的名字</translation>
+    </message>
+    <message>
+        <source>Copyright notice:</source>
+        <translation>版權聲明：</translation>
+    </message>
+    <message>
+        <source>Optional</source>
+        <translation>選填</translation>
+    </message>
+    <message>
+        <source>Email:</source>
+        <translation>電子郵件：</translation>
+    </message>
+    <message>
+        <source>Website:</source>
+        <translation>網站：</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>加入檔案前詢問</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>你的名字、版權與聯絡方式會寫入尚未包含你名字的 PSD、JPEG、PNG、TIFF、WebP、GIF、JPEG XL 與 AVIF 檔案，與已有作者並列。檔案中已有的中繼資料會保留；「檔案 &gt; 檔案資訊 &gt; 移除所有中繼資料」可將其移除。轉存遵循轉存對話框中的中繼資料選項。</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>使用「%1」</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>中繼資料與浮水印</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>加入你的名字和版權</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>要將你的名字和版權加入此檔案嗎？</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>名字：%1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>版權：%1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>此檔案已列出 %1。你的名字會加在旁邊，不會取代任何內容。</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>略過</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>一律加入而不詢問</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26241,6 +26325,18 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences 接受物件，例如 {mode: &quot;basic&quot;}。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences：mode 必須是 &quot;none&quot;、&quot;basic&quot; 或 &quot;personal&quot;。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences：未知選項 %1。</translation>
     </message>
 </context>
 <context>
