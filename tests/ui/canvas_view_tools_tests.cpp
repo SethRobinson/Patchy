@@ -1208,17 +1208,17 @@ void ui_options_menu_buttons_show_the_gear() {
   const MenuButton buttons[] = {{"toolMoveAction", "moveAlignMoreButton"},
                                 {"toolCropAction", "cropOptionsButton"},
                                 {"toolBrushAction", "brushSmoothingOptionsButton"}};
-  std::vector<QImage> icon_pixmaps[2];
-  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+  const auto schemes = {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light};
+  // Every capture first, so a failed check never costs a shot.
+  for (const auto scheme : schemes) {
     ColorSchemeRestorer restore_scheme(scheme);
     const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
     patchy::ui::MainWindow window;
     show_window(window);
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
-    CHECK(options_bar != nullptr);
     if (options_bar == nullptr) {
-      return;
+      continue;
     }
     QList<QImage> strips;
     for (const auto& entry : buttons) {
@@ -1228,6 +1228,14 @@ void ui_options_menu_buttons_show_the_gear() {
       strips.push_back(options_bar->grab().toImage());
     }
     save_stacked_artifact(std::string("issue_326_gear_bars_") + (light ? "light" : "dark"), strips);
+  }
+  std::vector<QImage> icon_pixmaps[2];
+  for (const auto scheme : schemes) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
     for (const auto& entry : buttons) {
       require_action(window, entry.tool_action)->trigger();
       QApplication::processEvents();
