@@ -420,6 +420,14 @@ public:
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
+    // The right press already opened the flyout. Qt follows it with a separate
+    // ContextMenu event (on release on Windows, on press on macOS and X11) that
+    // would otherwise bubble up to the main window and open the toolbar menu on
+    // top of the flyout (GitHub issue 356), so the button swallows it.
+    if (event->type() == QEvent::ContextMenu) {
+      event->accept();
+      return true;
+    }
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
       auto* mouse_event = static_cast<QMouseEvent*>(event);
       if (mouse_event->button() == Qt::RightButton && event->type() == QEvent::MouseButtonPress) {
