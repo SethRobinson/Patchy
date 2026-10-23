@@ -24594,6 +24594,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Always add without asking</source>
         <translation>Zawsze dodawaj bez pytania</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Skanuj w poszukiwaniu znaków &amp;wodnych...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Skanuj w poszukiwaniu znaków wodnych...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

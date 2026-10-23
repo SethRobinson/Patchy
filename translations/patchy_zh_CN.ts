@@ -24450,6 +24450,14 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Always add without asking</source>
         <translation>始终添加而不询问</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>扫描水印(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>扫描水印...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

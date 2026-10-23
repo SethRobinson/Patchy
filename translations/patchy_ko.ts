@@ -24450,6 +24450,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Always add without asking</source>
         <translation>항상 묻지 않고 추가</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>워터마크 검사(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>워터마크 검사...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

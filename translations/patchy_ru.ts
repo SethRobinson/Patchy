@@ -24594,6 +24594,14 @@ Patchy может скачать обновление, заменить этот
         <source>Always add without asking</source>
         <translation>Всегда добавлять без вопроса</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Найти &amp;водяные знаки...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Найти водяные знаки...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

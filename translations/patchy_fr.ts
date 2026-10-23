@@ -24522,6 +24522,14 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Always add without asking</source>
         <translation>Toujours ajouter sans demander</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Rechercher des &amp;filigranes...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Rechercher des filigranes...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

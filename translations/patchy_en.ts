@@ -24449,6 +24449,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Always add without asking</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

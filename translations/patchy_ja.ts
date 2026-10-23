@@ -24450,6 +24450,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Always add without asking</source>
         <translation>常に確認せずに追加</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>透かしをスキャン(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>透かしをスキャン...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

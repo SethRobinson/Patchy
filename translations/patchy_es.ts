@@ -24522,6 +24522,14 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>Always add without asking</source>
         <translation>Añadir siempre sin preguntar</translation>
     </message>
+    <message>
+        <source>Scan for &amp;Watermarks...</source>
+        <translation>Buscar marcas de &amp;agua...</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks...</source>
+        <translation>Buscar marcas de agua...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
