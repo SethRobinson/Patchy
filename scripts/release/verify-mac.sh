@@ -19,7 +19,7 @@ nice -n 10 "$PYTHON" tests/mcp_client_tests.py build/mac-release/Patchy.app/Cont
 mount_dir="$PWD/build/verify-dmg-check"
 mkdir -p "$mount_dir"
 hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$DMG"
-trap 'hdiutil detach "$mount_dir"' EXIT
+trap 'diskutil eject "$mount_dir"' EXIT
 echo '== DMG MCP SUITE =='
 nice -n 10 "$PYTHON" tests/mcp_client_tests.py "$mount_dir/Patchy.app/Contents/MacOS/patchy-mcp"
 echo '== ALL MAC RELEASE CHECKS PASSED =='
