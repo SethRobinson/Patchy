@@ -963,7 +963,7 @@ void ui_palette_panel_copy_hex_and_updates_open_picker() {
   };
   CHECK(!layer_has_swatch_ink());
 
-  auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   CHECK(text_color != nullptr);
   text_color->click();
   QApplication::processEvents();

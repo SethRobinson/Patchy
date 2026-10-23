@@ -97,6 +97,7 @@ class QTabWidget;
 class QTextCharFormat;
 class QTextEdit;
 class QToolBar;
+class QIcon;
 class QToolButton;
 class QTimer;
 
@@ -1552,6 +1553,9 @@ private:
   void combine_selected_shape_layers(patchy::PathCombineOp op);
   void refresh_combine_shapes_action_states();
   void update_vector_swatch_icons();
+  // The options bar's paint chip (the shape Fill/Stroke swatches and the Text color
+  // button), drawn at the button's icon size with the theme's swatch outline.
+  [[nodiscard]] QIcon options_bar_swatch_icon(const patchy::VectorFill& paint, const QToolButton& button);
   // Options-bar paint pickers (main_window_vector.cpp): the swatch buttons pop
   // a None/Solid/Gradient/Pattern menu editing the mirrors above; with an
   // editable shape layer active the edit ALSO applies to that layer
@@ -2708,7 +2712,7 @@ private:
   UnitSpinBox* text_size_spin_{nullptr};
   QComboBox* text_style_combo_{nullptr};
   QComboBox* text_smoothing_combo_{nullptr};
-  QPushButton* text_color_button_{nullptr};
+  QToolButton* text_color_button_{nullptr};
   QPushButton* text_align_left_button_{nullptr};
   QPushButton* text_align_center_button_{nullptr};
   QPushButton* text_align_right_button_{nullptr};

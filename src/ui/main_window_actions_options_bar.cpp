@@ -3230,6 +3230,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       add_option_label(QT_TR_NOOP("Fill:"), vector_appearance_tools));
   // The Fill and Stroke swatches are framed buttons with a wide chip, so they read as
   // something to click (GitHub issue 311); the frame is the QSS optionsBarSwatch rule.
+  // The Text color button below is the same button (GitHub issue 343).
   const auto configure_swatch_button = [](QToolButton* button) {
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setProperty("optionsBarSwatch", true);
@@ -3825,6 +3826,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_style_combo_->view()->setMinimumWidth(170);
   refresh_text_style_combo(text_font_combo_->currentFont().family(), QString());
   add_option_widget(text_style_combo_, {CanvasTool::Text});
+  // Font and style | Size and Smoothing (GitHub issue 343).
+  add_option_separator({CanvasTool::Text});
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Text});
   text_size_spin_ = new UnitSpinBox(SpinUnit::Points, toolbar);
   text_size_spin_->setObjectName(QStringLiteral("textSizeSpin"));
@@ -3874,16 +3877,16 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       text_smoothing_combo_,
       app_settings().value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
   add_option_widget(text_smoothing_combo_, {CanvasTool::Text});
-  // No "Color:" label (Photoshop has none either): the colored "T" swatch and its
-  // tooltip name it, and the Type row must fit one line at 1366 px (GitHub issue 91).
-  text_color_button_ = new QPushButton(tr("T"), toolbar);
+  // No "Color:" label (Photoshop has none either): the swatch and its tooltip name it, and
+  // the Type row must fit one line at 1366 px (GitHub issue 91). It is the shape bar's
+  // Fill/Stroke swatch button, a framed chip of the color (GitHub issue 343).
+  text_color_button_ = new QToolButton(toolbar);
   text_color_button_->setObjectName(QStringLiteral("textColorButton"));
   bind_tooltip(text_color_button_, QT_TR_NOOP("Text color"));
-  text_color_button_->setFixedSize(30, 26);
-  // Qt::NoFocus like the session buttons below: keyboard focus stays in the editor, so typing
-  // after a color pick replaces the selected "Type" placeholder (GitHub issue 175). The
-  // alignment buttons follow the same rule.
-  text_color_button_->setFocusPolicy(Qt::NoFocus);
+  // configure_swatch_button sets Qt::NoFocus like the session buttons below: keyboard focus
+  // stays in the editor, so typing after a color pick replaces the selected "Type"
+  // placeholder (GitHub issue 175). The alignment buttons follow the same rule.
+  configure_swatch_button(text_color_button_);
   add_option_separator({CanvasTool::Text});
   add_option_widget(text_color_button_, {CanvasTool::Text});
   // Ragged-lines glyphs instead of L / C / R letters, which needed an "Align:" label to
@@ -3977,7 +3980,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
             save_tool_settings();
             refresh_document_info();
           });
-  connect(text_color_button_, &QPushButton::clicked, this, [this] { choose_text_color(); });
+  connect(text_color_button_, &QToolButton::clicked, this, [this] { choose_text_color(); });
   // The controls that need the keyboard while in use hand it back to a live session once the
   // pick lands: a popup choice, or Enter in the size field. editingFinished on focus loss finds
   // the spin no longer focused, except when its slider popup opens: Qt sends that FocusOut while

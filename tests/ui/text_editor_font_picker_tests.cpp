@@ -58,6 +58,7 @@
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTimer>
+#include <QToolButton>
 #include <QUrl>
 #include <QWidget>
 #include <algorithm>
@@ -124,7 +125,7 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
-  auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   CHECK(text_size != nullptr);
   CHECK(text_smoothing != nullptr);
   CHECK(text_color != nullptr);
@@ -1953,7 +1954,7 @@ void ui_text_placeholder_survives_options_bar_changes() {
   canvas->set_primary_color(QColor(20, 20, 20));
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   QApplication::processEvents();
-  auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   auto* align_center = window.findChild<QPushButton*>(QStringLiteral("textAlignCenterButton"));
   auto* smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
   auto* size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
