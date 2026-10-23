@@ -688,6 +688,7 @@ patchy_configure_target(patchy_formats)
 
 add_library(patchy_color
   src/color/color_management.cpp
+  src/color/rgb_profiles.cpp
 )
 target_link_libraries(patchy_color PUBLIC patchy_core PRIVATE patchy_lcms2)
 patchy_configure_target(patchy_color)
@@ -1173,6 +1174,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/dialog_utils.cpp
       src/ui/file_info_dialog.hpp
       src/ui/file_info_dialog.cpp
+      src/ui/convert_profile_dialog.hpp
+      src/ui/convert_profile_dialog.cpp
       src/ui/document_float_window.hpp
       src/ui/document_float_window.cpp
       src/ui/edit_conversions.cpp
@@ -2119,6 +2122,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_deep_io_tests.cpp
     tests/core/psd_cmyk_proof_tests.cpp
+    tests/core/rgb_profile_tests.cpp
     tests/core/psd_structure_tests.cpp
     tests/core/psd_text_tests.cpp
     tests/core/psd_legacy_text_tests.cpp
@@ -2304,6 +2308,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/history_panel_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
+      tests/ui/rgb_profile_tests.cpp
       tests/ui/layered_tiff_tests.cpp
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/composite_render_tests.cpp

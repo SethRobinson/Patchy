@@ -863,6 +863,11 @@ interface PatchyDocument {
   /** Bits per channel: 8, 16 or 32 (32 is floating point, linear light). */
   readonly bitDepth: 8 | 16 | 32;
   /**
+   * The name of the document's RGB color profile: the embedded profile's description, or
+   * "sRGB IEC61966-2.1" when the document has none (Patchy treats untagged RGB as sRGB).
+   */
+  readonly colorProfile: string;
+  /**
    * Image > Mode > CMYK Proof: the canvas shows the document through the working CMYK
    * profile, and saves to .jpg, .tif and flattened .pdf write CMYK unless the options give
    * colorMode. The pixels stay RGB. Not stored in files. Setting true throws in palette
@@ -1041,6 +1046,22 @@ interface PatchyDocument {
   /** Image > Mode > 8/16/32 Bits/Channel: converts every layer, mask and channel.
    *  16 and 32 need deep editing to be on; Indexed documents stay 8-bit. */
   convertBitDepth(bits: 8 | 16 | 32): void;
+  /**
+   * Edit > Convert to Profile: converts the pixels from the document's RGB profile to
+   * `profile`, "sRGB" or the path of an RGB .icc/.icm file, which becomes the embedded
+   * profile (none for sRGB). Pixel layers, Smart Object previews and the imported palette
+   * convert; text, shape, fill and adjustment colors and layer styles keep their values.
+   * `intent` defaults to "relative-colorimetric", `blackPointCompensation` to true.
+   * Throws for an unusable profile, in Indexed mode and in CMYK Proof; 32-bit documents
+   * convert only between matrix-based profiles.
+   */
+  convertToProfile(
+    profile: string,
+    options?: {
+      intent?: "perceptual" | "relative-colorimetric" | "saturation" | "absolute-colorimetric";
+      blackPointCompensation?: boolean;
+    },
+  ): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
   /**

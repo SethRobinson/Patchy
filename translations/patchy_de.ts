@@ -11854,6 +11854,66 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>Suchergebnisse</translation>
     </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>In Profil umwandeln</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>Aktuelles Profil:</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>Profildatei wählen...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>RGB-Profil wählen</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>ICC-Profile (*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>&quot;%1&quot; ist kein RGB-Profil, das Patchy verwenden kann.</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>Zielprofil:</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>Relativ farbmetrisch</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>Absolut farbmetrisch</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>Renderpriorität:</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>Tiefenkompensierung</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy zeigt RGB-Farben als sRGB an. Ein in ein anderes Profil umgewandeltes Dokument sieht hier auf dem Bildschirm anders aus, und seine Speicherungen enthalten dieses Profil.</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>Das Farbprofil %1 konnte nicht in sRGB umgewandelt werden, daher behält die Datei ihre Farben und ihr Profil</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>Vom Farbprofil %1 in sRGB umgewandelt</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>In Text-, Form-, Füll- und Einstellungsebenen und in Ebenenstilen gespeicherte Farben behalten ihre Werte aus der Datei; nur Pixel wurden in sRGB umgewandelt</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24056,6 +24116,46 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Toolbar icon size:</source>
         <translation>Größe der Werkzeugsymbole:</translation>
     </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>In &amp;Profil umwandeln...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>Öffnen Sie zuerst ein Dokument</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>Vor dem Umwandeln in ein anderes Profil in RGB-Farbe konvertieren</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>Verlassen Sie den CMYK-Proof, bevor Sie in ein anderes RGB-Profil umwandeln</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>32-Bit-Dokumente werden nur zwischen matrixbasierten RGB-Profilen umgewandelt</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>Das Profil kann für diese Umwandlung nicht verwendet werden</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>In Profil umwandeln</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>Von %1 in %2 umgewandelt</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>Dateien mit anderen RGB-Profilen beim Öffnen in sRGB umwandeln</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy zeigt und bearbeitet RGB-Farben als sRGB. Dateien in Display P3, Adobe RGB oder einem anderen RGB-Profil sehen erst nach dem Umwandeln richtig aus. Wenn deaktiviert, öffnen sie sich mit ihren eigenen Werten und behalten ihr Profil.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25852,6 +25952,38 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>Die Ecken für perspectiveCrop müssen eine konvexe Form bilden, und Dokumente mit Zeichenflächen können nicht freigestellt werden.</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>Die Optionen von convertToProfile müssen ein Objekt sein.</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent muss &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; oder &quot;absolute-colorimetric&quot; sein.</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation muss true oder false sein.</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile erwartet &quot;sRGB&quot; oder den Pfad einer RGB-Profildatei: %1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>Konvertieren Sie ein indiziertes Dokument zuerst in RGB-Farbe.</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>Verlassen Sie den CMYK-Proof, bevor Sie in ein anderes RGB-Profil umwandeln.</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>32-Bit-Dokumente werden nur zwischen matrixbasierten RGB-Profilen umgewandelt.</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>Das Profil kann für diese Umwandlung nicht verwendet werden.</translation>
     </message>
 </context>
 <context>

@@ -243,6 +243,7 @@ class ScriptDocumentObject : public QObject {
   Q_PROPERTY(QString path READ path)
   Q_PROPERTY(double resolution READ resolution)
   Q_PROPERTY(int bitDepth READ bit_depth)
+  Q_PROPERTY(QString colorProfile READ color_profile)
   Q_PROPERTY(bool cmykProof READ cmyk_proof WRITE set_cmyk_proof)
   Q_PROPERTY(QJSValue layers READ layers)
   Q_PROPERTY(QJSValue activeLayer READ active_layer WRITE set_active_layer)
@@ -275,6 +276,7 @@ public:
   [[nodiscard]] QString path() const;
   [[nodiscard]] double resolution() const;
   [[nodiscard]] int bit_depth() const;
+  [[nodiscard]] QString color_profile() const;
   [[nodiscard]] bool cmyk_proof() const;
   void set_cmyk_proof(bool enabled);
   [[nodiscard]] QJSValue layers() const;
@@ -334,6 +336,7 @@ public:
   Q_INVOKABLE void resizeImage(int width, int height, const QJSValue& options = QJSValue());
   Q_INVOKABLE void resizeCanvas(int width, int height);
   Q_INVOKABLE void convertBitDepth(int bits);
+  Q_INVOKABLE void convertToProfile(const QString& profile, const QJSValue& options = QJSValue());
   Q_INVOKABLE void crop(int x, int y, int width, int height);
   // Perspective Crop (GitHub issue 328): `corners` is four [x, y] or {x, y} points in
   // output order TL, TR, BR, BL; options {width, height, resolution}.

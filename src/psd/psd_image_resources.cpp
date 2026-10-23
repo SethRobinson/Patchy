@@ -1216,6 +1216,10 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
     }
   } else if (output_mode == kColorModeRgb && !document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
+  } else if (output_mode == kColorModeRgb) {
+    // An RGB document's profile is its embedded one: a source profile it no longer has
+    // (converted to sRGB, docs/rgb-profiles.md, or dropped in File Info) is not written.
+    remove_image_resource(*parsed, kImageResourceIccProfile);
   }
   if (!channels.empty()) {
     upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource(channels));

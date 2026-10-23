@@ -47,6 +47,7 @@
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
+#include "color/rgb_profiles.hpp"
 #include "ui/qt_text_file.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
@@ -1820,6 +1821,15 @@ void ScriptDocumentObject::set_cmyk_proof(bool enabled) {
   }
 }
 
+QString ScriptDocumentObject::color_profile() const {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return {};
+  }
+  return QString::fromStdString(document_rgb_profile_name(document->color_state().embedded_icc_profile));
+}
+
 int ScriptDocumentObject::bit_depth() const {
   const ScriptApiCall api_call(host_);
   const auto* document = read_document();
@@ -2789,6 +2799,69 @@ void ScriptDocumentObject::convertBitDepth(int bits) {
     return;
   }
   convert_document_depth(*document, depth);
+  host_.note_structure_changed(session_id_);
+}
+
+void ScriptDocumentObject::convertToProfile(const QString& profile, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  auto intent = RenderingIntent::RelativeColorimetric;
+  bool black_point_compensation = true;
+  if (!options.isUndefined() && !options.isNull()) {
+    if (!options.isObject()) {
+      host_.throw_js_error(ScriptEngineHost::tr("convertToProfile options must be an object."));
+      return;
+    }
+    if (const auto value = options.property(QStringLiteral("intent")); !value.isUndefined()) {
+      const auto parsed = rendering_intent_from_token(value.toString().toStdString());
+      if (!value.isString() || !parsed.has_value()) {
+        host_.throw_js_error(ScriptEngineHost::tr("intent must be \"perceptual\", \"relative-colorimetric\", "
+                                                  "\"saturation\" or \"absolute-colorimetric\"."));
+        return;
+      }
+      intent = *parsed;
+    }
+    if (const auto value = options.property(QStringLiteral("blackPointCompensation")); !value.isUndefined()) {
+      if (!value.isBool()) {
+        host_.throw_js_error(ScriptEngineHost::tr("blackPointCompensation must be true or false."));
+        return;
+      }
+      black_point_compensation = value.toBool();
+    }
+  }
+  std::vector<std::uint8_t> destination;
+  if (profile.compare(QStringLiteral("sRGB"), Qt::CaseInsensitive) != 0) {
+    destination = read_rgb_profile(to_filesystem_path(profile));
+    if (destination.empty()) {
+      host_.throw_js_error(
+          ScriptEngineHost::tr("convertToProfile takes \"sRGB\" or the path of an RGB profile file: %1").arg(profile));
+      return;
+    }
+  }
+  const auto* current = read_document();
+  if (current == nullptr) {
+    return;
+  }
+  if (current->palette_editing().has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("Convert an Indexed document to RGB Color first."));
+    return;
+  }
+  if (host_.session_cmyk_proof(session_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Leave CMYK Proof before converting to another RGB profile."));
+    return;
+  }
+  // Converted on a copy, so an unusable combination leaves the document and its history alone.
+  auto converted = *current;
+  if (!convert_document_rgb_profile(converted, destination, intent, black_point_compensation).has_value()) {
+    host_.throw_js_error(current->color_state().bit_depth == BitDepth::Float32
+                             ? ScriptEngineHost::tr("32-bit documents convert only between matrix-based RGB profiles.")
+                             : ScriptEngineHost::tr("The profile cannot be used for this conversion."));
+    return;
+  }
+  auto* document = write_document();
+  if (document == nullptr) {
+    return;
+  }
+  *document = std::move(converted);
   host_.note_structure_changed(session_id_);
 }
 
