@@ -3856,13 +3856,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_smoothing_combo_ = new QComboBox(toolbar);
   text_smoothing_combo_->setObjectName(QStringLiteral("textSmoothingCombo"));
   bind_tooltip(text_smoothing_combo_, QT_TR_NOOP("Text smoothing"));
-  text_smoothing_combo_->addItem(tr("None"), 0);
-  text_smoothing_combo_->addItem(tr("Sharp"), 4);
-  text_smoothing_combo_->addItem(tr("Crisp"), 2);
-  text_smoothing_combo_->addItem(tr("Strong"), 1);
-  text_smoothing_combo_->addItem(tr("Smooth"), 3);
-  text_smoothing_combo_->addItem(tr("Windows LCD"), 5);
-  text_smoothing_combo_->addItem(tr("Windows"), 6);
+  text_smoothing_combo_->addItem(tr("None"), kTextAntiAliasNone);
+  text_smoothing_combo_->addItem(tr("Sharp"), kTextAntiAliasSharp);
+  text_smoothing_combo_->addItem(tr("Crisp"), kTextAntiAliasCrisp);
+  text_smoothing_combo_->addItem(tr("Strong"), kTextAntiAliasStrong);
+  text_smoothing_combo_->addItem(tr("Smooth"), kTextAntiAliasSmooth);
+  text_smoothing_combo_->addItem(tr("Windows LCD"), kTextAntiAliasWindowsLcd);
+  text_smoothing_combo_->addItem(tr("Windows"), kTextAntiAliasWindows);
   register_retranslation([this] {
     const QSignalBlocker blocker(text_smoothing_combo_);
     const char* sources[] = {QT_TR_NOOP("None"), QT_TR_NOOP("Sharp"), QT_TR_NOOP("Crisp"),

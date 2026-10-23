@@ -559,7 +559,7 @@ bool MainWindow::close_active_document() {
   return target_session != nullptr && close_document_session(*target_session);
 }
 
-bool MainWindow::close_document_session(DocumentSession& target_session) {
+bool MainWindow::close_document_session(DocumentSession& target_session, CloseConfirmation confirmation) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
     return false;
@@ -595,14 +595,18 @@ bool MainWindow::close_document_session(DocumentSession& target_session) {
     for (const auto* child : children) {
       child_ids.push_back(child->session_id);
     }
-    const auto title = live_session->title.isEmpty() ? tr("Untitled") : live_session->title;
-    const auto answer = show_warning_message(
-        this, tr("Close smart object contents?"),
-        tr("%1 has smart object contents open for editing. Close those tabs too?").arg(title),
-        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes,
-        QStringLiteral("closeSmartObjectChildrenMessageBox"));
-    if (answer != QMessageBox::Yes) {
-      return false;
+    // A quit is already closing everything; its loop asked about modified children
+    // first (they come after their parent), so the ones left close without a question.
+    if (confirmation == CloseConfirmation::Ask) {
+      const auto title = live_session->title.isEmpty() ? tr("Untitled") : live_session->title;
+      const auto answer = show_warning_message(
+          this, tr("Close smart object contents?"),
+          tr("%1 has smart object contents open for editing. Close those tabs too?").arg(title),
+          QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes,
+          QStringLiteral("closeSmartObjectChildrenMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        return false;
+      }
     }
     for (const auto child_id : child_ids) {
       if (auto* child = session_with_id(child_id); child != nullptr && !close_document_session(*child)) {
@@ -610,9 +614,9 @@ bool MainWindow::close_document_session(DocumentSession& target_session) {
       }
     }
     auto* refreshed = session_with_id(target_id);
-    return refreshed != nullptr && close_document_session(*refreshed);
+    return refreshed != nullptr && close_document_session(*refreshed, confirmation);
   }
-  if (!confirm_close_session(*live_session)) {
+  if (confirmation == CloseConfirmation::Ask && !confirm_close_session(*live_session)) {
     return false;
   }
 #ifndef Q_OS_WASM
@@ -1279,21 +1283,36 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
     return false;
   }
 
-  const auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;
-  // The helper labels Save / Discard / Cancel as Yes / No / Cancel with Y, N and C
-  // underlined, and keeps S and D as aliases (GitHub issues 70 and 240). Yes is the
-  // default; the text stays a yes/no question.
-  const auto answer = show_warning_message(this, tr("Save changes?"),
-                                           tr("Save changes to %1 before closing?").arg(title),
-                                           QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-                                           QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
-  if (answer == QMessageBox::Cancel) {
-    return false;
+  // Yes whose save does not settle the document (Save As cancelled, a format question
+  // declined, a write error, a flattened copy that leaves the layers unsaved) asks again
+  // about the same document; only Cancel here ends a close or quit (GitHub issue 359).
+  const auto session_id = target_session.session_id;
+  for (;;) {
+    auto* live_session = session_with_id(session_id);
+    if (live_session == nullptr) {
+      return false;
+    }
+    if (!session_is_modified(*live_session)) {
+      return true;
+    }
+    const auto title = live_session->title.isEmpty() ? tr("Untitled") : live_session->title;
+    // The helper labels Save / Discard / Cancel as Yes / No / Cancel with Y, N and C
+    // underlined, and keeps S and D as aliases (GitHub issues 70 and 240). Yes is the
+    // default; the text stays a yes/no question.
+    const auto answer = show_warning_message(this, tr("Save changes?"),
+                                             tr("Save changes to %1 before closing?").arg(title),
+                                             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+                                             QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
+    if (answer == QMessageBox::Cancel) {
+      return false;
+    }
+    if (answer == QMessageBox::Discard) {
+      return true;
+    }
+    if (auto* saving = session_with_id(session_id); saving != nullptr && maybe_save_session(*saving)) {
+      return true;
+    }
   }
-  if (answer == QMessageBox::Discard) {
-    return true;
-  }
-  return maybe_save_session(target_session);
 }
 
 bool MainWindow::maybe_save_session(DocumentSession& target_session) {
