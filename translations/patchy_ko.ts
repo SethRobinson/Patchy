@@ -11931,36 +11931,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>워터마크 검사</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>이미지가 너무 작아 이 워터마크가 들어갈 수 없습니다. 최소 256 x 256 픽셀이 필요합니다.</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>알려진 워터마크를 찾지 못했습니다.</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>%1 워터마크를 찾았습니다: %3비트 중 %2비트 일치.</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>Google SynthID 같은 많은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서 검사해도 찾을 수 없습니다.</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>TrustMark 워터마크를 찾았습니다(변형 %1, %2): %3.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>워터마크 검사는 Stable Diffusion 1.x, 2.x, SDXL이 생성한 이미지에 넣는 공개된 보이지 않는 워터마크를 현재 이미지에서 찾고, 워터마크 모델을 다운로드하면 Adobe TrustMark도 찾습니다. 자르기, 크기 조정, 다시 칠하기를 하면 보통 사라집니다.</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Stable Diffusion 워터마크를 찾지 못했습니다.</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
     </message>
     <message>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
@@ -11993,6 +11969,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>내 보이지 않는 워터마크를 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>발견됨: %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>확인할 수 있는 워터마크를 찾지 못했습니다. 일부 종류는 확인하지 않았습니다.</translation>
     </message>
 </context>
 <context>
@@ -12105,6 +12089,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>픽셀 보기: 동적 벡터 미리 보기가 이 보기를 렌더링할 수 없습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>이미지가 256 x 256 픽셀보다 작아 이 워터마크를 담을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2비트 중 %1비트 일치.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark를 실행할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>이 버전의 Patchy는 TrustMark 워터마크를 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>워터마크 모델을 다운로드하지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>%1 포함 (%2), 신뢰도 %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>C2PA 메타데이터에 선언됨</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>발견됨</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>찾지 못함</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>확인 안 함</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Google SynthID, Digimarc 같은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서는 어떤 검사로도 찾을 수 없습니다. 찾지 못함은 위의 종류 중 어느 것도 찾지 못했다는 뜻일 뿐입니다.</translation>
     </message>
 </context>
 <context>

@@ -11966,36 +11966,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Rechercher des filigranes</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>L&apos;image est trop petite pour porter ces filigranes : il leur faut au moins 256 x 256 pixels.</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>Aucun des filigranes connus n&apos;a été trouvé.</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>Filigrane %1 trouvé : %2 bits sur %3 correspondent.</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>De nombreux filigranes, comme Google SynthID, ne se lisent qu&apos;avec les outils de leur propriétaire : cette recherche ne peut pas les trouver.</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>Filigrane TrustMark trouvé (variante %1, %2) contenant %3.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>Rechercher des filigranes examine l&apos;image telle qu&apos;elle est maintenant pour y trouver les filigranes invisibles ouverts que Stable Diffusion 1.x, 2.x et SDXL ajoutent aux images qu&apos;ils génèrent, et Adobe TrustMark une fois les modèles de filigrane téléchargés. Recadrer, redimensionner ou repeindre l&apos;image les fait généralement disparaître.</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Aucun des filigranes Stable Diffusion n&apos;a été trouvé.</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>TrustMark n&apos;a pas pu s&apos;exécuter : %1</translation>
     </message>
     <message>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
@@ -12028,6 +12004,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>Votre filigrane invisible a été ajouté.</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>Trouvé : %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>Aucun des filigranes vérifiables n&apos;a été trouvé. Certains types n&apos;ont pas été vérifiés.</translation>
     </message>
 </context>
 <context>
@@ -12140,6 +12124,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>Vue en pixels : l&apos;aperçu vectoriel dynamique n&apos;a pas pu afficher cette vue.</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>L&apos;image fait moins de 256 x 256 pixels, trop petite pour porter cette marque.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%1 bits sur %2 correspondent.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark n&apos;a pas pu s&apos;exécuter : %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Cette version de Patchy ne peut pas lire les filigranes TrustMark.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>Les modèles de filigrane ne sont pas téléchargés.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>Porte %1 (%2), confiance %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>Déclaré dans les métadonnées C2PA</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>Trouvé</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>Non trouvé</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>Non vérifié</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Certains filigranes, comme Google SynthID et Digimarc, ne peuvent être lus qu&apos;avec les outils de leurs propriétaires : aucune analyse ici ne peut les trouver. Non trouvé signifie seulement qu&apos;aucun des types ci-dessus n&apos;a été trouvé.</translation>
     </message>
 </context>
 <context>

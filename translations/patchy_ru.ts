@@ -12001,36 +12001,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Найти водяные знаки</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>Изображение слишком маленькое для таких водяных знаков: нужно не меньше 256 x 256 пикселей.</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>Ни один из известных водяных знаков не найден.</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>Найден водяной знак %1: совпадают %2 из %3 бит.</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>Многие водяные знаки, например Google SynthID, читаются только инструментами их владельцев, поэтому эта проверка их не найдёт.</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>Найден водяной знак TrustMark (вариант %1, %2) с содержимым %3.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>«Найти водяные знаки» проверяет изображение в текущем виде на открытые невидимые водяные знаки, которые Stable Diffusion 1.x, 2.x и SDXL добавляют в создаваемые изображения, а после загрузки моделей водяных знаков — и на Adobe TrustMark. Кадрирование, изменение размера или перерисовка обычно их удаляют.</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Ни один из водяных знаков Stable Diffusion не найден.</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>Не удалось запустить TrustMark: %1</translation>
     </message>
     <message>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
@@ -12063,6 +12039,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>Ваш невидимый водяной знак добавлен.</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>Найдено: %1.</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>Ни один из проверяемых водяных знаков не найден. Некоторые виды не проверены.</translation>
     </message>
 </context>
 <context>
@@ -12175,6 +12159,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>Пиксельное представление: динамическому векторному предварительному просмотру не удалось отобразить это представление.</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>Изображение меньше 256 x 256 пикселей, слишком мало для этой метки.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>Совпадает %1 из %2 бит.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>Не удалось запустить TrustMark: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Эта версия Patchy не может читать водяные знаки TrustMark.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>Модели водяных знаков не загружены.</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>Содержит %1 (%2), уверенность %3.</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>Объявлен в метаданных C2PA</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>Найден</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>Не найден</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>Не проверен</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Некоторые водяные знаки, например Google SynthID и Digimarc, читаются только инструментами их владельцев, поэтому никакая проверка здесь их не найдёт. «Не найден» означает лишь, что не найден ни один из видов выше.</translation>
     </message>
 </context>
 <context>

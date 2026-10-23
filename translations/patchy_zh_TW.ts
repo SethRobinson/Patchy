@@ -11931,36 +11931,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>掃描浮水印</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>影像太小，無法帶有這些浮水印：至少需要 256 x 256 像素。</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>未找到任何已知的浮水印。</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>找到 %1 浮水印：%3 位元中有 %2 位元相符。</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>許多浮水印（例如 Google SynthID）只能用其擁有者的工具讀取，因此這裡的掃描無法找到它們。</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>找到 TrustMark 浮水印（變體 %1，%2），內容為 %3。</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>「掃描浮水印」會檢查影像目前的樣子，尋找 Stable Diffusion 1.x、2.x 和 SDXL 在產生的影像中加入的公開不可見浮水印；下載浮水印模型後也會尋找 Adobe TrustMark。裁切、調整大小或重新繪製影像通常會去除這些浮水印。</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>未找到任何 Stable Diffusion 浮水印。</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>無法執行 TrustMark：%1</translation>
     </message>
     <message>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
@@ -11993,6 +11969,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>已加入你的不可見浮水印。</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>已找到：%1。</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>未找到任何可檢查的浮水印。有些類型未檢查。</translation>
     </message>
 </context>
 <context>
@@ -12105,6 +12089,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>像素檢視:動態向量預視無法算繪此檢視。</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>影像小於 256 x 256 像素，太小，無法帶有此浮水印。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2 位元中有 %1 位元相符。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark 無法執行：%1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>此版本的 Patchy 無法讀取 TrustMark 浮水印。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>尚未下載浮水印模型。</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>帶有 %1（%2），信賴度 %3。</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>在 C2PA 中繼資料中宣告</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>已找到</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>未找到</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>未檢查</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>有些浮水印（例如 Google SynthID 和 Digimarc）只能用其擁有者的工具讀取，因此這裡的任何掃描都找不到它們。未找到僅表示上面的類型都沒有找到。</translation>
     </message>
 </context>
 <context>

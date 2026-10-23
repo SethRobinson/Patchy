@@ -818,6 +818,26 @@ interface PatchyTrustMarkMark {
   confidence: number;
 }
 
+/** One kind of watermark `doc.scanForWatermarks()` checked, in File Info's order. */
+interface PatchyWatermarkCheck {
+  /** Permanent id: "stableDiffusion1" | "stableDiffusion2" | "stableDiffusionXL" | "trustmarkQ" |
+   *  "trustmarkP" | "trustmarkC" | "c2paDeclared" (a watermark the file's C2PA metadata declares). */
+  id: string;
+  /** Display name, for example "Adobe TrustMark Q". */
+  name: string;
+  status: "found" | "notFound" | "notChecked";
+  /** Why a "notChecked" kind was skipped; "" otherwise. */
+  reason: "" | "imageTooSmall" | "modelsNotDownloaded" | "notSupported" | "failed";
+  /** File Info's text for the row: what was found, or why it was not checked (translated). */
+  detail: string;
+  /** Stable Diffusion rows, when found. */
+  match?: PatchyWatermarkMatch;
+  /** TrustMark rows, when found. */
+  mark?: PatchyTrustMarkMark;
+  /** The C2PA row: each declaration's summary. */
+  declarations?: string[];
+}
+
 /** One known invisible watermark `doc.scanForWatermarks()` found in the pixels. */
 interface PatchyWatermarkMatch {
   /** Permanent id: "stableDiffusion1" | "stableDiffusion2" | "stableDiffusionXL". */
@@ -1041,9 +1061,10 @@ interface PatchyDocument {
    *  invisible watermarks of Stable Diffusion 1.x, 2.x and SDXL (`scanned` is false for
    *  images under 256 x 256 pixels), and for Adobe TrustMark when the watermark models are
    *  downloaded (`trustmark.available`; see app.downloadWatermarkModels). Read-only.
-   *  Watermarks declared in metadata are the metadataEntries() rows with privacy "watermark". */
+   *  Watermarks declared in metadata are the metadataEntries() rows with privacy "watermark".
+   *  `checks` lists every kind checked, always all seven, with its status. */
   scanForWatermarks(): {scanned: boolean; matches: PatchyWatermarkMatch[];
-    trustmark: {available: boolean; marks: PatchyTrustMarkMark[]}};
+    trustmark: {available: boolean; marks: PatchyTrustMarkMark[]}; checks: PatchyWatermarkCheck[]};
   /** Image > Add Invisible Watermark: embeds an Adobe TrustMark watermark (variant Q) into the
    *  active pixel layer, which must fill the image, in an 8-bit document. Give `text`
    *  (printable ASCII; 8 characters with BCH_5, 5 with BCH_SUPER, 9 with BCH_4, 10 with

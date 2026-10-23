@@ -182,7 +182,7 @@ by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
   observed item "Watermark declared in Content Credentials", privacy `watermark`. IPTC
   DigitalSourceType says how an image was made, not that it carries a mark, and stays aiPrompt.
 - Pixel scan: the Watermarks page's Scan for Watermarks (`fileInfoScanWatermarksButton`,
-  result `fileInfoWatermarkScanResult`) and `doc.scanForWatermarks()`. It runs only on that
+  per-kind results in [watermarks.md](watermarks.md#scan-results)) and `doc.scanForWatermarks()`. It runs only on that
   request, never at open or per repaint: `Compositor::flatten_rgb8` of the document as it is
   now, then `scan_invisible_watermarks` (`src/core/invisible_watermark.cpp`). A hit adds a
   "Pixel scan" / "Invisible watermark" row (privacy watermark) to All Metadata and a banner
@@ -226,8 +226,7 @@ by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
   lives in fine chroma detail, and in `ui_file_info_scans_for_watermarks` a marked SDXL image
   still decodes exactly after Qt's JPEG at quality 100 but keeps 6 of 48 bits wrong at 95 and
   19 at 90 (not found). Many watermarks have no public
-  decoder (Google SynthID); the page says so. Adobe TrustMark needs a downloaded ONNX model
-  and is not included.
+  decoder (Google SynthID, Digimarc); the page says so under the results.
 
 ## Tests
 

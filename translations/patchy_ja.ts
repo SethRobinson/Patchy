@@ -11931,36 +11931,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>透かしをスキャン</translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation>画像が小さすぎるため、これらの透かしは入りません。256 x 256 ピクセル以上が必要です。</translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation>既知の透かしは見つかりませんでした。</translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation>%1 の透かしが見つかりました: %3 ビット中 %2 ビットが一致。</translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation>Google SynthID など多くの透かしは、所有者のツールでしか読み取れないため、ここでのスキャンでは見つかりません。</translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation>TrustMark の透かし（バリアント %1、%2）が見つかりました: %3。</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
         <translation>「透かしをスキャン」は、Stable Diffusion 1.x、2.x、SDXL が生成した画像に加える公開された見えない透かしを現在の画像から探します。透かしモデルをダウンロードすると Adobe TrustMark も探します。切り抜き、サイズ変更、塗り直しを行うと、通常は透かしが消えます。</translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation>Stable Diffusion の透かしは見つかりませんでした。</translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
-        <translation>TrustMark を実行できませんでした: %1</translation>
     </message>
     <message>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
@@ -11993,6 +11969,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>あなたの見えない透かしを追加しました。</translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation>検出: %1。</translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
+        <translation>確認できた透かしはどれも見つかりませんでした。確認できなかった種類があります。</translation>
     </message>
 </context>
 <context>
@@ -12105,6 +12089,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
         <translation>ピクセル表示: 動的ベクトルプレビューでこの表示を描画できませんでした。</translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation>画像が 256 x 256 ピクセル未満で、この透かしを入れるには小さすぎます。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation>%2 ビット中 %1 ビットが一致。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark を実行できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>このバージョンの Patchy は TrustMark の透かしを読み取れません。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation>透かしモデルがダウンロードされていません。</translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation>%1 を含みます (%2)、信頼度 %3。</translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation>C2PA メタデータでの宣言</translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation>検出</translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation>未検出</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>未確認</translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <translation>Google SynthID や Digimarc などの透かしは所有者のツールでしか読み取れないため、ここでのスキャンでは見つかりません。未検出は、上記の種類がどれも見つからなかったことだけを意味します。</translation>
     </message>
 </context>
 <context>

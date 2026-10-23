@@ -11950,35 +11950,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>None of the known watermarks was found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Found the %1 watermark: %2 of %3 bits match.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>None of the Stable Diffusion watermarks was found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>TrustMark could not run: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12011,6 +11987,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Added your invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None of the watermarks that could be checked was found. Some kinds were not checked.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -12123,6 +12107,53 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Pixel view: Dynamic Vector Preview could not render this view.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>WatermarkScanReport</name>
+    <message>
+        <source>The image is under 256 x 256 pixels, too small to carry this mark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 of %2 bits match.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Carries %1 (%2), confidence %3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Declared in C2PA metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -26,6 +26,14 @@ layer and returns `{schema, text, id}`; `app.downloadWatermarkModels()` and
 ids `Q`, `P`, `C`, the schema ids `BCH_SUPER`, `BCH_5`, `BCH_4`, `BCH_3`, and command id
 `image.add_invisible_watermark`. Pinned by `ui_script_trustmark_round_trip`.
 
+2026-10-23 (additive): `doc.scanForWatermarks().checks`, one row per kind checked
+([watermarks.md](watermarks.md#scan-results)): `{id, name, status, reason, detail}`, plus `match`,
+`mark` or `declarations`. The other fields are unchanged. Permanent identifiers: the key names, the
+ids `stableDiffusion1`, `stableDiffusion2`, `stableDiffusionXL`, `trustmarkQ`, `trustmarkP`,
+`trustmarkC`, `c2paDeclared`, the statuses `found`, `notFound`, `notChecked` and the reasons
+`imageTooSmall`, `modelsNotDownloaded`, `notSupported`, `failed`. Pinned by
+`ui_script_scan_for_watermarks` and `ui_watermark_scan_report_rows`.
+
 2026-10-23 (additive): `doc.scanForWatermarks()`, File Info's Scan for Watermarks: returns
 `{scanned, matches: [{id, name, bits, differingBits, redBlueSwapped}]}` for the open invisible
 watermarks of Stable Diffusion 1.x, 2.x and SDXL found in the composite (`scanned` is false under

@@ -55,6 +55,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMap>
+#include <QStringList>
 #include <QMessageBox>
 #include <QTimer>
 #include "local_psd_fixtures.hpp"
@@ -688,6 +690,24 @@ void ui_file_info_scans_for_watermarks() {
       const auto rows = tree != nullptr ? tree->findItems(QStringLiteral("Invisible watermark"),
                                                           Qt::MatchExactly | Qt::MatchRecursive)
                                         : QList<QTreeWidgetItem*>{};
+      // One row per kind, in a fixed order; TrustMark is Not checked without its models.
+      QStringList order;
+      QMap<QString, QString> statuses;
+      for (auto* label : dialog->findChildren<QLabel*>(QStringLiteral("fileInfoWatermarkCheckStatus"))) {
+        if (label->isVisible()) {
+          order.push_back(label->property("watermarkCheck").toString());
+          statuses.insert(order.back(), label->property("watermarkStatus").toString());
+        }
+      }
+      CHECK(order == QStringList({QStringLiteral("stableDiffusion1"), QStringLiteral("stableDiffusion2"),
+                                  QStringLiteral("stableDiffusionXL"), QStringLiteral("trustmarkQ"),
+                                  QStringLiteral("trustmarkP"), QStringLiteral("trustmarkC"),
+                                  QStringLiteral("c2paDeclared")}));
+      CHECK(statuses.value(QStringLiteral("stableDiffusion1")) == QStringLiteral("notFound"));
+      CHECK(statuses.value(QStringLiteral("stableDiffusionXL")) ==
+            (expect_hit ? QStringLiteral("found") : QStringLiteral("notFound")));
+      CHECK(statuses.value(QStringLiteral("trustmarkQ")) == QStringLiteral("notChecked"));
+      CHECK(statuses.value(QStringLiteral("c2paDeclared")) == QStringLiteral("notFound"));
       if (expect_hit) {
         CHECK(result != nullptr && result->text().contains(QStringLiteral("Stable Diffusion XL")));
         CHECK(banner != nullptr && !banner->isHidden() &&
@@ -700,7 +720,9 @@ void ui_file_info_scans_for_watermarks() {
         QApplication::processEvents();
         capture_widget_artifact("ui_file_info_watermark_found", *dialog);
       } else {
-        CHECK(result != nullptr && result->text() == QObject::tr("None of the Stable Diffusion watermarks was found."));
+        CHECK(result != nullptr &&
+              result->text() == QObject::tr("None of the watermarks that could be checked was found. Some kinds "
+                                            "were not checked."));
         CHECK(rows.isEmpty());
         capture_widget_artifact("ui_file_info_watermark_none", *dialog);
       }
