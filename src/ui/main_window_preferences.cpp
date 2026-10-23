@@ -2065,6 +2065,18 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     }
     QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow QRadioButton {
       background: transparent;
+      spacing: 7px;
+    }
+    QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow QRadioButton::indicator {
+      width: 11px;
+      height: 11px;
+      border-radius: 6px;
+      background: @dlg_grid_bg;
+      border: 1px solid @dlg_grid_border;
+    }
+    QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow QRadioButton::indicator:checked {
+      background: @accent_pressed_bg;
+      border-color: @dlg_focus_border;
     }
   )"));
   // Appended last, after the block above: the spin sub-control rules must be the
