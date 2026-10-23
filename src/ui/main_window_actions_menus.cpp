@@ -348,6 +348,16 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(file_info_action, "file.file_info", QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_I));
   connect(file_info_action, &QAction::triggered, this, [this] { show_file_info_dialog(); });
   register_document_action(file_info_action);
+  // File Info opened on its Watermarks page with the scan already run (docs/watermarks.md);
+  // also on the document tab's context menu, for the clicked document.
+  auto* scan_watermarks_action = file_menu->addAction(tr("Scan for &Watermarks..."));
+  bind_action_text(scan_watermarks_action, QT_TR_NOOP("Scan for &Watermarks..."));
+  scan_watermarks_action->setObjectName(QStringLiteral("fileScanForWatermarksAction"));
+  scan_watermarks_action->setMenuRole(QAction::NoRole);
+  register_hotkey(scan_watermarks_action, "file.scan_for_watermarks");
+  connect(scan_watermarks_action, &QAction::triggered, this,
+          [this] { show_file_info_dialog(/*watermarks_scan*/ true); });
+  register_document_action(scan_watermarks_action);
   auto* strip_metadata_action = file_menu->addAction(tr("Strip All Metadata..."));
   bind_action_text(strip_metadata_action, QT_TR_NOOP("Strip All Metadata..."));
   strip_metadata_action->setObjectName(QStringLiteral("fileStripMetadataAction"));

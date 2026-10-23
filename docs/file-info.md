@@ -5,6 +5,8 @@ Patchy can read from the document's source file, edits the Photoshop-style Descr
 IPTC fields, and stages Strip All Metadata, Remove Location and Remove Edit History. File >
 Strip All Metadata (`file.strip_metadata`, no default key) strips without opening the dialog.
 Both are undoable (`push_undo_snapshot`) and change the file only on the next save.
+File > Scan for Watermarks... (`file.scan_for_watermarks`, no default key; also on the
+document tab's menu) opens File Info on the Watermarks page with the scan run.
 
 ## Model
 

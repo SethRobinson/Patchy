@@ -91,6 +91,11 @@ declaration in the file's metadata, [file-info.md](file-info.md#watermarks)). St
 without ONNX Runtime, the web build) or `failed` (the decoder threw). Found rows show the bits
 matched (Stable Diffusion) or the payload, schema and confidence (TrustMark).
 
+File > Scan for Watermarks... (`fileScanForWatermarksAction`, hotkey id
+`file.scan_for_watermarks`, no default key, under File Info) and the document tab's menu
+([document-tabs.md](document-tabs.md), for the clicked document) open File Info on this page
+with the scan already run, as the check-on-open notice does.
+
 File Info: a summary line (`fileInfoWatermarkScanResult`) over a three-column grid
 (`fileInfoWatermarkScanResults`; labels `fileInfoWatermarkCheckName`, `...Status`, `...Detail`
 with properties `watermarkCheck` = id and `watermarkStatus` = token). Status is a word; Found
