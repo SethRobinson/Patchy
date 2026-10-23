@@ -36,6 +36,15 @@ inline constexpr const char* kLayerMetadataTextColor = "patchy.text.color";
 inline constexpr const char* kLayerMetadataTextBold = "patchy.text.bold";
 inline constexpr const char* kLayerMetadataTextItalic = "patchy.text.italic";
 inline constexpr const char* kLayerMetadataTextAntiAlias = "patchy.text.anti_alias";
+// kLayerMetadataTextAntiAlias holds Photoshop's EngineData /AntiAlias number, as Photoshop
+// 2026 writes it (GitHub issue 344 fixture). 5 is not a mode Photoshop writes.
+inline constexpr int kTextAntiAliasNone = 0;
+inline constexpr int kTextAntiAliasCrisp = 1;
+inline constexpr int kTextAntiAliasStrong = 2;
+inline constexpr int kTextAntiAliasSmooth = 3;
+inline constexpr int kTextAntiAliasSharp = 4;
+inline constexpr int kTextAntiAliasWindowsLcd = 6;
+inline constexpr int kTextAntiAliasWindows = 7;
 inline constexpr const char* kLayerMetadataTextSourceBlock = "patchy.text.source_block";
 inline constexpr const char* kLayerMetadataTextRasterStatus = "patchy.text.raster_status";
 // "photoshop" on text layers imported from a Photoshop-authored TySh block: the renderer lays

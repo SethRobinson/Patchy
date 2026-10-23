@@ -133,6 +133,19 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(window.findChild<QPushButton*>(QStringLiteral("textBoldButton")) == nullptr);
   CHECK(window.findChild<QPushButton*>(QStringLiteral("textItalicButton")) == nullptr);
   CHECK(text_smoothing->currentData().toInt() == 3);
+  // Each entry carries the EngineData /AntiAlias number Photoshop writes for that mode (#344).
+  const std::array<std::pair<const char*, int>, 7> smoothing_modes{{{"None", patchy::kTextAntiAliasNone},
+                                                                    {"Sharp", patchy::kTextAntiAliasSharp},
+                                                                    {"Crisp", patchy::kTextAntiAliasCrisp},
+                                                                    {"Strong", patchy::kTextAntiAliasStrong},
+                                                                    {"Smooth", patchy::kTextAntiAliasSmooth},
+                                                                    {"Windows LCD", patchy::kTextAntiAliasWindowsLcd},
+                                                                    {"Windows", patchy::kTextAntiAliasWindows}}};
+  CHECK(text_smoothing->count() == static_cast<int>(smoothing_modes.size()));
+  for (const auto& [name, value] : smoothing_modes) {
+    const auto index = text_smoothing->findData(value);
+    CHECK(index >= 0 && text_smoothing->itemText(index) == QString::fromLatin1(name));
+  }
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 3);
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(40, 220, 120));
   text_color->click();
@@ -2053,7 +2066,7 @@ void ui_text_placeholder_survives_options_bar_changes() {
 
       // A popup pick: focus sits on the combo, the choice lands, then activated fires.
       smoothing->setFocus(Qt::MouseFocusReason);
-      const auto crisp = smoothing->findData(2);
+      const auto crisp = smoothing->findData(patchy::kTextAntiAliasCrisp);
       smoothing->setCurrentIndex(crisp);
       emit smoothing->activated(crisp);
       process_events_for(20);
