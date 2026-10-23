@@ -2655,11 +2655,13 @@ std::optional<CanvasWidget::DragReadout> CanvasWidget::transform_drag_readout() 
     case TransformHandle::None:
       return std::nullopt;
     default: {
+      // The options bar's W and H (a distortion included, GitHub issue 353).
       const auto original_width = std::max(1.0, transform_original_rect_.width());
       const auto original_height = std::max(1.0, transform_original_rect_.height());
-      const auto width = transform_current_rect_.width();
-      const auto height = transform_current_rect_.height();
-      readout.lines << tr("W: %1  H: %2").arg(format_pixels(width, 1), format_pixels(height, 1));
+      const auto distortion = transform_distortion_scale_factors();
+      const auto width = transform_current_rect_.width() * distortion.x();
+      const auto height = transform_current_rect_.height() * distortion.y();
+      readout.lines << tr("W: %1  H: %2").arg(format_pixels(std::abs(width), 1), format_pixels(std::abs(height), 1));
       const auto percentages = tr("%1 x %2")
                                    .arg(format_percent(transform_scale_x_sign_ * width / original_width * 100.0),
                                         format_percent(transform_scale_y_sign_ * height / original_height * 100.0));
@@ -2698,11 +2700,13 @@ std::optional<CanvasWidget::TransformControlsState> CanvasWidget::transform_cont
   std::optional<QRectF> rect;
   QRectF original_rect;
   double angle = 0.0;
+  QPointF distortion(1.0, 1.0);
   const bool active = transforming_layer_;
   if (active) {
     rect = transform_current_rect_;
     original_rect = transform_original_rect_;
     angle = transform_angle_;
+    distortion = transform_distortion_scale_factors();
   } else {
     rect = move_transform_controls_rect();
     if (rect.has_value()) {
@@ -2718,8 +2722,8 @@ std::optional<CanvasWidget::TransformControlsState> CanvasWidget::transform_cont
       active,
       transform_reference_point_,
       transform_reference_position(*rect, angle),
-      (active ? transform_scale_x_sign_ : 1.0) * (rect->width() / original_rect.width()) * 100.0,
-      (active ? transform_scale_y_sign_ : 1.0) * (rect->height() / original_rect.height()) * 100.0,
+      (active ? transform_scale_x_sign_ : 1.0) * (rect->width() / original_rect.width()) * distortion.x() * 100.0,
+      (active ? transform_scale_y_sign_ : 1.0) * (rect->height() / original_rect.height()) * distortion.y() * 100.0,
       angle,
       transform_interpolation_,
       original_rect.size(),
@@ -2741,6 +2745,11 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
     return false;
   }
   const auto step_before = current_transform_session_step();
+  // The fields show the distorted shape's W and H (transform_controls_state);
+  // the box takes them without the distortion's own share.
+  const auto distortion = transform_distortion_scale_factors();
+  scale_x_percent /= distortion.x();
+  scale_y_percent /= distortion.y();
 
   const auto scale_x_sign = transform_scale_sign(scale_x_percent, transform_scale_x_sign_);
   const auto scale_y_sign = transform_scale_sign(scale_y_percent, transform_scale_y_sign_);
@@ -2897,6 +2906,28 @@ std::array<QPointF, 4> CanvasWidget::transform_original_corners() const {
   const auto& rect = transform_original_rect_;
   return {QPointF(rect.x(), rect.y()), QPointF(rect.x() + rect.width(), rect.y()),
           QPointF(rect.x() + rect.width(), rect.y() + rect.height()), QPointF(rect.x(), rect.y() + rect.height())};
+}
+
+QPointF CanvasWidget::transform_distortion_scale_factors() const noexcept {
+  // GitHub issue 353: Distort and Perspective change the shape without the box, so
+  // W and H read the quad. The offsets sit in the original box's frame, so the
+  // factors are linear in the box scale and a typed W or H round-trips exactly.
+  // A skew slides sides along themselves and keeps both at 1 (Photoshop's W and H
+  // do not move for a skew either).
+  const auto& o = transform_corner_offsets_;
+  const auto width = transform_original_rect_.width();
+  const auto height = transform_original_rect_.height();
+  if (width <= 0.0 || height <= 0.0) {
+    return {1.0, 1.0};
+  }
+  const auto factor = [](double value) {
+    // Never zero: the setter divides by it. A convex quad keeps opposite sides apart.
+    constexpr double kMinimum = 1e-4;
+    return std::abs(value) < kMinimum ? std::copysign(kMinimum, value) : value;
+  };
+  const auto x = (width + ((o[1].x() - o[0].x()) + (o[2].x() - o[3].x())) / 2.0) / width;
+  const auto y = (height + ((o[3].y() - o[0].y()) + (o[2].y() - o[1].y())) / 2.0) / height;
+  return {factor(x), factor(y)};
 }
 
 std::array<QPointF, 4> CanvasWidget::transform_quad_for_offsets(const std::array<QPointF, 4>& offsets) const {

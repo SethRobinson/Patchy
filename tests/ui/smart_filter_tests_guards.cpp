@@ -1803,10 +1803,229 @@ void ui_smart_object_direct_unsupported_filter_offers_rasterize() {
   CHECK(patchy::ui::pixel_buffers_equal(restored->pixels(), original_pixels));
 }
 
+
+// "Applied Median then Gaussian" from the Photoshop model fixture with each filter's blend
+// mode written as the classic charID "Nrml", the form older Photoshop releases store
+// (ag-psd's smart-filter-blur sample, GitHub issue 348).
+std::filesystem::path write_charid_blend_mode_smart_filter_fixture() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
+  auto layer = std::find_if(document.layers().begin(), document.layers().end(),
+                            [](const patchy::Layer& candidate) {
+                              return candidate.name() == "Applied Median then Gaussian";
+                            });
+  CHECK(layer != document.layers().end());
+  // Md's value: the 6-character stringID "normal" becomes the 4-character charID "Nrml".
+  const std::string string_id("BlnM\0\0\0\x06normal", 14);
+  const std::string char_id("BlnM\0\0\0\0Nrml", 12);
+  std::size_t replacements = 0U;
+  for (auto& block : layer->unknown_psd_blocks()) {
+    if (block.key != "SoLd" && block.key != "SoLE") {
+      continue;
+    }
+    std::string payload(block.payload.begin(), block.payload.end());
+    for (auto found = payload.find(string_id); found != std::string::npos;
+         found = payload.find(string_id, found + char_id.size())) {
+      payload.replace(found, string_id.size(), char_id);
+      ++replacements;
+    }
+    block.payload.assign(payload.begin(), payload.end());
+  }
+  CHECK(replacements == 2U);
+  ensure_artifact_dir();
+  const auto path = std::filesystem::absolute(std::filesystem::path("test-artifacts") /
+                                              "issue348_charid_blend_mode_smart_filters.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
+  return path;
+}
+
+// GitHub issue 348: Smart Filters whose blend mode is stored as a classic charID render in
+// Patchy, so every eye toggles from a real click: the Smart Filters eye off and back on,
+// each filter's eye with the stack shown, and each filter's eye with the stack hidden (it
+// keeps its own state). Each click is one undo step.
+void ui_smart_filter_eyes_toggle_from_clicks_with_charid_blend_modes() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  const auto fixture = write_charid_blend_mode_smart_filter_fixture();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window,
+                                                       QString::fromStdWString(fixture.wstring()));
+  QApplication::processEvents();
+  const auto layer_name = QStringLiteral("Applied Median then Gaussian");
+  const auto layer_id = select_named_layer(window, layer_name);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  const auto stack = [&]() -> const patchy::SmartFilterStack* {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    return layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  };
+  const auto row = [&]() -> QWidget* {
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    return list->itemWidget(require_layer_item(*list, layer_name));
+  };
+  CHECK(stack() != nullptr && stack()->entries.size() == 2U);
+  CHECK(stack()->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack()->entries[0].kind == patchy::SmartFilterKind::Median);
+  CHECK(stack()->entries[1].kind == patchy::SmartFilterKind::GaussianBlur);
+  CHECK(stack()->entries[0].blend_mode == patchy::BlendMode::Normal);
+  CHECK(stack()->entries[1].blend_mode == patchy::BlendMode::Normal);
+  CHECK(patchy::smart_object_lock_reason(*std::as_const(document).find_layer(layer_id)).empty());
+
+  const auto stack_eye = [&] {
+    return row()->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton"));
+  };
+  const auto filter_eye = [&](std::size_t execution_index) {
+    return smart_filter_control<QToolButton>(row(), QStringLiteral("layerSmartFilterVisibilityButton"),
+                                             execution_index);
+  };
+  const auto state = [&] {
+    return std::array<bool, 3>{stack()->enabled, stack()->entries[0].enabled, stack()->entries[1].enabled};
+  };
+  // A real click through the list's event filter, then the deferred commit.
+  const auto click = [&](QToolButton* eye, std::array<bool, 3> expected) {
+    CHECK(eye != nullptr && eye->isEnabled());
+    if (eye == nullptr) {
+      return;
+    }
+    const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    QTest::mouseClick(eye, Qt::LeftButton, Qt::NoModifier, eye->rect().center());
+    CHECK(process_events_until([&] { return stack() != nullptr && state() == expected; }));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1U);
+  };
+  const auto every_eye_enabled = [&] {
+    CHECK(stack_eye() != nullptr && stack_eye()->isEnabled());
+    CHECK(filter_eye(0U) != nullptr && filter_eye(0U)->isEnabled());
+    CHECK(filter_eye(1U) != nullptr && filter_eye(1U)->isEnabled());
+  };
+  every_eye_enabled();
+  save_widget_artifact("issue348_smart_filter_eyes", *list);
+
+  // The Smart Filters eye off, then back on.
+  click(stack_eye(), {false, true, true});
+  every_eye_enabled();
+  click(stack_eye(), {true, true, true});
+
+  // Each filter's eye with the stack shown.
+  click(filter_eye(1U), {true, true, false});
+  click(filter_eye(0U), {true, false, false});
+  every_eye_enabled();
+  click(filter_eye(1U), {true, false, true});
+  click(filter_eye(0U), {true, true, true});
+
+  // With the stack hidden each filter's eye still toggles its own state.
+  click(stack_eye(), {false, true, true});
+  click(filter_eye(1U), {false, true, false});
+  every_eye_enabled();
+  save_widget_artifact("issue348_smart_filter_eyes_stack_hidden", *list);
+  click(stack_eye(), {true, true, false});
+  click(filter_eye(1U), {true, true, true});
+
+  // Undo walks the steps back.
+  for (const auto& expected : std::array<std::array<bool, 3>, 4>{{
+           {true, true, false}, {false, true, false}, {false, true, true}, {true, true, true}}}) {
+    patchy::ui::MainWindowTestAccess::undo(window);
+    CHECK(process_events_until([&] { return stack() != nullptr && state() == expected; }));
+  }
+}
+
+// The Smart Filter layers of a document, groups included, by layer name.
+void collect_smart_filter_layers(const std::vector<patchy::Layer>& layers,
+                                 std::map<std::string, const patchy::Layer*>& found) {
+  for (const auto& layer : layers) {
+    collect_smart_filter_layers(layer.children(), found);
+    if (layer.smart_filter_stack() != nullptr) {
+      found[layer.name()] = &layer;
+    }
+  }
+}
+
+// GitHub issue 348, the reporter's files when present (ag-psd's test folder). Their
+// blend modes are classic charIDs, their foreground colors CMYK and their filter masks
+// zip-compressed; the filters Patchy models render in Patchy, so their eyes work.
+void ui_smart_filter_ag_psd_samples_render_if_available() {
+  const auto blur_path = patchy::test::local_format_fixture_path("ag-psd/smart-filter-blur", "src.psd");
+  const auto single_path = patchy::test::local_format_fixture_path("ag-psd/smart-filter", "src.psd");
+  const auto all_path = patchy::test::local_format_fixture_path("ag-psd/smart-filters", "src.psd");
+  for (const auto& path : {blur_path, single_path, all_path}) {
+    if (!std::filesystem::exists(path)) {
+      patchy::test::skip("optional fixture missing: " + patchy::test::fixture_display_path(path));
+    }
+  }
+  {
+    // The reporter's view: the Layers panel with the smart-filter-blur stack.
+    SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(blur_path.wstring()));
+    QApplication::processEvents();
+    select_named_layer(window, QStringLiteral("Ellipse 1"));
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    if (list != nullptr) {
+      save_widget_artifact("issue348_ag_psd_smart_filter_blur_layers", *list);
+    }
+  }
+  const auto renders = [](const patchy::Layer* layer, std::initializer_list<patchy::SmartFilterKind> kinds) {
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return;
+    }
+    const auto& stack = *layer->smart_filter_stack();
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Supported);
+    CHECK(stack.entries.size() == kinds.size());
+    std::size_t index = 0U;
+    for (const auto kind : kinds) {
+      CHECK(index < stack.entries.size() && stack.entries[index].kind == kind);
+      ++index;
+    }
+    CHECK(patchy::smart_object_lock_reason(*layer).empty());
+  };
+  const auto layers_of = [](const std::filesystem::path& path) {
+    auto document = std::make_shared<patchy::Document>(patchy::psd::DocumentIo::read_file(path));
+    std::map<std::string, const patchy::Layer*> found;
+    collect_smart_filter_layers(document->layers(), found);
+    return std::pair{document, found};
+  };
+
+  const auto [blur_document, blur_layers] = layers_of(blur_path);
+  CHECK(blur_layers.size() == 1U);
+  renders(blur_layers.count("Ellipse 1") != 0U ? blur_layers.at("Ellipse 1") : nullptr,
+          {patchy::SmartFilterKind::GaussianBlur, patchy::SmartFilterKind::Adjustment});
+
+  const auto [single_document, single_layers] = layers_of(single_path);
+  CHECK(single_layers.size() == 1U);
+  renders(single_layers.count("temmie") != 0U ? single_layers.at("temmie") : nullptr,
+          {patchy::SmartFilterKind::Average});
+
+  const auto [all_document, all_layers] = layers_of(all_path);
+  const auto all_layer = [&all_layers](const char* name) {
+    return all_layers.count(name) != 0U ? all_layers.at(name) : nullptr;
+  };
+  renders(all_layer("gaussian blur"), {patchy::SmartFilterKind::GaussianBlur});
+  renders(all_layer("unsharp mask"), {patchy::SmartFilterKind::UnsharpMask});
+  renders(all_layer("fibers"), {patchy::SmartFilterKind::Fibers});
+  renders(all_layer("average"), {patchy::SmartFilterKind::Average});
+  // A filter Patchy does not model keeps Photoshop's preview (GitHub issue 243).
+  const auto* wind = all_layer("wind");
+  CHECK(wind != nullptr && wind->smart_filter_stack()->native_shape_supported &&
+        wind->smart_filter_stack()->support == patchy::SmartFilterStackSupport::Unsupported);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests_part2() {
   return {
+      {"ui_smart_filter_eyes_toggle_from_clicks_with_charid_blend_modes",
+       ui_smart_filter_eyes_toggle_from_clicks_with_charid_blend_modes},
+      {"ui_smart_filter_ag_psd_samples_render_if_available",
+       ui_smart_filter_ag_psd_samples_render_if_available},
       {"ui_smart_filter_gallery_native_recipe_applies_atomically",
        ui_smart_filter_gallery_native_recipe_applies_atomically},
       {"ui_smart_filter_move_drag_and_nudge_rerender_cache_and_roundtrip",
