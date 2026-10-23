@@ -11994,6 +11994,66 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added your invisible watermark.</source>
         <translation>已加入你的不可見浮水印。</translation>
     </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>轉換為描述檔</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>目前描述檔:</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>選擇描述檔檔案...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>選擇 RGB 描述檔</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>ICC 描述檔 (*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>「%1」不是 Patchy 可以使用的 RGB 描述檔。</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>目的地描述檔:</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>相對公制色度</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>絕對公制色度</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>色彩轉換方式:</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>黑版控制點補償</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy 會將 RGB 色彩以 sRGB 顯示。轉換為其他描述檔的文件在這裡的螢幕上看起來會不同，儲存的檔案會帶有該描述檔。</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>無法將色彩描述檔 %1 轉換為 sRGB，因此檔案保留其色彩與描述檔</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>已從色彩描述檔 %1 轉換為 sRGB</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>文字、形狀、填色和調整圖層以及圖層樣式中儲存的色彩保留檔案中的數值；只有像素已轉換為 sRGB</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24419,6 +24479,46 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Always add without asking</source>
         <translation>一律加入而不詢問</translation>
     </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>轉換為描述檔(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>請先開啟文件</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>轉換為其他描述檔前請先轉換為 RGB 色彩</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>轉換為其他 RGB 描述檔前請先結束 CMYK 校樣</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>32 位元文件只能在矩陣式 RGB 描述檔之間轉換</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>此描述檔無法用於這次轉換</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>轉換為描述檔</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>已從 %1 轉換為 %2</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>開啟檔案時將其他 RGB 描述檔轉換為 sRGB</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy 以 sRGB 顯示及編輯 RGB 色彩。Display P3、Adobe RGB 或其他 RGB 描述檔的檔案只有轉換後才會正確顯示。關閉時，檔案會以原本的數值開啟並保留其描述檔。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26306,6 +26406,38 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>convertToProfile 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent 必須是 &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot; 或 &quot;absolute-colorimetric&quot;。</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation 必須是 true 或 false。</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile 接受 &quot;sRGB&quot; 或 RGB 描述檔檔案的路徑：%1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>請先將索引色文件轉換為 RGB 色彩。</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>轉換為其他 RGB 描述檔前請先結束 CMYK 校樣。</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>32 位元文件只能在矩陣式 RGB 描述檔之間轉換。</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>此描述檔無法用於這次轉換。</translation>
     </message>
 </context>
 <context>
