@@ -10,7 +10,7 @@ Read before changing a feature named below or adding an adjacent one. Claim-leve
 
 ## Filters and Smart Objects
 
-- Smart Objects, Smart Filters and the Filter Gallery are allowed within the boundaries below.
+- Smart Objects, Smart Filters and Filter Gallery are allowed within these limits.
 - **Surface Blur may not compute through a value histogram.** Median and Dust & Scratches keep exactly one window histogram updated one pixel value at a time; never introduce column, merged or slid histograms before the expirations (US 8594445, US 7920741). The calibrated outputs and constraint comments in `smart_filter_renderer.cpp` are binding.
 - **Tilt-Shift Blur draws no boundary marks.** Its overlay is the center crosshair, the rotation line and the four handle dots (decided 2026-10-20; US 8971623, audit item 3). Never add a line or bar along a band edge before 2033, and keep every mark off the image perimeter. Pinned by `ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks`; the algorithm itself is clear.
 - **Lens Blur and Iris Blur remain fixed and geometric.** Lens Blur is one explicitly selected aperture convolution with no depth inference, classification, highlight detection, or per-pixel kernel. Iris Blur computes one round blur and blends it through one explicit ellipse. Do not add multiple pins, combined blur patterns, Photoshop-style iris boundary widgets, variable-radius kernels, bokeh thresholds, learned depth/focal mattes, splatting or native `blurbTransform` authoring without a new review (US 8831371, US 9019310, US 8824793, US 12561768). Imported Blur Gallery stays preview-locked; Lens/Iris stay raster-only.
@@ -73,7 +73,7 @@ Design: [gmic.md](gmic.md); record: [patent-research-gmic.md](patent-research-gm
 
 ## Watermark detection
 
-- **Detect only** (decided 2026-10-23; MIT source and method in [file-info.md](file-info.md#watermarks)): never embed, remove or mask a watermark, or add a model-based decoder (TrustMark), without a new decision.
+- **Detect and embed only** (decided 2026-10-23; [watermarks.md](watermarks.md)): no watermark removal (TrustMark's remover is never fetched) and no model beyond TrustMark's Q/P/C decoders and Q encoder without a new decision.
 
 ## Format, copyright, trademarks, and assets
 

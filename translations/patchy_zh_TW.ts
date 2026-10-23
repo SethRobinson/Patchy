@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>標準</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>最穩健</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>更大容量</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>最大容量</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1：%2 個字元，可承受 %3 個損壞的位元</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>加入不可見浮水印</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>使用 Adobe TrustMark 在目前圖層的像素中隱藏一則短訊息。它能承受大多數縮放、JPEG 壓縮與分享，改動小到看不出來。</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>TrustMark 沒有金鑰：任何擁有免費 TrustMark 讀取器的人（包括 Patchy 的「檔案資訊」）都能讀出訊息。用它來標記影像或指向影像的記錄，而不是隱藏資訊或單憑它證明所有權。</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>用於保護訊息的錯誤更正強度。「標準」是 TrustMark 的預設值。</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>錯誤更正：</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>文字：</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>隨機 ID：</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>新 ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>強度：</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100% 是 TrustMark 的預設值。數值越低越不明顯，但越容易遺失；Adobe 為印刷品使用 150%。</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>需要浮水印模型：從 Adobe 下載 %1 MB。</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>下載浮水印模型</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>加入浮水印</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>剩餘 %1/%2 個字元</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11848,10 +11927,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>像素中的不可見浮水印</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>「掃描浮水印」會檢查影像目前的樣子，尋找 Stable Diffusion 1.x、2.x 和 SDXL 在產生的影像中加入的公開不可見浮水印。裁切、調整大小或重新繪製影像通常會去除這些浮水印。</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>掃描浮水印</translation>
     </message>
@@ -11870,6 +11945,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>許多浮水印（例如 Google SynthID）只能用其擁有者的工具讀取，因此這裡的掃描無法找到它們。</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>找到 TrustMark 浮水印（變體 %1，%2），內容為 %3。</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>「掃描浮水印」會檢查影像目前的樣子，尋找 Stable Diffusion 1.x、2.x 和 SDXL 在產生的影像中加入的公開不可見浮水印；下載浮水印模型後也會尋找 Adobe TrustMark。裁切、調整大小或重新繪製影像通常會去除這些浮水印。</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>未找到任何 Stable Diffusion 浮水印。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>無法執行 TrustMark：%1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>Adobe TrustMark 是持久內容憑證背後的公開浮水印，需要浮水印模型：僅在你要求時從 Adobe 下載 %1 MB。</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>下載浮水印模型</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>此版本的 Patchy 無法讀取 TrustMark 浮水印。</translation>
     </message>
     <message>
         <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
@@ -24044,6 +24147,94 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Toolbar icon size:</source>
         <translation>工具圖示大小:</translation>
     </message>
+    <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>加入不可見浮水印(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>使用 Adobe TrustMark 在目前圖層的像素中隱藏一則任何人都能讀取的短訊息</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>無法下載浮水印模型：%1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>下載 Adobe TrustMark 浮水印模型（從 Adobe 下載 %1 MB）。之後「檔案資訊」中的「掃描浮水印」可以讀取 TrustMark 浮水印，「影像 &gt; 加入不可見浮水印」可以加入浮水印。</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>刪除已下載的浮水印模型。</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>TrustMark 浮水印模型：已下載（%1 MB）</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>TrustMark 浮水印模型：未下載</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>已下載浮水印模型</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>已刪除浮水印模型</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>無法刪除浮水印模型：%1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>網頁版不提供浮水印模型</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>此版本的 Patchy 無法執行浮水印模型</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>正在下載浮水印模型... %1/%2 MB</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>請先開啟文件再加入不可見浮水印</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>不可見浮水印需要 8 位元影像。請先用「影像 &gt; 模式 &gt; 8 位元/色版」轉換。</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>請為不可見浮水印選擇一個像素圖層</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>目前圖層必須鋪滿整個影像，浮水印才能被讀取。請先平面化影像或合併圖層。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>尚未下載浮水印模型</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>無法加入浮水印：%1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>加入不可見浮水印</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>已加入 ID 為 %1 的不可見浮水印</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>已加入內容為「%1」的不可見浮水印</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25839,6 +26030,70 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>perspectiveCrop 的四個角必須構成凸形, 且無法裁切含工作區域的文件。</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>無法下載浮水印模型：%1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>無法執行 TrustMark：%1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>addInvisibleWatermark 的選項必須是物件，例如 {text: &quot;Patchy&quot;}。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark：未知方案 %1。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark：strength 必須介於 0.1 和 2 之間。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark 只接受 text 或 id，不能同時提供。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark：text 必須是可列印的 ASCII。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark：%1 最多容納 %2 個字元。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark：id 必須是十六進位。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark：id 超過 %1 位元。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>尚未下載浮水印模型；請先呼叫 app.downloadWatermarkModels()。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark 需要 8 位元文件。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark 需要未鎖定的像素圖層。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark 需要鋪滿整個影像的圖層。</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>無法加入浮水印：%1</translation>
     </message>
 </context>
 <context>

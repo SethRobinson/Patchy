@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>Padrão</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>Mais robusta</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>Mais capacidade</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>Capacidade máxima</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1: %2 caracteres, resiste a %3 bits danificados</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>Adicionar marca d&apos;água invisível</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>Esconde uma mensagem curta nos pixels da camada ativa com o Adobe TrustMark. Ela resiste à maioria dos redimensionamentos, à compressão JPEG e ao compartilhamento, e a mudança é pequena demais para ser vista.</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>O TrustMark não tem chave: qualquer pessoa com um leitor TrustMark gratuito, incluindo as Informações do arquivo do Patchy, pode ler a mensagem. Use-o para identificar uma imagem ou apontar para um registro dela, não para esconder algo nem para provar a autoria sozinho.</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>Quanto de correção de erros protege a mensagem. Padrão é o valor padrão do TrustMark.</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>Correção de erros:</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>Texto:</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>ID aleatório:</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>Novo ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>Intensidade:</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100% é o valor padrão do TrustMark. Valores menores ficam menos visíveis, mas se perdem com mais facilidade; a Adobe usa 150% para impressões.</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>Requer os modelos de marca d&apos;água: um download de %1 MB da Adobe.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>Baixar modelos de marca d&apos;água</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Adicionar marca d&apos;água</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>Restam %1 de %2 caracteres</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11883,10 +11962,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Marcas d&apos;água invisíveis nos pixels</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>Procurar marcas d&apos;água verifica a imagem como está agora em busca das marcas d&apos;água invisíveis abertas que o Stable Diffusion 1.x, 2.x e SDXL adicionam às imagens que geram. Cortar, redimensionar ou repintar a imagem geralmente as remove.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>Procurar marcas d&apos;água</translation>
     </message>
@@ -11905,6 +11980,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>Muitas marcas d&apos;água, como o Google SynthID, só podem ser lidas com as ferramentas de seus donos, então esta busca não consegue encontrá-las.</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>Marca d&apos;água TrustMark encontrada (variante %1, %2) contendo %3.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>Procurar marcas d&apos;água verifica a imagem como está agora em busca das marcas d&apos;água invisíveis abertas que o Stable Diffusion 1.x, 2.x e SDXL adicionam às imagens que geram, e do Adobe TrustMark depois que os modelos de marca d&apos;água forem baixados. Cortar, redimensionar ou repintar a imagem geralmente as remove.</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>Nenhuma das marcas d&apos;água do Stable Diffusion foi encontrada.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>Não foi possível executar o TrustMark: %1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>O Adobe TrustMark, a marca d&apos;água aberta por trás das Content Credentials duráveis, precisa dos modelos de marca d&apos;água: um download de %1 MB da Adobe, feito só quando você pedir.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>Baixar modelos de marca d&apos;água</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Esta versão do Patchy não consegue ler marcas d&apos;água TrustMark.</translation>
     </message>
     <message>
         <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
@@ -24116,6 +24219,94 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>Toolbar icon size:</source>
         <translation>Tamanho dos ícones de ferramentas:</translation>
     </message>
+    <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>Adicionar marca d&apos;água in&amp;visível...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>Esconder nos pixels da camada ativa uma mensagem curta que qualquer pessoa pode ler, com o Adobe TrustMark</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>Não foi possível baixar os modelos de marca d&apos;água: %1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Baixa os modelos de marca d&apos;água Adobe TrustMark (%1 MB da Adobe). Depois, Procurar marcas d&apos;água nas Informações do arquivo lê marcas TrustMark, e Imagem &gt; Adicionar marca d&apos;água invisível pode adicionar uma.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>Exclui os modelos de marca d&apos;água baixados.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>Modelos de marca d&apos;água TrustMark: baixados (%1 MB)</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>Modelos de marca d&apos;água TrustMark: não baixados</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>Modelos de marca d&apos;água baixados</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>Modelos de marca d&apos;água excluídos</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>Não foi possível excluir os modelos de marca d&apos;água: %1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>Os modelos de marca d&apos;água não estão disponíveis na versão web</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>esta versão do Patchy não consegue executar os modelos de marca d&apos;água</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>Baixando os modelos de marca d&apos;água... %1 de %2 MB</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>Abra um documento antes de adicionar uma marca d&apos;água invisível</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>Marcas d&apos;água invisíveis precisam de uma imagem de 8 bits. Converta-a primeiro com Imagem &gt; Modo &gt; 8 bits/canal.</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>Selecione uma camada de pixels para a marca d&apos;água invisível</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>A camada ativa precisa ocupar a imagem inteira para que sua marca d&apos;água possa ser lida. Achate a imagem ou mescle as camadas primeiro.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>Os modelos de marca d&apos;água não foram baixados</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>Não foi possível adicionar a marca d&apos;água: %1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>Adicionar marca d&apos;água invisível</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>Marca d&apos;água invisível adicionada com o ID %1</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>Marca d&apos;água invisível adicionada com “%1”</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25912,6 +26103,70 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>Os cantos de perspectiveCrop devem formar uma forma convexa, e documentos com pranchetas não podem ser cortados.</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>Não foi possível baixar os modelos de marca d&apos;água: %1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>Não foi possível executar o TrustMark: %1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>As opções de addInvisibleWatermark devem ser um objeto como {text: &quot;Patchy&quot;}.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark: esquema desconhecido %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark: strength deve estar entre 0.1 e 2.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark: opção desconhecida %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark aceita text ou id, não os dois.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark: text deve ser ASCII imprimível.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark: %1 comporta no máximo %2 caracteres.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark: id deve ser hexadecimal.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark: o id tem mais de %1 bits.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>Os modelos de marca d&apos;água não foram baixados; chame app.downloadWatermarkModels() primeiro.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark precisa de um documento de 8 bits.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark precisa de uma camada de pixels desbloqueada.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark precisa de uma camada que ocupe a imagem inteira.</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>Não foi possível adicionar a marca d&apos;água: %1</translation>
     </message>
 </context>
 <context>

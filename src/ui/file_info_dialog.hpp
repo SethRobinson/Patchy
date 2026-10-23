@@ -5,6 +5,7 @@
 
 #include <QString>
 
+#include <functional>
 #include <optional>
 
 class QWidget;
@@ -19,9 +20,17 @@ struct FileInfoEdit {
   bool drop_color_profile{false};
 };
 
+// What the Watermarks page needs from the app (docs/watermarks.md).
+struct FileInfoWatermarkSupport {
+  // Downloads the TrustMark watermark models with progress shown over `parent`; true when
+  // they are present afterwards. Empty: the page offers no download.
+  std::function<bool(QWidget* parent)> download_models;
+};
+
 // nullopt on Cancel or when nothing changed.
 [[nodiscard]] std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Document& document,
-                                                                 const QString& file_path);
+                                                                 const QString& file_path,
+                                                                 const FileInfoWatermarkSupport& watermarks = {});
 
 // Translated name of a privacy class ("GPS location", "camera serial numbers", ...).
 [[nodiscard]] QString privacy_class_label(MetadataPrivacy privacy);

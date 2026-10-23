@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>Стандартная</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>Самая надёжная</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>Больше ёмкости</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>Максимальная ёмкость</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1: %2 символов, выдерживает %3 повреждённых бит</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>Добавить невидимый водяной знак</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>Скрывает короткое сообщение в пикселях активного слоя с помощью Adobe TrustMark. Оно переживает большинство изменений размера, сжатие JPEG и публикацию, а изменение слишком мало, чтобы его заметить.</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>У TrustMark нет ключа: любой, у кого есть бесплатная программа чтения TrustMark, включая «Сведения о файле» в Patchy, может прочитать сообщение. Используйте его, чтобы пометить изображение или указать на запись о нём, а не чтобы что-то скрыть или самостоятельно доказать авторство.</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>Сколько коррекции ошибок защищает сообщение. «Стандартная» используется в TrustMark по умолчанию.</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>Коррекция ошибок:</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>Текст:</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>Случайный ID:</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>Новый ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>Сила:</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100 % — значение TrustMark по умолчанию. Меньше — менее заметно, но легче теряется; Adobe использует 150 % для печати.</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>Нужны модели водяных знаков: загрузка %1 МБ с сайта Adobe.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>Загрузить модели водяных знаков</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Добавить водяной знак</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>Осталось %1 из %2 символов</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11918,10 +11997,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Невидимые водяные знаки в пикселях</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>«Найти водяные знаки» проверяет изображение в текущем виде на открытые невидимые водяные знаки, которые Stable Diffusion 1.x, 2.x и SDXL добавляют в создаваемые изображения. Кадрирование, изменение размера или перерисовка обычно их удаляют.</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>Найти водяные знаки</translation>
     </message>
@@ -11940,6 +12015,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>Многие водяные знаки, например Google SynthID, читаются только инструментами их владельцев, поэтому эта проверка их не найдёт.</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>Найден водяной знак TrustMark (вариант %1, %2) с содержимым %3.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>«Найти водяные знаки» проверяет изображение в текущем виде на открытые невидимые водяные знаки, которые Stable Diffusion 1.x, 2.x и SDXL добавляют в создаваемые изображения, а после загрузки моделей водяных знаков — и на Adobe TrustMark. Кадрирование, изменение размера или перерисовка обычно их удаляют.</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>Ни один из водяных знаков Stable Diffusion не найден.</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>Не удалось запустить TrustMark: %1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>Adobe TrustMark, открытому водяному знаку долговечных Content Credentials, нужны модели водяных знаков: загрузка %1 МБ с сайта Adobe, только по вашему запросу.</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>Загрузить модели водяных знаков</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>Эта версия Patchy не может читать водяные знаки TrustMark.</translation>
     </message>
     <message>
         <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
@@ -24188,6 +24291,94 @@ Patchy может скачать обновление, заменить этот
         <source>Toolbar icon size:</source>
         <translation>Размер значков инструментов:</translation>
     </message>
+    <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>Добавить &amp;невидимый водяной знак...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>Скрыть в пикселях активного слоя короткое сообщение, которое может прочитать любой, с помощью Adobe TrustMark</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>Не удалось загрузить модели водяных знаков: %1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Загружает модели водяных знаков Adobe TrustMark (%1 МБ с сайта Adobe). После этого «Найти водяные знаки» в «Сведениях о файле» читает знаки TrustMark, а «Изображение &gt; Добавить невидимый водяной знак» может добавить знак.</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>Удаляет загруженные модели водяных знаков.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>Модели водяных знаков TrustMark: загружены (%1 МБ)</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>Модели водяных знаков TrustMark: не загружены</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>Модели водяных знаков загружены</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>Модели водяных знаков удалены</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>Не удалось удалить модели водяных знаков: %1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>Модели водяных знаков недоступны в веб-версии</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>эта версия Patchy не может запускать модели водяных знаков</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>Загрузка моделей водяных знаков... %1 из %2 МБ</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>Откройте документ, прежде чем добавлять невидимый водяной знак</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>Для невидимых водяных знаков нужно 8-битное изображение. Сначала преобразуйте его командой «Изображение &gt; Режим &gt; 8 бит/канал».</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>Выберите пиксельный слой для невидимого водяного знака</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>Чтобы водяной знак читался, активный слой должен занимать всё изображение. Сначала сведите изображение или объедините слои.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>Модели водяных знаков не загружены</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>Не удалось добавить водяной знак: %1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>Добавить невидимый водяной знак</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>Добавлен невидимый водяной знак с ID %1</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>Добавлен невидимый водяной знак с «%1»</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -25985,6 +26176,70 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>perspectiveCrop corners must form a convex shape, and documents with artboards cannot be cropped.</source>
         <translation>Углы perspectiveCrop должны образовывать выпуклую фигуру, а документы с монтажными областями кадрировать нельзя.</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>Не удалось загрузить модели водяных знаков: %1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>Не удалось запустить TrustMark: %1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>Параметры addInvisibleWatermark должны быть объектом, например {text: &quot;Patchy&quot;}.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark: неизвестная схема %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark: strength должен быть от 0.1 до 2.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark принимает text или id, но не оба сразу.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark: text должен состоять из печатаемых символов ASCII.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark: %1 вмещает не более %2 символов.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark: id должен быть шестнадцатеричным.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark: id длиннее %1 бит.</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>Модели водяных знаков не загружены; сначала вызовите app.downloadWatermarkModels().</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark требует 8-битного документа.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark требует незаблокированного пиксельного слоя.</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark требует слоя, занимающего всё изображение.</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>Не удалось добавить водяной знак: %1</translation>
     </message>
 </context>
 <context>

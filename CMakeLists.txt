@@ -137,6 +137,7 @@ add_library(patchy_core
   src/core/adjustment_layer.cpp
   src/core/ink_space.cpp
   src/core/invisible_watermark.cpp
+  src/core/trustmark_payload.cpp
   src/core/blend_math.cpp
   src/core/blend_math_deep.cpp
   src/core/brush_dynamics.cpp
@@ -1274,6 +1275,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_history.cpp
       src/ui/main_window_layer_ops.cpp
       src/ui/main_window_ai_selection.cpp
+      src/ui/main_window_watermarks.cpp
       src/ui/main_window_appimage_menu_entry.cpp
       src/ui/main_window_layer_panel.cpp
       src/ui/main_window_palette.cpp
@@ -1329,6 +1331,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/new_document_dialog.cpp
       src/ui/new_layer_dialog.hpp
       src/ui/new_layer_dialog.cpp
+      src/ui/invisible_watermark_dialog.cpp
       src/ui/stress_test.hpp
       src/ui/palette_convert_dialog.hpp
       src/ui/palette_convert_dialog.cpp
@@ -1478,6 +1481,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/host_resolve.cpp
       src/ui/object_selection_model_download.hpp
       src/ui/object_selection_model_download.cpp
+      src/ui/watermark_model_download.cpp
       src/ui/user_fonts.hpp
       src/ui/user_fonts.cpp
       src/ui/warp_text_dialog.hpp
@@ -2112,6 +2116,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/layer_metadata_tests.cpp
     tests/core/file_info_metadata_tests.cpp
     tests/core/invisible_watermark_tests.cpp
+    tests/core/trustmark_tests.cpp
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
@@ -2306,6 +2311,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/history_panel_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
+      tests/ui/watermark_tests.cpp
       tests/ui/layered_tiff_tests.cpp
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/composite_render_tests.cpp

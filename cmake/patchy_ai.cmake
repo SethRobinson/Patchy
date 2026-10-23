@@ -41,6 +41,15 @@ set(PATCHY_AI_DOWNLOAD_MODEL_FILES
   efficientvit_sam_xl0_encoder_fp16.onnx
   efficientvit_sam_xl0_decoder_multi_fp16.onnx
 )
+# The TrustMark watermark models (134.6 MB, docs/watermarks.md) are the other download, staged
+# the same way on their own (all or none). Keep in sync with src/ui/watermark_model_download.cpp
+# and trustmark_model_files() in src/ai/trustmark_watermark.cpp.
+set(PATCHY_AI_WATERMARK_MODEL_FILES
+  trustmark_decoder_Q.onnx
+  trustmark_decoder_P.onnx
+  trustmark_decoder_C.onnx
+  trustmark_encoder_Q.onnx
+)
 
 set(PATCHY_AI_DEPS_CANDIDATES "${PROJECT_SOURCE_DIR}/.deps")
 find_package(Git QUIET)
@@ -167,6 +176,7 @@ endif()
 add_library(patchy_ai
   src/ai/ai_selection_math.cpp
   src/ai/segmentation_engine_common.cpp
+  src/ai/trustmark_watermark.cpp
 )
 target_link_libraries(patchy_ai PUBLIC patchy_core)
 patchy_configure_target(patchy_ai)
@@ -239,6 +249,20 @@ if(PATCHY_AI_SELECTION_BUILT)
   else()
     set(PATCHY_AI_DOWNLOAD_MODEL_SOURCES "")
     set(PATCHY_AI_DOWNLOAD_STAGE_COMMAND "")
+  endif()
+  set(PATCHY_AI_WATERMARK_MODEL_SOURCES "")
+  foreach(model IN LISTS PATCHY_AI_WATERMARK_MODEL_FILES)
+    if(EXISTS "${PATCHY_AI_MODELS_DIR}/${model}")
+      list(APPEND PATCHY_AI_WATERMARK_MODEL_SOURCES "${PATCHY_AI_MODELS_DIR}/${model}")
+    endif()
+  endforeach()
+  list(LENGTH PATCHY_AI_WATERMARK_MODEL_SOURCES watermark_model_count)
+  list(LENGTH PATCHY_AI_WATERMARK_MODEL_FILES watermark_model_expected)
+  if(watermark_model_count EQUAL watermark_model_expected)
+    list(APPEND PATCHY_AI_DOWNLOAD_MODEL_SOURCES ${PATCHY_AI_WATERMARK_MODEL_SOURCES})
+    list(APPEND PATCHY_AI_DOWNLOAD_STAGE_COMMAND
+         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PATCHY_AI_WATERMARK_MODEL_SOURCES}
+                 "${CMAKE_BINARY_DIR}/ai-models-download/")
   endif()
   set(PATCHY_AI_LICENSE_FILE "${PROJECT_SOURCE_DIR}/third_party/ai-models/MODEL-LICENSES.txt")
   set(PATCHY_AI_RUNTIME_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_ai_runtime.stamp")

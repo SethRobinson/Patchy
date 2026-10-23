@@ -33,6 +33,8 @@
 #include "ui/qt_paths.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/object_selection_model_download.hpp"
+#include "ui/watermark_model_download.hpp"
+#include "ai/watermark_engine.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/color_panel.hpp"
@@ -731,7 +733,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // A list of presets that also takes any whole percent in the range (GitHub issue 333).
   // stored_gui_scale_percent() is already clamped to it, so the combo shows exactly what
   // startup applies, as typed text when it is not a preset.
-  auto* gui_scale_combo = new QComboBox(application_group);
+  // It shares one row with the toolbar icon size below: both are short combos about how
+  // big the chrome is. The form label's buddy is the scale combo; the icon size label
+  // beside it is its own combo's buddy.
+  auto* scale_row = new QWidget(application_group);
+  scale_row->setObjectName(QStringLiteral("preferencesInterfaceScaleRow"));
+  auto* scale_layout = new QHBoxLayout(scale_row);
+  scale_layout->setContentsMargins(0, 0, 0, 0);
+  auto* gui_scale_combo = new QComboBox(scale_row);
   gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
   gui_scale_combo->setEditable(true);
   gui_scale_combo->setInsertPolicy(QComboBox::NoInsert);
@@ -752,12 +761,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     gui_scale_combo->setCurrentIndex(-1);
     gui_scale_combo->setEditText(gui_scale_text(entry_gui_scale));
   }
-  application_form->addRow(tr("Interface scale:"), gui_scale_combo);
 
   // The tool palette's icons and buttons on top of the interface scale, as named steps
   // (a second percentage beside the first would read as the same setting). Applied live
   // on OK; the item data is the stored token.
-  auto* toolbar_icon_size_combo = new QComboBox(application_group);
+  auto* toolbar_icon_size_combo = new QComboBox(scale_row);
   toolbar_icon_size_combo->setObjectName(QStringLiteral("preferencesToolbarIconSizeCombo"));
   toolbar_icon_size_combo->setToolTip(
       tr("Size of the tool palette's icons and buttons, relative to the interface scale."));
@@ -787,7 +795,17 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const auto entry_toolbar_icon_size = stored_toolbar_icon_size();
   toolbar_icon_size_combo->setCurrentIndex(
       std::max(0, toolbar_icon_size_combo->findData(toolbar_icon_size_token(entry_toolbar_icon_size))));
-  application_form->addRow(tr("Toolbar icon size:"), toolbar_icon_size_combo);
+  auto* toolbar_icon_size_label = new QLabel(tr("Toolbar icon size:"), scale_row);
+  toolbar_icon_size_label->setObjectName(QStringLiteral("preferencesToolbarIconSizeLabel"));
+  toolbar_icon_size_label->setBuddy(toolbar_icon_size_combo);
+  scale_layout->addWidget(gui_scale_combo);
+  scale_layout->addSpacing(12);
+  scale_layout->addWidget(toolbar_icon_size_label);
+  scale_layout->addWidget(toolbar_icon_size_combo);
+  scale_layout->addStretch(1);
+  auto* gui_scale_label = new QLabel(tr("Interface scale:"), application_group);
+  gui_scale_label->setBuddy(gui_scale_combo);
+  application_form->addRow(gui_scale_label, scale_row);
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
   // Linux only: the desktop's own title bar and frame instead of the frameless chrome
@@ -847,6 +865,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // Automatic document recovery (docs/document-recovery.md): a checkbox and the
   // interval combo on one row, the way Photoshop's File Handling page lays it out.
   auto* recovery_row = new QWidget(application_group);
+  recovery_row->setObjectName(QStringLiteral("preferencesRecoveryRow"));
   auto* recovery_layout = new QHBoxLayout(recovery_row);
   recovery_layout->setContentsMargins(0, 0, 0, 0);
   auto* recovery_check = new QCheckBox(tr("Automatically save recovery information every"), recovery_row);
@@ -1271,6 +1290,59 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       refresh_model_status();
     });
     tools_layout->addWidget(model_group);
+  }
+  // The TrustMark watermark models (docs/watermarks.md): status, Download and Delete.
+  if (patchy::ai::trustmark_runtime_available()) {
+    auto* watermark_group = new QFrame(tools_page);
+    watermark_group->setObjectName(QStringLiteral("preferencesWatermarkModelsGroup"));
+    configure_panel(watermark_group);
+    auto* watermark_layout = new QHBoxLayout(watermark_group);
+    auto* watermark_status = new QLabel(watermark_group);
+    watermark_status->setObjectName(QStringLiteral("preferencesWatermarkModelsStatus"));
+    watermark_status->setWordWrap(true);
+    const auto watermark_megabytes = watermark_model_download_megabytes();
+    auto* download_watermark_button = new QPushButton(tr("Download"), watermark_group);
+    download_watermark_button->setObjectName(QStringLiteral("preferencesDownloadWatermarkModelsButton"));
+    download_watermark_button->setToolTip(
+        tr("Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info's Scan for Watermarks then "
+           "reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
+            .arg(watermark_megabytes));
+    auto* delete_watermark_button = new QPushButton(tr("Delete"), watermark_group);
+    delete_watermark_button->setObjectName(QStringLiteral("preferencesDeleteWatermarkModelsButton"));
+    delete_watermark_button->setToolTip(tr("Deletes the downloaded watermark models."));
+    watermark_layout->addWidget(watermark_status, 1);
+    watermark_layout->addWidget(download_watermark_button);
+    watermark_layout->addWidget(delete_watermark_button);
+    const auto refresh_watermark_status = [watermark_status, download_watermark_button, delete_watermark_button,
+                                           watermark_megabytes] {
+      const bool present = downloaded_watermark_models_present(downloaded_models_folder());
+      watermark_status->setText(present ? tr("TrustMark watermark models: downloaded (%1 MB)").arg(watermark_megabytes)
+                                        : tr("TrustMark watermark models: not downloaded"));
+      download_watermark_button->setEnabled(!present);
+      delete_watermark_button->setEnabled(present);
+    };
+    refresh_watermark_status();
+    connect(download_watermark_button, &QPushButton::clicked, &dialog, [this, &dialog, refresh_watermark_status] {
+      QString error;
+      if (download_watermark_models(true, {}, &error, &dialog)) {
+        statusBar()->showMessage(tr("Downloaded the watermark models"));
+      } else if (!error.isEmpty()) {
+        show_status_error(tr("The watermark models could not be downloaded: %1").arg(error));
+      } else {
+        statusBar()->showMessage(tr("Download cancelled"));
+      }
+      refresh_watermark_status();
+    });
+    connect(delete_watermark_button, &QPushButton::clicked, &dialog, [this, refresh_watermark_status] {
+      QString error;
+      if (delete_watermark_models(&error)) {
+        statusBar()->showMessage(tr("Deleted the watermark models"));
+      } else {
+        show_status_error(tr("The watermark models could not be deleted: %1").arg(error));
+      }
+      refresh_watermark_status();
+    });
+    tools_layout->addWidget(watermark_group);
   }
 #endif
   tools_layout->addStretch(1);
@@ -1778,7 +1850,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     }
     /* Plain-QWidget field containers inherit the global QWidget background, which
        shows as a mismatched band against the panel_card_bg panels. */
+    QDialog#patchyPreferencesDialog QWidget#preferencesInterfaceScaleRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesUpdateCheckRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesRecoveryRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesVisibilityRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow {
       background: transparent;
