@@ -18,6 +18,7 @@
 #include "filters/filter_registry.hpp"
 #include "ui/document_order_list.hpp"
 #include "ui/main_window.hpp"
+#include "ui/save_metadata_settings.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -4729,8 +4730,17 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   if (!has_active_document() || session().session_id != saving_session_id) {
     return false;
   }
-  // Preferences > Watermarks: the mark goes into the written pixels only (flat formats),
-  // never into the open document; Ask mode asks here, before the write.
+  // Preferences > Metadata and Watermarks, "Saved metadata": the user's name and copyright
+  // (asking first when that is on), never on exports, which follow the Export dialog's
+  // Metadata choice. Then the watermark: it goes into the written pixels only (flat
+  // formats), never into the open document; Ask mode asks here, before the write.
+  const auto save_metadata_mode = stored_save_metadata_mode();
+  if (save_metadata_mode == SaveMetadataMode::Personal && !policy.export_copy) {
+    add_personal_metadata_for_save(extension, quiet);
+  }
+  if (!has_active_document() || session().session_id != saving_session_id) {
+    return false;
+  }
   const auto watermark = watermark_for_save(extension, effective_image_options, quiet);
   if (!has_active_document() || session().session_id != saving_session_id) {
     return false;
@@ -4739,7 +4749,8 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     MainWindowSaveHost host(*this);
     const auto saved = DocumentSaveCoordinator(host).write_prepared(saving_session_id, path, extension,
                                                                     effective_image_options, quiet,
-                                                                    policy.export_copy, discards_layers, watermark);
+                                                                    policy.export_copy, discards_layers, watermark,
+                                                                    save_metadata_mode != SaveMetadataMode::None);
     if (!saved.has_value()) {
       return false;
     }

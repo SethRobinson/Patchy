@@ -792,6 +792,12 @@ private:
   // save to `extension` adds, asking first in Ask mode unless `quiet`; empty for none.
   [[nodiscard]] std::optional<SaveWatermark> watermark_for_save(const QString& extension,
                                                                 const ImageSaveOptions& options, bool quiet);
+  // "Basic plus my name and copyright" (docs/file-info.md, "Saved metadata preference"):
+  // before a save to a format that carries metadata, adds the stored name, copyright and
+  // contact to the document's File Info when it lacks the name, asking first unless the
+  // user chose to always add (quiet saves never ask, and skip when asking is on). Skip is
+  // remembered for the document. Returns true when the File Info changed.
+  bool add_personal_metadata_for_save(const QString& extension, bool quiet);
   // "Check opened images for watermarks": scans a just-opened document's composite on a
   // tracked worker (a copy-on-write snapshot; never the UI thread), shows the status-bar
   // indicator while any check runs, and a non-modal notice when something is found.

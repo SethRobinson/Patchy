@@ -16,6 +16,7 @@
 #include "ui/script_engine.hpp"
 #include "ui/vector_operations.hpp"
 #include "ui/watermark_settings.hpp"
+#include "ui/save_metadata_settings.hpp"
 
 #if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
 #include "ui/background_workers.hpp"
@@ -368,6 +369,60 @@ void ScriptAppObject::setWatermarkPreferences(const QJSValue& preferences) {
   }
   if (check) {
     set_stored_watermark_check_on_open(*check);
+  }
+}
+
+QJSValue ScriptAppObject::save_metadata_preferences() const {
+  const ScriptApiCall api_call(host_);
+  const auto personal = stored_personal_save_metadata();
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("mode"), save_metadata_mode_token(stored_save_metadata_mode()));
+  result.setProperty(QStringLiteral("name"), personal.name);
+  result.setProperty(QStringLiteral("copyright"), personal.copyright);
+  result.setProperty(QStringLiteral("email"), personal.email);
+  result.setProperty(QStringLiteral("website"), personal.website);
+  result.setProperty(QStringLiteral("askBeforeAdding"), personal.ask);
+  return result;
+}
+
+void ScriptAppObject::setSaveMetadataPreferences(const QJSValue& preferences) {
+  const ScriptApiCall api_call(host_);
+  if (!preferences.isObject() || preferences.isArray()) {
+    host_.throw_js_error(ScriptEngineHost::tr("setSaveMetadataPreferences takes an object such as {mode: \"basic\"}."));
+    return;
+  }
+  auto personal = stored_personal_save_metadata();
+  std::optional<SaveMetadataMode> mode;
+  QJSValueIterator it(preferences);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    if (key == QStringLiteral("mode") && value.isString()) {
+      mode = save_metadata_mode_from_token(value.toString());
+      if (!mode) {
+        host_.throw_js_error(ScriptEngineHost::tr("setSaveMetadataPreferences: mode must be \"none\", \"basic\" or "
+                                                  "\"personal\"."));
+        return;
+      }
+    } else if (key == QStringLiteral("name") && value.isString()) {
+      personal.name = value.toString();
+    } else if (key == QStringLiteral("copyright") && value.isString()) {
+      personal.copyright = value.toString();
+    } else if (key == QStringLiteral("email") && value.isString()) {
+      personal.email = value.toString();
+    } else if (key == QStringLiteral("website") && value.isString()) {
+      personal.website = value.toString();
+    } else if (key == QStringLiteral("askBeforeAdding") && value.isBool()) {
+      personal.ask = value.toBool();
+    } else {
+      host_.throw_js_error(ScriptEngineHost::tr("setSaveMetadataPreferences: unknown option %1.").arg(key));
+      return;
+    }
+  }
+  set_stored_personal_save_metadata(personal);
+  if (mode) {
+    set_stored_save_metadata_mode(*mode);
   }
 }
 

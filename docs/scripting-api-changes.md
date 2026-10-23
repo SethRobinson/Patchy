@@ -21,6 +21,16 @@ keys, command id `edit.convert_to_profile` and the settings keys `imports/conver
 `color/convertProfileDestination`, `color/convertProfileIntent`, `color/convertProfileBlackPoint`.
 Pinned by `ui_script_convert_to_profile`.
 
+2026-10-23 (additive, behavioral): Saved metadata ([file-info.md](file-info.md#saved-metadata-preference)).
+`app.saveMetadataPreferences` (`{mode, name, copyright, email, website, askBeforeAdding}`) and
+`app.setSaveMetadataPreferences({...})`. With mode `"none"`, PSD and PSB saves write no save stamp;
+with `"personal"` and `askBeforeAdding: false`, `saveAs` adds the name, copyright and contact to
+files that carry metadata and do not name the user (never on `exportAs`). Permanent identifiers:
+the property, method and key names, the tokens `none`, `basic`, `personal`, and the settings keys
+`saveMetadata/autoAdd`, `saveMetadata/authorName`, `saveMetadata/copyrightNotice`,
+`saveMetadata/contactEmail`, `saveMetadata/contactWebsite`, `saveMetadata/askBeforeAdding`. Pinned
+by `ui_save_metadata_preferences_page_persists`.
+
 2026-10-23 (additive, behavioral): Preferences > Watermarks ([watermarks.md](watermarks.md#preferences)).
 `app.watermarkPreferences` (`{text, addOnSave, checkOnOpen}`) and `app.setWatermarkPreferences({...})`.
 With `addOnSave: "always"`, `saveAs` and `exportAs` to PNG, JPEG, WebP, BMP, flat TIFF, JPEG XL and

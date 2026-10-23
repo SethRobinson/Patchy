@@ -404,6 +404,12 @@ public:
     return window.save_document_to_path(std::move(path), std::move(options), policy);
   }
   // A save whose flatten question the caller already answered (Save As's own dialogs).
+  // An Export copy (export_copy policy): the session keeps its path and modified state.
+  static bool export_document_to_path(MainWindow& window, QString path, ImageSaveOptions options) {
+    return window.save_document_to_path(std::move(path), std::move(options),
+                                        MainWindow::SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false,
+                                                                     /*export_copy=*/true});
+  }
   static bool save_document_to_path_flatten_confirmed(MainWindow& window, QString path, ImageSaveOptions options) {
     return window.save_document_to_path(std::move(path), std::move(options),
                                         MainWindow::SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false,

@@ -12029,66 +12029,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added your invisible watermark.</source>
         <translation>Votre filigrane invisible a été ajouté.</translation>
     </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>Convertir en profil</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>Profil actuel :</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>Choisir un fichier de profil...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>Choisir un profil RVB</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>Profils ICC (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>« %1 » n&apos;est pas un profil RVB utilisable par Patchy.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>Profil de destination :</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>Colorimétrie relative</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Colorimétrie absolue</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>Mode de rendu :</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>Compensation du point noir</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy affiche les couleurs RVB en sRGB. Un document converti dans un autre profil paraît différent ici à l&apos;écran, et ses enregistrements portent ce profil.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Le profil colorimétrique %1 n&apos;a pas pu être converti en sRGB : le fichier garde ses couleurs et son profil</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Converti du profil colorimétrique %1 en sRGB</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>Les couleurs enregistrées dans les calques de texte, de forme, de remplissage et de réglage et dans les styles de calque gardent leurs valeurs du fichier ; seuls les pixels ont été convertis en sRGB</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24468,44 +24408,88 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Afficher dans Informations sur le fichier</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Convertir en pro&amp;fil...</translation>
+        <source>Saved metadata</source>
+        <translation>Métadonnées enregistrées</translation>
     </message>
     <message>
-        <source>Open a document first</source>
-        <translation>Ouvrez d&apos;abord un document</translation>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>Aucune : Patchy n&apos;ajoute rien de lui-même</translation>
     </message>
     <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Convertissez en couleurs RVB avant de convertir dans un autre profil</translation>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>De base : Patchy comme application de création, les dates d&apos;enregistrement et une entrée d&apos;historique</translation>
     </message>
     <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Quittez l&apos;épreuve CMJN avant de convertir dans un autre profil RVB</translation>
+        <source>Basic plus my name and copyright</source>
+        <translation>De base plus mon nom et mon copyright</translation>
     </message>
     <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>Les documents 32 bits ne se convertissent qu&apos;entre profils RVB à matrice</translation>
+        <source>Automatically add to saved files:</source>
+        <translation>Ajouter automatiquement aux fichiers enregistrés :</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Le profil ne peut pas servir à cette conversion</translation>
+        <source>Your name as the author</source>
+        <translation>Votre nom comme auteur</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Convertir en profil</translation>
+        <source>Copyright notice:</source>
+        <translation>Mention de copyright :</translation>
     </message>
     <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Converti de %1 en %2</translation>
+        <source>Optional</source>
+        <translation>Facultatif</translation>
     </message>
     <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Convertir en sRGB les fichiers ayant un autre profil RVB à l&apos;ouverture</translation>
+        <source>Email:</source>
+        <translation>E-mail :</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy affiche et modifie les couleurs RVB en sRGB. Les fichiers en Display P3, Adobe RGB ou un autre profil RVB ne s&apos;affichent correctement qu&apos;une fois convertis. Désactivé, ils s&apos;ouvrent avec leurs propres valeurs et gardent leur profil.</translation>
+        <source>Website:</source>
+        <translation>Site web :</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>Demander avant de les ajouter à un fichier</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>Votre nom, votre copyright et vos coordonnées sont ajoutés aux fichiers PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL et AVIF qui ne vous nomment pas encore, à côté de tout auteur déjà présent. Les métadonnées qu&apos;un fichier contient déjà sont conservées ; Fichier &gt; Informations sur le fichier &gt; Supprimer toutes les métadonnées les retire. Les exportations suivent le choix Métadonnées de la boîte Exporter.</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>Utiliser « %1 »</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>Métadonnées et filigranes</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>Ajouter votre nom et votre copyright</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>Ajouter votre nom et votre copyright à ce fichier ?</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>Nom : %1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>Copyright : %1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>Le fichier nomme déjà %1. Votre nom est ajouté à côté ; rien n&apos;est remplacé.</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>Ignorer</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>Toujours ajouter sans demander</translation>
     </message>
 </context>
 <context>
@@ -26385,36 +26369,16 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>setWatermarkPreferences : option inconnue %1.</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Les options de convertToProfile doivent être un objet.</translation>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences prend un objet comme {mode: &quot;basic&quot;}.</translation>
     </message>
     <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent doit valoir &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; ou &quot;absolute-colorimetric&quot;.</translation>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences : mode doit valoir &quot;none&quot;, &quot;basic&quot; ou &quot;personal&quot;.</translation>
     </message>
     <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation doit valoir true ou false.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile accepte &quot;sRGB&quot; ou le chemin d&apos;un fichier de profil RVB : %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Convertissez d&apos;abord un document indexé en couleurs RVB.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Quittez l&apos;épreuve CMJN avant de convertir dans un autre profil RVB.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>Les documents 32 bits ne se convertissent qu&apos;entre profils RVB à matrice.</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Le profil ne peut pas servir à cette conversion.</translation>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences : option inconnue %1.</translation>
     </message>
 </context>
 <context>

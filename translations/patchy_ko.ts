@@ -11994,66 +11994,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added your invisible watermark.</source>
         <translation>내 보이지 않는 워터마크를 추가했습니다.</translation>
     </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>프로파일로 변환</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>현재 프로파일:</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>프로파일 파일 선택...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>RGB 프로파일 선택</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC 프로파일(*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot;은(는) Patchy에서 사용할 수 있는 RGB 프로파일이 아닙니다.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>대상 프로파일:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>상대 색도계</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>절대 색도계</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>렌더링 의도:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>검은 점 보정</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy는 RGB 색상을 sRGB로 표시합니다. 다른 프로파일로 변환한 문서는 여기 화면에서 다르게 보이며, 저장하면 그 프로파일이 포함됩니다.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>색상 프로파일 %1을(를) sRGB로 변환할 수 없어 파일의 색상과 프로파일을 그대로 유지합니다</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>색상 프로파일 %1에서 sRGB로 변환했습니다</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>텍스트, 모양, 칠, 조정 레이어와 레이어 스타일에 저장된 색상은 파일의 값을 유지하며, sRGB로 변환된 것은 픽셀뿐입니다</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24396,44 +24336,88 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>파일 정보에서 보기</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>프로파일로 변환(&amp;F)...</translation>
+        <source>Saved metadata</source>
+        <translation>저장되는 메타데이터</translation>
     </message>
     <message>
-        <source>Open a document first</source>
-        <translation>먼저 문서를 여세요</translation>
+        <source>None: Patchy adds nothing of its own</source>
+        <translation>없음: Patchy가 자체 정보를 추가하지 않음</translation>
     </message>
     <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>다른 프로파일로 변환하기 전에 RGB 색상으로 변환하세요</translation>
+        <source>Basic: Patchy as the creating application, the save dates and a history entry</source>
+        <translation>기본: 만든 응용 프로그램으로 Patchy, 저장 날짜, 기록 항목</translation>
     </message>
     <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>다른 RGB 프로파일로 변환하기 전에 CMYK 교정을 끝내세요</translation>
+        <source>Basic plus my name and copyright</source>
+        <translation>기본과 내 이름 및 저작권</translation>
     </message>
     <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32비트 문서는 행렬 기반 RGB 프로파일 사이에서만 변환됩니다</translation>
+        <source>Automatically add to saved files:</source>
+        <translation>저장하는 파일에 자동으로 추가:</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>이 프로파일은 이 변환에 사용할 수 없습니다</translation>
+        <source>Your name as the author</source>
+        <translation>작성자로 표시할 이름</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>프로파일로 변환</translation>
+        <source>Copyright notice:</source>
+        <translation>저작권 표시:</translation>
     </message>
     <message>
-        <source>Converted from %1 to %2</source>
-        <translation>%1에서 %2(으)로 변환했습니다</translation>
+        <source>Optional</source>
+        <translation>선택 사항</translation>
     </message>
     <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>다른 RGB 프로파일이 있는 파일을 열 때 sRGB로 변환</translation>
+        <source>Email:</source>
+        <translation>이메일:</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy는 RGB 색상을 sRGB로 표시하고 편집합니다. Display P3, Adobe RGB 또는 다른 RGB 프로파일의 파일은 변환해야 올바르게 보입니다. 끄면 파일이 원래 값으로 열리고 프로파일도 유지됩니다.</translation>
+        <source>Website:</source>
+        <translation>웹사이트:</translation>
+    </message>
+    <message>
+        <source>Ask before adding them to a file</source>
+        <translation>파일에 추가하기 전에 묻기</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>아직 내 이름이 없는 PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF 파일에 기존 작성자와 나란히 이름, 저작권, 연락처가 들어갑니다. 파일에 이미 있는 메타데이터는 유지되며, 파일 &gt; 파일 정보 &gt; 모든 메타데이터 제거로 지울 수 있습니다. 내보내기는 내보내기 대화 상자의 메타데이터 선택을 따릅니다.</translation>
+    </message>
+    <message>
+        <source>Use “%1”</source>
+        <translation>“%1” 사용</translation>
+    </message>
+    <message>
+        <source>Metadata and Watermarks</source>
+        <translation>메타데이터 및 워터마크</translation>
+    </message>
+    <message>
+        <source>Add Your Name and Copyright</source>
+        <translation>이름과 저작권 추가</translation>
+    </message>
+    <message>
+        <source>Add your name and copyright to this file?</source>
+        <translation>이 파일에 이름과 저작권을 추가할까요?</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>이름: %1</translation>
+    </message>
+    <message>
+        <source>Copyright: %1</source>
+        <translation>저작권: %1</translation>
+    </message>
+    <message>
+        <source>The file already names %1. Your name is added beside it; nothing is replaced.</source>
+        <translation>이 파일에는 이미 %1이(가) 있습니다. 내 이름은 그 옆에 추가되며 아무것도 바뀌지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Skip</source>
+        <translation>건너뛰기</translation>
+    </message>
+    <message>
+        <source>Always add without asking</source>
+        <translation>항상 묻지 않고 추가</translation>
     </message>
 </context>
 <context>
@@ -26312,36 +26296,16 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>setWatermarkPreferences: 알 수 없는 옵션 %1.</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>convertToProfile 옵션은 객체여야 합니다.</translation>
+        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
+        <translation>setSaveMetadataPreferences에는 {mode: &quot;basic&quot;} 같은 객체를 전달하세요.</translation>
     </message>
     <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent는 &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; 또는 &quot;absolute-colorimetric&quot;이어야 합니다.</translation>
+        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
+        <translation>setSaveMetadataPreferences: mode는 &quot;none&quot;, &quot;basic&quot;, &quot;personal&quot; 중 하나여야 합니다.</translation>
     </message>
     <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation는 true 또는 false여야 합니다.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile에는 &quot;sRGB&quot; 또는 RGB 프로파일 파일의 경로를 지정합니다: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>인덱스 색상 문서는 먼저 RGB 색상으로 변환하세요.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>다른 RGB 프로파일로 변환하기 전에 CMYK 교정을 끝내세요.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32비트 문서는 행렬 기반 RGB 프로파일 사이에서만 변환됩니다.</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
+        <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation>setSaveMetadataPreferences: 알 수 없는 옵션 %1.</translation>
     </message>
 </context>
 <context>

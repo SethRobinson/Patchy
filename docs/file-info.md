@@ -144,6 +144,34 @@ unparseable packet is left alone (the EXIF is still stamped). Recovery snapshots
 formats and layered TIFF are not stamped; the core PSD writer is untouched, so the
 canaries hold. After Strip All Metadata the next PSD save writes the XMP stamp again
 (dates, creator and ids only, no EXIF).
+### Saved metadata preference
+
+Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_settings.*`,
+`main_window_save_metadata.cpp`). Settings keys, permanent: `saveMetadata/autoAdd` (`none`,
+`basic` default, `personal`; also the scripting tokens), `saveMetadata/authorName`,
+`saveMetadata/copyrightNotice`, `saveMetadata/contactEmail`, `saveMetadata/contactWebsite`,
+`saveMetadata/askBeforeAdding` (true).
+
+- None: no save stamp (`write_prepared(..., stamp_save = false)`) and nothing personal. What the
+  file already carries is kept; Strip All Metadata removes it.
+- Basic: the save stamp above, PSD and PSB only, as before the preference existed. Decided
+  October 23, 2026: flat formats stay unstamped, so a document without metadata still saves
+  byte-identically to before (the injection rule above).
+- Personal: Basic plus `add_personal_save_metadata` before a save to a format that carries
+  metadata (PSD, PSB, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF, PDF author): the name goes into
+  `dc:creator` beside any creator already there (never replacing one), the copyright notice into
+  `dc:rights` with status Copyrighted, email and website into `Iptc4xmpCore:CreatorContactInfo`,
+  each only where empty, through `apply_fields` (so EXIF Artist/Copyright and IIM By-line/2:116
+  follow only where those blocks exist). It is a save-time File Info change like the stamp, no
+  undo step. With asking on, `savePersonalMetadataPrompt` (Add, Skip, "Always add without
+  asking", which turns asking off) shows the name, copyright and any creator already named. No
+  prompt and no change when the file already names the user (case-insensitive), the name is
+  empty, the format carries no metadata, or Skip was chosen for this document
+  (`DocumentSession::personal_save_metadata_skipped`, until it closes). Scripted and unattended
+  saves never ask: with asking on they add nothing, with it off they add. Exports never add
+  personal info (they follow the Export dialog's Metadata combo, None included), and recovery
+  snapshots never pass through this path.
+
 - PDF: the image-page writer (`pdf::ImageWriter::set_document_info`) writes `/Info` Title,
   Author, Subject (description) and Keywords from the first page's fields as UTF-16 hex
   strings; the Qt PDF paths (editable layers) set the title only.
@@ -237,4 +265,5 @@ Core: `metadata_*` in `tests/core/file_info_metadata_tests.cpp` (every container
 self-built bytes, deterministic mutation pass, Unicode paths, PSD round trip, edit, strip,
 save rules, injection round trips) and `watermark_*` in
 `tests/core/invisible_watermark_tests.cpp`. UI: `ui_file_info_*` in `tests/ui/file_info_tests.cpp`;
-scripting: `ui_script_file_info_*`, `ui_script_scan_for_watermarks`.
+scripting: `ui_script_file_info_*`, `ui_script_scan_for_watermarks`. Saved metadata preference:
+`ui_save_metadata_*` in `tests/ui/save_metadata_tests.cpp`.

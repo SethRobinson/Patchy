@@ -46,6 +46,9 @@ struct DocumentSession {
   // The user agreed to save this CMYK Proof document in RGB to a format without a CMYK
   // form; the warning is not repeated in this session.
   bool cmyk_proof_rgb_save_accepted{false};
+  // Preferences > Metadata and Watermarks: Skip in the "add your name and copyright"
+  // prompt holds for this document until it closes, so repeated saves do not ask again.
+  bool personal_save_metadata_skipped{false};
   QString image_save_options_path;
   QString image_save_options_extension;
   // Stable identity for cross-session references (ids, not pointers: the session list
