@@ -22,6 +22,7 @@
 #include <QButtonGroup>
 #include <QClipboard>
 #include <QEvent>
+#include <QFrame>
 #include <QMimeData>
 #include <QCheckBox>
 #include <QComboBox>
@@ -78,6 +79,11 @@ constexpr int kPresetThumbnailRole = Qt::UserRole + 5;
 constexpr int kPresetRecentIndexRole = Qt::UserRole + 6;
 
 constexpr QSize kPresetCardCell(116, 100);
+// The group grid's smallest size: three rows of five cards (every group fits unscrolled;
+// GitHub issue 342), with room for the scroll bar search results bring so they keep five
+// columns. The Recent row is one card tall.
+constexpr QSize kPresetGridMinimum(5 * kPresetCardCell.width() + 22, 3 * kPresetCardCell.height() + 4);
+constexpr int kRecentRowHeight = kPresetCardCell.height() + 2;
 
 // The Last Used card's id (item data only, never written to settings) - never rename.
 // The Recent row's newest card carries it; the older ones are "recent-1" and up.
@@ -86,8 +92,8 @@ constexpr QLatin1StringView kClipboardPresetId("clipboard");
 constexpr int kMaxRecentDocuments = 8;
 
 // The template groups, in chip order (GitHub issue 222). Organized by what people make
-// rather than after another editor's list; every group holds at most 11 templates, so
-// with Last Used it fits the card grid without a scroll bar.
+// rather than after another editor's list; every group holds at most 12 templates, so
+// it fits the five-column, three-row card grid without a scroll bar.
 enum class PresetCategory { Screen, Mobile, Social, Web, Print, Photo, Icons };
 
 constexpr std::array kPresetCategories = {PresetCategory::Screen, PresetCategory::Mobile, PresetCategory::Social,
@@ -579,7 +585,8 @@ ThemedQss new_document_dialog_style() {
     }
     QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel,
     QDialog#patchyNewDocumentDialog QLabel#newDocumentNoMatchesLabel,
-    QDialog#patchyNewDocumentDialog QLabel#newDocumentRecentLabel {
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentRecentLabel,
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentGroupLabel {
       color: @nd_section_text;
     }
     QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit {
@@ -596,12 +603,20 @@ ThemedQss new_document_dialog_style() {
     QDialog#patchyNewDocumentDialog QWidget#newDocumentChipRow {
       background: transparent;
     }
-    QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList,
-    QDialog#patchyNewDocumentDialog QListWidget#newDocumentRecentList {
+    QDialog#patchyNewDocumentDialog QFrame#newDocumentListFrame {
       background: @list_surface_bg;
       border: 1px solid @list_surface_border;
       border-radius: 5px;
-      padding: 3px;
+    }
+    QDialog#patchyNewDocumentDialog QFrame#newDocumentListDivider {
+      background: @list_surface_border;
+      border: none;
+    }
+    QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList,
+    QDialog#patchyNewDocumentDialog QListWidget#newDocumentRecentList {
+      background: transparent;
+      border: none;
+      padding: 0;
     }
     QToolButton[newDocumentChip="true"] {
       background: @panel_card_bg;
@@ -691,7 +706,22 @@ ThemedQss new_document_dialog_style() {
       background: @nd_field_disabled_bg;
       border-color: @nd_field_disabled_border;
     }
-  )"));
+  )")) +
+         // The application sheet gives every QListWidget a 20 px min-height, which replaces a
+         // setMinimumSize/setFixedHeight at polish time, so the card lists' sizes live here.
+         ThemedQss(QStringLiteral(R"(
+    QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList {
+      min-width: %1px;
+      min-height: %2px;
+    }
+    QDialog#patchyNewDocumentDialog QListWidget#newDocumentRecentList {
+      min-height: %3px;
+      max-height: %3px;
+    }
+  )")
+                       .arg(kPresetGridMinimum.width())
+                       .arg(kPresetGridMinimum.height())
+                       .arg(kRecentRowHeight));
 }
 
 }  // namespace
@@ -749,13 +779,22 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   }
   left->addWidget(chips);
 
+  // One framed list area (GitHub issue 342): the Recent row on top, a divider, then the
+  // group's cards under a caption naming the group, or the search.
+  auto* list_frame = new QFrame(&dialog);
+  list_frame->setObjectName(QStringLiteral("newDocumentListFrame"));
+  auto* list_area = new QVBoxLayout(list_frame);
+  list_area->setContentsMargins(6, 4, 4, 4);
+  list_area->setSpacing(2);
+  left->addWidget(list_frame, 1);
+
   // The Recent row: Clipboard (with an image on the clipboard) and the last documents
   // created here, newest first, on every group and through a search; as many cards as fit
   // one row, never wrapping or scrolling.
-  auto* recent_label = new QLabel(QObject::tr("Recent", "new document recent sizes"), &dialog);
+  auto* recent_label = new QLabel(QObject::tr("Recent", "new document recent sizes"), list_frame);
   recent_label->setObjectName(QStringLiteral("newDocumentRecentLabel"));
-  left->addWidget(recent_label);
-  auto* recent_list = new QListWidget(&dialog);
+  list_area->addWidget(recent_label);
+  auto* recent_list = new QListWidget(list_frame);
   recent_list->setObjectName(QStringLiteral("newDocumentRecentList"));
   recent_list->setViewMode(QListView::IconMode);
   recent_list->setFlow(QListView::LeftToRight);
@@ -768,14 +807,27 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   recent_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   recent_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   recent_list->setItemDelegate(new PresetCardDelegate(recent_list));
-  recent_list->setFixedHeight(kPresetCardCell.height() + 8);
-  left->addWidget(recent_list);
+  recent_list->setFrameShape(QFrame::NoFrame);
+  recent_list->setFixedHeight(kRecentRowHeight);
+  list_area->addWidget(recent_list);
 
-  auto* no_matches = new QLabel(QObject::tr("No templates match the search."), &dialog);
+  auto* divider = new QFrame(list_frame);
+  divider->setObjectName(QStringLiteral("newDocumentListDivider"));
+  divider->setFixedHeight(1);
+  list_area->addSpacing(4);
+  list_area->addWidget(divider);
+  list_area->addSpacing(2);
+
+  auto* group_label = new QLabel(list_frame);
+  group_label->setObjectName(QStringLiteral("newDocumentGroupLabel"));
+  group_label->setTextFormat(Qt::PlainText);
+  list_area->addWidget(group_label);
+
+  auto* no_matches = new QLabel(QObject::tr("No templates match the search."), list_frame);
   no_matches->setObjectName(QStringLiteral("newDocumentNoMatchesLabel"));
   no_matches->hide();
 
-  auto* preset_list = new QListWidget(&dialog);
+  auto* preset_list = new QListWidget(list_frame);
   preset_list->setObjectName(QStringLiteral("newDocumentPresetList"));
   preset_list->setViewMode(QListView::IconMode);
   preset_list->setMovement(QListView::Static);
@@ -786,12 +838,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   preset_list->setMouseTracking(true);
   preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   preset_list->setItemDelegate(new PresetCardDelegate(preset_list));
-  // Room for every group without a scroll bar: a group's templates fill at most four
-  // rows of three. Search results scroll.
-  // The extra 12 px cover the list's frame and padding (the theme's 1 px border, 3 px padding).
-  preset_list->setMinimumSize(3 * kPresetCardCell.width() + 26, 4 * kPresetCardCell.height() + 24);
-  left->addWidget(no_matches);
-  left->addWidget(preset_list, 1);
+  preset_list->setFrameShape(QFrame::NoFrame);
+  preset_list->setMinimumSize(kPresetGridMinimum);
+  list_area->addWidget(no_matches);
+  list_area->addWidget(preset_list, 1);
 
   // Right pane: the details grid. Fixed field/unit column widths keep every row the
   // same size (the old form let the width row stretch wider than the others).
@@ -1052,6 +1102,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   const auto populate_list = [&](PresetCategory category) {
     const QSignalBlocker blocker(preset_list);
     preset_list->clear();
+    group_label->setText(preset_category_name(category));
     for (const auto& preset : presets_for_category(category)) {
       auto* item = new QListWidgetItem(preset.name, preset_list);
       item->setData(kPresetIdRole, preset.id);
@@ -1118,6 +1169,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   const auto populate_search = [&](const QString& text) {
     const QSignalBlocker blocker(preset_list);
     preset_list->clear();
+    group_label->setText(QObject::tr("Search results", "new document template list caption"));
     QListWidgetItem* current = nullptr;
     for (const auto category : kPresetCategories) {
       for (const auto& preset : presets_for_category(category)) {
@@ -1430,7 +1482,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   QObject::connect(bit_depth, &QComboBox::currentIndexChanged, &dialog, [update_summary](int) { update_summary(); });
 
   append_themed_style(dialog, new_document_dialog_style());
-  dialog.resize(724, 680);
+  // As small as the layout allows (GitHub issue 342: it filled short screens).
+  dialog.resize(dialog.sizeHint());
   // Always over the main window: a remembered spot (a far corner, another monitor) only made
   // the dialog hard to find (Seth, October 2026).
   mark_dialog_always_centered(dialog);
