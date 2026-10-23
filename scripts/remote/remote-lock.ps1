@@ -39,6 +39,11 @@ function Get-PatchyLockPath([bool]$Windows, $Remote) {
 # mac/linux: pgrep matches the process NAME (never -f, which would match this probe's own shell
 # command line). Linux truncates names to 15 characters, hence the patchy_* prefixes. Processes
 # inside the Flatpak SDK sandbox are visible to the host's pgrep.
+# Both short ssh calls below send keepalives: a connection that drops mid-command otherwise
+# leaves ssh waiting forever, and the run never releases the host (glados, October 24, 2026:
+# a release run sat 22 minutes on the lock release). Four missed 15 s probes end it.
+$PatchySshQuick = @('-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4')
+
 function Get-PatchyRemoteBuildState([string]$RemoteHost, [bool]$Windows) {
   if ($Windows) {
     $probe = 'Get-Process cl,link,ninja,cmake,patchy_core_tests,patchy_ui_visual_tests,patchy_perf_tests -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object -Unique; ''patchy-probe-ok'''
@@ -46,7 +51,7 @@ function Get-PatchyRemoteBuildState([string]$RemoteHost, [bool]$Windows) {
   else {
     $probe = "pgrep -l '^(ninja|cmake|cc1plus|cc1|clang|clang\+\+|ld|ld64|ld\.lld|ld\.gold|collect2|lto1|patchy_core_tes.*|patchy_ui_visua.*|patchy_perf_tes.*|patchy_mac_a11y.*)`$' | awk '{print `$2}' | sort -u; echo patchy-probe-ok"
   }
-  $out = @(ssh -o ConnectTimeout=8 -o BatchMode=yes $RemoteHost $probe 2>$null)
+  $out = @(ssh -o ConnectTimeout=8 @PatchySshQuick $RemoteHost $probe 2>$null)
   if ($out -notcontains 'patchy-probe-ok') { return 'unreachable' }
   $busy = @($out | Where-Object { $_ -and $_ -ne 'patchy-probe-ok' })
   if ($busy.Count -gt 0) { return "busy: $($busy -join ', ')" }
@@ -70,7 +75,7 @@ function Invoke-PatchyLockCommand([string]$RemoteHost, [bool]$Windows, [string]$
       'break'   { "rm -rf ~/patchy/remote-build.lock; echo patchy-lock-broken" }
     }
   }
-  @(ssh -o ConnectTimeout=10 -o BatchMode=yes $RemoteHost $cmd 2>$null)
+  @(ssh -o ConnectTimeout=10 @PatchySshQuick $RemoteHost $cmd 2>$null)
 }
 
 # True when the lock holder names a run on this machine whose process is gone. A PID that is
