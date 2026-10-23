@@ -1937,6 +1937,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // the height, indent, eye button style and tooltip plumbing.
   constexpr int kNestedRowHeight = 26;
   constexpr int kNestedRowSpacing = 5;
+  // Every nested eye but the Layer Styles header's sits this far in: past that header's
+  // disclosure arrow (18 px plus the 1 px QSS border on each side) and the row spacing. So all
+  // the Smart Filter and effect eyes share one column and their names line up (issues 256, 349).
+  constexpr int kNestedEyeIndent = kLayerFolderDisclosureWidth + 2 + kNestedRowSpacing;
   const auto nested_button_style = QStringLiteral(
       "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
       "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
@@ -2047,7 +2051,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     };
     const auto nested_row_tooltip = stack_changeable ? QString() : preservation_tooltip;
     auto [header, header_layout] =
-        make_nested_row(QStringLiteral("layerSmartFiltersRow"), 0, nested_row_tooltip);
+        make_nested_row(QStringLiteral("layerSmartFiltersRow"), kNestedEyeIndent, nested_row_tooltip);
     auto* stack_visibility = new QToolButton(header);
     stack_visibility->setObjectName(QStringLiteral("layerSmartFiltersVisibilityButton"));
     auto toggled_stack = *smart_filters;
@@ -2172,7 +2176,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       const auto& entry = smart_filters->entries[execution_index];
       const bool entry_modeled = entry.kind != SmartFilterKind::Unsupported;
       auto [entry_row, entry_layout] =
-          make_nested_row(QStringLiteral("layerSmartFilterEntryRow"), 14, nested_row_tooltip);
+          make_nested_row(QStringLiteral("layerSmartFilterEntryRow"), kNestedEyeIndent, nested_row_tooltip);
       entry_row->setProperty("smartFilterExecutionIndex",
                              QVariant::fromValue<qulonglong>(
                                  static_cast<qulonglong>(execution_index)));
@@ -2712,13 +2716,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
       return on ? QObject::tr("Effect visible. Click to hide.") : QObject::tr("Effect hidden. Click to show.");
     };
-    // Each effect's eye sits under the header's eye (past its disclosure arrow, whose QSS adds
-    // a 1 px border on each side of its 18 px), so the effect names line up with "Layer Styles"
-    // (issue 256 follow-up).
-    constexpr int kEffectEntryIndent = kLayerFolderDisclosureWidth + 2 + kNestedRowSpacing;
+    // Each effect's eye sits under the header's eye, past its disclosure arrow (kNestedEyeIndent).
     for (const auto& effect_row : effects_expanded ? effect_rows : std::vector<LayerEffectRow>{}) {
       auto [entry_row, entry_layout] =
-          make_nested_row(QStringLiteral("layerEffectEntryRow"), kEffectEntryIndent, row_tooltip);
+          make_nested_row(QStringLiteral("layerEffectEntryRow"), kNestedEyeIndent, row_tooltip);
       entry_row->setProperty("layerEffectKind", static_cast<int>(effect_row.effect));
       entry_row->setProperty("layerEffectIndex",
                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(effect_row.index)));
