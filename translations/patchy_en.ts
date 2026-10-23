@@ -14944,7 +14944,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert the active layer to a Smart Object for editable filters</source>
+        <source>Convert the active layer to a Smart Object (the same as Layer &gt; Smart Objects &gt; Convert to Smart Object) so filters applied afterward stay editable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

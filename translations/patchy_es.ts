@@ -14960,8 +14960,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Convertir para filtros inteligentes</translation>
     </message>
     <message>
-        <source>Convert the active layer to a Smart Object for editable filters</source>
-        <translation>Convierte la capa activa en un objeto inteligente para aplicar filtros editables</translation>
+        <source>Convert the active layer to a Smart Object (the same as Layer &gt; Smart Objects &gt; Convert to Smart Object) so filters applied afterward stay editable</source>
+        <translation>Convierte la capa activa en un objeto inteligente (igual que Capa &gt; Objetos inteligentes &gt; Convertir en objeto inteligente) para que los filtros aplicados después sigan siendo editables</translation>
     </message>
     <message>
         <source>Filter &amp;Gallery...</source>

@@ -504,6 +504,10 @@ void ui_convert_for_smart_filters_action_converts_eligible_pixel_layer() {
       QStringLiteral("filter.convert_for_smart_filters"));
   CHECK(command != nullptr && command->action == convert);
   CHECK(command->default_shortcuts.isEmpty());
+  // The status tip names the Layer menu command it shares (desk card local-007).
+  CHECK(convert->statusTip().contains(
+      QStringLiteral("Layer > Smart Objects > Convert to Smart Object")));
+  CHECK(!convert->isEnabled());  // no document yet
 
   patchy::Document built(48, 36, patchy::PixelFormat::rgba8());
   patchy::Layer artwork(

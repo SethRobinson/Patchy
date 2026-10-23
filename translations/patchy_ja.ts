@@ -18339,8 +18339,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルター用に変換</translation>
     </message>
     <message>
-        <source>Convert the active layer to a Smart Object for editable filters</source>
-        <translation>アクティブなレイヤーをスマートオブジェクトに変換してフィルターを編集可能にします</translation>
+        <source>Convert the active layer to a Smart Object (the same as Layer &gt; Smart Objects &gt; Convert to Smart Object) so filters applied afterward stay editable</source>
+        <translation>アクティブなレイヤーをスマートオブジェクトに変換します (レイヤー &gt; スマートオブジェクト &gt; スマートオブジェクトに変換 と同じ)。この後に適用したフィルターは編集可能なままです</translation>
     </message>
     <message>
         <source>Select a normal pixel layer to convert for Smart Filters</source>

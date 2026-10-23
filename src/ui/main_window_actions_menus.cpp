@@ -1690,12 +1690,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       "patchy.channelViewBlocked", true);
   filter_convert_smart_filters_action_->setIcon(
       simple_icon(QStringLiteral("SO")));
-  filter_convert_smart_filters_action_->setStatusTip(tr("Convert the active layer to a Smart Object for editable filters"));
+  filter_convert_smart_filters_action_->setStatusTip(tr("Convert the active layer to a Smart Object (the same as Layer > Smart Objects > Convert to Smart Object) so filters applied afterward stay editable"));
   bind_action_text(filter_convert_smart_filters_action_,
                    QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Convert for Smart Filters"));
   bind_translated_status_tip(
       filter_convert_smart_filters_action_,
-      "Convert the active layer to a Smart Object for editable filters");
+      "Convert the active layer to a Smart Object (the same as Layer > Smart Objects > Convert to Smart Object) so filters applied afterward stay editable");
   apply_bound_translation(filter_convert_smart_filters_action_);
   refresh_action_tooltip(filter_convert_smart_filters_action_);
   register_hotkey(filter_convert_smart_filters_action_,

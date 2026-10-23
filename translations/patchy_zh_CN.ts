@@ -14924,8 +14924,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>转换为智能滤镜</translation>
     </message>
     <message>
-        <source>Convert the active layer to a Smart Object for editable filters</source>
-        <translation>将当前图层转换为智能对象，以便使用可编辑的滤镜</translation>
+        <source>Convert the active layer to a Smart Object (the same as Layer &gt; Smart Objects &gt; Convert to Smart Object) so filters applied afterward stay editable</source>
+        <translation>将当前图层转换为智能对象（与 图层 &gt; 智能对象 &gt; 转换为智能对象 相同），之后应用的滤镜仍可编辑</translation>
     </message>
     <message>
         <source>Filter &amp;Gallery...</source>
