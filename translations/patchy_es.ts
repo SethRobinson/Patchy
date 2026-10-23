@@ -14643,10 +14643,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Relleno</translation>
     </message>
     <message>
-        <source>T</source>
-        <translation>T</translation>
-    </message>
-    <message>
         <source>&amp;File</source>
         <translation>&amp;Archivo</translation>
     </message>

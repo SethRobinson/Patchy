@@ -14607,10 +14607,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>填充</translation>
     </message>
     <message>
-        <source>T</source>
-        <translation>T</translation>
-    </message>
-    <message>
         <source>&amp;File</source>
         <translation>文件(&amp;F)</translation>
     </message>
