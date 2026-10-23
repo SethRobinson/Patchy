@@ -1180,6 +1180,134 @@ void psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style() {
         std::string::npos);
 }
 
+struct TextAntiAliasMode {
+  const char* name;
+  int value;
+  const char* annt;  // The TySh 'AntA' enum value Photoshop writes beside it.
+};
+
+// Photoshop 2026's font smoothing modes, as its "Character - Font Smoothing.psd" (#344) stores
+// them: the layer name, the EngineData /AntiAlias number and the descriptor enum.
+constexpr std::array<TextAntiAliasMode, 7> kPhotoshopTextAntiAliasModes{{
+    {"None", patchy::kTextAntiAliasNone, "Anno"},
+    {"Crisp", patchy::kTextAntiAliasCrisp, "AnCr"},
+    {"Strong", patchy::kTextAntiAliasStrong, "AnSt"},
+    {"Smooth", patchy::kTextAntiAliasSmooth, "AnSm"},
+    {"Sharp", patchy::kTextAntiAliasSharp, "antiAliasSharp"},
+    {"Windows LCD", patchy::kTextAntiAliasWindowsLcd, "antiAliasPlatformLCD"},
+    {"Windows", patchy::kTextAntiAliasWindows, "antiAliasPlatformGray"},
+}};
+
+std::vector<std::uint8_t> anti_alias_descriptor_bytes(std::string_view annt) {
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_descriptor_id(writer, "AntA");
+  for (const char ch : std::string_view("enum")) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  patchy::psd::write_descriptor_id(writer, "Annt");
+  patchy::psd::write_descriptor_id(writer, annt);
+  return writer.bytes();
+}
+
+bool payload_contains(std::span<const std::uint8_t> payload, std::span<const std::uint8_t> needle) {
+  return std::search(payload.begin(), payload.end(), needle.begin(), needle.end()) != payload.end();
+}
+
+void psd_text_anti_alias_modes_save_and_reopen_as_photoshop_writes() {
+  for (const auto& mode : kPhotoshopTextAntiAliasModes) {
+    patchy::Document document(120, 60, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(120, 60, 255, 255, 255));
+    patchy::Layer text_layer(document.allocate_layer_id(), "Text: Mode", solid_rgba(80, 30, 0, 0, 0, 0));
+    auto& layer = document.add_layer(std::move(text_layer));
+    layer.set_bounds(patchy::Rect{10, 10, 80, 30});
+    layer.metadata()[patchy::kLayerMetadataText] = "Mode";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = "Verdana";
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "20";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+    layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = std::to_string(mode.value);
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+    CHECK(text_payload.has_value());
+    if (!text_payload.has_value()) {
+      continue;
+    }
+    const std::string payload_text(text_payload->begin(), text_payload->end());
+    CHECK(payload_text.find("/AntiAlias " + std::to_string(mode.value) + " ") != std::string::npos);
+    CHECK(payload_contains(*text_payload, anti_alias_descriptor_bytes(mode.annt)));
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    const auto* reopened = find_layer_named(read.layers(), "Text: Mode");
+    CHECK(reopened != nullptr &&
+          reopened->metadata().at(patchy::kLayerMetadataTextAntiAlias) == std::to_string(mode.value));
+  }
+}
+
+void psd_text_anti_alias_change_survives_imported_text_save() {
+  // A smoothing change made in Patchy (which, like the options-bar commit, marks the layer
+  // re-rendered) must reach the saved type block of an imported text layer.
+  const auto text_literal = engine_utf16be_literal("Mode\r");
+  const auto font_literal = engine_utf16be_literal("Verdana");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 20 "
+      "/FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> >> >> >> ] /RunLengthArray [ 5 ] >> "
+      "/AntiAlias 3 /UseFractionalGlyphWidths true /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const std::vector<std::uint8_t> payload(engine_data.begin(), engine_data.end());
+  for (const auto& mode : kPhotoshopTextAntiAliasModes) {
+    auto document = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+    CHECK(document.layers().size() == 1);
+    if (document.layers().size() != 1) {
+      return;
+    }
+    auto& layer = document.layers().front();
+    CHECK(layer.metadata().at(patchy::kLayerMetadataTextAntiAlias) == "3");
+    layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = std::to_string(mode.value);
+    layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    CHECK(reopened.layers().size() == 1 &&
+          reopened.layers().front().metadata().at(patchy::kLayerMetadataTextAntiAlias) ==
+              std::to_string(mode.value));
+  }
+
+  // The reporter's PSD, when copied into local-test-fixtures: each layer opens as the mode it is
+  // named for, keeps it through a Patchy save, and takes a mode changed in Patchy.
+  const auto path = patchy::test::local_psd_fixture_path("Character - Font Smoothing.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto check_modes = [](const patchy::Document& checked, std::size_t shift) {
+    for (std::size_t index = 0; index < kPhotoshopTextAntiAliasModes.size(); ++index) {
+      const auto& mode = kPhotoshopTextAntiAliasModes[index];
+      const auto& expected = kPhotoshopTextAntiAliasModes[(index + shift) % kPhotoshopTextAntiAliasModes.size()];
+      const auto* layer = find_layer_named(checked.layers(), mode.name);
+      CHECK(layer != nullptr);
+      if (layer != nullptr) {
+        CHECK(layer->metadata().at(patchy::kLayerMetadataTextAntiAlias) == std::to_string(expected.value));
+      }
+    }
+  };
+  check_modes(document, 0);
+  check_modes(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document)), 0);
+
+  const std::function<void(std::vector<patchy::Layer>&)> shift_modes = [&](std::vector<patchy::Layer>& layers) {
+    for (auto& layer : layers) {
+      shift_modes(layer.children());
+      for (std::size_t index = 0; index < kPhotoshopTextAntiAliasModes.size(); ++index) {
+        if (layer.name() == kPhotoshopTextAntiAliasModes[index].name) {
+          const auto& next = kPhotoshopTextAntiAliasModes[(index + 1U) % kPhotoshopTextAntiAliasModes.size()];
+          layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = std::to_string(next.value);
+          layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+        }
+      }
+    }
+  };
+  shift_modes(document.layers());
+  check_modes(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document)), 1);
+}
+
 void psd_text_faux_bold_stays_off_the_bold_face() {
   // Photoshop's /FauxBold synthesizes weight on the run's OWN face; it is not a request for the
   // family's bold face (the Dungeon Scroll headings: Georgia-Italic + faux bold, where resolving
@@ -1968,6 +2096,78 @@ void psd_ag_psd_auto_lead_text_without_raster_if_available() {
   CHECK(layer.metadata().at(patchy::kLayerMetadataTextTransform) == "1 0 0 1 0 0");
   CHECK(layer.metadata().at(patchy::kLayerMetadataTextLayoutMode) == patchy::kTextLayoutModePhotoshop);
   CHECK(read.print_settings().horizontal_ppi == 72.0 && read.print_settings().vertical_ppi == 72.0);
+}
+
+// GitHub issue 345: Photoshop wrote 12 pt type in a 300 PPI document with no /FontSize in the
+// style run (TySh or 'Txt2'); the size lives only in the paragraph's parent sheet, "Basic
+// Paragraph", whose character style (/32) holds 50 px. Photoshop sizes the text from it (its
+// text bounds halve when that value does, COM readback October 2026); the reader took the
+// normal style sheet's 12 px and showed 2.88 pt. Built from a Photoshop 2026 fixture by
+// same-length edits: the run's size blanked in both blocks, Basic Paragraph set to 50 px.
+void psd_text_paragraph_style_supplies_missing_run_font_size() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-auto-leading.psd");
+  std::ifstream input(path, std::ios::binary);
+  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const auto replace_once = [&bytes](std::string_view from, std::string_view to, std::size_t start) {
+    CHECK(from.size() == to.size());
+    const auto first = std::search(bytes.begin() + static_cast<std::ptrdiff_t>(start), bytes.end(), from.begin(), from.end());
+    CHECK(first != bytes.end());
+    if (first == bytes.end()) return;
+    CHECK(std::search(first + 1, bytes.end(), from.begin(), from.end()) == bytes.end());
+    std::copy(to.begin(), to.end(), first);
+  };
+  static constexpr std::string_view kTxt2 = "8BIMTxt2";
+  const auto txt2 = static_cast<std::size_t>(std::search(bytes.begin(), bytes.end(), kTxt2.begin(), kTxt2.end()) - bytes.begin());
+  CHECK(txt2 < bytes.size());
+  if (txt2 >= bytes.size()) return;
+  // The TySh run's /FontSize 24.0 (the only 24 in the file before the block), and the 'Txt2'
+  // style run's /1 24.0.
+  replace_once("/FontSize 24.0", "              ", 0);
+  replace_once("/6 << /0 0 /1 24.0", "/6 << /0 0        ", txt2);
+  // "Basic Paragraph" (the runs' parent sheet, /6 1) character style: 12 -> 50 px.
+  static constexpr std::string_view kBasic = "/32 << /0 1 /1 12.0";
+  replace_once(kBasic, "/32 << /0 1 /1 50.0", txt2);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* text = nullptr;
+  for (const auto& layer : read.layers()) {
+    if (patchy::layer_is_text(layer)) text = &layer;
+  }
+  CHECK(text != nullptr);
+  if (text == nullptr) return;
+  CHECK(text->metadata().at(patchy::kLayerMetadataTextSize) == "50");
+  const auto lines = split_lines(text->metadata().at(patchy::kLayerMetadataTextRuns));
+  CHECK(lines.size() >= 2);
+  for (std::size_t i = 1; i < lines.size(); ++i) {
+    const auto fields = split_tabs(lines[i]);
+    CHECK(fields.size() > 2 && std::abs(std::stod(fields[2]) - 50.0) < 0.0001);
+  }
+}
+
+// The reporter's file for GitHub issue 345 (Photoshop CC, 300 PPI, seven 12 pt layers whose
+// runs leave the size to "Basic Paragraph"): every layer reads 50 px, which is 12 pt, and keeps
+// it through Patchy's own save and reopen.
+void psd_issue_345_paragraph_style_font_size_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-345-character-font-smoothing.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto check_sizes = [](const patchy::Document& document) {
+    CHECK(document.print_settings().horizontal_ppi == 300.0);
+    int text_layers = 0;
+    std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+      for (const auto& layer : layers) {
+        if (patchy::layer_is_text(layer)) {
+          ++text_layers;
+          CHECK(layer.metadata().at(patchy::kLayerMetadataTextSize) == "50");
+        }
+        visit(layer.children());
+      }
+    };
+    visit(document.layers());
+    CHECK(text_layers == 7);
+  };
+  const auto read = patchy::psd::DocumentIo::read_file(path);
+  check_sizes(read);
+  check_sizes(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read)));
 }
 
 void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() {
@@ -2856,6 +3056,10 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_layer_engine_data_renders_placeholder_text},
       {"psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style",
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
+      {"psd_text_anti_alias_modes_save_and_reopen_as_photoshop_writes",
+       psd_text_anti_alias_modes_save_and_reopen_as_photoshop_writes},
+      {"psd_text_anti_alias_change_survives_imported_text_save",
+       psd_text_anti_alias_change_survives_imported_text_save},
       {"psd_text_faux_bold_stays_off_the_bold_face", psd_text_faux_bold_stays_off_the_bold_face},
       {"psd_text_faux_italic_stays_off_the_italic_face", psd_text_faux_italic_stays_off_the_italic_face},
       {"psd_text_flag_expressible_face_never_bakes_into_the_family",
@@ -2882,6 +3086,10 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available},
       {"psd_ag_psd_auto_lead_text_without_raster_if_available",
        psd_ag_psd_auto_lead_text_without_raster_if_available},
+      {"psd_text_paragraph_style_supplies_missing_run_font_size",
+       psd_text_paragraph_style_supplies_missing_run_font_size},
+      {"psd_issue_345_paragraph_style_font_size_if_available",
+       psd_issue_345_paragraph_style_font_size_if_available},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",

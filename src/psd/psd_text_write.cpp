@@ -1731,8 +1731,28 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   return std::vector<std::uint8_t>(engine.begin(), engine.end());
 }
 
+// The TySh 'AntA' enum value Photoshop writes beside each EngineData /AntiAlias number.
+std::string_view photoshop_anti_alias_enum(int anti_alias) {
+  switch (anti_alias) {
+    case kTextAntiAliasNone:
+      return "Anno";
+    case kTextAntiAliasCrisp:
+      return "AnCr";
+    case kTextAntiAliasStrong:
+      return "AnSt";
+    case kTextAntiAliasSharp:
+      return "antiAliasSharp";
+    case kTextAntiAliasWindowsLcd:
+      return "antiAliasPlatformLCD";
+    case kTextAntiAliasWindows:
+      return "antiAliasPlatformGray";
+    default:
+      return "AnSm";
+  }
+}
+
 void write_text_descriptor(BigEndianWriter& writer, std::string_view text, std::span<const std::uint8_t> engine_data,
-                           const PsdTextGeometry& geometry) {
+                           const PsdTextGeometry& geometry, int anti_alias) {
   write_descriptor_unicode_string(writer, "");
   write_descriptor_id(writer, "TxLr");
   writer.write_u32(8);
@@ -1740,7 +1760,7 @@ void write_text_descriptor(BigEndianWriter& writer, std::string_view text, std::
   write_descriptor_unicode_string(writer, text);
   write_descriptor_enum_item(writer, "textGridding", "textGridding", "None");
   write_descriptor_enum_item(writer, "Ornt", "Ornt", geometry.vertical ? "Vrtc" : "Hrzn");
-  write_descriptor_enum_item(writer, "AntA", "Annt", "AnCr");
+  write_descriptor_enum_item(writer, "AntA", "Annt", photoshop_anti_alias_enum(anti_alias));
   write_descriptor_object_item(writer, "bounds", geometry.bounds);
   write_descriptor_object_item(writer, "boundingBox", geometry.bounding_box);
   write_descriptor_raw_item(writer, "EngineData", engine_data);
@@ -2025,7 +2045,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
     }
     writer.write_u16(50);
     writer.write_u32(16);
-    write_text_descriptor(writer, descriptor_text, engine_bytes, geometry);
+    write_text_descriptor(writer, descriptor_text, engine_bytes, geometry, anti_alias);
     writer.write_u16(1);
     writer.write_u32(16);
     write_warp_descriptor(writer, warp_active ? &*warp : nullptr);

@@ -93,13 +93,15 @@ embedded smart-object PSD in its `lnk2` block, not at document level).
 Text object `/1/1[i]`:
 
 - `/0` model: `/0` the text (Photoshop appends `\r`; runs count it), `/5/0[]` ParagraphRun
-  entries (`/0/0/5` sparse paragraph sheet, `/0/0/6` unit flag, `/1` length), `/6/0[]`
-  StyleRun entries (`/0/0/6` sparse style sheet, `/0/0/5` unit flag, `/1` length),
-  `/10 << /0 1 /2 true >>` (`/0 4` for Standard Vertical Roman Alignment). **The unit flags
-  select what the sheet values mean: 0 = document pixels, 1 = points at the document PPI.**
-  Photoshop wrote 1 in the 72 ppi captures and 0 for its own objects of a Patchy layer in a
-  300 ppi document; an authored object with 1 read a 28 px layer back as 116.67 px. Patchy
-  writes 0 (TySh engine units).
+  entries (`/0/0/5` sparse paragraph sheet, `/0/0/6` parent ParagraphSheetSet index, `/1`
+  length), `/6/0[]` StyleRun entries (`/0/0/6` sparse style sheet, `/0/0/5` flag, `/1`
+  length), `/10 << /0 1 /2 true >>` (`/0 4` for Standard Vertical Roman Alignment).
+  Photoshop writes paragraph `/6 1` ("Basic Paragraph"); Patchy writes 0. The style-run
+  `/5` was read as a unit flag (1 = points at the document PPI: an authored object with 1
+  read a 28 px layer back as 116.67 px at 300 ppi), but Photoshop 2025 writes `/5 1` beside
+  `/1 50.0` for 12 pt at 300 ppi and renders 50 px, so it is not a plain unit switch (it may
+  be the parent StyleSheetSet index: 0 Normal RGB, 1 None). Patchy writes 0 (TySh engine
+  units).
 - `/1` view: `/4` engine version, `/5`, `/0` frame index list, `/1`, `/2` the cached
   composed layout (`/PC > /F > /R > /R > /L > /S > /G`: glyph ids, cumulative advances,
   line bounds, about 1 KB per line).
@@ -130,9 +132,20 @@ Paragraph sheet (`/1/1[i]/0/5/0[j]/0/0/5`, and `/0/6`, `/1/3`):
 | `/24`, `/25` | KinsokuOrder, (unknown) | 0 |
 | `/33` | ParagraphDirection | 0 ltr, 1 rtl (`directionType` in Action Manager) |
 | `/35` | composer | 1 |
+| `/32` | the paragraph style's character style | sparse style sheet; see below |
 | `/36` | list style | `/nil` none, else an index into `/0/9/0[]`: 0 numeric, 1 uppercase alpha, 5 bullet |
 | `/37` | listTier | 0, 1, 2 |
 | `/40` | (unknown) | 2 |
+
+**Paragraph-style type size (GitHub issue 345).** "Basic Paragraph" (`/0/6/0[1]`) carries a
+`/32` character style whose `/1` is the document's default type size in pixels (12 pt at the
+document PPI: 12.0 at 72 ppi, 50.0 at 300 ppi); Normal RGB's `/32` is empty. A style run
+without `/1`, whose TySh run then has no `/FontSize` either, takes that size when its paragraph
+run's `/6` names the sheet, ahead of the normal style sheet: Photoshop's text bounds halve when
+the value does (COM readback, October 2026), and the TySh EngineData holds no trace of it. A
+CS6 file whose runs name sheet 0 takes the normal sheet's 12 px. The reader
+(`object_paragraph_font_sizes`, the paragraph run's own `/32` first) applies only the size, per
+paragraph, to TySh runs without `/FontSize`; other `/32` keys are not read.
 
 Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 

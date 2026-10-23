@@ -10,6 +10,7 @@
 #include "ui/text_font_service.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/rect_utils.hpp"
 #include "core/smart_filter.hpp"
@@ -245,7 +246,7 @@ void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset);
 [[nodiscard]] QString tool_name(CanvasTool tool);
 
 // Default anti-alias strength for the Type tool's Smoothing combo.
-constexpr int kDefaultTextAntiAlias = 3;
+constexpr int kDefaultTextAntiAlias = kTextAntiAliasSmooth;
 // Select the combo row whose data matches value (falls back to the default row).
 void set_text_smoothing_combo_value(QComboBox* combo, int value);
 // Current anti-alias strength from the Smoothing combo (default when unset).

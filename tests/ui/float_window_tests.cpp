@@ -10,7 +10,11 @@
 #include <QApplication>
 #include <QDialog>
 #include <QDragEnterEvent>
+#include <QDir>
 #include <QDropEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QImage>
 #include <QList>
 #include <QListWidget>
@@ -29,6 +33,7 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <deque>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -1078,6 +1083,234 @@ void ui_float_window_accepts_file_drop() {
   CHECK(find_document_float_window(window) == float_window);
 }
 
+// Scripted answers for the save prompts of a close or quit (GitHub issue 359). Each step
+// answers the next dialog that appears: a save-changes prompt button, or the Save As
+// dialog (an empty path cancels it). The log records what was asked, in order.
+struct CloseAnswerStep {
+  bool save_as = false;
+  QMessageBox::StandardButton button = QMessageBox::Cancel;
+  QString save_path;
+};
+
+CloseAnswerStep prompt_answer(QMessageBox::StandardButton button) {
+  return CloseAnswerStep{false, button, {}};
+}
+
+CloseAnswerStep save_as_answer(QString path = {}) {
+  return CloseAnswerStep{true, QMessageBox::Cancel, std::move(path)};
+}
+
+class CloseAnswerDriver {
+public:
+  CloseAnswerDriver(QObject& context, std::deque<CloseAnswerStep> steps) : steps_(std::move(steps)) {
+    QObject::connect(&timer_, &QTimer::timeout, &context, [this] { tick(); });
+    timer_.start(10);
+  }
+  ~CloseAnswerDriver() { timer_.stop(); }
+  CloseAnswerDriver(const CloseAnswerDriver&) = delete;
+  CloseAnswerDriver& operator=(const CloseAnswerDriver&) = delete;
+
+  [[nodiscard]] const QStringList& log() const noexcept { return log_; }
+  [[nodiscard]] bool finished() const noexcept { return steps_.empty(); }
+
+private:
+  void tick() {
+    auto* prompt = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+    if (prompt != nullptr && prompt->isVisible()) {
+      if (steps_.empty() || steps_.front().save_as) {
+        log_.append(QStringLiteral("unexpected prompt: ") + prompt->text());
+        prompt->button(QMessageBox::Cancel)->click();
+        return;
+      }
+      log_.append(prompt->text());
+      const auto button = steps_.front().button;
+      steps_.pop_front();
+      prompt->button(button)->click();
+      return;
+    }
+    auto* save_as = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    if (save_as != nullptr && save_as->isVisible()) {
+      if (steps_.empty() || !steps_.front().save_as) {
+        log_.append(QStringLiteral("unexpected Save As"));
+        save_as->reject();
+        return;
+      }
+      const auto save_path = steps_.front().save_path;
+      steps_.pop_front();
+      log_.append(QStringLiteral("Save As"));
+      if (save_path.isEmpty()) {
+        save_as->reject();
+      } else {
+        save_as->selectFile(save_path);
+        static_cast<QDialog*>(save_as)->accept();  // QFileDialog::accept is protected
+      }
+    }
+  }
+
+  std::deque<CloseAnswerStep> steps_;
+  QStringList log_;
+  QTimer timer_;
+};
+
+// Adds an untitled document (no path, so Yes opens Save As) with an unsaved change.
+void add_modified_untitled_document(patchy::ui::MainWindow& window, const QString& title, QColor color) {
+  window.add_document_session(make_float_test_document(color), title);
+  QApplication::processEvents();
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+}
+
+QString save_prompt_text(const QString& title) {
+  return QStringLiteral("Save changes to %1 before closing?").arg(title);
+}
+
+// Quit asks about each modified document newest first. No closes that document at once
+// and moves on; Cancel ends the quit with the documents not yet answered still open
+// (GitHub issue 359: No on Untitled-2 left it open).
+void ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  add_modified_untitled_document(window, QStringLiteral("Untitled-1"), QColor(200, 40, 40));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-2"), QColor(40, 200, 40));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-3"), QColor(40, 40, 200));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 3);
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Discard), prompt_answer(QMessageBox::Discard),
+                                      prompt_answer(QMessageBox::Cancel)});
+    CHECK(!window.close());
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-3")),
+                                       save_prompt_text(QStringLiteral("Untitled-2")),
+                                       save_prompt_text(QStringLiteral("Untitled-1"))}));
+  }
+  CHECK(window.isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::session_title(window, 0) == QStringLiteral("Untitled-1"));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Discard)});
+    CHECK(window.close());
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-1"))}));
+  }
+  CHECK(!window.isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+}
+
+// Yes on an untitled document opens Save As; cancelling it asks about the same document
+// again instead of ending the quit (GitHub issue 359). Cancel on that prompt still ends
+// it with the document open, and a completed Save As lets the quit finish.
+void ui_quit_save_as_cancel_returns_to_save_prompt() {
+  std::filesystem::create_directories("test-artifacts");
+  const auto saved_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("ui_quit_save_as_cancel.psd")))
+          .absoluteFilePath();
+  QFile::remove(saved_path);
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  add_modified_untitled_document(window, QStringLiteral("Untitled-1"), QColor(90, 30, 160));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-2"), QColor(160, 90, 30));
+  const auto untitled_2 = save_prompt_text(QStringLiteral("Untitled-2"));
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Save), save_as_answer(),
+                                      prompt_answer(QMessageBox::Save), save_as_answer(),
+                                      prompt_answer(QMessageBox::Cancel)});
+    CHECK(!window.close());
+    QApplication::processEvents();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({untitled_2, QStringLiteral("Save As"), untitled_2, QStringLiteral("Save As"),
+                                       untitled_2}));
+  }
+  CHECK(window.isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Save), save_as_answer(),
+                                      prompt_answer(QMessageBox::Save), save_as_answer(saved_path),
+                                      prompt_answer(QMessageBox::Discard)});
+    CHECK(window.close());
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({untitled_2, QStringLiteral("Save As"), untitled_2, QStringLiteral("Save As"),
+                                       save_prompt_text(QStringLiteral("Untitled-1"))}));
+  }
+  CHECK(!window.isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  CHECK(QFileInfo::exists(saved_path));
+}
+
+// Closing one tab follows the same rule: a cancelled Save As returns to its prompt,
+// where No closes the document and Cancel keeps it.
+void ui_close_tab_save_as_cancel_returns_to_save_prompt() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  add_modified_untitled_document(window, QStringLiteral("Untitled-1"), QColor(20, 120, 120));
+  const auto untitled_1 = save_prompt_text(QStringLiteral("Untitled-1"));
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Save), save_as_answer(),
+                                      prompt_answer(QMessageBox::Cancel)});
+    CHECK(!patchy::ui::MainWindowTestAccess::close_document_tab(window, 0));
+    QApplication::processEvents();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({untitled_1, QStringLiteral("Save As"), untitled_1}));
+  }
+  CHECK(tabs->count() == 1);
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Save), save_as_answer(),
+                                      prompt_answer(QMessageBox::Discard)});
+    CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, 0));
+    QApplication::processEvents();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({untitled_1, QStringLiteral("Save As"), untitled_1}));
+  }
+  CHECK(tabs->count() == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+}
+
+// Close All with a floated document: the float's cancelled Save As returns to its
+// prompt, No closes it and moves on, and Cancel on the next document stops there.
+void ui_close_all_save_as_cancel_returns_to_prompt_for_floats() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  add_modified_untitled_document(window, QStringLiteral("Untitled-1"), QColor(120, 20, 120));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-2"), QColor(120, 120, 20));
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(find_document_float_window(window) != nullptr);
+  const auto untitled_2 = save_prompt_text(QStringLiteral("Untitled-2"));
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Save), save_as_answer(),
+                                      prompt_answer(QMessageBox::Discard), prompt_answer(QMessageBox::Cancel)});
+    require_action(window, "fileCloseAllAction")->trigger();
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({untitled_2, QStringLiteral("Save As"), untitled_2,
+                                       save_prompt_text(QStringLiteral("Untitled-1"))}));
+  }
+  CHECK(find_document_float_window(window) == nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::session_title(window, 0) == QStringLiteral("Untitled-1"));
+  CHECK(tabs->count() == 1);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> float_window_tests() {
@@ -1091,6 +1324,12 @@ std::vector<patchy::test::TestCase> float_window_tests() {
        ui_float_activation_commits_text_editor_to_owning_document},
       {"ui_float_window_close_prompts_and_closes_document", ui_float_window_close_prompts_and_closes_document},
       {"ui_close_all_documents_includes_floats", ui_close_all_documents_includes_floats},
+      {"ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest",
+       ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest},
+      {"ui_quit_save_as_cancel_returns_to_save_prompt", ui_quit_save_as_cancel_returns_to_save_prompt},
+      {"ui_close_tab_save_as_cancel_returns_to_save_prompt", ui_close_tab_save_as_cancel_returns_to_save_prompt},
+      {"ui_close_all_save_as_cancel_returns_to_prompt_for_floats",
+       ui_close_all_save_as_cancel_returns_to_prompt_for_floats},
       {"ui_float_window_respects_preview_dialog_edit_lock", ui_float_window_respects_preview_dialog_edit_lock},
       {"ui_float_only_document_keeps_actions_enabled", ui_float_only_document_keeps_actions_enabled},
       {"ui_float_window_title_tracks_modified_state", ui_float_window_title_tracks_modified_state},

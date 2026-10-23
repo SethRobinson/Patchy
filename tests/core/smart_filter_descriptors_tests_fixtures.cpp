@@ -8,6 +8,7 @@
 #include "formats/ilbm_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
+#include "formats/miniz/miniz.h"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_filter_effects.hpp"
@@ -1419,6 +1420,69 @@ void psd_smart_filter_clean_resave_preserves_native_data_and_pixels() {
   }
 }
 
+// GitHub issue 348: Photoshop CC-era files (ag-psd's smart-filter samples) store the
+// FEid filter mask zip-compressed, with or without the row delta filter. Both decode to
+// the same samples as the PackBits mask; a corrupt stream stays unsupported.
+void smart_filter_effects_zip_masks_decode() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
+  const auto& source_record = document.metadata().smart_filter_effects.blocks.front().records.front();
+  CHECK(source_record.mask_decoded && source_record.mask.has_value() &&
+        source_record.mask->samples != nullptr);
+  if (!source_record.mask.has_value() || source_record.mask->samples == nullptr) {
+    return;
+  }
+  const auto& samples = *source_record.mask->samples;
+  const auto width = static_cast<std::size_t>(source_record.mask->bounds.width);
+  const auto body = patchy::psd::raw_filter_effects_record_body(source_record);
+  patchy::psd::BigEndianReader reader(body);
+  reader.skip(reader.read_u8());
+  CHECK(reader.read_u32() == 1U);
+  reader.skip(static_cast<std::size_t>(reader.read_u64()));
+  CHECK(reader.read_u8() == 1U);
+  reader.skip(16U);
+  const auto mask_length_offset = reader.position();
+
+  const auto with_mask = [&](std::uint16_t compression, std::vector<std::uint8_t> mask_bytes) {
+    patchy::psd::BigEndianWriter record_body;
+    record_body.write_bytes(body.first(mask_length_offset));
+    record_body.write_u64(static_cast<std::uint64_t>(2U + mask_bytes.size()));
+    record_body.write_u16(compression);
+    record_body.write_bytes(mask_bytes);
+    patchy::psd::BigEndianWriter payload;
+    payload.write_u32(3U);
+    payload.write_u64(static_cast<std::uint64_t>(record_body.bytes().size()));
+    payload.write_bytes(record_body.bytes());
+    const auto parsed = patchy::psd::parse_filter_effects_block("FEid", payload.bytes());
+    CHECK(!parsed.opaque && parsed.records.size() == 1U);
+    return parsed.records.empty() ? patchy::SmartFilterEffectsRecord{} : parsed.records.front();
+  };
+  const auto zlib = [](const std::vector<std::uint8_t>& raw) {
+    auto bound = mz_compressBound(static_cast<mz_ulong>(raw.size()));
+    std::vector<std::uint8_t> compressed(static_cast<std::size_t>(bound));
+    CHECK(mz_compress(compressed.data(), &bound, raw.data(), static_cast<mz_ulong>(raw.size())) == MZ_OK);
+    compressed.resize(static_cast<std::size_t>(bound));
+    return compressed;
+  };
+  auto predicted = samples;
+  for (std::size_t row = 0; row < predicted.size(); row += width) {
+    for (std::size_t x = width; x-- > 1U;) {
+      predicted[row + x] = static_cast<std::uint8_t>(predicted[row + x] - predicted[row + x - 1U]);
+    }
+  }
+  const auto decodes = [&](std::uint16_t compression, const std::vector<std::uint8_t>& raw) {
+    const auto record = with_mask(compression, zlib(raw));
+    CHECK(record.data_supported && record.mask_decoded && record.mask.has_value());
+    CHECK(record.mask.has_value() && record.mask->samples != nullptr && *record.mask->samples == samples);
+  };
+  decodes(2U, samples);
+  decodes(3U, predicted);
+  auto corrupt = zlib(samples);
+  corrupt.resize(corrupt.size() / 2U);
+  const auto broken = with_mask(3U, corrupt);
+  CHECK(broken.mask_present && !broken.mask_decoded && !broken.data_supported);
+}
+
 void smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
@@ -1485,7 +1549,7 @@ void smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment() {
   CHECK(mask_length >= 2U && mask_length <= record_reader.remaining());
   const auto compression_offset = record_reader.position();
   unsupported_body[compression_offset] = 0U;
-  unsupported_body[compression_offset + 1U] = 2U;
+  unsupported_body[compression_offset + 1U] = 4U;
   patchy::psd::BigEndianWriter unsupported_writer;
   unsupported_writer.write_u32(3U);
   unsupported_writer.write_u64(static_cast<std::uint64_t>(unsupported_body.size()));
@@ -1960,6 +2024,7 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests_part2() {
        psd_smart_filter_clean_resave_preserves_native_data_and_pixels},
       {"smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment",
        smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment},
+      {"smart_filter_effects_zip_masks_decode", smart_filter_effects_zip_masks_decode},
       {"smart_filter_effects_associations_fail_closed_and_preserve_raw_payload",
        smart_filter_effects_associations_fail_closed_and_preserve_raw_payload},
       {"smart_filter_unsupported_clone_preserves_filterfx_and_rekeys_cache",

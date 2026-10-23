@@ -647,7 +647,11 @@ private:
   // funnels through here so text-editor settle and panel refresh stay consistent.
   void activate_document_canvas(CanvasWidget* canvas, const std::function<void()>& progress = {});
   bool close_document_tab(int index);
-  bool close_document_session(DocumentSession& target_session);
+  // AlreadyConfirmed: the caller has settled the save-changes question (the quit loop in
+  // closeEvent), so the document closes without asking again.
+  enum class CloseConfirmation { Ask, AlreadyConfirmed };
+  bool close_document_session(DocumentSession& target_session,
+                              CloseConfirmation confirmation = CloseConfirmation::Ask);
   bool close_active_document();
   void close_other_document_tabs(int index);
   void close_all_document_tabs();
