@@ -17,6 +17,7 @@
 #include "filters/filter_registry.hpp"
 #include "ui/document_order_list.hpp"
 #include "ui/main_window.hpp"
+#include "ui/model_download_dialog.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -5248,29 +5249,29 @@ void MainWindow::download_and_install_update(const UpdateInfo& update) {
   if (folder.isEmpty()) {
     folder = appimage_update ? QFileInfo(appimage).absolutePath() : update_download_folder(update.version);
   }
-  std::optional<QProgressDialog> dialog;
-  dialog.emplace(progress_text(0), tr("Cancel"), 0, 1000, this);
+  std::optional<ModelDownloadDialog> dialog;
+  dialog.emplace(this);
   dialog->setObjectName(QStringLiteral("updateDownloadDialog"));
-  dialog->setWindowModality(Qt::WindowModal);
-  dialog->setMinimumDuration(0);
+  dialog->setWindowTitle(tr("Update Available"));
+  dialog->set_heading(progress_text(0));
   remember_dialog_position(*dialog);
-  dialog->setValue(0);
+  dialog->show();
   ModelDownloadResult result;
   bool done = false;
   QEventLoop wait_loop;
   // Pinned by size and SHA-256 and written through QSaveFile; a file already downloaded
   // for this version (an update cancelled at the save prompt) is reused.
   auto job = start_model_download(this, folder, {DownloadableModelFile{file_name, file_url, file_size, file_sha256}},
-      [&](qint64 received, qint64 total) {
-        dialog->setLabelText(progress_text(received));
-        dialog->setValue(total > 0 ? static_cast<int>(received * 999 / total) : 0);
+      [&](const ModelDownloadProgress& progress) {
+        dialog->set_heading(progress_text(progress.received));
+        dialog->set_progress(progress);
       },
       [&](ModelDownloadResult finished) {
         result = std::move(finished);
         done = true;
         wait_loop.quit();
       });
-  connect(&*dialog, &QProgressDialog::canceled, this, [&job] { job->cancel(); });
+  connect(&*dialog, &QDialog::rejected, this, [&job] { job->cancel(); });
   if (!done) {
     wait_loop.exec();
   }

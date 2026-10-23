@@ -126,10 +126,6 @@
         <translation>100% è il valore predefinito di TrustMark. Più basso è meno visibile ma si perde più facilmente; Adobe usa 150% per le stampe.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>Richiede i modelli di filigrana: un download di %1 MB da Adobe.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Scarica i modelli di filigrana</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>%1 di %2 caratteri rimasti</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>Richiede i modelli delle filigrane (di Adobe, licenza MIT): un download di %1 MB da %2.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>Il plug-in ha segnalato un errore.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (release %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>Copia link</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Download in corso</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Da:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Annulla</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>File %1 di %2: %3 (%4 MB)</translation>
     </message>
 </context>
 <context>
@@ -11998,10 +12028,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Impossibile eseguire TrustMark: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark, la filigrana aperta alla base delle Content Credentials durevoli, richiede i modelli di filigrana: un download di %1 MB da Adobe, solo quando lo chiedi.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Scarica i modelli di filigrana</translation>
     </message>
@@ -12028,6 +12054,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>La tua filigrana invisibile è stata aggiunta.</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark, la filigrana aperta dietro le Content Credentials durevoli, richiede i modelli delle filigrane (di Adobe, licenza MIT): un download di %1 MB da %2, fatto solo su richiesta.</translation>
     </message>
 </context>
 <context>
@@ -22231,10 +22261,6 @@ Convertiti in immagini: %1.</translation>
         <translation>Scaricare il modello ad alta qualità per Selezione oggetto?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Trova gli oggetti con molta più precisione del modello integrato. Il download è di %1 MB da GitHub e resta su questo computer. Puoi cambiare modello in qualsiasi momento dalla barra delle opzioni di Selezione oggetto.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>Selezione oggetto ora usa il modello ad alta qualità</translation>
     </message>
@@ -22267,20 +22293,12 @@ Convertiti in immagini: %1.</translation>
         <translation>Modello ad alta qualità di Selezione oggetto: scaricato (%1 MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Modello ad alta qualità di Selezione oggetto: non scaricato</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>Il modello ad alta qualità di Selezione oggetto è stato eliminato</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>Impossibile eliminare il modello ad alta qualità: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Scarica il modello ad alta qualità (%1 MB da GitHub). Con esso Selezione oggetto trova gli oggetti con più precisione.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24244,20 +24262,12 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Impossibile scaricare i modelli di filigrana: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Scarica i modelli di filigrana Adobe TrustMark (%1 MB da Adobe). Cerca filigrane in Informazioni file legge poi le filigrane TrustMark, e Immagine &gt; Aggiungi filigrana invisibile può aggiungerne una.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>Elimina i modelli di filigrana scaricati.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>Modelli di filigrana TrustMark: scaricati (%1 MB)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>Modelli di filigrana TrustMark: non scaricati</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24406,6 +24416,30 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Show in File Info</source>
         <translation>Mostra in Informazioni file</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>Trova gli oggetti con molta più precisione del modello integrato. Il download è di %1 MB da %2 e resta su questo computer. Puoi cambiare modello in qualsiasi momento dalla barra delle opzioni di Selezione oggetto.</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>Scarica il modello ad alta qualità (%1 MB da %2). Con esso Selezione oggetto trova gli oggetti con più precisione.</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>Modello ad alta qualità di Selezione oggetto: non scaricato (%1 MB da %2)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Scarica i modelli delle filigrane Adobe TrustMark (di Adobe, licenza MIT; %1 MB da %2). Poi Cerca filigrane in Info file legge le filigrane TrustMark e Immagine &gt; Aggiungi filigrana invisibile può aggiungerne una.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>Modelli di filigrana TrustMark: non scaricati (%1 MB da %2)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>Modelli delle filigrane</translation>
     </message>
 </context>
 <context>

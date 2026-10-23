@@ -126,10 +126,6 @@
         <translation>100% to domyślne ustawienie TrustMark. Niższa wartość jest mniej widoczna, ale łatwiej ją utracić; Adobe używa 150% do wydruków.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>Wymaga modeli znaków wodnych: pobranie %1 MB od Adobe.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Pobierz modele znaków wodnych</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>Pozostało %1 z %2 znaków</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>Wymaga modeli znaków wodnych (od Adobe, licencja MIT): pobranie %1 MB z %2.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>Wtyczka zgłosiła błąd.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (wydanie %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>Kopiuj link</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Pobieranie</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Z:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>Plik %1 z %2: %3 (%4 MB)</translation>
     </message>
 </context>
 <context>
@@ -12033,10 +12063,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Nie udało się uruchomić TrustMark: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark, otwarty znak wodny trwałych Content Credentials, wymaga modeli znaków wodnych: pobrania %1 MB od Adobe, tylko na Twoje żądanie.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Pobierz modele znaków wodnych</translation>
     </message>
@@ -12063,6 +12089,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>Dodano Twój niewidoczny znak wodny.</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark, otwarty znak wodny stojący za trwałymi Content Credentials, wymaga modeli znaków wodnych (od Adobe, licencja MIT): pobranie %1 MB z %2, tylko na Twoje żądanie.</translation>
     </message>
 </context>
 <context>
@@ -22294,10 +22324,6 @@ Y: %2
         <translation>Pobrać model wysokiej jakości do zaznaczania obiektu?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Znajduje obiekty znacznie dokładniej niż wbudowany model. Pobieranie ma %1 MB z serwisu GitHub, a plik zostaje na tym komputerze. Model można zmienić w dowolnej chwili na pasku opcji zaznaczania obiektu.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>Zaznaczanie obiektu używa teraz modelu wysokiej jakości</translation>
     </message>
@@ -22330,20 +22356,12 @@ Y: %2
         <translation>Model wysokiej jakości do zaznaczania obiektu: pobrany (%1 MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Model wysokiej jakości do zaznaczania obiektu: niepobrany</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>Usunięto model wysokiej jakości do zaznaczania obiektu</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>Nie udało się usunąć modelu wysokiej jakości: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Pobiera model wysokiej jakości (%1 MB z serwisu GitHub). Zaznaczanie obiektu dokładniej wykrywa z nim obiekty.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24316,20 +24334,12 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Nie udało się pobrać modeli znaków wodnych: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Pobiera modele znaków wodnych Adobe TrustMark (%1 MB od Adobe). Skanowanie w poszukiwaniu znaków wodnych w Informacjach o pliku odczyta wtedy znaki TrustMark, a Obraz &gt; Dodaj niewidoczny znak wodny może go dodać.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>Usuwa pobrane modele znaków wodnych.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>Modele znaków wodnych TrustMark: pobrane (%1 MB)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>Modele znaków wodnych TrustMark: nie pobrano</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24478,6 +24488,30 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Show in File Info</source>
         <translation>Pokaż w Informacjach o pliku</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>Znajduje obiekty znacznie dokładniej niż wbudowany model. Pobieranie ma %1 MB z serwisu %2, a plik zostaje na tym komputerze. Model można zmienić w dowolnej chwili na pasku opcji zaznaczania obiektu.</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>Pobiera model wysokiej jakości (%1 MB z serwisu %2). Zaznaczanie obiektu dokładniej wykrywa z nim obiekty.</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>Model wysokiej jakości do zaznaczania obiektu: niepobrany (%1 MB z %2)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Pobiera modele znaków wodnych Adobe TrustMark (od Adobe, licencja MIT; %1 MB z %2). Skanowanie znaków wodnych w Informacjach o pliku odczyta wtedy znaki TrustMark, a Obraz &gt; Dodaj niewidoczny znak wodny może taki dodać.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>Modele znaków wodnych TrustMark: nie pobrano (%1 MB z %2)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>Modele znaków wodnych</translation>
     </message>
 </context>
 <context>

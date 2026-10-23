@@ -126,10 +126,6 @@
         <translation>100%가 TrustMark의 기본값입니다. 낮을수록 덜 보이지만 잃기 쉽습니다. Adobe는 인쇄물에 150%를 사용합니다.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>워터마크 모델이 필요합니다. Adobe에서 %1MB를 다운로드합니다.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>워터마크 모델 다운로드</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>%2자 중 %1자 남음</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>워터마크 모델(Adobe 제작, MIT 라이선스)이 필요합니다: %2에서 %1MB 다운로드.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>플러그인에서 오류를 보고했습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (릴리스 %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>링크 복사</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>다운로드 중</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>출처:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>취소</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>파일 %1/%2: %3 (%4MB)</translation>
     </message>
 </context>
 <context>
@@ -11963,10 +11993,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>TrustMark를 실행할 수 없습니다: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>지속형 콘텐츠 자격 증명의 바탕이 되는 공개 워터마크 Adobe TrustMark에는 워터마크 모델이 필요합니다. 요청할 때만 Adobe에서 %1MB를 다운로드합니다.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>워터마크 모델 다운로드</translation>
     </message>
@@ -11993,6 +12019,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>내 보이지 않는 워터마크를 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>지속적인 Content Credentials를 뒷받침하는 공개 워터마크 Adobe TrustMark에는 워터마크 모델(Adobe 제작, MIT 라이선스)이 필요합니다: %2에서 %1MB 다운로드하며, 요청할 때만 받습니다.</translation>
     </message>
 </context>
 <context>
@@ -22168,10 +22198,6 @@ Y: %2
         <translation>개체 선택용 고품질 모델을 다운로드하시겠습니까?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>기본 제공 모델보다 개체를 훨씬 더 정확하게 찾습니다. GitHub에서 %1MB를 다운로드하며 이 컴퓨터에 보관됩니다. 개체 선택 옵션 막대에서 언제든지 모델을 바꿀 수 있습니다.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>이제 개체 선택에서 고품질 모델을 사용합니다</translation>
     </message>
@@ -22204,20 +22230,12 @@ Y: %2
         <translation>개체 선택 고품질 모델: 다운로드됨(%1MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>개체 선택 고품질 모델: 다운로드되지 않음</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>개체 선택 고품질 모델을 삭제했습니다</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>고품질 모델을 삭제할 수 없습니다: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>고품질 모델을 다운로드합니다(GitHub에서 %1MB). 개체 선택이 개체를 더 정확하게 찾습니다.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24172,20 +24190,12 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>워터마크 모델을 다운로드할 수 없습니다: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Adobe TrustMark 워터마크 모델을 다운로드합니다(Adobe에서 %1MB). 그러면 파일 정보의 워터마크 검사로 TrustMark 워터마크를 읽고, 이미지 &gt; 보이지 않는 워터마크 추가로 워터마크를 넣을 수 있습니다.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>다운로드한 워터마크 모델을 삭제합니다.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark 워터마크 모델: 다운로드됨(%1MB)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark 워터마크 모델: 다운로드 안 됨</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24334,6 +24344,30 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Show in File Info</source>
         <translation>파일 정보에서 보기</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>기본 제공 모델보다 개체를 훨씬 더 정확하게 찾습니다. %2에서 %1MB를 다운로드하며 이 컴퓨터에 보관됩니다. 개체 선택 옵션 막대에서 언제든지 모델을 바꿀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>고품질 모델을 다운로드합니다(%2에서 %1MB). 개체 선택이 개체를 더 정확하게 찾습니다.</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>개체 선택 고품질 모델: 다운로드되지 않음 (%2에서 %1MB)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Adobe TrustMark 워터마크 모델을 다운로드합니다(Adobe 제작, MIT 라이선스, %2에서 %1MB). 그러면 파일 정보의 워터마크 검사가 TrustMark 워터마크를 읽고, 이미지 &gt; 보이지 않는 워터마크 추가로 워터마크를 넣을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark 워터마크 모델: 다운로드 안 됨 (%2에서 %1MB)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>워터마크 모델</translation>
     </message>
 </context>
 <context>

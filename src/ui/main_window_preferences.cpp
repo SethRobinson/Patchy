@@ -1252,9 +1252,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     auto* download_model_button = new QPushButton(tr("Download"), model_group);
     download_model_button->setObjectName(QStringLiteral("preferencesDownloadObjectSelectionModelButton"));
     download_model_button->setToolTip(
-        tr("Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately "
+        tr("Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately "
            "with it.")
-            .arg(model_megabytes));
+            .arg(model_megabytes)
+            .arg(model_download_source_text(high_quality_model_files())));
     auto* delete_model_button = new QPushButton(tr("Delete"), model_group);
     delete_model_button->setObjectName(QStringLiteral("preferencesDeleteObjectSelectionModelButton"));
     delete_model_button->setToolTip(tr("Deletes the downloaded High Quality model. Object Selection then uses the "
@@ -1265,7 +1266,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     const auto refresh_model_status = [model_status, download_model_button, delete_model_button, model_megabytes] {
       const bool present = downloaded_high_quality_model_present(downloaded_models_folder());
       model_status->setText(present ? tr("High Quality Object Selection model: downloaded (%1 MB)").arg(model_megabytes)
-                                    : tr("High Quality Object Selection model: not downloaded"));
+                                    : tr("High Quality Object Selection model: not downloaded (%1 MB from %2)")
+                                          .arg(model_megabytes)
+                                          .arg(model_download_source_text(high_quality_model_files())));
       download_model_button->setEnabled(!present);
       delete_model_button->setEnabled(present);
     };
@@ -1373,9 +1376,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     auto* download_watermark_button = new QPushButton(tr("Download"), models_group);
     download_watermark_button->setObjectName(QStringLiteral("preferencesDownloadWatermarkModelsButton"));
     download_watermark_button->setToolTip(
-        tr("Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info's Scan for Watermarks then "
-           "reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
-            .arg(watermark_megabytes));
+        tr("Downloads the Adobe TrustMark watermark models (Adobe's, MIT License; %1 MB from %2). File Info's Scan "
+           "for Watermarks then reads TrustMark watermarks, and Image > Add Invisible Watermark can add one.")
+            .arg(watermark_megabytes)
+            .arg(model_download_source_text(watermark_model_files())));
     auto* delete_watermark_button = new QPushButton(tr("Delete"), models_group);
     delete_watermark_button->setObjectName(QStringLiteral("preferencesDeleteWatermarkModelsButton"));
     delete_watermark_button->setToolTip(tr("Deletes the downloaded watermark models."));
@@ -1413,7 +1417,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                               watermark_megabytes] {
       const bool present = downloaded_watermark_models_present(downloaded_models_folder());
       watermark_status->setText(present ? tr("TrustMark watermark models: downloaded (%1 MB)").arg(watermark_megabytes)
-                                        : tr("TrustMark watermark models: not downloaded"));
+                                        : tr("TrustMark watermark models: not downloaded (%1 MB from %2)")
+                                              .arg(watermark_megabytes)
+                                              .arg(model_download_source_text(watermark_model_files())));
       download_watermark_button->setEnabled(!present);
       delete_watermark_button->setEnabled(present);
     };

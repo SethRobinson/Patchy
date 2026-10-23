@@ -4,6 +4,7 @@
 // (file_info_dialog.cpp). Nothing here removes a watermark.
 
 #include "ui/main_window.hpp"
+#include "ui/model_download_dialog.hpp"
 
 #include "ai/trustmark_watermark.hpp"
 #include "core/invisible_watermark.hpp"
@@ -261,14 +262,14 @@ bool MainWindow::download_watermark_models(bool show_dialog, const std::function
   const auto progress_text = [total_mb](qint64 received) {
     return tr("Downloading the watermark models... %1 of %2 MB").arg(whole_megabytes(received)).arg(total_mb);
   };
-  std::optional<QProgressDialog> dialog;
+  std::optional<ModelDownloadDialog> dialog;
   if (show_dialog) {
-    dialog.emplace(progress_text(0), tr("Cancel"), 0, 1000, dialog_parent != nullptr ? dialog_parent : this);
+    dialog.emplace(dialog_parent != nullptr ? dialog_parent : this);
     dialog->setObjectName(QStringLiteral("watermarkModelDownloadDialog"));
-    dialog->setWindowModality(Qt::WindowModal);
-    dialog->setMinimumDuration(0);
+    dialog->setWindowTitle(tr("Watermark Models"));
+    dialog->set_heading(progress_text(0));
     remember_dialog_position(*dialog);
-    dialog->setValue(0);
+    dialog->show();
   } else {
     statusBar()->showMessage(progress_text(0));
   }
@@ -277,12 +278,12 @@ bool MainWindow::download_watermark_models(bool show_dialog, const std::function
   QEventLoop wait_loop;
   auto job = start_model_download(
       this, downloaded_models_folder(), watermark_model_files(),
-      [&](qint64 received, qint64 total) {
+      [&](const ModelDownloadProgress& progress) {
         if (dialog.has_value()) {
-          dialog->setLabelText(progress_text(received));
-          dialog->setValue(total > 0 ? static_cast<int>(received * 1000 / total) : 0);
+          dialog->set_heading(progress_text(progress.received));
+          dialog->set_progress(progress);
         } else {
-          statusBar()->showMessage(progress_text(received));
+          statusBar()->showMessage(progress_text(progress.received));
         }
       },
       [&](ModelDownloadResult finished) {
@@ -291,7 +292,7 @@ bool MainWindow::download_watermark_models(bool show_dialog, const std::function
         wait_loop.quit();
       });
   if (dialog.has_value()) {
-    connect(&*dialog, &QProgressDialog::canceled, this, [&job] { job->cancel(); });
+    connect(&*dialog, &QDialog::rejected, this, [&job] { job->cancel(); });
   }
   QTimer keep_alive_timer;
   if (keep_alive) {

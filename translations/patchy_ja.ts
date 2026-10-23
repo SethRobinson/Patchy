@@ -126,10 +126,6 @@
         <translation>100% が TrustMark の既定値です。低いほど目立ちませんが失われやすくなります。Adobe は印刷物に 150% を使います。</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>透かしモデルが必要です。Adobe から %1 MB のダウンロードです。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>透かしモデルをダウンロード</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>残り %1 / %2 文字</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>透かしモデル (Adobe 製、MIT ライセンス) が必要です: %2 から %1 MB のダウンロード。</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>プラグインがエラーを報告しました。</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (リリース %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>リンクをコピー</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>ダウンロード中</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>取得元:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>ファイル %1/%2: %3 (%4 MB)</translation>
     </message>
 </context>
 <context>
@@ -11963,10 +11993,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>TrustMark を実行できませんでした: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>持続的なコンテンツ認証情報を支える公開透かし Adobe TrustMark には透かしモデルが必要です。Adobe から %1 MB をダウンロードします（求めたときだけ）。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>透かしモデルをダウンロード</translation>
     </message>
@@ -11993,6 +12019,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>あなたの見えない透かしを追加しました。</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>永続的な Content Credentials を支えるオープンな透かし Adobe TrustMark には、透かしモデル (Adobe 製、MIT ライセンス) が必要です: %2 から %1 MB のダウンロードで、求めたときだけ行います。</translation>
     </message>
 </context>
 <context>
@@ -22168,10 +22198,6 @@ Baked into images: %1.</source>
         <translation>オブジェクト選択用の高品質モデルをダウンロードしますか？</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>組み込みモデルよりもはるかに正確にオブジェクトを検出します。GitHub から %1 MB をダウンロードし、このコンピューターに保存します。モデルはオブジェクト選択のオプションバーでいつでも切り替えられます。</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>オブジェクト選択で高品質モデルを使用するようになりました</translation>
     </message>
@@ -22204,20 +22230,12 @@ Baked into images: %1.</source>
         <translation>オブジェクト選択の高品質モデル: ダウンロード済み (%1 MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>オブジェクト選択の高品質モデル: 未ダウンロード</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>オブジェクト選択の高品質モデルを削除しました</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>高品質モデルを削除できませんでした: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>高品質モデルをダウンロードします (GitHub から %1 MB)。オブジェクト選択がより正確にオブジェクトを検出します。</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24172,20 +24190,12 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>透かしモデルをダウンロードできませんでした: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Adobe TrustMark の透かしモデルをダウンロードします（Adobe から %1 MB）。ダウンロード後、ファイル情報の「透かしをスキャン」で TrustMark の透かしを読み取れ、画像 &gt; 見えない透かしを追加で透かしを加えられます。</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>ダウンロードした透かしモデルを削除します。</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark 透かしモデル: ダウンロード済み（%1 MB）</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark 透かしモデル: 未ダウンロード</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24334,6 +24344,30 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Show in File Info</source>
         <translation>ファイル情報で表示</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>組み込みモデルよりもはるかに正確にオブジェクトを検出します。%2 から %1 MB をダウンロードし、このコンピューターに保存します。モデルはオブジェクト選択のオプションバーでいつでも切り替えられます。</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>高品質モデルをダウンロードします (%2 から %1 MB)。オブジェクト選択がより正確にオブジェクトを検出します。</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>オブジェクト選択の高品質モデル: 未ダウンロード (%2 から %1 MB)</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Adobe TrustMark の透かしモデルをダウンロードします (Adobe 製、MIT ライセンス、%2 から %1 MB)。ファイル情報の「透かしをスキャン」で TrustMark の透かしを読み取れ、「イメージ &gt; 不可視の透かしを追加」で透かしを追加できます。</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark 透かしモデル: 未ダウンロード (%2 から %1 MB)</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>透かしモデル</translation>
     </message>
 </context>
 <context>

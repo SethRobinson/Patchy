@@ -126,10 +126,6 @@
         <translation>100% 是 TrustMark 的默认值。数值越低越不明显，但越容易丢失；Adobe 为印刷品使用 150%。</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>需要水印模型：从 Adobe 下载 %1 MB。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>下载水印模型</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>剩余 %1/%2 个字符</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>需要水印模型（Adobe 提供，MIT 许可证）：从 %2 下载 %1 MB。</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>插件报告了一个错误。</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1（发布 %2）</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>复制链接</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>正在下载</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>来源：</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>文件 %1/%2：%3（%4 MB）</translation>
     </message>
 </context>
 <context>
@@ -11963,10 +11993,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>无法运行 TrustMark：%1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark 是持久内容凭证背后的公开水印，需要水印模型：仅在你要求时从 Adobe 下载 %1 MB。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>下载水印模型</translation>
     </message>
@@ -11993,6 +12019,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added your invisible watermark.</source>
         <translation>已添加你的不可见水印。</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark 是持久 Content Credentials 背后的开放水印，需要水印模型（Adobe 提供，MIT 许可证）：从 %2 下载 %1 MB，仅在你要求时下载。</translation>
     </message>
 </context>
 <context>
@@ -22168,10 +22198,6 @@ Baked into images: %1.</source>
         <translation>要下载对象选择的高质量模型吗？</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>它找到对象的准确度远高于内置模型。将从 GitHub 下载 %1 MB，并保存在这台电脑上。你可以随时在对象选择的选项栏中切换模型。</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>对象选择现在使用高质量模型</translation>
     </message>
@@ -22204,20 +22230,12 @@ Baked into images: %1.</source>
         <translation>对象选择高质量模型：已下载（%1 MB）</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>对象选择高质量模型：未下载</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>已删除对象选择高质量模型</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>无法删除高质量模型：%1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>下载高质量模型（从 GitHub 下载 %1 MB）。使用它时，对象选择能更准确地找到对象。</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24172,20 +24190,12 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>无法下载水印模型：%1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>下载 Adobe TrustMark 水印模型（从 Adobe 下载 %1 MB）。之后“文件简介”中的“扫描水印”可以读取 TrustMark 水印，“图像 &gt; 添加不可见水印”可以添加水印。</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>删除已下载的水印模型。</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark 水印模型：已下载（%1 MB）</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark 水印模型：未下载</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24334,6 +24344,30 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>Show in File Info</source>
         <translation>在文件简介中显示</translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>它找到对象的准确度远高于内置模型。将从 %2 下载 %1 MB，并保存在这台电脑上。你可以随时在对象选择的选项栏中切换模型。</translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>下载高质量模型（从 %2 下载 %1 MB）。使用它时，对象选择能更准确地找到对象。</translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>对象选择高质量模型：未下载（来自 %2 的 %1 MB）</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>下载 Adobe TrustMark 水印模型（Adobe 提供，MIT 许可证；来自 %2 的 %1 MB）。之后文件简介的扫描水印可读取 TrustMark 水印，图像 &gt; 添加隐形水印可添加水印。</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark 水印模型：未下载（来自 %2 的 %1 MB）</translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
+        <translation>水印模型</translation>
     </message>
 </context>
 <context>

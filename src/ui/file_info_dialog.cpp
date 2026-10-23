@@ -1028,8 +1028,10 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     if (!patchy::ai::trustmark_models_available()) {
       if (patchy::ai::trustmark_runtime_available() && watermarks.download_models) {
         rows.note(QObject::tr("Adobe TrustMark, the open watermark behind durable Content Credentials, needs the "
-                              "watermark models: a %1 MB download from Adobe, made only when you ask.")
-                      .arg(watermark_model_download_megabytes()));
+                              "watermark models (Adobe's, MIT License): a %1 MB download from %2, made only when "
+                              "you ask.")
+                      .arg(watermark_model_download_megabytes())
+                      .arg(model_download_source_text(watermark_model_files())));
         auto* download_button = new QPushButton(QObject::tr("Download Watermark Models"), content);
         download_button->setObjectName(QStringLiteral("fileInfoDownloadWatermarkModelsButton"));
         QObject::connect(download_button, &QPushButton::clicked, &dialog, [&] {

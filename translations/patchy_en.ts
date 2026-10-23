@@ -126,10 +126,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation type="unfinished"></translation>
     </message>
@@ -139,6 +135,10 @@
     </message>
     <message>
         <source>%1 of %2 characters left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -392,6 +392,36 @@
     </message>
     <message>
         <source>The plug-in reported an error.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -11982,10 +12012,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12011,6 +12037,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Added your invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22176,10 +22206,6 @@ Baked into images: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation type="unfinished"></translation>
     </message>
@@ -22212,19 +22238,11 @@ Baked into images: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -24171,19 +24189,11 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -24332,6 +24342,30 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Show in File Info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermark Models</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
