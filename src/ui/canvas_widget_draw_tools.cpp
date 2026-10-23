@@ -824,6 +824,8 @@ void CanvasWidget::draw_transform_drag_readout(QPainter& painter) const {
   if (!readout.has_value() || rect.isEmpty()) {
     return;
   }
+  // Whatever repaint drew the panel, the next readout update must clear it.
+  drag_readout_dirty_rect_ = drag_readout_dirty_rect_.united(rect);
   const QFontMetrics metrics(painter.fontMetrics());
   constexpr int kPadX = 8;
   constexpr int kPadY = 5;

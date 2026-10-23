@@ -1645,7 +1645,9 @@ private:
   void draw_drag_size_readout(QPainter& painter) const;
   void draw_transform_drag_readout(QPainter& painter) const;
   // The readout sits outside the bounded drag repaints, so its old and new rects
-  // join them explicitly; release/cancel clear the last rect.
+  // join them explicitly; release/cancel clear the last rect. Painting also adds
+  // its rect, so a readout first shown by a full repaint (a Move-tool handle
+  // press that starts Free Transform) is cleared too (GitHub issue 352).
   void update_drag_readout_region();
   void clear_drag_readout();
   [[nodiscard]] std::optional<QRectF> moving_layers_readout_base_rect() const;
@@ -3548,9 +3550,10 @@ private:
   bool show_transform_drag_values_{true};
   bool snap_transforms_to_pixel_grid_{true};
   // Drag readout bookkeeping: the last painted panel rect (for the bounded
-  // repaint union), the moving set's zero-delta extent captured when a Move
-  // drag starts, and the last status-bar mirror text.
-  QRect drag_readout_dirty_rect_{};
+  // repaint union; mutable so painting can add to it), the moving set's
+  // zero-delta extent captured when a Move drag starts, and the last
+  // status-bar mirror text.
+  mutable QRect drag_readout_dirty_rect_{};
   std::optional<QRectF> move_readout_base_rect_{};
   QString drag_readout_status_text_{};
   // Alignment guides of the live Move drag (docs/alignment.md) and the widget
