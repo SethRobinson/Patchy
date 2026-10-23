@@ -19,6 +19,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QColor>
+#include <QDoubleSpinBox>
 #include <QImage>
 #include <QList>
 #include <QMenu>
@@ -1010,6 +1011,131 @@ void ui_free_transform_scale_and_rotate_modes() {
   CHECK(rect_near(canvas->active_layer_document_rect(), QRect(100, 70, 200, 110)));
 }
 
+// GitHub issue 353: the options bar's W and H follow the pending shape, not only
+// the box. Distort and Perspective change them (the mean extent of opposite
+// sides along the box's axes), Skew keeps them, session Undo restores them, a
+// typed W scales the distorted shape to that value, and rotate and nudge keep
+// Angle, X and Y current. The bar must always match transform_controls_state.
+void ui_free_transform_options_bar_follows_distortion() {
+  patchy::ui::MainWindow window;
+  window.resize(1400, 900);
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  auto* x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  auto* w_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  auto* h_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"));
+  auto* angle_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformRotationSpin"));
+  auto* link = window.findChild<QPushButton*>(QStringLiteral("freeTransformLinkScaleButton"));
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(x_spin != nullptr && w_spin != nullptr && h_spin != nullptr && angle_spin != nullptr && link != nullptr &&
+        options != nullptr);
+  if (x_spin == nullptr || w_spin == nullptr || h_spin == nullptr || angle_spin == nullptr || link == nullptr ||
+      options == nullptr) {
+    return;
+  }
+  const auto approx = [](double actual, double expected) { return std::abs(actual - expected) < 0.02; };
+  // The fields show what the canvas reports, to the spin boxes' two decimals.
+  const auto bar_matches_state = [&] {
+    const auto state = canvas->transform_controls_state();
+    return state.has_value() && approx(w_spin->value(), state->scale_x_percent) &&
+           approx(h_spin->value(), state->scale_y_percent) && approx(angle_spin->value(), state->rotation_degrees) &&
+           approx(x_spin->value(), state->reference_position.x());
+  };
+
+  // Distort: the top-right corner moves in by 40 and down by 30.
+  require_action(window, "editTransformDistortAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  drag(*canvas, widget_at(*canvas, 260, 70), widget_at(*canvas, 220, 100));
+  QApplication::processEvents();
+  std::printf("distort: W %.2f H %.2f\n", w_spin->value(), h_spin->value());
+  {
+    QList<QImage> strips{options->grab().toImage().copy(QRect(0, 0, std::min(options->width(), 1000), options->height())),
+                         canvas_crop(*canvas, QRect(40, 30, 320, 220))};
+    save_stacked_artifact("ui_free_transform_options_bar_follows_distortion", strips);
+  }
+  CHECK(approx(w_spin->value(), 87.5));       // (120 + 160) / 2 over 160
+  CHECK(approx(h_spin->value(), 86.36));      // (110 + 80) / 2 over 110
+  CHECK(bar_matches_state());
+
+  // A typed W scales the distorted shape to it (linked H off).
+  link->setChecked(false);
+  QApplication::processEvents();
+  w_spin->setValue(43.75);
+  QApplication::processEvents();
+  const auto quad = canvas->free_transform_quad();
+  const auto mean_width = ((quad[1].x() - quad[0].x()) + (quad[2].x() - quad[3].x())) / 2.0;
+  std::printf("typed W: mean width %.3f, W %.2f H %.2f\n", mean_width, w_spin->value(), h_spin->value());
+  CHECK(std::abs(mean_width - 70.0) < 0.05);
+  CHECK(approx(w_spin->value(), 43.75));
+  CHECK(approx(h_spin->value(), 86.36));
+  CHECK(bar_matches_state());
+
+  // Session Undo steps back through the typed W and the distortion.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(approx(w_spin->value(), 87.5));
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(approx(w_spin->value(), 100.0) && approx(h_spin->value(), 100.0));
+  CHECK(bar_matches_state());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // Perspective: the top edge widens to 240, the bottom keeps 160.
+  require_action(window, "editTransformPerspectiveAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget_at(*canvas, 260, 70), widget_at(*canvas, 300, 70));
+  QApplication::processEvents();
+  std::printf("perspective: W %.2f H %.2f\n", w_spin->value(), h_spin->value());
+  CHECK(approx(w_spin->value(), 125.0) && approx(h_spin->value(), 100.0));
+  CHECK(bar_matches_state());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  // Skew: sides slide along themselves; W and H stay.
+  require_action(window, "editTransformSkewAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget_at(*canvas, 180, 70), widget_at(*canvas, 210, 74));
+  QApplication::processEvents();
+  CHECK(approx(w_spin->value(), 100.0) && approx(h_spin->value(), 100.0));
+  CHECK(bar_matches_state());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  // Ctrl+drag a corner in plain Free Transform distorts too.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 300, 180), Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(approx(w_spin->value(), 112.5));  // (160 + 200) / 2 over 160
+  CHECK(bar_matches_state());
+  // Rotate and nudge keep Angle and X current.
+  const auto x_before = x_spin->value();
+  send_key(*canvas, Qt::Key_Right);
+  QApplication::processEvents();
+  CHECK(approx(x_spin->value(), x_before + 1.0));
+  CHECK(bar_matches_state());
+  angle_spin->setValue(30.0);
+  QApplication::processEvents();
+  CHECK(approx(w_spin->value(), 112.5));
+  CHECK(bar_matches_state());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  require_action(window, "editTransformRotateAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 125, 205));
+  QApplication::processEvents();
+  CHECK(std::abs(angle_spin->value()) > 45.0);
+  CHECK(approx(w_spin->value(), 100.0));
+  CHECK(bar_matches_state());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> free_transform_distort_tests() {
@@ -1023,6 +1149,7 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_free_transform_mode_menu_entries", ui_free_transform_mode_menu_entries},
       {"ui_free_transform_type_buttons_switch_modes", ui_free_transform_type_buttons_switch_modes},
       {"ui_free_transform_scale_and_rotate_modes", ui_free_transform_scale_and_rotate_modes},
+      {"ui_free_transform_options_bar_follows_distortion", ui_free_transform_options_bar_follows_distortion},
       {"ui_script_layer_transform_quad_and_matrix", ui_script_layer_transform_quad_and_matrix},
       {"ui_script_layer_transform_refusals", ui_script_layer_transform_refusals},
       {"ui_free_transform_distort_smart_object_writes_perspective_placement",

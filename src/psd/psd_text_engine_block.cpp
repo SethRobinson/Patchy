@@ -293,11 +293,49 @@ TextFrameGeometry TextEngineBlock::object_geometry(std::size_t index) const {
   return {TextFrameGeometry::Kind::Area, std::move(area)};
 }
 
+std::vector<TextParagraphFontSize> TextEngineBlock::object_paragraph_font_sizes(std::size_t index) const {
+  std::vector<TextParagraphFontSize> result;
+  const auto* list = objects();
+  const auto* runs = list != nullptr && index < list->list.size() ? list->list[index].at_path({"0", "5", "0"}) : nullptr;
+  if (runs == nullptr || !runs->is_list()) return result;
+  const auto* sheets = root_.at_path({"0", "6", "0"});
+  const auto character_size = [](const EngineNode* paragraph_sheet) -> std::optional<double> {
+    const auto* node = paragraph_sheet != nullptr ? paragraph_sheet->at_path({"32", "1"}) : nullptr;
+    const auto value = node != nullptr ? node->number() : std::nullopt;
+    if (value && std::isfinite(*value) && *value > 0.0 && *value < 100000.0) return value;
+    return std::nullopt;
+  };
+  bool any = false;
+  for (const auto& run : runs->list) {
+    TextParagraphFontSize entry;
+    const auto* length = run.at_path({"1"});
+    entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
+    // A run's sheet: /5 its own sparse paragraph properties, /6 the parent ParagraphSheetSet index.
+    const auto* sheet = run.at_path({"0", "0"});
+    entry.size = character_size(sheet != nullptr ? sheet->at_path({"5"}) : nullptr);
+    if (!entry.size && sheet != nullptr && sheets != nullptr && sheets->is_list()) {
+      const auto* parent = sheet->at_path({"6"});
+      const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
+      if (parent_index && *parent_index >= 0 && static_cast<std::size_t>(*parent_index) < sheets->list.size()) {
+        entry.size = character_size(sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "5"}));
+      }
+    }
+    any = any || entry.size.has_value();
+    result.push_back(entry);
+  }
+  if (!any) result.clear();
+  return result;
+}
+
 std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload) {
   std::vector<TextFrameGeometry> result;
   if (const auto engine = TextEngineBlock::parse(payload)) {
     result.reserve(engine->object_count());
-    for (std::size_t i = 0; i < engine->object_count(); ++i) result.push_back(engine->object_geometry(i));
+    for (std::size_t i = 0; i < engine->object_count(); ++i) {
+      auto geometry = engine->object_geometry(i);
+      geometry.paragraph_font_sizes = engine->object_paragraph_font_sizes(i);
+      result.push_back(std::move(geometry));
+    }
     return result;
   }
   // Photoshop 6-era blocks use names instead of the modern numeric key map.
