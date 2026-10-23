@@ -261,6 +261,7 @@ bool McpActivity::eventFilter(QObject* watched, QEvent* event) {
   if (widget->objectName() == QStringLiteral("layerNameFilterEdit") ||
       widget->objectName() == QStringLiteral("layerFolderDisclosureButton") ||
       widget->objectName() == QStringLiteral("layerEffectsDisclosureButton") ||
+      widget->objectName() == QStringLiteral("layerSmartFiltersDisclosureButton") ||
       widget->property("dockCollapseButton").toBool() ||
       widget->objectName() == QStringLiteral("rightDockResizeHandle") ||
       widget->objectName().endsWith(QStringLiteral("DockTitle")) ||

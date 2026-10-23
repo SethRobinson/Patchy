@@ -115,6 +115,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->title = std::move(title);
   session->path = std::move(path);
   collect_initially_collapsed_layer_groups(session->document.layers(), session->collapsed_layer_groups);
+  collect_initial_layer_fx_disclosure(session->document.layers(), session->expanded_layer_effects,
+                                      session->collapsed_smart_filters);
   session->canvas = new CanvasWidget(document_tabs_);
   session->canvas->setAcceptDrops(true);
   session->canvas->installEventFilter(this);

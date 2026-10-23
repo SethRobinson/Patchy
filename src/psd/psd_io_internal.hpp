@@ -236,6 +236,8 @@ struct LayerRecord {
   std::uint8_t opacity{255};
   std::optional<std::uint8_t> fill_opacity;
   bool visible{true};
+  // Flags bit 5 (0x20): Photoshop's Layers panel shows the layer's effects and Smart Filters.
+  bool fx_expanded{false};
   bool clipping{false};
   std::string name;
   std::uint32_t section_divider_type{0};

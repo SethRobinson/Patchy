@@ -544,6 +544,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
   record.clipping = reader.read_u8() != 0;
   const auto flags = reader.read_u8();
   record.visible = (flags & 0x02U) == 0;
+  record.fx_expanded = (flags & 0x20U) != 0;
   reader.skip(1);  // filler
 
   const auto extra_length = read_section_length(reader, "layer extra data");
@@ -928,6 +929,15 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   // on shape/fill layers (whose channels are empty).
   if (encoded.layer != nullptr && layer_is_vector_shape(*encoded.layer)) {
     record_flags |= 0x10U;
+  }
+  // Bit 5: the Layers panel shows the rows under the layer (effects and Smart Filters, one
+  // bit for both; issue 361). Photoshop sets it on new effects and keeps it through a resave.
+  // Without a recorded state, Smart Filters default to open (the panel's default).
+  if (encoded.layer != nullptr && encoded.kind != EncodedLayerKind::GroupBoundary) {
+    const auto expanded = layer_fx_expanded(*encoded.layer);
+    if (expanded.value_or(encoded.layer->smart_filter_stack() != nullptr)) {
+      record_flags |= 0x20U;
+    }
   }
   writer.write_u8(record_flags);
   writer.write_u8(0);

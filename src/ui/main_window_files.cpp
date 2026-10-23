@@ -2962,6 +2962,10 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     target_session.collapsed_layer_groups.clear();
     collect_initially_collapsed_layer_groups(target_session.document.layers(),
                                              target_session.collapsed_layer_groups);
+    target_session.expanded_layer_effects.clear();
+    target_session.collapsed_smart_filters.clear();
+    collect_initial_layer_fx_disclosure(target_session.document.layers(), target_session.expanded_layer_effects,
+                                        target_session.collapsed_smart_filters);
     ++target_session.revision;
     target_session.saved_revision = target_session.revision;
     if (loaded->cmyk_source) {

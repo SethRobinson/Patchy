@@ -1205,6 +1205,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       layer.metadata()[kLayerMetadataPsdProtectionFlags] = std::to_string(record.protection_flags);
     }
     layer.set_color_label(record.color_label);
+    // Flags bit 5: the Layers panel shows the rows under the layer (issue 361). Recorded as
+    // closed only where there are rows to close, so other layers carry no state.
+    if (record.fx_expanded) {
+      layer.metadata()[kLayerMetadataFxExpanded] = "true";
+    } else if (record.layer_style.effect_count() > 0 ||
+               (record.placed.has_value() && record.placed->smart_filters.has_value())) {
+      layer.metadata()[kLayerMetadataFxExpanded] = "false";
+    }
     if (!vector_parse_failed && has_legacy_vscg && !vector_fill.has_value() && vector_mask_block.has_value() &&
         vector_stroke.has_value()) {
       if (vector_stroke->fill_enabled) {

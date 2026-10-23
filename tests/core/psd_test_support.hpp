@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace patchy { class Layer; }
@@ -28,6 +29,8 @@ void write_pascal_padded(patchy::psd::BigEndianWriter& writer, const std::string
 std::string read_pascal_padded(patchy::psd::BigEndianReader& reader, std::size_t padded_multiple);
 
 std::vector<std::string> psd_raw_layer_record_names(std::span<const std::uint8_t> bytes);
+// Each layer record's name and the file offset of its flags byte, in file order.
+std::vector<std::pair<std::string, std::size_t>> psd_raw_layer_record_flag_offsets(std::span<const std::uint8_t> bytes);
 
 struct PsdLayerChannelRecord {
   std::int16_t id{0};

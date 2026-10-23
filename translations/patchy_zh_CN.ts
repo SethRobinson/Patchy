@@ -11871,6 +11871,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>许多水印（如 Google SynthID）只能用其所有者的工具读取，因此这里的扫描无法找到它们。</translation>
     </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>折叠智能滤镜行</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>展开智能滤镜行</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

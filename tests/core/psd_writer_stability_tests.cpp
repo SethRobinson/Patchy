@@ -38,6 +38,7 @@
 #include <limits>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <span>
 #include <sstream>
 #include <stdexcept>
@@ -1134,6 +1135,112 @@ void psd_layer_style_hidden_effects_round_trip() {
   CHECK(fixture_layer != nullptr && fixture_layer->layer_style().satins.size() == 1);
 }
 
+// The Layers panel rows under a layer (issue 361): Photoshop keeps their open/closed state in
+// layer record flags bit 5 (0x20), one bit for the layer styles and Smart Filters lists.
+void psd_layer_fx_expanded_flag_round_trips() {
+  using patchy::test::committed_psd_fixture_path;
+  using patchy::test::psd_raw_layer_record_flag_offsets;
+  const auto flags_named = [](const std::vector<std::uint8_t>& bytes, const std::string& name) {
+    for (const auto& [record_name, offset] : psd_raw_layer_record_flag_offsets(bytes)) {
+      if (record_name == name) {
+        return static_cast<int>(bytes[offset]);
+      }
+    }
+    return -1;
+  };
+  const auto expanded_named = [](const patchy::Document& document, const std::string& name) {
+    const auto* layer = find_layer_named(document.layers(), name);
+    CHECK(layer != nullptr);
+    return layer != nullptr ? patchy::layer_fx_expanded(*layer) : std::nullopt;
+  };
+  constexpr std::optional<bool> kOpen{true};
+  constexpr std::optional<bool> kClosed{false};
+
+  // Photoshop saves: layer styles open and closed.
+  const auto bevel = patchy::psd::DocumentIo::read_file(committed_psd_fixture_path("photoshop-bevel-default.psd"));
+  CHECK(expanded_named(bevel, "bevelled") == kOpen);
+  const auto styled =
+      patchy::psd::DocumentIo::read_file(committed_psd_fixture_path("photoshop-layer-style-4a-roundtrip.psd"));
+  CHECK(expanded_named(styled, "Midpoint gradients") == kClosed);
+
+  // Smart Filters: Photoshop saves them open. A cleared bit is a list closed in Photoshop: PS 2026
+  // reopens and resaves such a file with the bit still clear (docs/ps-compat.md).
+  std::vector<std::uint8_t> filters_bytes;
+  {
+    std::ifstream input(committed_psd_fixture_path("photoshop-smart-filter-adjustments.psd"), std::ios::binary);
+    filters_bytes.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+  }
+  CHECK(flags_named(filters_bytes, "Levels master") == 0x28);
+  CHECK(flags_named(filters_bytes, "Curves master") == 0x28);
+  for (const auto& [record_name, offset] : psd_raw_layer_record_flag_offsets(filters_bytes)) {
+    if (record_name == "Curves master") {
+      filters_bytes[offset] = 0x08U;
+    }
+  }
+  const auto filters = patchy::psd::DocumentIo::read(filters_bytes);
+  const auto* open_filters = find_layer_named(filters.layers(), "Levels master");
+  const auto* closed_filters = find_layer_named(filters.layers(), "Curves master");
+  const auto* no_filters = find_layer_named(filters.layers(), "Source");
+  CHECK(open_filters != nullptr && open_filters->smart_filter_stack() != nullptr);
+  CHECK(closed_filters != nullptr && closed_filters->smart_filter_stack() != nullptr);
+  CHECK(no_filters != nullptr && no_filters->smart_filter_stack() == nullptr);
+  CHECK(expanded_named(filters, "Levels master") == kOpen);
+  CHECK(expanded_named(filters, "Curves master") == kClosed);
+  CHECK(!expanded_named(filters, "Source").has_value());  // nothing under it to show
+
+  // The Layers panel seeds from it: layer styles closed unless open, Smart Filters open unless closed.
+  std::set<patchy::LayerId> expanded_effects;
+  std::set<patchy::LayerId> collapsed_filters;
+  patchy::collect_initial_layer_fx_disclosure(filters.layers(), expanded_effects, collapsed_filters);
+  CHECK(open_filters != nullptr && expanded_effects.contains(open_filters->id()) &&
+        !collapsed_filters.contains(open_filters->id()));
+  CHECK(closed_filters != nullptr && collapsed_filters.contains(closed_filters->id()) &&
+        !expanded_effects.contains(closed_filters->id()));
+  CHECK(no_filters != nullptr && !collapsed_filters.contains(no_filters->id()));
+
+  // Patchy's rewrite keeps both Smart Filter states.
+  const auto rewritten = patchy::psd::DocumentIo::write_layered_rgb8(filters);
+  CHECK(flags_named(rewritten, "Levels master") == 0x28);
+  CHECK(flags_named(rewritten, "Curves master") == 0x08);
+  const auto reread_filters = patchy::psd::DocumentIo::read(rewritten);
+  CHECK(expanded_named(reread_filters, "Levels master") == kOpen);
+  CHECK(expanded_named(reread_filters, "Curves master") == kClosed);
+  // Smart Filters with no recorded state write open, the Layers panel's default.
+  auto stateless = filters;
+  for (auto& layer : stateless.layers()) {
+    layer.metadata_without_content_bump().erase(patchy::kLayerMetadataFxExpanded);
+  }
+  const auto stateless_bytes = patchy::psd::DocumentIo::write_layered_rgb8(stateless);
+  CHECK(flags_named(stateless_bytes, "Curves master") == 0x28);
+  CHECK(flags_named(stateless_bytes, "Source") == 0x08);
+
+  // Patchy's own layers: the panel state goes onto the written copy, both states.
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  auto& opened = document.add_pixel_layer("Opened", solid_rgba(8, 8, 200, 40, 40, 255));
+  opened.layer_style().drop_shadows.push_back(shadow);
+  auto& closed = document.add_pixel_layer("Closed", solid_rgba(8, 8, 40, 200, 40, 255));
+  closed.layer_style().drop_shadows.push_back(shadow);
+  (void)document.add_pixel_layer("Plain", solid_rgba(8, 8, 40, 40, 200, 255));
+  // No state (every file before issue 361): every record keeps flags 0x08, the old bytes.
+  const auto default_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  for (const auto& [name, offset] : psd_raw_layer_record_flag_offsets(default_bytes)) {
+    CHECK(default_bytes[offset] == 0x08U);
+  }
+  const auto opened_id = find_layer_named(std::as_const(document).layers(), "Opened")->id();
+  patchy::Document copy = document;
+  patchy::apply_layer_fx_disclosure(copy.layers(), {opened_id}, {});
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(copy);
+  CHECK(flags_named(bytes, "Opened") == 0x28);
+  CHECK(flags_named(bytes, "Closed") == 0x08);
+  CHECK(flags_named(bytes, "Plain") == 0x08);
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  CHECK(expanded_named(reread, "Opened") == kOpen);
+  CHECK(expanded_named(reread, "Closed") == kClosed);
+  CHECK(!expanded_named(reread, "Plain").has_value());
+}
+
 void psd_photoshop_layer_style_4a_round_trip_fixture_imports() {
   const auto path =
       patchy::test::committed_psd_fixture_path("photoshop-layer-style-4a-roundtrip.psd");
@@ -1584,6 +1691,7 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
       {"psd_generated_satin_descriptor_matches_photoshop_shape",
        psd_generated_satin_descriptor_matches_photoshop_shape},
       {"psd_layer_style_hidden_effects_round_trip", psd_layer_style_hidden_effects_round_trip},
+      {"psd_layer_fx_expanded_flag_round_trips", psd_layer_fx_expanded_flag_round_trips},
       {"psd_photoshop_satin_fixture_preserves_native_lfx2",
        psd_photoshop_satin_fixture_preserves_native_lfx2},
       {"psd_photoshop_layer_style_4a_round_trip_fixture_imports",
