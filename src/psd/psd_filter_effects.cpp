@@ -6,6 +6,7 @@
 #include "core/psd_source_colors.hpp"
 #include "color/color_management.hpp"
 #include "support/translate_noop.hpp"
+#include "formats/miniz/miniz.h"
 
 #include <algorithm>
 #include <exception>
@@ -227,6 +228,25 @@ encode_filter_mask_tail(const SmartFilterMask &mask) {
       }
       if (reader.remaining() != 0U || samples.size() != expected) {
         return false;
+      }
+    } else if (compression == 2U || compression == 3U) {
+      // Photoshop CC-era files store the mask as a zlib stream, with or without
+      // the 8-bit row delta filter (ag-psd's smart-filter sample, GitHub issue 348).
+      const auto compressed = reader.read_bytes(reader.remaining());
+      samples.resize(expected);
+      mz_ulong out_length = static_cast<mz_ulong>(expected);
+      if (mz_uncompress(samples.data(), &out_length, compressed.data(),
+                        static_cast<mz_ulong>(compressed.size())) != MZ_OK ||
+          out_length != expected) {
+        return false;
+      }
+      if (compression == 3U) {
+        const auto width = static_cast<std::size_t>(bounds.width);
+        for (std::size_t row = 0; row < expected; row += width) {
+          for (std::size_t x = 1; x < width; ++x) {
+            samples[row + x] = static_cast<std::uint8_t>(samples[row + x] + samples[row + x - 1U]);
+          }
+        }
       }
     } else {
       return false;
