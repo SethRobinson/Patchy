@@ -18,6 +18,10 @@ class BrushAutomationLibrary : public QObject {
   explicit BrushAutomationLibrary(BrushTipLibrary& tips, QObject* parent = nullptr,
                                   QString directory = {});
   void refresh();
+  // The periodic check for changes made outside this process: refresh() only when a file in
+  // either storage folder was added, removed, resized or touched. It lists the folders
+  // without reading or hashing any file, so an idle window stays cheap (GitHub issue 135).
+  void refresh_if_files_changed();
   [[nodiscard]] QString revision() const;
   [[nodiscard]] QJsonArray tips() const;
   [[nodiscard]] QJsonObject tip_info(const QString& id) const;
@@ -37,6 +41,7 @@ class BrushAutomationLibrary : public QObject {
   [[nodiscard]] static QJsonObject builtin_preset(const BrushPreset& p);
   BrushTipLibrary& tips_;
   QString directory_, fingerprint_, tip_fingerprint_, revision_;
+  QByteArray file_listing_;
   QJsonArray presets_;
   mutable std::map<QString, std::shared_ptr<const BrushTip>> preset_tips_;
   std::map<QString, std::shared_ptr<const BrushTip>> captured_tips_;
