@@ -12009,6 +12009,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This version of Patchy cannot read TrustMark watermarks.</source>
         <translation>Esta versión de Patchy no puede leer marcas de agua TrustMark.</translation>
     </message>
+    <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>No se añadió ninguna marca de agua invisible: la imagen es demasiado pequeña.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>No se añadió ninguna marca de agua invisible: los modelos de marca de agua no están descargados.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>La imagen ya lleva su marca de agua invisible.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>No se añadió ninguna marca de agua invisible: TrustMark no pudo ejecutarse.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>Se añadió su marca de agua invisible.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24299,6 +24319,94 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>Added an invisible watermark carrying “%1”</source>
         <translation>Se añadió una marca de agua invisible con «%1»</translation>
     </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy puede ocultar un texto corto en las imágenes que guarda con Adobe TrustMark, una marca de agua invisible abierta. No hay clave: cualquiera con un lector de TrustMark puede leerlo.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>Su nombre o un ID corto</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>Texto de la marca de agua:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Nunca</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>Preguntar al guardar</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>Añadir en cada guardado</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>Añadir marca de agua invisible al guardar:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>Solo se marcan los píxeles del archivo guardado; el documento abierto y su historial no cambian. Se marcan PNG, JPEG, WebP, BMP, JPEG XL, AVIF y TIFF sin capas, y también las exportaciones. Los archivos con capas (PSD, PSB, TIFF con capas) no, porque eso cambiaría píxeles de capa sin que usted lo vea. Se omiten las imágenes de menos de 128 píxeles y las que ya llevan su texto.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>Buscar marcas de agua en las imágenes abiertas</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>Se ejecuta en segundo plano al abrir un archivo y muestra un aviso cuando encuentra una marca de agua de Stable Diffusion, o una de Adobe TrustMark una vez descargados los modelos.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>Añadir marcas al guardar y la parte de TrustMark de la búsqueda necesitan estos modelos. La búsqueda de Stable Diffusion no necesita descarga.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>Quedan %1 de %2 caracteres</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Marcas de agua</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>¿Añadir su marca de agua invisible «%1» a este archivo?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>Cualquiera con un lector de TrustMark puede leerla. Solo se marca el archivo guardado; el documento abierto no cambia.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Añadir marca de agua</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>Guardar sin ella</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>Buscando marcas de agua...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>Marca de agua encontrada</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>Esta imagen lleva una marca de agua invisible.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>«%1» lleva una marca de agua invisible.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>Mostrar en Información de archivo</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26159,6 +26267,22 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>The watermark could not be added: %1</source>
         <translation>No se pudo añadir la marca de agua: %1</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences acepta un objeto como {addOnSave: &quot;ask&quot;}.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text debe ser ASCII imprimible de como máximo %1 caracteres.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave debe ser &quot;never&quot;, &quot;ask&quot; o &quot;always&quot;.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: opción desconocida %1.</translation>
     </message>
 </context>
 <context>

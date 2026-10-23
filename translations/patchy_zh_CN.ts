@@ -11974,6 +11974,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This version of Patchy cannot read TrustMark watermarks.</source>
         <translation>此版本的 Patchy 无法读取 TrustMark 水印。</translation>
     </message>
+    <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>未添加不可见水印：图像太小。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>未添加不可见水印：尚未下载水印模型。</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>图像已带有你的不可见水印。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>未添加不可见水印：无法运行 TrustMark。</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>已添加你的不可见水印。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24227,6 +24247,94 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Added an invisible watermark carrying “%1”</source>
         <translation>已添加内容为“%1”的不可见水印</translation>
     </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy 可以用公开的不可见水印 Adobe TrustMark 在你保存的图像中隐藏一段短文本。它没有密钥：任何拥有 TrustMark 读取器的人都能读出。</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>你的名字或简短 ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>水印文本：</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>从不</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>保存时询问</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>每次保存时添加</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>保存时添加不可见水印：</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>只标记保存后文件中的像素；打开的文档及其历史不会改变。PNG、JPEG、WebP、BMP、JPEG XL、AVIF 和无图层的 TIFF 会被标记，导出也是如此。带图层的文件（PSD、PSB、带图层的 TIFF）不会被标记，因为那会在你不知情时改变图层像素。小于 128 像素的图像以及已带有你的文本的图像会被跳过。</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>检查打开的图像中的水印</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>在文件打开后于后台运行，找到 Stable Diffusion 水印（下载模型后还包括 Adobe TrustMark 水印）时显示通知。</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>保存时添加水印以及检查中的 TrustMark 部分需要这些模型。Stable Diffusion 检查无需下载。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>剩余 %1/%2 个字符</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>水印</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>要将你的不可见水印“%1”添加到此文件吗？</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>任何拥有 TrustMark 读取器的人都能读出它。只标记保存的文件；打开的文档不会改变。</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>添加水印</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>不加水印保存</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>正在检查水印...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>找到水印</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>此图像带有不可见水印。</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>“%1”带有不可见水印。</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>在文件简介中显示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26086,6 +26194,22 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>The watermark could not be added: %1</source>
         <translation>无法添加水印：%1</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences 接受对象，例如 {addOnSave: &quot;ask&quot;}。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences：text 必须是最多 %1 个字符的可打印 ASCII。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences：addOnSave 必须是 &quot;never&quot;、&quot;ask&quot; 或 &quot;always&quot;。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences：未知选项 %1。</translation>
     </message>
 </context>
 <context>

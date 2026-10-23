@@ -1969,6 +1969,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       record_text_layout_metrics_for_reopened_text(loaded->document);
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
+      start_open_watermark_check((*sessions_.rbegin())->session_id);
       if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(**sessions_.rbegin())) {
         cmyk_proof_opened = true;
       }
@@ -2631,6 +2632,7 @@ void MainWindow::open_document_path(QString path) {
       const UiProfileScope profile_scope("open.add_session");
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
+    start_open_watermark_check(session().session_id);
     bool cmyk_proof_opened = false;
     if (loaded->pdf_color_mode == PdfImportColorMode::Cmyk) {
       // The Import PDF dialog's CMYK Color: say so when there is no CMYK profile to proof with.
@@ -4681,10 +4683,17 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   if (!has_active_document() || session().session_id != saving_session_id) {
     return false;
   }
+  // Preferences > Watermarks: the mark goes into the written pixels only (flat formats),
+  // never into the open document; Ask mode asks here, before the write.
+  const auto watermark = watermark_for_save(extension, effective_image_options, quiet);
+  if (!has_active_document() || session().session_id != saving_session_id) {
+    return false;
+  }
   try {
     MainWindowSaveHost host(*this);
-    const auto saved = DocumentSaveCoordinator(host).write_prepared(
-        saving_session_id, path, extension, effective_image_options, quiet, policy.export_copy, discards_layers);
+    const auto saved = DocumentSaveCoordinator(host).write_prepared(saving_session_id, path, extension,
+                                                                    effective_image_options, quiet,
+                                                                    policy.export_copy, discards_layers, watermark);
     if (!saved.has_value()) {
       return false;
     }

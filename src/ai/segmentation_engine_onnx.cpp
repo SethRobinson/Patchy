@@ -166,7 +166,13 @@ Ort::SessionOptions session_options() {
 // The file a session loads: HighQuality's files may be in the downloaded models folder.
 std::filesystem::path session_path(const char* file) {
   const std::string_view name(file);
-  if (name == kEfficientSamEncoderFile || name == kEfficientSamDecoderFile || name.starts_with("trustmark_")) {
+  if (name.starts_with("trustmark_")) {
+    // Only ever the user's own download (docs/legal-constraints.md, "Watermark detection"):
+    // a package never ships Adobe's models, so a bundled copy is never looked for.
+    const auto downloaded = downloaded_model_directory();
+    return downloaded.empty() ? std::filesystem::path() : downloaded / std::filesystem::path(file);
+  }
+  if (name == kEfficientSamEncoderFile || name == kEfficientSamDecoderFile) {
     return high_quality_model_path(file);
   }
   return model_path(file);
@@ -452,7 +458,8 @@ std::string trustmark_unavailable_reason() {
   }
   for (const auto name : trustmark_model_files()) {
     std::error_code error;
-    if (!std::filesystem::is_regular_file(high_quality_model_path(std::string(name).c_str()), error)) {
+    const auto path = session_path(std::string(name).c_str());
+    if (path.empty() || !std::filesystem::is_regular_file(path, error)) {
       return "the watermark models are not downloaded";
     }
   }

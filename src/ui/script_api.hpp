@@ -423,6 +423,12 @@ public:
   Q_INVOKABLE bool downloadWatermarkModels();
   Q_PROPERTY(bool watermarkModelsAvailable READ watermark_models_available)
   [[nodiscard]] bool watermark_models_available() const;
+  // Preferences > Watermarks (docs/watermarks.md): {text, addOnSave: "never" | "ask" |
+  // "always", checkOnOpen}; setWatermarkPreferences takes any subset (unknown keys, a bad
+  // token or text TrustMark cannot hold throw).
+  Q_PROPERTY(QJSValue watermarkPreferences READ watermark_preferences)
+  [[nodiscard]] QJSValue watermark_preferences() const;
+  Q_INVOKABLE void setWatermarkPreferences(const QJSValue& preferences);
 
 private:
   ScriptEngineHost& host_;
