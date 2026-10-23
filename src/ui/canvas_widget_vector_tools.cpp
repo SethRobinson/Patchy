@@ -2247,7 +2247,9 @@ void CanvasWidget::delete_selected_path_anchors() {
     const auto* shape_layer = path_edit_target_layer();
     const bool shape_target = layer_edit_target_ != LayerEditTarget::VectorMask &&
                               shape_layer != nullptr && &shape_layer->vector_shape()->path == path;
-    const auto shape_layer_id = shape_target ? std::optional<LayerId>(shape_layer->id()) : std::nullopt;
+    // A plain id read only when shape_target holds: GCC 12 (the AppImage compiler) reports
+    // -Wmaybe-uninitialized on an optional built by a ternary.
+    const LayerId shape_layer_id = shape_target ? shape_layer->id() : LayerId{};
     auto working = *path;
     std::vector<int> touched_groups;
     // Erase in reverse index order so earlier keys stay valid.
@@ -2262,8 +2264,8 @@ void CanvasWidget::delete_selected_path_anchors() {
     std::erase_if(working.subpaths,
                   [](const PathSubpath& subpath) { return subpath.anchors.size() < 2; });
     path_selected_anchors_.clear();
-    if (shape_layer_id.has_value() && working.subpaths.empty()) {
-      emptied_shape_layers.push_back(*shape_layer_id);
+    if (shape_target && working.subpaths.empty()) {
+      emptied_shape_layers.push_back(shape_layer_id);
     }
     apply_path_edit(std::move(working), tr("Delete anchors"), touched_groups);
   }

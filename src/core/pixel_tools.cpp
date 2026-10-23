@@ -2042,10 +2042,11 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
   const std::array<std::pair<double, double>, 4> band{
       std::pair{x0 + normal_x, y0 + normal_y}, std::pair{x1 + normal_x, y1 + normal_y},
       std::pair{x1 - normal_x, y1 - normal_y}, std::pair{x0 - normal_x, y0 - normal_y}};
-  const auto covered = options.stroke_covered_disk.has_value() && options.stroke_pixel_gate &&
-                               !options.selection_coverage && options.brush_softness <= 0
-                           ? options.stroke_covered_disk
-                           : std::nullopt;
+  // A flag and a plain copy rather than an optional: GCC 12 (the AppImage compiler) reports
+  // -Wmaybe-uninitialized on an optional chosen by a ternary and read in the row loop.
+  const bool use_covered = options.stroke_covered_disk.has_value() && options.stroke_pixel_gate &&
+                           !options.selection_coverage && options.brush_softness <= 0;
+  const auto covered = use_covered ? *options.stroke_covered_disk : EditOptions::CoveredDisk{};
 
   for (std::int32_t py = stroke_rect.y; py < stroke_rect.y + stroke_rect.height; ++py) {
     const auto local_y = py - bounds.y;
@@ -2095,13 +2096,13 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
     // Columns strictly inside the covered disk, shrunk a pixel so rounding cannot reach its rim.
     auto skip_first = end_x;
     auto skip_last = end_x - 1;
-    if (covered.has_value()) {
-      const auto row_offset = row_y - covered->y;
-      const auto remaining = covered->radius * covered->radius - row_offset * row_offset;
+    if (use_covered) {
+      const auto row_offset = row_y - covered.y;
+      const auto remaining = covered.radius * covered.radius - row_offset * row_offset;
       if (remaining > 1.0) {
         const auto half_width = std::sqrt(remaining);
-        skip_first = static_cast<std::int32_t>(std::ceil(covered->x - half_width + 1.0));
-        skip_last = static_cast<std::int32_t>(std::floor(covered->x + half_width - 1.0));
+        skip_first = static_cast<std::int32_t>(std::ceil(covered.x - half_width + 1.0));
+        skip_last = static_cast<std::int32_t>(std::floor(covered.x + half_width - 1.0));
       }
     }
 
