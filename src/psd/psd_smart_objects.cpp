@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
+#include <utility>
 
 namespace patchy::psd {
 
@@ -60,7 +61,27 @@ bool transforms_differ(const std::array<double, 8>& a, const std::array<double, 
   return false;
 }
 
-bool known_smart_filter_blend_mode(std::string_view value, BlendMode& mode) {
+bool known_smart_filter_blend_mode(const DescriptorValue& value, BlendMode& mode) {
+  // Older Photoshop releases write the classic charIDs here ("Nrml" in ag-psd's
+  // smart-filter-blur sample, GitHub issue 348). Each names the same mode as its
+  // stringID; Patchy writes the stringID back.
+  static constexpr std::array<std::pair<std::string_view, std::string_view>, 16> kCharIds{{
+      {"Nrml", "normal"},     {"Mltp", "multiply"},   {"Scrn", "screen"},
+      {"Ovrl", "overlay"},    {"Drkn", "darken"},     {"Lghn", "lighten"},
+      {"CDdg", "colorDodge"}, {"CBrn", "colorBurn"},  {"HrdL", "hardLight"},
+      {"SftL", "softLight"},  {"Dfrn", "difference"}, {"Xclu", "exclusion"},
+      {"H   ", "hue"},        {"Strt", "saturation"}, {"Clr ", "color"},
+      {"Lmns", "luminosity"},
+  }};
+  std::string_view name = value.enum_value;
+  if (!value.enum_value_long_form) {
+    const auto found = std::find_if(kCharIds.begin(), kCharIds.end(),
+                                    [name](const auto& pair) { return pair.first == name; });
+    if (found == kCharIds.end()) {
+      return false;
+    }
+    name = found->second;
+  }
   // Photoshop 2026 writes full stringIDs here, just like lfx2. Do not let the
   // shared converter's unknown-to-Normal fallback make an imported stack look
   // executable when its native blend mode is actually unsupported.
@@ -73,10 +94,10 @@ bool known_smart_filter_blend_mode(std::string_view value, BlendMode& mode) {
       "exclusion",        "hue",              "color",
       "linearDodge",      "blendSubtraction", "blendDivide",
   };
-  if (std::find(kKnown.begin(), kKnown.end(), value) == kKnown.end()) {
+  if (std::find(kKnown.begin(), kKnown.end(), name) == kKnown.end()) {
     return false;
   }
-  mode = blend_mode_from_lfx2_enum(value);
+  mode = blend_mode_from_lfx2_enum(name);
   return true;
 }
 
@@ -886,10 +907,12 @@ bool set_smart_filter_bool(DescriptorObject& object, std::string_view key,
 }
 
 // Photoshop stores an entry's foreground and background colors in the color
-// model they were picked in: RGB usually, HSB or Lab when the picker was in that
-// model. Patchy models them as RGB.
+// model they were picked in: RGB usually, HSB, Lab or CMYK when the picker was in
+// that model (CMYK in ag-psd's smart-filter samples, GitHub issue 348). Patchy
+// models them as RGB.
 bool smart_filter_color_class_readable(std::string_view class_id) {
-  return class_id == "RGBC" || class_id == "HSBC" || class_id == "LbCl";
+  return class_id == "RGBC" || class_id == "HSBC" || class_id == "LbCl" ||
+         class_id == "CMYC";
 }
 
 bool set_smart_filter_color(DescriptorObject& object, std::string_view key,
@@ -1413,7 +1436,7 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         const auto* blend_mode = descriptor_value_either(*blend, "Md  ", "Md");
         if (blend_mode == nullptr || blend_mode->type != DescriptorValue::Type::Enum ||
             blend_mode->enum_type != "BlnM" ||
-            !known_smart_filter_blend_mode(blend_mode->enum_value, entry.blend_mode)) {
+            !known_smart_filter_blend_mode(*blend_mode, entry.blend_mode)) {
           entry_supported = false;
         }
       } else {
