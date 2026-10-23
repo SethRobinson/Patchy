@@ -4852,8 +4852,43 @@ void ui_shape_size_controls_follow_move_and_properties_selection() {
   auto* properties_height = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeHeightSpin"));
   CHECK(options_width != nullptr && options_height != nullptr);
   CHECK(properties_panel != nullptr && properties_width != nullptr && properties_height != nullptr);
-  CHECK(options_width->isVisible() && options_width->isEnabled());
+  // GitHub issue 350: the Move bar has no W/H fields, with a shape layer active or not, so
+  // the row stays put when the selection moves between a shape and another layer. The
+  // Properties panel keeps the shape's size; the hidden fields still follow it.
+  CHECK(!options_width->isVisible() && !options_height->isVisible());
   CHECK(!properties_panel->isHidden() && properties_panel->isEnabled());
+  const auto move_row = [&window] {
+    QStringList row;
+    if (auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent")); options != nullptr) {
+      for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+        if (child->isVisible()) {
+          row << QStringLiteral("%1@%2").arg(child->objectName()).arg(child->x());
+        }
+      }
+    }
+    row.sort();
+    return row;
+  };
+  const auto shape_row = move_row();
+  for (const char* name : {"vectorShapeWidthSpin", "vectorShapeHeightSpin", "vectorShapeLinkSizeButton",
+                           "vectorShapeHeightLabel"}) {
+    CHECK(!shape_row.join(QLatin1Char(' ')).contains(QLatin1String(name)));
+  }
+  std::optional<patchy::LayerId> other_layer;
+  for (const auto& candidate : std::as_const(document).layers()) {
+    if (candidate.id() != layer_id) {
+      other_layer = candidate.id();
+    }
+  }
+  CHECK(other_layer.has_value());
+  if (other_layer.has_value()) {
+    patchy::ui::MainWindowTestAccess::select_layers(window, {*other_layer}, *other_layer);
+    QApplication::processEvents();
+    CHECK(move_row() == shape_row);
+    patchy::ui::MainWindowTestAccess::select_layers(window, {layer_id}, layer_id);
+    QApplication::processEvents();
+    CHECK(move_row() == shape_row);
+  }
   CHECK(std::abs(options_width->value() - 200.0) < 0.5);
   CHECK(std::abs(properties_width->value() - 200.0) < 0.5);
   CHECK(std::abs(properties_height->value() - 120.0) < 0.5);

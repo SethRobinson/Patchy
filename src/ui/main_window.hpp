@@ -1625,8 +1625,6 @@ private:
   [[nodiscard]] VectorOptionModeRules vector_option_mode_rules(CanvasTool tool, bool live_shape) const;
   [[nodiscard]] bool vector_option_widget_visible(const VectorOptionModeRules& rules,
                                                   QWidget* widget) const;
-  [[nodiscard]] bool vector_option_widget_visible(const VectorOptionModeRules& rules, QWidget* widget,
-                                                  CanvasTool tool) const;
   [[nodiscard]] QBrush vector_fill_preview_brush(const patchy::VectorFill& fill) const;
   // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
   // dialog for the active shape layer, and Layer > New Fill Layer creation

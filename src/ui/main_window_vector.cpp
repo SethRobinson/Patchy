@@ -1814,11 +1814,10 @@ MainWindow::VectorOptionModeRules MainWindow::vector_option_mode_rules(CanvasToo
   rules.select_tool = tool == CanvasTool::PathSelect ||
                       tool == CanvasTool::DirectSelect;
   rules.live_shape = live_shape;
-  // Move exposes only the active shape's W/H readouts. The appearance controls
-  // remain scoped to shape and path tools, but size editing follows the selected
-  // shape layer just like the Properties panel does.
-  rules.refine = shape_tool || rules.select_tool || tool == CanvasTool::Move;
-  if (rules.select_tool || tool == CanvasTool::Move) {
+  // Move shows none of these (GitHub issue 350: the shape's W/H are in the
+  // Properties panel there).
+  rules.refine = shape_tool || rules.select_tool;
+  if (rules.select_tool) {
     return rules;
   }
   // Pen/Polygon/Custom Shape never rasterize: a persisted Pixels mode behaves
@@ -1838,11 +1837,6 @@ MainWindow::VectorOptionModeRules MainWindow::vector_option_mode_rules(CanvasToo
 
 bool MainWindow::vector_option_widget_visible(const VectorOptionModeRules& rules,
                                               QWidget* widget) const {
-  return vector_option_widget_visible(rules, widget, current_tool_);
-}
-
-bool MainWindow::vector_option_widget_visible(const VectorOptionModeRules& rules, QWidget* widget,
-                                              CanvasTool tool) const {
   if (!rules.refine || widget == nullptr) {
     return true;
   }
@@ -1852,9 +1846,9 @@ bool MainWindow::vector_option_widget_visible(const VectorOptionModeRules& rules
   if (in(vector_shape_size_option_widgets_)) {
     // The W / H readouts: Shape mode keeps them as a disabled readout before
     // the first shape exists (Path and Pixels modes have no shape layer to
-    // size, and Pixels already shows the fixed-size Width / Height row); Move
-    // and the path selection tools show them only with an editable shape layer.
-    if (rules.select_tool || tool == CanvasTool::Move) {
+    // size, and Pixels already shows the fixed-size Width / Height row); the
+    // path selection tools show them only with an editable shape layer.
+    if (rules.select_tool) {
       return rules.live_shape;
     }
     return rules.shape_mode;

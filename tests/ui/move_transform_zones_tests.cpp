@@ -6,11 +6,14 @@
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/tool_cursors.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QColor>
 #include <QCursor>
+#include <QIcon>
 #include <QImage>
 #include <QList>
 #include <QPainter>
@@ -19,6 +22,7 @@
 #include <QPointF>
 #include <QPushButton>
 #include <QRect>
+#include <QStringList>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTransform>
@@ -26,6 +30,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <optional>
 #include <string>
 #include <utility>
@@ -548,6 +553,148 @@ void ui_move_warp_button_starts_warp_from_the_bar() {
   CHECK(options_bar->height() == marquee_height);
 }
 
+// GitHub issue 350: the Move bar reads Auto-Select [Layer] | the transform types | Align |
+// Distribute "..." | Transform Controls, Snap, Auto-Nest Layers (docs/options-bar.md rules 1 to
+// 3), on one row at 1366 px; the Warp glyph carries the icon accent like the other three
+// transform types; and the shape W/H fields never join the row, so selecting a shape layer
+// does not move anything. The artifacts are the issue shots, in both schemes.
+void ui_move_options_bar_groups_its_controls() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    VectorSettingsGuard settings_guard;
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    const QRect bounds(40, 40, 120, 90);
+    const auto box_id = prepare_zone_scene(window, bounds, true);
+    window.resize(1366, 738);
+    auto* canvas = require_canvas(window);
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    // A shape layer beside the pixel layer, drawn with the Rectangle tool.
+    require_action(window, "toolRectAction")->trigger();
+    QApplication::processEvents();
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 60)),
+         canvas->widget_position_for_document_point(QPoint(320, 200)));
+    QApplication::processEvents();
+    const auto shape_id = document.active_layer_id();
+    CHECK(shape_id.has_value() && *shape_id != box_id);
+    if (!shape_id.has_value()) {
+      return;
+    }
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    patchy::ui::MainWindowTestAccess::select_layers(window, {box_id}, box_id);
+    process_events_for(20);
+
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    const auto row_tokens = [options](bool with_position) {
+      std::vector<QWidget*> row;
+      for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+        if (child->isVisible()) {
+          row.push_back(child);
+        }
+      }
+      std::sort(row.begin(), row.end(), [](const QWidget* a, const QWidget* b) { return a->x() < b->x(); });
+      QStringList tokens;
+      for (auto* widget : row) {
+        QString token = widget->objectName() == QStringLiteral("optionSeparator") ? QStringLiteral("|")
+                                                                                   : widget->objectName();
+        if (with_position) {
+          token += QStringLiteral("@%1,%2").arg(widget->x()).arg(widget->y());
+        }
+        tokens << token;
+      }
+      return tokens;
+    };
+    const QStringList expected{
+        QStringLiteral("moveAutoSelectCheck"),         QStringLiteral("moveAutoSelectTargetCombo"),
+        QStringLiteral("|"),                           QStringLiteral("moveTransformSkewButton"),
+        QStringLiteral("moveTransformDistortButton"),  QStringLiteral("moveTransformPerspectiveButton"),
+        QStringLiteral("moveWarpButton"),              QStringLiteral("|"),
+        QStringLiteral("moveAlignLeftButton"),         QStringLiteral("moveAlignHCenterButton"),
+        QStringLiteral("moveAlignRightButton"),        QStringLiteral("moveAlignTopButton"),
+        QStringLiteral("moveAlignVCenterButton"),      QStringLiteral("moveAlignBottomButton"),
+        QStringLiteral("|"),                           QStringLiteral("moveDistributeLeftButton"),
+        QStringLiteral("moveDistributeHCenterButton"), QStringLiteral("moveDistributeRightButton"),
+        QStringLiteral("moveDistributeTopButton"),     QStringLiteral("moveDistributeVCenterButton"),
+        QStringLiteral("moveDistributeBottomButton"),  QStringLiteral("moveAlignMoreButton"),
+        QStringLiteral("|"),                           QStringLiteral("moveShowTransformControlsCheck"),
+        QStringLiteral("moveSnapCheck"),               QStringLiteral("artboardAutoNestCheck")};
+    const auto tokens = row_tokens(false);
+    // One row at 1366 px: every control shares the first control's line.
+    bool one_row = true;
+    int line = -1;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible()) {
+        line = line < 0 ? child->geometry().center().y() : line;
+        one_row = one_row && std::abs(child->geometry().center().y() - line) < 8;
+      }
+    }
+    // The shape layer changes nothing on the row (no W/H readouts appear). Both rows are
+    // saved before any check, so a failing run still shows them.
+    const auto pixel_row = row_tokens(true);
+    const auto pixel_strip = options_bar->grab().toImage();
+    patchy::ui::MainWindowTestAccess::select_layers(window, {*shape_id}, *shape_id);
+    process_events_for(20);
+    const auto shape_row = row_tokens(true);
+    save_stacked_artifact("ui_issue_350_move_bar" + suffix, {pixel_strip, options_bar->grab().toImage()});
+    if (tokens != expected) {
+      std::fprintf(stderr, "  move bar: %s\n", qPrintable(tokens.join(QLatin1Char(' '))));
+    }
+    if (shape_row != pixel_row) {
+      std::fprintf(stderr, "  move bar with a shape layer: %s\n", qPrintable(shape_row.join(QLatin1Char(' '))));
+    }
+    CHECK(tokens == expected);
+    CHECK(one_row);
+    CHECK(shape_row == pixel_row);
+    for (const char* name : {"vectorShapeWidthSpin", "vectorShapeHeightSpin"}) {
+      auto* field = window.findChild<QWidget*>(QLatin1String(name));
+      CHECK(field != nullptr && !field->isVisible());
+    }
+
+    // The Warp glyph carries the icon accent, as Skew, Distort and Perspective do.
+    const QColor accent = patchy::ui::theme().icon_accent;
+    const auto accent_pixels = [&accent](const QIcon& icon) {
+      const QImage image = icon.pixmap(QSize(32, 32)).toImage().convertToFormat(QImage::Format_ARGB32);
+      int count = 0;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          const QColor color = image.pixelColor(x, y);
+          if (color.alpha() > 200 && std::abs(color.red() - accent.red()) <= 24 &&
+              std::abs(color.green() - accent.green()) <= 24 && std::abs(color.blue() - accent.blue()) <= 24) {
+            ++count;
+          }
+        }
+      }
+      return count;
+    };
+    std::vector<QImage> glyphs;
+    for (const char* name : {"moveTransformSkewButton", "moveTransformDistortButton",
+                             "moveTransformPerspectiveButton", "moveWarpButton"}) {
+      auto* button = window.findChild<QToolButton*>(QLatin1String(name));
+      CHECK(button != nullptr);
+      if (button == nullptr) {
+        continue;
+      }
+      const int count = accent_pixels(button->icon());
+      std::printf("  %s%s: %d accent pixels\n", name, suffix.c_str(), count);
+      CHECK(count >= 30);
+      glyphs.push_back(button->icon().pixmap(QSize(18, 18)).toImage());
+    }
+    for (std::size_t i = 0; i < glyphs.size(); ++i) {
+      for (std::size_t j = i + 1; j < glyphs.size(); ++j) {
+        CHECK(glyphs[i] != glyphs[j]);
+      }
+    }
+    // The transform session's Warp toggle shares the glyph.
+    auto* session_warp = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+    CHECK(session_warp != nullptr && accent_pixels(session_warp->icon()) >= 30);
+  }
+}
+
 // GitHub issue 225: Undo inside a pending Free Transform steps back through the
 // session's drags, numeric edits, and nudge runs without leaving the session; Redo
 // re-applies; with nothing left an unchanged session cancels instead of undoing
@@ -658,6 +805,7 @@ std::vector<patchy::test::TestCase> move_transform_zones_tests() {
   return {
       {"ui_transform_session_undo_steps_back_through_drags", ui_transform_session_undo_steps_back_through_drags},
       {"ui_move_warp_button_starts_warp_from_the_bar", ui_move_warp_button_starts_warp_from_the_bar},
+      {"ui_move_options_bar_groups_its_controls", ui_move_options_bar_groups_its_controls},
       {"ui_transform_zone_passive_edges_resize_and_corners_rotate",
        ui_transform_zone_passive_edges_resize_and_corners_rotate},
       {"ui_transform_zone_rotated_session_edges_follow_the_box", ui_transform_zone_rotated_session_edges_follow_the_box},

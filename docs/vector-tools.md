@@ -40,8 +40,8 @@ Fixed Size click places its W x H, and Pixels mode keeps its legacy click.
 
 The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
 link button for proportional edits) mirror the active shape layer's bounds:
-shape tools show them in Shape mode (disabled without a shape layer),
-Path Select / Direct Select and Move only with an editable shape layer. A debounced edit
+shape tools show them in Shape mode (disabled with no shape layer),
+Path Select / Direct Select only with an editable shape layer, not Move. A debounced edit
 scales the shape about its top-left through `transform_layer_vector_data`
 (live shapes stay live; one "Shape size" undo per edit). The Properties panel
 repeats the row (`propertiesShapeSizePanel`) for an active editable shape
