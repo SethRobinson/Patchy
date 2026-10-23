@@ -42,18 +42,28 @@ struct TextEngineInputs {
   std::optional<VectorPath> area;
 };
 
+// The FontSize one paragraph run of a text object hands to style runs that leave FontSize unset
+// (engine pixels): the paragraph's own character style, else its parent paragraph sheet's
+// ("Basic Paragraph" /32). Photoshop ranks it above the normal style sheet (GitHub issue 345).
+struct TextParagraphFontSize {
+  int length{0};
+  std::optional<double> size;
+};
+
 struct TextFrameGeometry {
   enum class Kind { Point, Box, Area, Unsupported };
   Kind kind{Kind::Unsupported};
   std::optional<VectorPath> area;
+  // One entry per paragraph run of the object; empty when no paragraph supplies a size.
+  std::vector<TextParagraphFontSize> paragraph_font_sizes;
 };
 
 // Unaddressed TySh index for regenerated text beside a verbatim legacy engine,
 // beyond the contiguous native object indices (the 999 probe already used TySh).
 inline constexpr std::int32_t kRegeneratedTextIndexBase = 100000;
 
-// Geometry directory only. Recognizes the older named-key point/box frames too,
-// without changing the writer's verbatim preservation of that engine format.
+// Geometry directory plus each object's paragraph font sizes. Recognizes the older named-key
+// point/box frames too, without changing the writer's verbatim preservation of that engine format.
 std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload);
 
 // Called after layers and document-level blocks have both been decoded.
@@ -75,6 +85,7 @@ class TextEngineBlock {
   // The frame index an object's view references, or nullopt.
   [[nodiscard]] std::optional<std::size_t> object_frame_index(std::size_t index) const;
   [[nodiscard]] TextFrameGeometry object_geometry(std::size_t index) const;
+  [[nodiscard]] std::vector<TextParagraphFontSize> object_paragraph_font_sizes(std::size_t index) const;
 
   // Authors a text object from the inputs and stores it at `index` (replacing the object and
   // its frame there, or appending when `index` is past the end); fonts join the FontSet as

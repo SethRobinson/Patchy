@@ -1284,7 +1284,8 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
                                                                      std::string_view text,
                                                                      int fallback_size,
                                                                      RgbColor fallback_color,
-                                                                     const CmykColorConverter& cmyk) {
+                                                                     const CmykColorConverter& cmyk,
+                                                                     std::span<const TextParagraphFontSize> paragraph_font_sizes) {
   const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
   const auto style_pos = engine.find("/StyleRun");
   if (style_pos == std::string_view::npos) {
@@ -1322,8 +1323,8 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     PsdTextStyleRun run;
     run.start = start;
     run.length = std::min(length, text_utf16_length - start);
-    run.size = std::clamp(engine_number_after_key(dictionaries[index], "/FontSize").value_or(defaults.font_size),
-                          1.0, static_cast<double>(kMaxTextSizePixels));
+    const auto explicit_size = engine_number_after_key(dictionaries[index], "/FontSize");
+    run.size = std::clamp(explicit_size.value_or(defaults.font_size), 1.0, static_cast<double>(kMaxTextSizePixels));
     run.color = extract_engine_fill_color_from_text(dictionaries[index], cmyk)
                     .value_or(defaults.fill_color.value_or(fallback_color));
     // /FauxBold is a synthetic embolden of the named face, not "use the family's bold face".
@@ -1378,7 +1379,34 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     if (run.family.empty()) {
       run.family = "Arial";
     }
-    runs.push_back(std::move(run));
+    if (explicit_size.has_value() || paragraph_font_sizes.empty()) {
+      runs.push_back(std::move(run));
+    } else {
+      // No /FontSize: the size comes from the paragraph's style ('Txt2' "Basic Paragraph" /32)
+      // before the normal style sheet, so a run split by paragraphs of different sizes splits
+      // too (GitHub issue 345: 12 pt at 300 PPI lives only there, as 50 px).
+      const int run_end = run.start + run.length;
+      int paragraph_start = 0;
+      for (std::size_t p = 0; p < paragraph_font_sizes.size() && paragraph_start < run_end; ++p) {
+        const bool last = p + 1 == paragraph_font_sizes.size();
+        const int paragraph_end = last ? run_end : paragraph_start + paragraph_font_sizes[p].length;
+        const int piece_start = std::max(run.start, paragraph_start);
+        const int piece_end = std::min(run_end, paragraph_end);
+        paragraph_start = paragraph_end;
+        if (piece_end <= piece_start) continue;
+        const auto size = std::clamp(paragraph_font_sizes[p].size.value_or(defaults.font_size), 1.0,
+                                     static_cast<double>(kMaxTextSizePixels));
+        if (!runs.empty() && piece_start > run.start && runs.back().size == size) {
+          runs.back().length += piece_end - piece_start;
+          continue;
+        }
+        auto piece = run;
+        piece.start = piece_start;
+        piece.length = piece_end - piece_start;
+        piece.size = size;
+        runs.push_back(std::move(piece));
+      }
+    }
     start += length;
   }
 
