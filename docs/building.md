@@ -116,9 +116,9 @@ AGENTS.md gives the handoff command and the short rules; these are the details b
 - Git Bash's nested quoting can drop the inner command and still exit 0, which is why the build runs from PowerShell or real cmd and why only compile/link lines or `ninja: no work to do` prove it built.
 - Call `scripts\vs-env.bat`, never VsDevCmd.bat directly ([release-process.md](release-process.md)).
 - The version comes from the generated `patchy_version.hpp` (`cmake/patchy_version.hpp.in`), included only where used. Never make it a target-wide define: that recompiles all of `patchy_ui` on every version change.
-- A running `build\release\patchy.exe` or `patchy-mcp.exe` does not block the link: a PRE_LINK step renames it aside as `<name>.stale-<stamp>.exe`. Never kill either process (Seth may have unsaved work) and never package a `.stale-` file.
+- A running `patchy.exe` or `patchy-mcp.exe` in any build folder does not block the link: a PRE_LINK step renames it aside as `<name>.stale-<stamp>.exe`. Never kill either process (Seth may have unsaved work) and never package a `.stale-` file.
 - Batch files compare exit codes against 0, never `if errorlevel 1`: a failed link exits negative.
-- A git worktree has no `.deps`: configure its release preset once with `--preset release -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64`; the build command is unchanged.
+- A git worktree has no `.deps`: configure its preset once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64` (`--preset release` the same way for a release build); the build command is unchanged.
 
 ## MSVC Release codegen
 
@@ -128,31 +128,26 @@ Executables that never ship link with `/LTCG:INCREMENTAL`: the translation check
 
 ## Incremental development builds
 
-Iterate on the `release` preset by building only the targets you will run:
-`--target patchy_ui_visual_tests`, `--target patchy_core_tests`, or `--target patchy`
-(several `--target` flags combine). A plain `--build --preset release` relinks every
-executable, and the links, not the compiles, dominate: measured October 2026 on the
-dev box with full LTCG everywhere, a change touching `main_window.hpp` and
-`canvas_widget.hpp` compiled about 130 files in 90 s, then linked
-`patchy_ui_visual_tests.exe` in 606 s, `patchy_perf_tests.exe` 545 s, `patchy-mcp.exe`
-433 s, `patchy_translation_checks.exe` 199 s and `patchy.exe` 166 s, running in
-parallel for about 12 minutes. The test programs now link with incremental LTCG
-(above). Measured on the 32-thread, 32 GB offload host (October 22, 2026), release
-preset: their first link (full, writes the `.iobj`) took about as long as before (UI
-suite 565 s, core 270 s, perf 316 s, all links in parallel). After a one-line
-`patchy_ui` edit, a default build relinked the UI suite in 502 s and perf in 161 s while
-`patchy` and `patchy-mcp` did full LTCG links beside them (`patchy-mcp` 1081 s, now the
-longest link there); with `--target` for the two suites only, a one-line `patchy_core`
-edit relinked the core suite in 89 s and the UI suite in 208 s, against 232 s and 379 s
-for earlier full links on that host. Run the full release build once, at handoff
-(AGENTS.md; Seth, October 18, 2026).
-
-`opt-dev` uses `RelWithDebInfo` in `build/opt-dev`: optimized MSVC code and debug
-symbols without Release's `/GL` and `/LTCG`. It is for the edit/build cycle; the
-`release` preset remains the required handoff and packaging build. Use the same
-Visual Studio environment and throttling wrapper as the release build in AGENTS.md.
+Development builds use the `opt-dev` preset: `RelWithDebInfo` in `build/opt-dev`,
+optimized MSVC code and debug symbols without Release's `/GL` and `/LTCG`. It is the
+edit/build cycle and the handoff build (AGENTS.md), and the desk merge queue builds it
+too; the `release` preset is built only for releases (packaging, both full suites), where
+LTCG-only warnings and failures surface (Seth, October 23, 2026). Use the same Visual
+Studio environment and throttling wrapper as AGENTS.md's handoff command, and build only
+the targets you will run while iterating: `--target patchy_ui_visual_tests`,
+`--target patchy_core_tests`, or `--target patchy` (several `--target` flags combine).
 `opt-dev-no-pch` uses its own directory and sets `PATCHY_USE_PCH=OFF` for include
 hygiene checks and timing comparisons.
+
+Why not `release` for development: its links, not the compiles, dominate. Measured
+October 2026 on the dev box with full LTCG everywhere, a change touching
+`main_window.hpp` and `canvas_widget.hpp` compiled about 130 files in 90 s, then linked
+`patchy_ui_visual_tests.exe` in 606 s, `patchy_perf_tests.exe` 545 s, `patchy-mcp.exe`
+433 s, `patchy_translation_checks.exe` 199 s and `patchy.exe` 166 s, in parallel for
+about 12 minutes. The test programs now link with incremental LTCG (above); on the
+32-thread offload host (October 22, 2026) a one-line `patchy_ui` edit still relinked the
+UI suite in 502 s while `patchy-mcp` took 1081 s for its full LTCG link. A merge-queue
+batch's `patchy.exe` LTCG link took many minutes and about 10 GB (October 23, 2026).
 
 ### Remote iteration: one target, opt-dev
 
@@ -173,9 +168,8 @@ Measured on the 16-thread offload host (October 19, 2026) after a one-line chang
 default full `release` build took 1164 s, `-Preset opt-dev -BuildTarget
 patchy_ui_visual_tests` 96 s, and 79 s once reconfiguring stopped rewriting the codec
 headers (below). The first opt-dev build in a host's work tree is a full compile of that
-suite (462 s). Finish with the default `release` run (or the local handoff build) before
-committing: opt-dev skips the LTCG links, which can report warnings and failures of their
-own.
+suite (462 s). The default preset stays `release`, so pass `-Preset opt-dev` for
+development runs; LTCG-only warnings and failures are a release-day concern.
 
 Every remote run reconfigures (`cmake --preset`), so a file the configure step generates
 must only be rewritten when its content changes: `file(WRITE)` always touches it, and the
@@ -225,7 +219,7 @@ macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (pre
 
 ### Windows offload build (with Seth's permission)
 
-`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on another Windows machine when Seth asks for it or has given a standing permission (recorded in `agents_local.md`). The local `build\release` stays the release gate and the only packaging source.
+`remote-build.ps1 -Target windows` builds on another Windows machine when Seth asks for it or has given a standing permission (recorded in `agents_local.md`): `-Preset opt-dev` for development, the default `release` preset only for release checks. The local `build\release` stays the release gate and the only packaging source.
 
 - **Hosts.** The `windows` config entry may be an ordered list. The script probes each over ssh: unreachable is skipped, one running cl/link/ninja/cmake or a suite is busy, the first idle one builds. All reachable hosts busy: exit 75, never a build beside them (`-WaitMinutes N` waits). `-WindowsHost <ssh>` picks one (still probed). Runs hold a per-host lock (remote-lock.ps1; locked: exit 75). A leftover lock from this machine is taken over only when its run's local process is gone AND the host probes idle: a remote build outlives a killed ssh client. Any other lock needs `-BreakLock` after checking its holder is gone. Never kill another session's build there.
 - **Layout.** Bare repo `~\patchy.git`; work tree = the entry's `workTree`. Qt is the dev box's `.deps\Qt\6.8.3\msvc2022_64` copied to the same relative path, so the unmodified `release` preset resolves it.

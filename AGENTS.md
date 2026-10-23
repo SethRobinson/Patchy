@@ -24,41 +24,42 @@ Keep this file at or below 30,000 bytes. Implementation knowledge belongs in `do
 
 ## Build, test, and release handoff
 
-For code changes, ALWAYS finish work in this repository by refreshing the local release build - `build\release\patchy.exe` must be freshly built from the final working tree at handoff. If the change is documentation-only or cannot affect runtime behavior, do not run the full release build/test handoff; report that it was skipped because the change is non-code.
+For code changes, ALWAYS finish by refreshing the local dev build: `build\opt-dev\patchy.exe` freshly built from the final working tree. Development uses the `opt-dev` preset (no `/GL` or `/LTCG`, fast links); the LTCG `release` preset is for releases only (Seth, October 23, 2026). For a documentation-only change or one that cannot affect runtime behavior, skip the build/test handoff and say so.
 
-Required release handoff steps:
+Required handoff steps:
 
-1. Build the release preset:
+1. Build the opt-dev preset:
 
    ```powershell
-   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && scripts\run-throttled.bat "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release -j 20'
+   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && scripts\run-throttled.bat "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset opt-dev -j 20'
    ```
 
    Rules (reasons and details: "Local Windows release build" in [docs/building.md](docs/building.md)):
-   - Builds, tests and batch files run only through `scripts\run-throttled.bat`, builds with `-j 20`. It refuses a second `cmake --build` on the box (exit 3): wait, or offload with `scripts\remote\remote-build.ps1 -Target windows`.
+   - Builds, tests and batch files run only through `scripts\run-throttled.bat`, builds with `-j 20`. It refuses a second `cmake --build` on the box (exit 3): wait, or offload with `scripts\remote\remote-build.ps1 -Target windows -Preset opt-dev`.
    - Run from the repository root in PowerShell or real cmd, never Git Bash. Require compile/link lines or `ninja: no work to do`, not just exit 0.
-   - Iterate with `--target <the test/app you run>` (remote: `-BuildTarget`, with `-Preset opt-dev`); the full build (full LTCG links of `patchy` and `patchy-mcp`, incremental LTCG for the test programs) runs once, at handoff.
-   - A worktree configures once with `--preset release -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64`.
+   - Iterate with `--target <the test/app you run>` (remote: `-BuildTarget`, with `-Preset opt-dev`); build every target once, at handoff.
+   - A worktree configures once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64`.
    - Never kill a running `patchy.exe` or `patchy-mcp.exe` (the link renames it aside), never package a `.stale-` file.
 
-2. Run release test binaries from `build\release`, scoped to the change:
+2. Run the test binaries from `build\opt-dev`, scoped to the change:
 
    ```powershell
-   cmd /s /c 'cd /d build\release && ..\..\scripts\run-throttled.bat .\patchy_core_tests.exe'
-   $env:QT_QPA_PLATFORM='offscreen'; cmd /s /c 'cd /d build\release && ..\..\scripts\run-throttled.bat .\patchy_ui_visual_tests.exe'
+   cmd /s /c 'cd /d build\opt-dev && ..\..\scripts\run-throttled.bat .\patchy_core_tests.exe <filter>'
+   $env:QT_QPA_PLATFORM='offscreen'; cmd /s /c 'cd /d build\opt-dev && ..\..\scripts\run-throttled.bat .\patchy_ui_visual_tests.exe <filter>'
    ```
 
-   - **Per-change verification runs only the tests the change could possibly affect**. Both binaries accept a name-substring filter as the first argument; the UI suite also reads `PATCHY_UI_TEST_FILTER`. Pick filters that cover the feature, the changed tests, and any shared code the change touches, and report the filters used. Never run a full suite "to be safe" for a localized change (a new dialog, menu item, or script API needs its own tests plus the theme-token and hotkey checks).
+   - **Per-change verification runs only the tests for what the change touches**. Both binaries take a name-substring filter as the first argument (the UI suite also reads `PATCHY_UI_TEST_FILTER`). Name the feature's own tests and those of the functions and files the diff changes, by full name or a narrow prefix, and report the filters. A family prefix (`ai_`, `hotkey`, `ui_theme_`) only when the change reaches that whole family; never a full suite "to be safe".
+   - Cross-cutting checks only for their surface: theme-token checks for QSS, theme roles or styled object names; `ui_offscreen_dialog_sweep` for a new or changed dialog; `ui_hotkey_defaults_have_no_conflicts` for actions and shortcuts; byte canaries for their writers. Rerun a test set only after an edit that can change its result.
    - Widen to the full core suite only when the change reaches core-wide surfaces: `src/core`, shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or other serialization, byte-pinned/canary paths, or refactors and file moves whose blast radius cannot be filtered.
    - Widen to the full UI visual suite only for changes that can affect rendering or UI behavior application-wide: compositing/rendering, application-wide QSS/theme or hotkeys, or the visual test harness itself. Never run it for build-system or other non-rendering changes.
    - **A real release (preparing release builds for final packaging and upload) always runs both full suites.** Filtered runs miss ordered cross-test state such as QSettings and artifact dependencies, so that is the one time the whole suite is mandatory.
    - **Judge a suite by its `[FAIL]` lines as well as its exit code** (both trustworthy only through `run-throttled.bat`; see step 1), and report its `[SUMMARY]` skip count: a `[SKIP]` test checked nothing. A filter that selects no test exits 2; `--list` shows the names ([docs/testing.md](docs/testing.md)).
 
-3. Explicitly report whether `build\release\patchy.exe` exists.
+3. Explicitly report whether `build\opt-dev\patchy.exe` exists.
 
-4. Changes to platform-guarded code, CMake files/presets, or packaging also require the affected best-effort remote build: `scripts\remote\remote-build.ps1 -Target mac` and/or `-Target linux` (Linux tests on the Flatpak's Qt: [docs/linux-testing.md](docs/linux-testing.md)). Report failures even though Windows remains the release gate. When Seth asks for it (a standing permission in `agents_local.md` counts), `-Target windows` builds the `release` preset on the offload host; local `build\release` stays the release gate and packaging source. See [docs/building.md](docs/building.md) ("Remote build machinery") and [docs/platform.md](docs/platform.md).
+4. Changes to platform-guarded code, CMake files/presets, or packaging also require the affected best-effort remote build: `scripts\remote\remote-build.ps1 -Target mac` and/or `-Target linux` (Linux tests on the Flatpak's Qt: [docs/linux-testing.md](docs/linux-testing.md)). Report failures even though Windows remains the release gate. When Seth asks for it (a standing permission in `agents_local.md` counts), `-Target windows -Preset opt-dev` builds on the offload host. See [docs/building.md](docs/building.md) ("Remote build machinery") and [docs/platform.md](docs/platform.md).
 
-Do not say a release was created unless the release preset build succeeded.
+Releases build the `release` preset into `build\release` (the release gate and packaging source) and run both full suites there; LTCG-only warnings or failures surface then. Do not say a release was created unless the release preset build succeeded.
 
 ## Universal engineering invariants
 
