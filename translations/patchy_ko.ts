@@ -11819,6 +11819,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>검색 결과</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>픽셀에 보이지 않는 워터마크(%1)가 들어 있습니다. 메타데이터를 제거해도 지워지지 않습니다.</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>워터마크</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>워터마크</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>메타데이터에 선언됨</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>콘텐츠 자격 증명:</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>파일 메타데이터에 선언된 워터마크가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>픽셀 속 보이지 않는 워터마크</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>워터마크 검사는 Stable Diffusion 1.x, 2.x, SDXL이 생성한 이미지에 넣는 공개된 보이지 않는 워터마크를 현재 이미지에서 찾습니다. 자르기, 크기 조정, 다시 칠하기를 하면 보통 사라집니다.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>워터마크 검사</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>이미지가 너무 작아 이 워터마크가 들어갈 수 없습니다. 최소 256 x 256 픽셀이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>알려진 워터마크를 찾지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>%1 워터마크를 찾았습니다: %3비트 중 %2비트 일치.</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Google SynthID 같은 많은 워터마크는 소유자의 도구로만 읽을 수 있어 여기서 검사해도 찾을 수 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

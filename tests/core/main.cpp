@@ -199,6 +199,7 @@ int main(int argc, char** argv) {
            ai_selection_tests,
            gmic_tests,
            file_info_metadata_tests,
+           invisible_watermark_tests,
            tiff_layers_tests,
            hdr_display_tests,
        }) {

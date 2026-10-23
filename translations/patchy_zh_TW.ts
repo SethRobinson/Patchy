@@ -11819,6 +11819,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>搜尋結果</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>像素中帶有不可見的浮水印（%1）。移除中繼資料不會去除它。</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>浮水印</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>浮水印</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>中繼資料中宣告</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>內容憑證：</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>檔案的中繼資料未宣告浮水印。</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>像素中的不可見浮水印</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>「掃描浮水印」會檢查影像目前的樣子，尋找 Stable Diffusion 1.x、2.x 和 SDXL 在產生的影像中加入的公開不可見浮水印。裁切、調整大小或重新繪製影像通常會去除這些浮水印。</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>掃描浮水印</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>影像太小，無法帶有這些浮水印：至少需要 256 x 256 像素。</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>未找到任何已知的浮水印。</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>找到 %1 浮水印：%3 位元中有 %2 位元相符。</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>許多浮水印（例如 Google SynthID）只能用其擁有者的工具讀取，因此這裡的掃描無法找到它們。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

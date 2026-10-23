@@ -11889,6 +11889,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>Результаты поиска</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>Пиксели содержат невидимый водяной знак (%1). Удаление метаданных его не убирает.</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>водяные знаки</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Водяные знаки</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>Указаны в метаданных</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>Content Credentials:</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>В метаданных файла водяные знаки не указаны.</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>Невидимые водяные знаки в пикселях</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>«Найти водяные знаки» проверяет изображение в текущем виде на открытые невидимые водяные знаки, которые Stable Diffusion 1.x, 2.x и SDXL добавляют в создаваемые изображения. Кадрирование, изменение размера или перерисовка обычно их удаляют.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>Найти водяные знаки</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>Изображение слишком маленькое для таких водяных знаков: нужно не меньше 256 x 256 пикселей.</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>Ни один из известных водяных знаков не найден.</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>Найден водяной знак %1: совпадают %2 из %3 бит.</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Многие водяные знаки, например Google SynthID, читаются только инструментами их владельцев, поэтому эта проверка их не найдёт.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

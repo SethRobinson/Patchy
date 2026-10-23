@@ -11854,6 +11854,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>Résultats de la recherche</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>Les pixels portent un filigrane invisible (%1). Supprimer les métadonnées ne le retire pas.</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>filigranes</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Filigranes</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>Déclarés dans les métadonnées</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>Content Credentials :</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>Les métadonnées du fichier ne déclarent aucun filigrane.</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>Filigranes invisibles dans les pixels</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>Rechercher des filigranes examine l&apos;image telle qu&apos;elle est maintenant pour y trouver les filigranes invisibles ouverts que Stable Diffusion 1.x, 2.x et SDXL ajoutent aux images qu&apos;ils génèrent. Recadrer, redimensionner ou repeindre l&apos;image les fait généralement disparaître.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>Rechercher des filigranes</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>L&apos;image est trop petite pour porter ces filigranes : il leur faut au moins 256 x 256 pixels.</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>Aucun des filigranes connus n&apos;a été trouvé.</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>Filigrane %1 trouvé : %2 bits sur %3 correspondent.</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>De nombreux filigranes, comme Google SynthID, ne se lisent qu&apos;avec les outils de leur propriétaire : cette recherche ne peut pas les trouver.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

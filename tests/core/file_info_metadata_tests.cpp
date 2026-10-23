@@ -862,6 +862,49 @@ void cbor_and_jumbf_summaries() {
   CHECK(!md::cbor_to_text(Bytes{0x7A, 0xFF, 0xFF, 0xFF}).empty());
 }
 
+// A manifest with a TrustMark soft-binding assertion and a c2pa.watermarked action
+// (C2PA 2.x) shows a "watermark" row; a manifest without either does not.
+void c2pa_watermark_declarations_are_flagged() {
+  Bytes binding{0xA2};
+  append(binding, cbor_text("alg"));
+  append(binding, cbor_text("com.adobe.trustmark.Q"));
+  append(binding, cbor_text("blocks"));
+  binding.push_back(0x80);
+  Bytes actions{0xA1};
+  append(actions, cbor_text("actions"));
+  actions.push_back(0x81);
+  actions.push_back(0xA1);
+  append(actions, cbor_text("action"));
+  append(actions, cbor_text("c2pa.watermarked.bound"));
+  Bytes inner = jumbf_superbox("c2pa.actions.v2", jumbf_box("cbor", actions));
+  append(inner, jumbf_superbox("c2pa.soft-binding", jumbf_box("cbor", binding)));
+  const auto manifest = jumbf_superbox("c2pa", inner);
+  const auto summary = md::summarize_jumbf(manifest);
+  CHECK(summary.declares_watermark());
+  CHECK(summary.soft_bindings == std::vector<std::string>{"com.adobe.trustmark.Q"});
+  CHECK(summary.watermark_actions == std::vector<std::string>{"c2pa.watermarked.bound"});
+  CHECK(!md::summarize_jumbf(sample_c2pa()).declares_watermark());
+
+  Bytes png = sample_png();
+  // A second caBX chunk, right before IEND.
+  const auto cabx = png_chunk("caBX", manifest);
+  png.insert(png.end() - 12, cabx.begin(), cabx.end());
+  const auto info = md::extract_file_info(png);
+  const auto rows = md::describe_file_info(info, {});
+  const auto watermark = std::find_if(rows.begin(), rows.end(),
+                                      [](const auto& row) { return row.privacy == md::PrivacyClass::Watermark; });
+  CHECK(watermark != rows.end());
+  if (watermark != rows.end()) {
+    CHECK(watermark->value == "Soft binding: com.adobe.trustmark.Q; Action: c2pa.watermarked.bound");
+  }
+  CHECK(md::privacy_summary(rows).contains(md::PrivacyClass::Watermark));
+  CHECK(md::privacy_class_id(md::PrivacyClass::Watermark) == "watermark");
+  // A plain manifest gives no watermark row.
+  const auto plain = md::describe_file_info(md::extract_file_info(sample_png()), {});
+  CHECK(std::none_of(plain.begin(), plain.end(),
+                     [](const auto& row) { return row.privacy == md::PrivacyClass::Watermark; }));
+}
+
 void inflate_is_capped() {
   const Bytes zeros(4U * 1024U * 1024U, 0);
   const auto compressed = zlib(zeros);
@@ -1447,6 +1490,7 @@ std::vector<patchy::test::TestCase> file_info_metadata_tests() {
       {"metadata_tiff_pdf_svg_containers_extract", tiff_pdf_svg_containers_extract},
       {"metadata_describe_file_info_lists_everything_with_privacy", describe_file_info_lists_everything_with_privacy},
       {"metadata_cbor_and_jumbf_summaries", cbor_and_jumbf_summaries},
+      {"metadata_c2pa_watermark_declarations_are_flagged", c2pa_watermark_declarations_are_flagged},
       {"metadata_inflate_is_capped", inflate_is_capped},
       {"metadata_container_scanners_survive_mutation", container_scanners_survive_mutation},
       {"metadata_extract_file_info_from_unicode_paths", extract_file_info_from_unicode_paths},

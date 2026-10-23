@@ -11838,6 +11838,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <comment>new document template list caption</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

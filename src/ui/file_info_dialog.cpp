@@ -1,8 +1,10 @@
 #include "ui/file_info_dialog.hpp"
+#include "core/invisible_watermark.hpp"
 
 #include "formats/metadata/iptc_iim.hpp"
 #include "formats/metadata/metadata_edit.hpp"
 #include "formats/metadata/metadata_view.hpp"
+#include "render/compositor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
@@ -38,6 +40,7 @@
 
 #include <functional>
 #include <map>
+#include <string>
 
 namespace patchy::ui {
 namespace {
@@ -343,7 +346,9 @@ void replace_page_content(QScrollArea* page, QWidget* content) {
   page->setWidget(content);
 }
 
-QString privacy_summary_text(const std::map<md::PrivacyClass, std::size_t>& counts) {
+// `pixel_watermarks` names what Scan for Watermarks found; stripping cannot remove those.
+QString privacy_summary_text(const std::map<md::PrivacyClass, std::size_t>& counts,
+                             const QString& pixel_watermarks) {
   QStringList parts;
   for (const auto& [privacy, count] : counts) {
     if (privacy == md::PrivacyClass::Timestamp || privacy == md::PrivacyClass::None) {
@@ -351,12 +356,20 @@ QString privacy_summary_text(const std::map<md::PrivacyClass, std::size_t>& coun
     }
     parts.push_back(privacy_class_label(privacy));
   }
-  if (parts.isEmpty()) {
-    return {};
+  QString text;
+  if (!parts.isEmpty()) {
+    text = QObject::tr("This document carries information you may not want to share: %1. Strip All Metadata "
+                       "removes it.")
+               .arg(parts.join(QStringLiteral(", ")));
   }
-  return QObject::tr("This document carries information you may not want to share: %1. Strip All Metadata "
-                     "removes it.")
-      .arg(parts.join(QStringLiteral(", ")));
+  if (!pixel_watermarks.isEmpty()) {
+    if (!text.isEmpty()) {
+      text += QLatin1Char(' ');
+    }
+    text += QObject::tr("The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.")
+                .arg(pixel_watermarks);
+  }
+  return text;
 }
 
 QString file_size_text(std::uint64_t size) {
@@ -387,6 +400,8 @@ QString privacy_class_label(MetadataPrivacy privacy) {
       return QObject::tr("AI generation prompts");
     case MetadataPrivacy::Provenance:
       return QObject::tr("Content Credentials");
+    case MetadataPrivacy::Watermark:
+      return QObject::tr("watermarks");
   }
   return {};
 }
@@ -625,6 +640,8 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
   add_page(QObject::tr("Color and Image"), QStringLiteral("fileInfoColorPage"), color_page);
   add_page(QObject::tr("History and Provenance"), QStringLiteral("fileInfoHistoryPage"), history_page);
   auto* ai_item = add_page(QObject::tr("AI Generation"), QStringLiteral("fileInfoAiPage"), ai_page);
+  auto* watermarks_page = scroll_page(nullptr);
+  add_page(QObject::tr("Watermarks"), QStringLiteral("fileInfoWatermarksPage"), watermarks_page);
   auto* thumbnails_item =
       add_page(QObject::tr("Embedded Thumbnails"), QStringLiteral("fileInfoThumbnailsPage"), thumbnails_page);
   add_page(QObject::tr("File"), QStringLiteral("fileInfoFilePage"), file_page);
@@ -679,6 +696,8 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
   md::FileInfoFields baseline;
   std::vector<md::MetadataEntry> entries;
   std::function<void()> populate;
+  // Scan for Watermarks reads the pixels only when asked (never at open or per repaint).
+  std::optional<InvisibleWatermarkScan> watermark_scan;
 
   // Folds pending field edits into the working copy before a staged operation.
   const auto commit_fields = [&] {
@@ -900,6 +919,62 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     ai_item->setHidden(!ai.present());
   };
 
+  const auto build_watermarks = [&] {
+    auto* content = new QWidget();
+    auto* layout = new QVBoxLayout(content);
+    RowsBuilder rows(layout, content);
+    rows.heading(QObject::tr("Declared in metadata"));
+    bool declared = false;
+    for (const auto& item : working.observed) {
+      if (item.privacy == md::PrivacyClass::Watermark) {
+        rows.row(QObject::tr("Content Credentials:"), item.summary);
+        declared = true;
+      }
+    }
+    if (!declared) {
+      rows.note(QObject::tr("The file's metadata declares no watermark."));
+    }
+    rows.heading(QObject::tr("Invisible watermarks in the pixels"));
+    rows.note(QObject::tr("Scan for Watermarks checks the image as it looks now for the open invisible watermarks "
+                          "that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, "
+                          "resizing or repainting the image usually removes them."));
+    auto* scan_button = new QPushButton(QObject::tr("Scan for Watermarks"), content);
+    scan_button->setObjectName(QStringLiteral("fileInfoScanWatermarksButton"));
+    QObject::connect(scan_button, &QPushButton::clicked, &dialog, [&] {
+      commit_fields();
+      QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+      watermark_scan = scan_invisible_watermarks(Compositor{}.flatten_rgb8(document));
+      QGuiApplication::restoreOverrideCursor();
+      populate();
+    });
+    rows.widget(scan_button);
+    if (watermark_scan) {
+      QString result;
+      if (!watermark_scan->scanned) {
+        result = QObject::tr("The image is too small to carry these watermarks: they need at least 256 x 256 "
+                             "pixels.");
+      } else if (watermark_scan->matches.empty()) {
+        result = QObject::tr("None of the known watermarks was found.");
+      } else {
+        QStringList found;
+        for (const auto& match : watermark_scan->matches) {
+          found.push_back(QObject::tr("Found the %1 watermark: %2 of %3 bits match.")
+                              .arg(QString::fromLatin1(match.name.data(), static_cast<qsizetype>(match.name.size())))
+                              .arg(match.bit_count - match.differing_bits)
+                              .arg(match.bit_count));
+        }
+        result = found.join(QLatin1Char('\n'));
+      }
+      auto* label = value_label(result, content);
+      label->setObjectName(QStringLiteral("fileInfoWatermarkScanResult"));
+      rows.widget(label);
+    }
+    rows.note(QObject::tr("Many watermarks, such as Google SynthID, can only be read with their owners' tools, so "
+                          "no scan here can find them."));
+    layout->addStretch(1);
+    replace_page_content(watermarks_page, content);
+  };
+
   const auto build_thumbnails = [&] {
     auto* content = new QWidget();
     auto* layout = new QVBoxLayout(content);
@@ -1000,13 +1075,29 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     editors.load(baseline);
     editors.format->setText(utf8(working.source_format));
     entries = md::describe_file_info(working, working_icc);
-    const auto summary = privacy_summary_text(md::privacy_summary(entries));
+    QStringList pixel_watermarks;
+    const auto counts = md::privacy_summary(entries);
+    if (watermark_scan) {
+      for (const auto& match : watermark_scan->matches) {
+        const auto name = QString::fromLatin1(match.name.data(), static_cast<qsizetype>(match.name.size()));
+        pixel_watermarks.push_back(name);
+        // All Metadata values are untranslated identifiers (docs/file-info.md).
+        entries.push_back(md::MetadataEntry{
+            "Pixel scan", "Invisible watermark",
+            name.toStdString() + " (" + std::to_string(match.bit_count - match.differing_bits) + " of " +
+                std::to_string(match.bit_count) + " bits match" +
+                (match.red_blue_swapped ? ", red and blue exchanged)" : ")"),
+            "pixels", md::PrivacyClass::Watermark});
+      }
+    }
+    const auto summary = privacy_summary_text(counts, pixel_watermarks.join(QStringLiteral(", ")));
     banner->setText(summary);
     banner->setVisible(!summary.isEmpty());
     build_camera();
     build_color();
     build_history();
     build_ai();
+    build_watermarks();
     build_thumbnails();
     build_file();
     build_all();

@@ -11819,6 +11819,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>検索結果</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>ピクセルに見えない透かし（%1）が含まれています。メタデータを削除しても透かしは消えません。</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>透かし</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>透かし</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>メタデータで宣言</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>コンテンツ認証情報:</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>ファイルのメタデータに透かしの宣言はありません。</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>ピクセル内の見えない透かし</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>「透かしをスキャン」は、Stable Diffusion 1.x、2.x、SDXL が生成した画像に加える公開された見えない透かしを、現在の画像から探します。切り抜き、サイズ変更、塗り直しを行うと、通常は透かしが消えます。</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>透かしをスキャン</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>画像が小さすぎるため、これらの透かしは入りません。256 x 256 ピクセル以上が必要です。</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>既知の透かしは見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>%1 の透かしが見つかりました: %3 ビット中 %2 ビットが一致。</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Google SynthID など多くの透かしは、所有者のツールでしか読み取れないため、ここでのスキャンでは見つかりません。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

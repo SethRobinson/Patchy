@@ -29,6 +29,8 @@ std::string_view privacy_class_id(PrivacyClass value) noexcept {
       return "aiPrompt";
     case PrivacyClass::Provenance:
       return "provenance";
+    case PrivacyClass::Watermark:
+      return "watermark";
   }
   return "none";
 }

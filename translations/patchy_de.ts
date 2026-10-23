@@ -11854,6 +11854,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>Suchergebnisse</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>Die Pixel enthalten ein unsichtbares Wasserzeichen (%1). Das Entfernen der Metadaten entfernt es nicht.</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>Wasserzeichen</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Wasserzeichen</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>In den Metadaten angegeben</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>Content Credentials:</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>Die Metadaten der Datei geben kein Wasserzeichen an.</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>Unsichtbare Wasserzeichen in den Pixeln</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>Nach Wasserzeichen suchen prüft das Bild in seinem jetzigen Zustand auf die offenen unsichtbaren Wasserzeichen, die Stable Diffusion 1.x, 2.x und SDXL in die erzeugten Bilder einfügen. Zuschneiden, Skalieren oder Übermalen entfernt sie meist.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>Nach Wasserzeichen suchen</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>Das Bild ist zu klein für diese Wasserzeichen: Sie brauchen mindestens 256 x 256 Pixel.</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>Keines der bekannten Wasserzeichen wurde gefunden.</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>Wasserzeichen von %1 gefunden: %2 von %3 Bits stimmen überein.</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Viele Wasserzeichen, etwa Google SynthID, lassen sich nur mit den Werkzeugen ihrer Eigentümer lesen; diese Suche kann sie nicht finden.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -131,6 +131,17 @@ struct Builder {
     if (text.empty() && !summary.labels.empty()) {
       text = std::to_string(summary.labels.size()) + " JUMBF boxes";
     }
+    if (summary.declares_watermark()) {
+      std::string declared;
+      for (const auto& algorithm : summary.soft_bindings) {
+        declared += (declared.empty() ? "" : "; ") + ("Soft binding: " + algorithm);
+      }
+      for (const auto& action : summary.watermark_actions) {
+        declared += (declared.empty() ? "" : "; ") + ("Action: " + action);
+      }
+      observe(container, "Watermark declared in Content Credentials", std::move(declared), 0,
+              MetadataPrivacy::Watermark);
+    }
     observe(std::move(container), "C2PA Content Credentials", text, jumbf.size(), MetadataPrivacy::Provenance,
             make_metadata_bytes(to_bytes(jumbf)));
   }

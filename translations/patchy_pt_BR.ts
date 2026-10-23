@@ -11854,6 +11854,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document template list caption</comment>
         <translation>Resultados da pesquisa</translation>
     </message>
+    <message>
+        <source>The pixels carry an invisible watermark (%1). Stripping metadata does not remove it.</source>
+        <translation>Os pixels contêm uma marca d&apos;água invisível (%1). Remover os metadados não a remove.</translation>
+    </message>
+    <message>
+        <source>watermarks</source>
+        <translation>marcas d&apos;água</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Marcas d&apos;água</translation>
+    </message>
+    <message>
+        <source>Declared in metadata</source>
+        <translation>Declaradas nos metadados</translation>
+    </message>
+    <message>
+        <source>Content Credentials:</source>
+        <translation>Content Credentials:</translation>
+    </message>
+    <message>
+        <source>The file&apos;s metadata declares no watermark.</source>
+        <translation>Os metadados do arquivo não declaram nenhuma marca d&apos;água.</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks in the pixels</source>
+        <translation>Marcas d&apos;água invisíveis nos pixels</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>Procurar marcas d&apos;água verifica a imagem como está agora em busca das marcas d&apos;água invisíveis abertas que o Stable Diffusion 1.x, 2.x e SDXL adicionam às imagens que geram. Cortar, redimensionar ou repintar a imagem geralmente as remove.</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks</source>
+        <translation>Procurar marcas d&apos;água</translation>
+    </message>
+    <message>
+        <source>The image is too small to carry these watermarks: they need at least 256 x 256 pixels.</source>
+        <translation>A imagem é pequena demais para conter essas marcas d&apos;água: elas precisam de pelo menos 256 x 256 pixels.</translation>
+    </message>
+    <message>
+        <source>None of the known watermarks was found.</source>
+        <translation>Nenhuma das marcas d&apos;água conhecidas foi encontrada.</translation>
+    </message>
+    <message>
+        <source>Found the %1 watermark: %2 of %3 bits match.</source>
+        <translation>Marca d&apos;água do %1 encontrada: %2 de %3 bits coincidem.</translation>
+    </message>
+    <message>
+        <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
+        <translation>Muitas marcas d&apos;água, como o Google SynthID, só podem ser lidas com as ferramentas de seus donos, então esta busca não consegue encontrá-las.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

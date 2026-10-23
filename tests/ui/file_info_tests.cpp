@@ -37,8 +37,11 @@
 #include "formats/metadata/metadata_view.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
 #include "formats/metadata/xmp.hpp"
+#include "core/invisible_watermark.hpp"
+#include "invisible_watermark_reference.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/file_info_dialog.hpp"
+#include <QPushButton>
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include <QApplication>
@@ -571,6 +574,139 @@ void ui_file_info_shows_the_psd_save_stamp() {
   CHECK(show_file_info_and_capture(window, QStringLiteral("after-photoshop-file"), true).startsWith(QStringLiteral("Adobe Photoshop")));
 }
 
+QImage rgb_qimage(const std::vector<std::uint8_t>& rgb, int width, int height) {
+  QImage image(width, height, QImage::Format_RGB888);
+  for (int y = 0; y < height; ++y) {
+    std::memcpy(image.scanLine(y), rgb.data() + static_cast<std::size_t>(y) * width * 3,
+                static_cast<std::size_t>(width) * 3);
+  }
+  return image;
+}
+
+patchy::InvisibleWatermarkScan scan_qimage(const QImage& source) {
+  const auto image = source.convertToFormat(QImage::Format_RGB888);
+  return patchy::scan_invisible_watermarks(
+      std::span(image.constBits(), static_cast<std::size_t>(image.sizeInBytes())), image.width(), image.height(),
+      static_cast<std::size_t>(image.bytesPerLine()), 3);
+}
+
+// File Info's Watermarks page (docs/file-info.md, "Watermarks"): nothing is scanned
+// until Scan for Watermarks is pressed; a hit shows on the page, in the banner and in
+// All Metadata; a clean image reports none. Also checks the decoder after JPEG
+// recompression.
+void ui_file_info_scans_for_watermarks() {
+  constexpr int kSize = 512;
+  const auto clean = patchy::test::watermark_fixture_image(kSize, kSize, 7);
+  const auto& known = patchy::known_invisible_watermarks();
+  const auto xl =
+      std::find_if(known.begin(), known.end(), [](const auto& item) { return item.id == "stableDiffusionXL"; });
+  CHECK(xl != known.end());
+  const auto marked_rgb = patchy::test::embed_dwt_dct_reference(clean, kSize, kSize, xl->bits,
+                                                                patchy::test::WatermarkEmbedPath::Float);
+  const auto marked = rgb_qimage(marked_rgb, kSize, kSize);
+  const auto marked_path = artifact_dir() + QStringLiteral("/sdxl-watermarked.png");
+  const auto clean_path = artifact_dir() + QStringLiteral("/no-watermark.png");
+  CHECK(marked.save(marked_path));
+  CHECK(rgb_qimage(clean, kSize, kSize).save(clean_path));
+
+  CHECK(scan_qimage(marked).matches.size() == 1);
+  // JPEG recompression (Qt's encoder subsamples chroma 4:2:0): recorded, not required.
+  // The mark lives in fine chroma detail, so the decoder does not survive it
+  // (docs/file-info.md, "Watermarks"); the scan must still run and report cleanly.
+  for (const int quality : {100, 95, 90}) {
+    QBuffer buffer;
+    buffer.open(QIODevice::WriteOnly);
+    CHECK(marked.save(&buffer, "JPG", quality));
+    const auto reloaded = QImage::fromData(buffer.data(), "JPG").convertToFormat(QImage::Format_RGB888);
+    CHECK(scan_qimage(reloaded).scanned);
+    int best = 48;
+    for (int reading = 0; reading < 8; ++reading) {
+      const patchy::DwtDctDecodeOptions options{
+          (reading & 1) != 0, (reading & 2) != 0,
+          (reading & 4) != 0 ? patchy::DwtDctBitRule::TwoCluster : patchy::DwtDctBitRule::Library};
+      const auto bits = patchy::decode_dwt_dct_bits(
+          std::span(reloaded.constBits(), static_cast<std::size_t>(reloaded.sizeInBytes())), reloaded.width(),
+          reloaded.height(), static_cast<std::size_t>(reloaded.bytesPerLine()), 3, 48, options);
+      int differing = 0;
+      for (std::size_t i = 0; i < bits.size(); ++i) {
+        differing += bits[i] != xl->bits[i] ? 1 : 0;
+      }
+      best = std::min(best, differing);
+    }
+    std::cout << "  JPEG quality " << quality << ": best reading has " << best << " of 48 bits wrong ("
+              << (scan_qimage(reloaded).matches.empty() ? "not found" : "found") << ")\n";
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto inspect = [&](const QString& path, bool expect_hit) {
+    MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* banner = dialog->findChild<QLabel*>(QStringLiteral("fileInfoPrivacyBanner"));
+      CHECK(banner != nullptr);
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+      CHECK(categories != nullptr);
+      for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+        if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoWatermarksPage")) {
+          categories->setCurrentRow(row);
+        }
+      }
+      QApplication::processEvents();
+      // Nothing is scanned before the button is pressed.
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("fileInfoWatermarkScanResult")) == nullptr);
+      CHECK(banner != nullptr && !banner->text().contains(QStringLiteral("Stable Diffusion")));
+      auto* scan = dialog->findChild<QPushButton*>(QStringLiteral("fileInfoScanWatermarksButton"));
+      CHECK(scan != nullptr && scan->isVisible());
+      if (scan != nullptr) {
+        scan->click();
+      }
+      QApplication::processEvents();
+      QLabel* result = nullptr;
+      for (auto* label : dialog->findChildren<QLabel*>(QStringLiteral("fileInfoWatermarkScanResult"))) {
+        if (label->isVisible()) {
+          result = label;
+        }
+      }
+      CHECK(result != nullptr);
+      auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
+      CHECK(tree != nullptr);
+      const auto rows = tree != nullptr ? tree->findItems(QStringLiteral("Invisible watermark"),
+                                                          Qt::MatchExactly | Qt::MatchRecursive)
+                                        : QList<QTreeWidgetItem*>{};
+      if (expect_hit) {
+        CHECK(result != nullptr && result->text().contains(QStringLiteral("Stable Diffusion XL")));
+        CHECK(banner != nullptr && !banner->isHidden() &&
+              banner->text().contains(QStringLiteral("Stable Diffusion XL")));
+        CHECK(rows.size() == 1);
+        if (rows.size() == 1) {
+          CHECK(rows.front()->text(3) == patchy::ui::privacy_class_label(patchy::MetadataPrivacy::Watermark));
+        }
+        dialog->resize(dialog->width(), std::max(dialog->height(), 640));
+        QApplication::processEvents();
+        capture_widget_artifact("ui_file_info_watermark_found", *dialog);
+      } else {
+        CHECK(result != nullptr && result->text() == QObject::tr("None of the known watermarks was found."));
+        CHECK(rows.isEmpty());
+        capture_widget_artifact("ui_file_info_watermark_none", *dialog);
+      }
+      inspected = true;
+      dialog->reject();
+    });
+    require_action(window, "fileInfoAction")->trigger();
+    QApplication::processEvents();
+    CHECK(inspected);
+  };
+  inspect(marked_path, true);
+  inspect(clean_path, false);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> file_info_tests() {
@@ -581,5 +717,6 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_psd_save_stamps_dates_and_creator", ui_psd_save_stamps_dates_and_creator},
       {"ui_psd_save_updates_exif_and_instance_id", ui_psd_save_updates_exif_and_instance_id},
       {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
+      {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
   };
 }
