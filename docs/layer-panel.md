@@ -4,7 +4,7 @@ Read this before changing layer rows, thumbnails, click selection, the disclosur
 
 ## Row styling
 
-Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes (`layerTargetActive` is the reference). `ui_layer_row_selected_highlight_paints` pins the rendered colors.
+Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes (`layerTargetActive` is the reference). `ui_layer_row_selected_highlight_paints` pins the rendered colors. Never give a row widget with a tooltip its own selector-less sheet: Qt cascades it into the tip and `background: transparent` cleared its panel (#347).
 
 Hidden rows disable name, details, mask link and clip badge; fx, smart-object and vector badges stay clickable, drawn dimmed by `LayerRowBadgeButton` (`layerRowBadgeDimmed`, issue 230).
 

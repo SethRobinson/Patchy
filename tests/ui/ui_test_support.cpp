@@ -52,6 +52,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPainter>
+#include <QToolTip>
 #include <QPointingDevice>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -348,6 +349,38 @@ QImage capture_widget_artifact(const std::string& name, QWidget& widget) {
 
 void save_widget_artifact(const std::string& name, QWidget& widget) {
   (void)capture_widget_artifact(name, widget);
+}
+
+QImage render_widget_tooltip(QWidget& anchor) {
+  QToolTip::hideText();
+  QApplication::processEvents();
+  QToolTip::showText(anchor.mapToGlobal(QPoint(4, anchor.height())), anchor.toolTip(), &anchor);
+  QApplication::processEvents();
+  QImage image;
+  for (auto* top : QApplication::topLevelWidgets()) {
+    if (top->inherits("QTipLabel") && top->isVisible()) {
+      image = QImage(top->size(), QImage::Format_ARGB32_Premultiplied);
+      image.fill(Qt::transparent);
+      top->render(&image, QPoint(), QRegion(), QWidget::DrawChildren);
+    }
+  }
+  QToolTip::hideText();
+  QApplication::processEvents();
+  return image;
+}
+
+double unpainted_share(const QImage& tip) {
+  if (tip.isNull() || tip.width() <= 0 || tip.height() <= 0) {
+    return 1.0;
+  }
+  const auto pixels = tip.convertToFormat(QImage::Format_ARGB32);
+  qint64 clear = 0;
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      clear += qAlpha(pixels.pixel(x, y)) == 0 ? 1 : 0;
+    }
+  }
+  return static_cast<double>(clear) / (static_cast<double>(pixels.width()) * pixels.height());
 }
 
 void save_window_popup_artifact(const std::string& name, QWidget& window, QWidget& field, QWidget& popup) {

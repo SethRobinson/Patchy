@@ -358,6 +358,13 @@ void ensure_capture_themed(QWidget& widget);
 QString capture_theme_mismatch(QWidget& root);
 QImage capture_widget_artifact(const std::string& name, QWidget& widget);
 void save_widget_artifact(const std::string& name, QWidget& widget);
+// Shows the tooltip Qt shows for `anchor` and renders the tip panel alone onto a
+// transparent sheet (no window background, as the translucent Windows 11 tip
+// shows on screen). A null image means no tip appeared.
+QImage render_widget_tooltip(QWidget& anchor);
+// The share (0 to 1) of `tip`'s pixels left fully transparent. A tip whose
+// stylesheet cascade cleared its ToolTipBase reads near 1 (issue 347).
+double unpainted_share(const QImage& tip);
 // Saves several captures stacked top to bottom (a 6 px gap between them) as one artifact,
 // for before/after shots that cover more than one widget or state.
 void save_stacked_artifact(const std::string& name, const QList<QImage>& strips);
