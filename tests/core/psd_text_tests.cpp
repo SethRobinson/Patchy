@@ -2098,6 +2098,78 @@ void psd_ag_psd_auto_lead_text_without_raster_if_available() {
   CHECK(read.print_settings().horizontal_ppi == 72.0 && read.print_settings().vertical_ppi == 72.0);
 }
 
+// GitHub issue 345: Photoshop wrote 12 pt type in a 300 PPI document with no /FontSize in the
+// style run (TySh or 'Txt2'); the size lives only in the paragraph's parent sheet, "Basic
+// Paragraph", whose character style (/32) holds 50 px. Photoshop sizes the text from it (its
+// text bounds halve when that value does, COM readback October 2026); the reader took the
+// normal style sheet's 12 px and showed 2.88 pt. Built from a Photoshop 2026 fixture by
+// same-length edits: the run's size blanked in both blocks, Basic Paragraph set to 50 px.
+void psd_text_paragraph_style_supplies_missing_run_font_size() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-auto-leading.psd");
+  std::ifstream input(path, std::ios::binary);
+  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const auto replace_once = [&bytes](std::string_view from, std::string_view to, std::size_t start) {
+    CHECK(from.size() == to.size());
+    const auto first = std::search(bytes.begin() + static_cast<std::ptrdiff_t>(start), bytes.end(), from.begin(), from.end());
+    CHECK(first != bytes.end());
+    if (first == bytes.end()) return;
+    CHECK(std::search(first + 1, bytes.end(), from.begin(), from.end()) == bytes.end());
+    std::copy(to.begin(), to.end(), first);
+  };
+  static constexpr std::string_view kTxt2 = "8BIMTxt2";
+  const auto txt2 = static_cast<std::size_t>(std::search(bytes.begin(), bytes.end(), kTxt2.begin(), kTxt2.end()) - bytes.begin());
+  CHECK(txt2 < bytes.size());
+  if (txt2 >= bytes.size()) return;
+  // The TySh run's /FontSize 24.0 (the only 24 in the file before the block), and the 'Txt2'
+  // style run's /1 24.0.
+  replace_once("/FontSize 24.0", "              ", 0);
+  replace_once("/6 << /0 0 /1 24.0", "/6 << /0 0        ", txt2);
+  // "Basic Paragraph" (the runs' parent sheet, /6 1) character style: 12 -> 50 px.
+  static constexpr std::string_view kBasic = "/32 << /0 1 /1 12.0";
+  replace_once(kBasic, "/32 << /0 1 /1 50.0", txt2);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* text = nullptr;
+  for (const auto& layer : read.layers()) {
+    if (patchy::layer_is_text(layer)) text = &layer;
+  }
+  CHECK(text != nullptr);
+  if (text == nullptr) return;
+  CHECK(text->metadata().at(patchy::kLayerMetadataTextSize) == "50");
+  const auto lines = split_lines(text->metadata().at(patchy::kLayerMetadataTextRuns));
+  CHECK(lines.size() >= 2);
+  for (std::size_t i = 1; i < lines.size(); ++i) {
+    const auto fields = split_tabs(lines[i]);
+    CHECK(fields.size() > 2 && std::abs(std::stod(fields[2]) - 50.0) < 0.0001);
+  }
+}
+
+// The reporter's file for GitHub issue 345 (Photoshop CC, 300 PPI, seven 12 pt layers whose
+// runs leave the size to "Basic Paragraph"): every layer reads 50 px, which is 12 pt, and keeps
+// it through Patchy's own save and reopen.
+void psd_issue_345_paragraph_style_font_size_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-345-character-font-smoothing.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto check_sizes = [](const patchy::Document& document) {
+    CHECK(document.print_settings().horizontal_ppi == 300.0);
+    int text_layers = 0;
+    std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+      for (const auto& layer : layers) {
+        if (patchy::layer_is_text(layer)) {
+          ++text_layers;
+          CHECK(layer.metadata().at(patchy::kLayerMetadataTextSize) == "50");
+        }
+        visit(layer.children());
+      }
+    };
+    visit(document.layers());
+    CHECK(text_layers == 7);
+  };
+  const auto read = patchy::psd::DocumentIo::read_file(path);
+  check_sizes(read);
+  check_sizes(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read)));
+}
+
 void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() {
   // A converted (patchy_raster) layer regenerates its TySh on save; the fixed leadings,
   // tracking, and default-inherited sizes must survive Patchy's own write -> read cycle so a
@@ -3014,6 +3086,10 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available},
       {"psd_ag_psd_auto_lead_text_without_raster_if_available",
        psd_ag_psd_auto_lead_text_without_raster_if_available},
+      {"psd_text_paragraph_style_supplies_missing_run_font_size",
+       psd_text_paragraph_style_supplies_missing_run_font_size},
+      {"psd_issue_345_paragraph_style_font_size_if_available",
+       psd_issue_345_paragraph_style_font_size_if_available},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",

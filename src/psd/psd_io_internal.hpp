@@ -903,7 +903,8 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
                                                                      std::string_view text,
                                                                      int fallback_size,
                                                                      RgbColor fallback_color,
-                                                                     const CmykColorConverter& cmyk);
+                                                                     const CmykColorConverter& cmyk,
+                                                                     std::span<const TextParagraphFontSize> paragraph_font_sizes = {});
 std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(std::span<const std::uint8_t> payload,
                                                                               std::string_view text);
 std::string serialize_paragraph_metric(double value);
