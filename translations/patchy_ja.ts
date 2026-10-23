@@ -15921,10 +15921,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>Windows</translation>
     </message>
     <message>
-        <source>T</source>
-        <translation>T</translation>
-    </message>
-    <message>
         <source>Text color</source>
         <translation>テキスト色</translation>
     </message>

@@ -1743,9 +1743,11 @@ void MainWindow::refresh_text_color_button() {
     return;
   }
   const auto color = current_text_color();
-  text_color_button_->setText(tr("T"));
   text_color_button_->setToolTip(tr("Text color %1").arg(color.name(QColor::HexRgb).toUpper()));
-  set_themed_style(*text_color_button_, color_button_style(color));
+  patchy::VectorFill paint;
+  paint.color = {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                 static_cast<std::uint8_t>(color.blue())};
+  text_color_button_->setIcon(options_bar_swatch_icon(paint, *text_color_button_));
 }
 
 void MainWindow::edit_gradient_stops() {

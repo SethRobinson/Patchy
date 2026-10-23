@@ -900,6 +900,82 @@ void ui_pick_options_bar_groups_its_controls() {
   }
 }
 
+// GitHub issue 343: the Text bar reads Font and style | Size and Smoothing | color | ..., and
+// the text color button is the shape bar's framed swatch button (optionsBarSwatch, a wide
+// chip of the color) instead of a colored "T". The row still fits one line at 1366 px. The
+// artifacts are the issue shots, in both schemes.
+void ui_text_options_bar_groups_its_controls() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    require_action(window, "toolTypeAction")->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    save_widget_artifact("issue_343_text_options_bar" + suffix, *options_bar);
+    const auto tokens = options_row_tokens(*options);
+    std::printf("  text%s:", suffix.c_str());
+    for (const auto& token : tokens) {
+      std::printf(" %s", qPrintable(token));
+    }
+    std::printf("\n");
+    const auto at = [&tokens](const QString& token) {
+      const auto found = std::find(tokens.begin(), tokens.end(), token);
+      return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+    };
+    const int style = at(QStringLiteral("textStyleCombo"));
+    CHECK(style >= 0 && style + 2 < static_cast<int>(tokens.size()));
+    if (style >= 0 && style + 2 < static_cast<int>(tokens.size())) {
+      CHECK(tokens[static_cast<std::size_t>(style) + 1] == QStringLiteral("|"));
+      CHECK(tokens[static_cast<std::size_t>(style) + 2] == QStringLiteral("Size"));
+    }
+    const int color_index = at(QStringLiteral("textColorButton"));
+    CHECK(color_index > 0 && tokens[static_cast<std::size_t>(color_index) - 1] == QStringLiteral("|"));
+    CHECK(options_row_extent(*options).second == 1);
+
+    auto* color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
+    auto* fill = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
+    CHECK(color != nullptr && fill != nullptr);
+    if (color == nullptr || fill == nullptr) {
+      return;
+    }
+    CHECK(color->property("optionsBarSwatch").toBool());
+    CHECK(color->text().isEmpty() && color->toolButtonStyle() == Qt::ToolButtonIconOnly);
+    CHECK(color->size() == fill->size());
+    CHECK(color->iconSize() == fill->iconSize());
+    CHECK(color->focusPolicy() == Qt::NoFocus);
+    // The chip is the text color, named in the tooltip.
+    const QString tip = color->toolTip();
+    const QColor expected(tip.mid(std::max<qsizetype>(0, tip.lastIndexOf(QLatin1Char('#'))), 7));
+    CHECK(expected.isValid());
+    const QImage chip = color->icon().pixmap(color->iconSize()).toImage();
+    CHECK(!chip.isNull());
+    if (expected.isValid() && !chip.isNull()) {
+      const QColor center = chip.pixelColor(chip.width() / 2, chip.height() / 2);
+      if (center.rgb() != expected.rgb()) {
+        std::fprintf(stderr, "  text color chip %s, tooltip %s\n", qPrintable(center.name()),
+                     qPrintable(expected.name()));
+      }
+      CHECK(center.rgb() == expected.rgb());
+    }
+    // Framed like the shape swatches: the frame differs from the bar beside it.
+    const QImage image = options->grab().toImage();
+    const QRect box = color->geometry();
+    const QColor bar_color = image.pixelColor(box.left() - 2, box.center().y());
+    const QColor frame = image.pixelColor(box.left(), box.center().y() - 3);
+    const QColor face = image.pixelColor(box.left() + 2, box.center().y());
+    CHECK(frame != bar_color || face != bar_color);
+  }
+}
+
 // GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
 // show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
 // and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
@@ -5676,7 +5752,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_style = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
   auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
-  auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
@@ -8162,6 +8238,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
       {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
+      {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},

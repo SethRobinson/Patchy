@@ -40,6 +40,7 @@
 #include <QRawFont>
 #include <QTextEdit>
 #include <QTimer>
+#include <QToolButton>
 #include <QWidget>
 #include <algorithm>
 #include <atomic>
@@ -2515,7 +2516,7 @@ void ui_text_options_follow_active_rich_text_span() {
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
-  auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
   CHECK(editor != nullptr);
   CHECK(text_size != nullptr);

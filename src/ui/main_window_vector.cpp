@@ -1475,67 +1475,69 @@ std::optional<PatternResource> MainWindow::resolve_vector_pattern_resource(
   return std::nullopt;
 }
 
-void MainWindow::update_vector_swatch_icons() {
-  const auto make_swatch = [this](const VectorFill& paint, const QToolButton& button) {
-    // Drawn at the size the button shows it (the options bar's swatches are a
-    // 28x16 chip, GitHub issue 311): a scaled pixmap would blur the one-pixel
-    // outline into the bar.
-    const QSize size = button.iconSize().isEmpty() ? QSize(28, 16) : button.iconSize();
-    QPixmap pixmap(size);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    const QRectF box(0.5, 0.5, size.width() - 1.0, size.height() - 1.0);
-    // The outline is a theme role so a chip the color of the options bar keeps
-    // an edge (black on Dark, white on Light). apply_color_scheme() rebuilds
-    // these pixmaps, since the color is baked in here.
-    const QColor outline = theme().swatch_border;
-    switch (paint.kind) {
-      case VectorFillKind::None: {
-        // Photoshop's "no paint" swatch: white chip with a red slash.
-        painter.setPen(outline);
-        painter.setBrush(Qt::white);
-        painter.drawRoundedRect(box, 2.0, 2.0);
-        painter.setPen(QPen(QColor(214, 44, 44), 2.0));
-        painter.drawLine(QPointF(3.0, size.height() - 3.0), QPointF(size.width() - 3.0, 3.0));
-        break;
-      }
-      case VectorFillKind::Gradient: {
-        const auto ramp = gradient_thumbnail(paint.gradient, size.width(), size.height());
-        painter.setBrush(QBrush(ramp));
-        painter.setPen(outline);
-        painter.drawRoundedRect(box, 2.0, 2.0);
-        break;
-      }
-      case VectorFillKind::Pattern: {
-        if (const auto resource = resolve_vector_pattern_resource(paint.pattern_id);
-            resource.has_value()) {
-          const auto tile = pattern_thumbnail(resource->tile, size.width());
-          painter.setBrush(QBrush(tile));
-          painter.setPen(outline);
-          painter.drawRoundedRect(box, 2.0, 2.0);
-        } else {
-          // Unresolvable pattern renders as no paint (the rasterizer's rule).
-          painter.setPen(outline);
-          painter.setBrush(QColor(190, 190, 190));
-          painter.drawRoundedRect(box, 2.0, 2.0);
-        }
-        break;
-      }
-      case VectorFillKind::Solid: {
-        painter.setPen(outline);
-        painter.setBrush(QColor(paint.color.red, paint.color.green, paint.color.blue));
-        painter.drawRoundedRect(box, 2.0, 2.0);
-        break;
-      }
+QIcon MainWindow::options_bar_swatch_icon(const VectorFill& paint, const QToolButton& button) {
+  // Drawn at the size the button shows it (the options bar's swatches are a
+  // 28x16 chip, GitHub issue 311): a scaled pixmap would blur the one-pixel
+  // outline into the bar.
+  const QSize size = button.iconSize().isEmpty() ? QSize(28, 16) : button.iconSize();
+  QPixmap pixmap(size);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QRectF box(0.5, 0.5, size.width() - 1.0, size.height() - 1.0);
+  // The outline is a theme role so a chip the color of the options bar keeps
+  // an edge (black on Dark, white on Light). apply_color_scheme() rebuilds
+  // these pixmaps, since the color is baked in here.
+  const QColor outline = theme().swatch_border;
+  switch (paint.kind) {
+    case VectorFillKind::None: {
+      // Photoshop's "no paint" swatch: white chip with a red slash.
+      painter.setPen(outline);
+      painter.setBrush(Qt::white);
+      painter.drawRoundedRect(box, 2.0, 2.0);
+      painter.setPen(QPen(QColor(214, 44, 44), 2.0));
+      painter.drawLine(QPointF(3.0, size.height() - 3.0), QPointF(size.width() - 3.0, 3.0));
+      break;
     }
-    return QIcon(pixmap);
-  };
+    case VectorFillKind::Gradient: {
+      const auto ramp = gradient_thumbnail(paint.gradient, size.width(), size.height());
+      painter.setBrush(QBrush(ramp));
+      painter.setPen(outline);
+      painter.drawRoundedRect(box, 2.0, 2.0);
+      break;
+    }
+    case VectorFillKind::Pattern: {
+      if (const auto resource = resolve_vector_pattern_resource(paint.pattern_id);
+          resource.has_value()) {
+        const auto tile = pattern_thumbnail(resource->tile, size.width());
+        painter.setBrush(QBrush(tile));
+        painter.setPen(outline);
+        painter.drawRoundedRect(box, 2.0, 2.0);
+      } else {
+        // Unresolvable pattern renders as no paint (the rasterizer's rule).
+        painter.setPen(outline);
+        painter.setBrush(QColor(190, 190, 190));
+        painter.drawRoundedRect(box, 2.0, 2.0);
+      }
+      break;
+    }
+    case VectorFillKind::Solid: {
+      painter.setPen(outline);
+      painter.setBrush(QColor(paint.color.red, paint.color.green, paint.color.blue));
+      painter.drawRoundedRect(box, 2.0, 2.0);
+      break;
+    }
+  }
+  return QIcon(pixmap);
+}
+
+void MainWindow::update_vector_swatch_icons() {
   if (vector_fill_swatch_button_ != nullptr) {
-    vector_fill_swatch_button_->setIcon(make_swatch(current_vector_fill_, *vector_fill_swatch_button_));
+    vector_fill_swatch_button_->setIcon(options_bar_swatch_icon(current_vector_fill_, *vector_fill_swatch_button_));
   }
   if (vector_stroke_swatch_button_ != nullptr) {
-    vector_stroke_swatch_button_->setIcon(make_swatch(current_vector_stroke_paint_, *vector_stroke_swatch_button_));
+    vector_stroke_swatch_button_->setIcon(
+        options_bar_swatch_icon(current_vector_stroke_paint_, *vector_stroke_swatch_button_));
   }
 }
 
