@@ -12102,6 +12102,66 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
         <translation>Adobe TrustMark, otwarty znak wodny stojący za trwałymi Content Credentials, wymaga modeli znaków wodnych (od Adobe, licencja MIT): pobranie %1 MB z %2, tylko na Twoje żądanie.</translation>
     </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>Konwertuj na profil</translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation>Bieżący profil:</translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation>Wybierz plik profilu...</translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation>Wybierz profil RGB</translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation>Profile ICC (*.icc *.icm)</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation>&quot;%1&quot; nie jest profilem RGB, którego Patchy może użyć.</translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation>Profil docelowy:</translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation>Względny kolorymetryczny</translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation>Bezwzględny kolorymetryczny</translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation>Metoda konwersji kolorów:</translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation>Kompensacja punktu czerni</translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation>Patchy wyświetla kolory RGB jako sRGB. Dokument przekonwertowany na inny profil wygląda tu na ekranie inaczej, a jego zapisy zawierają ten profil.</translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation>Nie udało się przekonwertować profilu kolorów %1 na sRGB, więc plik zachowuje swoje kolory i profil</translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation>Przekonwertowano z profilu kolorów %1 na sRGB</translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation>Kolory zapisane w warstwach tekstowych, kształtów, wypełnienia i dopasowania oraz w stylach warstw zachowują wartości z pliku; na sRGB przekonwertowano tylko piksele</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24605,6 +24665,46 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Watermark Models</source>
         <translation>Modele znaków wodnych</translation>
     </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation>Konwertuj na pro&amp;fil...</translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation>Najpierw otwórz dokument</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation>Przed konwersją na inny profil przekonwertuj na kolory RGB</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation>Przed konwersją na inny profil RGB wyjdź z próby CMYK</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation>Dokumenty 32-bitowe konwertuje się tylko między profilami RGB opartymi na macierzy</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation>Tego profilu nie można użyć do tej konwersji</translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation>Konwertuj na profil</translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation>Przekonwertowano z %1 na %2</translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation>Przy otwieraniu konwertuj pliki z innymi profilami RGB na sRGB</translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation>Patchy wyświetla i edytuje kolory RGB jako sRGB. Pliki w Display P3, Adobe RGB lub innym profilu RGB wyglądają poprawnie dopiero po konwersji. Po wyłączeniu otwierają się z własnymi wartościami i zachowują swój profil.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26494,6 +26594,38 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation>Opcje convertToProfile muszą być obiektem.</translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation>intent musi mieć wartość &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; lub &quot;absolute-colorimetric&quot;.</translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation>blackPointCompensation musi mieć wartość true lub false.</translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile przyjmuje &quot;sRGB&quot; lub ścieżkę pliku profilu RGB: %1</translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation>Najpierw przekonwertuj dokument indeksowany na kolory RGB.</translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation>Przed konwersją na inny profil RGB wyjdź z próby CMYK.</translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation>Dokumenty 32-bitowe konwertuje się tylko między profilami RGB opartymi na macierzy.</translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
+        <translation>Tego profilu nie można użyć do tej konwersji.</translation>
     </message>
 </context>
 <context>

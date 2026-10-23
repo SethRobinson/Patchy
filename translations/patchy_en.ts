@@ -12051,6 +12051,66 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Current profile:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose Profile File...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose RGB Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ICC profiles (*.icc *.icm)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Destination profile:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relative Colorimetric</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Absolute Colorimetric</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rendering intent:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black point compensation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Converted from the color profile %1 to sRGB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24460,6 +24520,46 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Watermark Models</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Convert to Pro&amp;file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open a document first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before converting to another profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Converted from %1 to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert files with other RGB profiles to sRGB when opening</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26347,6 +26447,38 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>convertToProfile options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>blackPointCompensation must be true or false.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert an Indexed document to RGB Color first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Leave CMYK Proof before converting to another RGB profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The profile cannot be used for this conversion.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
