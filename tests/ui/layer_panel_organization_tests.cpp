@@ -46,6 +46,8 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
+#include <QStyle>
+#include <QStyleOption>
 #include <QScrollArea>
 #include <QTabBar>
 #include <QTabWidget>
@@ -58,6 +60,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -2097,6 +2100,121 @@ void ui_layer_styles_button_tracks_selection_and_lists_effects() {
 // one Layer Style dialog on that effect, turned on; OK keeps it, Cancel leaves
 // the layer as it was, and an existing turned-off effect is turned on rather
 // than duplicated.
+// GitHub issue 354: every button in a panel footer (Layers, Channels, Paths) is flat at
+// rest, like the Layers footer's adjustment and styles QToolButtons, and shows its outline
+// only on hover. Saves each footer at rest over the same footer with one button hovered,
+// Dark and Light, for the issue's pictures.
+void ui_panel_footer_buttons_outline_only_on_hover() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    const std::string scheme_name = scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light";
+    patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    document.add_pixel_layer("Layer 1", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Footer Buttons"));
+    QApplication::processEvents();
+
+    const auto check_footer = [&](const char* bar_name, QWidget* bar, const char* property, int expected_count,
+                                  const QString& hover_name) {
+      CHECK(bar != nullptr);
+      if (bar == nullptr) {
+        return;
+      }
+      std::vector<QAbstractButton*> buttons;
+      QRect footer_rect;
+      for (auto* button : bar->findChildren<QAbstractButton*>()) {
+        if (button->property(property).toBool() && button->isVisibleTo(bar)) {
+          buttons.push_back(button);
+          footer_rect |= QRect(button->mapTo(bar, QPoint()), button->size());
+        }
+      }
+      CHECK(static_cast<int>(buttons.size()) == expected_count);
+      auto* hovered_button = bar->findChild<QAbstractButton*>(hover_name);
+      CHECK(hovered_button != nullptr);
+      if (buttons.empty() || hovered_button == nullptr) {
+        return;
+      }
+      footer_rect = footer_rect.adjusted(-4, -4, 4, 4).intersected(bar->rect());
+      const auto rest = bar->grab(footer_rect).toImage();
+      // The hovered look, drawn by the button's own (style sheet) style with the
+      // mouse-over state set: a pointer simulated offscreen does not reliably reach the
+      // button once earlier tests have run.
+      const auto paint_hovered = [&](QImage& image) {
+        QPainter painter(&image);
+        painter.translate(hovered_button->mapTo(bar, QPoint()) - footer_rect.topLeft());
+        painter.setClipRect(hovered_button->rect());
+        painter.fillRect(hovered_button->rect(), image.pixelColor(QPoint(0, 0)));
+        auto* style = hovered_button->style();
+        if (auto* tool_button = qobject_cast<QToolButton*>(hovered_button); tool_button != nullptr) {
+          QStyleOptionToolButton option;
+          option.initFrom(tool_button);
+          option.state |= QStyle::State_MouseOver | QStyle::State_Raised;
+          option.subControls = QStyle::SC_ToolButton;
+          option.icon = tool_button->icon();
+          option.iconSize = tool_button->iconSize();
+          option.toolButtonStyle = tool_button->toolButtonStyle();
+          style->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, tool_button);
+        } else {
+          QStyleOptionButton option;
+          option.initFrom(hovered_button);
+          option.state |= QStyle::State_MouseOver | QStyle::State_Raised;
+          option.icon = hovered_button->icon();
+          option.iconSize = hovered_button->iconSize();
+          style->drawControl(QStyle::CE_PushButton, &option, &painter, hovered_button);
+        }
+      };
+      auto hovered = rest.copy();
+      hovered.setDevicePixelRatio(rest.devicePixelRatio());
+      paint_hovered(hovered);
+
+      const auto ratio = rest.devicePixelRatio();
+      QImage composed(QSize(rest.width(), rest.height() * 2), QImage::Format_ARGB32_Premultiplied);
+      composed.setDevicePixelRatio(ratio);
+      {
+        QPainter painter(&composed);
+        painter.drawImage(QPoint(0, 0), rest);
+        painter.drawImage(QPointF(0, rest.height() / ratio), hovered);
+      }
+      save_image_artifact(std::string("ui_issue_354_") + bar_name + "_footer_" + scheme_name, composed);
+
+      // The left border column of a button against the panel just beside it.
+      const auto pixel_at = [&](const QImage& image, QPoint bar_point) {
+        const auto local = bar_point - footer_rect.topLeft();
+        return image.pixelColor(QPoint(static_cast<int>(local.x() * ratio), static_cast<int>(local.y() * ratio)));
+      };
+      for (auto* button : buttons) {
+        const auto edge = button->mapTo(bar, QPoint(0, button->height() / 2));
+        const auto beside = edge - QPoint(2, 0);
+        if (!footer_rect.contains(beside)) {
+          continue;
+        }
+        const auto edge_color = pixel_at(rest, edge);
+        const auto beside_color = pixel_at(rest, beside);
+        if (edge_color != beside_color) {
+          std::fprintf(stderr, "  %s %s at rest: edge %s, beside %s\n", bar_name, qPrintable(button->objectName()),
+                       qPrintable(edge_color.name()), qPrintable(beside_color.name()));
+        }
+        CHECK(edge_color == beside_color);
+      }
+      const auto hover_edge = hovered_button->mapTo(bar, QPoint(0, hovered_button->height() / 2));
+      if (pixel_at(hovered, hover_edge) == pixel_at(rest, hover_edge)) {
+        std::fprintf(stderr, "  %s hovered edge unchanged: %s\n", bar_name,
+                     qPrintable(pixel_at(hovered, hover_edge).name()));
+      }
+      CHECK(pixel_at(hovered, hover_edge) != pixel_at(rest, hover_edge));
+    };
+
+    auto* layers_panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+    check_footer("layers", layers_panel, "layerActionButton", 8, QStringLiteral("layerNewButton"));
+    check_footer("channels", window.findChild<QWidget*>(QStringLiteral("channelActionBar")), "channelActionButton", 6,
+                 QStringLiteral("channelNewButton"));
+    check_footer("paths", window.findChild<QWidget*>(QStringLiteral("pathsActionBar")), "channelActionButton", 6,
+                 QStringLiteral("pathsNewButton"));
+  }
+}
+
 void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
@@ -5004,6 +5122,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_styles_button_tracks_selection_and_lists_effects",
        ui_layer_styles_button_tracks_selection_and_lists_effects},
       {"ui_layer_styles_menu_entry_opens_dialog_on_effect", ui_layer_styles_menu_entry_opens_dialog_on_effect},
+      {"ui_panel_footer_buttons_outline_only_on_hover", ui_panel_footer_buttons_outline_only_on_hover},
       {"ui_layer_color_labels_menu_undo_and_row_strip", ui_layer_color_labels_menu_undo_and_row_strip},
       {"ui_layer_eye_right_click_opens_color_menu", ui_layer_eye_right_click_opens_color_menu},
       {"ui_issue_244_sample_layers_panel_shots_if_available",
