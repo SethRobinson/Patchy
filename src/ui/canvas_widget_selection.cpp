@@ -927,6 +927,30 @@ std::optional<QRect> CanvasWidget::selected_document_rect() const noexcept {
   return selection_.boundingRect();
 }
 
+std::optional<QRect> CanvasWidget::selection_readout_rect() const {
+  if (document_ == nullptr) {
+    return std::nullopt;
+  }
+  const QRect canvas(0, 0, document_->width(), document_->height());
+  QRect live;
+  if (selecting_) {
+    live = current_marquee_shape(marquee_selection_rect(selection_start_, selection_current_)).rect;
+  } else if (lassoing_) {
+    live = lasso_points_.boundingRect();
+  } else if (polygon_lassoing_) {
+    live = polygon_lasso_points_.boundingRect().united(QRect(polygon_lasso_cursor_, QSize(1, 1)));
+  } else if (magnetic_lassoing_) {
+    live = magnetic_committed_path_.boundingRect().united(magnetic_live_path_.boundingRect());
+  } else {
+    return selected_document_rect();
+  }
+  live = live.intersected(canvas);
+  if (live.isEmpty()) {
+    return std::nullopt;
+  }
+  return live;
+}
+
 const QRegion& CanvasWidget::selected_document_region() const noexcept {
   return selection_;
 }

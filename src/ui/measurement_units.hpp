@@ -38,6 +38,8 @@ enum class MeasurementUnit {
 // Readout formatting for on-canvas and status text: locale number (no group
 // separators) plus the translated suffix. `show_sign` prefixes positive values with
 // "+" for deltas. Values within half a unit of zero print as 0, never "-0".
+// The bare number those use, with no suffix.
+[[nodiscard]] QString format_readout_number(double value, int decimals, bool show_sign = false);
 [[nodiscard]] QString format_pixels(double pixels, int decimals = 0, bool show_sign = false);
 [[nodiscard]] QString format_percent(double percent, int decimals = 1, bool show_sign = false);
 [[nodiscard]] QString format_degrees(double degrees, int decimals = 1, bool show_sign = false);

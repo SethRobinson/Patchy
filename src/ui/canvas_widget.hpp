@@ -1192,6 +1192,11 @@ public:
   void grow_selection();
   void select_similar_to_selection();
   [[nodiscard]] std::optional<QRect> selected_document_rect() const noexcept;
+  // The status-bar selection readout (GitHub issue 355): while a marquee or lasso drag is
+  // in progress, the bounds of the shape being drawn; otherwise the selection's bounds
+  // (live during a selection move). Reads only the region's stored extents and the
+  // gesture's points, never the selection mask.
+  [[nodiscard]] std::optional<QRect> selection_readout_rect() const;
   [[nodiscard]] const QRegion& selected_document_region() const noexcept;
   [[nodiscard]] std::uint8_t selection_alpha_at(QPoint point) const noexcept;
   [[nodiscard]] bool selection_has_partial_alpha() const noexcept;

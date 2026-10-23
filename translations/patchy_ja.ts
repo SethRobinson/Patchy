@@ -25967,6 +25967,18 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     </message>
 </context>
 <context>
+    <name>patchy::ui::StatusSelectionInfoLabel</name>
+    <message>
+        <source>X: %1  Y: %2  W: %3  H: %4</source>
+        <extracomment>Status bar selection bounds: left, top, width, then height (which carries the unit).</extracomment>
+        <translation>X: %1  Y: %2  幅: %3  高さ: %4</translation>
+    </message>
+    <message>
+        <source>Selection bounds: left edge (X), top edge (Y), width (W) and height (H), in the ruler unit</source>
+        <translation>選択範囲の境界: 左端 (X)、上端 (Y)、幅、高さ (定規の単位)</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::StyleBrowserWidget</name>
     <message>
         <source>No Style (remove all effects)</source>

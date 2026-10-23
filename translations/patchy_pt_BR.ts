@@ -26040,6 +26040,18 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     </message>
 </context>
 <context>
+    <name>patchy::ui::StatusSelectionInfoLabel</name>
+    <message>
+        <source>X: %1  Y: %2  W: %3  H: %4</source>
+        <extracomment>Status bar selection bounds: left, top, width, then height (which carries the unit).</extracomment>
+        <translation>X: %1  Y: %2  L: %3  A: %4</translation>
+    </message>
+    <message>
+        <source>Selection bounds: left edge (X), top edge (Y), width (W) and height (H), in the ruler unit</source>
+        <translation>Limites da seleção: borda esquerda (X), borda superior (Y), largura (L) e altura (A), na unidade das réguas</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::StyleBrowserWidget</name>
     <message>
         <source>%1 (%2)</source>
