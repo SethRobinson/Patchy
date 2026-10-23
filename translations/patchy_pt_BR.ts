@@ -12060,10 +12060,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Nenhuma das marcas d&apos;água que puderam ser verificadas foi encontrada. Alguns tipos não foram verificados.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Converter em perfil</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>Perfil atual:</translation>
     </message>
@@ -12118,6 +12114,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>Cores guardadas em camadas de texto, forma, preenchimento e ajuste e em estilos de camada mantêm os valores do arquivo; apenas os pixels foram convertidos para sRGB</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Converter em perfil de cor</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>O sRGB é integrado ao Patchy. Não há outros perfis RGB instalados neste computador; use Escolher arquivo de perfil... para escolher um arquivo de perfil.</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>O sRGB é integrado ao Patchy. Os outros perfis são os perfis RGB instalados neste computador; use Escolher arquivo de perfil... para um que não esteja na lista.</translation>
     </message>
 </context>
 <context>
@@ -24641,10 +24649,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Procurar marcas d&apos;água...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Converter em per&amp;fil...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>Abra um documento primeiro</translation>
     </message>
@@ -24665,10 +24669,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>O perfil não pode ser usado nesta conversão</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Converter em perfil</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>Convertido de %1 para %2</translation>
     </message>
@@ -24679,6 +24679,14 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>O Patchy mostra e edita cores RGB como sRGB. Arquivos em Display P3, Adobe RGB ou outro perfil RGB só aparecem corretamente depois de convertidos. Quando desativado, eles abrem com os próprios valores e mantêm o perfil.</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>Converter em per&amp;fil de cor...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Converter em perfil de cor</translation>
     </message>
 </context>
 <context>

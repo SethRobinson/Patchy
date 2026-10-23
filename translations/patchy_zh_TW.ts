@@ -12025,10 +12025,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>未找到任何可檢查的浮水印。有些類型未檢查。</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>轉換為描述檔</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>目前描述檔:</translation>
     </message>
@@ -12083,6 +12079,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>文字、形狀、填色和調整圖層以及圖層樣式中儲存的色彩保留檔案中的數值；只有像素已轉換為 sRGB</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>轉換為色彩描述檔</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>sRGB 內建於 Patchy。此電腦上未安裝其他 RGB 描述檔；請使用「選擇描述檔檔案...」選取描述檔檔案。</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>sRGB 內建於 Patchy。其他描述檔是此電腦上安裝的 RGB 描述檔；未列出的描述檔請使用「選擇描述檔檔案...」。</translation>
     </message>
 </context>
 <context>
@@ -24569,10 +24577,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>掃描浮水印...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>轉換為描述檔(&amp;F)...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>請先開啟文件</translation>
     </message>
@@ -24593,10 +24597,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>此描述檔無法用於這次轉換</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>轉換為描述檔</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>已從 %1 轉換為 %2</translation>
     </message>
@@ -24607,6 +24607,14 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy 以 sRGB 顯示及編輯 RGB 色彩。Display P3、Adobe RGB 或其他 RGB 描述檔的檔案只有轉換後才會正確顯示。關閉時，檔案會以原本的數值開啟並保留其描述檔。</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>轉換為色彩描述檔(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>轉換為色彩描述檔</translation>
     </message>
 </context>
 <context>

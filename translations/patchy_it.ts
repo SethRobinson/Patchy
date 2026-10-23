@@ -12060,10 +12060,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Nessuna delle filigrane controllabili è stata trovata. Alcuni tipi non sono stati controllati.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Converti in profilo</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>Profilo attuale:</translation>
     </message>
@@ -12118,6 +12114,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>I colori memorizzati nei livelli di testo, forma, riempimento e regolazione e negli stili di livello mantengono i valori del file; solo i pixel sono stati convertiti in sRGB</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Converti in profilo colore</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>sRGB è integrato in Patchy. Su questo computer non sono installati altri profili RGB; usa Scegli file del profilo... per scegliere un file di profilo.</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>sRGB è integrato in Patchy. Gli altri profili sono i profili RGB installati su questo computer; usa Scegli file del profilo... per uno non elencato.</translation>
     </message>
 </context>
 <context>
@@ -24641,10 +24649,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Cerca filigrane...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Converti in pro&amp;filo...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>Apri prima un documento</translation>
     </message>
@@ -24665,10 +24669,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Il profilo non può essere usato per questa conversione</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Converti in profilo</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>Convertito da %1 a %2</translation>
     </message>
@@ -24679,6 +24679,14 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy mostra e modifica i colori RGB come sRGB. I file in Display P3, Adobe RGB o un altro profilo RGB appaiono corretti solo dopo la conversione. Se disattivato, si aprono con i propri valori e mantengono il loro profilo.</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>Converti in pro&amp;filo colore...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Converti in profilo colore</translation>
     </message>
 </context>
 <context>

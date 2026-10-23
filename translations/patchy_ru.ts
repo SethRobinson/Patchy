@@ -12095,10 +12095,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Ни один из проверяемых водяных знаков не найден. Некоторые виды не проверены.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Преобразовать в профиль</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>Текущий профиль:</translation>
     </message>
@@ -12153,6 +12149,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>Цвета, записанные в текстовых слоях, фигурах, слоях-заливках, корректирующих слоях и стилях слоя, сохраняют значения из файла; в sRGB преобразованы только пиксели</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Преобразовать в цветовой профиль</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>sRGB встроен в Patchy. Других профилей RGB на этом компьютере не установлено; чтобы выбрать файл профиля, используйте «Выбрать файл профиля...».</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>sRGB встроен в Patchy. Остальные профили являются профилями RGB, установленными на этом компьютере; для профиля, которого нет в списке, используйте «Выбрать файл профиля...».</translation>
     </message>
 </context>
 <context>
@@ -24713,10 +24721,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Найти водяные знаки...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Преобразовать в &amp;профиль...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>Сначала откройте документ</translation>
     </message>
@@ -24737,10 +24741,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Этот профиль нельзя использовать для такого преобразования</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Преобразовать в профиль</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>Преобразовано из %1 в %2</translation>
     </message>
@@ -24751,6 +24751,14 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy показывает и редактирует цвета RGB как sRGB. Файлы в Display P3, Adobe RGB или другом профиле RGB выглядят правильно только после преобразования. Если отключено, они открываются со своими значениями и сохраняют свой профиль.</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>Преобразовать в цветовой &amp;профиль...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Преобразовать в цветовой профиль</translation>
     </message>
 </context>
 <context>

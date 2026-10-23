@@ -12,7 +12,7 @@ class QWidget;
 
 namespace patchy::ui {
 
-// Edit > Convert to Profile (docs/rgb-profiles.md): the destination RGB profile and the
+// Edit > Convert to Color Profile (docs/rgb-profiles.md): the destination RGB profile and the
 // conversion options.
 struct ConvertProfileChoice {
   QString destination_path;               // empty = sRGB

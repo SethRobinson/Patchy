@@ -12060,10 +12060,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Keines der prüfbaren Wasserzeichen wurde gefunden. Manche Arten wurden nicht geprüft.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>In Profil umwandeln</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>Aktuelles Profil:</translation>
     </message>
@@ -12118,6 +12114,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>In Text-, Form-, Füll- und Einstellungsebenen und in Ebenenstilen gespeicherte Farben behalten ihre Werte aus der Datei; nur Pixel wurden in sRGB umgewandelt</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>In Farbprofil umwandeln</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>sRGB ist in Patchy integriert. Auf diesem Computer sind keine weiteren RGB-Profile installiert; wählen Sie mit „Profildatei wählen...“ eine Profildatei.</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>sRGB ist in Patchy integriert. Die anderen Profile sind die auf diesem Computer installierten RGB-Profile; ein nicht aufgeführtes Profil wählen Sie mit „Profildatei wählen...“.</translation>
     </message>
 </context>
 <context>
@@ -24641,10 +24649,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Nach Wasserzeichen suchen...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>In &amp;Profil umwandeln...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>Öffnen Sie zuerst ein Dokument</translation>
     </message>
@@ -24665,10 +24669,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Das Profil kann für diese Umwandlung nicht verwendet werden</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>In Profil umwandeln</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>Von %1 in %2 umgewandelt</translation>
     </message>
@@ -24679,6 +24679,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy zeigt und bearbeitet RGB-Farben als sRGB. Dateien in Display P3, Adobe RGB oder einem anderen RGB-Profil sehen erst nach dem Umwandeln richtig aus. Wenn deaktiviert, öffnen sie sich mit ihren eigenen Werten und behalten ihr Profil.</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>In Farb&amp;profil umwandeln...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>In Farbprofil umwandeln</translation>
     </message>
 </context>
 <context>

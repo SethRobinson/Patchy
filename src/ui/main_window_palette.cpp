@@ -1073,7 +1073,7 @@ QString MainWindow::convert_active_document_to_profile(std::span<const std::uint
                ? tr("32-bit documents convert only between matrix-based RGB profiles")
                : tr("The profile cannot be used for this conversion");
   }
-  push_undo_snapshot(tr("Convert to Profile"));
+  push_undo_snapshot(tr("Convert to Color Profile"));
   document() = std::move(converted);
   if (canvas_ != nullptr) {
     canvas_->document_changed();

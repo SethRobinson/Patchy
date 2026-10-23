@@ -33,7 +33,7 @@ std::optional<ConvertProfileChoice> request_convert_to_profile(QWidget* parent, 
   auto settings = app_settings();
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("convertToProfileDialog"));
-  dialog.setWindowTitle(QObject::tr("Convert to Profile"));
+  dialog.setWindowTitle(QObject::tr("Convert to Color Profile"));
   auto* layout = new QVBoxLayout(&dialog);
   auto* form = new QFormLayout();
   auto* source = new QLabel(current_profile_name, &dialog);
@@ -54,7 +54,8 @@ std::optional<ConvertProfileChoice> request_convert_to_profile(QWidget* parent, 
     destination->insertItem(row, description, path);
     destination->setItemData(row, QDir::toNativeSeparators(path), Qt::ToolTipRole);
   };
-  for (const auto& installed : installed_rgb_profiles()) {
+  const auto installed_profiles = installed_rgb_profiles();
+  for (const auto& installed : installed_profiles) {
     add_entry(destination->count(), to_qstring(installed.path), QString::fromStdString(installed.description));
   }
 #ifndef Q_OS_WASM
@@ -92,7 +93,7 @@ std::optional<ConvertProfileChoice> request_convert_to_profile(QWidget* parent, 
                          return;
                        }
                        if (read_rgb_profile(to_filesystem_path(path)).empty()) {
-                         show_critical_message(&dialog, QObject::tr("Convert to Profile"),
+                         show_critical_message(&dialog, QObject::tr("Convert to Color Profile"),
                                                QObject::tr("\"%1\" is not an RGB profile Patchy can use.").arg(path),
                                                QStringLiteral("convertToProfileFailedMessageBox"));
                          return;
@@ -102,6 +103,19 @@ std::optional<ConvertProfileChoice> request_convert_to_profile(QWidget* parent, 
                      });
                    });
   form->addRow(QObject::tr("Destination profile:"), destination);
+#ifndef Q_OS_WASM
+  // Patchy ships no RGB profiles: the list is sRGB plus what this computer has installed.
+  auto* sources = new QLabel(installed_profiles.empty()
+                                 ? QObject::tr("sRGB is built into Patchy. No other RGB profiles are installed on "
+                                               "this computer; use Choose Profile File... to pick a profile file.")
+                                 : QObject::tr("sRGB is built into Patchy. The other profiles are the RGB profiles "
+                                               "installed on this computer; use Choose Profile File... for one "
+                                               "that is not listed."),
+                             &dialog);
+  sources->setObjectName(QStringLiteral("convertToProfileSourcesNote"));
+  sources->setWordWrap(true);
+  form->addRow(sources);
+#endif
 
   auto* intent = new QComboBox(&dialog);
   intent->setObjectName(QStringLiteral("convertToProfileIntentCombo"));
@@ -142,7 +156,7 @@ std::optional<ConvertProfileChoice> request_convert_to_profile(QWidget* parent, 
   if (!choice.destination_path.isEmpty()) {
     choice.destination = read_rgb_profile(to_filesystem_path(choice.destination_path));
     if (choice.destination.empty()) {
-      show_critical_message(parent, QObject::tr("Convert to Profile"),
+      show_critical_message(parent, QObject::tr("Convert to Color Profile"),
                             QObject::tr("\"%1\" is not an RGB profile Patchy can use.").arg(choice.destination_path),
                             QStringLiteral("convertToProfileFailedMessageBox"));
       return std::nullopt;

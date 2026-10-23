@@ -5,7 +5,7 @@ color picker and every filter treat RGB values as sRGB values. A file whose pixe
 another RGB profile (Display P3 from phones, Adobe RGB and ProPhoto from cameras and
 editors) therefore looks dull or shifted unless its pixels are converted. Step 1 of RGB
 profile support (October 2026) converts such files on open and adds Edit > Convert to
-Profile. Real working spaces and a profile list in New Document are a later step; CMYK is
+Color Profile. Real working spaces and a profile list in New Document are a later step; CMYK is
 [cmyk.md](cmyk.md).
 
 Code: `src/color/rgb_profiles.{hpp,cpp}` (Qt-free, vendored Little CMS), the open hook
@@ -68,9 +68,9 @@ table-based profile is sRGB only by a description naming sRGB.
   primaries), so they convert through the colorant matrices, destination inverse times
   source, without clipping: out-of-gamut colors go negative or above 1. Both profiles must
   be matrix profiles; a table-based one refuses the conversion (open keeps the tag with a
-  note, Convert to Profile reports it).
+  note, Convert to Color Profile reports it).
 
-## Edit > Convert to Profile
+## Edit > Convert to Color Profile
 
 `edit.convert_to_profile` (no default key), dialog `convertToProfileDialog`: the current
 profile (the embedded description, `kSrgbProfileName` when untagged), a destination list
@@ -81,7 +81,13 @@ the converted profile becomes the embedded one, none for sRGB, matching the open
 Refused in CMYK Proof and palette (Indexed) mode with a status message. The choices persist
 under `color/convertProfileDestination`, `color/convertProfileIntent` (the
 `rendering_intent_token` values) and `color/convertProfileBlackPoint`. A document in a
-non-sRGB profile still displays as sRGB values, which the dialog says.
+non-sRGB profile still displays as sRGB values, which the dialog says. Below the list,
+`convertToProfileSourcesNote` (desktop only) says sRGB is built in and the rest are the
+profiles installed on this computer, or that none are, and points at the Choose Profile File... entry.
+Patchy ships no RGB profile files: sRGB is Little CMS's generated profile, and a profile
+the user picks is read in place, never copied into Patchy (only embedded in the converted
+document, as every color-managed editor does). The menu text was "Convert to Profile"
+before October 24, 2026; the command id and settings keys kept their names.
 
 Scripting: `doc.colorProfile` and `doc.convertToProfile(profile, {intent,
 blackPointCompensation})` ([scripting-api-changes.md](scripting-api-changes.md)); `app.open`

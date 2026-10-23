@@ -675,11 +675,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(define_custom_shape_svg_action, "edit.define_custom_shape_svg");
   connect(define_custom_shape_svg_action, &QAction::triggered, this,
           [this] { define_custom_shape_from_svg_file(); });
-  // Edit > Convert to Profile (docs/rgb-profiles.md): converts the pixels from the
+  // Edit > Convert to Color Profile (docs/rgb-profiles.md): converts the pixels from the
   // document's RGB profile to another one. Refused in CMYK Proof and Indexed modes.
   edit_menu->addSeparator();
-  auto* convert_to_profile_action = edit_menu->addAction(tr("Convert to Pro&file..."));
-  bind_action_text(convert_to_profile_action, QT_TR_NOOP("Convert to Pro&file..."));
+  auto* convert_to_profile_action = edit_menu->addAction(tr("Convert to Color Pro&file..."));
+  bind_action_text(convert_to_profile_action, QT_TR_NOOP("Convert to Color Pro&file..."));
   convert_to_profile_action->setObjectName(QStringLiteral("editConvertToProfileAction"));
   register_hotkey(convert_to_profile_action, "edit.convert_to_profile");
   connect(convert_to_profile_action, &QAction::triggered, this, [this] { convert_to_profile_dialog(); });

@@ -2,7 +2,7 @@
 
 // RGB color profiles (docs/rgb-profiles.md). Patchy edits and shows every RGB document as
 // sRGB. A file whose pixels are in another RGB profile (Display P3, Adobe RGB, ProPhoto)
-// converts to sRGB when it opens, and Edit > Convert to Profile converts a document's
+// converts to sRGB when it opens, and Edit > Convert to Color Profile converts a document's
 // pixels from its profile to another one.
 
 #include "color/color_management.hpp"
@@ -32,7 +32,7 @@ inline constexpr const char* kSrgbProfileName = "sRGB IEC61966-2.1";
 // The name to show for a document's embedded profile: its description, kSrgbProfileName
 // when there is none, the description or "Unnamed profile" for a profile without a name.
 [[nodiscard]] std::string document_rgb_profile_name(std::span<const std::uint8_t> embedded_profile);
-// Reads an RGB profile file (for Convert to Profile). Empty when the file is missing,
+// Reads an RGB profile file (for Convert to Color Profile). Empty when the file is missing,
 // unreadable, larger than 16 MiB or not a usable RGB profile. The path keeps its native
 // encoding.
 [[nodiscard]] std::vector<std::uint8_t> read_rgb_profile(const std::filesystem::path& path);
@@ -56,7 +56,7 @@ struct RgbMatrixProfileSpec {
 
 // Converts RGB pixels from one profile to another. Empty profile bytes mean sRGB. 8 and
 // 16-bit buffers convert through Little CMS with the chosen intent and black point
-// compensation (Convert to Profile's choices; opening a file uses relative colorimetric
+// compensation (Convert to Color Profile's choices; opening a file uses relative colorimetric
 // with compensation, Photoshop's defaults). 32-bit buffers hold linear light, so they
 // convert through the profiles' colorant matrices without clipping; that needs matrix
 // profiles on both ends. Built without the pixel cache, so an instance is thread-safe.

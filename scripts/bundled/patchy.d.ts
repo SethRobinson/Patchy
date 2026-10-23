@@ -1116,7 +1116,7 @@ interface PatchyDocument {
    *  16 and 32 need deep editing to be on; Indexed documents stay 8-bit. */
   convertBitDepth(bits: 8 | 16 | 32): void;
   /**
-   * Edit > Convert to Profile: converts the pixels from the document's RGB profile to
+   * Edit > Convert to Color Profile: converts the pixels from the document's RGB profile to
    * `profile`, "sRGB" or the path of an RGB .icc/.icm file, which becomes the embedded
    * profile (none for sRGB). Pixel layers, Smart Object previews and the imported palette
    * convert; text, shape, fill and adjustment colors and layer styles keep their values.

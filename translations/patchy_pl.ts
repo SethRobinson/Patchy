@@ -12095,10 +12095,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Nie znaleziono żadnego ze sprawdzalnych znaków wodnych. Niektórych rodzajów nie sprawdzono.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Konwertuj na profil</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>Bieżący profil:</translation>
     </message>
@@ -12153,6 +12149,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>Kolory zapisane w warstwach tekstowych, kształtów, wypełnienia i dopasowania oraz w stylach warstw zachowują wartości z pliku; na sRGB przekonwertowano tylko piksele</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Konwertuj na profil kolorów</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>sRGB jest wbudowany w Patchy. Na tym komputerze nie zainstalowano innych profili RGB; użyj polecenia Wybierz plik profilu..., aby wybrać plik profilu.</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>sRGB jest wbudowany w Patchy. Pozostałe profile to profile RGB zainstalowane na tym komputerze; użyj polecenia Wybierz plik profilu..., aby wybrać profil spoza listy.</translation>
     </message>
 </context>
 <context>
@@ -24713,10 +24721,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Skanuj w poszukiwaniu znaków wodnych...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Konwertuj na pro&amp;fil...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>Najpierw otwórz dokument</translation>
     </message>
@@ -24737,10 +24741,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Tego profilu nie można użyć do tej konwersji</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Konwertuj na profil</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>Przekonwertowano z %1 na %2</translation>
     </message>
@@ -24751,6 +24751,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy wyświetla i edytuje kolory RGB jako sRGB. Pliki w Display P3, Adobe RGB lub innym profilu RGB wyglądają poprawnie dopiero po konwersji. Po wyłączeniu otwierają się z własnymi wartościami i zachowują swój profil.</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>Konwertuj na pro&amp;fil kolorów...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>Konwertuj na profil kolorów</translation>
     </message>
 </context>
 <context>

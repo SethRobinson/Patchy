@@ -1,6 +1,6 @@
 // RGB profiles in the app (docs/rgb-profiles.md): every reader family converts a Display P3
 // file to sRGB on open with an Import Notes entry, the preference turns that off, Edit >
-// Convert to Profile is one undo step, and doc.convertToProfile mirrors it.
+// Convert to Color Profile is one undo step, and doc.convertToProfile mirrors it.
 #include "color/rgb_profiles.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
@@ -282,6 +282,10 @@ void ui_convert_to_profile_dialog_converts_and_undoes() {
     auto* destination = dialog->findChild<QComboBox*>(QStringLiteral("convertToProfileDestinationCombo"));
     CHECK(destination != nullptr && destination->currentIndex() == 0);
     CHECK(destination != nullptr && destination->currentText() == QString::fromLatin1(patchy::kSrgbProfileName));
+    CHECK(dialog->windowTitle() == QStringLiteral("Convert to Color Profile"));
+    // The dialog says where the destination list comes from: sRGB built in, the rest installed.
+    auto* sources = dialog->findChild<QLabel*>(QStringLiteral("convertToProfileSourcesNote"));
+    CHECK(sources != nullptr && sources->text().contains(QStringLiteral("installed on this computer")));
     auto* intent = dialog->findChild<QComboBox*>(QStringLiteral("convertToProfileIntentCombo"));
     CHECK(intent != nullptr &&
           intent->currentData().toInt() == static_cast<int>(patchy::RenderingIntent::RelativeColorimetric));

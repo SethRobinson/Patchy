@@ -12025,10 +12025,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>확인할 수 있는 워터마크를 찾지 못했습니다. 일부 종류는 확인하지 않았습니다.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>프로파일로 변환</translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation>현재 프로파일:</translation>
     </message>
@@ -12083,6 +12079,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
         <translation>텍스트, 모양, 칠, 조정 레이어와 레이어 스타일에 저장된 색상은 파일의 값을 유지하며, sRGB로 변환된 것은 픽셀뿐입니다</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>색상 프로파일로 변환</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation>sRGB는 Patchy에 내장되어 있습니다. 이 컴퓨터에는 다른 RGB 프로파일이 설치되어 있지 않습니다. 프로파일 파일을 고르려면 &apos;프로파일 파일 선택...&apos;을 사용하세요.</translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
+        <translation>sRGB는 Patchy에 내장되어 있습니다. 다른 프로파일은 이 컴퓨터에 설치된 RGB 프로파일입니다. 목록에 없는 프로파일은 &apos;프로파일 파일 선택...&apos;을 사용하세요.</translation>
     </message>
 </context>
 <context>
@@ -24569,10 +24577,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>워터마크 검사...</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>프로파일로 변환(&amp;F)...</translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation>먼저 문서를 여세요</translation>
     </message>
@@ -24593,10 +24597,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>이 프로파일은 이 변환에 사용할 수 없습니다</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>프로파일로 변환</translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation>%1에서 %2(으)로 변환했습니다</translation>
     </message>
@@ -24607,6 +24607,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy는 RGB 색상을 sRGB로 표시하고 편집합니다. Display P3, Adobe RGB 또는 다른 RGB 프로파일의 파일은 변환해야 올바르게 보입니다. 끄면 파일이 원래 값으로 열리고 프로파일도 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation>색상 프로파일로 변환(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation>색상 프로파일로 변환</translation>
     </message>
 </context>
 <context>

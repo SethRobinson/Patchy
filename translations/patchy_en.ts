@@ -12044,10 +12044,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Current profile:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12101,6 +12097,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. No other RGB profiles are installed on this computer; use Choose Profile File... to pick a profile file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24568,10 +24576,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open a document first</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24592,10 +24596,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Converted from %1 to %2</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24605,6 +24605,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Color Pro&amp;file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Color Profile</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
