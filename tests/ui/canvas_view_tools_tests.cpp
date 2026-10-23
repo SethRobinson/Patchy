@@ -2292,6 +2292,79 @@ void ui_size_dialogs_open_with_width_focused_and_selected() {
   QApplication::processEvents();
 }
 
+// GitHub issue 358: the Canvas Size dialog (also Crop to Selection (Advanced)) styled
+// its combos' drop-down box without an arrow image, so the stylesheet engine drew no
+// arrow at all and the unit and extension color pickers looked like text fields.
+void ui_canvas_size_dialog_combos_show_drop_down_arrow() {
+  patchy::ui::MainWindow window;  // default document: 1024x768
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->select_all();
+  QApplication::processEvents();
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string scheme_name = scheme == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    bool checked = false;
+    QTimer::singleShot(0, [&] {
+      // Failures are recorded, never thrown: this runs inside the dialog's event loop.
+      const auto fail = [&scheme_name](const std::string& what) {
+        patchy::test::report_failure(what + " (" + scheme_name + ")");
+      };
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyCanvasSizeDialog"));
+      if (dialog == nullptr) {
+        fail("the Crop to Selection (Advanced) dialog did not open");
+        return;
+      }
+      checked = true;
+      if (dialog->windowTitle() != QStringLiteral("Crop to Selection (Advanced)")) {
+        fail("unexpected dialog title " + dialog->windowTitle().toStdString());
+      }
+      const auto combos = dialog->findChildren<QComboBox*>();
+      if (combos.size() != 3) {  // width unit, height unit, extension color
+        fail("expected 3 combos, found " + std::to_string(combos.size()));
+      }
+      for (auto* combo : combos) {
+        const auto image = combo->grab().toImage().convertToFormat(QImage::Format_RGB32);
+        if (image.width() <= 30 || image.height() <= 12) {
+          fail("combo '" + combo->objectName().toStdString() + "' is too small to check");
+          continue;
+        }
+        // The field color, from inside the border on the top edge of the drop-down area.
+        const QColor field = image.pixelColor(image.width() - 12, 3);
+        int ink = 0;
+        for (int y = 3; y < image.height() - 3; ++y) {
+          for (int x = image.width() - 22; x < image.width() - 3; ++x) {
+            const QColor color = image.pixelColor(x, y);
+            const int distance = std::max({std::abs(color.red() - field.red()), std::abs(color.green() - field.green()),
+                                           std::abs(color.blue() - field.blue())});
+            if (distance > 60) {
+              ++ink;
+            }
+          }
+        }
+        if (ink < 6) {
+          fail("combo '" + combo->objectName().toStdString() + "' shows no drop-down arrow (" + std::to_string(ink) +
+               " arrow pixels)");
+        }
+      }
+      // The label beside the extension color combo is shown whole (it was cut to
+      // "Canvas extension colo" with a wider font in the same report).
+      auto* extension_label = dialog->findChild<QLabel*>(QStringLiteral("canvasSizeExtensionColorLabel"));
+      if (extension_label == nullptr) {
+        fail("no canvasSizeExtensionColorLabel");
+      } else if (extension_label->width() < extension_label->sizeHint().width()) {
+        fail("the extension color label is cut off (" + std::to_string(extension_label->width()) + " < " +
+             std::to_string(extension_label->sizeHint().width()) + ")");
+      }
+      (void)capture_widget_artifact("ui_issue358_crop_advanced_dialog_" + scheme_name, *dialog);
+      dialog->reject();
+    });
+    require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
+    QApplication::processEvents();
+    CHECK(checked);
+  }
+}
+
 void ui_zoom_preset_recovers_parked_view() {
   patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(90, 120, 200)));
@@ -8013,6 +8086,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_image_resize_recenters_view_and_zoom_double_click_shows_document},
       {"ui_size_dialogs_open_with_width_focused_and_selected",
        ui_size_dialogs_open_with_width_focused_and_selected},
+      {"ui_canvas_size_dialog_combos_show_drop_down_arrow", ui_canvas_size_dialog_combos_show_drop_down_arrow},
       {"ui_zoom_preset_recovers_parked_view", ui_zoom_preset_recovers_parked_view},
       {"ui_canvas_resize_keeps_document_centered_and_view_center_stable",
        ui_canvas_resize_keeps_document_centered_and_view_center_stable},

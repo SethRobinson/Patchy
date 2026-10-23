@@ -970,10 +970,8 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       border-color: @dlg_focus_border;
       background: @dlg_button_bg;
     }
-    QDialog#patchyCanvasSizeDialog QComboBox::drop-down {
-      border: 0;
-      width: 22px;
-    }
+    /* No QComboBox::drop-down rule: styling the drop-down without a ::down-arrow
+       image makes Qt draw no arrow, and the combos read as text fields (issue 358). */
     QDialog#patchyCanvasSizeDialog QCheckBox {
       background: transparent;
       color: @text_on_raised;
@@ -1213,7 +1211,10 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   extension_row->setSpacing(8);
   content_layout->addLayout(extension_row);
   auto* extension_label = new QLabel(QObject::tr("Canvas extension color"), &dialog);
-  extension_label->setFixedWidth(116);
+  extension_label->setObjectName(QStringLiteral("canvasSizeExtensionColorLabel"));
+  // At least the text's width: a wider font or a translation cut it off (issue 358).
+  extension_label->ensurePolished();
+  extension_label->setFixedWidth(std::max(116, extension_label->sizeHint().width()));
   extension_row->addWidget(extension_label, 0, Qt::AlignVCenter);
 
   auto* extension_color = new QComboBox(&dialog);
