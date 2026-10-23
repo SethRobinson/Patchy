@@ -1252,7 +1252,8 @@ void ui_options_menu_buttons_show_the_gear() {
       CHECK(button->popupMode() == QToolButton::InstantPopup);
       CHECK(button->menu() != nullptr);
       CHECK(button->property("optionsBarMenuButton").toBool());
-      CHECK(button->height() <= 20);
+      // The QSS pins the 20 px content box; padding and border keep it inside the 26 px row.
+      CHECK(button->height() <= 26);
       CHECK(button->width() >= 20);
       // The gear has ink, and a see-through hole in its middle.
       const auto icon = button->icon().pixmap(QSize(32, 32)).toImage().convertToFormat(QImage::Format_ARGB32);
