@@ -30,7 +30,8 @@ internal static class UninstallPatchy
         "trustmark_decoder_Q.onnx",
         "trustmark_decoder_P.onnx",
         "trustmark_decoder_C.onnx",
-        "trustmark_encoder_Q.onnx"
+        "trustmark_encoder_Q.onnx",
+        "trustmark_LICENSE.txt"
     };
 
     private static readonly string[] LegacyInstalledRelativePaths = {

@@ -155,6 +155,52 @@ void apply_layer_group_disclosure(std::vector<Layer>& layers, const std::set<Lay
   }
 }
 
+void collect_initial_layer_fx_disclosure(const std::vector<Layer>& layers, std::set<LayerId>& expanded_effects,
+                                         std::set<LayerId>& collapsed_smart_filters) {
+  for (const auto& layer : layers) {
+    if (const auto expanded = layer_fx_expanded(layer); expanded.has_value()) {
+      if (*expanded) {
+        expanded_effects.insert(layer.id());
+      } else if (layer.smart_filter_stack() != nullptr) {
+        collapsed_smart_filters.insert(layer.id());
+      }
+    }
+    collect_initial_layer_fx_disclosure(layer.children(), expanded_effects, collapsed_smart_filters);
+  }
+}
+
+namespace {
+
+void collect_layer_fx_disclosure_changes(const std::vector<Layer>& layers, const std::set<LayerId>& expanded_effects,
+                                         const std::set<LayerId>& collapsed_smart_filters,
+                                         std::vector<std::pair<LayerId, bool>>& changes) {
+  for (const auto& layer : layers) {
+    const bool has_effects = layer.layer_style().effect_count() > 0;
+    const bool has_smart_filters = layer.smart_filter_stack() != nullptr;
+    if (has_effects || has_smart_filters) {
+      const bool expanded = (has_effects && expanded_effects.contains(layer.id())) ||
+                            (has_smart_filters && !collapsed_smart_filters.contains(layer.id()));
+      if (layer_fx_expanded(layer) != std::optional<bool>{expanded}) {
+        changes.emplace_back(layer.id(), expanded);
+      }
+    }
+    collect_layer_fx_disclosure_changes(layer.children(), expanded_effects, collapsed_smart_filters, changes);
+  }
+}
+
+}  // namespace
+
+void apply_layer_fx_disclosure(std::vector<Layer>& layers, const std::set<LayerId>& expanded_effects,
+                               const std::set<LayerId>& collapsed_smart_filters) {
+  std::vector<std::pair<LayerId, bool>> changes;
+  collect_layer_fx_disclosure_changes(std::as_const(layers), expanded_effects, collapsed_smart_filters, changes);
+  for (const auto& [id, expanded] : changes) {
+    if (auto* layer = find_layer_in_tree(layers, id); layer != nullptr) {
+      layer->metadata_without_content_bump()[kLayerMetadataFxExpanded] = expanded ? "true" : "false";
+    }
+  }
+}
+
 bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id, std::vector<LayerId>& ancestors) {
   for (const auto& layer : layers) {
     if (layer.id() == id) {

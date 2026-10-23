@@ -8,24 +8,46 @@
 
 namespace patchy::ui {
 
+namespace {
+
+// The Patchy release that rehosts Adobe's files unchanged (docs/watermarks.md, "Models"),
+// with Adobe's model host as the fallback for each file. Assets there are never replaced.
+QUrl release_url(const char* name) {
+  return QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy/releases/download/ai-models-3/") +
+              QLatin1String(name));
+}
+
+QUrl adobe_url(const char* name) {
+  return QUrl(QStringLiteral("https://cai-watermark.adobe.net/watermarking/trustmark-models/") + QLatin1String(name));
+}
+
+constexpr auto kLicenseFileName = "trustmark_LICENSE.txt";
+
+}  // namespace
+
 const std::vector<DownloadableModelFile>& watermark_model_files() {
-  // Adobe's float16 ONNX exports (github.com/adobe/trustmark, MIT for code and models), from
-  // the Content Authenticity Initiative's model host, renamed with a trustmark_ prefix. A
-  // file the host replaces no longer matches its SHA-256, so the download fails rather than
-  // installing anything unreviewed.
+  // Adobe's float16 ONNX exports (github.com/adobe/trustmark, MIT for code and models),
+  // renamed with a trustmark_ prefix, and Adobe's MIT license, saved beside them (MIT asks
+  // that it travel with every copy). A file a host replaces no longer matches its SHA-256,
+  // so the download fails rather than installing anything unreviewed.
   static const std::vector<DownloadableModelFile> files{
-      {QStringLiteral("trustmark_decoder_Q.onnx"),
-       QUrl(QStringLiteral("https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_Q.onnx")), 47401222,
-       QByteArrayLiteral("ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df")},
-      {QStringLiteral("trustmark_decoder_P.onnx"),
-       QUrl(QStringLiteral("https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_P.onnx")), 47400467,
-       QByteArrayLiteral("be6d7c33f8a7b376f179e75f3f7c58ff816a9ac7bb6d37fd0a729a635f624c35")},
-      {QStringLiteral("trustmark_decoder_C.onnx"),
-       QUrl(QStringLiteral("https://cai-watermark.adobe.net/watermarking/trustmark-models/decoder_C.onnx")), 22457887,
-       QByteArrayLiteral("3d92f4a278bcf87ac7dc40248c36ae664fe5fdedfd19ca265f7ca730b271100a")},
-      {QStringLiteral("trustmark_encoder_Q.onnx"),
-       QUrl(QStringLiteral("https://cai-watermark.adobe.net/watermarking/trustmark-models/encoder_Q.onnx")), 17312208,
-       QByteArrayLiteral("19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d")},
+      {QStringLiteral("trustmark_decoder_Q.onnx"), release_url("trustmark_decoder_Q.onnx"), 47401222,
+       QByteArrayLiteral("ee3268f057c9dabef680e169302f5973d0589feea86189ed229a896cc3aa88df"),
+       {adobe_url("decoder_Q.onnx")}},
+      {QStringLiteral("trustmark_decoder_P.onnx"), release_url("trustmark_decoder_P.onnx"), 47400467,
+       QByteArrayLiteral("be6d7c33f8a7b376f179e75f3f7c58ff816a9ac7bb6d37fd0a729a635f624c35"),
+       {adobe_url("decoder_P.onnx")}},
+      {QStringLiteral("trustmark_decoder_C.onnx"), release_url("trustmark_decoder_C.onnx"), 22457887,
+       QByteArrayLiteral("3d92f4a278bcf87ac7dc40248c36ae664fe5fdedfd19ca265f7ca730b271100a"),
+       {adobe_url("decoder_C.onnx")}},
+      {QStringLiteral("trustmark_encoder_Q.onnx"), release_url("trustmark_encoder_Q.onnx"), 17312208,
+       QByteArrayLiteral("19b3d1b25836130ffd78775a8f61539f993375d1823ef0e59ba5b8dffb4f892d"),
+       {adobe_url("encoder_Q.onnx")}},
+      // Adobe's LICENSE at commit 6df5a0a2 of github.com/adobe/trustmark (1218 bytes, LF).
+      {QLatin1String(kLicenseFileName), release_url(kLicenseFileName), 1218,
+       QByteArrayLiteral("58d47a5cdfaaceda98925d845e8207d90336c62347a2383f95962b667b1cdaf5"),
+       {QUrl(QStringLiteral(
+           "https://raw.githubusercontent.com/adobe/trustmark/6df5a0a29b51cbec832695fdf02051a1937e37bd/LICENSE"))}},
   };
   return files;
 }
@@ -44,6 +66,9 @@ int watermark_model_download_megabytes() {
 
 bool downloaded_watermark_models_present(const QString& folder) {
   for (const auto& file : watermark_model_files()) {
+    if (file.name == QLatin1String(kLicenseFileName)) {
+      continue;  // the models decide; a build tree stages them without the license
+    }
     if (!QFileInfo(QDir(folder).filePath(file.name)).isFile()) {
       return false;
     }

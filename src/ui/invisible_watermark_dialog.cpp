@@ -151,7 +151,9 @@ std::optional<InvisibleWatermarkRequest> request_invisible_watermark(QWidget* pa
   // The models are one optional download; nothing is fetched until the user asks.
   auto* models_row = new QHBoxLayout();
   auto* models_note = wrapped_label(
-      InvisibleWatermarkStrings::tr("Needs the watermark models: a %1 MB download from Adobe.").arg(watermark_model_download_megabytes()),
+      InvisibleWatermarkStrings::tr("Needs the watermark models (Adobe's, MIT License): a %1 MB download from %2.")
+          .arg(watermark_model_download_megabytes())
+          .arg(model_download_source_text(watermark_model_files())),
       &dialog);
   models_note->setObjectName(QStringLiteral("invisibleWatermarkModelsNote"));
   auto* download_button = new QPushButton(InvisibleWatermarkStrings::tr("Download Watermark Models"), &dialog);

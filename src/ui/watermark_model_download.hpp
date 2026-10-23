@@ -1,10 +1,11 @@
 #pragma once
 
 // The TrustMark watermark models (docs/watermarks.md) are one optional download: Adobe's
-// decoders for variants Q, P and C and the variant Q encoder, fetched only when the user
-// asks (File Info's Watermarks page, Image > Add Invisible Watermark, Preferences > Tools or
-// app.downloadWatermarkModels), pinned by size and SHA-256, into the same per-user folder
-// as the High Quality Object Selection model.
+// decoders for variants Q, P and C, the variant Q encoder and Adobe's MIT license, fetched
+// only when the user asks (File Info's Watermarks page, Image > Add Invisible Watermark,
+// Preferences or app.downloadWatermarkModels) from Patchy's ai-models-3 release (Adobe's
+// own host as the fallback), pinned by size and SHA-256, into the same per-user folder as
+// the High Quality Object Selection model.
 
 #include "ui/object_selection_model_download.hpp"
 
@@ -22,7 +23,8 @@ namespace patchy::ui {
 // Whole megabytes, rounded, for messages.
 [[nodiscard]] int watermark_model_download_megabytes();
 
-// True when every watermark model file is in `folder`.
+// True when every watermark model file (the .onnx files; the license is not checked) is in
+// `folder`.
 [[nodiscard]] bool downloaded_watermark_models_present(const QString& folder);
 // Deletes exactly the watermark model files from `folder` by their full names, then the
 // folder only when that leaves it empty (a plain rmdir). Never a wildcard or recursive

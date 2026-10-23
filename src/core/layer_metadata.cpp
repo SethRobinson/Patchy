@@ -286,6 +286,14 @@ void set_layer_group_expanded(Layer& layer, bool expanded) {
   }
 }
 
+std::optional<bool> layer_fx_expanded(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataFxExpanded);
+  if (found == layer.metadata().end()) {
+    return std::nullopt;
+  }
+  return found->second == "true";
+}
+
 bool layer_is_text(const Layer& layer) {
   return layer.metadata().contains(kLayerMetadataText);
 }

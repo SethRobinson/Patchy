@@ -126,10 +126,6 @@
         <translation>100 % ist die Vorgabe von TrustMark. Niedriger ist weniger sichtbar, geht aber leichter verloren; Adobe verwendet 150 % für Drucke.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>Benötigt die Wasserzeichenmodelle: ein Download von %1 MB von Adobe.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Wasserzeichenmodelle herunterladen</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>%1 von %2 Zeichen frei</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>Benötigt die Wasserzeichenmodelle (von Adobe, MIT-Lizenz): ein Download von %1 MB von %2.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>Das Plug-in hat einen Fehler gemeldet.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (Release %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>Link kopieren</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Herunterladen</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Von:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Abbrechen</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>Datei %1 von %2: %3 (%4 MB)</translation>
     </message>
 </context>
 <context>
@@ -11998,10 +12028,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>TrustMark konnte nicht ausgeführt werden: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark, das offene Wasserzeichen hinter dauerhaften Content Credentials, benötigt die Wasserzeichenmodelle: ein Download von %1 MB von Adobe, nur auf Ihren Wunsch.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Wasserzeichenmodelle herunterladen</translation>
     </message>
@@ -12030,64 +12056,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Ihr unsichtbares Wasserzeichen wurde hinzugefügt.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>In Profil umwandeln</translation>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>Smartfilter-Zeilen einklappen</translation>
     </message>
     <message>
-        <source>Current profile:</source>
-        <translation>Aktuelles Profil:</translation>
+        <source>Expand the Smart Filter rows</source>
+        <translation>Smartfilter-Zeilen ausklappen</translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
-        <translation>Profildatei wählen...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>RGB-Profil wählen</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC-Profile (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot; ist kein RGB-Profil, das Patchy verwenden kann.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>Zielprofil:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>Relativ farbmetrisch</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Absolut farbmetrisch</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>Renderpriorität:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>Tiefenkompensierung</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy zeigt RGB-Farben als sRGB an. Ein in ein anderes Profil umgewandeltes Dokument sieht hier auf dem Bildschirm anders aus, und seine Speicherungen enthalten dieses Profil.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Das Farbprofil %1 konnte nicht in sRGB umgewandelt werden, daher behält die Datei ihre Farben und ihr Profil</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Vom Farbprofil %1 in sRGB umgewandelt</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>In Text-, Form-, Füll- und Einstellungsebenen und in Ebenenstilen gespeicherte Farben behalten ihre Werte aus der Datei; nur Pixel wurden in sRGB umgewandelt</translation>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark, das offene Wasserzeichen hinter dauerhaften Content Credentials, benötigt die Wasserzeichenmodelle (von Adobe, MIT-Lizenz): ein Download von %1 MB von %2, nur auf Ihren Wunsch.</translation>
     </message>
 </context>
 <context>
@@ -22291,10 +22269,6 @@ In Bilder umgewandelt: %1.</translation>
         <translation>Das Modell „Hohe Qualität“ für die Objektauswahl herunterladen?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Es erkennt Objekte deutlich genauer als das integrierte Modell. Der Download umfasst %1 MB von GitHub und bleibt auf diesem Computer gespeichert. Sie können das Modell jederzeit in der Optionsleiste der Objektauswahl wechseln.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>Die Objektauswahl verwendet jetzt das Modell „Hohe Qualität“</translation>
     </message>
@@ -22327,20 +22301,12 @@ In Bilder umgewandelt: %1.</translation>
         <translation>Objektauswahl-Modell „Hohe Qualität“: heruntergeladen (%1 MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Objektauswahl-Modell „Hohe Qualität“: nicht heruntergeladen</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>Das Objektauswahl-Modell „Hohe Qualität“ wurde gelöscht</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>Das Modell „Hohe Qualität“ konnte nicht gelöscht werden: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Lädt das Modell „Hohe Qualität“ herunter (%1 MB von GitHub). Damit erkennt die Objektauswahl Objekte genauer.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24304,20 +24270,12 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Die Wasserzeichenmodelle konnten nicht heruntergeladen werden: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Lädt die Adobe-TrustMark-Wasserzeichenmodelle herunter (%1 MB von Adobe). Danach liest „Nach Wasserzeichen suchen“ in den Dateiinformationen TrustMark-Wasserzeichen, und Bild &gt; Unsichtbares Wasserzeichen hinzufügen kann eines hinzufügen.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>Löscht die heruntergeladenen Wasserzeichenmodelle.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark-Wasserzeichenmodelle: heruntergeladen (%1 MB)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark-Wasserzeichenmodelle: nicht heruntergeladen</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24552,44 +24510,28 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Immer ohne Nachfrage hinzufügen</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>In &amp;Profil umwandeln...</translation>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>Es erkennt Objekte deutlich genauer als das integrierte Modell. Der Download umfasst %1 MB von %2 und bleibt auf diesem Computer gespeichert. Sie können das Modell jederzeit in der Optionsleiste der Objektauswahl wechseln.</translation>
     </message>
     <message>
-        <source>Open a document first</source>
-        <translation>Öffnen Sie zuerst ein Dokument</translation>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>Lädt das Modell „Hohe Qualität“ herunter (%1 MB von %2). Damit erkennt die Objektauswahl Objekte genauer.</translation>
     </message>
     <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Vor dem Umwandeln in ein anderes Profil in RGB-Farbe konvertieren</translation>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>Objektauswahl-Modell „Hohe Qualität“: nicht heruntergeladen (%1 MB von %2)</translation>
     </message>
     <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Verlassen Sie den CMYK-Proof, bevor Sie in ein anderes RGB-Profil umwandeln</translation>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Lädt die Adobe-TrustMark-Wasserzeichenmodelle herunter (von Adobe, MIT-Lizenz; %1 MB von %2). Danach liest Nach Wasserzeichen suchen in den Dateiinformationen TrustMark-Wasserzeichen, und Bild &gt; Unsichtbares Wasserzeichen hinzufügen kann eines hinzufügen.</translation>
     </message>
     <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32-Bit-Dokumente werden nur zwischen matrixbasierten RGB-Profilen umgewandelt</translation>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark-Wasserzeichenmodelle: nicht heruntergeladen (%1 MB von %2)</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Das Profil kann für diese Umwandlung nicht verwendet werden</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>In Profil umwandeln</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Von %1 in %2 umgewandelt</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Dateien mit anderen RGB-Profilen beim Öffnen in sRGB umwandeln</translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy zeigt und bearbeitet RGB-Farben als sRGB. Dateien in Display P3, Adobe RGB oder einem anderen RGB-Profil sehen erst nach dem Umwandeln richtig aus. Wenn deaktiviert, öffnen sie sich mit ihren eigenen Werten und behalten ihr Profil.</translation>
+        <source>Watermark Models</source>
+        <translation>Wasserzeichenmodelle</translation>
     </message>
 </context>
 <context>
@@ -26479,38 +26421,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences: unbekannte Option %1.</translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Die Optionen von convertToProfile müssen ein Objekt sein.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent muss &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; oder &quot;absolute-colorimetric&quot; sein.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation muss true oder false sein.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile erwartet &quot;sRGB&quot; oder den Pfad einer RGB-Profildatei: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Konvertieren Sie ein indiziertes Dokument zuerst in RGB-Farbe.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Verlassen Sie den CMYK-Proof, bevor Sie in ein anderes RGB-Profil umwandeln.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32-Bit-Dokumente werden nur zwischen matrixbasierten RGB-Profilen umgewandelt.</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Das Profil kann für diese Umwandlung nicht verwendet werden.</translation>
     </message>
 </context>
 <context>

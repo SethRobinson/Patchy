@@ -482,8 +482,10 @@ void ui_layer_smart_filter_eyes_align_with_layer_style_eyes() {
   auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
   CHECK(list != nullptr && layers_dock != nullptr);
-  expand_effects(*list, layer_name);
   const auto row = [&] { return list->itemWidget(require_layer_item(*list, layer_name)); };
+  // Photoshop saved the layer's rows open (flags bit 5, issue 361), so the new effects show at once.
+  CHECK(row() != nullptr && row()->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton")) != nullptr &&
+        row()->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton"))->isChecked());
   list->scrollToItem(require_layer_item(*list, layer_name));
   QApplication::processEvents();
 
@@ -564,6 +566,133 @@ void ui_layer_smart_filter_eyes_align_with_layer_style_eyes() {
            !layer()->smart_filter_stack()->entries[1].enabled;
   }));
   CHECK(layer()->smart_filter_stack()->entries[0].enabled);
+}
+
+// The Smart Filters header has a disclosure arrow like Layer Styles (issue 361). Photoshop's
+// saved open/closed state (layer record flags bit 5) seeds it, a toggle is not an edit, and a
+// save writes the panel's state back.
+void ui_layer_smart_filter_rows_collapse_and_save_state() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  // Photoshop's file with one list closed (a cleared bit 5; the core test pins the bit itself).
+  const auto closed_name = QStringLiteral("Gaussian then Hue Saturation");
+  const auto open_name = QStringLiteral("Levels then Curves");
+  auto source = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-adjustments.psd"));
+  std::size_t closed_filters = 0;
+  std::size_t open_filters = 0;
+  for (auto& layer : source.layers()) {
+    if (layer.name() == closed_name.toStdString()) {
+      layer.metadata()[patchy::kLayerMetadataFxExpanded] = "false";
+      closed_filters = layer.smart_filter_stack() != nullptr ? layer.smart_filter_stack()->entries.size() : 0U;
+    } else if (layer.name() == open_name.toStdString()) {
+      CHECK(patchy::layer_fx_expanded(std::as_const(layer)) == std::optional<bool>{true});
+      open_filters = layer.smart_filter_stack() != nullptr ? layer.smart_filter_stack()->entries.size() : 0U;
+    }
+  }
+  CHECK(closed_filters > 0U && open_filters > 0U);
+  ensure_artifact_dir();
+  const auto input_path =
+      QDir(QStringLiteral("test-artifacts")).absoluteFilePath(QStringLiteral("issue361_smart_filters_input.psd"));
+  patchy::psd::DocumentIo::write_layered_rgb8_file(source, patchy::ui::to_filesystem_path(input_path));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, input_path);
+  QApplication::processEvents();
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  const auto row = [&](const QString& name) { return list->itemWidget(require_layer_item(*list, name)); };
+  const auto disclosure = [&](const QString& name) {
+    auto* current = row(name);
+    return current == nullptr
+               ? nullptr
+               : current->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersDisclosureButton"));
+  };
+  const auto entry_count = [&](const QString& name) {
+    auto* current = row(name);
+    return current == nullptr
+               ? -1
+               : static_cast<int>(current->findChildren<QWidget*>(QStringLiteral("layerSmartFilterEntryRow")).size());
+  };
+  const auto item_height = [&](const QString& name) {
+    return require_layer_item(*list, name)->sizeHint().height();
+  };
+
+  const auto open_rows = static_cast<int>(open_filters);
+  const auto closed_rows = static_cast<int>(closed_filters);
+  CHECK(disclosure(closed_name) != nullptr && !disclosure(closed_name)->isChecked() &&
+        disclosure(closed_name)->arrowType() == Qt::RightArrow);
+  CHECK(entry_count(closed_name) == 0);
+  CHECK(item_height(closed_name) == 44 + 26);
+  CHECK(disclosure(open_name) != nullptr && disclosure(open_name)->isChecked() &&
+        disclosure(open_name)->arrowType() == Qt::DownArrow);
+  CHECK(entry_count(open_name) == open_rows);
+  CHECK(item_height(open_name) == 44 + 26 * (1 + open_rows));
+  // The header still reads "Smart Filters" with its eye after the arrow.
+  auto* closed_row = row(closed_name);
+  CHECK(closed_row != nullptr &&
+        closed_row->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton")) != nullptr);
+  list->scrollToItem(require_layer_item(*list, closed_name));
+  QApplication::processEvents();
+  save_widget_artifact("issue361_smart_filters_collapsed_and_open_dark", *layers_dock);
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  QApplication::processEvents();
+  save_widget_artifact("issue361_smart_filters_collapsed_and_open_light", *layers_dock);
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  QApplication::processEvents();
+
+  // Real clicks swap the two states; neither is an edit.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  click_row_child(*list, *disclosure(closed_name));
+  click_row_child(*list, *disclosure(open_name));
+  CHECK(entry_count(closed_name) == closed_rows);
+  CHECK(item_height(closed_name) == 44 + 26 * (1 + closed_rows));
+  CHECK(disclosure(closed_name) != nullptr && disclosure(closed_name)->isChecked());
+  CHECK(entry_count(open_name) == 0);
+  CHECK(item_height(open_name) == 44 + 26);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // Layer styles on the Smart Object without filters, opened through their own arrow.
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    for (auto& layer : doc.layers()) {
+      if (layer.name() == "Source") {
+        patchy::LayerStroke stroke;
+        stroke.enabled = true;
+        stroke.size = 2.0F;
+        stroke.color = patchy::RgbColor{20, 40, 220};
+        layer.layer_style().strokes.push_back(stroke);
+      }
+    }
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    list->scrollToItem(require_layer_item(*list, QStringLiteral("Source")));
+    QApplication::processEvents();
+    expand_effects(*list, QStringLiteral("Source"));
+    auto* source_disclosure =
+        row(QStringLiteral("Source"))->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton"));
+    CHECK(source_disclosure != nullptr && source_disclosure->isChecked());
+  }
+
+  // A save writes the panel's state: the file reopens the way it was left.
+  const auto saved_path =
+      QDir(QStringLiteral("test-artifacts")).absoluteFilePath(QStringLiteral("issue361_smart_filters_resaved.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved_path));
+  const auto saved = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(saved_path));
+  const auto expanded_named = [&saved](const std::string& name) {
+    for (const auto& layer : saved.layers()) {
+      if (layer.name() == name) {
+        return patchy::layer_fx_expanded(layer);
+      }
+    }
+    return std::optional<bool>{};
+  };
+  CHECK(expanded_named(closed_name.toStdString()) == std::optional<bool>{true});
+  CHECK(expanded_named(open_name.toStdString()) == std::optional<bool>{false});
+  CHECK(expanded_named("Source") == std::optional<bool>{true});
 }
 
 // With the master eye off, each effect's eye draws dimmed (not slashed) and still toggles
@@ -762,6 +891,7 @@ std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
       {"ui_layer_effect_rows_grey_eyes_under_master_off", ui_layer_effect_rows_grey_eyes_under_master_off},
       {"ui_layer_effect_rows_align_under_the_layer_styles_eye", ui_layer_effect_rows_align_under_the_layer_styles_eye},
       {"ui_layer_smart_filter_eyes_align_with_layer_style_eyes", ui_layer_smart_filter_eyes_align_with_layer_style_eyes},
+      {"ui_layer_smart_filter_rows_collapse_and_save_state", ui_layer_smart_filter_rows_collapse_and_save_state},
       {"ui_layer_effect_row_context_menu_edits_hides_and_deletes",
        ui_layer_effect_row_context_menu_edits_hides_and_deletes},
       {"ui_layer_effect_rows_toggle_effects_and_render", ui_layer_effect_rows_toggle_effects_and_render},

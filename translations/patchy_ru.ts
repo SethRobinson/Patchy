@@ -126,10 +126,6 @@
         <translation>100 % — значение TrustMark по умолчанию. Меньше — менее заметно, но легче теряется; Adobe использует 150 % для печати.</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>Нужны модели водяных знаков: загрузка %1 МБ с сайта Adobe.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Загрузить модели водяных знаков</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>Осталось %1 из %2 символов</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>Нужны модели водяных знаков (от Adobe, лицензия MIT): загрузка %1 МБ с %2.</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>Плагин сообщил об ошибке.</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (релиз %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>Копировать ссылку</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Загрузка</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Откуда:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>Файл %1 из %2: %3 (%4 МБ)</translation>
     </message>
 </context>
 <context>
@@ -12033,10 +12063,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Не удалось запустить TrustMark: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>Adobe TrustMark, открытому водяному знаку долговечных Content Credentials, нужны модели водяных знаков: загрузка %1 МБ с сайта Adobe, только по вашему запросу.</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>Загрузить модели водяных знаков</translation>
     </message>
@@ -12065,64 +12091,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Ваш невидимый водяной знак добавлен.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Преобразовать в профиль</translation>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>Свернуть строки смарт-фильтров</translation>
     </message>
     <message>
-        <source>Current profile:</source>
-        <translation>Текущий профиль:</translation>
+        <source>Expand the Smart Filter rows</source>
+        <translation>Развернуть строки смарт-фильтров</translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
-        <translation>Выбрать файл профиля...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>Выбор профиля RGB</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>Профили ICC (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot; не является профилем RGB, который может использовать Patchy.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>Целевой профиль:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>Относительный колориметрический</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Абсолютный колориметрический</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>Метод рендеринга:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>Компенсация точки черного</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy показывает цвета RGB как sRGB. Документ, преобразованный в другой профиль, выглядит здесь на экране иначе, а при сохранении в него записывается этот профиль.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Не удалось преобразовать цветовой профиль %1 в sRGB, поэтому файл сохраняет свои цвета и профиль</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Преобразовано из цветового профиля %1 в sRGB</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>Цвета, записанные в текстовых слоях, фигурах, слоях-заливках, корректирующих слоях и стилях слоя, сохраняют значения из файла; в sRGB преобразованы только пиксели</translation>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>Adobe TrustMark, открытому водяному знаку для стойких Content Credentials, нужны модели водяных знаков (от Adobe, лицензия MIT): загрузка %1 МБ с %2, только по вашему запросу.</translation>
     </message>
 </context>
 <context>
@@ -22354,10 +22332,6 @@ Y: %2
         <translation>Скачать модель высокого качества для выделения объектов?</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>Она находит объекты гораздо точнее встроенной модели. Загрузка составляет %1 МБ с GitHub и хранится на этом компьютере. Модель можно сменить в любой момент на панели параметров выделения объектов.</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>Выделение объектов теперь использует модель высокого качества</translation>
     </message>
@@ -22390,20 +22364,12 @@ Y: %2
         <translation>Модель высокого качества для выделения объектов: скачана (%1 МБ)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>Модель высокого качества для выделения объектов: не скачана</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>Модель высокого качества для выделения объектов удалена</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>Не удалось удалить модель высокого качества: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>Скачивает модель высокого качества (%1 МБ с GitHub). С ней выделение объектов находит объекты точнее.</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24376,20 +24342,12 @@ Patchy может скачать обновление, заменить этот
         <translation>Не удалось загрузить модели водяных знаков: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Загружает модели водяных знаков Adobe TrustMark (%1 МБ с сайта Adobe). После этого «Найти водяные знаки» в «Сведениях о файле» читает знаки TrustMark, а «Изображение &gt; Добавить невидимый водяной знак» может добавить знак.</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>Удаляет загруженные модели водяных знаков.</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>Модели водяных знаков TrustMark: загружены (%1 МБ)</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>Модели водяных знаков TrustMark: не загружены</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24624,44 +24582,28 @@ Patchy может скачать обновление, заменить этот
         <translation>Всегда добавлять без вопроса</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Преобразовать в &amp;профиль...</translation>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>Она находит объекты гораздо точнее встроенной модели. Загрузка составляет %1 МБ с %2 и хранится на этом компьютере. Модель можно сменить в любой момент на панели параметров выделения объектов.</translation>
     </message>
     <message>
-        <source>Open a document first</source>
-        <translation>Сначала откройте документ</translation>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>Скачивает модель высокого качества (%1 МБ с %2). С ней выделение объектов находит объекты точнее.</translation>
     </message>
     <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Перед преобразованием в другой профиль преобразуйте в цвет RGB</translation>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>Модель высокого качества для выделения объектов: не скачана (%1 МБ с %2)</translation>
     </message>
     <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Перед преобразованием в другой профиль RGB выйдите из цветопробы CMYK</translation>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Загружает модели водяных знаков Adobe TrustMark (от Adobe, лицензия MIT; %1 МБ с %2). После этого поиск водяных знаков в сведениях о файле читает знаки TrustMark, а «Изображение &gt; Добавить невидимый водяной знак» может добавить такой знак.</translation>
     </message>
     <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32-битные документы преобразуются только между матричными профилями RGB</translation>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>Модели водяных знаков TrustMark: не загружены (%1 МБ с %2)</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Этот профиль нельзя использовать для такого преобразования</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>Преобразовать в профиль</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Преобразовано из %1 в %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Преобразовывать файлы с другими профилями RGB в sRGB при открытии</translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy показывает и редактирует цвета RGB как sRGB. Файлы в Display P3, Adobe RGB или другом профиле RGB выглядят правильно только после преобразования. Если отключено, они открываются со своими значениями и сохраняют свой профиль.</translation>
+        <source>Watermark Models</source>
+        <translation>Модели водяных знаков</translation>
     </message>
 </context>
 <context>
@@ -26552,38 +26494,6 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences: неизвестный параметр %1.</translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Параметры convertToProfile должны быть объектом.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent должен быть &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; или &quot;absolute-colorimetric&quot;.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation должен быть true или false.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile принимает &quot;sRGB&quot; или путь к файлу профиля RGB: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Сначала преобразуйте индексированный документ в цвет RGB.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Перед преобразованием в другой профиль RGB выйдите из цветопробы CMYK.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32-битные документы преобразуются только между матричными профилями RGB.</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Этот профиль нельзя использовать для такого преобразования.</translation>
     </message>
 </context>
 <context>

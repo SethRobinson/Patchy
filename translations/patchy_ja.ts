@@ -126,10 +126,6 @@
         <translation>100% が TrustMark の既定値です。低いほど目立ちませんが失われやすくなります。Adobe は印刷物に 150% を使います。</translation>
     </message>
     <message>
-        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
-        <translation>透かしモデルが必要です。Adobe から %1 MB のダウンロードです。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>透かしモデルをダウンロード</translation>
     </message>
@@ -140,6 +136,10 @@
     <message>
         <source>%1 of %2 characters left</source>
         <translation>残り %1 / %2 文字</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <translation>透かしモデル (Adobe 製、MIT ライセンス) が必要です: %2 から %1 MB のダウンロード。</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,36 @@
     <message>
         <source>The plug-in reported an error.</source>
         <translation>プラグインがエラーを報告しました。</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownload</name>
+    <message>
+        <source>%1 (release %2)</source>
+        <translation>%1 (リリース %2)</translation>
+    </message>
+</context>
+<context>
+    <name>ModelDownloadDialog</name>
+    <message>
+        <source>Copy Link</source>
+        <translation>リンクをコピー</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>ダウンロード中</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>取得元:</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
+    </message>
+    <message>
+        <source>File %1 of %2: %3 (%4 MB)</source>
+        <translation>ファイル %1/%2: %3 (%4 MB)</translation>
     </message>
 </context>
 <context>
@@ -11963,10 +11993,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>TrustMark を実行できませんでした: %1</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
-        <translation>持続的なコンテンツ認証情報を支える公開透かし Adobe TrustMark には透かしモデルが必要です。Adobe から %1 MB をダウンロードします（求めたときだけ）。</translation>
-    </message>
-    <message>
         <source>Download Watermark Models</source>
         <translation>透かしモデルをダウンロード</translation>
     </message>
@@ -11995,64 +12021,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>あなたの見えない透かしを追加しました。</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>プロファイル変換</translation>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>スマートフィルターの行を折りたたむ</translation>
     </message>
     <message>
-        <source>Current profile:</source>
-        <translation>現在のプロファイル:</translation>
+        <source>Expand the Smart Filter rows</source>
+        <translation>スマートフィルターの行を展開</translation>
     </message>
     <message>
-        <source>Choose Profile File...</source>
-        <translation>プロファイルファイルを選択...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>RGB プロファイルを選択</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC プロファイル (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>「%1」は Patchy で使用できる RGB プロファイルではありません。</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>変換後のプロファイル:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>相対的な色域を維持</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>絶対的な色域を維持</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>マッチング方法:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>黒点の補正</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy は RGB カラーを sRGB として表示します。別のプロファイルに変換したドキュメントはここでは画面上の見え方が変わり、保存したファイルにはそのプロファイルが含まれます。</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>カラープロファイル %1 を sRGB に変換できなかったため、ファイルの色とプロファイルをそのまま保持します</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>カラープロファイル %1 から sRGB に変換しました</translation>
-    </message>
-    <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>テキスト、シェイプ、塗りつぶし、調整レイヤーとレイヤースタイルに保存された色はファイルの値のままです。sRGB に変換したのはピクセルのみです</translation>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <translation>永続的な Content Credentials を支えるオープンな透かし Adobe TrustMark には、透かしモデル (Adobe 製、MIT ライセンス) が必要です: %2 から %1 MB のダウンロードで、求めたときだけ行います。</translation>
     </message>
 </context>
 <context>
@@ -22228,10 +22206,6 @@ Baked into images: %1.</source>
         <translation>オブジェクト選択用の高品質モデルをダウンロードしますか？</translation>
     </message>
     <message>
-        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from GitHub and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
-        <translation>組み込みモデルよりもはるかに正確にオブジェクトを検出します。GitHub から %1 MB をダウンロードし、このコンピューターに保存します。モデルはオブジェクト選択のオプションバーでいつでも切り替えられます。</translation>
-    </message>
-    <message>
         <source>Object Selection now uses the High Quality model</source>
         <translation>オブジェクト選択で高品質モデルを使用するようになりました</translation>
     </message>
@@ -22264,20 +22238,12 @@ Baked into images: %1.</source>
         <translation>オブジェクト選択の高品質モデル: ダウンロード済み (%1 MB)</translation>
     </message>
     <message>
-        <source>High Quality Object Selection model: not downloaded</source>
-        <translation>オブジェクト選択の高品質モデル: 未ダウンロード</translation>
-    </message>
-    <message>
         <source>Deleted the High Quality Object Selection model</source>
         <translation>オブジェクト選択の高品質モデルを削除しました</translation>
     </message>
     <message>
         <source>The High Quality model could not be deleted: %1</source>
         <translation>高品質モデルを削除できませんでした: %1</translation>
-    </message>
-    <message>
-        <source>Downloads the High Quality model (%1 MB from GitHub). Object Selection finds objects more accurately with it.</source>
-        <translation>高品質モデルをダウンロードします (GitHub から %1 MB)。オブジェクト選択がより正確にオブジェクトを検出します。</translation>
     </message>
     <message>
         <source>Downloading Patchy %1... %2 of %3 MB</source>
@@ -24232,20 +24198,12 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>透かしモデルをダウンロードできませんでした: %1</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
-        <translation>Adobe TrustMark の透かしモデルをダウンロードします（Adobe から %1 MB）。ダウンロード後、ファイル情報の「透かしをスキャン」で TrustMark の透かしを読み取れ、画像 &gt; 見えない透かしを追加で透かしを加えられます。</translation>
-    </message>
-    <message>
         <source>Deletes the downloaded watermark models.</source>
         <translation>ダウンロードした透かしモデルを削除します。</translation>
     </message>
     <message>
         <source>TrustMark watermark models: downloaded (%1 MB)</source>
         <translation>TrustMark 透かしモデル: ダウンロード済み（%1 MB）</translation>
-    </message>
-    <message>
-        <source>TrustMark watermark models: not downloaded</source>
-        <translation>TrustMark 透かしモデル: 未ダウンロード</translation>
     </message>
     <message>
         <source>Downloaded the watermark models</source>
@@ -24480,44 +24438,28 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>常に確認せずに追加</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>プロファイル変換(&amp;F)...</translation>
+        <source>It finds objects much more accurately than the built-in model. The download is %1 MB from %2 and is kept on this computer. You can switch models at any time on the Object Selection options bar.</source>
+        <translation>組み込みモデルよりもはるかに正確にオブジェクトを検出します。%2 から %1 MB をダウンロードし、このコンピューターに保存します。モデルはオブジェクト選択のオプションバーでいつでも切り替えられます。</translation>
     </message>
     <message>
-        <source>Open a document first</source>
-        <translation>先にドキュメントを開いてください</translation>
+        <source>Downloads the High Quality model (%1 MB from %2). Object Selection finds objects more accurately with it.</source>
+        <translation>高品質モデルをダウンロードします (%2 から %1 MB)。オブジェクト選択がより正確にオブジェクトを検出します。</translation>
     </message>
     <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>別のプロファイルに変換する前に RGB カラーに変換してください</translation>
+        <source>High Quality Object Selection model: not downloaded (%1 MB from %2)</source>
+        <translation>オブジェクト選択の高品質モデル: 未ダウンロード (%2 から %1 MB)</translation>
     </message>
     <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>別の RGB プロファイルに変換する前に CMYK 校正を終了してください</translation>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Adobe TrustMark の透かしモデルをダウンロードします (Adobe 製、MIT ライセンス、%2 から %1 MB)。ファイル情報の「透かしをスキャン」で TrustMark の透かしを読み取れ、「イメージ &gt; 不可視の透かしを追加」で透かしを追加できます。</translation>
     </message>
     <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32 ビットのドキュメントはマトリクス型の RGB プロファイル間でのみ変換できます</translation>
+        <source>TrustMark watermark models: not downloaded (%1 MB from %2)</source>
+        <translation>TrustMark 透かしモデル: 未ダウンロード (%2 から %1 MB)</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>このプロファイルはこの変換に使用できません</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>プロファイル変換</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>%1 から %2 に変換しました</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>別の RGB プロファイルを持つファイルを開くときに sRGB に変換</translation>
-    </message>
-    <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy は RGB カラーを sRGB として表示・編集します。Display P3、Adobe RGB などの RGB プロファイルのファイルは、変換して初めて正しく表示されます。オフにすると、ファイルは元の値のまま開き、プロファイルも保持されます。</translation>
+        <source>Watermark Models</source>
+        <translation>透かしモデル</translation>
     </message>
 </context>
 <context>
@@ -26406,38 +26348,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
         <translation>setSaveMetadataPreferences: 不明なオプション %1。</translation>
-    </message>
-    <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>convertToProfile のオプションはオブジェクトでなければなりません。</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent は &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot;、&quot;absolute-colorimetric&quot; のいずれかでなければなりません。</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation は true か false でなければなりません。</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile には &quot;sRGB&quot; または RGB プロファイルファイルのパスを指定します: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>インデックスカラーのドキュメントは先に RGB カラーに変換してください。</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>別の RGB プロファイルに変換する前に CMYK 校正を終了してください。</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32 ビットのドキュメントはマトリクス型の RGB プロファイル間でのみ変換できます。</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>このプロファイルはこの変換に使用できません。</translation>
     </message>
 </context>
 <context>

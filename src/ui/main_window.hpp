@@ -1555,10 +1555,13 @@ private:
   // The effect row's own right-click menu: Edit, Hide/Show, Delete.
   void show_layer_effect_context_menu(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
                                       QPoint global_position);
-  // The effect rows' disclosure state (session only): closed by default; opening a layer's
-  // list, and `reveal_layer_effects` (an effect added this session) marks it open.
+  // The effect rows' disclosure state: closed by default; opening a layer's list, and
+  // `reveal_layer_effects` (an effect added this session) marks it open. Saved with the file
+  // (PSD flags bit 5, issue 361); a toggle is not an edit.
   void toggle_layer_effects_expanded(LayerId layer_id);
   void reveal_layer_effects(LayerId layer_id);
+  // The Smart Filter rows' disclosure state (issue 361): open by default; adding a filter opens it.
+  void toggle_layer_smart_filters_expanded(LayerId layer_id);
   bool apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
                                    const std::function<bool(LayerStyle&)>& edit);
   void copy_active_layer_style();
