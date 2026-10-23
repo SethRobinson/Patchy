@@ -7,6 +7,7 @@
 #include "ui/script_vector.hpp"
 
 #include "ai/segmentation_engine.hpp"
+#include "ai/watermark_engine.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/image_document_io.hpp"
@@ -297,6 +298,25 @@ bool ScriptAppObject::downloadObjectSelectionModel() {
                                        : ScriptEngineHost::tr("The High Quality model could not be downloaded: %1")
                                              .arg(error));
   return false;
+}
+
+bool ScriptAppObject::downloadWatermarkModels() {
+  const ScriptApiCall api_call(host_);
+  QString error;
+  // No dialog: progress goes to the status bar while the call waits, feeding the watchdog.
+  if (host_.window().download_watermark_models(false, [this] { host_.keep_alive_for_ui(); }, &error)) {
+    return true;
+  }
+  host_.throw_js_error(error.isEmpty() ? ScriptEngineHost::tr("The download was cancelled.")
+                                       : ScriptEngineHost::tr("The watermark models could not be downloaded: %1")
+                                             .arg(error));
+  return false;
+}
+
+bool ScriptAppObject::watermark_models_available() const {
+  const ScriptApiCall api_call(host_);
+  configure_automatic_selection_models();
+  return patchy::ai::trustmark_models_available();
 }
 
 void ScriptSelectionObject::selectSubject(const QJSValue& options) {

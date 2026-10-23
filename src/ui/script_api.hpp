@@ -333,6 +333,9 @@ public:
   // File Info's Scan for Watermarks: the composite checked for the known open invisible
   // watermarks (core/invisible_watermark.hpp). Read-only; never runs on its own.
   Q_INVOKABLE QJSValue scanForWatermarks() const;
+  // Image > Add Invisible Watermark: a TrustMark payload in the active layer, options
+  // {text?, id?, schema?, strength?} (docs/watermarks.md). One undo step with the run.
+  Q_INVOKABLE QJSValue addInvisibleWatermark(const QJSValue& options = QJSValue());
   [[nodiscard]] QJSValue file_info() const;
   [[nodiscard]] QString xmp() const;
   // `options.method`: a resample id (core/resample.hpp), default "automatic".
@@ -418,6 +421,11 @@ public:
   // Downloads Object Selection's High Quality model when it is missing (desktop only;
   // script_ai_selection.cpp). True once it is present; throws on failure.
   Q_INVOKABLE bool downloadObjectSelectionModel();
+  // The TrustMark watermark models (docs/watermarks.md): downloads them when missing
+  // (desktop only, status-bar progress). True once present; throws on failure.
+  Q_INVOKABLE bool downloadWatermarkModels();
+  Q_PROPERTY(bool watermarkModelsAvailable READ watermark_models_available)
+  [[nodiscard]] bool watermark_models_available() const;
 
 private:
   ScriptEngineHost& host_;

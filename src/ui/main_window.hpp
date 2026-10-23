@@ -11,6 +11,7 @@
 #include "core/resample.hpp"
 #include "core/smart_filter.hpp"
 #include "core/text_warp.hpp"
+#include "core/trustmark_payload.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -314,6 +315,18 @@ public:
   // to Standard, and the Model choice and the first-use offer reset, so the tool offers the
   // download again.
   bool delete_high_quality_object_selection_model(QString* error);
+  // The TrustMark watermark models (docs/watermarks.md, main_window_watermarks.cpp): one
+  // optional download, only on request, with a window-modal progress dialog (modal to
+  // `dialog_parent` when given) or status-bar progress when show_dialog is false (scripts).
+  // True once the models are present; `error` stays empty after a cancel.
+  bool download_watermark_models(bool show_dialog, const std::function<void()>& keep_alive, QString* error,
+                                 QWidget* dialog_parent = nullptr);
+  // Preferences > Tools > Delete: frees the sessions and deletes exactly the model files.
+  bool delete_watermark_models(QString* error);
+  // Image > Add Invisible Watermark: embeds a TrustMark payload (Q variant) into the active
+  // 8-bit pixel layer as one undo step. False with a translated `error` when it cannot.
+  bool apply_invisible_watermark(trustmark::Schema schema, const std::vector<std::uint8_t>& data_bits,
+                                 float strength, QString* error);
 #ifndef Q_OS_WASM
   // Automatic document recovery (docs/document-recovery.md, main_window_recovery.cpp):
   // a timer writes a PSB copy of every modified document into this instance's
@@ -771,6 +784,9 @@ private:
   void resize_image_dialog();
   // File > File Info and File > Strip All Metadata (docs/file-info.md).
   void show_file_info_dialog();
+  void add_invisible_watermark();
+  // Why the active layer cannot take an invisible watermark (translated), or empty.
+  [[nodiscard]] QString invisible_watermark_target_problem();
   void strip_all_metadata();
   // Image Size for the dialog, doc.resizeImage and MCP: `method` is a core ResampleMethod
   // (Automatic resolves inside resize_image_and_layers).
@@ -2078,6 +2094,9 @@ private:
   // Restart the debounce so the live tool-option sliders flush to disk once,
   // after the drag settles, instead of on every intermediate value.
   void schedule_save_tool_settings();
+  // Writes only tools/activeTool: a tool picked with no document open (no canvas for
+  // save_tool_settings to read, or the startup load still pending).
+  void save_active_tool_setting() const;
   [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
   void stash_active_brush_settings();
   // The foreground/background pair is application-wide (GitHub issue 339): canvases hold
@@ -2246,6 +2265,9 @@ private:
   void sync_mixer_combination_combo();
   void refresh_options_bar();
   void register_document_action(QAction* action);
+  // A palette tool or flyout cycle command: live with or without a document (local-008),
+  // disabled only while a preview dialog holds the edit lock.
+  void register_tool_action(QAction* action);
   // Forget an action that a menu rebuild is about to delete.
   void unregister_document_action(QAction* action);
   void register_document_widget(QWidget* widget);
@@ -2947,6 +2969,7 @@ private:
   // child of document_tabs_); visible only while a float drag hovers the zone.
   QWidget* float_dock_highlight_{nullptr};
   std::vector<QAction*> document_actions_;
+  std::vector<QAction*> tool_actions_;
   std::vector<QWidget*> document_widgets_;
   HotkeyRegistry hotkey_registry_;
   int preview_dialog_edit_lock_depth_{0};

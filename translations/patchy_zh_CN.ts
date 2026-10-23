@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>标准</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>最稳健</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>更大容量</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>最大容量</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1：%2 个字符，可承受 %3 个损坏的位</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>添加不可见水印</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>使用 Adobe TrustMark 在当前图层的像素中隐藏一条短消息。它能经受大多数缩放、JPEG 压缩和分享，改动小到看不出来。</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>TrustMark 没有密钥：任何拥有免费 TrustMark 读取器的人（包括 Patchy 的“文件简介”）都能读出消息。用它来标记图像或指向图像的记录，而不是隐藏信息或单凭它证明所有权。</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>用于保护消息的纠错强度。“标准”是 TrustMark 的默认值。</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>纠错：</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>文本：</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>随机 ID：</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>新 ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>强度：</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100% 是 TrustMark 的默认值。数值越低越不明显，但越容易丢失；Adobe 为印刷品使用 150%。</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>需要水印模型：从 Adobe 下载 %1 MB。</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>下载水印模型</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>添加水印</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>剩余 %1/%2 个字符</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11848,10 +11927,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>像素中的不可见水印</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>“扫描水印”会检查图像当前的样子，查找 Stable Diffusion 1.x、2.x 和 SDXL 在生成的图像中加入的公开不可见水印。裁剪、调整大小或重新绘制图像通常会去除这些水印。</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>扫描水印</translation>
     </message>
@@ -11926,6 +12001,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Converted from the color profile %1 to sRGB</source>
         <translation>已从颜色配置文件 %1 转换为 sRGB</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>找到 TrustMark 水印（变体 %1，%2），内容为 %3。</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>“扫描水印”会检查图像当前的样子，查找 Stable Diffusion 1.x、2.x 和 SDXL 在生成的图像中加入的公开不可见水印；下载水印模型后还会查找 Adobe TrustMark。裁剪、调整大小或重新绘制图像通常会去除这些水印。</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>未找到任何 Stable Diffusion 水印。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>无法运行 TrustMark：%1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>Adobe TrustMark 是持久内容凭证背后的公开水印，需要水印模型：仅在你要求时从 Adobe 下载 %1 MB。</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>下载水印模型</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>此版本的 Patchy 无法读取 TrustMark 水印。</translation>
     </message>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
@@ -24133,6 +24236,94 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>打开文件时将其他 RGB 配置文件转换为 sRGB</translation>
     </message>
     <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>添加不可见水印(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>使用 Adobe TrustMark 在当前图层的像素中隐藏一条任何人都能读取的短消息</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>无法下载水印模型：%1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>下载 Adobe TrustMark 水印模型（从 Adobe 下载 %1 MB）。之后“文件简介”中的“扫描水印”可以读取 TrustMark 水印，“图像 &gt; 添加不可见水印”可以添加水印。</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>删除已下载的水印模型。</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>TrustMark 水印模型：已下载（%1 MB）</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>TrustMark 水印模型：未下载</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>已下载水印模型</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>已删除水印模型</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>无法删除水印模型：%1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>网页版不提供水印模型</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>此版本的 Patchy 无法运行水印模型</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>正在下载水印模型... %1/%2 MB</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>请先打开文档再添加不可见水印</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>不可见水印需要 8 位图像。请先用“图像 &gt; 模式 &gt; 8 位/通道”转换。</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>请为不可见水印选择一个像素图层</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>当前图层必须铺满整个图像，水印才能被读取。请先拼合图像或合并图层。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>尚未下载水印模型</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>无法添加水印：%1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>添加不可见水印</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>已添加 ID 为 %1 的不可见水印</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>已添加内容为“%1”的不可见水印</translation>
+    </message>
+    <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy 以 sRGB 显示和编辑 RGB 颜色。Display P3、Adobe RGB 或其他 RGB 配置文件的文件只有转换后才显示正确。关闭时，文件按原有数值打开并保留其配置文件。</translation>
     </message>
@@ -25959,6 +26150,70 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>32-bit documents convert only between matrix-based RGB profiles.</source>
         <translation>32 位文档只能在基于矩阵的 RGB 配置文件之间转换。</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>无法下载水印模型：%1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>无法运行 TrustMark：%1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>addInvisibleWatermark 的选项必须是对象，例如 {text: &quot;Patchy&quot;}。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark：未知方案 %1。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark：strength 必须介于 0.1 和 2 之间。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark：未知选项 %1。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark 只接受 text 或 id，不能同时提供。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark：text 必须是可打印的 ASCII。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark：%1 最多容纳 %2 个字符。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark：id 必须是十六进制。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark：id 超过 %1 位。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>尚未下载水印模型；请先调用 app.downloadWatermarkModels()。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark 需要 8 位文档。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark 需要未锁定的像素图层。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark 需要铺满整个图像的图层。</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>无法添加水印：%1</translation>
     </message>
     <message>
         <source>The profile cannot be used for this conversion.</source>

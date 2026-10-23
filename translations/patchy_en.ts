@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -11867,10 +11946,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11944,6 +12019,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Converted from the color profile %1 to sRGB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -24132,6 +24235,94 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25958,6 +26149,70 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>32-bit documents convert only between matrix-based RGB profiles.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

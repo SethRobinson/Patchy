@@ -64,6 +64,85 @@
     </message>
 </context>
 <context>
+    <name>InvisibleWatermarkDialog</name>
+    <message>
+        <source>Standard</source>
+        <translation>標準</translation>
+    </message>
+    <message>
+        <source>Most robust</source>
+        <translation>最も頑丈</translation>
+    </message>
+    <message>
+        <source>More capacity</source>
+        <translation>容量多め</translation>
+    </message>
+    <message>
+        <source>Most capacity</source>
+        <translation>最大容量</translation>
+    </message>
+    <message>
+        <source>%1: %2 characters, survives %3 damaged bits</source>
+        <translation>%1: %2 文字、%3 ビットの破損に耐える</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>見えない透かしを追加</translation>
+    </message>
+    <message>
+        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <translation>Adobe TrustMark で、アクティブなレイヤーのピクセルに短いメッセージを埋め込みます。ほとんどのサイズ変更、JPEG 圧縮、共有に耐え、変化は目に見えないほど小さいです。</translation>
+    </message>
+    <message>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <translation>TrustMark には鍵がありません。Patchy のファイル情報を含め、無料の TrustMark リーダーがあれば誰でもメッセージを読めます。画像にラベルを付けたり、その記録を示したりするために使い、何かを隠したり、それだけで所有権を証明したりする目的には使わないでください。</translation>
+    </message>
+    <message>
+        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <translation>メッセージを守る誤り訂正の強さです。標準が TrustMark の既定値です。</translation>
+    </message>
+    <message>
+        <source>Error correction:</source>
+        <translation>誤り訂正:</translation>
+    </message>
+    <message>
+        <source>Text:</source>
+        <translation>テキスト:</translation>
+    </message>
+    <message>
+        <source>Random ID:</source>
+        <translation>ランダム ID:</translation>
+    </message>
+    <message>
+        <source>New ID</source>
+        <translation>新しい ID</translation>
+    </message>
+    <message>
+        <source>Strength:</source>
+        <translation>強さ:</translation>
+    </message>
+    <message>
+        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <translation>100% が TrustMark の既定値です。低いほど目立ちませんが失われやすくなります。Adobe は印刷物に 150% を使います。</translation>
+    </message>
+    <message>
+        <source>Needs the watermark models: a %1 MB download from Adobe.</source>
+        <translation>透かしモデルが必要です。Adobe から %1 MB のダウンロードです。</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>透かしモデルをダウンロード</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>透かしを追加</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>残り %1 / %2 文字</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merge Layers</source>
@@ -11848,10 +11927,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>ピクセル内の見えない透かし</translation>
     </message>
     <message>
-        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate. Cropping, resizing or repainting the image usually removes them.</source>
-        <translation>「透かしをスキャン」は、Stable Diffusion 1.x、2.x、SDXL が生成した画像に加える公開された見えない透かしを、現在の画像から探します。切り抜き、サイズ変更、塗り直しを行うと、通常は透かしが消えます。</translation>
-    </message>
-    <message>
         <source>Scan for Watermarks</source>
         <translation>透かしをスキャン</translation>
     </message>
@@ -11926,6 +12001,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Converted from the color profile %1 to sRGB</source>
         <translation>カラープロファイル %1 から sRGB に変換しました</translation>
+    </message>
+    <message>
+        <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
+        <translation>TrustMark の透かし（バリアント %1、%2）が見つかりました: %3。</translation>
+    </message>
+    <message>
+        <source>Scan for Watermarks checks the image as it looks now for the open invisible watermarks that Stable Diffusion 1.x, 2.x and SDXL add to the images they generate, and for Adobe TrustMark once the watermark models are downloaded. Cropping, resizing or repainting the image usually removes them.</source>
+        <translation>「透かしをスキャン」は、Stable Diffusion 1.x、2.x、SDXL が生成した画像に加える公開された見えない透かしを現在の画像から探します。透かしモデルをダウンロードすると Adobe TrustMark も探します。切り抜き、サイズ変更、塗り直しを行うと、通常は透かしが消えます。</translation>
+    </message>
+    <message>
+        <source>None of the Stable Diffusion watermarks was found.</source>
+        <translation>Stable Diffusion の透かしは見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark を実行できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models: a %1 MB download from Adobe, made only when you ask.</source>
+        <translation>持続的なコンテンツ認証情報を支える公開透かし Adobe TrustMark には透かしモデルが必要です。Adobe から %1 MB をダウンロードします（求めたときだけ）。</translation>
+    </message>
+    <message>
+        <source>Download Watermark Models</source>
+        <translation>透かしモデルをダウンロード</translation>
+    </message>
+    <message>
+        <source>This version of Patchy cannot read TrustMark watermarks.</source>
+        <translation>このバージョンの Patchy は TrustMark の透かしを読み取れません。</translation>
     </message>
     <message>
         <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
@@ -24133,6 +24236,94 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>別の RGB プロファイルを持つファイルを開くときに sRGB に変換</translation>
     </message>
     <message>
+        <source>Add In&amp;visible Watermark...</source>
+        <translation>見えない透かしを追加(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <translation>Adobe TrustMark で、誰でも読める短いメッセージをアクティブなレイヤーのピクセルに埋め込む</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>透かしモデルをダウンロードできませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Downloads the Adobe TrustMark watermark models (%1 MB from Adobe). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <translation>Adobe TrustMark の透かしモデルをダウンロードします（Adobe から %1 MB）。ダウンロード後、ファイル情報の「透かしをスキャン」で TrustMark の透かしを読み取れ、画像 &gt; 見えない透かしを追加で透かしを加えられます。</translation>
+    </message>
+    <message>
+        <source>Deletes the downloaded watermark models.</source>
+        <translation>ダウンロードした透かしモデルを削除します。</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: downloaded (%1 MB)</source>
+        <translation>TrustMark 透かしモデル: ダウンロード済み（%1 MB）</translation>
+    </message>
+    <message>
+        <source>TrustMark watermark models: not downloaded</source>
+        <translation>TrustMark 透かしモデル: 未ダウンロード</translation>
+    </message>
+    <message>
+        <source>Downloaded the watermark models</source>
+        <translation>透かしモデルをダウンロードしました</translation>
+    </message>
+    <message>
+        <source>Deleted the watermark models</source>
+        <translation>透かしモデルを削除しました</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be deleted: %1</source>
+        <translation>透かしモデルを削除できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>The watermark models are not available in the web version</source>
+        <translation>透かしモデルは Web 版では使用できません</translation>
+    </message>
+    <message>
+        <source>this version of Patchy cannot run the watermark models</source>
+        <translation>このバージョンの Patchy は透かしモデルを実行できません</translation>
+    </message>
+    <message>
+        <source>Downloading the watermark models... %1 of %2 MB</source>
+        <translation>透かしモデルをダウンロード中... %1 / %2 MB</translation>
+    </message>
+    <message>
+        <source>Open a document before adding an invisible watermark</source>
+        <translation>見えない透かしを追加する前にドキュメントを開いてください</translation>
+    </message>
+    <message>
+        <source>Invisible watermarks need an 8-bit image. Convert it with Image &gt; Mode &gt; 8 Bits/Channel first.</source>
+        <translation>見えない透かしには 8 ビット画像が必要です。先に画像 &gt; モード &gt; 8 bit/チャンネルで変換してください。</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer for the invisible watermark</source>
+        <translation>見えない透かしを入れるピクセルレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>The active layer must fill the whole image for its watermark to be readable. Flatten the image or merge the layers first.</source>
+        <translation>透かしを読み取れるようにするには、アクティブなレイヤーが画像全体を覆っている必要があります。先に画像を統合するか、レイヤーを結合してください。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded</source>
+        <translation>透かしモデルがダウンロードされていません</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>透かしを追加できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Add Invisible Watermark</source>
+        <translation>見えない透かしを追加</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark with the ID %1</source>
+        <translation>ID %1 の見えない透かしを追加しました</translation>
+    </message>
+    <message>
+        <source>Added an invisible watermark carrying “%1”</source>
+        <translation>「%1」の見えない透かしを追加しました</translation>
+    </message>
+    <message>
         <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
         <translation>Patchy は RGB カラーを sRGB として表示・編集します。Display P3、Adobe RGB などの RGB プロファイルのファイルは、変換して初めて正しく表示されます。オフにすると、ファイルは元の値のまま開き、プロファイルも保持されます。</translation>
     </message>
@@ -25959,6 +26150,70 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>32-bit documents convert only between matrix-based RGB profiles.</source>
         <translation>32 ビットのドキュメントはマトリクス型の RGB プロファイル間でのみ変換できます。</translation>
+    </message>
+    <message>
+        <source>The watermark models could not be downloaded: %1</source>
+        <translation>透かしモデルをダウンロードできませんでした: %1</translation>
+    </message>
+    <message>
+        <source>TrustMark could not run: %1</source>
+        <translation>TrustMark を実行できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
+        <translation>addInvisibleWatermark のオプションは {text: &quot;Patchy&quot;} のようなオブジェクトにしてください。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown schema %1.</source>
+        <translation>addInvisibleWatermark: 不明なスキーマ %1。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: strength must be between 0.1 and 2.</source>
+        <translation>addInvisibleWatermark: strength は 0.1 から 2 の範囲にしてください。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: unknown option %1.</source>
+        <translation>addInvisibleWatermark: 不明なオプション %1。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark takes text or id, not both.</source>
+        <translation>addInvisibleWatermark には text か id のどちらか一方を指定してください。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: text must be printable ASCII.</source>
+        <translation>addInvisibleWatermark: text は印字可能な ASCII にしてください。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: %1 holds at most %2 characters.</source>
+        <translation>addInvisibleWatermark: %1 に入るのは最大 %2 文字です。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: id must be hexadecimal.</source>
+        <translation>addInvisibleWatermark: id は 16 進数にしてください。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark: the id is longer than %1 bits.</source>
+        <translation>addInvisibleWatermark: id が %1 ビットを超えています。</translation>
+    </message>
+    <message>
+        <source>The watermark models are not downloaded; call app.downloadWatermarkModels() first.</source>
+        <translation>透かしモデルがダウンロードされていません。先に app.downloadWatermarkModels() を呼び出してください。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an 8-bit document.</source>
+        <translation>addInvisibleWatermark には 8 ビットのドキュメントが必要です。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs an unlocked pixel layer.</source>
+        <translation>addInvisibleWatermark にはロックされていないピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>addInvisibleWatermark needs a layer that fills the whole image.</source>
+        <translation>addInvisibleWatermark には画像全体を覆うレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>The watermark could not be added: %1</source>
+        <translation>透かしを追加できませんでした: %1</translation>
     </message>
     <message>
         <source>The profile cannot be used for this conversion.</source>

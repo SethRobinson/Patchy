@@ -13,6 +13,10 @@
 #include "core/artboard.hpp"
 #include "core/document_depth.hpp"
 #include "core/invisible_watermark.hpp"
+#include "ai/trustmark_watermark.hpp"
+#include "core/layer_metadata.hpp"
+#include "core/trustmark_payload.hpp"
+#include "ui/invisible_watermark_dialog.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/image_document_io.hpp"
 #include "formats/metadata/metadata_edit.hpp"
@@ -2158,6 +2162,177 @@ QJSValue ScriptDocumentObject::scanForWatermarks() const {
     matches.setProperty(i, row);
   }
   result.setProperty(QStringLiteral("matches"), matches);
+  // TrustMark, when its models are downloaded (docs/watermarks.md).
+  configure_automatic_selection_models();
+  auto trustmark = engine.newObject();
+  const bool available = patchy::ai::trustmark_models_available();
+  trustmark.setProperty(QStringLiteral("available"), available);
+  auto marks = engine.newArray(0);
+  if (available) {
+    try {
+      const auto found = patchy::ai::scan_trustmark(Compositor{}.flatten_rgb8(*document));
+      marks = engine.newArray(static_cast<quint32>(found.marks.size()));
+      for (quint32 i = 0; i < static_cast<quint32>(found.marks.size()); ++i) {
+        const auto& mark = found.marks[i];
+        auto row = engine.newObject();
+        const auto variant = patchy::ai::trustmark_variant_name(mark.variant);
+        const auto schema = trustmark::schema_name(mark.schema);
+        row.setProperty(QStringLiteral("variant"),
+                        QString::fromLatin1(variant.data(), static_cast<qsizetype>(variant.size())));
+        row.setProperty(QStringLiteral("schema"),
+                        QString::fromLatin1(schema.data(), static_cast<qsizetype>(schema.size())));
+        row.setProperty(QStringLiteral("text"), QString::fromStdString(mark.text));
+        row.setProperty(QStringLiteral("id"), QString::fromStdString(mark.hex));
+        QString bits;
+        for (const auto bit : mark.data_bits) {
+          bits.append(bit != 0 ? QLatin1Char('1') : QLatin1Char('0'));
+        }
+        row.setProperty(QStringLiteral("bits"), bits);
+        row.setProperty(QStringLiteral("correctedBits"), mark.corrected_bits);
+        row.setProperty(QStringLiteral("confidence"), static_cast<double>(mark.confidence));
+        marks.setProperty(i, row);
+      }
+    } catch (const std::exception& error) {
+      host_.throw_js_error(ScriptEngineHost::tr("TrustMark could not run: %1").arg(QString::fromUtf8(error.what())));
+      return {};
+    }
+  }
+  trustmark.setProperty(QStringLiteral("marks"), marks);
+  result.setProperty(QStringLiteral("trustmark"), trustmark);
+  return result;
+}
+
+QJSValue ScriptDocumentObject::addInvisibleWatermark(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  auto schema = trustmark::Schema::Bch5;
+  QString text;
+  QString id;
+  double strength = patchy::ai::kTrustMarkDefaultStrength;
+  if (!options.isUndefined()) {
+    if (!options.isObject() || options.isArray()) {
+      host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark options must be an object such as "
+                                                "{text: \"Patchy\"}."));
+      return {};
+    }
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      const auto key = it.name();
+      const auto value = it.value();
+      if (key == QStringLiteral("text") && value.isString()) {
+        text = value.toString();
+      } else if (key == QStringLiteral("id") && value.isString()) {
+        id = value.toString();
+      } else if (key == QStringLiteral("schema") && value.isString()) {
+        const auto parsed = trustmark::schema_from_name(value.toString().toStdString());
+        if (!parsed) {
+          host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark: unknown schema %1.").arg(value.toString()));
+          return {};
+        }
+        schema = *parsed;
+      } else if (key == QStringLiteral("strength") && value.isNumber()) {
+        strength = value.toNumber();
+        if (!(strength >= 0.1 && strength <= 2.0)) {
+          host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark: strength must be between 0.1 and 2."));
+          return {};
+        }
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark: unknown option %1.").arg(key));
+        return {};
+      }
+    }
+  }
+  if (!text.isEmpty() && !id.isEmpty()) {
+    host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark takes text or id, not both."));
+    return {};
+  }
+  const int capacity = trustmark::schema_text_capacity(schema);
+  for (const auto ch : text) {
+    if (ch.unicode() < 32 || ch.unicode() > 126) {
+      host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark: text must be printable ASCII."));
+      return {};
+    }
+  }
+  if (text.size() > capacity) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("addInvisibleWatermark: %1 holds at most %2 characters.")
+            .arg(QString::fromLatin1(trustmark::schema_name(schema).data()))
+            .arg(capacity));
+    return {};
+  }
+  const auto data_length = static_cast<std::size_t>(trustmark::schema_data_bits(schema));
+  std::vector<std::uint8_t> bits;
+  if (!text.isEmpty()) {
+    bits = trustmark::text_to_bits(text.toLatin1().toStdString());
+  } else if (!id.isEmpty()) {
+    // "0x" and hexadecimal digits, most significant first, as scanForWatermarks reports it.
+    auto digits = id.startsWith(QStringLiteral("0x"), Qt::CaseInsensitive) ? id.mid(2) : id;
+    for (const auto ch : digits) {
+      bool ok = false;
+      const auto nibble = QString(ch).toUInt(&ok, 16);
+      if (!ok) {
+        host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark: id must be hexadecimal."));
+        return {};
+      }
+      for (int bit = 3; bit >= 0; --bit) {
+        bits.push_back(static_cast<std::uint8_t>((nibble >> static_cast<unsigned>(bit)) & 1U));
+      }
+    }
+    if (bits.size() > (data_length + 3) / 4 * 4) {
+      host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark: the id is longer than %1 bits.")
+                               .arg(static_cast<int>(data_length)));
+      return {};
+    }
+  } else {
+    bits = random_watermark_id_bits(static_cast<int>(data_length));
+  }
+  bits.resize(data_length, 0);
+
+  configure_automatic_selection_models();
+  if (!patchy::ai::trustmark_models_available()) {
+    host_.throw_js_error(ScriptEngineHost::tr("The watermark models are not downloaded; call "
+                                              "app.downloadWatermarkModels() first."));
+    return {};
+  }
+  const auto* current = read_document();
+  if (current == nullptr) {
+    return {};
+  }
+  const auto active = current->active_layer_id();
+  const auto* source = active.has_value() ? current->find_layer(*active) : nullptr;
+  if (current->color_state().bit_depth != BitDepth::UInt8) {
+    host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark needs an 8-bit document."));
+    return {};
+  }
+  if (source == nullptr || source->kind() != LayerKind::Pixel || source->pixels().empty() ||
+      layer_effectively_locks_image_pixels(current->layers(), *active)) {
+    host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark needs an unlocked pixel layer."));
+    return {};
+  }
+  const auto bounds = source->bounds();
+  if (bounds.x != 0 || bounds.y != 0 || bounds.width != current->width() || bounds.height != current->height()) {
+    host_.throw_js_error(ScriptEngineHost::tr("addInvisibleWatermark needs a layer that fills the whole image."));
+    return {};
+  }
+  auto marked = source->pixels();
+  try {
+    patchy::ai::embed_trustmark_q(marked, trustmark::encode_packet(bits, schema), static_cast<float>(strength));
+  } catch (const std::exception& error) {
+    host_.throw_js_error(ScriptEngineHost::tr("The watermark could not be added: %1").arg(QString::fromUtf8(error.what())));
+    return {};
+  }
+  auto* document = write_document();
+  if (document == nullptr) {
+    return {};
+  }
+  if (auto* layer = document->find_layer(*active)) {
+    layer->set_pixels(std::move(marked));
+  }
+  auto& engine = *host_.engine();
+  auto result = engine.newObject();
+  result.setProperty(QStringLiteral("schema"), QString::fromLatin1(trustmark::schema_name(schema).data()));
+  result.setProperty(QStringLiteral("text"), text);
+  result.setProperty(QStringLiteral("id"), QString::fromStdString(trustmark::bits_to_hex(bits)));
   return result;
 }
 

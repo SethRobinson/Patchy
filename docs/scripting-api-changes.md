@@ -21,6 +21,14 @@ keys, command id `edit.convert_to_profile` and the settings keys `imports/conver
 `color/convertProfileDestination`, `color/convertProfileIntent`, `color/convertProfileBlackPoint`.
 Pinned by `ui_script_convert_to_profile`.
 
+2026-10-23 (additive): TrustMark watermarks ([watermarks.md](watermarks.md)). `doc.scanForWatermarks()`
+gains `trustmark: {available, marks: [{variant, schema, text, id, bits, correctedBits, confidence}]}`;
+`doc.addInvisibleWatermark({text?, id?, schema?, strength?})` embeds a TrustMark payload in the active
+layer and returns `{schema, text, id}`; `app.downloadWatermarkModels()` and
+`app.watermarkModelsAvailable`. Permanent identifiers: the method, property and key names, the variant
+ids `Q`, `P`, `C`, the schema ids `BCH_SUPER`, `BCH_5`, `BCH_4`, `BCH_3`, and command id
+`image.add_invisible_watermark`. Pinned by `ui_script_trustmark_round_trip`.
+
 2026-10-23 (additive): `doc.scanForWatermarks()`, File Info's Scan for Watermarks: returns
 `{scanned, matches: [{id, name, bits, differingBits, redBlueSwapped}]}` for the open invisible
 watermarks of Stable Diffusion 1.x, 2.x and SDXL found in the composite (`scanned` is false under
