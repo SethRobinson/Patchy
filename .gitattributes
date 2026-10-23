@@ -12,6 +12,8 @@
 CMakeLists.txt text
 *.json text
 *.md text
+# Parallel branches each add a dated block at the top: keep both (docs/scripting.md).
+docs/scripting-api-changes.md merge=union
 *.yml text
 *.yaml text
 
