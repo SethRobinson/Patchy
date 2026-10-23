@@ -2223,6 +2223,17 @@ void ui_snap_applies_to_shape_text_and_move_tools() {
   save_widget_artifact("ui_snap_shape_text_move", canvas);
 }
 
+// A Preferences page's index by its title (-1 when missing): pages get added over time, so tests
+// that only want one page find it by name.
+int preferences_tab_index(const QTabWidget& tabs, const QString& title) {
+  for (int index = 0; index < tabs.count(); ++index) {
+    if (tabs.tabText(index) == title) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   SettingsValueRestorer restore_rulers(QStringLiteral("view/rulersVisible"));
   SettingsValueRestorer restore_grid(QStringLiteral("view/gridVisible"));
@@ -2369,8 +2380,9 @@ void ui_pen_preferences_persist_and_apply() {
     CHECK(dialog != nullptr);
     auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
     CHECK(tabs != nullptr);
-    CHECK(tabs->tabText(2) == QStringLiteral("Pen"));
-    tabs->setCurrentIndex(2);
+    const int pen_tab = preferences_tab_index(*tabs, QStringLiteral("Pen"));
+    CHECK(pen_tab >= 0);
+    tabs->setCurrentIndex(pen_tab);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEnabledCheck"))->setChecked(true);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureSizeCheck"))->setChecked(false);
     dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenPressureSizeMinSpin"))->setValue(27);
@@ -2432,7 +2444,7 @@ void ui_pen_preferences_spin_buttons_visible_and_increment_on_right() {
     CHECK(dialog != nullptr);
     auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
     CHECK(tabs != nullptr);
-    tabs->setCurrentIndex(2);
+    tabs->setCurrentIndex(preferences_tab_index(*tabs, QStringLiteral("Pen")));
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEnabledCheck"))->setChecked(true);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureSizeCheck"))->setChecked(true);
     QApplication::processEvents();
