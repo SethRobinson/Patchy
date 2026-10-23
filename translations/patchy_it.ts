@@ -11906,6 +11906,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Many watermarks, such as Google SynthID, can only be read with their owners&apos; tools, so no scan here can find them.</source>
         <translation>Molte filigrane, come Google SynthID, si possono leggere solo con gli strumenti dei loro proprietari, quindi questa ricerca non può trovarle.</translation>
     </message>
+    <message>
+        <source>This is a %1 file with no extension; Save suggests the .%2 extension</source>
+        <translation>Questo è un file %1 senza estensione; Salva propone l&apos;estensione .%2</translation>
+    </message>
+    <message>
+        <source>This is a %1 file named .%2; Save suggests the .%3 extension</source>
+        <translation>Questo è un file %1 con estensione .%2; Salva propone l&apos;estensione .%3</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

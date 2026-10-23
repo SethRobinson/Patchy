@@ -9,6 +9,7 @@
 // Never throws and never decodes pixels.
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -48,5 +49,20 @@ struct UndecodableImageDiagnosis {
 // `extension` is the file's own extension without the dot, in any case ("jpg", "TIF").
 [[nodiscard]] UndecodableImageDiagnosis diagnose_undecodable_image(std::span<const std::uint8_t> bytes,
                                                                    std::string_view extension) noexcept;
+
+// A format recognized from a file's signature alone, for opening a file by its content
+// when its name says something else (GitHub issue 362).
+struct SniffedImageFormat {
+  std::string name;       // display name ("Photoshop", "PNG")
+  std::string extension;  // the extension Patchy opens the format under ("psd", "png")
+};
+
+// The format the bytes start with, when Patchy can open it; nullopt for unrecognized bytes
+// and for formats Patchy cannot open (JPEG 2000, archives). Looks at the first kilobyte only.
+[[nodiscard]] std::optional<SniffedImageFormat> sniff_openable_image_format(std::span<const std::uint8_t> bytes) noexcept;
+
+// True when two extensions (no dot, any case) name the same container: "jpg" and "JPEG",
+// "tif" and "tiff", "psd" and "psb", "png" and "apng".
+[[nodiscard]] bool extensions_share_format(std::string_view a, std::string_view b) noexcept;
 
 }  // namespace patchy::formats

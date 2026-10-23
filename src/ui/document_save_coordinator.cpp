@@ -138,6 +138,11 @@ bool DocumentSaveCoordinator::save(std::int64_t session_id) {
     // back is impossible, so Save is really Save As (defaulting to <basename>.psd).
     return host_.save_as();
   }
+  if (!target->content_extension.isEmpty()) {
+    // The file opened by its content, not its name (a PSD named src.bin, GitHub issue
+    // 362): Save asks for a name that fits instead of writing under the misleading one.
+    return host_.save_as();
+  }
   if (save_discards_layers(std::as_const(target->document), QFileInfo(path).suffix().toLower())) {
     // Photoshop behavior: Save on a document whose file format cannot hold its layers
     // (a JPEG that grew layers) turns into Save As, defaulting to PSD, instead of
@@ -232,6 +237,7 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
   }
   target->path = path;
   target->title = QFileInfo(path).fileName();
+  target->content_extension.clear();
   if (!quiet) host_.remember_directory(path);
   target = host_.find_session(session_id);
   if (target == nullptr) return std::nullopt;

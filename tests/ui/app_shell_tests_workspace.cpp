@@ -1,4 +1,9 @@
 #include <QClipboard>
+#include <QDragEnterEvent>
+#include <QMimeData>
+#include <QUrl>
+#include "ui/qt_paths.hpp"
+#include "unicode_path_names.hpp"
 #include <QScrollBar>
 #include <QStatusBar>
 
@@ -2997,6 +3002,152 @@ void ui_open_failed_box_names_the_file() {
   CHECK(box_text.size() > QDir::toNativeSeparators(path).size() + 2);
 }
 
+// A file whose name says another format, or none, opens by its content (GitHub issue
+// 362): a PSD named src.bin, a PNG named .jpg, a JPEG named .png, a PSD with no extension.
+// Save on such a document goes to Save As with the real extension suggested, and never
+// writes over the mislabeled file. Bytes Patchy cannot read still fail with a message.
+void ui_open_by_content_when_the_extension_is_wrong() {
+  ensure_artifact_dir();
+  const auto dir = patchy::ui::to_qstring(std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"open-by-content")));
+  const auto stem = patchy::ui::to_qstring(patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem));
+  const auto psd_path = QDir(dir).filePath(QStringLiteral("real.psd"));
+  const auto bin_path = QDir(dir).filePath(stem + QStringLiteral(" src.bin"));
+  const auto bare_path = QDir(dir).filePath(QStringLiteral("src"));
+  const auto png_as_jpg = QDir(dir).filePath(QStringLiteral("photo.jpg"));
+  const auto jpg_as_png = QDir(dir).filePath(QStringLiteral("picture.png"));
+  const auto noise_path = QDir(dir).filePath(QStringLiteral("noise.bin"));
+  {
+    patchy::ui::MainWindow writer;
+    patchy::ui::MainWindowTestAccess::create_document(writer, 32, 24);
+    CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(writer, psd_path));
+  }
+  CHECK(QFile::copy(psd_path, bin_path));
+  CHECK(QFile::copy(psd_path, bare_path));
+  QImage image(8, 6, QImage::Format_RGB32);
+  image.fill(QColor(200, 40, 40));
+  CHECK(image.save(png_as_jpg, "PNG"));
+  CHECK(image.save(jpg_as_png, "JPG"));
+  {
+    QFile noise(noise_path);
+    CHECK(noise.open(QIODevice::WriteOnly));
+    noise.write(QByteArray("\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\xfe\xfd", 12));
+  }
+  QByteArray psd_bytes;
+  {
+    QFile file(psd_path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    psd_bytes = file.readAll();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto before = patchy::ui::MainWindowTestAccess::session_count(window);
+
+  // Drag and drop accepts the mislabeled file (the drag check sniffs unknown extensions).
+  {
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(bin_path)});
+    QDragEnterEvent enter(QPoint(50, 50), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    CHECK(patchy::ui::MainWindowTestAccess::accept_open_file_drag(window, &enter));
+  }
+
+  // A file opened by content: its size, the status note, and Save's suggested name.
+  const auto save_suggests = [&](const QString& expected_name) {
+    QString suggested;
+    bool answered = false;
+    QTimer poll;
+    poll.setInterval(10);
+    QObject::connect(&poll, &QTimer::timeout, [&] {
+      auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+      if (dialog == nullptr || !dialog->isVisible()) {
+        return;
+      }
+      poll.stop();
+      const auto selected = dialog->selectedFiles();
+      suggested = selected.isEmpty() ? QString() : QFileInfo(selected.first()).fileName();
+      answered = true;
+      dialog->reject();
+    });
+    poll.start();
+    CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
+    poll.stop();
+    CHECK(answered);
+    CHECK(suggested == expected_name);
+  };
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, bin_path);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 1U);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == bin_path);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 32);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Photoshop")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral(".psd")));
+  save_suggests(stem + QStringLiteral(" src.psd"));
+  {
+    QFile file(bin_path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    CHECK(file.readAll() == psd_bytes);  // Save never wrote under the misleading name
+  }
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, bare_path);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 2U);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 24);
+  save_suggests(QStringLiteral("src.psd"));
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, png_as_jpg);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 3U);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 8);
+  save_suggests(QStringLiteral("photo.png"));
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, jpg_as_png);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 4U);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 6);
+  save_suggests(QStringLiteral("picture.jpg"));
+
+  // Save As to a name that fits gives the document its own file: Save writes in place again.
+  {
+    patchy::ui::MainWindowTestAccess::activate_session(window, before);
+    const auto psd_fixed = QDir(dir).filePath(stem + QStringLiteral(" src.psd"));
+    CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_fixed));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == psd_fixed);
+    bool dialog_seen = false;
+    QTimer poll;
+    poll.setInterval(10);
+    QObject::connect(&poll, &QTimer::timeout, [&] {
+      if (auto* dialog = find_top_level_dialog(QStringLiteral("saveAsFileDialog")); dialog != nullptr) {
+        dialog_seen = true;
+        static_cast<QDialog*>(dialog)->reject();
+      }
+    });
+    poll.start();
+    CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+    poll.stop();
+    CHECK(!dialog_seen);
+  }
+
+  // Bytes Patchy cannot read still fail, naming the file.
+  QString box_text;
+  bool answered = false;
+  QTimer poll;
+  poll.setInterval(10);
+  QObject::connect(&poll, &QTimer::timeout, [&] {
+    auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("openFailedMessageBox")));
+    if (box == nullptr || !box->isVisible()) {
+      return;
+    }
+    poll.stop();
+    box_text = box->text();
+    answered = true;
+    box->reject();
+  });
+  poll.start();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, noise_path);
+  process_events_until([&] { return answered; }, 10000);
+  poll.stop();
+  CHECK(answered);
+  CHECK(box_text.contains(QStringLiteral("noise.bin")));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 4U);
+}
+
 void ui_open_recent_folders_list_two_hundred_folders_with_filter() {
   ensure_artifact_dir();
   QStringList recent_folders;
@@ -3481,6 +3632,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_open_recent_filter_narrows_entries_and_opens_first_match", ui_open_recent_filter_narrows_entries_and_opens_first_match},
       {"ui_open_dialog_remembers_last_filter", ui_open_dialog_remembers_last_filter},
       {"ui_open_failed_box_names_the_file", ui_open_failed_box_names_the_file},
+      {"ui_open_by_content_when_the_extension_is_wrong", ui_open_by_content_when_the_extension_is_wrong},
       {"ui_open_recent_folders_list_two_hundred_folders_with_filter", ui_open_recent_folders_list_two_hundred_folders_with_filter},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
       {"ui_recent_folder_context_menu_copies_path_and_offers_explorer", ui_recent_folder_context_menu_copies_path_and_offers_explorer},

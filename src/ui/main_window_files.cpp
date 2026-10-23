@@ -749,6 +749,18 @@ QString save_file_filter_for_path(const QString& path) {
   return {};
 }
 
+// The first bytes of a file, enough for sniff_openable_image_format; empty when it cannot
+// be read.
+std::vector<std::uint8_t> read_file_head_bytes(const QString& path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return {};
+  }
+  const auto data = file.read(1024);
+  const auto* bytes = reinterpret_cast<const std::uint8_t*>(data.constData());
+  return std::vector<std::uint8_t>(bytes, bytes + data.size());
+}
+
 bool is_supported_image_extension(const QString& extension) {
   if (is_photoshop_document_extension(extension)) {
     return false;
@@ -775,6 +787,11 @@ bool is_supported_open_path(const QString& path) {
   // without the add-on): the open path then explains that this build cannot read PDFs,
   // and on wasm where to get one that can, instead of a generic unsupported-drop status.
   if (is_pdf_extension(extension)) {
+    return true;
+  }
+  // A file whose name says nothing Patchy knows ("src.bin", no extension) still opens
+  // when its bytes are a format Patchy reads (GitHub issue 362).
+  if (formats::sniff_openable_image_format(read_file_head_bytes(path)).has_value()) {
     return true;
   }
   return !QImageReader::imageFormat(path).isEmpty();
@@ -986,6 +1003,9 @@ struct OpenDocumentResult {
   // The file held CMYK pixels (a CMYK JPEG, TIFF, PSD or PSB): the session opens in
   // Image > Mode > CMYK Proof so a save writes CMYK again (docs/cmyk.md).
   bool cmyk_source{false};
+  // The file opened by its content because its name says another format or none (GitHub
+  // issue 362): the extension of what it really is ("psd"); empty when the name fit.
+  QString content_extension;
   // A PDF import's Mode and Bit Depth, applied once the pages are finished documents.
   // Unset for every other open: nothing else is converted on the way in.
   PdfImportColorMode pdf_color_mode{PdfImportColorMode::Rgb};
@@ -1222,9 +1242,16 @@ bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& ope
   return true;
 }
 
-OpenDocumentResult load_document_from_path(QString path) {
+// Opens `path` with the reader for `extension`, which is the file's own extension except
+// when load_document_from_path opens it by its content (GitHub issue 362).
+OpenDocumentResult load_document_from_path_as(const QString& path, const QString& extension) {
   const auto info = QFileInfo(path);
-  const auto extension = info.suffix().toLower();
+  // Qt's reader picks its plugin by the file name; one opened by content is told the format.
+  const auto set_reader_format = [&](QImageReader& reader) {
+    if (extension != info.suffix().toLower()) {
+      reader.setFormat(extension.toLatin1());
+    }
+  };
   Document opened;
   QStringList import_notices;
   bool force_import_notices_popup = false;
@@ -1293,6 +1320,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       }
     }
     QImageReader reader(path);
+    set_reader_format(reader);
     reader.setAutoTransform(true);
     auto image = reader.read();
     if (image.isNull() && is_tiff_extension(extension)) {
@@ -1490,6 +1518,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       // on this by design: the registry read always throws there and Qt's platform
       // plugin (qmacheif / the KDE runtime's kimg_heif) does the decoding.
       QImageReader reader(path);
+      set_reader_format(reader);
       reader.setAutoTransform(true);
       auto image = reader.read();
       if (image.isNull()) {
@@ -1545,6 +1574,67 @@ OpenDocumentResult load_document_from_path(QString path) {
                             force_import_notices_popup, {},              {}};
   result.cmyk_source = cmyk_source;
   return result;
+}
+
+// Extensions whose formats all decode through the same plain readers (Qt's, Patchy's BMP):
+// a file named as one of them that holds another is simply misnamed, never a container
+// that legitimately wraps the other format the way a camera raw wraps TIFF.
+bool is_plain_raster_extension(const QString& extension) {
+  static const QStringList kPlain = {QStringLiteral("png"),  QStringLiteral("apng"), QStringLiteral("jpg"),
+                                     QStringLiteral("jpeg"), QStringLiteral("jpe"),  QStringLiteral("jfif"),
+                                     QStringLiteral("gif"),  QStringLiteral("webp"), QStringLiteral("bmp")};
+  return kPlain.contains(extension);
+}
+
+// Opens a file by its content when its name says another format or none (GitHub issue
+// 362): an extension Patchy does not open ("src.bin") goes straight to the reader for
+// what the bytes are; a PNG named .jpg (or another plain-image swap) reads as what it is;
+// any other known extension opens by name first and by content only when that fails. The
+// result's content_extension says it happened, so Save asks for a name that fits.
+OpenDocumentResult load_document_from_path(QString path) {
+  const auto extension = QFileInfo(path).suffix().toLower();
+  const auto sniffed = formats::sniff_openable_image_format(read_file_head_bytes(path));
+  if (!sniffed.has_value() || formats::extensions_share_format(sniffed->extension, extension.toStdString())) {
+    return load_document_from_path_as(path, extension);
+  }
+  const auto content_extension = QString::fromStdString(sniffed->extension);
+  const auto open_by_content = [&] {
+    auto result = load_document_from_path_as(path, content_extension);
+    result.content_extension = content_extension;
+    const auto format_name = QString::fromStdString(sniffed->name);
+    result.import_notices.push_front(
+        extension.isEmpty()
+            ? QObject::tr("This is a %1 file with no extension; Save suggests the .%2 extension")
+                  .arg(format_name, content_extension)
+            : QObject::tr("This is a %1 file named .%2; Save suggests the .%3 extension")
+                  .arg(format_name, extension, content_extension));
+    return result;
+  };
+  const bool known_extension =
+      is_photoshop_document_extension(extension) || is_supported_image_extension(extension) ||
+      is_pdf_extension(extension);
+  if (!known_extension || (is_plain_raster_extension(extension) && is_plain_raster_extension(content_extension))) {
+    try {
+      return open_by_content();
+    } catch (const std::exception&) {
+      if (known_extension) {
+        throw;
+      }
+      // Bytes that only look like the format: Qt may still recognize the file. If not,
+      // the content reader's error names the real problem.
+      const auto content_error = std::current_exception();
+      try {
+        return load_document_from_path_as(path, extension);
+      } catch (const std::exception&) {
+        std::rethrow_exception(content_error);
+      }
+    }
+  }
+  try {
+    return load_document_from_path_as(path, extension);
+  } catch (const std::exception&) {
+    return open_by_content();
+  }
 }
 
 // The consolidated Import Notes box, one bullet per note. Import notes ride the status
@@ -1969,6 +2059,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       record_text_layout_metrics_for_reopened_text(loaded->document);
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
+      (**sessions_.rbegin()).content_extension = loaded->content_extension;
       if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(**sessions_.rbegin())) {
         cmyk_proof_opened = true;
       }
@@ -2631,6 +2722,7 @@ void MainWindow::open_document_path(QString path) {
       const UiProfileScope profile_scope("open.add_session");
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
+    session().content_extension = loaded->content_extension;
     bool cmyk_proof_opened = false;
     if (loaded->pdf_color_mode == PdfImportColorMode::Cmyk) {
       // The Import PDF dialog's CMYK Color: say so when there is no CMYK profile to proof with.
@@ -2958,6 +3050,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     layer_thumbnail_cache_.clear();
     channel_thumbnail_cache_.clear();
     target_session.document = std::move(loaded->document);
+    target_session.content_extension = loaded->content_extension;
     initialize_session_history(target_session, tr("Reopen"));
     target_session.collapsed_layer_groups.clear();
     collect_initially_collapsed_layer_groups(target_session.document.layers(),
@@ -3053,6 +3146,11 @@ void MainWindow::adopt_renamed_document_path(const QString& old_path, const QStr
     // Only where the file lives changes: no save mark, so unsaved edits stay unsaved
     // and the next Save writes them to the new name.
     target_session->path = new_path;
+    // A file opened by its content (GitHub issue 362) renamed to fit it saves in place again.
+    if (formats::extensions_share_format(target_session->content_extension.toStdString(),
+                                         QFileInfo(new_path).suffix().toStdString())) {
+      target_session->content_extension.clear();
+    }
     if (target_session->title == old_name) {
       target_session->title = new_name;
     } else if (target_session->title.startsWith(old_name + QLatin1Char(' '))) {
@@ -4214,6 +4312,13 @@ bool MainWindow::save_document_as() {
   };
   const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
   auto initial_path = file_dialog_initial_path(session().path, fallback_name);
+  if (const auto content_extension = session().content_extension; !content_extension.isEmpty()) {
+    // A file opened by its content (GitHub issue 362) suggests the extension of what it
+    // really is: src.bin holding a PSD becomes src.psd.
+    const QFileInfo initial_info(initial_path);
+    const auto base_name = initial_info.suffix().isEmpty() ? initial_info.fileName() : initial_info.completeBaseName();
+    initial_path = initial_info.dir().filePath(base_name + QLatin1Char('.') + content_extension);
+  }
   if (save_discards_layers(std::as_const(document()), extension_for_path(initial_path)) ||
       is_read_only_source_extension(extension_for_path(initial_path))) {
     // Photoshop behavior: Save As for a layered document defaults to PSD, not the flat
