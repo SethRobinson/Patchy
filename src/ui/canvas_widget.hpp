@@ -2108,6 +2108,10 @@ private:
   [[nodiscard]] QTransform transform_session_source_to_document(QSize source_size) const;
   [[nodiscard]] QTransform transform_session_image_to_document(const QImage& image) const;
   [[nodiscard]] std::array<QPointF, 4> transform_original_corners() const;
+  // Width and height factors the corner offsets add on top of the box (1, 1 while
+  // undistorted): the mean extent of opposite sides along the box's own axes over
+  // the original size. The options bar's W and H show box scale times these.
+  [[nodiscard]] QPointF transform_distortion_scale_factors() const noexcept;
   [[nodiscard]] std::array<QPointF, 4> transform_quad_for_offsets(const std::array<QPointF, 4>& offsets) const;
   // Original corner index (0 TL, 1 TR, 2 BR, 3 BL) a box handle sits on, flips included.
   [[nodiscard]] int transform_corner_index_for_handle(TransformHandle handle) const noexcept;
