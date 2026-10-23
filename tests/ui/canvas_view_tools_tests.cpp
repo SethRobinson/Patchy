@@ -40,6 +40,7 @@
 #include <QColorSpace>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -3871,6 +3872,72 @@ void ui_tool_flyout_right_click_opens_menu() {
   QApplication::processEvents();
   CHECK(shown);
   CHECK(!menu->isVisible());
+}
+
+// GitHub issue 356: a right-click on a flyout button opens the flyout and nothing else. Qt
+// follows the right press with a separate ContextMenu event (with the release on Windows,
+// with the press on macOS and X11); it must stop at the button instead of reaching the main
+// window, which opens the toolbar menu on top of the flyout. Both orders are sent. A tool
+// button without a flyout keeps the toolbar menu, which also proves the check below sees
+// that menu when it opens.
+void ui_tool_flyout_right_click_opens_only_the_flyout() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(palette != nullptr);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
+  CHECK(button != nullptr);
+  auto* flyout = button->menu();
+  CHECK(flyout != nullptr);
+  int flyout_shows = 0;
+  QObject::connect(flyout, &QMenu::aboutToShow, flyout, [&] { ++flyout_shows; });
+  // The toolbar menu opens with popup(), so it is still visible after the events: count
+  // and close every visible menu other than the flyout.
+  const auto close_other_menus = [flyout] {
+    int others = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu != flyout && menu->isVisible()) {
+        ++others;
+        menu->close();
+      }
+    }
+    process_events_for(20);
+    return others;
+  };
+  const auto send_context_menu = [](QWidget& target, QPoint position) {
+    QContextMenuEvent context(QContextMenuEvent::Mouse, position, target.mapToGlobal(position));
+    QApplication::sendEvent(&target, &context);
+  };
+  const QPoint center = button->rect().center();
+  for (const bool context_on_press : {false, true}) {
+    flyout_shows = 0;
+    bool shown = false;
+    QTimer::singleShot(0, [&] {
+      shown = flyout->isVisible();
+      flyout->close();
+    });
+    send_mouse(*button, QEvent::MouseButtonPress, center, Qt::RightButton, Qt::RightButton);
+    if (context_on_press) {
+      send_context_menu(*button, center);
+    }
+    send_mouse(*button, QEvent::MouseButtonRelease, center, Qt::RightButton, Qt::NoButton);
+    if (!context_on_press) {
+      send_context_menu(*button, center);
+    }
+    process_events_for(20);
+    CHECK(shown);
+    CHECK(flyout_shows == 1);
+    CHECK(!flyout->isVisible());
+    CHECK(close_other_menus() == 0);
+  }
+
+  auto* hand_button = palette->widgetForAction(require_action(window, "toolHandAction"));
+  CHECK(hand_button != nullptr);
+  send_context_menu(*hand_button, hand_button->rect().center());
+  process_events_for(20);
+  CHECK(close_other_menus() == 1);
+  CHECK(flyout_shows == 1);
 }
 
 // Where a flyout row's icon box starts (GitHub issue 284). The current tool's marker (issue
@@ -7994,6 +8061,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
+      {"ui_tool_flyout_right_click_opens_only_the_flyout", ui_tool_flyout_right_click_opens_only_the_flyout},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
        ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_flyout_marks_the_tool_its_button_shows", ui_tool_flyout_marks_the_tool_its_button_shows},
