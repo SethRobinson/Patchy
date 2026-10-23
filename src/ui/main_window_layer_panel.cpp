@@ -2077,7 +2077,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
     auto* header_label = new LayerRowElidingLabel(QObject::tr("Smart Filters"), header);
     header_label->setObjectName(QStringLiteral("layerSmartFiltersLabel"));
-    header_label->setStyleSheet(QStringLiteral("background: transparent;"));
     auto header_font = header_label->font();
     header_font.setBold(true);
     header_label->setFont(header_font);
@@ -2093,7 +2092,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       smart_filter_mask_thumbnail->setFixedSize(22, 22);
       smart_filter_mask_thumbnail->setAlignment(Qt::AlignCenter);
       smart_filter_mask_thumbnail->setPixmap(mask_pixmap(smart_filters->mask));
-      smart_filter_mask_thumbnail->setStyleSheet(QStringLiteral("background: transparent;"));
       smart_filter_mask_thumbnail->setToolTip(
           controls_supported && smart_filter_mask_size_supported
               ? resolve_modifier_names(QObject::tr(
@@ -2474,7 +2472,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       entry_label->setProperty("smartFilterExecutionIndex",
                                QVariant::fromValue<qulonglong>(
                                    static_cast<qulonglong>(execution_index)));
-      entry_label->setStyleSheet(QStringLiteral("background: transparent;"));
       entry_label->setEnabled(ancestors_visible && layer.visible() && entry.enabled &&
                               smart_filters->enabled);
       entry_label->setToolTip(stack_changeable ? entry_tooltip : preservation_tooltip);
@@ -2690,7 +2687,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     effects_header_layout->addWidget(effects_visibility, 0, Qt::AlignVCenter);
     auto* effects_label = new LayerRowElidingLabel(QObject::tr("Layer Styles"), effects_header);
     effects_label->setObjectName(QStringLiteral("layerEffectsLabel"));
-    effects_label->setStyleSheet(QStringLiteral("background: transparent;"));
     auto effects_font = effects_label->font();
     effects_font.setBold(true);
     effects_label->setFont(effects_font);
@@ -2747,7 +2743,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
       auto* entry_label = new LayerRowElidingLabel(layer_effect_display_name(effect_row.effect), entry_row);
       entry_label->setObjectName(QStringLiteral("layerEffectEntryLabel"));
-      entry_label->setStyleSheet(QStringLiteral("background: transparent;"));
       entry_label->setEnabled(layer_shown && effect_row.enabled && master_on);
       entry_label->setToolTip(effects_editable ? QObject::tr("Double-click to edit this effect in the Layer "
                                                              "Style dialog; right-click for its menu.")

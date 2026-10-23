@@ -159,6 +159,19 @@ void ui_layer_effect_rows_toggle_effects_and_render() {
     names.push_back(entry->findChild<QLabel*>(QStringLiteral("layerEffectEntryLabel"))->text());
   }
   CHECK(names == (QStringList{QStringLiteral("Stroke"), QStringLiteral("Color Overlay")}));
+  // The effect rows' tooltips paint a full panel: a row label's own stylesheet once
+  // cleared the tip's background through Qt's stylesheet cascade (issue 347).
+  for (auto* nested : row->findChildren<QWidget*>()) {
+    if (nested->isVisible() && !nested->toolTip().isEmpty() &&
+        nested->objectName().startsWith(QStringLiteral("layerEffect"))) {
+      const auto share = unpainted_share(render_widget_tooltip(*nested));
+      if (share > 0.05) {
+        std::cout << "  tooltip of " << nested->objectName().toStdString() << " leaves "
+                  << static_cast<int>(share * 100.0) << "% unpainted\n";
+      }
+      CHECK(share <= 0.05);
+    }
+  }
   CHECK(require_layer_item(*list, QStringLiteral("Badge"))->sizeHint().height() == 44 + 26 * 3);
   CHECK(require_layer_item(*list, QStringLiteral("Background"))->sizeHint().height() == 44);
   CHECK(row->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton")) != nullptr);

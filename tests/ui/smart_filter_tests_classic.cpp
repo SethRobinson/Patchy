@@ -22,6 +22,7 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QMenu>
+#include <QPainter>
 #include <QPixmap>
 #include <QSpinBox>
 #include <QTimer>
@@ -373,6 +374,105 @@ void ui_smart_filter_sharpen_edges_menu_command_authors_native_entry() {
   CHECK(found);
 }
 
+// Issue 347: a selector-less "background: transparent;" on a row label reached the
+// label's tooltip through Qt's stylesheet cascade and cleared its ToolTipBase, so
+// the translucent Windows 11 tip showed only its text. Every tooltip on the Smart
+// Filter rows paints a full panel, like the layer row's own, in Dark and Light.
+void ui_smart_filter_row_tooltips_paint_a_solid_panel() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  ColorSchemeRestorer restore_scheme;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-classic.psd")
+          .wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  const auto layer_name = QStringLiteral("Blur More");
+  (void)select_named_layer(window, layer_name);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(layers != nullptr && layers_dock != nullptr);
+  if (layers == nullptr || layers_dock == nullptr) {
+    return;
+  }
+
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark,
+                                patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const bool light = preference == patchy::ui::ColorSchemePreference::Light;
+    layers->scrollToItem(require_layer_item(*layers, layer_name),
+                         QAbstractItemView::PositionAtCenter);
+    QApplication::processEvents();
+    auto* row = layers->itemWidget(require_layer_item(*layers, layer_name));
+    CHECK(row != nullptr);
+    if (row == nullptr) {
+      return;
+    }
+    std::vector<QWidget*> anchors;
+    int filter_anchors = 0;
+    for (const auto& name : {QStringLiteral("layerMainRow"),
+                             QStringLiteral("layerSmartFiltersRow"),
+                             QStringLiteral("layerSmartFilterEntryRow")}) {
+      for (auto* nested : row->findChildren<QWidget*>(name)) {
+        auto widgets = nested->findChildren<QWidget*>();
+        widgets.prepend(nested);
+        for (auto* widget : widgets) {
+          if (widget->isVisible() && !widget->toolTip().isEmpty()) {
+            anchors.push_back(widget);
+            filter_anchors += name == QStringLiteral("layerMainRow") ? 0 : 1;
+          }
+        }
+      }
+    }
+    CHECK(filter_anchors >= 3);
+    int unpainted = 0;
+    std::vector<QWidget*> shown;
+    for (auto* widget : anchors) {
+      const auto tip = render_widget_tooltip(*widget);
+      const auto share = unpainted_share(tip);
+      if (tip.isNull() || share > 0.05) {
+        ++unpainted;
+        std::cout << "  " << (light ? "light" : "dark") << " tooltip of "
+                  << widget->metaObject()->className() << "#"
+                  << widget->objectName().toStdString() << " leaves "
+                  << static_cast<int>(share * 100.0) << "% unpainted\n";
+      }
+      if (widget->objectName() == QStringLiteral("layerSmartFilterEntryLabel") ||
+          widget->objectName() == QStringLiteral("layerSmartFilterMaskThumbnail")) {
+        shown.push_back(widget);
+      }
+    }
+
+    // The tips as the screen shows them: drawn over the panel without a window
+    // fill, just below their control and inside the dock.
+    CHECK(!shown.empty());
+    for (auto* widget : shown) {
+      const auto tip = render_widget_tooltip(*widget);
+      auto shot = layers_dock->grab().toImage().convertToFormat(
+          QImage::Format_ARGB32_Premultiplied);
+      auto at = layers_dock->mapFromGlobal(
+          widget->mapToGlobal(QPoint(8, widget->height() + 4)));
+      at.setX(std::max(0, std::min(at.x(), shot.width() - tip.width() - 4)));
+      const int bottom = std::min(shot.height(), at.y() + tip.height() + 12);
+      {
+        QPainter painter(&shot);
+        painter.drawImage(at, tip);
+      }
+      ensure_artifact_dir();
+      CHECK(shot.copy(0, 0, shot.width(), std::max(bottom, 1))
+                .save(QStringLiteral("test-artifacts/%1-tooltip-%2.png")
+                          .arg(widget->objectName(),
+                               light ? QStringLiteral("light") : QStringLiteral("dark"))));
+    }
+    CHECK(unpainted == 0);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests_classic() {
@@ -387,5 +487,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests_classic() {
        ui_smart_filter_authored_cache_covers_the_canvas_beyond_the_document},
       {"ui_smart_filter_sharpen_edges_menu_command_authors_native_entry",
        ui_smart_filter_sharpen_edges_menu_command_authors_native_entry},
+      {"ui_smart_filter_row_tooltips_paint_a_solid_panel",
+       ui_smart_filter_row_tooltips_paint_a_solid_panel},
   };
 }
