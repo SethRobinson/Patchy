@@ -4196,6 +4196,7 @@ void MainWindow::refresh_layer_controls() {
   sync_text_options_from_active_layer();
   sync_text_alignment_buttons_from_editor();
   refresh_convert_for_smart_filters_action_state();
+  refresh_smart_object_action_states();
   refresh_add_layer_mask_button_state();
   refresh_layer_styles_button_state();
   if (canvas_ != nullptr) {
@@ -4642,6 +4643,7 @@ void MainWindow::refresh_document_info() {
                             tr("Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6")
                                 .arg(QString::fromStdString(layer->name()))
                                 .arg(layer_is_artboard(*layer)       ? QObject::tr("Artboard")
+                                     : layer_is_smart_object(*layer) ? layer_kind_name(LayerKind::SmartObject)
                                      : layer_is_text(*layer)         ? layer_kind_name(LayerKind::Text)
                                      : layer_is_vector_shape(*layer) ? layer_kind_name(LayerKind::Vector)
                                                                      : layer_kind_name(layer->kind()))

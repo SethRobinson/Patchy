@@ -3600,58 +3600,22 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     menu.addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
   }
   {
-    const bool is_smart_object = active_layer != nullptr && layer_is_smart_object(*active_layer);
-    const auto* source = is_smart_object
-                             ? document().metadata().smart_objects.find(smart_object_source_uuid(*active_layer))
-                             : nullptr;
-    const bool has_embedded_bytes = source != nullptr && source->file_bytes != nullptr;
-    const auto smart_lock = is_smart_object ? smart_object_lock_reason(*active_layer) : std::string();
-    const bool is_external = smart_lock == "external";
-    const bool editable = has_embedded_bytes && smart_lock.empty();
+    refresh_smart_object_action_states();
     auto* smart_objects_menu = menu.addMenu(tr("Smart Objects"));
     smart_objects_menu->setObjectName(QStringLiteral("layerContextSmartObjectsMenu"));
-    if (layer_convert_smart_object_action_ != nullptr) {
-      layer_convert_smart_object_action_->setEnabled(has_layer);
-      smart_objects_menu->addAction(layer_convert_smart_object_action_);
-    }
-    if (layer_smart_object_edit_action_ != nullptr) {
-      // Linked (external) smart objects open their file from disk.
-      layer_smart_object_edit_action_->setEnabled(editable || is_external);
-      smart_objects_menu->addAction(layer_smart_object_edit_action_);
-    }
-    if (layer_smart_object_replace_action_ != nullptr) {
-      layer_smart_object_replace_action_->setEnabled(editable);
-      smart_objects_menu->addAction(layer_smart_object_replace_action_);
-    }
-    if (layer_smart_object_update_action_ != nullptr) {
-      layer_smart_object_update_action_->setEnabled(is_external);
-      smart_objects_menu->addAction(layer_smart_object_update_action_);
-    }
-    if (layer_smart_object_relink_action_ != nullptr) {
-      layer_smart_object_relink_action_->setEnabled(is_external);
-      smart_objects_menu->addAction(layer_smart_object_relink_action_);
-    }
-    if (layer_smart_object_embed_action_ != nullptr) {
-      layer_smart_object_embed_action_->setEnabled(is_external);
-      smart_objects_menu->addAction(layer_smart_object_embed_action_);
-    }
-    if (layer_smart_object_export_action_ != nullptr) {
-      layer_smart_object_export_action_->setEnabled(has_embedded_bytes);
-      smart_objects_menu->addAction(layer_smart_object_export_action_);
-    }
-    if (layer_smart_object_via_copy_action_ != nullptr) {
-      layer_smart_object_via_copy_action_->setEnabled(editable);
-      smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
+    for (auto* action : {layer_convert_smart_object_action_, layer_smart_object_edit_action_,
+                         layer_smart_object_replace_action_, layer_smart_object_update_action_,
+                         layer_smart_object_relink_action_, layer_smart_object_embed_action_,
+                         layer_smart_object_export_action_, layer_smart_object_via_copy_action_}) {
+      if (action != nullptr) {
+        smart_objects_menu->addAction(action);
+      }
     }
     smart_objects_menu->addSeparator();
-    if (layer_smart_object_to_layers_action_ != nullptr) {
-      layer_smart_object_to_layers_action_->setEnabled(editable &&
-                                                       !layer_tree_contains_smart_filters(*active_layer));
-      smart_objects_menu->addAction(layer_smart_object_to_layers_action_);
-    }
-    if (layer_smart_object_to_normal_action_ != nullptr) {
-      layer_smart_object_to_normal_action_->setEnabled(is_smart_object && has_rasterizable_layer);
-      smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
+    for (auto* action : {layer_smart_object_to_layers_action_, layer_smart_object_to_normal_action_}) {
+      if (action != nullptr) {
+        smart_objects_menu->addAction(action);
+      }
     }
   }
   menu.addSeparator();
@@ -4018,6 +3982,59 @@ void MainWindow::merge_visible_to_new_layer() {
   refresh_paths_panel();
   if (canvas_ != nullptr) { canvas_->document_changed(); }
   statusBar()->showMessage(tr("Created a merged copy of the visible layers"));
+}
+
+// Layer > Smart Objects and the layer context menu share these actions: Convert takes any
+// selection (a smart object nests inside a new one, as in Photoshop); the rest act on the
+// active layer only when it is a smart object.
+void MainWindow::refresh_smart_object_action_states() {
+  const auto set_enabled = [](QAction* action, bool enabled) {
+    if (action != nullptr) {
+      action->setEnabled(enabled);
+    }
+  };
+  const std::array<QAction*, 10> actions{
+      layer_convert_smart_object_action_, layer_smart_object_edit_action_,
+      layer_smart_object_replace_action_, layer_smart_object_update_action_,
+      layer_smart_object_relink_action_,  layer_smart_object_embed_action_,
+      layer_smart_object_export_action_,  layer_smart_object_via_copy_action_,
+      layer_smart_object_to_layers_action_, layer_smart_object_to_normal_action_};
+  if (!has_active_document()) {
+    for (auto* action : actions) {
+      set_enabled(action, false);
+    }
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  const auto active_id = std::as_const(document()).active_layer_id();
+  const auto* active_layer = active_id.has_value() ? std::as_const(document()).find_layer(*active_id) : nullptr;
+  const bool is_smart_object = active_layer != nullptr && layer_is_smart_object(*active_layer);
+  const auto* source = is_smart_object
+                           ? std::as_const(document()).metadata().smart_objects.find(
+                                 smart_object_source_uuid(*active_layer))
+                           : nullptr;
+  const bool has_embedded_bytes = source != nullptr && source->file_bytes != nullptr;
+  const auto smart_lock = is_smart_object ? smart_object_lock_reason(*active_layer) : std::string();
+  const bool is_external = smart_lock == "external";
+  const bool editable = has_embedded_bytes && smart_lock.empty();
+  const auto rasterize_ids = rasterize_target_layer_ids(ids);
+  const bool has_rasterizable_layer =
+      std::any_of(rasterize_ids.begin(), rasterize_ids.end(), [this](LayerId id) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize(*layer);
+      });
+  set_enabled(layer_convert_smart_object_action_, !ids.empty());
+  // Linked (external) smart objects open their file from disk.
+  set_enabled(layer_smart_object_edit_action_, editable || is_external);
+  set_enabled(layer_smart_object_replace_action_, editable);
+  set_enabled(layer_smart_object_update_action_, is_external);
+  set_enabled(layer_smart_object_relink_action_, is_external);
+  set_enabled(layer_smart_object_embed_action_, is_external);
+  set_enabled(layer_smart_object_export_action_, has_embedded_bytes);
+  set_enabled(layer_smart_object_via_copy_action_, editable);
+  set_enabled(layer_smart_object_to_layers_action_,
+              editable && !layer_tree_contains_smart_filters(*active_layer));
+  set_enabled(layer_smart_object_to_normal_action_, is_smart_object && has_rasterizable_layer);
 }
 
 void MainWindow::refresh_merge_visible_action_state() {

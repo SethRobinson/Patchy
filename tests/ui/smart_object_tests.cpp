@@ -47,6 +47,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMouseEvent>
+#include <QMenu>
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPixmap>
@@ -1340,6 +1341,227 @@ patchy::LayerId build_convert_to_layers_smart_object(patchy::ui::MainWindow& win
   CHECK(document.layers().size() == 3U);
   CHECK(patchy::layer_is_smart_object(document.layers()[1]));
   return document.layers()[1].id();
+}
+
+// The shared Smart Objects actions (Layer menu and layer context menu): Convert takes any
+// layer, the contents commands only a smart object. The Properties panel names a smart
+// object as one, not as the pixel layer it is stored as (local-006).
+struct SmartObjectActionStates {
+  bool convert = false;
+  bool edit = false;
+  bool replace = false;
+  bool update = false;
+  bool export_contents = false;
+  bool via_copy = false;
+  bool to_layers = false;
+  bool to_normal = false;
+};
+
+SmartObjectActionStates read_smart_object_action_states(patchy::ui::MainWindow& window) {
+  SmartObjectActionStates states;
+  states.convert = require_action(window, "layerConvertSmartObjectAction")->isEnabled();
+  states.edit = require_action(window, "layerSmartObjectEditAction")->isEnabled();
+  states.replace = require_action(window, "layerSmartObjectReplaceAction")->isEnabled();
+  states.update = require_action(window, "layerSmartObjectUpdateAction")->isEnabled();
+  states.export_contents = require_action(window, "layerSmartObjectExportAction")->isEnabled();
+  states.via_copy = require_action(window, "layerSmartObjectViaCopyAction")->isEnabled();
+  states.to_layers = require_action(window, "layerSmartObjectToLayersAction")->isEnabled();
+  states.to_normal = require_action(window, "layerSmartObjectToNormalAction")->isEnabled();
+  return states;
+}
+
+SmartObjectActionStates layer_menu_smart_object_states(patchy::ui::MainWindow& window) {
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("layerSmartObjectsMenu"));
+  CHECK(menu != nullptr);
+  emit menu->aboutToShow();
+  return read_smart_object_action_states(window);
+}
+
+// Opens the layer context menu on the first row and reads the Smart Objects submenu.
+SmartObjectActionStates context_menu_smart_object_states(patchy::ui::MainWindow& window) {
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() > 0);
+  bool saw_menu = false;
+  SmartObjectActionStates states;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu") || !menu->isVisible()) {
+        continue;
+      }
+      auto* smart_menu = menu->findChild<QMenu*>(QStringLiteral("layerContextSmartObjectsMenu"));
+      CHECK(smart_menu != nullptr);
+      CHECK(smart_menu->actions().contains(require_action(window, "layerSmartObjectEditAction")));
+      saw_menu = true;
+      states = read_smart_object_action_states(window);
+      menu->close();
+      poller.stop();
+      return;
+    }
+  });
+  poller.start(10);
+  QMetaObject::invokeMethod(
+      &window,
+      [&window, layer_list] {
+        patchy::ui::MainWindowTestAccess::show_layer_context_menu(
+            window, layer_list->visualItemRect(layer_list->item(0)).center());
+      },
+      Qt::QueuedConnection);
+  for (int i = 0; i < 200 && !saw_menu && poll_attempts <= 500; ++i) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  poller.stop();
+  CHECK(saw_menu);
+  return states;
+}
+
+void check_pixel_layer_smart_object_states(const SmartObjectActionStates& states) {
+  CHECK(states.convert);
+  CHECK(!states.edit && !states.replace && !states.update && !states.export_contents);
+  CHECK(!states.via_copy && !states.to_layers && !states.to_normal);
+}
+
+void check_embedded_smart_object_states(const SmartObjectActionStates& states) {
+  CHECK(states.convert);  // a smart object nests inside a new one, as in Photoshop
+  CHECK(states.edit && states.replace && states.export_contents && states.via_copy);
+  CHECK(states.to_layers && states.to_normal);
+  CHECK(!states.update);  // linked smart objects only
+}
+
+QString active_layer_properties_text(patchy::ui::MainWindow& window) {
+  auto* label = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  CHECK(label != nullptr);
+  return label->text();
+}
+
+// Desk shots for local-006: the Properties panel and the Layer > Smart Objects menu.
+void save_smart_object_menu_shots(patchy::ui::MainWindow& window, const QString& suffix) {
+  ensure_artifact_dir();
+  auto* label = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  CHECK(label != nullptr && label->parentWidget() != nullptr);
+  label->parentWidget()->grab().save(QStringLiteral("test-artifacts/local006_properties_%1.png").arg(suffix));
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("layerSmartObjectsMenu"));
+  CHECK(menu != nullptr);
+  menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  menu->grab().save(QStringLiteral("test-artifacts/local006_layer_menu_%1.png").arg(suffix));
+  menu->hide();
+  QApplication::processEvents();
+}
+
+// A white base with a small green "Rectangle 1" above it, the top row selected.
+void open_rectangle_over_base(patchy::ui::MainWindow& window) {
+  patchy::Document built(64, 48, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("base", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  patchy::Layer rect(built.allocate_layer_id(), "Rectangle 1",
+                     solid_pixels(16, 12, patchy::PixelFormat::rgba8(), QColor(170, 250, 20, 255)));
+  rect.set_bounds(patchy::Rect{8, 6, 16, 12});
+  built.add_layer(std::move(rect));
+  window.add_document_session(std::move(built), QStringLiteral("Rectangle"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() == 2);
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(layer_list->item(0));
+  layer_list->item(0)->setSelected(true);
+  QApplication::processEvents();
+}
+
+void ui_smart_object_menu_states_follow_active_layer_kind() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_rectangle_over_base(window);
+
+  // Without any menu shown yet, the menu bar's items already match the pixel layer.
+  check_pixel_layer_smart_object_states(read_smart_object_action_states(window));
+  check_pixel_layer_smart_object_states(layer_menu_smart_object_states(window));
+  check_pixel_layer_smart_object_states(context_menu_smart_object_states(window));
+  CHECK(active_layer_properties_text(window).contains(QStringLiteral("Pixel Layer")));
+
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(patchy::layer_is_smart_object(document.layers().back()));
+  check_embedded_smart_object_states(read_smart_object_action_states(window));
+  check_embedded_smart_object_states(layer_menu_smart_object_states(window));
+  check_embedded_smart_object_states(context_menu_smart_object_states(window));
+  const auto properties = active_layer_properties_text(window);
+  CHECK(properties.contains(QStringLiteral("Smart Object")));
+  CHECK(!properties.contains(QStringLiteral("Pixel Layer")));
+  save_smart_object_menu_shots(window, QStringLiteral("smart_object"));
+
+  // Back on the plain layer, the menu bar drops what the smart object enabled.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(layer_list->item(1));
+  layer_list->item(1)->setSelected(true);
+  QApplication::processEvents();
+  check_pixel_layer_smart_object_states(read_smart_object_action_states(window));
+  check_pixel_layer_smart_object_states(layer_menu_smart_object_states(window));
+  save_smart_object_menu_shots(window, QStringLiteral("pixel_layer"));
+}
+
+// Convert to Smart Object on a smart object nests it, as in Photoshop: the new contents
+// hold the original smart object and its source, the composite does not change, the
+// nesting survives a PSD round trip, and Undo restores the original.
+void ui_smart_object_convert_nests_existing_smart_object() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_rectangle_over_base(window);
+  auto* convert = require_action(window, "layerConvertSmartObjectAction");
+  convert->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.layers().size() == 2U);
+  const auto inner_uuid = patchy::smart_object_source_uuid(document.layers().back());
+  CHECK(!inner_uuid.empty());
+  const auto before = patchy::ui::qimage_from_document(document, true);
+
+  CHECK(convert->isEnabled());
+  convert->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 2U);
+  const auto& outer = document.layers().back();
+  CHECK(patchy::layer_is_smart_object(outer));
+  CHECK(outer.name() == "Rectangle 1");
+  const auto outer_uuid = patchy::smart_object_source_uuid(outer);
+  CHECK(!outer_uuid.empty() && outer_uuid != inner_uuid);
+  const auto* outer_source = document.metadata().smart_objects.find(outer_uuid);
+  CHECK(outer_source != nullptr && outer_source->file_bytes != nullptr);
+  const auto check_nested_child = [&inner_uuid](const patchy::SmartObjectSource& source) {
+    const auto child = patchy::psd::DocumentIo::read({source.file_bytes->data(), source.file_bytes->size()});
+    CHECK(child.width() == 16 && child.height() == 12);
+    CHECK(child.layers().size() == 1U);
+    CHECK(patchy::layer_is_smart_object(child.layers().front()));
+    CHECK(patchy::smart_object_source_uuid(child.layers().front()) == inner_uuid);
+    const auto* inner_source = child.metadata().smart_objects.find(inner_uuid);
+    CHECK(inner_source != nullptr && inner_source->file_bytes != nullptr);
+  };
+  check_nested_child(*outer_source);
+  CHECK(patchy::ui::qimage_from_document(document, true) == before);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read({bytes.data(), bytes.size()});
+  CHECK(reread.layers().size() == 2U);
+  CHECK(patchy::smart_object_source_uuid(reread.layers().back()) == outer_uuid);
+  const auto* reread_source = reread.metadata().smart_objects.find(outer_uuid);
+  CHECK(reread_source != nullptr && reread_source->file_bytes != nullptr);
+  check_nested_child(*reread_source);
+  // E4 acceptance artifact: a converted smart object nested inside another.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_smart_object_nested_convert.psd"));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 2U);
+  CHECK(patchy::smart_object_source_uuid(document.layers().back()) == inner_uuid);
+  CHECK(patchy::ui::qimage_from_document(document, true) == before);
 }
 
 // Layer > Smart Objects > Convert to Layers (GitHub issue 35): the contents'
@@ -3504,6 +3726,9 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_convert_composites_identically_and_undoes",
        ui_smart_object_convert_composites_identically_and_undoes},
       {"ui_smart_object_convert_keeps_masks_in_place", ui_smart_object_convert_keeps_masks_in_place},
+      {"ui_smart_object_menu_states_follow_active_layer_kind",
+       ui_smart_object_menu_states_follow_active_layer_kind},
+      {"ui_smart_object_convert_nests_existing_smart_object", ui_smart_object_convert_nests_existing_smart_object},
       {"ui_smart_object_edit_commit_keeps_canvas_transparency",
        ui_smart_object_edit_commit_keeps_canvas_transparency},
       {"ui_smart_object_legacy_black_composite_decodes_transparent",

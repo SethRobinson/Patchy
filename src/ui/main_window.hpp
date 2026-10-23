@@ -1830,6 +1830,8 @@ private:
   // hidden layers stay; off while fewer than two visible layers draw.
   void merge_visible_layers();
   void refresh_merge_visible_action_state();
+  // Enabled state of the shared Smart Objects actions (Layer menu and layer context menu).
+  void refresh_smart_object_action_states();
   void flatten_image();
   void merge_down();
   void fill_active_layer();

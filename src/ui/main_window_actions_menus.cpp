@@ -917,6 +917,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_smart_objects_menu->addSeparator();
   layer_smart_objects_menu->addAction(layer_smart_object_to_layers_action_);
   layer_smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
+  connect(layer_smart_objects_menu, &QMenu::aboutToShow, this, [this] { refresh_smart_object_action_states(); });
   // Commands on existing shapes (docs/vector-commands.md). A submenu keeps the
   // Layer menu inside its wasm-viewport row bound.
   auto* layer_shape_menu = layer_menu->addMenu(tr("Shape"));
