@@ -17,7 +17,6 @@
 #include "filters/filter_registry.hpp"
 #include "ui/document_order_list.hpp"
 #include "ui/main_window.hpp"
-#include "ui/model_download_dialog.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -35,6 +34,7 @@
 #include "ui/tiff_jpeg_reader.hpp"
 #include "ui/recent_file_list.hpp"
 #include "ui/network_mounts.hpp"
+#include "ui/model_download_dialog.hpp"
 #include "ui/object_selection_model_download.hpp"
 #include "ui/qt_paths.hpp"
 
