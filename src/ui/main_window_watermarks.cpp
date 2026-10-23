@@ -40,9 +40,12 @@
 namespace patchy::ui {
 namespace {
 
+#if !defined(Q_OS_WASM)
+// The web version downloads no watermark models, so only the desktop progress text uses it.
 int whole_megabytes(qint64 bytes) {
   return static_cast<int>((bytes + 500000) / 1000000);
 }
+#endif
 
 // What one check on open found, posted back to the UI thread.
 struct OpenWatermarkCheckResult {

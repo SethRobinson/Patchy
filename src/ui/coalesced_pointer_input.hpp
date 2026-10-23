@@ -79,7 +79,9 @@ class UncompressedPointerInputScope {
  private:
   bool engaged_{false};
   bool saved_compression_{true};
+#ifdef Q_OS_MACOS
   bool saved_mac_coalescing_{true};
+#endif
 };
 
 }  // namespace patchy::ui
