@@ -16,6 +16,10 @@ inline constexpr const char* kLayerMetadataMaskLinked = "patchy.mask_linked";
 // mask. Such masks are written back as the file's alpha / a PSD "Alpha 1" channel on save.
 inline constexpr const char* kLayerMetadataDocumentAlpha = "patchy.document_alpha";
 inline constexpr const char* kLayerMetadataGroupExpanded = "patchy.layer_group_expanded";
+// Whether the rows under a layer (its layer styles and Smart Filters) are open in the Layers
+// panel: "true" or "false", absent when unknown. PSD layer record flags bit 5 (0x20) holds it,
+// one bit for both lists (GitHub issue 361, docs/ps-compat.md).
+inline constexpr const char* kLayerMetadataFxExpanded = "patchy.layer_fx_expanded";
 // The layer's PSD lspf protection value as read, in decimal: the PSD writer re-emits it while
 // the locks still match it, keeping Photoshop's Lock All and Prevent Auto Nesting bits.
 inline constexpr const char* kLayerMetadataPsdProtectionFlags = "patchy.psd.protection_flags";
@@ -187,6 +191,8 @@ void set_layer_mask_is_document_alpha(Layer& layer, bool document_alpha);
 
 [[nodiscard]] bool layer_group_expanded(const Layer& layer);
 void set_layer_group_expanded(Layer& layer, bool expanded);
+// kLayerMetadataFxExpanded as read: nullopt when the layer carries no state.
+[[nodiscard]] std::optional<bool> layer_fx_expanded(const Layer& layer);
 
 [[nodiscard]] bool layer_is_text(const Layer& layer);
 // Drops every text key and the TySh block: the layer keeps its raster as plain pixels

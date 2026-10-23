@@ -12064,6 +12064,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added your invisible watermark.</source>
         <translation>Ваш невидимый водяной знак добавлен.</translation>
     </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>Свернуть строки смарт-фильтров</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>Развернуть строки смарт-фильтров</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

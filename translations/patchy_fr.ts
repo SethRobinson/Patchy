@@ -12029,6 +12029,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added your invisible watermark.</source>
         <translation>Votre filigrane invisible a été ajouté.</translation>
     </message>
+    <message>
+        <source>Collapse the Smart Filter rows</source>
+        <translation>Replier les lignes de filtres dynamiques</translation>
+    </message>
+    <message>
+        <source>Expand the Smart Filter rows</source>
+        <translation>Déplier les lignes de filtres dynamiques</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -2931,6 +2931,17 @@ void MainWindow::toggle_layer_effects_expanded(LayerId layer_id) {
   refresh_layer_list();  // a disclosure toggle is not an edit (the folder rule)
 }
 
+void MainWindow::toggle_layer_smart_filters_expanded(LayerId layer_id) {
+  if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+    return;
+  }
+  auto& collapsed = session().collapsed_smart_filters;
+  if (!collapsed.erase(layer_id)) {
+    collapsed.insert(layer_id);
+  }
+  refresh_layer_list();  // a disclosure toggle is not an edit (the folder rule)
+}
+
 void MainWindow::reveal_layer_effects(LayerId layer_id) {
   if (has_active_document()) {
     session().expanded_layer_effects.insert(layer_id);

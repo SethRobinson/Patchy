@@ -53,6 +53,16 @@ void collect_initially_collapsed_layer_groups(const std::vector<Layer>& layers, 
 // section divider type 1 open / 2 closed). Call it on the copy a save writes: only groups whose
 // metadata disagrees are touched, and without a content revision bump (expand state never renders).
 void apply_layer_group_disclosure(std::vector<Layer>& layers, const std::set<LayerId>& collapsed_ids);
+// The Layers panel's open/closed state for the rows under each layer (GitHub issue 361), seeded
+// from kLayerMetadataFxExpanded at open: layer styles start closed unless the file says open,
+// Smart Filters start open unless the file says closed.
+void collect_initial_layer_fx_disclosure(const std::vector<Layer>& layers, std::set<LayerId>& expanded_effects,
+                                         std::set<LayerId>& collapsed_smart_filters);
+// Writes that state back as kLayerMetadataFxExpanded on the copy a save writes, the folder rule:
+// a layer with effects or Smart Filters is open when either of its lists is open (PSD keeps one
+// bit). Layers with neither keep whatever they carry; no content revision bump.
+void apply_layer_fx_disclosure(std::vector<Layer>& layers, const std::set<LayerId>& expanded_effects,
+                               const std::set<LayerId>& collapsed_smart_filters);
 [[nodiscard]] bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id,
                                                  std::vector<LayerId>& ancestors);
 [[nodiscard]] const Layer* find_layer_in_tree(const std::vector<Layer>& layers, LayerId id);

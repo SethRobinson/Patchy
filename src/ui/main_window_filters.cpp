@@ -1360,6 +1360,10 @@ bool MainWindow::commit_smart_filter_stack_edit(
   }
   doc.metadata().smart_filter_effects = std::move(filter_effects);
   if (candidate.has_value()) {
+    if (current == nullptr || candidate->entries.size() > current->entries.size()) {
+      // A filter added to a closed list opens it, so the new row shows (issue 361).
+      target_session.collapsed_smart_filters.erase(layer_id);
+    }
     layer->set_smart_filter_stack(std::move(*candidate));
     layer->set_pixels(std::move(preview->rendered.pixels));
     layer->set_bounds(preview->rendered.bounds);
