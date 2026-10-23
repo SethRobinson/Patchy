@@ -11947,62 +11947,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Google SynthID など多くの透かしは、所有者のツールでしか読み取れないため、ここでのスキャンでは見つかりません。</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>プロファイル変換</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>現在のプロファイル:</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>プロファイルファイルを選択...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>RGB プロファイルを選択</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC プロファイル (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>「%1」は Patchy で使用できる RGB プロファイルではありません。</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>変換後のプロファイル:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>相対的な色域を維持</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>絶対的な色域を維持</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>マッチング方法:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>黒点の補正</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy は RGB カラーを sRGB として表示します。別のプロファイルに変換したドキュメントはここでは画面上の見え方が変わり、保存したファイルにはそのプロファイルが含まれます。</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>カラープロファイル %1 を sRGB に変換できなかったため、ファイルの色とプロファイルをそのまま保持します</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>カラープロファイル %1 から sRGB に変換しました</translation>
-    </message>
-    <message>
         <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
         <translation>TrustMark の透かし（バリアント %1、%2）が見つかりました: %3。</translation>
     </message>
@@ -12031,8 +11975,24 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>このバージョンの Patchy は TrustMark の透かしを読み取れません。</translation>
     </message>
     <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>テキスト、シェイプ、塗りつぶし、調整レイヤーとレイヤースタイルに保存された色はファイルの値のままです。sRGB に変換したのはピクセルのみです</translation>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>見えない透かしは追加されませんでした: 画像が小さすぎます。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>見えない透かしは追加されませんでした: 透かしモデルがダウンロードされていません。</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>画像にはすでにあなたの見えない透かしが入っています。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>見えない透かしは追加されませんでした: TrustMark を実行できませんでした。</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>あなたの見えない透かしを追加しました。</translation>
     </message>
 </context>
 <context>
@@ -24200,42 +24160,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>ツールアイコンのサイズ:</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>プロファイル変換(&amp;F)...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>先にドキュメントを開いてください</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>別のプロファイルに変換する前に RGB カラーに変換してください</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>別の RGB プロファイルに変換する前に CMYK 校正を終了してください</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32 ビットのドキュメントはマトリクス型の RGB プロファイル間でのみ変換できます</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>このプロファイルはこの変換に使用できません</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>プロファイル変換</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>%1 から %2 に変換しました</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>別の RGB プロファイルを持つファイルを開くときに sRGB に変換</translation>
-    </message>
-    <message>
         <source>Add In&amp;visible Watermark...</source>
         <translation>見えない透かしを追加(&amp;V)...</translation>
     </message>
@@ -24324,8 +24248,92 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>「%1」の見えない透かしを追加しました</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy は RGB カラーを sRGB として表示・編集します。Display P3、Adobe RGB などの RGB プロファイルのファイルは、変換して初めて正しく表示されます。オフにすると、ファイルは元の値のまま開き、プロファイルも保持されます。</translation>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy は、公開された見えない透かし Adobe TrustMark で、保存する画像に短いテキストを埋め込めます。鍵はなく、TrustMark リーダーがあれば誰でも読めます。</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>名前または短い ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>透かしのテキスト:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>しない</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>保存時に確認</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>保存のたびに追加</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>保存時に見えない透かしを追加:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>透かしが入るのは保存したファイルのピクセルだけで、開いているドキュメントとその履歴は変わりません。PNG、JPEG、WebP、BMP、JPEG XL、AVIF、レイヤーのない TIFF に入り、書き出しにも入ります。レイヤーのあるファイル（PSD、PSB、レイヤー付き TIFF）には入りません。気づかないうちにレイヤーのピクセルが変わってしまうためです。128 ピクセル未満の画像と、すでにあなたのテキストが入っている画像はスキップされます。</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>開いた画像の透かしを確認</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>ファイルを開いた後にバックグラウンドで実行され、Stable Diffusion の透かし、またはモデルのダウンロード後は Adobe TrustMark の透かしが見つかると通知を表示します。</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>保存時の透かしの追加と確認の TrustMark 部分にはこれらのモデルが必要です。Stable Diffusion の確認にダウンロードは不要です。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>残り %1 / %2 文字</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>透かし</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>このファイルにあなたの見えない透かし「%1」を追加しますか?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>TrustMark リーダーがあれば誰でも読めます。透かしが入るのは保存したファイルだけで、開いているドキュメントは変わりません。</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>透かしを追加</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>透かしなしで保存</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>透かしを確認中...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>透かしが見つかりました</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>この画像には見えない透かしが入っています。</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>「%1」には見えない透かしが入っています。</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>ファイル情報で表示</translation>
     </message>
 </context>
 <context>
@@ -26124,34 +26132,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>perspectiveCrop の角は凸形状である必要があり、アートボードのあるドキュメントは切り抜けません。</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>convertToProfile のオプションはオブジェクトでなければなりません。</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent は &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot;、&quot;absolute-colorimetric&quot; のいずれかでなければなりません。</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation は true か false でなければなりません。</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile には &quot;sRGB&quot; または RGB プロファイルファイルのパスを指定します: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>インデックスカラーのドキュメントは先に RGB カラーに変換してください。</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>別の RGB プロファイルに変換する前に CMYK 校正を終了してください。</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32 ビットのドキュメントはマトリクス型の RGB プロファイル間でのみ変換できます。</translation>
-    </message>
-    <message>
         <source>The watermark models could not be downloaded: %1</source>
         <translation>透かしモデルをダウンロードできませんでした: %1</translation>
     </message>
@@ -26216,8 +26196,20 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>透かしを追加できませんでした: %1</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>このプロファイルはこの変換に使用できません。</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences には {addOnSave: &quot;ask&quot;} のようなオブジェクトを渡してください。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text は最大 %1 文字の印字可能な ASCII にしてください。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave は &quot;never&quot;、&quot;ask&quot;、&quot;always&quot; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: 不明なオプション %1。</translation>
     </message>
 </context>
 <context>

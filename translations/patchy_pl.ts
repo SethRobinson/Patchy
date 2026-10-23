@@ -12017,62 +12017,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Wiele znaków wodnych, na przykład Google SynthID, można odczytać tylko narzędziami ich właścicieli, więc ten skan ich nie znajdzie.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Konwertuj na profil</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>Bieżący profil:</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>Wybierz plik profilu...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>Wybierz profil RGB</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>Profile ICC (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot; nie jest profilem RGB, którego Patchy może użyć.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>Profil docelowy:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>Względny kolorymetryczny</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Bezwzględny kolorymetryczny</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>Metoda konwersji kolorów:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>Kompensacja punktu czerni</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy wyświetla kolory RGB jako sRGB. Dokument przekonwertowany na inny profil wygląda tu na ekranie inaczej, a jego zapisy zawierają ten profil.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Nie udało się przekonwertować profilu kolorów %1 na sRGB, więc plik zachowuje swoje kolory i profil</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Przekonwertowano z profilu kolorów %1 na sRGB</translation>
-    </message>
-    <message>
         <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
         <translation>Znaleziono znak wodny TrustMark (wariant %1, %2) zawierający %3.</translation>
     </message>
@@ -12101,8 +12045,24 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Ta wersja Patchy nie może odczytywać znaków wodnych TrustMark.</translation>
     </message>
     <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>Kolory zapisane w warstwach tekstowych, kształtów, wypełnienia i dopasowania oraz w stylach warstw zachowują wartości z pliku; na sRGB przekonwertowano tylko piksele</translation>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>Nie dodano niewidocznego znaku wodnego: obraz jest za mały.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>Nie dodano niewidocznego znaku wodnego: modele znaków wodnych nie zostały pobrane.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>Obraz ma już Twój niewidoczny znak wodny.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>Nie dodano niewidocznego znaku wodnego: nie udało się uruchomić TrustMark.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>Dodano Twój niewidoczny znak wodny.</translation>
     </message>
 </context>
 <context>
@@ -24344,42 +24304,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Rozmiar ikon narzędzi:</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Konwertuj na pro&amp;fil...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>Najpierw otwórz dokument</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Przed konwersją na inny profil przekonwertuj na kolory RGB</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Przed konwersją na inny profil RGB wyjdź z próby CMYK</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>Dokumenty 32-bitowe konwertuje się tylko między profilami RGB opartymi na macierzy</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Tego profilu nie można użyć do tej konwersji</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>Konwertuj na profil</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Przekonwertowano z %1 na %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Przy otwieraniu konwertuj pliki z innymi profilami RGB na sRGB</translation>
-    </message>
-    <message>
         <source>Add In&amp;visible Watermark...</source>
         <translation>Dodaj nie&amp;widoczny znak wodny...</translation>
     </message>
@@ -24468,8 +24392,92 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Dodano niewidoczny znak wodny z „%1”</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy wyświetla i edytuje kolory RGB jako sRGB. Pliki w Display P3, Adobe RGB lub innym profilu RGB wyglądają poprawnie dopiero po konwersji. Po wyłączeniu otwierają się z własnymi wartościami i zachowują swój profil.</translation>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy może ukryć krótki tekst w zapisywanych obrazach za pomocą Adobe TrustMark, otwartego niewidocznego znaku wodnego. Nie ma klucza: każdy z czytnikiem TrustMark może go odczytać.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>Twoje imię lub krótki identyfikator</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>Tekst znaku wodnego:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Nigdy</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>Pytaj przy zapisie</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>Dodawaj przy każdym zapisie</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>Dodawaj niewidoczny znak wodny przy zapisie:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>Oznaczane są tylko piksele zapisanego pliku; otwarty dokument i jego historia się nie zmieniają. Oznaczane są pliki PNG, JPEG, WebP, BMP, JPEG XL, AVIF i TIFF bez warstw, a także eksporty. Pliki z warstwami (PSD, PSB, TIFF z warstwami) nie, bo zmieniłoby to piksele warstw bez Twojej wiedzy. Obrazy poniżej 128 pikseli i obrazy, które mają już Twój tekst, są pomijane.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>Sprawdzaj otwierane obrazy pod kątem znaków wodnych</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>Działa w tle po otwarciu pliku i pokazuje powiadomienie, gdy znajdzie znak wodny Stable Diffusion, a po pobraniu modeli także znak wodny Adobe TrustMark.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>Dodawanie znaków przy zapisie i część sprawdzania dotycząca TrustMark wymagają tych modeli. Sprawdzanie Stable Diffusion nie wymaga pobierania.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>Pozostało %1 z %2 znaków</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Znaki wodne</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>Dodać Twój niewidoczny znak wodny „%1” do tego pliku?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>Każdy z czytnikiem TrustMark może go odczytać. Oznaczany jest tylko zapisany plik; otwarty dokument się nie zmienia.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Dodaj znak wodny</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>Zapisz bez</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>Sprawdzanie znaków wodnych...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>Znaleziono znak wodny</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>Ten obraz ma niewidoczny znak wodny.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>„%1” ma niewidoczny znak wodny.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>Pokaż w Informacjach o pliku</translation>
     </message>
 </context>
 <context>
@@ -26270,34 +26278,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Narożniki perspectiveCrop muszą tworzyć kształt wypukły, a dokumentów z obszarami roboczymi nie można kadrować.</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Opcje convertToProfile muszą być obiektem.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent musi mieć wartość &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; lub &quot;absolute-colorimetric&quot;.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation musi mieć wartość true lub false.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile przyjmuje &quot;sRGB&quot; lub ścieżkę pliku profilu RGB: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Najpierw przekonwertuj dokument indeksowany na kolory RGB.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Przed konwersją na inny profil RGB wyjdź z próby CMYK.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>Dokumenty 32-bitowe konwertuje się tylko między profilami RGB opartymi na macierzy.</translation>
-    </message>
-    <message>
         <source>The watermark models could not be downloaded: %1</source>
         <translation>Nie udało się pobrać modeli znaków wodnych: %1</translation>
     </message>
@@ -26362,8 +26342,20 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Nie udało się dodać znaku wodnego: %1</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Tego profilu nie można użyć do tej konwersji.</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences przyjmuje obiekt, np. {addOnSave: &quot;ask&quot;}.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text musi być drukowalnym ASCII o długości najwyżej %1 znaków.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave musi mieć wartość &quot;never&quot;, &quot;ask&quot; lub &quot;always&quot;.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: nieznana opcja %1.</translation>
     </message>
 </context>
 <context>

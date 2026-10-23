@@ -1249,6 +1249,17 @@ interface PatchyApp {
   /** True when the TrustMark watermark models are downloaded and can run. */
   readonly watermarkModelsAvailable: boolean;
   /**
+   * Preferences > Watermarks (persisted): the TrustMark text saves add (printable ASCII, at
+   * most 8 characters), when saves add it ("never", the default, "ask" or "always"; scripted
+   * saves never ask, so "ask" adds nothing to them), and whether opened images are checked
+   * in the background.
+   */
+  readonly watermarkPreferences: {text: string; addOnSave: "never" | "ask" | "always"; checkOnOpen: boolean};
+  /** Sets any of watermarkPreferences' keys; an unknown key, a bad token or text TrustMark
+   *  cannot hold throws. */
+  setWatermarkPreferences(preferences: {text?: string; addOnSave?: "never" | "ask" | "always";
+    checkOnOpen?: boolean}): void;
+  /**
    * Every font family the text engine can use right now (installed and user-added),
    * with its face names and the writing systems the font declares (a declared
    * system can still lack letters: addTextLayer warns when a font cannot draw

@@ -11966,62 +11966,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12050,7 +11994,23 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24199,42 +24159,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Add In&amp;visible Watermark...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24323,7 +24247,91 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -26124,34 +26132,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The watermark models could not be downloaded: %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -26216,7 +26196,19 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion.</source>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

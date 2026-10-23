@@ -355,6 +355,20 @@ void trustmark_embed_then_scan_round_trip() {
   CHECK(patchy::ai::scan_trustmark(original).marks.empty());
 }
 
+// The models are looked up only in the download folder: a copy in the bundled models
+// folder is never used (docs/legal-constraints.md, "Watermark detection").
+void trustmark_models_come_only_from_the_download_folder() {
+  const DownloadFolderReset reset;
+  if (!watermark_models_staged()) {
+    patchy::test::skip("the watermark models are not staged (setup-ai-deps provisions them)");
+  }
+  const auto bundled = patchy::ai::model_directory();
+  patchy::ai::set_model_directory(std::filesystem::current_path() / "ai-models-download");
+  patchy::ai::set_downloaded_model_directory({});
+  CHECK(!patchy::ai::trustmark_models_available());
+  patchy::ai::set_model_directory(bundled);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> trustmark_tests() {
@@ -366,5 +380,6 @@ std::vector<patchy::test::TestCase> trustmark_tests() {
       {"trustmark_residual_keeps_alpha_and_mean_free", trustmark_residual_keeps_alpha_and_mean_free},
       {"trustmark_decodes_the_reference_marks", trustmark_decodes_the_reference_marks},
       {"trustmark_embed_then_scan_round_trip", trustmark_embed_then_scan_round_trip},
+      {"trustmark_models_come_only_from_the_download_folder", trustmark_models_come_only_from_the_download_folder},
   };
 }

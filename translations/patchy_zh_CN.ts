@@ -11947,62 +11947,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>许多水印（如 Google SynthID）只能用其所有者的工具读取，因此这里的扫描无法找到它们。</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>转换为配置文件</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>当前配置文件:</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>选择配置文件...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>选择 RGB 配置文件</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>ICC 配置文件 (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>“%1”不是 Patchy 可以使用的 RGB 配置文件。</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>目标配置文件:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>相对比色</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>绝对比色</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>渲染意图:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>黑场补偿</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy 将 RGB 颜色按 sRGB 显示。转换为其他配置文件的文档在这里的屏幕上看起来会不同，保存的文件会带有该配置文件。</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>无法将颜色配置文件 %1 转换为 sRGB，因此文件保留其颜色和配置文件</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>已从颜色配置文件 %1 转换为 sRGB</translation>
-    </message>
-    <message>
         <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
         <translation>找到 TrustMark 水印（变体 %1，%2），内容为 %3。</translation>
     </message>
@@ -12031,8 +11975,24 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>此版本的 Patchy 无法读取 TrustMark 水印。</translation>
     </message>
     <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>文字、形状、填充和调整图层以及图层样式中存储的颜色保留文件中的数值；只有像素已转换为 sRGB</translation>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>未添加不可见水印：图像太小。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>未添加不可见水印：尚未下载水印模型。</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>图像已带有你的不可见水印。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>未添加不可见水印：无法运行 TrustMark。</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>已添加你的不可见水印。</translation>
     </message>
 </context>
 <context>
@@ -24200,42 +24160,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>工具图标大小:</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>转换为配置文件(&amp;F)...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>请先打开文档</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>转换为其他配置文件前请先转换为 RGB 颜色</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>转换为其他 RGB 配置文件前请先退出 CMYK 校样</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32 位文档只能在基于矩阵的 RGB 配置文件之间转换</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>该配置文件不能用于此转换</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>转换为配置文件</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>已从 %1 转换为 %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>打开文件时将其他 RGB 配置文件转换为 sRGB</translation>
-    </message>
-    <message>
         <source>Add In&amp;visible Watermark...</source>
         <translation>添加不可见水印(&amp;V)...</translation>
     </message>
@@ -24324,8 +24248,92 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>已添加内容为“%1”的不可见水印</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy 以 sRGB 显示和编辑 RGB 颜色。Display P3、Adobe RGB 或其他 RGB 配置文件的文件只有转换后才显示正确。关闭时，文件按原有数值打开并保留其配置文件。</translation>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy 可以用公开的不可见水印 Adobe TrustMark 在你保存的图像中隐藏一段短文本。它没有密钥：任何拥有 TrustMark 读取器的人都能读出。</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>你的名字或简短 ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>水印文本：</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>从不</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>保存时询问</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>每次保存时添加</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>保存时添加不可见水印：</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>只标记保存后文件中的像素；打开的文档及其历史不会改变。PNG、JPEG、WebP、BMP、JPEG XL、AVIF 和无图层的 TIFF 会被标记，导出也是如此。带图层的文件（PSD、PSB、带图层的 TIFF）不会被标记，因为那会在你不知情时改变图层像素。小于 128 像素的图像以及已带有你的文本的图像会被跳过。</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>检查打开的图像中的水印</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>在文件打开后于后台运行，找到 Stable Diffusion 水印（下载模型后还包括 Adobe TrustMark 水印）时显示通知。</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>保存时添加水印以及检查中的 TrustMark 部分需要这些模型。Stable Diffusion 检查无需下载。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>剩余 %1/%2 个字符</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>水印</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>要将你的不可见水印“%1”添加到此文件吗？</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>任何拥有 TrustMark 读取器的人都能读出它。只标记保存的文件；打开的文档不会改变。</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>添加水印</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>不加水印保存</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>正在检查水印...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>找到水印</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>此图像带有不可见水印。</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>“%1”带有不可见水印。</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>在文件简介中显示</translation>
     </message>
 </context>
 <context>
@@ -26124,34 +26132,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>perspectiveCrop 的四个角必须构成凸形, 且无法裁剪带画板的文档。</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>convertToProfile 的选项必须是对象。</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent 必须是 &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot; 或 &quot;absolute-colorimetric&quot;。</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation 必须是 true 或 false。</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile 接受 &quot;sRGB&quot; 或 RGB 配置文件的路径：%1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>请先将索引颜色文档转换为 RGB 颜色。</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>转换为其他 RGB 配置文件前请先退出 CMYK 校样。</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32 位文档只能在基于矩阵的 RGB 配置文件之间转换。</translation>
-    </message>
-    <message>
         <source>The watermark models could not be downloaded: %1</source>
         <translation>无法下载水印模型：%1</translation>
     </message>
@@ -26216,8 +26196,20 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>无法添加水印：%1</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>该配置文件不能用于此转换。</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences 接受对象，例如 {addOnSave: &quot;ask&quot;}。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences：text 必须是最多 %1 个字符的可打印 ASCII。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences：addOnSave 必须是 &quot;never&quot;、&quot;ask&quot; 或 &quot;always&quot;。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences：未知选项 %1。</translation>
     </message>
 </context>
 <context>

@@ -11982,62 +11982,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>De nombreux filigranes, comme Google SynthID, ne se lisent qu&apos;avec les outils de leur propriétaire : cette recherche ne peut pas les trouver.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Convertir en profil</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>Profil actuel :</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>Choisir un fichier de profil...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>Choisir un profil RVB</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>Profils ICC (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>« %1 » n&apos;est pas un profil RVB utilisable par Patchy.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>Profil de destination :</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>Colorimétrie relative</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Colorimétrie absolue</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>Mode de rendu :</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>Compensation du point noir</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy affiche les couleurs RVB en sRGB. Un document converti dans un autre profil paraît différent ici à l&apos;écran, et ses enregistrements portent ce profil.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Le profil colorimétrique %1 n&apos;a pas pu être converti en sRGB : le fichier garde ses couleurs et son profil</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Converti du profil colorimétrique %1 en sRGB</translation>
-    </message>
-    <message>
         <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
         <translation>Filigrane TrustMark trouvé (variante %1, %2) contenant %3.</translation>
     </message>
@@ -12066,8 +12010,24 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Cette version de Patchy ne peut pas lire les filigranes TrustMark.</translation>
     </message>
     <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>Les couleurs enregistrées dans les calques de texte, de forme, de remplissage et de réglage et dans les styles de calque gardent leurs valeurs du fichier ; seuls les pixels ont été convertis en sRGB</translation>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>Aucun filigrane invisible ajouté : l&apos;image est trop petite.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>Aucun filigrane invisible ajouté : les modèles de filigrane ne sont pas téléchargés.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>L&apos;image porte déjà votre filigrane invisible.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>Aucun filigrane invisible ajouté : TrustMark n&apos;a pas pu s&apos;exécuter.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>Votre filigrane invisible a été ajouté.</translation>
     </message>
 </context>
 <context>
@@ -24272,42 +24232,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Taille des icônes d&apos;outils :</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Convertir en pro&amp;fil...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>Ouvrez d&apos;abord un document</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Convertissez en couleurs RVB avant de convertir dans un autre profil</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Quittez l&apos;épreuve CMJN avant de convertir dans un autre profil RVB</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>Les documents 32 bits ne se convertissent qu&apos;entre profils RVB à matrice</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Le profil ne peut pas servir à cette conversion</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>Convertir en profil</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Converti de %1 en %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Convertir en sRGB les fichiers ayant un autre profil RVB à l&apos;ouverture</translation>
-    </message>
-    <message>
         <source>Add In&amp;visible Watermark...</source>
         <translation>Ajouter un filigrane in&amp;visible...</translation>
     </message>
@@ -24396,8 +24320,92 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Filigrane invisible ajouté avec « %1 »</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy affiche et modifie les couleurs RVB en sRGB. Les fichiers en Display P3, Adobe RGB ou un autre profil RVB ne s&apos;affichent correctement qu&apos;une fois convertis. Désactivé, ils s&apos;ouvrent avec leurs propres valeurs et gardent leur profil.</translation>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy peut cacher un court texte dans les images que vous enregistrez avec Adobe TrustMark, un filigrane invisible ouvert. Il n&apos;y a pas de clé : toute personne disposant d&apos;un lecteur TrustMark peut le lire.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>Votre nom ou un court ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>Texte du filigrane :</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Jamais</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>Demander à l&apos;enregistrement</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>Ajouter à chaque enregistrement</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>Ajouter un filigrane invisible à l&apos;enregistrement :</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>Seuls les pixels du fichier enregistré sont marqués ; le document ouvert et son historique ne changent pas. Les fichiers PNG, JPEG, WebP, BMP, JPEG XL, AVIF et TIFF sans calques sont marqués, ainsi que les exportations. Les fichiers avec calques (PSD, PSB, TIFF avec calques) ne le sont pas, car cela modifierait les pixels des calques à votre insu. Les images de moins de 128 pixels et celles qui portent déjà votre texte sont ignorées.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>Rechercher des filigranes dans les images ouvertes</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>S&apos;exécute en arrière-plan à l&apos;ouverture d&apos;un fichier et affiche un avis lorsqu&apos;elle trouve un filigrane Stable Diffusion, ou un filigrane Adobe TrustMark une fois les modèles téléchargés.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>L&apos;ajout à l&apos;enregistrement et la partie TrustMark de la recherche nécessitent ces modèles. La recherche Stable Diffusion ne nécessite aucun téléchargement.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>%1 caractères restants sur %2</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Filigranes</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>Ajouter votre filigrane invisible « %1 » à ce fichier ?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>Toute personne disposant d&apos;un lecteur TrustMark peut le lire. Seul le fichier enregistré est marqué ; le document ouvert ne change pas.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Ajouter le filigrane</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>Enregistrer sans</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>Recherche de filigranes...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>Filigrane trouvé</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>Cette image porte un filigrane invisible.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>« %1 » porte un filigrane invisible.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>Afficher dans Informations sur le fichier</translation>
     </message>
 </context>
 <context>
@@ -26197,34 +26205,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Les coins de perspectiveCrop doivent former une forme convexe, et les documents avec plans de travail ne peuvent pas être recadrés.</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Les options de convertToProfile doivent être un objet.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent doit valoir &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; ou &quot;absolute-colorimetric&quot;.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation doit valoir true ou false.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile accepte &quot;sRGB&quot; ou le chemin d&apos;un fichier de profil RVB : %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Convertissez d&apos;abord un document indexé en couleurs RVB.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Quittez l&apos;épreuve CMJN avant de convertir dans un autre profil RVB.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>Les documents 32 bits ne se convertissent qu&apos;entre profils RVB à matrice.</translation>
-    </message>
-    <message>
         <source>The watermark models could not be downloaded: %1</source>
         <translation>Impossible de télécharger les modèles de filigrane : %1</translation>
     </message>
@@ -26289,8 +26269,20 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Impossible d&apos;ajouter le filigrane : %1</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Le profil ne peut pas servir à cette conversion.</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences prend un objet comme {addOnSave: &quot;ask&quot;}.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences : text doit être en ASCII imprimable de %1 caractères au plus.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences : addOnSave doit valoir &quot;never&quot;, &quot;ask&quot; ou &quot;always&quot;.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences : option inconnue %1.</translation>
     </message>
 </context>
 <context>

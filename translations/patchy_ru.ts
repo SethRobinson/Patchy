@@ -12017,62 +12017,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Многие водяные знаки, например Google SynthID, читаются только инструментами их владельцев, поэтому эта проверка их не найдёт.</translation>
     </message>
     <message>
-        <source>Convert to Profile</source>
-        <translation>Преобразовать в профиль</translation>
-    </message>
-    <message>
-        <source>Current profile:</source>
-        <translation>Текущий профиль:</translation>
-    </message>
-    <message>
-        <source>Choose Profile File...</source>
-        <translation>Выбрать файл профиля...</translation>
-    </message>
-    <message>
-        <source>Choose RGB Profile</source>
-        <translation>Выбор профиля RGB</translation>
-    </message>
-    <message>
-        <source>ICC profiles (*.icc *.icm)</source>
-        <translation>Профили ICC (*.icc *.icm)</translation>
-    </message>
-    <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
-        <translation>&quot;%1&quot; не является профилем RGB, который может использовать Patchy.</translation>
-    </message>
-    <message>
-        <source>Destination profile:</source>
-        <translation>Целевой профиль:</translation>
-    </message>
-    <message>
-        <source>Relative Colorimetric</source>
-        <translation>Относительный колориметрический</translation>
-    </message>
-    <message>
-        <source>Absolute Colorimetric</source>
-        <translation>Абсолютный колориметрический</translation>
-    </message>
-    <message>
-        <source>Rendering intent:</source>
-        <translation>Метод рендеринга:</translation>
-    </message>
-    <message>
-        <source>Black point compensation</source>
-        <translation>Компенсация точки черного</translation>
-    </message>
-    <message>
-        <source>Patchy shows RGB colors as sRGB. A document converted to another profile looks different on screen here, and its saves carry that profile.</source>
-        <translation>Patchy показывает цвета RGB как sRGB. Документ, преобразованный в другой профиль, выглядит здесь на экране иначе, а при сохранении в него записывается этот профиль.</translation>
-    </message>
-    <message>
-        <source>The color profile %1 could not be converted to sRGB, so the file keeps its colors and profile</source>
-        <translation>Не удалось преобразовать цветовой профиль %1 в sRGB, поэтому файл сохраняет свои цвета и профиль</translation>
-    </message>
-    <message>
-        <source>Converted from the color profile %1 to sRGB</source>
-        <translation>Преобразовано из цветового профиля %1 в sRGB</translation>
-    </message>
-    <message>
         <source>Found a TrustMark watermark (variant %1, %2) carrying %3.</source>
         <translation>Найден водяной знак TrustMark (вариант %1, %2) с содержимым %3.</translation>
     </message>
@@ -12101,8 +12045,24 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Эта версия Patchy не может читать водяные знаки TrustMark.</translation>
     </message>
     <message>
-        <source>Colors stored in text, shape, fill and adjustment layers and in layer styles keep their values from the file; only pixels were converted to sRGB</source>
-        <translation>Цвета, записанные в текстовых слоях, фигурах, слоях-заливках, корректирующих слоях и стилях слоя, сохраняют значения из файла; в sRGB преобразованы только пиксели</translation>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>Невидимый водяной знак не добавлен: изображение слишком маленькое.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>Невидимый водяной знак не добавлен: модели водяных знаков не загружены.</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>Изображение уже содержит ваш невидимый водяной знак.</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>Невидимый водяной знак не добавлен: не удалось запустить TrustMark.</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>Ваш невидимый водяной знак добавлен.</translation>
     </message>
 </context>
 <context>
@@ -24344,42 +24304,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Размер значков инструментов:</translation>
     </message>
     <message>
-        <source>Convert to Pro&amp;file...</source>
-        <translation>Преобразовать в &amp;профиль...</translation>
-    </message>
-    <message>
-        <source>Open a document first</source>
-        <translation>Сначала откройте документ</translation>
-    </message>
-    <message>
-        <source>Convert to RGB Color before converting to another profile</source>
-        <translation>Перед преобразованием в другой профиль преобразуйте в цвет RGB</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile</source>
-        <translation>Перед преобразованием в другой профиль RGB выйдите из цветопробы CMYK</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles</source>
-        <translation>32-битные документы преобразуются только между матричными профилями RGB</translation>
-    </message>
-    <message>
-        <source>The profile cannot be used for this conversion</source>
-        <translation>Этот профиль нельзя использовать для такого преобразования</translation>
-    </message>
-    <message>
-        <source>Convert to Profile</source>
-        <translation>Преобразовать в профиль</translation>
-    </message>
-    <message>
-        <source>Converted from %1 to %2</source>
-        <translation>Преобразовано из %1 в %2</translation>
-    </message>
-    <message>
-        <source>Convert files with other RGB profiles to sRGB when opening</source>
-        <translation>Преобразовывать файлы с другими профилями RGB в sRGB при открытии</translation>
-    </message>
-    <message>
         <source>Add In&amp;visible Watermark...</source>
         <translation>Добавить &amp;невидимый водяной знак...</translation>
     </message>
@@ -24468,8 +24392,92 @@ Patchy может скачать обновление, заменить этот
         <translation>Добавлен невидимый водяной знак с «%1»</translation>
     </message>
     <message>
-        <source>Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile look right only after converting. When disabled, they open with their own values and keep their profile.</source>
-        <translation>Patchy показывает и редактирует цвета RGB как sRGB. Файлы в Display P3, Adobe RGB или другом профиле RGB выглядят правильно только после преобразования. Если отключено, они открываются со своими значениями и сохраняют свой профиль.</translation>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy может скрыть короткий текст в сохраняемых изображениях с помощью Adobe TrustMark, открытого невидимого водяного знака. Ключа нет: любой, у кого есть программа чтения TrustMark, может его прочитать.</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>Ваше имя или короткий ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>Текст водяного знака:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Никогда</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>Спрашивать при сохранении</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>Добавлять при каждом сохранении</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>Добавлять невидимый водяной знак при сохранении:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>Помечаются только пиксели сохранённого файла; открытый документ и его история не меняются. Помечаются PNG, JPEG, WebP, BMP, JPEG XL, AVIF и TIFF без слоёв, а также экспорт. Файлы со слоями (PSD, PSB, TIFF со слоями) — нет, поскольку это незаметно изменило бы пиксели слоёв. Изображения меньше 128 пикселей и изображения, уже содержащие ваш текст, пропускаются.</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>Проверять открываемые изображения на водяные знаки</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>Работает в фоне после открытия файла и показывает уведомление, если находит водяной знак Stable Diffusion, а после загрузки моделей — и водяной знак Adobe TrustMark.</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>Для добавления знаков при сохранении и для части проверки с TrustMark нужны эти модели. Проверке Stable Diffusion загрузка не нужна.</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>Осталось %1 из %2 символов</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>Водяные знаки</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>Добавить ваш невидимый водяной знак «%1» в этот файл?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>Любой, у кого есть программа чтения TrustMark, может его прочитать. Помечается только сохранённый файл; открытый документ не меняется.</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>Добавить водяной знак</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>Сохранить без него</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>Проверка водяных знаков...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>Найден водяной знак</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>Это изображение содержит невидимый водяной знак.</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>«%1» содержит невидимый водяной знак.</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>Показать в «Сведениях о файле»</translation>
     </message>
 </context>
 <context>
@@ -26270,34 +26278,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Углы perspectiveCrop должны образовывать выпуклую фигуру, а документы с монтажными областями кадрировать нельзя.</translation>
     </message>
     <message>
-        <source>convertToProfile options must be an object.</source>
-        <translation>Параметры convertToProfile должны быть объектом.</translation>
-    </message>
-    <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent должен быть &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; или &quot;absolute-colorimetric&quot;.</translation>
-    </message>
-    <message>
-        <source>blackPointCompensation must be true or false.</source>
-        <translation>blackPointCompensation должен быть true или false.</translation>
-    </message>
-    <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile принимает &quot;sRGB&quot; или путь к файлу профиля RGB: %1</translation>
-    </message>
-    <message>
-        <source>Convert an Indexed document to RGB Color first.</source>
-        <translation>Сначала преобразуйте индексированный документ в цвет RGB.</translation>
-    </message>
-    <message>
-        <source>Leave CMYK Proof before converting to another RGB profile.</source>
-        <translation>Перед преобразованием в другой профиль RGB выйдите из цветопробы CMYK.</translation>
-    </message>
-    <message>
-        <source>32-bit documents convert only between matrix-based RGB profiles.</source>
-        <translation>32-битные документы преобразуются только между матричными профилями RGB.</translation>
-    </message>
-    <message>
         <source>The watermark models could not be downloaded: %1</source>
         <translation>Не удалось загрузить модели водяных знаков: %1</translation>
     </message>
@@ -26362,8 +26342,20 @@ Patchy может скачать обновление, заменить этот
         <translation>Не удалось добавить водяной знак: %1</translation>
     </message>
     <message>
-        <source>The profile cannot be used for this conversion.</source>
-        <translation>Этот профиль нельзя использовать для такого преобразования.</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences принимает объект, например {addOnSave: &quot;ask&quot;}.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text должен состоять из печатаемых символов ASCII, не более %1.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave должен быть &quot;never&quot;, &quot;ask&quot; или &quot;always&quot;.</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: неизвестный параметр %1.</translation>
     </message>
 </context>
 <context>

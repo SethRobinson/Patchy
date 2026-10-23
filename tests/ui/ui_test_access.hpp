@@ -37,6 +37,9 @@ public:
   }
 
   static void show_preferences(MainWindow& window) { window.show_preferences(); }
+  // Preferences > Watermarks' checks on open still running (docs/watermarks.md).
+  static std::size_t watermark_checks_running(MainWindow& window) { return window.watermark_checks_.size(); }
+  static int document_tab_count(MainWindow& window) { return window.document_tabs_->count(); }
 
   // The one-time High Quality offer stays away offscreen; a test that drives it opts in.
   static void allow_high_quality_offer_offscreen(MainWindow& window) {

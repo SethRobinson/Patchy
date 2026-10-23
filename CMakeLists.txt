@@ -1485,6 +1485,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/object_selection_model_download.hpp
       src/ui/object_selection_model_download.cpp
       src/ui/watermark_model_download.cpp
+      src/ui/watermark_settings.cpp
       src/ui/user_fonts.hpp
       src/ui/user_fonts.cpp
       src/ui/warp_text_dialog.hpp
@@ -2317,6 +2318,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/file_info_tests.cpp
       tests/ui/rgb_profile_tests.cpp
       tests/ui/watermark_tests.cpp
+      tests/ui/watermark_preferences_tests.cpp
       tests/ui/layered_tiff_tests.cpp
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/composite_render_tests.cpp
