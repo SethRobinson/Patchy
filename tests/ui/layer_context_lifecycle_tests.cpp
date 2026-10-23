@@ -3393,6 +3393,90 @@ void ui_new_document_recent_row_review_captures() {
   QApplication::clipboard()->clear();
 }
 
+// New Document fits short screens (GitHub issue 342): five card columns, the Recent row as
+// the top section of the template list under one frame, a caption naming the group (or the
+// search), and every group unscrolled (Mobile has the most, 12), in a dialog no taller than
+// about 620 px at the default font.
+void ui_new_document_dialog_fits_short_screens() {
+  using new_document_recent::list;
+  using new_document_templates::card_ids;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-720p");
+  QImage image(800, 600, QImage::Format_RGBA8888);
+  image.fill(QColor(70, 120, 190));
+  QApplication::clipboard()->setImage(image);
+  QApplication::processEvents();
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* recent = list(dialog, "newDocumentRecentList");
+    auto* presets = list(dialog, "newDocumentPresetList");
+    auto* mobile_chip = dialog.findChild<QToolButton*>(QStringLiteral("newDocumentMobileChip"));
+    auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    CHECK(recent != nullptr && presets != nullptr && mobile_chip != nullptr && search != nullptr);
+    if (recent == nullptr || presets == nullptr || mobile_chip == nullptr || search == nullptr) {
+      dialog.reject();
+      return;
+    }
+    mobile_chip->click();
+    QApplication::processEvents();
+    save_widget_artifact("issue_342_new_document_mobile", dialog);
+    CHECK(dialog.height() <= 620);
+    CHECK(presets->viewport()->height() >= 3 * presets->gridSize().height());
+    CHECK(presets->count() == 12);
+    CHECK(!presets->verticalScrollBar()->isVisible());
+    QSet<int> columns;
+    for (int row = 0; row < presets->count(); ++row) {
+      columns.insert(presets->visualItemRect(presets->item(row)).left());
+    }
+    CHECK(columns.size() == 5);
+    CHECK(card_ids(*recent) == QStringList({QStringLiteral("clipboard"), QStringLiteral("last-used")}));
+
+    // One frame holds Recent, the group caption and the group's cards.
+    auto* frame = dialog.findChild<QWidget*>(QStringLiteral("newDocumentListFrame"));
+    auto* group_label = dialog.findChild<QLabel*>(QStringLiteral("newDocumentGroupLabel"));
+    CHECK(frame != nullptr && group_label != nullptr);
+    if (frame == nullptr || group_label == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(recent->parentWidget() == frame && presets->parentWidget() == frame);
+    CHECK(group_label->isVisible() && group_label->text() == QStringLiteral("Mobile"));
+    CHECK(recent->frameShape() == QFrame::NoFrame && presets->frameShape() == QFrame::NoFrame);
+
+    // The chips sit on one row, and every group fits without a scroll bar.
+    int chip_top = -1;
+    bool one_row = true;
+    for (auto* chip : dialog.findChildren<QToolButton*>()) {
+      if (!chip->property("newDocumentChip").toBool()) {
+        continue;
+      }
+      one_row = one_row && (chip_top < 0 || chip->y() == chip_top);
+      chip_top = chip->y();
+      chip->click();
+      QApplication::processEvents();
+      CHECK(!presets->verticalScrollBar()->isVisible());
+      CHECK(group_label->text() == QString(chip->text()).replace(QStringLiteral("&&"), QStringLiteral("&")));
+    }
+    CHECK(one_row);
+
+    // A search names its results; many matches scroll and keep five columns.
+    search->setText(QStringLiteral("a"));
+    QApplication::processEvents();
+    CHECK(group_label->text() == QStringLiteral("Search results"));
+    CHECK(presets->count() > 15);
+    columns.clear();
+    for (int row = 0; row < presets->count(); ++row) {
+      columns.insert(presets->visualItemRect(presets->item(row)).left());
+    }
+    CHECK(columns.size() == 5);
+    dialog.reject();
+  });
+  QApplication::clipboard()->clear();
+}
+
 void ui_new_document_dialog_remembers_unit() {
   QApplication::clipboard()->clear();
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
@@ -4189,6 +4273,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_recent_row_fits_the_dialog_width", ui_new_document_recent_row_fits_the_dialog_width},
       {"ui_new_document_recent_row_seeds_from_old_last_used_settings", ui_new_document_recent_row_seeds_from_old_last_used_settings},
       {"ui_new_document_recent_row_review_captures", ui_new_document_recent_row_review_captures},
+      {"ui_new_document_dialog_fits_short_screens", ui_new_document_dialog_fits_short_screens},
       {"ui_new_document_dialog_remembers_unit", ui_new_document_dialog_remembers_unit},
       {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},

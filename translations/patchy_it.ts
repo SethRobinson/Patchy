@@ -11849,6 +11849,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Perspective Crop</source>
         <translation>Taglierina prospettica</translation>
     </message>
+    <message>
+        <source>Search results</source>
+        <comment>new document template list caption</comment>
+        <translation>Risultati della ricerca</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
