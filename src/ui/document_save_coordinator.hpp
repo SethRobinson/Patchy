@@ -2,6 +2,7 @@
 
 #include "formats/metadata/metadata_edit.hpp"
 #include "ui/image_save_options.hpp"
+#include "ui/watermark_settings.hpp"
 #include <QString>
 #include <cstdint>
 #include <functional>
@@ -61,9 +62,12 @@ public:
       const std::optional<ImageSaveOptions>& requested, const ImageSaveOptions& defaults);
   // Called after text commit, playback stop, and data-loss/color confirmations. Throws
   // writer failures to the host's existing error handler; no saved state changes on failure.
+  // `watermark` (Preferences > Watermarks) marks the pixels a flat writer receives, on the
+  // writer's worker, never the open document (watermarked_save_document).
   [[nodiscard]] std::optional<DocumentSaveResult> write_prepared(
       std::int64_t session_id, const QString& path, const QString& extension,
-      const ImageSaveOptions& options, bool quiet, bool export_copy, bool discards_layers);
+      const ImageSaveOptions& options, bool quiet, bool export_copy, bool discards_layers,
+      const std::optional<SaveWatermark>& watermark = std::nullopt);
   static void mark_saved(DocumentSession& session);
 private:
   SaveHost& host_;

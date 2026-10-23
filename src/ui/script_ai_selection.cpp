@@ -15,6 +15,7 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/vector_operations.hpp"
+#include "ui/watermark_settings.hpp"
 
 #if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
 #include "ui/background_workers.hpp"
@@ -27,6 +28,7 @@
 #include <future>
 #endif
 
+#include <QJSValueIterator>
 #include <QStringList>
 
 #include <cstring>
@@ -311,6 +313,62 @@ bool ScriptAppObject::downloadWatermarkModels() {
                                        : ScriptEngineHost::tr("The watermark models could not be downloaded: %1")
                                              .arg(error));
   return false;
+}
+
+QJSValue ScriptAppObject::watermark_preferences() const {
+  const ScriptApiCall api_call(host_);
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("text"), stored_watermark_text());
+  result.setProperty(QStringLiteral("addOnSave"), watermark_save_mode_token(stored_watermark_save_mode()));
+  result.setProperty(QStringLiteral("checkOnOpen"), stored_watermark_check_on_open());
+  return result;
+}
+
+void ScriptAppObject::setWatermarkPreferences(const QJSValue& preferences) {
+  const ScriptApiCall api_call(host_);
+  if (!preferences.isObject() || preferences.isArray()) {
+    host_.throw_js_error(ScriptEngineHost::tr("setWatermarkPreferences takes an object such as {addOnSave: \"ask\"}."));
+    return;
+  }
+  std::optional<QString> text;
+  std::optional<WatermarkSaveMode> mode;
+  std::optional<bool> check;
+  QJSValueIterator it(preferences);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    if (key == QStringLiteral("text") && value.isString()) {
+      if (!valid_watermark_text(value.toString())) {
+        host_.throw_js_error(ScriptEngineHost::tr("setWatermarkPreferences: text must be printable ASCII of at most "
+                                                  "%1 characters.")
+                                 .arg(trustmark::schema_text_capacity(kSaveWatermarkSchema)));
+        return;
+      }
+      text = value.toString();
+    } else if (key == QStringLiteral("addOnSave") && value.isString()) {
+      mode = watermark_save_mode_from_token(value.toString());
+      if (!mode) {
+        host_.throw_js_error(ScriptEngineHost::tr("setWatermarkPreferences: addOnSave must be \"never\", \"ask\" or "
+                                                  "\"always\"."));
+        return;
+      }
+    } else if (key == QStringLiteral("checkOnOpen") && value.isBool()) {
+      check = value.toBool();
+    } else {
+      host_.throw_js_error(ScriptEngineHost::tr("setWatermarkPreferences: unknown option %1.").arg(key));
+      return;
+    }
+  }
+  if (text) {
+    set_stored_watermark_text(*text);
+  }
+  if (mode) {
+    set_stored_watermark_save_mode(*mode);
+  }
+  if (check) {
+    set_stored_watermark_check_on_open(*check);
+  }
 }
 
 bool ScriptAppObject::watermark_models_available() const {

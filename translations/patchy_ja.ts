@@ -11974,6 +11974,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This version of Patchy cannot read TrustMark watermarks.</source>
         <translation>このバージョンの Patchy は TrustMark の透かしを読み取れません。</translation>
     </message>
+    <message>
+        <source>No invisible watermark was added: the image is too small.</source>
+        <translation>見えない透かしは追加されませんでした: 画像が小さすぎます。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: the watermark models are not downloaded.</source>
+        <translation>見えない透かしは追加されませんでした: 透かしモデルがダウンロードされていません。</translation>
+    </message>
+    <message>
+        <source>The image already carries your invisible watermark.</source>
+        <translation>画像にはすでにあなたの見えない透かしが入っています。</translation>
+    </message>
+    <message>
+        <source>No invisible watermark was added: TrustMark could not run.</source>
+        <translation>見えない透かしは追加されませんでした: TrustMark を実行できませんでした。</translation>
+    </message>
+    <message>
+        <source>Added your invisible watermark.</source>
+        <translation>あなたの見えない透かしを追加しました。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24227,6 +24247,94 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Added an invisible watermark carrying “%1”</source>
         <translation>「%1」の見えない透かしを追加しました</translation>
     </message>
+    <message>
+        <source>Patchy can hide a short text in the images you save with Adobe TrustMark, an open invisible watermark. There is no key: anyone with a TrustMark reader can read it.</source>
+        <translation>Patchy は、公開された見えない透かし Adobe TrustMark で、保存する画像に短いテキストを埋め込めます。鍵はなく、TrustMark リーダーがあれば誰でも読めます。</translation>
+    </message>
+    <message>
+        <source>Your name or a short ID</source>
+        <translation>名前または短い ID</translation>
+    </message>
+    <message>
+        <source>Watermark text:</source>
+        <translation>透かしのテキスト:</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>しない</translation>
+    </message>
+    <message>
+        <source>Ask on save</source>
+        <translation>保存時に確認</translation>
+    </message>
+    <message>
+        <source>Add on every save</source>
+        <translation>保存のたびに追加</translation>
+    </message>
+    <message>
+        <source>Add invisible watermark when saving:</source>
+        <translation>保存時に見えない透かしを追加:</translation>
+    </message>
+    <message>
+        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <translation>透かしが入るのは保存したファイルのピクセルだけで、開いているドキュメントとその履歴は変わりません。PNG、JPEG、WebP、BMP、JPEG XL、AVIF、レイヤーのない TIFF に入り、書き出しにも入ります。レイヤーのあるファイル（PSD、PSB、レイヤー付き TIFF）には入りません。気づかないうちにレイヤーのピクセルが変わってしまうためです。128 ピクセル未満の画像と、すでにあなたのテキストが入っている画像はスキップされます。</translation>
+    </message>
+    <message>
+        <source>Check opened images for watermarks</source>
+        <translation>開いた画像の透かしを確認</translation>
+    </message>
+    <message>
+        <source>Runs in the background after a file opens and shows a notice when it finds a Stable Diffusion watermark, or an Adobe TrustMark watermark once the models are downloaded.</source>
+        <translation>ファイルを開いた後にバックグラウンドで実行され、Stable Diffusion の透かし、またはモデルのダウンロード後は Adobe TrustMark の透かしが見つかると通知を表示します。</translation>
+    </message>
+    <message>
+        <source>Adding watermarks when saving and the TrustMark part of the check need these models. The Stable Diffusion check needs no download.</source>
+        <translation>保存時の透かしの追加と確認の TrustMark 部分にはこれらのモデルが必要です。Stable Diffusion の確認にダウンロードは不要です。</translation>
+    </message>
+    <message>
+        <source>%1 of %2 characters left</source>
+        <translation>残り %1 / %2 文字</translation>
+    </message>
+    <message>
+        <source>Watermarks</source>
+        <translation>透かし</translation>
+    </message>
+    <message>
+        <source>Add your invisible watermark “%1” to this file?</source>
+        <translation>このファイルにあなたの見えない透かし「%1」を追加しますか?</translation>
+    </message>
+    <message>
+        <source>Anyone with a TrustMark reader can read it. Only the saved file is marked; the open document does not change.</source>
+        <translation>TrustMark リーダーがあれば誰でも読めます。透かしが入るのは保存したファイルだけで、開いているドキュメントは変わりません。</translation>
+    </message>
+    <message>
+        <source>Add Watermark</source>
+        <translation>透かしを追加</translation>
+    </message>
+    <message>
+        <source>Save Without</source>
+        <translation>透かしなしで保存</translation>
+    </message>
+    <message>
+        <source>Checking for watermarks...</source>
+        <translation>透かしを確認中...</translation>
+    </message>
+    <message>
+        <source>Watermark Found</source>
+        <translation>透かしが見つかりました</translation>
+    </message>
+    <message>
+        <source>This image carries an invisible watermark.</source>
+        <translation>この画像には見えない透かしが入っています。</translation>
+    </message>
+    <message>
+        <source>“%1” carries an invisible watermark.</source>
+        <translation>「%1」には見えない透かしが入っています。</translation>
+    </message>
+    <message>
+        <source>Show in File Info</source>
+        <translation>ファイル情報で表示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26086,6 +26194,22 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>The watermark could not be added: %1</source>
         <translation>透かしを追加できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
+        <translation>setWatermarkPreferences には {addOnSave: &quot;ask&quot;} のようなオブジェクトを渡してください。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
+        <translation>setWatermarkPreferences: text は最大 %1 文字の印字可能な ASCII にしてください。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
+        <translation>setWatermarkPreferences: addOnSave は &quot;never&quot;、&quot;ask&quot;、&quot;always&quot; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>setWatermarkPreferences: unknown option %1.</source>
+        <translation>setWatermarkPreferences: 不明なオプション %1。</translation>
     </message>
 </context>
 <context>

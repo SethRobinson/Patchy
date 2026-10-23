@@ -37,7 +37,7 @@ Download, folder, lookup and deletion follow the High Quality model
 into `downloaded_models_folder()` (`<AppDataLocation>/ai-models`), sessions in the one ONNX
 translation unit (`segmentation_engine_onnx.cpp`, slots `OrtState::trustmark`), released before a
 delete. Offered from File Info's Watermarks page, the Add Invisible Watermark dialog, Preferences >
-Tools (Download and Delete, `preferencesWatermarkModelsGroup`) and `app.downloadWatermarkModels()`;
+Watermarks (Download and Delete, `preferencesWatermarkModelsGroup`) and `app.downloadWatermarkModels()`;
 nothing fetches them unasked. The web build has no TrustMark. Build trees stage them into
 `<build>/ai-models-download` when setup-ai-deps provisioned all four (all or none, separate from the
 High Quality pair).
@@ -98,12 +98,47 @@ TrustMark does and that it has no key (anyone can read the payload), error corre
 `BCH_5`), text with the characters left or a random ID (`QRandomGenerator::system`, New ID),
 strength 50 to 150%. Without the models it shows the download and keeps Add Watermark disabled.
 
+## Preferences
+
+Preferences > Watermarks (`main_window_preferences.cpp`, applied on OK; `ui/watermark_settings.*`).
+Settings keys, permanent: `watermarks/payloadText` (printable ASCII, at most 8 characters, the
+`BCH_5` capacity), `watermarks/addOnSave` (`never` default, `ask`, `always`; also the scripting
+tokens) and `watermarks/checkOnOpen` (false). The models row moved here from Preferences > Tools; a
+note under it appears when a chosen option needs the models and they are missing (the Stable
+Diffusion check needs none).
+
+**Mark on save** (`watermark_for_save`, `watermarked_save_document`): `save_document_to_path` decides
+before the write, so Save, Save As and Export all follow it, and passes a `SaveWatermark` to
+`DocumentSaveCoordinator::write_prepared`. On the writer's worker the flat branch flattens
+(`flat_export_qimage`, alpha kept where the format keeps it), embeds the Q mark at strength 1.0 and
+hands the writer a one-layer stand-in with the document's file info, color state and print
+settings. The open document, its undo history and its saved state never change. Marked: PNG, JPEG,
+WebP, BMP, flat TIFF, JPEG XL, AVIF (`save_format_takes_watermark`). Not marked, by decision
+(October 23, 2026): layered saves (PSD, PSB, layered TIFF, Aseprite) because the mark would change
+layer pixels the user never sees; SVG, PDF, GIF, palette and 16/32-bit documents, animations,
+textures and icons. Skipped with a status note: no text set, images under 128 px on a side, a
+composite that already carries the same text (a Q decode first), or models missing. Recovery
+snapshots never pass through this path. Ask shows `saveWatermarkPrompt` (Add Watermark, Save
+Without, "Remember this choice" turns the mode into Always or Never); scripted and unattended saves
+never ask and skip in Ask mode, while Always marks them too.
+
+**Check on open** (`start_open_watermark_check`): after `open_document_path` and the multi-file
+open add a session, a tracked worker scans a copy-on-write snapshot (`document_for_write`):
+`flatten_rgb8`, the Stable Diffusion scan, then TrustMark when downloaded, cancellable through an
+`InferenceCancel`. Nothing runs on the UI thread or per repaint. `watermarkCheckIndicator` (an
+`ActivitySpinner` and "Checking for watermarks...") sits in the status bar while any check runs.
+A hit opens `watermarkFoundNotice`, a non-modal self-deleting message box naming each mark, whose
+Show in File Info opens File Info on the Watermarks page with the scan already run
+(`FileInfoWatermarkSupport::open_watermarks_and_scan`). Closing the document cancels its check
+and drops its result; CLI runs (`unattended_automation`) never check.
+
 ## Scripting
 
 `doc.scanForWatermarks().trustmark` = `{available, marks: [{variant, schema, text, id, bits,
 correctedBits, confidence}]}`; `doc.addInvisibleWatermark({text?, id?, schema?, strength?})` returns
 `{schema, text, id}` (neither text nor id: a random ID); `app.downloadWatermarkModels()`,
-`app.watermarkModelsAvailable`. See [scripting-api-changes.md](scripting-api-changes.md).
+`app.watermarkModelsAvailable`; `app.watermarkPreferences` (`{text, addOnSave, checkOnOpen}`) and
+`app.setWatermarkPreferences({...})`. See [scripting-api-changes.md](scripting-api-changes.md).
 
 ## Limits
 
@@ -119,5 +154,7 @@ hex, region and resize, residual; with the models staged: the reference fixtures
 round trip). Fixtures: `local-test-fixtures/trustmark/` (README.txt there; made by Adobe's Python
 package 0.9.2 with `make_fixtures.py` from the CC0 photos in `test-fixtures/readme`, variants Q,
 P and C, all four schemas, PNG and JPEG quality 90, plus an unmarked photo). The tests skip
-without the models or fixtures. UI: `ui_file_info_trustmark_*`, `ui_invisible_watermark_*`;
+without the models or fixtures. UI: `ui_file_info_trustmark_*`, `ui_invisible_watermark_*`,
+`ui_watermark_preferences_page_persists`, `ui_watermark_on_save_marks_flat_files_only`,
+`ui_watermark_check_on_open_shows_a_notice`;
 scripting: `ui_script_trustmark_round_trip`.
