@@ -49,8 +49,6 @@ QString degree_suffix() {
   return QObject::tr("°");
 }
 
-namespace {
-
 QString format_readout_number(double value, int decimals, bool show_sign) {
   if (!std::isfinite(value)) {
     value = 0.0;
@@ -67,8 +65,6 @@ QString format_readout_number(double value, int decimals, bool show_sign) {
   }
   return text;
 }
-
-}  // namespace
 
 QString format_pixels(double pixels, int decimals, bool show_sign) {
   return format_readout_number(pixels, decimals, show_sign) + pixel_suffix();

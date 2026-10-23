@@ -6,6 +6,7 @@
 #include <QFontMetrics>
 #include <QLocale>
 
+#include <algorithm>
 #include <span>
 
 namespace patchy::ui {
@@ -157,6 +158,56 @@ void StatusDocumentInfoLabel::update_shown_text() {
   }
   if (text != this->text()) {
     setText(text);
+  }
+}
+
+StatusSelectionInfoLabel::StatusSelectionInfoLabel(QWidget* parent) : QLabel(parent) {
+  setObjectName(QStringLiteral("statusSelectionInfoLabel"));
+  setTextFormat(Qt::PlainText);
+  setVisible(false);  // until there is a selection
+}
+
+QString StatusSelectionInfoLabel::describe(QRect bounds, MeasurementUnit unit, QSize document_size,
+                                           double horizontal_ppi, double vertical_ppi) {
+  const auto decimals = measurement_unit_decimals(unit);
+  const auto horizontal = [&](int pixels) {
+    return pixels_to_measurement_unit(pixels, unit, sanitized_document_ppi(horizontal_ppi),
+                                      std::max(document_size.width(), 1));
+  };
+  const auto vertical = [&](int pixels) {
+    return pixels_to_measurement_unit(pixels, unit, sanitized_document_ppi(vertical_ppi),
+                                      std::max(document_size.height(), 1));
+  };
+  //: Status bar selection bounds: left, top, width, then height (which carries the unit).
+  return tr("X: %1  Y: %2  W: %3  H: %4")
+      .arg(format_readout_number(horizontal(bounds.x()), decimals),
+           format_readout_number(vertical(bounds.y()), decimals),
+           format_readout_number(horizontal(bounds.width()), decimals),
+           format_measurement(vertical(bounds.height()), unit, decimals));
+}
+
+QString StatusSelectionInfoLabel::tooltip_text() {
+  return tr("Selection bounds: left edge (X), top edge (Y), width (W) and height (H), in the ruler unit");
+}
+
+void StatusSelectionInfoLabel::set_readout(const QString& text) {
+  if (text.isEmpty()) {
+    if (!isHidden()) {
+      setVisible(false);
+      setText(QString());
+      setMinimumWidth(0);
+    }
+    return;
+  }
+  if (text != this->text()) {
+    setText(text);
+  }
+  ensurePolished();  // the status-bar style sets the font and padding the width needs
+  if (const auto needed = sizeHint().width(); needed > minimumWidth()) {
+    setMinimumWidth(needed);
+  }
+  if (isHidden()) {
+    setVisible(true);
   }
 }
 

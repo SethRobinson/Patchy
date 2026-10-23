@@ -2272,6 +2272,130 @@ void ui_status_bar_document_info_fits_at_1366() {
   CHECK(bar->height() == empty.statusBar()->height());
 }
 
+// The status-bar selection readout (issue 355): the selection's X, Y, W and H after the
+// document info field, live while a marquee or lasso drag runs and while the selection
+// moves, back after Undo, hidden after Deselect, and in the ruler unit.
+void ui_status_bar_selection_info_follows_selection() {
+  using patchy::ui::StatusSelectionInfoLabel;
+  const auto readout = [](QRect rect) {
+    return QStringLiteral("X: %1  Y: %2  W: %3  H: %4 px")
+        .arg(rect.x())
+        .arg(rect.y())
+        .arg(rect.width())
+        .arg(rect.height());
+  };
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1366, 768);
+  window.add_document_session(status_info_test_document(400, 300, 72.0), QStringLiteral("Selection Info"));
+  QApplication::processEvents();
+  auto* bar = window.statusBar();
+  auto* field = bar->findChild<StatusSelectionInfoLabel*>(QStringLiteral("statusSelectionInfoLabel"));
+  auto* info = require_status_document_info(window);
+  auto* canvas = require_canvas(window);
+  CHECK(field != nullptr && info != nullptr && canvas != nullptr);
+  if (field == nullptr || info == nullptr || canvas == nullptr) {
+    return;
+  }
+  CHECK(field->isHidden());
+  CHECK(!info->isHidden());
+  const auto at = [canvas](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  // Names the text shown when it differs, and goes on to the next check.
+  const auto check_text = [field](const QString& expected, int line) {
+    if (field->text() != expected) {
+      patchy::test::report_failure("line " + std::to_string(line) + ": selection readout \"" +
+                                   field->text().toStdString() + "\", expected \"" + expected.toStdString() +
+                                   "\"");
+    }
+  };
+
+  // A marquee drag shows the rectangle being drawn before the button comes up (the
+  // pixel under the pointer is inside it, as in the selection the release makes).
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(40, 30), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(139, 89), Qt::NoButton, Qt::LeftButton);
+  CHECK(!field->isHidden());
+  check_text(readout(QRect(QPoint(40, 30), QPoint(139, 89))), __LINE__);
+  send_mouse(*canvas, QEvent::MouseMove, at(239, 129), Qt::NoButton, Qt::LeftButton);
+  check_text(readout(QRect(QPoint(40, 30), QPoint(239, 129))), __LINE__);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(239, 129), Qt::LeftButton, Qt::NoButton);
+  const auto made = canvas->selected_document_rect();
+  CHECK(made == QRect(40, 30, 200, 100));
+  check_text(QStringLiteral("X: 40  Y: 30  W: 200  H: 100 px"), __LINE__);
+  // It sits after the document info field, on the bar's one line.
+  CHECK(field->isVisible());
+  CHECK(field->mapTo(bar, QPoint()).x() > info->mapTo(bar, QPoint(info->width(), 0)).x() - 1);
+  bar->showMessage(QStringLiteral("Rectangular Marquee: drag to select. Shift adds, Alt subtracts."));
+  QApplication::processEvents();
+  save_widget_artifact("issue355-status-selection-readout", *bar);
+
+  // Dragging inside the selection moves it; the readout follows during the drag.
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(100, 60), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(115, 70), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(130, 80), Qt::NoButton, Qt::LeftButton);
+  check_text(QStringLiteral("X: 70  Y: 50  W: 200  H: 100 px"), __LINE__);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(130, 80), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->selected_document_rect() == QRect(70, 50, 200, 100));
+  check_text(QStringLiteral("X: 70  Y: 50  W: 200  H: 100 px"), __LINE__);
+
+  // Undo puts the selection back where it was, and the readout with it.
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == QRect(40, 30, 200, 100));
+  check_text(QStringLiteral("X: 40  Y: 30  W: 200  H: 100 px"), __LINE__);
+
+  // Deselect hides it.
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  CHECK(field->isHidden());
+
+  // A freehand lasso shows the bounds of the outline drawn so far.
+  canvas->set_tool(patchy::ui::CanvasTool::Lasso);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(50, 50), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(150, 60), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(120, 160), Qt::NoButton, Qt::LeftButton);
+  CHECK(!field->isHidden());
+  check_text(readout(QRect(QPoint(50, 50), QPoint(150, 160))), __LINE__);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(120, 160), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->has_selection());
+  CHECK(!field->isHidden());
+  if (const auto lassoed = canvas->selected_document_rect(); lassoed.has_value()) {
+    check_text(readout(*lassoed), __LINE__);
+  }
+
+  // Select All, then a document without a selection hides it; switching back shows it.
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  check_text(QStringLiteral("X: 0  Y: 0  W: 400  H: 300 px"), __LINE__);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto selected_tab = tabs != nullptr ? tabs->currentIndex() : -1;
+  window.add_document_session(status_info_test_document(200, 100, 72.0), QStringLiteral("No Selection"));
+  QApplication::processEvents();
+  CHECK(field->isHidden());
+  if (tabs != nullptr) {
+    CHECK(tabs->currentIndex() != selected_tab);
+    tabs->setCurrentIndex(selected_tab);
+    QApplication::processEvents();
+    CHECK(!field->isHidden());
+    check_text(QStringLiteral("X: 0  Y: 0  W: 400  H: 300 px"), __LINE__);
+  }
+
+  // Other ruler units convert per axis through the resolution, Percent against the
+  // document's extent; the unit shows once, after H.
+  const QLocale locale;
+  const auto number = [&locale](double value, int decimals) { return locale.toString(value, 'f', decimals); };
+  CHECK(StatusSelectionInfoLabel::describe(QRect(100, 50, 200, 100), patchy::ui::MeasurementUnit::Inches,
+                                           QSize(400, 300), 100.0, 50.0) ==
+        QStringLiteral("X: %1  Y: %2  W: %3  H: %4 in")
+            .arg(number(1.0, 3), number(1.0, 3), number(2.0, 3), number(2.0, 3)));
+  CHECK(StatusSelectionInfoLabel::describe(QRect(40, 30, 200, 150), patchy::ui::MeasurementUnit::Percent,
+                                           QSize(400, 300), 72.0, 72.0) ==
+        QStringLiteral("X: %1  Y: %2  W: %3  H: %4%")
+            .arg(number(10.0, 2), number(10.0, 2), number(50.0, 2), number(50.0, 2)));
+}
+
 void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -8151,6 +8275,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_status_bar_zoom_box_wheel_scrub_and_buttons", ui_status_bar_zoom_box_wheel_scrub_and_buttons},
       {"ui_status_bar_zoom_box_fits_large_values", ui_status_bar_zoom_box_fits_large_values},
       {"ui_status_bar_document_info_fits_at_1366", ui_status_bar_document_info_fits_at_1366},
+      {"ui_status_bar_selection_info_follows_selection", ui_status_bar_selection_info_follows_selection},
       {"ui_status_bar_document_info_shows_document_facts", ui_status_bar_document_info_shows_document_facts},
       {"ui_status_bar_document_info_drops_parts_when_narrow",
        ui_status_bar_document_info_drops_parts_when_narrow},

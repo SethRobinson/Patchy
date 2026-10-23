@@ -2339,6 +2339,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       lasso_points_ << point;
       update();
     }
+    emit_info_for_widget_position(event->pos());  // the status-bar selection readout follows
   } else if (magnetic_lassoing_ && document_ != nullptr) {
     // The trace runs button-up (mouseTracking delivers hover moves): keep the live
     // segment snapped to the cursor and let long segments cool into anchors.
@@ -2346,6 +2347,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     extract_magnetic_live_path(clamped_document_point(*document_, document_point));
     cool_magnetic_live_path();
     update();
+    emit_info_for_widget_position(event->pos());
   } else if (quick_selecting_) {
     clear_move_hover_outline();
     extend_quick_select_stroke(document_point);

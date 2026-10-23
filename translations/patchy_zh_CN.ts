@@ -25963,6 +25963,18 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     </message>
 </context>
 <context>
+    <name>patchy::ui::StatusSelectionInfoLabel</name>
+    <message>
+        <source>X: %1  Y: %2  W: %3  H: %4</source>
+        <extracomment>Status bar selection bounds: left, top, width, then height (which carries the unit).</extracomment>
+        <translation>X: %1  Y: %2  宽: %3  高: %4</translation>
+    </message>
+    <message>
+        <source>Selection bounds: left edge (X), top edge (Y), width (W) and height (H), in the ruler unit</source>
+        <translation>选区边界：左边缘 (X)、上边缘 (Y)、宽度和高度，以标尺单位显示</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::StyleBrowserWidget</name>
     <message>
         <source>%1 (%2)</source>

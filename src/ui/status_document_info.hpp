@@ -1,6 +1,10 @@
 #pragma once
 
+#include "ui/measurement_units.hpp"
+
 #include <QLabel>
+#include <QRect>
+#include <QSize>
 #include <QString>
 #include <QStringList>
 
@@ -53,6 +57,26 @@ private:
 
   QStringList parts_;
   int width_budget_{0};
+};
+
+// The status-bar selection readout (GitHub issue 355; docs/view-navigation.md): the
+// selection's bounding box as X, Y, W and H in the ruler unit, after the document info
+// field. Shown only while a selection exists or a marquee or lasso drag is in progress.
+class StatusSelectionInfoLabel final : public QLabel {
+  Q_OBJECT
+
+public:
+  explicit StatusSelectionInfoLabel(QWidget* parent = nullptr);
+
+  // The readout for `bounds` (document pixels) in `unit`: physical units convert per
+  // axis through the document's resolution, Percent against the document's extent.
+  [[nodiscard]] static QString describe(QRect bounds, MeasurementUnit unit, QSize document_size,
+                                        double horizontal_ppi, double vertical_ppi);
+  [[nodiscard]] static QString tooltip_text();
+
+  // Shows `text`, or hides the field when it is empty. While shown the field only
+  // grows, so the status message beside it holds still during a drag.
+  void set_readout(const QString& text);
 };
 
 }  // namespace patchy::ui

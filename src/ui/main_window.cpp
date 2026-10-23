@@ -4587,6 +4587,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // and memory use in its tooltip.
   status_document_info_label_ = new StatusDocumentInfoLabel(zoom_status_controls_);
   zoom_controls_layout->addWidget(status_document_info_label_);
+  // The selection's X, Y, W and H after it, only while there is a selection (GitHub issue 355).
+  status_selection_info_label_ = new StatusSelectionInfoLabel(zoom_status_controls_);
+  zoom_controls_layout->addWidget(status_selection_info_label_);
+  register_retranslation(
+      [this] { status_selection_info_label_->setToolTip(StatusSelectionInfoLabel::tooltip_text()); });
+  status_selection_info_label_->setToolTip(StatusSelectionInfoLabel::tooltip_text());
   connect(zoom_status_bar_, &ZoomStatusBar::resized, this, [this] { refresh_status_document_info(); });
   register_retranslation([this] { refresh_status_document_info(); });
   zoom_status_bar_->set_left_widget(zoom_status_controls_);

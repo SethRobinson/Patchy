@@ -4502,7 +4502,26 @@ void MainWindow::refresh_layer_controls() {
   refresh_document_info();
 }
 
+void MainWindow::refresh_status_selection_info() {
+  if (status_selection_info_label_ == nullptr) {
+    return;
+  }
+  // The canvas reads the selection region's stored extents (or the live gesture's
+  // points), never the selection mask, so this is cheap on every mouse move.
+  const auto bounds = has_active_document() && canvas_ != nullptr ? canvas_->selection_readout_rect()
+                                                                  : std::optional<QRect>{};
+  if (!bounds.has_value()) {
+    status_selection_info_label_->set_readout({});
+    return;
+  }
+  const auto& active = std::as_const(document());
+  const auto& print = active.print_settings();
+  status_selection_info_label_->set_readout(StatusSelectionInfoLabel::describe(
+      *bounds, ruler_unit_, QSize(active.width(), active.height()), print.horizontal_ppi, print.vertical_ppi));
+}
+
 void MainWindow::refresh_status_document_info() {
+  refresh_status_selection_info();
   if (status_document_info_label_ == nullptr) {
     return;
   }
@@ -4809,6 +4828,7 @@ void MainWindow::refresh_document_info() {
 }
 
 void MainWindow::update_canvas_info(CanvasInfoState info) {
+  refresh_status_selection_info();
   if (canvas_info_label_ == nullptr) {
     return;
   }

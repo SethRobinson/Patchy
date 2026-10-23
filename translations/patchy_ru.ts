@@ -26109,6 +26109,18 @@ Patchy может скачать обновление, заменить этот
     </message>
 </context>
 <context>
+    <name>patchy::ui::StatusSelectionInfoLabel</name>
+    <message>
+        <source>X: %1  Y: %2  W: %3  H: %4</source>
+        <extracomment>Status bar selection bounds: left, top, width, then height (which carries the unit).</extracomment>
+        <translation>X: %1  Y: %2  Ш: %3  В: %4</translation>
+    </message>
+    <message>
+        <source>Selection bounds: left edge (X), top edge (Y), width (W) and height (H), in the ruler unit</source>
+        <translation>Границы выделения: левый край (X), верхний край (Y), ширина (Ш) и высота (В), в единицах линеек</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::StyleBrowserWidget</name>
     <message>
         <source>%1 (%2)</source>
