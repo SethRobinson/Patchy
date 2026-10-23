@@ -21,6 +21,7 @@
     <file alias="quick-mask.svg">icons/quick-mask.svg</file>
     <file alias="quick-mask-on.svg">icons/quick-mask-on.svg</file>
     <file alias="link.svg">icons/link.svg</file>
+    <file alias="gear.svg">icons/gear.svg</file>
     <file alias="off.svg">icons/off.svg</file>
     <file alias="invert.svg">icons/invert.svg</file>
     <file alias="apply.svg">icons/apply.svg</file>

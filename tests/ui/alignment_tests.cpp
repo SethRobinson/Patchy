@@ -462,7 +462,7 @@ void ui_layer_distribute_requires_three_units_and_spaces_evenly() {
 
   // The six feature modes are buttons on the Move tool's options bar (GitHub
   // issue 172) that run the same one-shot commands; the spacing pair and Align
-  // To stay in the "..." menu.
+  // To stay in the gear menu.
   require_action_by_text(scene.window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   auto* distribute_left = scene.window.findChild<QToolButton*>(QStringLiteral("moveDistributeLeftButton"));
@@ -570,7 +570,7 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
   auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(options_bar != nullptr);
   // The Marquee row is a single 26 px control row; the Move row must not wrap
-  // or grow past it with the Snap check, the align and distribute buttons, and "...".
+  // or grow past it with the Snap check, the align and distribute buttons, and the gear menu button.
   require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
   QApplication::processEvents();
   const int marquee_height = options_bar->height();
@@ -611,7 +611,7 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
     }
   }
   // GitHub issue 211: a separator sets Auto-Nest Layers apart from the buttons before it,
-  // on the Move bar ("...") and on the Artboard bar (Add Artboard).
+  // on the Move bar (the gear menu button) and on the Artboard bar (Add Artboard).
   const auto separated = [&](const char* before_name) {
     auto* before = window.findChild<QWidget*>(QLatin1String(before_name));
     auto* nest = window.findChild<QWidget*>(QStringLiteral("artboardAutoNestCheck"));

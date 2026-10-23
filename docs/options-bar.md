@@ -13,7 +13,8 @@ Every tool's bar follows these rules; a new bar or control is placed by them (wo
 5. **Never a separator first, last, or right after another one.** Register separators with `add_option_separator` for the tools whose groups they divide, and let hidden groups take care of themselves: `stray_option_separators` drops a separator that a tool, mode or style would leave leading, trailing or doubled.
 6. **A label precedes its field** as one scrub zone ([ui-conventions.md](ui-conventions.md)), spelled out ("Tolerance", not "Tol"; issue 290). Short names only for paired size fields (W/H) and the swap or link between them.
 7. **Icon buttons between two fields sit evenly**: the glyph is as far from the field before as from the label after (the swap button: 11 px each side, issue 286 follow-up).
-8. **One row at 1366 px.** A separator costs 6 px (2 px line, 4 px spacing); when a row has no room, drop a separator before a control.
+8. **A menu of further options is a gear button** (`make_options_menu_button` in main_window_actions_options_bar.cpp: `gear.svg` at 16 px, InstantPopup, the `optionsBarMenuButton` QSS rule's bordered 20 px look with no menu arrow; GitHub issue 326 follow-up): Move's align menu, Crop options and Smoothing options. Never a "..." text button.
+9. **One row at 1366 px.** A separator costs 6 px (2 px line, 4 px spacing); when a row has no room, drop a separator before a control.
 
 Example, the Brush bar: `Preset [combo] | Size [spin][slider] | Mode [combo] Opacity [spin] Soft [spin] Flow [spin] [Airbrush] | Smooth [spin][gear] | Tip [picker][dynamics]`. Example, the Patch bar: `[modes] | Patch [combo] | [Transparent] [Sample All Layers] | [Remove Object]`.
 

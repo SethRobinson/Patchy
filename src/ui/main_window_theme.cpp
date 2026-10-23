@@ -129,7 +129,7 @@ QString photoshop_style_template() {
       max-height: 20px;
     }
     QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"] {
-      padding: 2px 1px;
+      padding: 2px 3px;
       min-height: 20px;
       max-height: 20px;
     }

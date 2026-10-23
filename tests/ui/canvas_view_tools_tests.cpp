@@ -766,7 +766,7 @@ void ui_shape_options_bars_group_their_controls() {
 
 // GitHub issue 324: the Crop bar follows the grouping rules (docs/options-bar.md) in both
 // styles: Style | the preset, W : H pair and Clear (Ratio) or the size fields (Size) | the
-// Overlay list (issue 325) | the two Delete checkboxes | the Crop options "..." (issue 326) |
+// Overlay list (issue 325) | the two Delete checkboxes | the Crop options gear (issue 326) |
 // Apply and Cancel. Clear stays beside the pair it clears (rule 2). Both styles fit one row at
 // 1366 px. The artifacts are the issue shots, in both schemes.
 void ui_crop_options_bar_groups_its_controls() {
@@ -1193,6 +1193,77 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
     std::fprintf(stderr, "  %s\n", problem.c_str());
   }
   CHECK(problems.empty());
+}
+
+// Options-bar menu buttons show the gear icon, never "..." text (docs/options-bar.md rule 8,
+// GitHub issue 326 follow-up): Move's align menu, Crop options and Smoothing options. Each is
+// icon-only at 16 px, keeps its menu and the 20 px bordered look, and the icon recolors for
+// Light. The Move, Crop and Brush bars are captured in both schemes before the checks
+// (issue_326_gear_bars_<scheme>).
+void ui_options_menu_buttons_show_the_gear() {
+  struct MenuButton {
+    const char* tool_action;
+    const char* object_name;
+  };
+  const MenuButton buttons[] = {{"toolMoveAction", "moveAlignMoreButton"},
+                                {"toolCropAction", "cropOptionsButton"},
+                                {"toolBrushAction", "brushSmoothingOptionsButton"}};
+  std::vector<QImage> icon_pixmaps[2];
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    CHECK(options_bar != nullptr);
+    if (options_bar == nullptr) {
+      return;
+    }
+    QList<QImage> strips;
+    for (const auto& entry : buttons) {
+      require_action(window, entry.tool_action)->trigger();
+      QApplication::processEvents();
+      process_events_for(20);
+      strips.push_back(options_bar->grab().toImage());
+    }
+    save_stacked_artifact(std::string("issue_326_gear_bars_") + (light ? "light" : "dark"), strips);
+    for (const auto& entry : buttons) {
+      require_action(window, entry.tool_action)->trigger();
+      QApplication::processEvents();
+      auto* button = window.findChild<QToolButton*>(QLatin1String(entry.object_name));
+      CHECK(button != nullptr);
+      if (button == nullptr) {
+        continue;
+      }
+      CHECK(button->isVisible());
+      CHECK(button->text() != QStringLiteral("..."));
+      CHECK(!button->icon().isNull());
+      CHECK(button->toolButtonStyle() == Qt::ToolButtonIconOnly);
+      CHECK(button->iconSize() == QSize(16, 16));
+      CHECK(button->popupMode() == QToolButton::InstantPopup);
+      CHECK(button->menu() != nullptr);
+      CHECK(button->property("optionsBarMenuButton").toBool());
+      CHECK(button->height() <= 20);
+      CHECK(button->width() >= 20);
+      // The gear has ink, and a see-through hole in its middle.
+      const auto icon = button->icon().pixmap(QSize(32, 32)).toImage().convertToFormat(QImage::Format_ARGB32);
+      int inked = 0;
+      for (int y = 0; y < icon.height(); ++y) {
+        for (int x = 0; x < icon.width(); ++x) {
+          inked += qAlpha(icon.pixel(x, y)) > 128 ? 1 : 0;
+        }
+      }
+      CHECK(inked > icon.width() * icon.height() / 5);
+      CHECK(qAlpha(icon.pixel(icon.width() / 2, icon.height() / 2)) == 0);
+      icon_pixmaps[light ? 1 : 0].push_back(icon);
+    }
+  }
+  // Light recolors the ink (icon_theme), so the two schemes' gears differ.
+  CHECK(icon_pixmaps[0].size() == icon_pixmaps[1].size());
+  for (std::size_t i = 0; i < std::min(icon_pixmaps[0].size(), icon_pixmaps[1].size()); ++i) {
+    CHECK(icon_pixmaps[0][i] != icon_pixmaps[1][i]);
+  }
 }
 
 // The options-bar separator rules (docs/options-bar.md, "Grouping rules"): on every tool's
@@ -8362,6 +8433,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
+      {"ui_options_menu_buttons_show_the_gear", ui_options_menu_buttons_show_the_gear},
       {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
       {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},

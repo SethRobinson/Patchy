@@ -554,7 +554,7 @@ void ui_move_warp_button_starts_warp_from_the_bar() {
 }
 
 // GitHub issue 350: the Move bar reads Auto-Select [Layer] | the transform types | Align |
-// Distribute "..." | Transform Controls, Snap, Auto-Nest Layers (docs/options-bar.md rules 1 to
+// Distribute gear | Transform Controls, Snap, Auto-Nest Layers (docs/options-bar.md rules 1 to
 // 3), on one row at 1366 px; the Warp glyph carries the icon accent like the other three
 // transform types; and the shape W/H fields never join the row, so selecting a shape layer
 // does not move anything. The artifacts are the issue shots, in both schemes.

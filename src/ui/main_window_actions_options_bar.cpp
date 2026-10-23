@@ -228,6 +228,20 @@ constexpr const char* kTransformTypeModeProperty = "patchy.transformTypeMode";
 
 namespace {
 
+// An options-bar button that opens a menu of further options (Move's align
+// menu, Crop options, Smoothing options): the gear icon, InstantPopup, and the
+// optionsBarMenuButton QSS rule (main_window_theme.cpp), which pins the height
+// to 20 px so the bar row holds (ui_brush_tip_picker_keeps_options_bar_height)
+// and hides the menu arrow.
+void make_options_menu_button(QToolButton* button) {
+  button->setIcon(simple_icon(QStringLiteral("gear")));
+  button->setIconSize(QSize(16, 16));
+  button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  button->setProperty("optionsBarMenuButton", true);
+  button->setFocusPolicy(Qt::NoFocus);
+  button->setPopupMode(QToolButton::InstantPopup);
+}
+
 // The closed combo is deliberately compact (the Options bar must keep the
 // mixer row on one line), so the popup list needs its own width or every
 // entry truncates to "Dry...oad".
@@ -504,7 +518,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   }
   // The six feature Distribute commands follow as buttons, like Photoshop's bar
-  // (GitHub issue 172); the two spacing modes stay in the "..." menu below.
+  // (GitHub issue 172); the two spacing modes stay in the gear menu below.
   add_option_separator({CanvasTool::Move});
   {
     const char* const distribute_button_names[] = {"moveDistributeLeftButton",   "moveDistributeHCenterButton",
@@ -519,13 +533,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   }
   move_align_more_button_ = new QToolButton(toolbar);
   move_align_more_button_->setObjectName(QStringLiteral("moveAlignMoreButton"));
-  // The brushSmoothingOptionsButton pattern: compact "..." text, InstantPopup,
-  // height pinned by the optionsBarMenuButton QSS rule so the 26 px row holds.
-  move_align_more_button_->setText(QStringLiteral("..."));
-  move_align_more_button_->setProperty("optionsBarMenuButton", true);
-  move_align_more_button_->setFocusPolicy(Qt::NoFocus);
+  make_options_menu_button(move_align_more_button_);
   bind_tooltip(move_align_more_button_, QT_TR_NOOP("Distribute spacing and choose what to align to"));
-  move_align_more_button_->setPopupMode(QToolButton::InstantPopup);
   {
     auto* more_menu = new QMenu(move_align_more_button_);
     more_menu->setObjectName(QStringLiteral("moveAlignMoreMenu"));
@@ -1391,16 +1400,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   // Crop options (GitHub issues 325 and 326): the overlay's turn and when it
   // shows, then how the area outside the box draws. Its
-  // own group after the checkboxes (options-bar rule 1: advanced options). The
-  // moveAlignMoreButton pattern: compact "..." text, InstantPopup, height pinned
-  // by the optionsBarMenuButton QSS rule so the bar row keeps its height.
+  // own group after the checkboxes (options-bar rule 1: advanced options), on a
+  // gear menu button (make_options_menu_button).
   crop_options_button_ = new QToolButton(toolbar);
   crop_options_button_->setObjectName(QStringLiteral("cropOptionsButton"));
-  crop_options_button_->setText(QStringLiteral("..."));
-  crop_options_button_->setProperty("optionsBarMenuButton", true);
-  crop_options_button_->setFocusPolicy(Qt::NoFocus);
+  make_options_menu_button(crop_options_button_);
   bind_tooltip(crop_options_button_, QT_TR_NOOP("Crop options: overlay, cropped area and crop shield"));
-  crop_options_button_->setPopupMode(QToolButton::InstantPopup);
   {
     auto* crop_menu = new QMenu(crop_options_button_);
     crop_menu->setObjectName(QStringLiteral("cropOptionsMenu"));
@@ -2139,15 +2144,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   brush_smoothing_options_button_ = new QToolButton(toolbar);
   brush_smoothing_options_button_->setObjectName(QStringLiteral("brushSmoothingOptionsButton"));
-  // No gear glyph exists in the icon set; the compact "..." text follows the
-  // other small options-bar buttons. Its height comes from the
-  // QToolButton#brushSmoothingOptionsButton rule in main_window_theme.cpp (the
-  // brushDynamicsButton pattern); the global QToolButton QSS min-height would
-  // otherwise grow the Options bar row
-  // (ui_brush_tip_picker_keeps_options_bar_height).
-  brush_smoothing_options_button_->setText(QStringLiteral("..."));
+  make_options_menu_button(brush_smoothing_options_button_);
   bind_tooltip(brush_smoothing_options_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Smoothing options"));
-  brush_smoothing_options_button_->setPopupMode(QToolButton::InstantPopup);
   auto* smoothing_menu = new QMenu(brush_smoothing_options_button_);
   const auto add_smoothing_option = [this, smoothing_menu](const char* source, bool checked,
                                                            auto setter) {
