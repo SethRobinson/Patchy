@@ -14960,8 +14960,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Für Smartfilter konvertieren</translation>
     </message>
     <message>
-        <source>Convert the active layer to a Smart Object for editable filters</source>
-        <translation>Wandelt die aktive Ebene in ein Smartobjekt um, damit Filter bearbeitbar bleiben</translation>
+        <source>Convert the active layer to a Smart Object (the same as Layer &gt; Smart Objects &gt; Convert to Smart Object) so filters applied afterward stay editable</source>
+        <translation>Wandelt die aktive Ebene in ein Smartobjekt um (wie Ebene &gt; Smartobjekte &gt; In Smartobjekt konvertieren), damit danach angewendete Filter bearbeitbar bleiben</translation>
     </message>
     <message>
         <source>Filter &amp;Gallery...</source>

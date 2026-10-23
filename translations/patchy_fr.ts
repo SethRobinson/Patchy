@@ -14960,8 +14960,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Convertir pour les filtres dynamiques</translation>
     </message>
     <message>
-        <source>Convert the active layer to a Smart Object for editable filters</source>
-        <translation>Convertit le calque actif en objet dynamique pour permettre des filtres modifiables</translation>
+        <source>Convert the active layer to a Smart Object (the same as Layer &gt; Smart Objects &gt; Convert to Smart Object) so filters applied afterward stay editable</source>
+        <translation>Convertit le calque actif en objet dynamique (comme Calque &gt; Objets dynamiques &gt; Convertir en objet dynamique) pour que les filtres appliqués ensuite restent modifiables</translation>
     </message>
     <message>
         <source>Filter &amp;Gallery...</source>
