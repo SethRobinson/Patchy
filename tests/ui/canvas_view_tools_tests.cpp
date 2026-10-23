@@ -4388,7 +4388,9 @@ void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
         if (icon_left < 0) {
           icon_left = x;
           icon_right = x;
-        } else if (text_left < 0 && x - icon_right <= 3) {
+        } else if (text_left < 0 && x - icon_right <= 5) {
+          // Up to four blank columns stay inside the icon: the Marquee's dashes leave
+          // gaps that wide at this size (GitHub issue 338). The name is far further.
           icon_right = x;
         } else if (text_left < 0) {
           text_left = x;
@@ -4487,7 +4489,7 @@ void ui_tool_flyout_marks_the_tool_its_button_shows() {
         }
         if (icon_left < 0) {
           icon_left = icon_right = x;
-        } else if (x - icon_right <= 3) {
+        } else if (x - icon_right <= 5) {  // the Marquee's dash gaps, as above
           icon_right = x;
         } else {
           name_left = x;

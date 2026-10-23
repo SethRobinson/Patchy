@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect x="8" y="8" width="16" height="16" fill="none" stroke="#dce2eb" stroke-width="2" stroke-dasharray="3 2"/>
-  <path d="M4 7C11 3 21 11 28 7C26 13 30 19 28 25C21 29 11 21 4 25C6 19 2 13 4 7Z" fill="none" stroke="#74c0ff" stroke-width="2.2" stroke-linejoin="round"/>
-  <path d="M4 16C11 12 21 20 28 16M16 7C14 12 18 20 16 25" fill="none" stroke="#74c0ff" stroke-width="1.6"/>
+  <g transform="translate(-0.873 -0.873) scale(1.0545)">
+    <rect x="8" y="8" width="16" height="16" fill="none" stroke="#dce2eb" stroke-width="2" stroke-dasharray="3 2"/>
+    <path d="M4 7C11 3 21 11 28 7C26 13 30 19 28 25C21 29 11 21 4 25C6 19 2 13 4 7Z" fill="none" stroke="#74c0ff" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M4 16C11 12 21 20 28 16M16 7C14 12 18 20 16 25" fill="none" stroke="#74c0ff" stroke-width="1.6"/>
+  </g>
 </svg>

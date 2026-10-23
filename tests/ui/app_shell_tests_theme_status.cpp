@@ -751,8 +751,9 @@ void ui_session_commit_cancel_icons_read_in_both_schemes() {
       };
       check_glyph_ink(apply_glyph, palette.icon_success, qPrintable(what("apply")));
       check_glyph_ink(cancel_glyph, palette.icon_danger, qPrintable(what("cancel")));
-      // A round sign: no ink in the corners, where the square "clear" glyph has it.
-      for (const QPoint corner : {QPoint(3, 3), QPoint(16, 3), QPoint(3, 16), QPoint(16, 16)}) {
+      // A round sign: no ink in the corners, where the square "clear" glyph has it
+      // (both fill the same 29/32 box since GitHub issue 338).
+      for (const QPoint corner : {QPoint(2, 2), QPoint(17, 2), QPoint(2, 17), QPoint(17, 17)}) {
         CHECK(cancel_glyph.pixelColor(corner).alpha() < 40);
       }
       CHECK(cancel_glyph != clear_glyph());

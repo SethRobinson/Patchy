@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <g transform="rotate(-45 16 16)">
-    <path d="M0.6 16L5.2 13.8H18.6V18.2H5.2Z" fill="none" stroke="#dce2eb" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M3.4 16L6 14.9H12.8V17.1H6Z" fill="#74c0ff"/>
-    <path d="M18.4 11.6H22.4V20.4H18.4Z" fill="#dce2eb"/>
-    <circle cx="27.2" cy="16" r="5" fill="#dce2eb"/>
+  <g transform="translate(-3.217 -2.052) scale(1.1647)">
+    <g transform="rotate(-45 16 16)">
+      <path d="M0.6 16L5.2 13.8H18.6V18.2H5.2Z" fill="none" stroke="#dce2eb" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M3.4 16L6 14.9H12.8V17.1H6Z" fill="#74c0ff"/>
+      <path d="M18.4 11.6H22.4V20.4H18.4Z" fill="#dce2eb"/>
+      <circle cx="27.2" cy="16" r="5" fill="#dce2eb"/>
+    </g>
   </g>
 </svg>

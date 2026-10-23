@@ -1,9 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <circle cx="16" cy="6.2" r="2.4" fill="none" stroke="#dce2eb" stroke-width="2.2"/>
-  <path d="M16 8.6v2.9" fill="none" stroke="#dce2eb" stroke-width="2.3"/>
-  <rect x="7.6" y="11.5" width="16.8" height="13" rx="1.4" fill="none" stroke="#dce2eb" stroke-width="2.1"/>
-  <rect x="9.4" y="13.3" width="4.53" height="4.7" fill="#dce2eb"/>
-  <rect x="18.47" y="13.3" width="4.53" height="4.7" fill="#dce2eb"/>
-  <rect x="13.93" y="18" width="4.53" height="4.7" fill="#dce2eb"/>
-  <path d="M6.8 27.9h18.4" fill="none" stroke="#74c0ff" stroke-width="2.1" stroke-linecap="round"/>
+  <g transform="translate(-1.676 -1.483) scale(1.1048)">
+    <circle cx="16" cy="6.2" r="2.4" fill="none" stroke="#dce2eb" stroke-width="2.2"/>
+    <path d="M16 8.6v2.9" fill="none" stroke="#dce2eb" stroke-width="2.3"/>
+    <rect x="7.6" y="11.5" width="16.8" height="13" rx="1.4" fill="none" stroke="#dce2eb" stroke-width="2.1"/>
+    <rect x="9.4" y="13.3" width="4.53" height="4.7" fill="#dce2eb"/>
+    <rect x="18.47" y="13.3" width="4.53" height="4.7" fill="#dce2eb"/>
+    <rect x="13.93" y="18" width="4.53" height="4.7" fill="#dce2eb"/>
+    <path d="M6.8 27.9h18.4" fill="none" stroke="#74c0ff" stroke-width="2.1" stroke-linecap="round"/>
+  </g>
 </svg>

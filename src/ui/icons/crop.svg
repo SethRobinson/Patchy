@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path d="M10 5v17h17M5 20h17V5" fill="none" stroke="#dce2eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M10 10h12v12" fill="none" stroke="#74c0ff" stroke-width="2" stroke-linecap="round"/>
+  <g transform="translate(-3.174 -0.178) scale(1.1983)">
+    <path d="M10 5v17h17M5 20h17V5" fill="none" stroke="#dce2eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10 10h12v12" fill="none" stroke="#74c0ff" stroke-width="2" stroke-linecap="round"/>
+  </g>
 </svg>

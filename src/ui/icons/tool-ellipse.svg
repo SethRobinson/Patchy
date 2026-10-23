@@ -1,3 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <ellipse cx="16" cy="16" rx="10" ry="7.5" fill="none" stroke="#dce2eb" stroke-width="2.4"/>
+  <g transform="translate(-4.714 -4.714) scale(1.2946)">
+    <ellipse cx="16" cy="16" rx="10" ry="7.5" fill="none" stroke="#dce2eb" stroke-width="2.4"/>
+  </g>
 </svg>
