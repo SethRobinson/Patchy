@@ -5509,9 +5509,27 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // Newest first: an Edit Contents child is appended after its parent, and answering
   // Save for the child commits into the parent and marks it modified, so the parent
   // must be asked afterwards (close_all_document_tabs walks the same direction).
-  for (auto it = sessions_.rbegin(); it != sessions_.rend(); ++it) {
-    auto& target_session = *it;
-    if (target_session != nullptr && !confirm_close_session(*target_session)) {
+  // Each answered document closes at once, Yes and No alike, so Cancel on a later
+  // prompt keeps only the documents not yet answered (GitHub issue 359). Unmodified
+  // documents stay open until the quit is settled.
+  const auto session_ids = sessions_.ids();
+  for (auto id_it = session_ids.rbegin(); id_it != session_ids.rend(); ++id_it) {
+    auto* target_session = session_with_id(*id_it);
+    if (target_session == nullptr || !session_is_modified(*target_session)) {
+      continue;
+    }
+    // A Save must write the real layer visibility, not the frame the animation
+    // preview is showing (close_document_session stops it for the same reason).
+    if (animation_preview_window_ != nullptr) {
+      animation_preview_window_->stop_playback_for(&target_session->document);
+    }
+    if (!confirm_close_session(*target_session)) {
+      restore_hidden_floats();
+      event->ignore();
+      return;
+    }
+    if (auto* answered = session_with_id(*id_it);
+        answered != nullptr && !close_document_session(*answered, CloseConfirmation::AlreadyConfirmed)) {
       restore_hidden_floats();
       event->ignore();
       return;
