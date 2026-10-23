@@ -1023,7 +1023,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
         tool_group->addAction(action);
         menu->addAction(action);
         addAction(action);
-        register_document_action(action);
+        register_tool_action(action);
         return action;
       };
   // Every flyout also owns a "Cycle <Group> Tools" command on Shift+<the group's
@@ -1049,8 +1049,16 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // way in: Qt would otherwise route the pair's second press back to
     // mousePressEvent and restart the hold timer, so swallow it and open the
     // menu through the same showMenu() path the timer uses. The first click
-    // of the pair still selects the default tool, as in Photoshop.
-    button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
+    // of the pair still selects the default tool, as in Photoshop. The filter sees
+    // events before Qt's disabled check, so a disabled button (a preview dialog's edit
+    // lock) stays shut here as it does for the left press.
+    button->installEventFilter(new ToolFlyoutEventFilter(
+        [button] {
+          if (button->isEnabled()) {
+            button->showMenu();
+          }
+        },
+        button));
     new ToolFlyoutMenuPlacement(button, menu);
     new ToolFlyoutCurrentMarker(button, menu);
     menu->setStyleSheet(tool_flyout_menu_style(palette->iconSize().width()));
@@ -1068,7 +1076,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     cycle->setMenuRole(QAction::NoRole);
     register_hotkey(cycle, QString::fromLatin1(cycle_id), cycle_shortcut, QStringLiteral("tools"));
     addAction(cycle);
-    register_document_action(cycle);
+    register_tool_action(cycle);
     // Listed after the members so the flyout shows the key that walks it.
     menu->addSeparator();
     menu->addAction(cycle);
@@ -1310,28 +1318,35 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
         zoom_button));
   }
   connect(tool_group, &QActionGroup::triggered, this, [this](QAction* action) {
-    if (canvas_ == nullptr) {
-      return;
-    }
     const auto selected = static_cast<CanvasTool>(action->data().toInt());
-    if (canvas_->free_transform_active()) {
-      canvas_->finish_free_transform();
-    }
-    if (canvas_->warp_transform_active()) {
-      canvas_->finish_warp_transform();
-    }
-    if (selected != CanvasTool::Text) {
-      finish_active_text_editor();
+    // With no document open the pick still sets the tool, its options bar and the stored
+    // tool (local-008); the next canvas takes current_tool_ in activate_document_canvas.
+    if (canvas_ != nullptr) {
+      if (canvas_->free_transform_active()) {
+        canvas_->finish_free_transform();
+      }
+      if (canvas_->warp_transform_active()) {
+        canvas_->finish_warp_transform();
+      }
+      if (selected != CanvasTool::Text) {
+        finish_active_text_editor();
+      }
     }
     current_tool_ = selected;
-    canvas_->set_tool(selected);
+    if (canvas_ != nullptr) {
+      canvas_->set_tool(selected);
+    }
     apply_selection_edge_settings_for_tool(selected);
     set_eraser_brush_settings_active(selected == CanvasTool::Eraser);
     // The next launch starts on this tool (GitHub issue 254; tools/activeTool).
-    schedule_save_tool_settings();
-    if (selected != CanvasTool::Text ||
-        canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr) {
-      canvas_->setFocus(Qt::OtherFocusReason);
+    if (canvas_ != nullptr) {
+      schedule_save_tool_settings();
+      if (selected != CanvasTool::Text ||
+          canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr) {
+        canvas_->setFocus(Qt::OtherFocusReason);
+      }
+    } else {
+      save_active_tool_setting();
     }
     refresh_options_bar();
     refresh_document_info();
@@ -1419,7 +1434,7 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   }
   register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
   group->addAction(action);
-  register_document_action(action);
+  register_tool_action(action);
   return action;
 }
 

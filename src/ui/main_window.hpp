@@ -2068,6 +2068,9 @@ private:
   // Restart the debounce so the live tool-option sliders flush to disk once,
   // after the drag settles, instead of on every intermediate value.
   void schedule_save_tool_settings();
+  // Writes only tools/activeTool: a tool picked with no document open (no canvas for
+  // save_tool_settings to read, or the startup load still pending).
+  void save_active_tool_setting() const;
   [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
   void stash_active_brush_settings();
   // The foreground/background pair is application-wide (GitHub issue 339): canvases hold
@@ -2236,6 +2239,9 @@ private:
   void sync_mixer_combination_combo();
   void refresh_options_bar();
   void register_document_action(QAction* action);
+  // A palette tool or flyout cycle command: live with or without a document (local-008),
+  // disabled only while a preview dialog holds the edit lock.
+  void register_tool_action(QAction* action);
   // Forget an action that a menu rebuild is about to delete.
   void unregister_document_action(QAction* action);
   void register_document_widget(QWidget* widget);
@@ -2937,6 +2943,7 @@ private:
   // child of document_tabs_); visible only while a float drag hovers the zone.
   QWidget* float_dock_highlight_{nullptr};
   std::vector<QAction*> document_actions_;
+  std::vector<QAction*> tool_actions_;
   std::vector<QWidget*> document_widgets_;
   HotkeyRegistry hotkey_registry_;
   int preview_dialog_edit_lock_depth_{0};

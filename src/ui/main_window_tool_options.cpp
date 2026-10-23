@@ -1882,10 +1882,10 @@ void MainWindow::restore_startup_tool_selection() {
     if (tool == CanvasTool::Brush) {
       return;  // the palette's built-in default
     }
-    // Without a document the tool actions are disabled, so trigger() would be ignored
-    // and the group handler needs a canvas anyway: check the button and give the
-    // flyout the member's face by hand; load_tool_settings activates the tool for
-    // real when the first canvas arrives.
+    // Startup has no canvas yet and the stored tool settings load with the first one,
+    // so check the button and give the flyout the member's face by hand instead of
+    // running the group handler; the first canvas then activates the tool for real
+    // (Eraser values, status hint) through activate_tool.
     action->setChecked(true);
     current_tool_ = tool;
     for (auto* button : findChildren<QToolButton*>()) {
@@ -2403,6 +2403,10 @@ void MainWindow::schedule_save_tool_settings() {
   } else {
     save_tool_settings();
   }
+}
+
+void MainWindow::save_active_tool_setting() const {
+  app_settings().setValue(QLatin1String(kActiveToolSettingsKey), tool_hotkey_id(current_tool_));
 }
 
 void MainWindow::save_tool_settings() const {
