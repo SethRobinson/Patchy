@@ -29,6 +29,6 @@ Exec=patchy %F
 Icon=com.rtsoft.patchy
 Terminal=false
 Categories=Graphics;RasterGraphics;2DGraphics;
-MimeType=image/vnd.adobe.photoshop;image/png;image/jpeg;image/bmp;image/gif;image/tiff;image/webp;image/jxl;
+MimeType=image/vnd.adobe.photoshop;image/png;image/jpeg;image/bmp;image/gif;image/tiff;image/webp;image/jxl;image/jp2;image/avif;image/heif;application/pdf;image/x-portable-bitmap;image/x-portable-graymap;image/x-portable-pixmap;image/x-ico;image/x-tga;image/svg+xml;image/svg+xml-compressed;
 StartupWMClass=patchy
 SingleMainWindow=true
