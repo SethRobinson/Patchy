@@ -424,6 +424,57 @@ void ui_text_rotate_sample_session_captures_if_available() {
   QApplication::setCursorFlashTime(flash_time);
 }
 
+void ui_text_box_outline_shows_on_unrotated_text() {
+  // An unrotated session drew no box at all, only the corner handles (GitHub issue 385), and a
+  // single blue line vanished over matching ink (issue 371). The outline is a light line under
+  // accent dashes along the editor's edge: both tones must be on screen, also where the box
+  // runs over other text.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(500, 260, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  SessionWindow session;
+  open_document(session, std::move(document), QStringLiteral("Box Outline"));
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::add_text_at(session.window, QPoint(60, 60));
+  QApplication::processEvents();
+  process_events_for(300);
+  auto* editor = live_editor(*session.canvas);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(!editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  const auto grab = session.canvas->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+  const auto edge = editor->geometry();
+  int light = 0;
+  int dark = 0;
+  const auto count = [&](int x, int y) {
+    if (!grab.rect().contains(x, y)) {
+      return;
+    }
+    const QColor color = grab.pixelColor(x, y);
+    if (color.red() > 225 && color.green() > 225 && color.blue() > 225) {
+      ++light;
+    } else if (color.blue() > 150 && color.red() < 90 && color.blue() - color.red() > 90) {
+      ++dark;
+    }
+  };
+  for (int x = edge.left() + 6; x < edge.right() - 6; ++x) {
+    count(x, edge.top());
+    count(x, edge.bottom());
+  }
+  for (int y = edge.top() + 6; y < edge.bottom() - 6; ++y) {
+    count(edge.left(), y);
+    count(edge.right(), y);
+  }
+  std::printf("  outline pixels on the editor edge: %d light, %d accent dashes\n", light, dark);
+  CHECK(light > 20);
+  CHECK(dark > 20);
+  commit_session(*session.canvas);
+}
+
 void ui_text_caret_spans_the_drawn_line() {
   // The caret runs from the line's ascent to its descent around the baseline the glyphs are
   // drawn on. It used to be centred in QTextLine::height(), which counts the font's line gap,
@@ -501,6 +552,7 @@ void ui_text_caret_spans_the_drawn_line() {
 
 std::vector<patchy::test::TestCase> text_canvas_session_tests() {
   return {
+      {"ui_text_box_outline_shows_on_unrotated_text", ui_text_box_outline_shows_on_unrotated_text},
       {"ui_text_caret_spans_the_drawn_line", ui_text_caret_spans_the_drawn_line},
       {"ui_rotated_psd_box_text_edit_keeps_transform", ui_rotated_psd_box_text_edit_keeps_transform},
       {"ui_text_rotate_sample_edits_keep_transform_if_available",

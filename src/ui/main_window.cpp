@@ -587,6 +587,22 @@ bool mark_text_editor_finished(QTextEdit* editor) {
 
 
 
+// The text box outline of an edit session, flat or transformed (GitHub issues 385 and 371): a
+// light line under accent dashes, a dark-plus-light pair like the marching ants, so one of
+// the two shows over any text or image under the box (a single blue line vanished over
+// matching ink). Canvas overlay colors, outside the theme palette (docs/ui-conventions.md).
+void draw_text_box_outline(QPainter& painter, const QPainterPath& outline) {
+  painter.save();
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(245, 248, 252, 235), 1.0));
+  painter.drawPath(outline);
+  QPen dashes(QColor(20, 92, 200), 1.0, Qt::CustomDashLine, Qt::FlatCap);
+  dashes.setDashPattern({4.0, 3.0});
+  painter.setPen(dashes);
+  painter.drawPath(outline);
+  painter.restore();
+}
+
 class InlineTextEdit final : public QTextEdit {
 public:
   explicit InlineTextEdit(QWidget* parent = nullptr) : QTextEdit(parent), caret_blink_timer_(this) {
@@ -700,6 +716,21 @@ protected:
     cursor.insertText(source->text(), currentCharFormat());
     setTextCursor(cursor);
     ensureCursorVisible();
+  }
+
+  // The frame paint (QAbstractScrollArea routes it to QFrame::paintEvent, not to the viewport
+  // paintEvent below) draws the box outline in the editor's transparent 1 px border, where the
+  // style sheet's dashed border never showed (GitHub issue 385). A transformed session draws
+  // the same outline through the transform on its overlay instead.
+  bool event(QEvent* event) override {
+    const bool handled = QTextEdit::event(event);
+    if (event->type() == QEvent::Paint && !property(kTextEditorTransformedOverlayProperty).toBool()) {
+      QPainter painter(this);
+      QPainterPath outline;
+      outline.addRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+      draw_text_box_outline(painter, outline);
+    }
+    return handled;
   }
 
   void paintEvent(QPaintEvent* event) override {
@@ -1691,10 +1722,8 @@ private:
       return;
     }
 
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(QColor(99, 168, 255), 1.0, Qt::DashLine));
+    QPainterPath outline;
     if (const auto area = text_editor_area(*editor_)) {
-      QPainterPath outline;
       const auto& anchors = area->subpaths.front().anchors;
       const auto map = [&](double x, double y) {
         const double sx = resize_preview_document_size_.has_value()
@@ -1710,10 +1739,11 @@ private:
         outline.cubicTo(map(a.out_x, a.out_y), map(b.in_x, b.in_y), map(b.anchor_x, b.anchor_y));
       }
       outline.closeSubpath();
-      painter.drawPath(outline);
     } else {
-      painter.drawPolygon(map_editor_rect_to_overlay(rect));
+      outline.addPolygon(map_editor_rect_to_overlay(rect));
+      outline.closeSubpath();
     }
+    draw_text_box_outline(painter, outline);
 
     painter.setPen(QPen(QColor(35, 38, 44), 1.0));
     painter.setBrush(QColor(245, 248, 252));
