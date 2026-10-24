@@ -12,6 +12,13 @@ those of 2026-10-06 to 2026-10-09 in
 [scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md).
 Every entry below is API 1.
 
+2026-10-24 (additive): `doc.saveAs` and `doc.exportAs` write OpenRaster for a `.ora` path
+([ora.md](ora.md)): the layer tree stays, and what the format cannot hold is baked into layer pixels
+with no prompt (a scripted save answers it, like the Aseprite Fill Opacity one). `saveAs` points the
+document at the file, as for `.psd`. The extension token `ora` is a permanent identifier. No save
+options apply to it. Pinned by
+`ora_round_trip_keeps_layers_and_pixels` and `ui_ora_save_warns_about_baked_content_and_stays_on_ora`.
+
 2026-10-24 (behavioral): `layer.redEye` uses the revised Red Eye method ([red-eye.md](red-eye.md)): the
 area is grown with hysteresis and its rim and glint halo corrected by redness, and Darken Amount keeps
 a quarter of the brightness at 100 instead of going black (Darken 50 keeps about 60%). Options and

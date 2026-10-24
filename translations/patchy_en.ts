@@ -12214,6 +12214,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Red Eye</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is too large to open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: an entry cannot be unpacked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The OpenRaster layer list (stack.xml) is damaged or not valid XML</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This file is not an OpenRaster image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot save an empty document as OpenRaster</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write the OpenRaster file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenRaster Image</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24831,6 +24867,56 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>How much darker the corrected pupil gets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>shape layer &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the layer style of &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the blending options of &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32-bit channels (saved at 16 bits)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the color mode (saved as RGB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the palette (saved as RGB colors)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>guides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>paths</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>artboards (saved as groups)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some Content Will Be Baked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+
+Changed: %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

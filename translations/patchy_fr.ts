@@ -12230,6 +12230,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>Yeux rouges</translation>
     </message>
+    <message>
+        <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
+        <translation>Le fichier OpenRaster est endommagé : son répertoire zip est absent ou tronqué</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is too large to open</source>
+        <translation>Le fichier OpenRaster est trop volumineux pour être ouvert</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Le fichier OpenRaster utilise des fonctions zip que Patchy ne sait pas lire (chiffrement ou compression inconnue)</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: an entry cannot be unpacked</source>
+        <translation>Le fichier OpenRaster est endommagé : une entrée ne peut pas être décompressée</translation>
+    </message>
+    <message>
+        <source>The OpenRaster layer list (stack.xml) is damaged or not valid XML</source>
+        <translation>La liste des calques OpenRaster (stack.xml) est endommagée ou n&apos;est pas du XML valide</translation>
+    </message>
+    <message>
+        <source>This file is not an OpenRaster image</source>
+        <translation>Ce fichier n&apos;est pas une image OpenRaster</translation>
+    </message>
+    <message>
+        <source>Cannot save an empty document as OpenRaster</source>
+        <translation>Impossible d&apos;enregistrer un document vide au format OpenRaster</translation>
+    </message>
+    <message>
+        <source>Could not write the OpenRaster file</source>
+        <translation>Impossible d&apos;écrire le fichier OpenRaster</translation>
+    </message>
+    <message>
+        <source>OpenRaster Image</source>
+        <translation>Image OpenRaster</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24905,6 +24941,58 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>How much darker the corrected pupil gets</source>
         <translation>Dans quelle mesure la pupille corrigée s&apos;assombrit</translation>
+    </message>
+    <message>
+        <source>shape layer &quot;%1&quot;</source>
+        <translation>calque de forme &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
+        <translation>le mode de fusion de &quot;%1&quot; (seul Krita le lit)</translation>
+    </message>
+    <message>
+        <source>the layer style of &quot;%1&quot;</source>
+        <translation>le style de calque de &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blending options of &quot;%1&quot;</source>
+        <translation>les options de fusion de &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>32-bit channels (saved at 16 bits)</source>
+        <translation>les couches 32 bits (enregistrées en 16 bits)</translation>
+    </message>
+    <message>
+        <source>the color mode (saved as RGB)</source>
+        <translation>le mode colorimétrique (enregistré en RVB)</translation>
+    </message>
+    <message>
+        <source>the palette (saved as RGB colors)</source>
+        <translation>la palette (enregistrée en couleurs RVB)</translation>
+    </message>
+    <message>
+        <source>guides</source>
+        <translation>les repères</translation>
+    </message>
+    <message>
+        <source>paths</source>
+        <translation>les tracés</translation>
+    </message>
+    <message>
+        <source>artboards (saved as groups)</source>
+        <translation>les plans de travail (enregistrés comme groupes)</translation>
+    </message>
+    <message>
+        <source>Some Content Will Be Baked</source>
+        <translation>Une partie du contenu sera intégrée</translation>
+    </message>
+    <message>
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+
+Changed: %1.</source>
+        <translation>OpenRaster conserve les calques, les groupes, l&apos;opacité et les modes de fusion, mais une partie du contenu de ce document ne peut pas être stockée telle quelle. Continuer l&apos;enregistrement en l&apos;intégrant aux pixels des calques ou en l&apos;omettant ? Pour que tout reste modifiable, enregistrez aussi un document Photoshop (.psd).
+
+Modifié : %1.</translation>
     </message>
 </context>
 <context>

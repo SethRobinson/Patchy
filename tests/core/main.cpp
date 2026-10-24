@@ -172,6 +172,7 @@ int main(int argc, char** argv) {
            jxr_tests,
            rttex_tests,
            dds_tests,
+           ora_tests,
            jxl_tests,
            hdr_import_tests,
            flat_formats_misc_tests,

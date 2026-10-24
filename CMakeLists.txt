@@ -605,6 +605,7 @@ add_library(patchy_formats
   src/formats/metadata/metadata_view.cpp
   src/formats/metadata/tiff_ifd.cpp
   src/formats/metadata/xmp.cpp
+  src/formats/ora_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/pdf_content.cpp
@@ -2154,6 +2155,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/jxr_tests.cpp
     tests/core/rttex_tests.cpp
     tests/core/dds_tests.cpp
+    tests/core/ora_tests.cpp
     tests/core/jxl_tests.cpp
     tests/core/hdr_display_tests.cpp
     tests/core/hdr_import_tests.cpp
@@ -2317,6 +2319,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_merge_tests.cpp
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp
+      tests/ui/ora_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/scripting_test_support.cpp

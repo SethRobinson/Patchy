@@ -1,6 +1,6 @@
 # File formats: registry, per-format quirks, PSB, document alpha
 
-Read before changing format I/O, open/save filters, notices, or alpha/mask import.
+Read before changing format I/O, file filters, notices, or alpha/mask import.
 
 ## Registry and dispatch
 
@@ -17,7 +17,7 @@ Save/Save As writes and saved-state bookkeeping live in `ui/document_save_coordi
 
 Open, sprite-sheet, and image-sequence dialogs pass `FilterNameDetails::Hidden` through `get_open_file_names`. File > Open and Open Recent Folder are multi-select: each pick opens as its own document in dialog order, the last one active, through the multi-file drop loop (`ui_open_dialog_opens_every_selected_file`). Qt shows only the text left of the last `(` and uses the final parenthesized list as the machine filter, so `open_file_filter()` deliberately writes each row as `Name (hint) (patterns)`: the hint is the pattern list, cut after `kMaxVisibleFilterPatterns` (6) with "and more" (`visible_pattern_hint`), the spec is complete.
 
-The Open dialog reopens on the last picked row (`lastOpenFilter`, written only when files were picked; `ui_open_dialog_remembers_last_filter`, issue 114). The HEIF row exists only where a decoder does (`heif_decoder_available`, GitHub issue 113; [heif.md](heif.md)).
+The Open dialog reopens on the last picked row (`lastOpenFilter`, written only when files were picked; `ui_open_dialog_remembers_last_filter`, issue 114). The HEIF row exists only where a decoder does (`heif_decoder_available`, issue 113; [heif.md](heif.md)).
 
 The visible portion must keep a `*.` token. The Windows 11 native dialog appends the complete semicolon-joined pattern list to any filter name without one, so the all-formats row uses the short `(*.psd *.png *.jpg and more)` hint instead of ~50 patterns. `ui_open_dialog_hides_name_filter_details` pins the shape, the row length limit and the raw hint. The hint cap suits GNOME's GTK 4 portal dialog (about ten rows, no scrollbar; issue 270, [wayland.md](wayland.md)).
 
@@ -31,7 +31,7 @@ Everything reads and writes except camera raw, HEIF/HEIC, .af and portable anyma
 - BMP: includes 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
 - ICO/CUR: every embedded size imports as a hidden layer named "WxH"; the writer reuses a matching "WxH" pixel layer verbatim, so sizes round-trip. 256px entries are PNG-compressed via `ico::set_png_codec` (installed in the MainWindow ctor). CUR hotspots ride layer metadata `patchy.cursor_hotspot`.
 - TGA: types 1/2/3/9/10/11, both origin flags; 15/16-bit rejected; palette-mode documents write type 1 indexed.
-- Aseprite: frame 1 only; layer tree/blend modes/opacity/closed folders (layer flag 32) round-trip; zlib cels via vendored `src/formats/miniz/`; verified against the real Aseprite CLI. Aseprite is the layered alternative in Save As.
+- Aseprite: frame 1 only; layer tree/blend modes/opacity/closed folders (layer flag 32) round-trip; zlib cels via vendored `src/formats/miniz/`; verified against the real Aseprite CLI.
 - PCX: 8-bit indexed EOF-palette plus 24-bit 3-plane RLE.
 - ILBM/PBM: ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected; writer emits planar ILBM with masking type 2.
 - Portable anymaps `.pbm/.pgm/.ppm/.pnm`: a read-only filter row, no registry row; Qt's PPM handler reads P1 to P6 and sniffs the magic behind `.pnm` (`ui_portable_anymap_files_open`). No PAM or PFM.
@@ -39,6 +39,7 @@ Everything reads and writes except camera raw, HEIF/HEIC, .af and portable anyma
 - PNG/JPEG/TIFF and still WebP: Qt readers/writers. Photoshop layers in a TIFF (tag 37724) open as layers: [tiff.md](tiff.md). WebP options retain quality (`saveOptions/webpQuality`, default 75) and lossless (`saveOptions/webpLossless`; quality 100 also means lossless).
 - JPEG XR (.jxr/.wdp/.hdp): Windows only, read and write through the in-box WIC codec; the filter row is gated on `jxr::is_available()`, and the registry row has a writer so Save stays on .jxr. Float/HDR tone maps to 8 bits with a knee curve: [jxr.md](jxr.md).
 - JPEG XL `.jxl`: read and write everywhere (vendored libjxl) at 8, 16 or 32 bits, animations as layers; encoder patches and dots stay off: [jxl.md](jxl.md).
+- OpenRaster `.ora`: layered read and write, baking what it cannot hold: [ora.md](ora.md).
 - Proton `.rttex`: read and write everywhere; the RTPACK wrapper, pixel layouts, embedded-JPEG variant and PVRTC rejection: [rttex.md](rttex.md).
 - DDS `.dds`: read and write everywhere (vendored bcdec, stb_dxt and bc7enc); BC1-BC7, masked, 16-bit and float sources open at 8 bits, faces/slices/elements as layers; writes A8R8G8B8, DXT1, DXT5, BC4, BC5 or BC7, optional mipmaps: [dds.md](dds.md).
 
@@ -63,7 +64,7 @@ Import and export: [pdf.md](pdf.md). PDF has no registry row and is a read-only 
 A document opened from a flat format that has grown structure a flat save would discard must never silently flatten back over its file:
 
 - `flat_save_discards_layers(document)` (main_window_files.cpp): more than one layer, any group/adjustment/text/smart-object/shape layer, a hand-authored mask, layer styles, or non-identity Blend If. SVG keeps vectors, so `save_discards_layers` asks its writer for a dry run and warns only when something bakes ([svg.md](svg.md)). A single pixel layer whose only mask carries the document-alpha marker stays exempt (that mask IS the flat file's alpha plane).
-- `save_extension_preserves_layers()` lists the guard-skipped formats: psd/psb, aseprite/ase, and ico/cur (multi-size icons live as hidden "WxH" layers; the guard would fire on every icon save). TIFF keeps layers too unless its options turn them off ([tiff.md](tiff.md)).
+- `save_extension_preserves_layers()` lists the guard-skipped formats: psd/psb, aseprite/ase, ora, and ico/cur (multi-size icons live as hidden "WxH" layers; the guard would fire on every icon save). TIFF keeps layers too unless its options turn them off ([tiff.md](tiff.md)).
 - Save on a layered flat-backed document routes to Save As, defaulting name and filter to `.psd`.
 - Explicitly choosing a flat format raises `flattenLayersMessageBox` (default Cancel) and on confirm performs a save-a-copy: the flat file is written but the session keeps its path, title, and modified state. Save As pre-confirms and passes `flatten_confirmed` so the box appears once.
 - Exception: a linked smart-object child session keeps real-save semantics after the same warning (the linked file IS that document; the parent refresh needs the write).
@@ -75,7 +76,7 @@ A document opened from a flat format that has grown structure a flat save would 
 
 Paths reach the Qt-free readers and writers through `to_filesystem_path` (the AGENTS.md path rule); `rename_first_layer_to_stem` (formats/format_file_io.cpp) names the imported layer through `path_to_utf8`.
 
-All but PSD/Aseprite flat-export through `write_flat_image_file`. `ImageSaveOptions` carries the EXPORT-only transforms, never Save/Save As: the shared dialog section (every export form except ICO/CUR) persists them under its own `saveOptions/export*` keys so defaults never inherit one (JPEG forces the fill without persisting it; PDF editable layers disable the section). `export_stand_in_document` applies them in order: trim (alpha != 0 bounds; an all-transparent image keeps its size plus a notice), resize (`resample_pixels`, always Bilinear; `export_width/height` describe the FULL canvas, one zero side follows the aspect), nearest-neighbor `export_scale`, then the background fill (straight-alpha matte, opaque result). The stand-in keeps the doc-alpha mask structure and palette metadata unless matted; all-default options take the old byte-identical path; PPI copies verbatim. The animated GIF, WebP and JPEG XL writers apply the same per frame, trimming to the union of all frames' bounds. Metadata rides `metadata_policy`: [file-info.md](file-info.md).
+All but PSD/Aseprite/ORA flat-export through `write_flat_image_file`. `ImageSaveOptions` carries the EXPORT-only transforms, never Save/Save As: the shared dialog section (every export form except ICO/CUR) persists them under its own `saveOptions/export*` keys so defaults never inherit one (JPEG forces the fill without persisting it; PDF editable layers disable the section). `export_stand_in_document` applies them in order: trim (alpha != 0 bounds; an all-transparent image keeps its size plus a notice), resize (`resample_pixels`, always Bilinear; `export_width/height` describe the FULL canvas, one zero side follows the aspect), nearest-neighbor `export_scale`, then the background fill (straight-alpha matte, opaque result). The stand-in keeps the doc-alpha mask structure and palette metadata unless matted; all-default options take the old byte-identical path; PPI copies verbatim. The animated GIF, WebP and JPEG XL writers apply the same per frame, trimming to the union of all frames' bounds. Metadata rides `metadata_policy`: [file-info.md](file-info.md).
 
 ## Save progress
 
@@ -97,7 +98,7 @@ Scripted and unattended saves never show the dialog. Test: `ui_save_shows_progre
 - Hue/Saturation renders through calibrated tables in core/adjustment_layer.cpp, shared by the destructive menu path and Affinity `HsRA` import: [adjustments-calibration.md](adjustments-calibration.md).
 - The clipping byte round-trips (`Layer::clipped()`; group/divider records write 0). Base + consecutive clipped siblings composite in isolation (`IsolatedClipGroupTarget`) and merge with the base's blend mode/opacity. Every sibling walk must use `composite_sibling_layers`. Pixel layers and folders can be bases; folders supply merged children, with mask/opacity applied once and their own effects excluded from the clipping shape. This bounds adjustments clipped to Pass Through folders too. `clbl` "Blend Clipped Layers as Group" is modeled (`LayerStyle::blend_clipped_elements`, default on, written only when off; rendering rules in [ps-compat.md](ps-compat.md) "Clipping masks"); clipped flags above adjustments or at a list's bottom render unclipped. `.aseprite` saves drop the flag.
 - Fill Opacity = the 4-byte `iOpa` block (authored 100% omits it); wire and render rules, special Fill kernels included, are in [ps-compat.md](ps-compat.md). Nondefault-Fill clipping bases record content coverage separately so effects do not become the clipping shape. Aseprite cannot store Fill; Patchy warns before discarding.
-- Layer locks = the `lspf` u32 (PS 2026 capture): 0x1 transparency, 0x2 pixels, 0x4 position, 0x8 Prevent Auto Nesting, and Lock All its own 0x80000000 with the singles clear (three set singles are three locks in Photoshop, not Lock All). Reading maps Lock All to all three locks and keeps the value read in `patchy.psd.protection_flags`; `psd_protection_for_layer` writes it back while the locks match it, else 0x80000000 for all three or the singles, plus 0x8. 0x8 is `kLayerLockArtboardAutonest` ([artboards.md](artboards.md); GitHub issues 245, 246).
+- Layer locks = the `lspf` u32 (PS 2026 capture): 0x1 transparency, 0x2 pixels, 0x4 position, 0x8 Prevent Auto Nesting, and Lock All its own 0x80000000 with the singles clear (three set singles are three locks in Photoshop, not Lock All). Reading maps Lock All to all three locks and keeps the value read in `patchy.psd.protection_flags`; `psd_protection_for_layer` writes it back while the locks match it, else 0x80000000 for all three or the singles, plus 0x8. 0x8 is `kLayerLockArtboardAutonest` ([artboards.md](artboards.md); issues 245, 246).
 - Advanced Blending "Channels" = the `brst` block: big-endian u32 channel indices EXCLUDED from compositing, no count prefix (PS writes ascending, omits when everything blends). RGB indices 0-2 map to `Layer::restricted_channels()`; the writer regenerates from the model (an imported EMPTY block drops on resave). Non-RGB indices or a malformed payload import preserved-raw only (unsupported flag, warning, dialog checkboxes disabled). Rendering: [ps-compat.md](ps-compat.md).
 - Blend If: the blending-ranges payload stays in `Layer::raw_psd_blending_ranges()` (wire shape: [ps-compat.md](ps-compat.md)). Valid native 40-byte RGB shapes render and edit on pixel, adjustment, and folder records; malformed, partial, non-RGB, and nonidentity-tail shapes stay preview-locked and byte-preserved until the user replaces them. A folder's synthetic closing record keeps its own `raw_psd_group_boundary_blending_ranges()` payload (PS writes a 40-byte identity there): always preservation-only with a precise warning; folder controls edit the visible folder record only.
 - Layer styles: imported `lfx2`/`lrFX` blocks stay byte-identical until that layer's style is edited. Edited Satin regenerates PS's native 12-field `ChFX` descriptor with its non-anti-aliased Linear contour. Custom contour curves and contour anti-aliasing stay byte-preserved while untouched (the dialog warns that editing normalizes them). Gradient Overlay and gradient Stroke preserve, render, and edit each stop's native `Mdpn` midpoint without changing the private `plFX` version.
@@ -113,7 +114,7 @@ Readers report dropped or approximated features via `FormatReadResult::notices`.
 
 ## Fixtures and verification
 
-Committed fixtures: `test-fixtures/<format>/` (provenance: NOTICE-THIRD-PARTY.md); tests synthesize adversarial files. The PSD set includes PS-resaved acceptance files for layer styles and Blend If (`photoshop-*-roundtrip.psd` plus `-render.bmp`). Verify writers with independent decoders (Pillow, Qt, Aseprite, Photoshop).
+Committed fixtures: `test-fixtures/<format>/` (provenance: NOTICE-THIRD-PARTY.md); tests synthesize adversarial files. The PSD set includes PS-resaved acceptance files for layer styles and Blend If (`photoshop-*-roundtrip.psd` plus `-render.bmp`). Verify writers with independent decoders.
 
 ## PSB (large document format) read + write
 

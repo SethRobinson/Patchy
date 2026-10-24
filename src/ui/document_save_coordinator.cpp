@@ -7,6 +7,7 @@
 #include "formats/format_registry.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/metadata/metadata_edit.hpp"
+#include "formats/ora_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "ui/document_session.hpp"
@@ -38,13 +39,14 @@ bool is_tiff_extension(const QString& extension) {
   return extension == QStringLiteral("tif") || extension == QStringLiteral("tiff");
 }
 
-// Formats whose writers keep the document's layer structure: PSD/PSB and Aseprite save
-// the layer tree, and ICO/CUR are exempt because multi-size icons deliberately live as
-// one hidden "WxH" layer per size that their writers round-trip.
+// Formats whose writers keep the document's layer structure: PSD/PSB, Aseprite and
+// OpenRaster save the layer tree (OpenRaster bakes what it cannot hold after its own
+// warning, docs/ora.md), and ICO/CUR are exempt because multi-size icons deliberately live
+// as one hidden "WxH" layer per size that their writers round-trip.
 bool save_extension_preserves_layers(const QString& extension) {
   return is_photoshop_document_extension(extension) || extension == QStringLiteral("aseprite") ||
-         extension == QStringLiteral("ase") || extension == QStringLiteral("ico") ||
-         extension == QStringLiteral("cur");
+         extension == QStringLiteral("ase") || extension == QStringLiteral("ora") ||
+         extension == QStringLiteral("ico") || extension == QStringLiteral("cur");
 }
 
 // True when the session's file came from a format Patchy can only read (camera raw):
@@ -205,6 +207,14 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     const Document written = std::as_const(*target).document_for_write();
     std::optional<Document> narrowed;
     aseprite::DocumentIo::write_file(document_for_8bit_writer(written, narrowed), to_filesystem_path(path));
+  } else if (extension == QStringLiteral("ora")) {
+    // Layered OpenRaster save from a copy-on-write snapshot on a worker; the writer bakes
+    // what ORA cannot hold (the save warned first) and reports it.
+    const Document snapshot = std::as_const(*target).document_for_write();
+    host_.run_write(path, /*on_worker*/ true, !quiet, [&snapshot, &path, &writer_notices](SaveProgress& progress) {
+      const ScopedSaveProgress scope(progress);
+      ora::DocumentIo::write_file(snapshot, to_filesystem_path(path), &writer_notices);
+    });
   } else if (extension == QStringLiteral("svg")) {
     // Structure-preserving vector write (never write_flat_image_file):
     // shape layers stay SVG vectors, the writer reports what it baked.

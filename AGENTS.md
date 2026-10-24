@@ -106,7 +106,7 @@ Read these before acting in the named area:
 
 - Runtime assets are shared copy-once CMake targets. New executables use existing `patchy_copy_*` helpers; never add per-target POST_BUILD copies into the shared output directory. See [docs/code-organization.md](docs/code-organization.md).
 - Session data must outlive canvas event delivery. Preserve MainWindow's canvas-detach and session-close destruction orders; references into `SmartObjectStore` do not survive `add_embedded`. See [docs/code-organization.md](docs/code-organization.md).
-- Every submenu action under the menubar gets `QAction::NoRole`: on macOS Qt merges items by translated title into the app menu and a merged submenu crashes on the next window activation (GitHub issue 29). See [docs/platform.md](docs/platform.md).
+- Every submenu action under the menubar gets `QAction::NoRole`: on macOS Qt merges items by translated title into the app menu and a merged submenu crashes on the next window activation (issue 29). See [docs/platform.md](docs/platform.md).
 - Read modifier state folded from the current event, not `QApplication::keyboardModifiers()`. See [docs/ui-conventions.md](docs/ui-conventions.md) and [docs/testing.md](docs/testing.md).
 - New non-modal dialogs use `run_non_modal_dialog`; closing-sensitive dialogs funnel through `done()`. See [docs/ui-conventions.md](docs/ui-conventions.md).
 - Never rely on a destructor for anything the user could lose: the wait for workers after `app.exec()` is bounded and can end the process without destructors. Startup, quit, host lookups and Qt's automatic quit: "App lifecycle" in [docs/code-organization.md](docs/code-organization.md#app-lifecycle-startup-and-quit).
@@ -125,9 +125,9 @@ Read the linked document before working on a feature; it owns the constraints.
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md). CMYK: [docs/cmyk.md](docs/cmyk.md).
 - **RGB profiles (convert on open, Convert to Color Profile):** [docs/rgb-profiles.md](docs/rgb-profiles.md). RGB is always shown as sRGB; sRGB is detected by colorants and curves, never bytes.
 - **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [docs/high-bit-depth.md](docs/high-bit-depth.md).
-- **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), layered TIFF in [docs/tiff.md](docs/tiff.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md); TrustMark watermarks (scan, embed, the optional model download): [docs/watermarks.md](docs/watermarks.md).
+- **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), layered TIFF in [docs/tiff.md](docs/tiff.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md); TrustMark watermarks: [docs/watermarks.md](docs/watermarks.md).
 - **JPEG XR, JPEG XL, JPEG 2000, Radiance HDR, OpenEXR, AVIF:** [docs/jxr.md](docs/jxr.md), [docs/jxl.md](docs/jxl.md), [docs/hdr-formats.md](docs/hdr-formats.md), [docs/avif.md](docs/avif.md); codec rules in [docs/legal-constraints.md](docs/legal-constraints.md).
-- **Proton (.rttex) and DDS (.dds) textures:** [docs/rttex.md](docs/rttex.md), [docs/dds.md](docs/dds.md).
+- **Proton (.rttex), DDS (.dds) and OpenRaster (.ora):** [docs/rttex.md](docs/rttex.md), [docs/dds.md](docs/dds.md), [docs/ora.md](docs/ora.md) (clean-room).
 - **PDF import/export:** [docs/pdf.md](docs/pdf.md); timings in [docs/pdf-performance.md](docs/pdf-performance.md).
 - **Artboards (model, compositor, PSD `artb`/`artd`, tool, exports, scripts):** [docs/artboards.md](docs/artboards.md). Artboards stay top-level groups; nothing infers one from edit history.
 - **Document channels:** [docs/channels.md](docs/channels.md).

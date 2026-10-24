@@ -1177,7 +1177,9 @@ interface PatchyDocument {
   }): PatchyRect | null;
   /** Saves to the path; the format follows the extension (.psd, .png, ...). The document
    * then points at that file (a layered document saved to a flat format keeps its own
-   * path and stays modified, Photoshop's save-a-copy rule). `options` sets the format's
+   * path and stays modified, Photoshop's save-a-copy rule). .ora (OpenRaster) keeps the layer
+   * tree like .psd: what it cannot hold (text, effects, masks, adjustment layers) is baked into
+   * layer pixels, with no prompt for a scripted save. `options` sets the format's
    * save options explicitly, with no dialog (see PatchySaveOptions); without it the save
    * uses your Save Options defaults. A scripted save never changes those defaults.
    * PSD embeds attached palette colors/names/settings as optional Patchy metadata and retains normal RGB

@@ -2,6 +2,7 @@
 
 #include "formats/af_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/ora_document_io.hpp"
 #include "formats/avif_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/exr_document_io.hpp"
@@ -104,6 +105,18 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              [](const Document& document) { return aseprite::DocumentIo::write(document); },
                              [](std::span<const std::uint8_t> bytes) { return aseprite::sniff(bytes); }});
+  // OpenRaster: a zip of PNG layers with a stack.xml tree, read and written everywhere
+  // through the vendored miniz and stb_image (docs/ora.md).
+  registry.register_handler({"patchy.formats.ora",
+                             "OpenRaster Image",
+                             {".ora"},
+                             [](std::span<const std::uint8_t> bytes) {
+                               FormatReadResult result;
+                               result.document = ora::DocumentIo::read(bytes, &result.notices);
+                               return result;
+                             },
+                             [](const Document& document) { return ora::DocumentIo::write(document); },
+                             [](std::span<const std::uint8_t> bytes) { return ora::sniff(bytes); }});
   registry.register_handler({"patchy.formats.svg",
                              "SVG Image",
                              svg::svg_extensions(),
