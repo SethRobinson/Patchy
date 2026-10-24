@@ -394,7 +394,7 @@ public:
 
   Q_INVOKABLE QJSValue open(const QString& path);
   Q_INVOKABLE QJSValue getDocument(const QString& id);
-  Q_INVOKABLE QJSValue newDocument(int width, int height);
+  Q_INVOKABLE QJSValue newDocument(int width, int height, const QJSValue& options = QJSValue());
   Q_INVOKABLE void alert(const QString& text);
   Q_INVOKABLE QJSValue prompt(const QString& text, const QString& defaultValue = QString());
   // Modal folder/file pickers; empty string when cancelled or unattended (CLI).

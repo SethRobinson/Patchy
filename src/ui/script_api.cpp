@@ -47,6 +47,7 @@
 #include "ui/display_hdr_info.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/document_recovery.hpp"
 #include "ui/legacy_plugin_folder.hpp"
@@ -3434,13 +3435,44 @@ QJSValue ScriptAppObject::open(const QString& path) {
   return make_document_value(host_, id);
 }
 
-QJSValue ScriptAppObject::newDocument(int width, int height) {
+QJSValue ScriptAppObject::newDocument(int width, int height, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
-  const auto id = host_.create_document(width, height);
+  // The New Document dialog's Name and Color Mode (GitHub issues 360 and 374); both checked
+  // before anything is created.
+  QString name;
+  bool cmyk_proof = false;
+  if (options.isObject()) {
+    if (const auto value = options.property(QStringLiteral("name")); !value.isUndefined() && !value.isNull()) {
+      name = sanitized_new_document_name(value.toString());
+      if (name.isEmpty()) {
+        host_.throw_js_error(ScriptEngineHost::tr("newDocument name must hold a character a file name can use."));
+        return QJSValue();
+      }
+    }
+    if (const auto value = options.property(QStringLiteral("colorMode")); !value.isUndefined() && !value.isNull()) {
+      const auto mode = value.toString();
+      if (mode != QStringLiteral("rgb") && mode != QStringLiteral("cmykProof")) {
+        host_.throw_js_error(ScriptEngineHost::tr("newDocument colorMode must be \"rgb\" or \"cmykProof\"."));
+        return QJSValue();
+      }
+      cmyk_proof = mode == QStringLiteral("cmykProof");
+      if (cmyk_proof && !working_cmyk_space()->has_profile()) {
+        host_.throw_js_error(ScriptEngineHost::tr("CMYK Proof needs a CMYK profile. Choose one in Preferences."));
+        return QJSValue();
+      }
+    }
+  }
+  const auto id = host_.create_document(width, height, name);
   if (id == 0) {
     host_.throw_js_error(
         ScriptEngineHost::tr("newDocument needs a size between 1 and 30000."));
     return QJSValue();
+  }
+  if (cmyk_proof) {
+    if (const auto refusal = host_.set_session_cmyk_proof(id, true); !refusal.isEmpty()) {
+      host_.throw_js_error(refusal);
+      return QJSValue();
+    }
   }
   return make_document_value(host_, id);
 }

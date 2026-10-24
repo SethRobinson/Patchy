@@ -16,6 +16,11 @@ as an animated PNG (APNG), like `exportAnimatedWebp`: options `frameDelayMs` and
 document metadata `apng.loop_count` (also set when an animated PNG opens). Permanent identifiers:
 the method and option names, the metadata key and command id `file.export_animated_png`. Pinned by
 `ui_script_apng_animation_export_preserves_document_and_validates_options`.
+2026-10-24 (additive): `app.newDocument(width, height, options?)` takes `name` (the tab title and
+default Save As name, through the New Document dialog's file-name rule; throws when nothing usable is
+left) and `colorMode` (`"rgb"` default, or `"cmykProof"`; throws for other values and without a CMYK
+profile). Both are checked before the document is created. Permanent identifiers: the option keys and
+the `colorMode` tokens ([new-document.md](new-document.md)). Pinned by `ui_script_new_document_options`.
 
 2026-10-23 (additive): `doc.colorProfile` (the embedded RGB profile's name, `"sRGB IEC61966-2.1"`
 when untagged) and `doc.convertToProfile(profile, options?)`, Edit > Convert to Profile: `profile`

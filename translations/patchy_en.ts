@@ -12139,6 +12139,77 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Animated PNG Options</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24675,6 +24746,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Export Animated PNG</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26606,6 +26685,18 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>exportAnimatedPng: invalid option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -1212,7 +1212,13 @@ interface PatchyApp {
   undoEnabled: boolean;
   /** Opens a file; throws on failure. RAW opens read the photo's .rawprefs sidecar or use defaults, without writing settings. Unattended PDF opens use default import settings. */
   open(path: string): PatchyDocument;
-  newDocument(width: number, height: number): PatchyDocument;
+  /**
+   * Creates a document with a white Background layer. `name` is the tab title and the
+   * default Save As name (characters a file name cannot hold are dropped); `colorMode`
+   * "cmykProof" starts it in Image > Mode > CMYK Proof and throws without a CMYK profile
+   * in Preferences. Default: "Untitled", "rgb".
+   */
+  newDocument(width: number, height: number, options?: { name?: string; colorMode?: "rgb" | "cmykProof" }): PatchyDocument;
   /** Message box; logs to the console instead in unattended CLI runs. */
   alert(text: string): void;
   /**
