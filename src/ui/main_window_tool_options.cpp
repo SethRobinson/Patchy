@@ -2087,6 +2087,8 @@ void MainWindow::load_tool_settings() {
     }
     canvas_->set_retouch_sample_layers(sample_layers_from_settings(token, legacy_sample_all_layers));
   }
+  canvas_->set_retouch_ignore_adjustments(
+      settings.value(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments()).toBool());
   current_crop_ratio_w_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_ratio_h_ =
@@ -2430,6 +2432,11 @@ void MainWindow::sync_retouch_sample_controls_from_canvas() {
         0, retouch_sample_layers_combo_->findData(
                QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())))));
   }
+  if (retouch_ignore_adjustments_check_ != nullptr) {
+    const QSignalBlocker blocker(retouch_ignore_adjustments_check_);
+    retouch_ignore_adjustments_check_->setChecked(canvas_->retouch_ignore_adjustments());
+    retouch_ignore_adjustments_check_->setEnabled(canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
+  }
 }
 
 QString MainWindow::retouch_sample_info_text() const {
@@ -2524,6 +2531,7 @@ void MainWindow::save_tool_settings() const {
   // Older builds read only the bool: Current & Below reads there as All Layers.
   settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"),
                     canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
+  settings.setValue(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments());
   // The remembered ratio, not the canvas's: Size mode runs the canvas unconstrained.
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);

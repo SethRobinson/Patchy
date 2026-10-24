@@ -2702,7 +2702,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     canvas_->set_retouch_sample_layers(sample_layers_from_settings(
         retouch_sample_layers_combo_->itemData(index).toString().toStdString(), std::nullopt));
+    sync_retouch_sample_controls_from_canvas();
     save_tool_settings();
+  });
+  // Ignore Adjustment Layers (GitHub issue 383): only the composite choices read it.
+  retouch_ignore_adjustments_check_ = new CheckGlyphBox(tr("Ignore Adjustment Layers"), toolbar);
+  retouch_ignore_adjustments_check_->setObjectName(QStringLiteral("retouchIgnoreAdjustmentsCheck"));
+  retouch_ignore_adjustments_check_->setChecked(canvas_defaults->retouch_ignore_adjustments());
+  retouch_ignore_adjustments_check_->setEnabled(canvas_defaults->retouch_sample_layers() !=
+                                                SampleLayers::CurrentLayer);
+  bind_tooltip(retouch_ignore_adjustments_check_,
+               QT_TR_NOOP("Leave adjustment layers out of the sampled image, so an adjustment above the "
+                          "retouched layer is not applied twice"));
+  add_option_widget(retouch_ignore_adjustments_check_, retouch_tools);
+  connect(retouch_ignore_adjustments_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_retouch_ignore_adjustments(checked);
+      save_tool_settings();
+    }
   });
   {
     QPointer<QComboBox> retouch_combo(retouch_sample_layers_combo_);

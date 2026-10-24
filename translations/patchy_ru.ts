@@ -24768,6 +24768,14 @@ Patchy может скачать обновление, заменить этот
         <source>active layer and below</source>
         <translation>активный слой и ниже</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Игнорировать корректирующие слои</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Не включать корректирующие слои в образец, чтобы коррекция над ретушируемым слоем не применялась дважды</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

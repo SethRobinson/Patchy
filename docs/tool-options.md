@@ -69,6 +69,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Pattern Stamp | Pattern (by pattern id), Aligned | `patternStampPatternId`, `patternStampAligned` | yes | yes |
 | Clone | Aligned | `cloneAligned` | yes | yes |
 | Clone, Healing, Spot Healing, Patch | Sample (`retouchSampleLayersCombo`: Current Layer, Current & Below, All Layers) | `retouchSampleLayers` (token; the older bool `retouchSampleAllLayers` is still written and maps on first read) | yes | yes |
+| Clone, Healing, Spot Healing, Patch | Ignore Adjustment Layers (`retouchIgnoreAdjustmentsCheck`) | `retouchIgnoreAdjustments` | yes | yes |
 | Healing | Diffusion | `healingDiffusion` | yes | yes |
 | Patch | Mode, Transparent | retired keys | no | no (session) |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |

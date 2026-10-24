@@ -24696,6 +24696,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>active layer and below</source>
         <translation>aktive Ebene und darunter</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Einstellungsebenen ignorieren</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Einstellungsebenen aus dem aufgenommenen Bild auslassen, damit eine Einstellung über der retuschierten Ebene nicht doppelt angewendet wird</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

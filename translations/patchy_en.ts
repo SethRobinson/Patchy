@@ -24623,6 +24623,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>active layer and below</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

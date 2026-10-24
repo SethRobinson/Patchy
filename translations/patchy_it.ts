@@ -24690,11 +24690,19 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     </message>
     <message>
         <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
-        <translation>Quali livelli legge lo strumento: il livello attivo, questo e i livelli sottostanti (correggere su un livello vuoto sopra l'immagine) o l'immagine unita</translation>
+        <translation>Quali livelli legge lo strumento: il livello attivo, questo e i livelli sottostanti (correggere su un livello vuoto sopra l&apos;immagine) o l&apos;immagine unita</translation>
     </message>
     <message>
         <source>active layer and below</source>
         <translation>livello attivo e sottostanti</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignora livelli di regolazione</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Escludi i livelli di regolazione dall'immagine campionata, così una regolazione sopra il livello ritoccato non viene applicata due volte</translation>
     </message>
 </context>
 <context>

@@ -925,11 +925,33 @@ SampleLayers CanvasWidget::retouch_sample_layers() const noexcept {
   return retouch_sample_layers_;
 }
 
+void CanvasWidget::set_retouch_ignore_adjustments(bool ignore) noexcept {
+  retouch_ignore_adjustments_ = ignore;
+}
+
+bool CanvasWidget::retouch_ignore_adjustments() const noexcept {
+  return retouch_ignore_adjustments_;
+}
+
+SampleLayers CanvasWidget::retouch_effective_sample_layers() const noexcept {
+  if (!retouch_ignore_adjustments_) {
+    return retouch_sample_layers_;
+  }
+  switch (retouch_sample_layers_) {
+    case SampleLayers::AllLayers:
+      return SampleLayers::AllLayersNoAdjustments;
+    case SampleLayers::CurrentAndBelow:
+      return SampleLayers::CurrentAndBelowNoAdjustments;
+    default:
+      return retouch_sample_layers_;
+  }
+}
+
 PixelBuffer CanvasWidget::retouch_source_deep() {
   if (document_ == nullptr) {
     return {};
   }
-  const auto mode = retouch_sample_layers_;
+  const auto mode = retouch_effective_sample_layers();
   if (mode == SampleLayers::AllLayers) {
     return Compositor{}.flatten_rgba_deep(*document_);
   }
@@ -970,13 +992,16 @@ QImage CanvasWidget::retouch_source_snapshot() {
   if (document_ == nullptr) {
     return QImage();
   }
-  const auto mode = retouch_sample_layers_;
+  const auto mode = retouch_effective_sample_layers();
   if (mode == SampleLayers::AllLayers) {
     return render_document_image_with_processing();
   }
   if (mode != SampleLayers::CurrentLayer) {
     // Current & Below (GitHub issue 382): the merged document without the layers above
-    // the active one, so a heal on an empty layer above the photo reads the photo.
+    // the active one, so a heal on an empty layer above the photo reads the photo; the
+    // No Adjustments variants (Ignore Adjustment Layers, GitHub issue 383) also leave
+    // out every adjustment layer, so a Curves above is not sampled into the heal and
+    // then applied a second time over it.
     const auto& document = std::as_const(*document_);
     const auto excluded = sample_layers_excluded_ids(document.layers(), document.active_layer_id(), mode);
     if (!excluded.has_value()) {

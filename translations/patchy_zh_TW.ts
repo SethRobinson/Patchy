@@ -24624,6 +24624,14 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>active layer and below</source>
         <translation>作用中圖層及下方</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>忽略調整圖層</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>從取樣影像中排除調整圖層，使修飾圖層上方的調整不會套用兩次</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

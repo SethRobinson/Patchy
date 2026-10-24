@@ -24696,6 +24696,14 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>active layer and below</source>
         <translation>capa activa e inferiores</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignorar capas de ajuste</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Excluir las capas de ajuste de la imagen muestreada, para que un ajuste sobre la capa retocada no se aplique dos veces</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

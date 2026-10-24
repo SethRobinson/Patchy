@@ -24624,6 +24624,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>active layer and below</source>
         <translation>활성 레이어 및 아래</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>조정 레이어 무시</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>샘플링한 이미지에서 조정 레이어를 제외하여 수정 중인 레이어 위의 조정이 두 번 적용되지 않게 합니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

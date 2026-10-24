@@ -401,6 +401,13 @@ public:
   // retouch choices and read as their base choice).
   void set_retouch_sample_layers(SampleLayers mode) noexcept;
   [[nodiscard]] SampleLayers retouch_sample_layers() const noexcept;
+  // Ignore Adjustment Layers (GitHub issue 383): the Current & Below and All Layers
+  // samples leave every adjustment layer out. Current Layer ignores it.
+  void set_retouch_ignore_adjustments(bool ignore) noexcept;
+  [[nodiscard]] bool retouch_ignore_adjustments() const noexcept;
+  // The composite the snapshot renders: the Sample choice, as its No Adjustments
+  // variant when Ignore Adjustment Layers is on.
+  [[nodiscard]] SampleLayers retouch_effective_sample_layers() const noexcept;
   void set_patch_tool_mode(PatchToolMode mode) noexcept;
   [[nodiscard]] PatchToolMode patch_tool_mode() const noexcept;
   void set_patch_tool_transparent(bool enabled) noexcept;
@@ -3426,6 +3433,7 @@ private:
   // Shared by Clone, Healing, Spot Healing, and Patch (GitHub issue 382): All
   // Layers is the historical default.
   SampleLayers retouch_sample_layers_{SampleLayers::AllLayers};
+  bool retouch_ignore_adjustments_{false};
   int local_adjustment_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};
   bool local_protect_tones_{true};

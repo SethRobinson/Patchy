@@ -24690,11 +24690,19 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
-        <translation>Calques lus par l'outil : le calque actif, celui-ci et les calques inférieurs (corriger sur un calque vide au-dessus de l'image) ou l'image fusionnée</translation>
+        <translation>Calques lus par l&apos;outil : le calque actif, celui-ci et les calques inférieurs (corriger sur un calque vide au-dessus de l&apos;image) ou l&apos;image fusionnée</translation>
     </message>
     <message>
         <source>active layer and below</source>
         <translation>calque actif et inférieurs</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignorer les calques de réglage</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Exclure les calques de réglage de l'image échantillonnée, pour qu'un réglage au-dessus du calque retouché ne soit pas appliqué deux fois</translation>
     </message>
 </context>
 <context>

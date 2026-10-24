@@ -282,6 +282,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {perspective_crop_grid_check_, QT_TR_NOOP("Show Grid")},
       {mixer_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {patch_transparent_check_, QT_TR_NOOP("Transparent")},
+      {retouch_ignore_adjustments_check_, QT_TR_NOOP("Ignore Adjustment Layers")},
       {gradient_reverse_check_, QT_TR_NOOP("Reverse")},
       {gradient_edit_stops_button_, QT_TR_NOOP("Edit Stops...")},
       {wand_contiguous_check_, QT_TR_NOOP("Contiguous")},

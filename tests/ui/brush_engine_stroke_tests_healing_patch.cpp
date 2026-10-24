@@ -18,6 +18,7 @@
 // and the retouch Sample choice. The heal commits are pinned
 // byte-exact on synthetic documents whose uniform surroundings make the
 // frequency-separation math collapse to known values.
+#include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
@@ -184,12 +185,95 @@ void ui_retouch_sample_current_and_below_heals_empty_layer_above_photo() {
   CHECK(canvas.retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
 }
 
+// Ignore Adjustment Layers (GitHub issue 383): with it on, the composite samples leave
+// every adjustment layer out, so an Invert above the target (All Layers) or between the
+// photo and the target (Current & Below) is not sampled into the clone; off, it is.
+void ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample() {
+  patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+  auto photo = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(200, 50, 25, 255));
+  auto* detail = photo.pixel(4, 8);
+  detail[0] = 240;
+  detail[1] = 90;
+  detail[2] = 60;
+  document.add_pixel_layer("Photo", std::move(photo));
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer invert_below(document.allocate_layer_id(), "Invert below", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(invert_below, invert);
+  invert_below.set_visible(false);
+  const auto invert_below_id = invert_below.id();
+  document.add_layer(std::move(invert_below));
+  auto& heal = document.add_pixel_layer("Heal", solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto heal_id = heal.id();
+  patchy::Layer invert_above(document.allocate_layer_id(), "Invert above", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(invert_above, invert);
+  const auto invert_above_id = invert_above.id();
+  document.add_layer(std::move(invert_above));
+  document.set_active_layer(heal_id);
+  const auto heal_pixel = [&document, heal_id](QPoint point) {
+    const auto* layer = std::as_const(document).find_layer(heal_id);
+    const auto bounds = layer->bounds();
+    const auto* px = layer->pixels().pixel(point.x() - bounds.x, point.y() - bounds.y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 64);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Clone);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto stroke_at = [&canvas](QPoint point) {
+    const auto widget_point = canvas.widget_position_for_document_point(point);
+    send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto source = canvas.widget_position_for_document_point(QPoint(4, 8));
+  send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  const QColor original(240, 90, 60, 255);
+  const QColor inverted(15, 165, 195, 255);
+  CHECK(!canvas.retouch_ignore_adjustments());
+
+  // All Layers with the Invert above the target.
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::AllLayers);
+  stroke_at(QPoint(40, 8));
+  CHECK(color_close(heal_pixel(QPoint(40, 8)), inverted, 1));
+  canvas.set_retouch_ignore_adjustments(true);
+  CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::AllLayersNoAdjustments);
+  stroke_at(QPoint(38, 8));
+  CHECK(color_close(heal_pixel(QPoint(38, 8)), original, 1));
+
+  // Current & Below with the Invert between the photo and the target.
+  document.find_layer(invert_above_id)->set_visible(false);
+  document.find_layer(invert_below_id)->set_visible(true);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelow);
+  CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::CurrentAndBelowNoAdjustments);
+  stroke_at(QPoint(36, 8));
+  CHECK(color_close(heal_pixel(QPoint(36, 8)), original, 1));
+  canvas.set_retouch_ignore_adjustments(false);
+  stroke_at(QPoint(34, 8));
+  CHECK(color_close(heal_pixel(QPoint(34, 8)), inverted, 1));
+
+  // Current Layer reads no composite, so the toggle changes nothing there.
+  canvas.set_retouch_ignore_adjustments(true);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentLayer);
+  CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::CurrentLayer);
+}
+
 // The pre-382 Sample All Layers bool still decides the first launch after the update:
 // unchecked opens on Current Layer, checked on All Layers, and the new key wins once
 // written (GitHub issue 382).
 void ui_retouch_sample_layers_migrates_legacy_setting() {
   SettingsValueRestorer token_restorer(QStringLiteral("tools/retouchSampleLayers"));
   SettingsValueRestorer legacy_restorer(QStringLiteral("tools/retouchSampleAllLayers"));
+  SettingsValueRestorer ignore_restorer(QStringLiteral("tools/retouchIgnoreAdjustments"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/retouchIgnoreAdjustments"));
   for (const auto legacy : {false, true}) {
     {
       auto settings = patchy::ui::app_settings();
@@ -219,7 +303,24 @@ void ui_retouch_sample_layers_migrates_legacy_setting() {
       QApplication::processEvents();
     }
     CHECK(require_canvas(window)->retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+    // Ignore Adjustment Layers (GitHub issue 383) is off by default and only enabled
+    // for the composite choices.
+    auto* ignore = window.findChild<QCheckBox*>(QStringLiteral("retouchIgnoreAdjustmentsCheck"));
+    CHECK(ignore != nullptr);
+    if (ignore != nullptr && combo != nullptr) {
+      CHECK(!ignore->isChecked() && ignore->isEnabled());
+      combo->setCurrentIndex(0);
+      QApplication::processEvents();
+      CHECK(!ignore->isEnabled());
+      combo->setCurrentIndex(1);
+      QApplication::processEvents();
+      CHECK(ignore->isEnabled());
+      ignore->setChecked(true);
+      QApplication::processEvents();
+      CHECK(require_canvas(window)->retouch_ignore_adjustments());
+    }
     auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/retouchIgnoreAdjustments")).toBool());
     CHECK(settings.value(QStringLiteral("tools/retouchSampleLayers")).toString() == QStringLiteral("currentAndBelow"));
     // Older builds read only the bool: Current & Below reads there as All Layers.
     CHECK(settings.value(QStringLiteral("tools/retouchSampleAllLayers")).toBool());
@@ -230,9 +331,11 @@ void ui_retouch_sample_layers_migrates_legacy_setting() {
     patchy::ui::MainWindow window;
     show_window(window);
     CHECK(require_canvas(window)->retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+    CHECK(require_canvas(window)->retouch_ignore_adjustments());
     patchy::ui::MainWindowTestAccess::create_default_document(window);
     QApplication::processEvents();
     CHECK(require_canvas(window)->retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+    CHECK(require_canvas(window)->retouch_ignore_adjustments());
   }
 }
 
@@ -1305,6 +1408,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_retouch_sample_current_and_below_heals_empty_layer_above_photo",
        ui_retouch_sample_current_and_below_heals_empty_layer_above_photo},
       {"ui_retouch_sample_layers_migrates_legacy_setting", ui_retouch_sample_layers_migrates_legacy_setting},
+      {"ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample",
+       ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},
       {"ui_spot_healing_escape_cancels_without_pixel_changes",
        ui_spot_healing_escape_cancels_without_pixel_changes},

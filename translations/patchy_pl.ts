@@ -24768,6 +24768,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>active layer and below</source>
         <translation>aktywna warstwa i poniżej</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignoruj warstwy korekcyjne</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Pomiń warstwy korekcyjne w próbkowanym obrazie, aby korekta nad retuszowaną warstwą nie została zastosowana dwa razy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

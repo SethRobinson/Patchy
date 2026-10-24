@@ -24624,6 +24624,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>active layer and below</source>
         <translation>アクティブレイヤーと下のレイヤー</translation>
     </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>調整レイヤーを無視</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>サンプリングする画像から調整レイヤーを除外し、補正するレイヤーの上の調整が二重にかからないようにします</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
