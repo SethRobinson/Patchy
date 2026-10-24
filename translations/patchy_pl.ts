@@ -12162,6 +12162,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB jest wbudowany w Patchy. Pozostałe profile to profile RGB zainstalowane na tym komputerze; użyj polecenia Wybierz plik profilu..., aby wybrać profil spoza listy.</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>Nie można zakodować klatki animowanego PNG.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>Animowany PNG wymaga co najmniej jednej klatki.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>Dokument nie ma widocznych warstw najwyższego poziomu do eksportu jako animowany PNG.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>Nieprawidłowa klatka lub czas trwania animowanego PNG.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>Nie można otworzyć pliku PNG do zapisu</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>Nie można zapisać pliku PNG</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>Opcje animowanego PNG</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24784,6 +24812,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>Tryb korygowania: Zastąp zachowuje teksturę źródła w postaci próbki; tryby mieszania łączą skorygowany kolor z pikselami pod spodem</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>Warstwy jako animowany P&amp;NG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>Eksportuj animowany PNG</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26705,6 +26741,18 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Tego profilu nie można użyć do tej konwersji.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng wymaga ścieżki wyjściowej .png lub .apng.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>Opcje exportAnimatedPng muszą być obiektem.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: nieprawidłowa opcja %1.</translation>
     </message>
 </context>
 <context>

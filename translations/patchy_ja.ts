@@ -12092,6 +12092,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB は Patchy に組み込まれています。その他のプロファイルは、このコンピューターにインストールされている RGB プロファイルです。一覧にないプロファイルは「プロファイルファイルを選択...」で選べます。</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>アニメーションPNGのフレームをエンコードできませんでした。</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>アニメーションPNGには少なくとも1つのフレームが必要です。</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>アニメーションPNGとして書き出せる、表示中の最上位レイヤーがありません。</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>アニメーションPNGのフレームまたは表示時間が無効です。</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>PNGファイルを書き込み用に開けませんでした</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>PNGファイルに書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>アニメーション PNG オプション</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24640,6 +24668,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>修復モード: 置き換えはサンプリングしたソースのテクスチャをそのまま保ちます。描画モードは修復した色を下のピクセルと合成します</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>レイヤーをアニメーションPNGとして書き出す(&amp;P)...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>アニメーションPNGを書き出す</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26559,6 +26595,18 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>このプロファイルはこの変換に使用できません。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPngには拡張子が.pngまたは.apngの出力パスが必要です。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>exportAnimatedPngのオプションはオブジェクトである必要があります。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: オプション%1が無効です。</translation>
     </message>
 </context>
 <context>

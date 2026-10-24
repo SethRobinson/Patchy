@@ -22,6 +22,7 @@
 #include "formats/metadata/metadata_edit.hpp"
 #include "formats/metadata/metadata_view.hpp"
 #include "formats/animation_timing.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 
 #include "ui/pdf_export.hpp"
@@ -3315,6 +3316,56 @@ bool ScriptDocumentObject::exportAnimatedWebp(const QString& path, const QJSValu
   }
   QString error;
   if (!host_.export_session_animated_webp(session_id_, path, output, &error)) {
+    host_.throw_js_error(error);
+    return false;
+  }
+  return true;
+}
+
+bool ScriptDocumentObject::exportAnimatedPng(const QString& path, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) return false;
+  const auto suffix = QFileInfo(path).suffix();
+  if (path.trimmed().isEmpty() || (suffix.compare(QStringLiteral("png"), Qt::CaseInsensitive) != 0 &&
+                                   suffix.compare(QStringLiteral("apng"), Qt::CaseInsensitive) != 0)) {
+    host_.throw_js_error(ScriptEngineHost::tr("exportAnimatedPng needs a .png or .apng output path."));
+    return false;
+  }
+  ImageSaveOptions output;
+  output.apng_animate = true;
+  const auto& values = document->metadata().values;
+  if (const auto found = values.find(apng::kLoopCountMetadata); found != values.end()) {
+    output.apng_loop_count = std::clamp(QString::fromStdString(found->second).toInt(), 0, 65535);
+  }
+  if (!options.isUndefined() && (!options.isObject() || options.isArray() || options.isNull())) {
+    host_.throw_js_error(ScriptEngineHost::tr("exportAnimatedPng options must be an object."));
+    return false;
+  }
+  if (options.isObject()) {
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      const auto key = it.name();
+      const auto value = it.value();
+      int* target = nullptr;
+      int limit = 0;
+      if (key == QStringLiteral("loopCount")) { target = &output.apng_loop_count; limit = 65535; }
+      if (key == QStringLiteral("frameDelayMs")) {
+        target = &output.animation_frame_delay_ms;
+        limit = static_cast<int>(animation::kMaxFrameDelayMs);
+      }
+      const auto number = value.toNumber();
+      if (target == nullptr || !value.isNumber() || !std::isfinite(number) ||
+          number < 0 || number > limit || number != std::floor(number)) {
+        host_.throw_js_error(ScriptEngineHost::tr("exportAnimatedPng: invalid option %1.").arg(key));
+        return false;
+      }
+      *target = static_cast<int>(number);
+    }
+  }
+  QString error;
+  if (!host_.export_session_animated_png(session_id_, path, output, &error)) {
     host_.throw_js_error(error);
     return false;
   }

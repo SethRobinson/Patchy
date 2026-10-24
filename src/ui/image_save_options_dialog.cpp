@@ -1900,6 +1900,57 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     return options;
   }
 
+  // File > Export > Layers as Animated PNG; Save As .png never animates.
+  if (options.apng_animate && (normalized_save_extension(extension) == QStringLiteral("png") ||
+                               normalized_save_extension(extension) == QStringLiteral("apng"))) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("apngSaveOptionsDialog"));
+    auto* content = create_options_dialog_chrome(dialog, QObject::tr("Animated PNG Options"));
+    dialog.resize(380, 200);
+    auto* animation_form = new QFormLayout();
+    animation_form->setContentsMargins(0, 0, 0, 0);
+    auto* frame_delay = new QDoubleSpinBox(&dialog);
+    frame_delay->setObjectName(QStringLiteral("apngFrameDelaySpin"));
+    frame_delay->setDecimals(3);
+    frame_delay->setRange(0, animation::kMaxFrameDelayMs / 1000.0);
+    frame_delay->setSuffix(QObject::tr(" s"));
+    frame_delay->setValue(options.animation_frame_delay_ms / 1000.0);
+    configure_dialog_spinbox(frame_delay, 110);
+    animation_form->addRow(QObject::tr("Default frame delay:"), frame_delay);
+    auto* forever_check = new QCheckBox(QObject::tr("Forever"), &dialog);
+    forever_check->setObjectName(QStringLiteral("apngForeverCheck"));
+    forever_check->setChecked(options.apng_loop_count == 0);
+    animation_form->addRow(forever_check);
+    auto* plays = new QSpinBox(&dialog);
+    plays->setObjectName(QStringLiteral("apngPlayCountSpin"));
+    plays->setRange(1, 65535);
+    plays->setValue(std::max(1, options.apng_loop_count));
+    plays->setEnabled(!forever_check->isChecked());
+    configure_dialog_spinbox(plays, 96);
+    animation_form->addRow(QObject::tr("Play count:"), plays);
+    QObject::connect(forever_check, &QCheckBox::toggled, plays, [plays](bool checked) { plays->setEnabled(!checked); });
+    content->addLayout(animation_form);
+    auto* hint = new QLabel(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
+        "A name ending in a time, like \"blink 0.033s\", sets that frame's delay. Play count includes the first play."),
+        &dialog);
+    hint->setWordWrap(true);
+    hint->setObjectName(QStringLiteral("apngAnimationExplanationLabel"));
+    content->addWidget(hint);
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
+    if (!for_export) finish_export_dialog_size(dialog);
+
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    options.animation_frame_delay_ms = static_cast<int>(std::llround(frame_delay->value() * 1000));
+    options.gif_frame_delay_cs = std::min(65535, (options.animation_frame_delay_ms + 5) / 10);
+    options.apng_loop_count = forever_check->isChecked() ? 0 : plays->value();
+    if (section.has_value()) {
+      apply_export_section(options, *section);
+    }
+    return options;
+  }
+
   // Formats with no format-specific options still get the shared Export section.
   if (for_export && !is_ico_extension(extension) && !is_cur_extension(extension)) {
     QDialog dialog(parent);

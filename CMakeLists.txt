@@ -564,6 +564,7 @@ endif()
 
 add_library(patchy_formats
   src/formats/animation_timing.cpp
+  src/formats/apng_writer.cpp
   src/formats/webp_animation_io.cpp
   src/formats/af_document_io.cpp
   src/formats/af_container.cpp

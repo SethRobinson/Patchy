@@ -12127,6 +12127,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB ist in Patchy integriert. Die anderen Profile sind die auf diesem Computer installierten RGB-Profile; ein nicht aufgeführtes Profil wählen Sie mit „Profildatei wählen...“.</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>Ein Bild der PNG-Animation konnte nicht kodiert werden.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>Eine PNG-Animation benötigt mindestens ein Bild.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>Das Dokument hat keine sichtbaren Ebenen auf oberster Ebene für den Export als PNG-Animation.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>Ungültiges Bild oder ungültige Dauer der PNG-Animation.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>PNG-Datei konnte nicht zum Schreiben geöffnet werden</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>PNG-Datei konnte nicht geschrieben werden</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>Optionen für animiertes PNG</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24712,6 +24740,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>Reparaturmodus: Ersetzen übernimmt die Quellstruktur wie aufgenommen; die Füllmethoden verrechnen die reparierte Farbe mit den Pixeln darunter</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>Ebenen als animiertes &amp;PNG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>PNG-Animation exportieren</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26632,6 +26668,18 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Das Profil kann für diese Umwandlung nicht verwendet werden.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng benötigt einen Ausgabepfad mit der Endung .png oder .apng.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>Die Optionen für exportAnimatedPng müssen ein Objekt sein.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: ungültige Option %1.</translation>
     </message>
 </context>
 <context>

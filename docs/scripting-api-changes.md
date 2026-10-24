@@ -10,6 +10,13 @@ and those of 2026-10-01 to 2026-10-05 in
 [scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
 Every entry below is API 1.
 
+2026-10-24 (additive): `doc.exportAnimatedPng(path, options?)` writes the visible top-level layers
+as an animated PNG (APNG), like `exportAnimatedWebp`: options `frameDelayMs` and `loopCount`, a
+`.png` or `.apng` path, document path and modified state unchanged. The loop count is kept in
+document metadata `apng.loop_count` (also set when an animated PNG opens). Permanent identifiers:
+the method and option names, the metadata key and command id `file.export_animated_png`. Pinned by
+`ui_script_apng_animation_export_preserves_document_and_validates_options`.
+
 2026-10-23 (additive): `doc.colorProfile` (the embedded RGB profile's name, `"sRGB IEC61966-2.1"`
 when untagged) and `doc.convertToProfile(profile, options?)`, Edit > Convert to Profile: `profile`
 is `"sRGB"` or an RGB profile file path, options `intent` (the rendering intent tokens of

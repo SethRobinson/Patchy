@@ -340,6 +340,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(export_animated_webp_action, "file.export_animated_webp");
   connect(export_animated_webp_action, &QAction::triggered, this, [this] { export_animated_webp(); });
   register_document_action(export_animated_webp_action);
+  auto* export_animated_png_action = export_menu->addAction(tr("Layers as Animated &PNG..."));
+  bind_action_text(export_animated_png_action, QT_TR_NOOP("Layers as Animated &PNG..."));
+  export_animated_png_action->setObjectName(QStringLiteral("fileExportAnimatedPngAction"));
+  export_animated_png_action->setMenuRole(QAction::NoRole);
+  register_hotkey(export_animated_png_action, "file.export_animated_png");
+  connect(export_animated_png_action, &QAction::triggered, this, [this] { export_animated_png(); });
+  register_document_action(export_animated_png_action);
   // File Info sits above Print, as in Photoshop (docs/file-info.md).
   auto* file_info_action = file_menu->addAction(tr("File &Info..."));
   bind_action_text(file_info_action, QT_TR_NOOP("File &Info..."));

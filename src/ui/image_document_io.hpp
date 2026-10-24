@@ -164,5 +164,9 @@ void write_animated_webp_file(const Document& document, const QString& path, con
 // frames are 8-bit (docs/jxl.md).
 void write_animated_jxl_file(const Document& document, const QString& path, const ImageSaveOptions& options,
                              std::vector<std::string>* notices = nullptr);
+// Animated PNG (APNG) from the visible top-level layers, under the same frame rules as
+// WebP; 8-bit RGBA frames, play count options.apng_loop_count (docs/animation.md).
+void write_animated_png_file(const Document& document, const QString& path, const ImageSaveOptions& options,
+                             std::vector<std::string>* notices = nullptr);
 
 }  // namespace patchy::ui

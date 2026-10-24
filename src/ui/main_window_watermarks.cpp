@@ -61,7 +61,7 @@ std::optional<SaveWatermark> MainWindow::watermark_for_save(const QString& exten
   if (mode == WatermarkSaveMode::Never || text.isEmpty() || !has_active_document()) {
     return std::nullopt;
   }
-  const bool animated = options.gif_animate || options.webp_animate || options.jxl_animate;
+  const bool animated = options.gif_animate || options.webp_animate || options.jxl_animate || options.apng_animate;
   if (!save_format_takes_watermark(std::as_const(document()), extension, options.tiff_layers.value_or(false),
                                    animated)) {
     return std::nullopt;

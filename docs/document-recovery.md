@@ -188,7 +188,7 @@ crash or power loss the new bytes are on the device before the rename, and the o
 left is a directory entry the file system has not persisted yet, in which case the old
 file is what comes back. A flush failure is a write failure. Callers:
 `psd::write_file_bytes` (every PSD/PSB write), `formats::write_file_bytes` (BMP, TGA,
-PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP writer, the
+PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP and PNG writers, the
 palette (`palette_io::write_palette_file`) and Curves preset (`acv::write_file`) exports,
 and the recovery store. `write_flat_image_file` (PNG, JPEG, WebP, TIFF and the other
 `QImageWriter` formats) goes through `QSaveFile` with an explicit format instead, since

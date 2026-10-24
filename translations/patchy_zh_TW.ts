@@ -12092,6 +12092,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB 內建於 Patchy。其他描述檔是此電腦上安裝的 RGB 描述檔；未列出的描述檔請使用「選擇描述檔檔案...」。</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>無法編碼動畫 PNG 影格。</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>動畫 PNG 至少需要一個影格。</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>文件沒有可匯出為動畫 PNG 的可見頂層圖層。</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>動畫 PNG 的影格或時長無效。</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>無法開啟 PNG 檔案以寫入</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>無法寫入 PNG 檔案</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>動畫 PNG 選項</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24640,6 +24668,14 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>修復模式：取代會保留取樣時的來源紋理；混合模式會將修復後的顏色與下方像素混合</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>圖層匯出為動畫 &amp;PNG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>匯出動畫 PNG</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26559,6 +26595,18 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>此描述檔無法用於這次轉換。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng 需要 .png 或 .apng 輸出路徑。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>exportAnimatedPng 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: 選項 %1 無效。</translation>
     </message>
 </context>
 <context>
