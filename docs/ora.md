@@ -51,6 +51,24 @@ undecodable file. Bad XML, a truncated zip and damaged entries throw plain error
 - Opacity is written as the shortest classic-locale decimal that reads back as the same float, so
   127/255 round-trips exactly.
 
+### Locks
+
+- `edit-locked` (the spec's Layer Edit Locking Status extension: an xsd:boolean on `<layer>`,
+  default false, whose meaning the spec leaves to each app) maps to Lock Image Pixels. Reading:
+  `true` or `1` on a layer or a stack adds that lock. Writing: a layer or group with Lock Image
+  Pixels, alone or within Lock All, gets `edit-locked="true"`; nothing is written otherwise, so
+  files without locks keep their bytes. GIMP 3.2 writes it for its content lock (and for its Lock
+  All, on layers and groups), and Krita 5.3 reads it and saves it back on layers and stacks.
+- Lock Transparency and Lock Position have no OpenRaster attribute and are not written; Lock All
+  therefore reopens as Lock Image Pixels. A lock is not content, so the save warning does not list
+  it. GIMP writes nothing for its alpha and position locks either.
+- `alpha-preserve` (a proposal; Krita implements it) is not a lock: the layer blends without
+  changing the backdrop's alpha. Krita renders it like source-atop and rewrites `svg:src-over` plus
+  `alpha-preserve` as `svg:src-atop`, so Patchy opens it as a clipped layer with its own blend
+  mode, under the `svg:src-atop` base rule in "Blend modes". Patchy never writes it.
+- `scripts/dev/ora/check_real_apps.py` has both apps re-save Patchy's lock file and checks the same
+  layers and groups are still edit-locked.
+
 ### Isolation and groups
 
 `isolation="auto"` is a pass-through group (the stack's op is ignored, per spec);

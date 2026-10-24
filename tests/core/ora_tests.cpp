@@ -509,6 +509,82 @@ void ora_reader_maps_groups_isolation_and_operators() {
   CHECK(read.layers().size() == 5U && read.layers().front().name() == "Bottom" && read.layers().back().name() == "Erase");
 }
 
+// Locks: Lock Image Pixels (alone or in Lock All) is edit-locked on layers and stacks, which
+// GIMP 3.2 writes for its content lock and Krita 5.3 reads and writes back; the transparency
+// and position locks have no attribute. alpha-preserve is Krita's clipping, not a lock.
+Document locks_document() {
+  Document document(40, 30, PixelFormat::rgba8());
+  document.add_layer(pixel_layer(document, "Background", Rect{0, 0, 40, 30}, 1, true));
+  const std::vector<std::pair<const char*, patchy::LayerLockFlags>> layers = {
+      {"Pixels locked", patchy::kLayerLockImagePixels},
+      {"All locked", patchy::kLayerLockAll},
+      {"Transparency locked", patchy::kLayerLockTransparentPixels},
+      {"Position locked", patchy::kLayerLockPosition},
+  };
+  int seed = 2;
+  for (const auto& [name, flags] : layers) {
+    auto layer = pixel_layer(document, name, Rect{seed * 4, 2, 10, 10}, seed);
+    layer.set_lock_flags(flags);
+    document.add_layer(std::move(layer));
+    ++seed;
+  }
+  Layer pixels_group(document.allocate_layer_id(), "Group pixels locked", LayerKind::Group);
+  pixels_group.add_child(pixel_layer(document, "In pixels group", Rect{2, 14, 10, 10}, 8));
+  pixels_group.set_lock_flags(patchy::kLayerLockImagePixels);
+  document.add_layer(std::move(pixels_group));
+  Layer all_group(document.allocate_layer_id(), "Group all locked", LayerKind::Group);
+  all_group.add_child(pixel_layer(document, "In all group", Rect{20, 14, 10, 10}, 9));
+  all_group.set_lock_flags(patchy::kLayerLockAll);
+  document.add_layer(std::move(all_group));
+  return document;
+}
+
+void ora_round_trip_keeps_edit_locks() {
+  const auto bytes = ora::DocumentIo::write(locks_document());
+  const auto read = ora::DocumentIo::read(bytes);
+  const auto locks_of = [&](std::string_view name) {
+    const auto* layer = find_named(read.layers(), name);
+    CHECK(layer != nullptr);
+    return layer != nullptr ? layer->lock_flags() : patchy::kLayerLockNone;
+  };
+  CHECK(locks_of("Pixels locked") == patchy::kLayerLockImagePixels);
+  CHECK(locks_of("All locked") == patchy::kLayerLockImagePixels);
+  CHECK(locks_of("Transparency locked") == patchy::kLayerLockNone);
+  CHECK(locks_of("Position locked") == patchy::kLayerLockNone);
+  CHECK(locks_of("Group pixels locked") == patchy::kLayerLockImagePixels);
+  CHECK(locks_of("Group all locked") == patchy::kLayerLockImagePixels);
+  CHECK(locks_of("In pixels group") == patchy::kLayerLockNone);
+  CHECK(locks_of("Background") == patchy::kLayerLockNone);
+  // A lock is not content: nothing to warn about.
+  CHECK(ora::DocumentIo::lost_content(locks_document()).empty());
+  // And the written attribute is the spec's.
+  const auto with_attribute = archive(R"(<image w="8" h="6"><stack>)"
+                                      R"(<stack name="G" edit-locked="true"><layer src="data/a.png" name="In"/></stack>)"
+                                      R"(<layer src="data/a.png" name="One" edit-locked="1"/>)"
+                                      R"(<layer src="data/a.png" name="Off" edit-locked="false"/>)"
+                                      R"(<layer src="data/a.png" name="Base"/>)"
+                                      R"(</stack></image>)",
+                                      {png_entry("data/a.png", 4, 4, 1)});
+  const auto parsed = ora::DocumentIo::read(with_attribute);
+  CHECK(find_named(parsed.layers(), "G")->lock_flags() == patchy::kLayerLockImagePixels);
+  CHECK(find_named(parsed.layers(), "One")->lock_flags() == patchy::kLayerLockImagePixels);
+  CHECK(find_named(parsed.layers(), "Off")->lock_flags() == patchy::kLayerLockNone);
+}
+
+void ora_reader_opens_alpha_preserve_as_clipping() {
+  // Krita renders alpha-preserve like source-atop (it even rewrites src-over + alpha-preserve
+  // as svg:src-atop), so it opens as a clipped layer keeping its own blend mode.
+  const auto bytes = archive(R"(<image w="8" h="6"><stack>)"
+                             R"(<layer src="data/a.png" name="Kept" composite-op="svg:multiply" alpha-preserve="true"/>)"
+                             R"(<layer src="data/a.png" name="Base" x="2" y="1"/>)"
+                             R"(</stack></image>)",
+                             {png_entry("data/a.png", 4, 4, 1)});
+  const auto read = ora::DocumentIo::read(bytes);
+  const auto* kept = find_named(read.layers(), "Kept");
+  CHECK(kept != nullptr && kept->clipped() && kept->blend_mode() == BlendMode::Multiply);
+  CHECK(kept != nullptr && kept->lock_flags() == patchy::kLayerLockNone);
+}
+
 void ora_reader_falls_back_to_the_merged_image() {
   const auto bytes = archive(R"(<image w="5" h="4"><stack></stack></image>)", {png_entry("mergedimage.png", 5, 4, 3)});
   const auto read = ora::DocumentIo::read(bytes);
@@ -641,6 +717,22 @@ void ora_reads_gimp_and_krita_files_if_available() {
       CHECK(layer != nullptr && layer->blend_mode() == mode);
     }
   }
+  // The lock files: GIMP's content lock (and its Lock All, which it also writes as
+  // edit-locked) and Krita's re-save of GIMP's file.
+  for (const auto* name : {"gimp-locks.ora", "krita-locks.ora"}) {
+    if (!std::filesystem::exists(fixture(name))) {
+      continue;
+    }
+    const auto read = ora::DocumentIo::read_file(fixture(name));
+    for (const auto* locked : {"Lock content", "Lock all", "Group content locked"}) {
+      const auto* layer = find_named(read.layers(), locked);
+      CHECK(layer != nullptr && layer->lock_flags() == patchy::kLayerLockImagePixels);
+    }
+    for (const auto* open : {"Plain", "Lock alpha", "Lock position", "Group position locked", "In content group"}) {
+      const auto* layer = find_named(read.layers(), open);
+      CHECK(layer != nullptr && layer->lock_flags() == patchy::kLayerLockNone);
+    }
+  }
   // Krita's own merged image against Patchy's composite of the same layers.
   for (const auto* name : {"krita-structure.ora", "krita-structure-from-psd.ora"}) {
     const auto bytes = patchy::test::read_binary_file(fixture(name));
@@ -771,6 +863,7 @@ void ora_writes_inspection_artifacts() {
   // The blend modes are checked tile by tile in the modes file; the structure files leave
   // them out so a whole-file comparison measures the tree.
   ora::DocumentIo::write_file(structure_document(BitDepth::UInt8, false), dir / "patchy-structure.ora");
+  ora::DocumentIo::write_file(locks_document(), dir / "patchy-locks.ora");
   {
     const DeepEditingScope deep(true);
     ora::DocumentIo::write_file(structure_document(BitDepth::UInt16, false), dir / "patchy-structure-16.ora");
@@ -825,6 +918,8 @@ std::vector<patchy::test::TestCase> ora_tests() {
       {"ora_reader_refuses_hostile_and_broken_files", ora_reader_refuses_hostile_and_broken_files},
       {"ora_reader_opens_damaged_layers_empty_with_notices", ora_reader_opens_damaged_layers_empty_with_notices},
       {"ora_reader_maps_groups_isolation_and_operators", ora_reader_maps_groups_isolation_and_operators},
+      {"ora_round_trip_keeps_edit_locks", ora_round_trip_keeps_edit_locks},
+      {"ora_reader_opens_alpha_preserve_as_clipping", ora_reader_opens_alpha_preserve_as_clipping},
       {"ora_reader_falls_back_to_the_merged_image", ora_reader_falls_back_to_the_merged_image},
       {"ora_zip64_archives_read_back", ora_zip64_archives_read_back},
       {"ora_lost_content_lists_what_a_save_bakes", ora_lost_content_lists_what_a_save_bakes},

@@ -234,6 +234,14 @@ def run_gimp(jobs, work):
         process.wait()
 
 
+def edit_locked_names(path):
+    """Names of the layers and stacks a .ora marks edit-locked="true"."""
+    with zipfile.ZipFile(path) as archive:
+        root = ElementTree.fromstring(archive.read("stack.xml"))
+    return sorted(element.get("name", "") for element in root.iter()
+                  if element.tag in ("layer", "stack") and element.get("edit-locked") in ("true", "1"))
+
+
 def main():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     build = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(root, "build", "opt-dev")
@@ -322,6 +330,26 @@ def main():
                         " (expected: %s)" % note if note and not ok else ""))
                     if not ok and not note:
                         failures.append((app, label + ":" + name, "%s mean %.2f worst %.0f" % (op, mean, worst)))
+        # Lock read-back: each app opens Patchy's lock file and saves it as .ora again; the
+        # same layers and groups must still be edit-locked.
+        locks = os.path.join(artifacts, "patchy-locks.ora")
+        if os.path.exists(locks):
+            wanted = edit_locked_names(locks)
+            resaved = {}
+            if apps["gimp"]:
+                target = os.path.join(work, "gimp-resave-locks.ora")
+                run_gimp([(locks, target)], work)
+                resaved["gimp"] = target
+            if apps["krita"]:
+                target = os.path.join(work, "krita-resave-locks.ora")
+                resaved["krita"] = target if run_krita(locks, target) == "ok" else None
+            for app, target in resaved.items():
+                got = edit_locked_names(target) if target and os.path.exists(target) else None
+                ok = got == wanted
+                lines.append("%-6s %-34s edit-locked read back: %s %s" % (app, "patchy-locks.ora", got, "ok" if ok else
+                                                                         "DIFFERS from %s" % wanted))
+                if not ok:
+                    failures.append((app, "patchy-locks.ora", "edit-locked %s" % got))
     finally:
         if os.path.basename(work).startswith("patchy-ora-check-"):
             shutil.rmtree(work, ignore_errors=True)

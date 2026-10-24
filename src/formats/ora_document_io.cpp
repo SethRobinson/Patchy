@@ -575,6 +575,7 @@ struct Node {
   BlendMode blend{BlendMode::Normal};
   bool clipped{false};
   bool selected{false};
+  LayerLockFlags locks{kLayerLockNone};
   std::optional<DecodedImage> image;
   std::vector<Node> children;  // uppermost first, as in the file
 };
@@ -614,7 +615,20 @@ void read_common(const svg::XmlNode& element, Node& node, ReadState& state) {
   }
   node.visible = attribute_or(element, "visibility", "visible") != "hidden";
   node.selected = attribute_or(element, "selected", "false") == "true";
+  // edit-locked (the spec's extension, an xsd:boolean on layers; GIMP and Krita also write it
+  // on stacks) opens as Lock Image Pixels: GIMP writes it for its content lock.
+  const auto locked = attribute_or(element, "edit-locked", "false");
+  if (locked == "true" || locked == "1") {
+    node.locks |= kLayerLockImagePixels;
+  }
   const auto op = attribute_or(element, "composite-op", "svg:src-over");
+  // alpha-preserve (a proposal Krita implements) is not a lock: the layer blends without
+  // changing the backdrop's alpha, which Krita renders like source-atop. It opens as a
+  // clipped layer with its own blend mode, under the same base rule as svg:src-atop.
+  const auto preserve = attribute_or(element, "alpha-preserve", "false");
+  if (preserve == "true" || preserve == "1") {
+    node.clipped = true;
+  }
   if (const auto mode = blend_mode_from_op(op); mode.has_value()) {
     node.blend = *mode;
   } else if (op == "svg:src-atop") {
@@ -732,6 +746,7 @@ struct BuildState {
     group.set_opacity(node.opacity);
     group.set_visible(node.visible);
     group.set_blend_mode(node.blend);
+    group.set_lock_flags(node.locks);
     for (auto it = node.children.rbegin(); it != node.children.rend(); ++it) {
       group.add_child(build_layer(*it, state));
     }
@@ -752,6 +767,7 @@ struct BuildState {
   layer.set_visible(node.visible);
   layer.set_blend_mode(node.blend);
   layer.set_clipped(node.clipped);
+  layer.set_lock_flags(node.locks);
   if (node.selected && !state.selected.has_value()) {
     state.selected = layer.id();
   }
@@ -992,6 +1008,11 @@ private:
     }
     if (document_.active_layer_id() == layer.id()) {
       append_attribute(xml, "selected", "true");
+    }
+    // Lock Image Pixels (alone or within Lock All) is edit-locked, which GIMP and Krita read
+    // back; the transparency and position locks have no OpenRaster attribute.
+    if ((layer.lock_flags() & kLayerLockImagePixels) != 0U) {
+      append_attribute(xml, "edit-locked", "true");
     }
   }
 
