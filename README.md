@@ -84,7 +84,7 @@ chmod +x PatchyLinux.AppImage
 executable from your file manager (Properties > Permissions, "Allow executing file as
 program") and double-click it.
 
-The AppImage needs the FUSE version 3 tools and libraries, which most desktops
+The AppImage needs the FUSE 3 tools and libraries (not `libfuse2`), which most desktops
 already have. If it says it cannot mount itself, install it:
 
 | Distro | Command |
