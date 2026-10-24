@@ -12275,6 +12275,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>OpenRaster Image</source>
         <translation>OpenRaster 이미지</translation>
     </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open.</source>
+        <translation>이 Paint.NET 이미지는 너무 커서 Patchy에서 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation>이 Paint.NET 이미지는 너무 커서 Patchy에서 레이어를 열 수 없어 포함된 작은 미리 보기 이미지로 열었습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

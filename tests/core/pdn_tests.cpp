@@ -13,6 +13,7 @@
 #include "formats/metadata/metadata_containers.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
 #include "formats/nrbf_reader.hpp"
+#include "formats/pdf_crypt.hpp"
 #include "formats/pdf_png_writer.hpp"
 #include "formats/pdn_document_io.hpp"
 #include "formats/stb/stb_image.h"
@@ -34,7 +35,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -643,17 +646,47 @@ void pdn_unicode_path_opens() {
   }
 }
 
+// Found by the corpus (#379 follow-up): Paint.NET saves canvases past the 2^28-pixel cap
+// the other importers share (25600 x 14400 files on GitHub). Up to 2^30 pixels per layer
+// opens; past it the preview opens with a size notice rather than "could not be read", and
+// a file that is only the "PDN3" magic (a signature sample) is reported as damaged.
+void pdn_size_limits_and_stub_files_explain_themselves() {
+  auto spec = three_layer_spec();
+  spec.thumbnail_png = small_png();
+  spec.width = 40000;  // 1.6 gigapixels: past the per-layer limit
+  spec.height = 40000;
+  std::vector<std::string> notices;
+  const auto document = patchy::pdn::DocumentIo::read(build_pdn(spec), &notices);
+  CHECK(document.width() == 2 && document.height() == 2);
+  CHECK(notices.size() == 1 && notices[0].find("too large") != std::string::npos);
+
+  for (const std::vector<std::uint8_t>& stub :
+       {std::vector<std::uint8_t>{'P', 'D', 'N', '3'}, std::vector<std::uint8_t>{'P', 'D', 'N', '3', 0x10}}) {
+    std::string message;
+    try {
+      static_cast<void>(patchy::pdn::DocumentIo::read(stub));
+    } catch (const std::runtime_error& error) {
+      message = error.what();
+    }
+    CHECK(message.find("damaged") != std::string::npos);
+  }
+}
+
 // --- public samples -------------------------------------------------------
 
 std::vector<std::uint8_t> rgba_bytes(const Layer& layer) {
   const auto& pixels = std::as_const(layer).pixels();
-  std::vector<std::uint8_t> out;
-  out.reserve(static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height()) * 4U);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto p = pixel_at(layer, x, y);
-      out.insert(out.end(), p.begin(), p.end());
-    }
+  const auto source = pixels.data();
+  if (pixels.format().channels == 4) {
+    return {source.begin(), source.end()};
+  }
+  // The Background imports without alpha: put the opaque alpha back for the comparison.
+  const auto count = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
+  std::vector<std::uint8_t> out(count * 4U, 255);
+  for (std::size_t i = 0; i < count; ++i) {
+    out[i * 4U] = source[i * 3U];
+    out[i * 4U + 1U] = source[i * 3U + 1U];
+    out[i * 4U + 2U] = source[i * 3U + 2U];
   }
   return out;
 }
@@ -777,6 +810,10 @@ void pdn_exif_metadata_reaches_file_info() {
       exif_item(4, 33434, 5, rational(1, 250)),  // ExposureTime (Exif IFD)
       exif_item(5, 1, 2, {'N', 0}),              // GPSLatitudeRef
       {"Notes", "hello"},
+      // Seen in the corpus: the XMP of an image Paint.NET opened, and its palette.
+      {"$xmp.packet0", "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\">"
+                       "</x:xmpmeta><?xpacket end=\"w\"?>"},
+      {"$user.Palette", "4278190335,4293787886,4293853423"},
   };
   const auto bytes = build_pdn(spec);
   const auto document = patchy::pdn::DocumentIo::read(bytes);
@@ -797,6 +834,10 @@ void pdn_exif_metadata_reaches_file_info() {
   const auto notes = std::find_if(info.observed.begin(), info.observed.end(),
                                   [](const auto& item) { return item.label == "Notes"; });
   CHECK(notes != info.observed.end() && notes->summary == "hello");
+  CHECK(info.xmp != nullptr && std::string(info.xmp->begin(), info.xmp->end()).find("x:xmpmeta") != std::string::npos);
+  const auto palette = std::find_if(info.observed.begin(), info.observed.end(),
+                                    [](const auto& item) { return item.label == "Palette"; });
+  CHECK(palette != info.observed.end() && palette->summary == "3 colors");
 }
 
 // --- Paint.NET's blend modes ------------------------------------------------
@@ -1157,6 +1198,238 @@ void pdn_composites_match_paint_net_exports_if_available() {
   }
 }
 
+// What else the format carries, probed in Paint.NET 5.1.12 (docs/pdn-format.md, "What the
+// format does not carry"). text-saved-while-editing.pdn was saved while the Text tool still
+// had "Hello PDN text" open for editing: Paint.NET commits the text into the layer's pixels
+// on save, and no string, font or text object reaches the file. A 1x1 image and a
+// 300-layer image round-trip through Paint.NET and import like any other.
+void pdn_paint_net_5_probe_files_import_as_pixel_layers() {
+  const auto fixture = [](const char* name) { return patchy::test::committed_format_fixture_path("pdn", name); };
+  {
+    std::vector<std::string> notices;
+    const auto bytes = patchy::test::read_binary_file(fixture("text-saved-while-editing.pdn"));
+    const auto document = patchy::pdn::DocumentIo::read(bytes, &notices);
+    CHECK(notices.empty());
+    CHECK(document.width() == 400 && document.height() == 200 && document.layers().size() == 1);
+    const auto& layer = document.layers()[0];
+    CHECK(layer.kind() == patchy::LayerKind::Pixel && !patchy::layer_is_text(layer));
+    CHECK(patchy::background_layer(document.layers(), 400, 200) == &layer);
+    // The text is dark pixels around (28..125, 40..58); everything outside it stays white.
+    std::size_t dark = 0;
+    for (std::int32_t y = 0; y < 200; ++y) {
+      for (std::int32_t x = 0; x < 400; ++x) {
+        const auto p = pixel_at(layer, x, y);
+        if (p[0] < 128) {
+          ++dark;
+          CHECK(x >= 20 && x < 140 && y >= 30 && y < 70);
+        }
+      }
+    }
+    CHECK(dark > 100);
+    const std::string_view text(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    CHECK(text.find("Hello") == std::string_view::npos);
+  }
+  int width = 0;
+  int height = 0;
+  {
+    const auto document = patchy::pdn::DocumentIo::read_file(fixture("one-pixel.pdn"));
+    CHECK(document.width() == 1 && document.height() == 1 && document.layers().size() == 3);
+    CHECK(document.layers()[2].blend_mode() == BlendMode::Xor);
+    const auto reference = load_png_rgba(fixture("one-pixel.png"), width, height);
+    CHECK(reference.has_value() && width == 1 && height == 1);
+    CHECK(export_difference(document, *reference, 0, 1).largest <= 1);
+  }
+  {
+    const auto started = std::chrono::steady_clock::now();
+    const auto document = patchy::pdn::DocumentIo::read_file(fixture("many-layers.pdn"));
+    const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    CHECK(document.layers().size() == 300);
+    CHECK(document.layers()[299].name() == "Layer 299");
+    const auto reference = load_png_rgba(fixture("many-layers.png"), width, height);
+    CHECK(reference.has_value() && width == 64 && height == 64);
+    // Every layer's pixels and properties are exact (MD5s from pypdn) ...
+    const std::array<std::pair<std::size_t, const char*>, 4> digests{{{0, "076b22eabe0376bf7395aa24e32cf5cb"},
+                                                                      {1, "7e28d5c42d71e508e4078cf7e367cb88"},
+                                                                      {150, "3f7975f67b10e06816ddb49aed156d34"},
+                                                                      {299, "c279349b04f3b7ee79dd7634e5fe68ae"}}};
+    for (const auto& [index, expected] : digests) {
+      const auto digest = patchy::pdf::md5(rgba_bytes(document.layers()[index]));
+      std::ostringstream hex;
+      for (const auto byte : digest) {
+        hex << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
+      }
+      CHECK(hex.str() == expected);
+    }
+    CHECK(document.layers()[1].blend_mode() == BlendMode::Multiply);
+    CHECK(document.layers()[299].blend_mode() == BlendMode::Reflect);
+    CHECK(std::abs(document.layers()[150].opacity() * 255.0F - 210.0F) < 0.01F);
+    // ... while the composite of 300 mixed-mode, partial-opacity layers drifts: each layer's
+    // rounding feeds the next, and Dodge, Burn and Reflect magnify it. A float model of
+    // Paint.NET's own kernels drifts from its export by the same 38 levels.
+    const auto difference = export_difference(document, *reference, 0, 64);
+    std::cout << "  300 layers: " << static_cast<int>(elapsed) << " ms, " << difference.differing
+              << " values differ from Paint.NET's export (largest " << difference.largest << ")\n";
+    CHECK(difference.largest <= 40);
+  }
+}
+
+// The real-world corpus (local-test-fixtures/pdn/corpus/<source>/*.pdn, untracked, with a
+// manifest of source URLs; docs/pdn-format.md "Fixtures and tests"). Each file beside a
+// <name>.oracle.txt from pypdn is opened and compared layer by layer: properties and the
+// MD5 of the RGBA bytes. Writes test-artifacts/pdn-corpus-report.tsv (one row per file,
+// flushed as it goes, so a crash names its file) and prints the totals by result. Files
+// over 256 MB (the 25600 x 14400 ones take about 12 s each) run only with
+// PATCHY_PDN_CORPUS_LARGE=1 and the test timeout off (PATCHY_TEST_TIMEOUT_SECONDS=0).
+void pdn_corpus_matches_pypdn_if_available() {
+  const bool include_large = patchy::test::environment_value("PATCHY_PDN_CORPUS_LARGE") == "1";
+  const auto root = patchy::test::local_format_fixture_path("pdn", "corpus");
+  patchy::test::skip_unless_exists(root);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream report("test-artifacts/pdn-corpus-report.tsv", std::ios::binary);
+  report << "file\tresult\tversion\tlayers\twidth\theight\tms\tdetail\n";
+  std::map<std::string, std::size_t> totals;
+  std::map<std::string, std::map<std::string, std::size_t>> by_version;
+  std::vector<std::string> failures;
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
+    if (!entry.is_regular_file() || entry.path().extension() != ".pdn") {
+      continue;
+    }
+    const auto path = entry.path();
+    const auto name = path.parent_path().filename().string() + "/" + path.filename().string();
+    if (!include_large && entry.file_size() > (256U << 20U)) {
+      report << name << "\tskipped (large)\t\t\t\t\t\t\n";
+      ++totals["skipped (large)"];
+      continue;
+    }
+    auto oracle_path = path;
+    oracle_path.replace_extension(".oracle.txt");
+    std::string version = "?";
+    std::string oracle_error;
+    std::int32_t width = 0;
+    std::int32_t height = 0;
+    struct Expected {
+      std::string md5;
+      bool visible;
+      int opacity;
+      int blend;
+      std::string name;
+    };
+    std::vector<Expected> expected;
+    bool have_oracle = false;
+    if (std::ifstream oracle(oracle_path); oracle) {
+      have_oracle = true;
+      std::string line;
+      while (std::getline(oracle, line)) {
+        std::istringstream fields(line);
+        std::string kind;
+        fields >> kind;
+        if (kind == "size") {
+          fields >> width >> height;
+        } else if (kind == "version") {
+          fields >> version;
+        } else if (kind == "error") {
+          oracle_error = line.substr(6);
+        } else if (kind == "layer-md5") {
+          Expected layer{};
+          int visible = 0;
+          int background = 0;
+          fields >> layer.md5 >> visible >> background >> layer.opacity >> layer.blend;
+          layer.visible = visible != 0;
+          std::getline(fields, layer.name);
+          if (!layer.name.empty() && layer.name.front() == ' ') {
+            layer.name.erase(0, 1);
+          }
+          expected.push_back(std::move(layer));
+        }
+      }
+    }
+    std::string result;
+    std::string detail;
+    std::size_t layer_count = 0;
+    double elapsed = 0.0;
+    try {
+      const auto bytes = patchy::test::read_binary_file(path);
+      std::vector<std::string> notices;
+      const auto started = std::chrono::steady_clock::now();
+      const auto document = patchy::pdn::DocumentIo::read(bytes, &notices);
+      elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+      layer_count = document.layers().size();
+      const bool preview = std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+        return notice.find("embedded preview") != std::string::npos;
+      });
+      for (const auto& notice : notices) {
+        detail += (detail.empty() ? "" : " | ") + notice;
+      }
+      if (preview) {
+        result = "fallback";
+      } else if (!have_oracle || !oracle_error.empty()) {
+        result = "opened (no oracle)";
+      } else if (document.width() != width || document.height() != height || layer_count != expected.size()) {
+        result = "mismatch";
+        detail = "size or layer count differs";
+      } else {
+        result = "pass";
+        for (std::size_t i = 0; i < expected.size(); ++i) {
+          const auto& layer = document.layers()[i];
+          const auto& want = expected[i];
+          const auto digest = patchy::pdf::md5(rgba_bytes(layer));
+          std::ostringstream hex;
+          for (const auto byte : digest) {
+            hex << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
+          }
+          std::string why;
+          if (layer.name() != want.name) {
+            why = "name";
+          } else if (layer.visible() != want.visible) {
+            why = "visibility";
+          } else if (std::abs(layer.opacity() * 255.0F - static_cast<float>(want.opacity)) > 0.01F) {
+            why = "opacity";
+          } else if (layer.blend_mode() != expected_blend(want.blend)) {
+            why = "blend " + std::to_string(want.blend);
+          } else if (hex.str() != want.md5) {
+            why = "pixels";
+          }
+          if (!why.empty()) {
+            result = "mismatch";
+            detail = "layer " + std::to_string(i) + ": " + why;
+            break;
+          }
+        }
+      }
+    } catch (const std::exception& error) {
+      const std::string what = error.what();
+      result = what.find("Not a Paint.NET document") != std::string::npos ? "not a pdn" : "error";
+      detail = what;
+    }
+    report << name << '\t' << result << '\t' << version << '\t' << layer_count << '\t' << width << '\t' << height
+           << '\t' << static_cast<long long>(elapsed) << '\t' << detail << '\n';
+    report.flush();
+    ++totals[result];
+    const auto dot = version.find('.');
+    const auto major = dot == std::string::npos ? version : version.substr(0, dot);
+    ++by_version[major][result];
+    // pypdn read it and Patchy did not agree: a real failure. (Files pypdn cannot read
+    // either are reported, not failed: some are truncated downloads.)
+    if (have_oracle && oracle_error.empty() && result != "pass") {
+      failures.push_back(name + ": " + result + " (" + detail + ")");
+    }
+  }
+  for (const auto& [result, count] : totals) {
+    std::cout << "  " << result << ": " << count << '\n';
+  }
+  for (const auto& [major, results] : by_version) {
+    std::cout << "  Paint.NET " << major << ":";
+    for (const auto& [result, count] : results) {
+      std::cout << ' ' << result << ' ' << count;
+    }
+    std::cout << '\n';
+  }
+  for (const auto& failure : failures) {
+    std::cout << "  FAILED " << failure << '\n';
+  }
+  CHECK(failures.empty());
+}
+
 // A 4000 x 4000 file with ten layers (local-test-fixtures/pdn/large-4000x4000x10.pdn,
 // 250 MB, made by the fixture scripts): prints the open time for docs/pdn-format.md.
 void pdn_large_file_timing_if_available() {
@@ -1190,6 +1463,7 @@ std::vector<patchy::test::TestCase> pdn_tests() {
       {"pdn_broken_graph_falls_back_to_the_thumbnail", pdn_broken_graph_falls_back_to_the_thumbnail},
       {"pdn_damaged_chunks_open_transparent_with_a_notice", pdn_damaged_chunks_open_transparent_with_a_notice},
       {"pdn_mutation_sweep_never_crashes", pdn_mutation_sweep_never_crashes},
+      {"pdn_size_limits_and_stub_files_explain_themselves", pdn_size_limits_and_stub_files_explain_themselves},
       {"pdn_registry_sniff_and_open_by_content_detection", pdn_registry_sniff_and_open_by_content_detection},
       {"pdn_unicode_path_opens", pdn_unicode_path_opens},
       {"pdn_public_samples_match_pypdn_if_available", pdn_public_samples_match_pypdn_if_available},
@@ -1197,6 +1471,8 @@ std::vector<patchy::test::TestCase> pdn_tests() {
       {"pdn_paint_net_5_files_match_their_exports", pdn_paint_net_5_files_match_their_exports},
       {"pdn_paint_net_5_full_tables_if_available", pdn_paint_net_5_full_tables_if_available},
       {"pdn_large_file_timing_if_available", pdn_large_file_timing_if_available},
+      {"pdn_corpus_matches_pypdn_if_available", pdn_corpus_matches_pypdn_if_available},
+      {"pdn_paint_net_5_probe_files_import_as_pixel_layers", pdn_paint_net_5_probe_files_import_as_pixel_layers},
       {"blend_math_paint_dot_net_modes_match_paint_net_renders", blend_math_paint_dot_net_modes_match_paint_net_renders},
       {"psd_saves_paint_dot_net_blend_modes_as_normal", psd_saves_paint_dot_net_blend_modes_as_normal},
   };
