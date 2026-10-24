@@ -192,11 +192,8 @@ Bytes jumbf_box(std::string_view type, const Bytes& payload) {
 }
 
 Bytes jumbf_superbox(std::string_view label, const Bytes& content) {
-  // Reserved up front: growing in place makes GCC 15 report a false -Warray-bounds.
-  Bytes description;
-  description.reserve(18 + label.size());
-  description.assign(16, 0x11);
-  description.push_back(0x03);  // requestable + label present
+  Bytes description(17, 0x11);
+  description[16] = 0x03;  // requestable + label present
   append(description, label);
   description.push_back(0);
   Bytes payload = jumbf_box("jumd", description);
