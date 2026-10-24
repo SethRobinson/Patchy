@@ -58,6 +58,18 @@ namespace patchy::ui {
 
 namespace {
 
+// A copy of `document` with those layers hidden, for the deep retouch snapshot of a
+// Current & Below sample (the copy shares pixel storage until written).
+Document document_with_hidden_layers(const Document& document, const std::vector<LayerId>& hidden_layer_ids) {
+  Document copy = document;
+  for (const auto id : hidden_layer_ids) {
+    if (auto* layer = copy.find_layer(id); layer != nullptr) {
+      layer->set_visible(false);
+    }
+  }
+  return copy;
+}
+
 QImage qimage_from_flat_composite_pixels(const PixelBuffer& pixels) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
     return {};
@@ -895,20 +907,69 @@ int CanvasWidget::healing_diffusion() const noexcept {
   return healing_diffusion_;
 }
 
-void CanvasWidget::set_retouch_sample_all_layers(bool enabled) noexcept {
-  retouch_sample_all_layers_ = enabled;
+void CanvasWidget::set_healing_mode(HealingMode mode) noexcept {
+  healing_mode_ = mode;
 }
 
-bool CanvasWidget::retouch_sample_all_layers() const noexcept {
-  return retouch_sample_all_layers_;
+CanvasWidget::HealingMode CanvasWidget::healing_mode() const noexcept {
+  return healing_mode_;
+}
+
+void CanvasWidget::set_retouch_sample_layers(SampleLayers mode) noexcept {
+  switch (mode) {
+    case SampleLayers::AllLayersNoAdjustments:
+      mode = SampleLayers::AllLayers;
+      break;
+    case SampleLayers::CurrentAndBelowNoAdjustments:
+      mode = SampleLayers::CurrentAndBelow;
+      break;
+    default:
+      break;
+  }
+  retouch_sample_layers_ = mode;
+}
+
+SampleLayers CanvasWidget::retouch_sample_layers() const noexcept {
+  return retouch_sample_layers_;
+}
+
+void CanvasWidget::set_retouch_ignore_adjustments(bool ignore) noexcept {
+  retouch_ignore_adjustments_ = ignore;
+}
+
+bool CanvasWidget::retouch_ignore_adjustments() const noexcept {
+  return retouch_ignore_adjustments_;
+}
+
+SampleLayers CanvasWidget::retouch_effective_sample_layers() const noexcept {
+  if (!retouch_ignore_adjustments_) {
+    return retouch_sample_layers_;
+  }
+  switch (retouch_sample_layers_) {
+    case SampleLayers::AllLayers:
+      return SampleLayers::AllLayersNoAdjustments;
+    case SampleLayers::CurrentAndBelow:
+      return SampleLayers::CurrentAndBelowNoAdjustments;
+    default:
+      return retouch_sample_layers_;
+  }
 }
 
 PixelBuffer CanvasWidget::retouch_source_deep() {
   if (document_ == nullptr) {
     return {};
   }
-  if (retouch_sample_all_layers_) {
+  const auto mode = retouch_effective_sample_layers();
+  if (mode == SampleLayers::AllLayers) {
     return Compositor{}.flatten_rgba_deep(*document_);
+  }
+  if (mode != SampleLayers::CurrentLayer) {
+    const auto& document = std::as_const(*document_);
+    const auto excluded = sample_layers_excluded_ids(document.layers(), document.active_layer_id(), mode);
+    if (!excluded.has_value()) {
+      return {};
+    }
+    return Compositor{}.flatten_rgba_deep(document_with_hidden_layers(document, *excluded));
   }
   const auto* layer = active_pixel_layer();
   const auto depth = document_->color_state().bit_depth;
@@ -939,8 +1000,22 @@ QImage CanvasWidget::retouch_source_snapshot() {
   if (document_ == nullptr) {
     return QImage();
   }
-  if (retouch_sample_all_layers_) {
+  const auto mode = retouch_effective_sample_layers();
+  if (mode == SampleLayers::AllLayers) {
     return render_document_image_with_processing();
+  }
+  if (mode != SampleLayers::CurrentLayer) {
+    // Current & Below (GitHub issue 382): the merged document without the layers above
+    // the active one, so a heal on an empty layer above the photo reads the photo; the
+    // No Adjustments variants (Ignore Adjustment Layers, GitHub issue 383) also leave
+    // out every adjustment layer, so a Curves above is not sampled into the heal and
+    // then applied a second time over it.
+    const auto& document = std::as_const(*document_);
+    const auto excluded = sample_layers_excluded_ids(document.layers(), document.active_layer_id(), mode);
+    if (!excluded.has_value()) {
+      return QImage();
+    }
+    return render_document_image_with_processing(*excluded);
   }
   const auto* layer = active_pixel_layer();
   if (layer == nullptr) {

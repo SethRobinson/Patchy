@@ -15,12 +15,19 @@
 #include <string_view>
 // Part 2 of the brush-engine stroke UI test group (see
 // brush_engine_stroke_tests.cpp): Spot Healing, Remove Object, the Patch tool,
-// and the retouch Sample All Layers option. The heal commits are pinned
+// and the retouch Sample choice. The heal commits are pinned
 // byte-exact on synthetic documents whose uniform surroundings make the
 // frequency-separation math collapse to known values.
+#include "core/adjustment_layer.hpp"
+#include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/image_document_io.hpp"
+#include "ui/qt_paths.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -79,7 +86,7 @@ void ui_retouch_sample_all_layers_switches_clone_and_healing_source() {
   canvas.show();
   QApplication::processEvents();
   // The default preserves the historical always-merged sampling.
-  CHECK(canvas.retouch_sample_all_layers());
+  CHECK(canvas.retouch_sample_layers() == patchy::SampleLayers::AllLayers);
 
   const auto stroke_at = [&canvas](QPoint point) {
     const auto widget_point = canvas.widget_position_for_document_point(point);
@@ -104,12 +111,548 @@ void ui_retouch_sample_all_layers_switches_clone_and_healing_source() {
   const auto* healed = edit_layer.pixels().pixel(32, 8);
   CHECK(healed[0] == 50 && healed[1] == 60 && healed[2] == 65 && healed[3] == 255);
 
-  // Unchecked: the same source point sampled from the active layer alone is
+  // Current Layer: the same source point sampled from the active layer alone is
   // fully transparent, so the clone writes transparency.
-  canvas.set_retouch_sample_all_layers(false);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentLayer);
   canvas.set_tool(patchy::ui::CanvasTool::Clone);
   stroke_at(QPoint(40, 8));
   CHECK(edit_layer.pixels().pixel(40, 8)[3] == 0);
+}
+
+// Current & Below (GitHub issue 382): the snapshot is the active layer and everything
+// under it, so a clone or heal on an empty layer above the photo reads the photo while a
+// layer above (here at the root, over the group holding the target) stays out of it.
+void ui_retouch_sample_current_and_below_heals_empty_layer_above_photo() {
+  patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+  auto photo = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(200, 50, 25, 255));
+  auto* detail = photo.pixel(4, 8);
+  detail[0] = 240;
+  detail[1] = 90;
+  detail[2] = 60;
+  document.add_pixel_layer("Photo", std::move(photo));
+  patchy::Layer group(document.allocate_layer_id(), "Retouch", patchy::LayerKind::Group);
+  patchy::Layer heal(document.allocate_layer_id(), "Heal",
+                     solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto heal_id = heal.id();
+  group.children().push_back(std::move(heal));
+  document.add_layer(std::move(group));
+  auto cover = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(cover, QRect(0, 0, 12, 16), QColor(0, 0, 255));
+  document.add_pixel_layer("Cover", std::move(cover));
+  document.set_active_layer(heal_id);
+  const auto heal_pixel = [&document, heal_id](QPoint point) {
+    const auto* layer = std::as_const(document).find_layer(heal_id);
+    const auto bounds = layer->bounds();
+    const auto* px = layer->pixels().pixel(point.x() - bounds.x, point.y() - bounds.y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 64);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Clone);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_healing_diffusion(5);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto stroke_at = [&canvas](QPoint point) {
+    const auto widget_point = canvas.widget_position_for_document_point(point);
+    send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto source = canvas.widget_position_for_document_point(QPoint(4, 8));
+  send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+
+  // All Layers reads the blue Cover over the source point.
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::AllLayers);
+  stroke_at(QPoint(40, 8));
+  CHECK(heal_pixel(QPoint(40, 8)) == QColor(0, 0, 255, 255));
+  // Current Layer reads the empty Heal layer: nothing to copy.
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentLayer);
+  stroke_at(QPoint(38, 8));
+  CHECK(heal_pixel(QPoint(38, 8)).alpha() == 0);
+  // Current & Below leaves the Cover out and copies the photo's detail.
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelow);
+  CHECK(canvas.retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+  stroke_at(QPoint(36, 8));
+  CHECK(heal_pixel(QPoint(36, 8)) == QColor(240, 90, 60, 255));
+  // Healing onto the empty layer: the photo's detail over the photo's own tone,
+  // (200,50,25) + (240,90,60) - (200,50,25), written opaque into the empty layer.
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  stroke_at(QPoint(30, 8));
+  CHECK(heal_pixel(QPoint(30, 8)) == QColor(240, 90, 60, 255));
+  // A No Adjustments value is not a retouch choice; it reads as its base.
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelowNoAdjustments);
+  CHECK(canvas.retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+}
+
+// The layered test file for the Healing Brush group (GitHub issues 380 to 383), as the
+// artifact test-artifacts/issue-382-healing-layers.psd: a grainy synthetic "photo" with
+// dark spots and a scratch to heal, an empty "Heal here" layer above it (active), and a
+// Curves layer over both. It must read back with its three layers and the same composite.
+void ui_retouch_healing_test_psd_round_trips() {
+  constexpr int kWidth = 480;
+  constexpr int kHeight = 320;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  auto photo = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+  const auto grain = [](int x, int y) {
+    auto value = static_cast<std::uint64_t>(y) * 7919U + static_cast<std::uint64_t>(x) * 104729U + 0x9E3779B97F4A7C15ULL;
+    value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    value = (value ^ (value >> 27U)) * 0x94D049BB133111EBULL;
+    value ^= value >> 31U;
+    return static_cast<int>(value % 25U) - 12;
+  };
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      int r = 0;
+      int g = 0;
+      int b = 0;
+      if (y < 150) {
+        r = 110 + y / 3;
+        g = 150 + y / 4;
+        b = 215 - y / 10;
+      } else {
+        r = 120 - (y - 150) / 6 + (x % 40) / 8;
+        g = 140 - (y - 150) / 5;
+        b = 70 - (y - 150) / 10;
+      }
+      const auto noise = grain(x, y);
+      auto* px = photo.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(std::clamp(r + noise, 0, 255));
+      px[1] = static_cast<std::uint8_t>(std::clamp(g + noise, 0, 255));
+      px[2] = static_cast<std::uint8_t>(std::clamp(b + noise, 0, 255));
+    }
+  }
+  // Dark spots and one scratch: the blemishes to heal.
+  for (const auto& [cx, cy, radius] : std::array<std::array<int, 3>, 6>{
+           {{90, 60, 6}, {300, 90, 5}, {380, 40, 4}, {140, 230, 7}, {260, 260, 5}, {410, 210, 6}}}) {
+    for (int y = cy - radius; y <= cy + radius; ++y) {
+      for (int x = cx - radius; x <= cx + radius; ++x) {
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= radius * radius) {
+          auto* px = photo.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>(px[0] / 4);
+          px[1] = static_cast<std::uint8_t>(px[1] / 4);
+          px[2] = static_cast<std::uint8_t>(px[2] / 4);
+        }
+      }
+    }
+  }
+  for (int x = 180; x < 330; ++x) {
+    const auto y = 190 + (x - 180) / 6;
+    auto* px = photo.pixel(x, y);
+    px[0] = 235;
+    px[1] = 235;
+    px[2] = 230;
+  }
+  document.add_pixel_layer("Photo", std::move(photo));
+  auto& heal = document.add_pixel_layer(
+      "Heal here", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto heal_id = heal.id();
+  patchy::AdjustmentSettings curves;
+  curves.kind = patchy::AdjustmentKind::Curves;
+  curves.curves.rgb = {{0, 0}, {64, 40}, {192, 215}, {255, 255}};
+  patchy::Layer curves_layer(document.allocate_layer_id(), "Curves", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(curves_layer, curves);
+  document.add_layer(std::move(curves_layer));
+  document.set_active_layer(heal_id);
+
+  ensure_artifact_dir();
+  const auto path = QStringLiteral("test-artifacts/issue-382-healing-layers.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
+  const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  CHECK(reread.layers().size() == 3);
+  CHECK(reread.layers().size() == 3 && reread.layers()[2].kind() == patchy::LayerKind::Adjustment);
+  const auto composite = patchy::ui::qimage_from_document(document, true);
+  const auto reread_composite = patchy::ui::qimage_from_document(reread, true);
+  for (const auto& point : {QPoint(90, 60), QPoint(200, 100), QPoint(250, 200), QPoint(470, 310)}) {
+    CHECK(color_close(reread_composite.pixelColor(point), composite.pixelColor(point), 1));
+  }
+
+  // The issue shot for the source crosshair (GitHub issue 380): healing the spot at
+  // (300, 90) onto the empty layer with Current & Below, mid-stroke, the crosshair 34 px
+  // to the right where the stroke samples.
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(760, 520);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelow);
+  canvas.set_retouch_ignore_adjustments(true);
+  canvas.set_brush_size(16);
+  canvas.set_brush_softness(30);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_view_zoom(1.5);
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(330, 92)), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(330, 92)), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(296, 88)), Qt::LeftButton, Qt::LeftButton);
+  for (const auto& point : {QPoint(298, 89), QPoint(300, 90), QPoint(302, 91)}) {
+    send_mouse(canvas, QEvent::MouseMove, at(point), Qt::LeftButton, Qt::LeftButton);
+  }
+  QApplication::processEvents();
+  CHECK(canvas.retouch_source_indicator() == QPoint(336, 95));
+  save_widget_artifact("issue_380_healing_source_indicator", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(302, 91)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  // The heal landed on the empty layer, over the dark spot, and nothing else changed.
+  const auto* heal_layer = std::as_const(document).find_layer(heal_id);
+  const auto heal_bounds = heal_layer->bounds();
+  CHECK(heal_layer->pixels().pixel(300 - heal_bounds.x, 90 - heal_bounds.y)[3] == 255);
+  CHECK(std::as_const(document).layers()[0].pixels().pixel(300, 90)[0] < 60);
+}
+
+// Ignore Adjustment Layers (GitHub issue 383): with it on, the composite samples leave
+// every adjustment layer out, so an Invert above the target (All Layers) or between the
+// photo and the target (Current & Below) is not sampled into the clone; off, it is.
+void ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample() {
+  patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+  auto photo = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(200, 50, 25, 255));
+  auto* detail = photo.pixel(4, 8);
+  detail[0] = 240;
+  detail[1] = 90;
+  detail[2] = 60;
+  document.add_pixel_layer("Photo", std::move(photo));
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer invert_below(document.allocate_layer_id(), "Invert below", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(invert_below, invert);
+  invert_below.set_visible(false);
+  const auto invert_below_id = invert_below.id();
+  document.add_layer(std::move(invert_below));
+  auto& heal = document.add_pixel_layer("Heal", solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto heal_id = heal.id();
+  patchy::Layer invert_above(document.allocate_layer_id(), "Invert above", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(invert_above, invert);
+  const auto invert_above_id = invert_above.id();
+  document.add_layer(std::move(invert_above));
+  document.set_active_layer(heal_id);
+  const auto heal_pixel = [&document, heal_id](QPoint point) {
+    const auto* layer = std::as_const(document).find_layer(heal_id);
+    const auto bounds = layer->bounds();
+    const auto* px = layer->pixels().pixel(point.x() - bounds.x, point.y() - bounds.y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 64);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Clone);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto stroke_at = [&canvas](QPoint point) {
+    const auto widget_point = canvas.widget_position_for_document_point(point);
+    send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto source = canvas.widget_position_for_document_point(QPoint(4, 8));
+  send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  const QColor original(240, 90, 60, 255);
+  const QColor inverted(15, 165, 195, 255);
+  CHECK(!canvas.retouch_ignore_adjustments());
+
+  // All Layers with the Invert above the target.
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::AllLayers);
+  stroke_at(QPoint(40, 8));
+  CHECK(color_close(heal_pixel(QPoint(40, 8)), inverted, 1));
+  canvas.set_retouch_ignore_adjustments(true);
+  CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::AllLayersNoAdjustments);
+  stroke_at(QPoint(38, 8));
+  CHECK(color_close(heal_pixel(QPoint(38, 8)), original, 1));
+
+  // Current & Below with the Invert between the photo and the target.
+  document.find_layer(invert_above_id)->set_visible(false);
+  document.find_layer(invert_below_id)->set_visible(true);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelow);
+  CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::CurrentAndBelowNoAdjustments);
+  stroke_at(QPoint(36, 8));
+  CHECK(color_close(heal_pixel(QPoint(36, 8)), original, 1));
+  canvas.set_retouch_ignore_adjustments(false);
+  stroke_at(QPoint(34, 8));
+  CHECK(color_close(heal_pixel(QPoint(34, 8)), inverted, 1));
+
+  // Current Layer reads no composite, so the toggle changes nothing there.
+  canvas.set_retouch_ignore_adjustments(true);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentLayer);
+  CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::CurrentLayer);
+}
+
+// The Healing Brush's Mode (GitHub issue 381) on a two-tone fixture: the source detail
+// (230,100,90) sits on (200,60,40) and the strokes land on (80,120,160), so the classic
+// heal is D + detail - A = (110,160,210). Replace writes the source as sampled; each
+// blend mode writes that healed color blended over the destination with the layer mode.
+void ui_healing_brush_modes_blend_the_healed_color() {
+  using patchy::ui::HealingMode;
+  const auto make_document = [] {
+    patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(80, 120, 160, 255));
+    fill_pixel_rect(pixels, QRect(0, 0, 24, 16), QColor(200, 60, 40));
+    auto* detail = pixels.pixel(4, 8);
+    detail[0] = 230;
+    detail[1] = 100;
+    detail[2] = 90;
+    document.add_pixel_layer("Photo", std::move(pixels));
+    return document;
+  };
+  const std::array<std::uint8_t, 3> destination{80, 120, 160};
+  const std::array<std::uint8_t, 3> healed{110, 160, 210};
+  struct Case {
+    HealingMode mode;
+    std::array<std::uint8_t, 3> expected;
+  };
+  const std::array<Case, 8> cases{{
+      {HealingMode::Normal, healed},
+      {HealingMode::Replace, {230, 100, 90}},
+      {HealingMode::Multiply, patchy::blend_rgb(healed, destination, patchy::BlendMode::Multiply)},
+      {HealingMode::Screen, patchy::blend_rgb(healed, destination, patchy::BlendMode::Screen)},
+      {HealingMode::Darken, {80, 120, 160}},
+      {HealingMode::Lighten, healed},
+      {HealingMode::Color, patchy::blend_rgb(healed, destination, patchy::BlendMode::Color)},
+      {HealingMode::Luminosity, patchy::blend_rgb(healed, destination, patchy::BlendMode::Luminosity)},
+  }};
+  CHECK(patchy::ui::healing_mode_from_token("luminosity") == HealingMode::Luminosity);
+  CHECK(patchy::ui::healing_mode_token(HealingMode::Replace) == "replace");
+  CHECK(!patchy::ui::healing_mode_from_token("overlay").has_value());
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    patchy::set_deep_editing_override(true);
+    auto document = make_document();
+    if (depth != patchy::BitDepth::UInt8) {
+      patchy::convert_document_depth(document, depth);
+    }
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(192, 64);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::Healing);
+    canvas.set_brush_size(1);
+    canvas.set_brush_opacity(100);
+    canvas.set_brush_softness(0);
+    canvas.set_healing_diffusion(5);
+    canvas.set_clone_aligned(false);
+    canvas.show();
+    QApplication::processEvents();
+    const auto source = canvas.widget_position_for_document_point(QPoint(4, 8));
+    send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    int x = 30;
+    for (const auto& [mode, expected] : cases) {
+      canvas.set_healing_mode(mode);
+      CHECK(canvas.healing_mode() == mode);
+      const auto point = canvas.widget_position_for_document_point(QPoint(x, 8));
+      send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      const auto actual = patchy::ui::qimage_from_document(document, true).pixelColor(x, 8);
+      const QColor wanted(expected[0], expected[1], expected[2]);
+      if (!color_close(actual, wanted, depth == patchy::BitDepth::UInt8 ? 1 : 2)) {
+        std::fprintf(stderr, "  depth %d mode %d: %s, expected %s\n", static_cast<int>(depth), static_cast<int>(mode),
+                     qPrintable(actual.name()), qPrintable(wanted.name()));
+      }
+      CHECK(color_close(actual, wanted, depth == patchy::BitDepth::UInt8 ? 1 : 2));
+      x += 2;
+    }
+    patchy::set_deep_editing_override(std::nullopt);
+  }
+}
+
+// The Healing Brush's Mode combo (GitHub issue 381): shown for the Healing Brush only,
+// eight entries, reaching the canvas, the saved settings and every new document.
+void ui_healing_mode_option_persists_and_reaches_new_documents() {
+  SettingsValueRestorer mode_restorer(QStringLiteral("tools/healingMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/healingMode"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("healingModeCombo"));
+  CHECK(combo != nullptr);
+  if (combo == nullptr) {
+    return;
+  }
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  CHECK(!combo->isVisible());
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(combo->isVisible());
+  CHECK(combo->count() == 8);
+  CHECK(combo->itemText(0) == QStringLiteral("Normal"));
+  CHECK(combo->itemText(1) == QStringLiteral("Replace"));
+  CHECK(combo->itemText(7) == QStringLiteral("Luminosity"));
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->healing_mode() == patchy::ui::HealingMode::Normal);
+  combo->setCurrentIndex(combo->findData(static_cast<int>(patchy::ui::HealingMode::Luminosity)));
+  QApplication::processEvents();
+  CHECK(canvas->healing_mode() == patchy::ui::HealingMode::Luminosity);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/healingMode")).toString() ==
+        QStringLiteral("luminosity"));
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  CHECK(require_canvas(window)->healing_mode() == patchy::ui::HealingMode::Luminosity);
+  combo->setCurrentIndex(0);
+  QApplication::processEvents();
+}
+
+// Healing Brush cursor feedback (GitHub issue 380): not-allowed with no source and with
+// no pixel layer, the source cursor while Alt is held, the four-way arrow while Ctrl is
+// held and a Ctrl drag moves the layer, and while painting a crosshair follows the point
+// the stroke samples.
+void ui_healing_brush_cursor_feedback_and_ctrl_move() {
+  patchy::Document document(64, 32, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 32, patchy::PixelFormat::rgba8(), QColor(180, 140, 100, 255));
+  fill_pixel_rect(pixels, QRect(4, 4, 8, 8), QColor(60, 90, 160));
+  auto& layer = document.add_pixel_layer("Photo", std::move(pixels));
+  const auto layer_id = layer.id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(512, 256);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint document_point) { return canvas.widget_position_for_document_point(document_point); };
+  const auto hover = [&](QPoint document_point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(canvas, QEvent::MouseMove, at(document_point), Qt::NoButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  const QPoint source_hotspot(12, 12);
+
+  // No source yet: not allowed; Alt shows the source cursor and lets go of it.
+  hover(QPoint(40, 16));
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+  send_key_press(canvas, Qt::Key_Alt);
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas.cursor().hotSpot() == source_hotspot);
+  send_key_release(canvas, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+  hover(QPoint(40, 16), Qt::AltModifier);
+  CHECK(canvas.cursor().hotSpot() == source_hotspot);
+
+  // With a source the brush cursor returns; Ctrl shows the temporary Move.
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(8, 8)), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(8, 8)), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  hover(QPoint(40, 16));
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas.cursor().hotSpot() != source_hotspot);
+  send_key_press(canvas, Qt::Key_Control);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+  send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+
+  // While painting, the indicator sits at the brush point plus the source offset.
+  CHECK(!canvas.retouch_source_indicator().has_value());
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(40, 16)), Qt::LeftButton, Qt::LeftButton);
+  CHECK(canvas.retouch_source_indicator() == QPoint(8, 8));
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(44, 18)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.retouch_source_indicator() == QPoint(12, 10));
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(44, 18)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas.retouch_source_indicator().has_value());
+
+  // A Ctrl drag moves the layer instead of healing.
+  const auto bounds_before = std::as_const(document).find_layer(layer_id)->bounds();
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(30, 16)), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(36, 16)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(40, 16)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(40, 16)), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  const auto bounds_after = std::as_const(document).find_layer(layer_id)->bounds();
+  CHECK(bounds_after.x == bounds_before.x + 10);
+  CHECK(bounds_after.y == bounds_before.y);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+
+  // No pixel layer selected: not allowed again.
+  document.clear_active_layer();
+  hover(QPoint(20, 16));
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+}
+
+// The pre-382 Sample All Layers bool still decides the first launch after the update:
+// unchecked opens on Current Layer, checked on All Layers, and the new key wins once
+// written (GitHub issue 382).
+void ui_retouch_sample_layers_migrates_legacy_setting() {
+  SettingsValueRestorer token_restorer(QStringLiteral("tools/retouchSampleLayers"));
+  SettingsValueRestorer legacy_restorer(QStringLiteral("tools/retouchSampleAllLayers"));
+  SettingsValueRestorer ignore_restorer(QStringLiteral("tools/retouchIgnoreAdjustments"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/retouchIgnoreAdjustments"));
+  for (const auto legacy : {false, true}) {
+    {
+      auto settings = patchy::ui::app_settings();
+      settings.remove(QStringLiteral("tools/retouchSampleLayers"));
+      settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), legacy);
+    }
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto expected = legacy ? patchy::SampleLayers::AllLayers : patchy::SampleLayers::CurrentLayer;
+    CHECK(require_canvas(window)->retouch_sample_layers() == expected);
+    auto* combo = window.findChild<QComboBox*>(QStringLiteral("retouchSampleLayersCombo"));
+    CHECK(combo != nullptr);
+    if (combo != nullptr) {
+      CHECK(combo->currentText() == (legacy ? QStringLiteral("All Layers") : QStringLiteral("Current Layer")));
+    }
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* combo = window.findChild<QComboBox*>(QStringLiteral("retouchSampleLayersCombo"));
+    CHECK(combo != nullptr && combo->count() == 3);
+    if (combo != nullptr) {
+      CHECK(combo->itemText(0) == QStringLiteral("Current Layer"));
+      CHECK(combo->itemText(1) == QStringLiteral("Current & Below"));
+      CHECK(combo->itemText(2) == QStringLiteral("All Layers"));
+      combo->setCurrentIndex(1);
+      QApplication::processEvents();
+    }
+    CHECK(require_canvas(window)->retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+    // Ignore Adjustment Layers (GitHub issue 383) is off by default and only enabled
+    // for the composite choices.
+    auto* ignore = window.findChild<QCheckBox*>(QStringLiteral("retouchIgnoreAdjustmentsCheck"));
+    CHECK(ignore != nullptr);
+    if (ignore != nullptr && combo != nullptr) {
+      CHECK(!ignore->isChecked() && ignore->isEnabled());
+      combo->setCurrentIndex(0);
+      QApplication::processEvents();
+      CHECK(!ignore->isEnabled());
+      combo->setCurrentIndex(1);
+      QApplication::processEvents();
+      CHECK(ignore->isEnabled());
+      ignore->setChecked(true);
+      QApplication::processEvents();
+      CHECK(require_canvas(window)->retouch_ignore_adjustments());
+    }
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/retouchIgnoreAdjustments")).toBool());
+    CHECK(settings.value(QStringLiteral("tools/retouchSampleLayers")).toString() == QStringLiteral("currentAndBelow"));
+    // Older builds read only the bool: Current & Below reads there as All Layers.
+    CHECK(settings.value(QStringLiteral("tools/retouchSampleAllLayers")).toBool());
+    settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), false);
+  }
+  {
+    // The new key wins over the bool, and a new document takes the choice.
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(require_canvas(window)->retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+    CHECK(require_canvas(window)->retouch_ignore_adjustments());
+    patchy::ui::MainWindowTestAccess::create_default_document(window);
+    QApplication::processEvents();
+    CHECK(require_canvas(window)->retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+    CHECK(require_canvas(window)->retouch_ignore_adjustments());
+  }
 }
 
 void ui_spot_healing_click_heals_blemish_on_release() {
@@ -1132,15 +1675,18 @@ void ui_patch_options_sync_canvas_and_persist() {
   SettingsValueRestorer mode_restorer(QStringLiteral("tools/patchMode"));
   SettingsValueRestorer transparent_restorer(QStringLiteral("tools/patchTransparent"));
   SettingsValueRestorer sample_restorer(QStringLiteral("tools/retouchSampleAllLayers"));
+  SettingsValueRestorer sample_layers_restorer(QStringLiteral("tools/retouchSampleLayers"));
   {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools/patchMode"));
     settings.remove(QStringLiteral("tools/patchTransparent"));
+    settings.remove(QStringLiteral("tools/retouchSampleLayers"));
+    settings.remove(QStringLiteral("tools/retouchSampleAllLayers"));
   }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
-  CHECK(canvas->retouch_sample_all_layers());
+  CHECK(canvas->retouch_sample_layers() == patchy::SampleLayers::AllLayers);
   // Startup defaults are deliberate: Source mode, Transparent off.
   CHECK(canvas->patch_tool_mode() == patchy::ui::CanvasWidget::PatchToolMode::Source);
   CHECK(!canvas->patch_tool_transparent());
@@ -1155,15 +1701,15 @@ void ui_patch_options_sync_canvas_and_persist() {
   transparent_check->setChecked(true);
   CHECK(canvas->patch_tool_transparent());
 
-  auto* sample_check = window.findChild<QCheckBox*>(QStringLiteral("retouchSampleAllLayersCheck"));
-  CHECK(sample_check != nullptr);
-  sample_check->setChecked(false);
-  CHECK(!canvas->retouch_sample_all_layers());
+  auto* sample_combo = window.findChild<QComboBox*>(QStringLiteral("retouchSampleLayersCombo"));
+  CHECK(sample_combo != nullptr);
+  sample_combo->setCurrentIndex(0);
+  CHECK(canvas->retouch_sample_layers() == patchy::SampleLayers::CurrentLayer);
 
-  // Sample All Layers persists; Patch mode and Transparent are session-only,
-  // so the retired keys must stay unwritten (every startup begins at Source
-  // with Transparent off).
+  // Sample persists; Patch mode and Transparent are session-only, so the retired
+  // keys must stay unwritten (every startup begins at Source with Transparent off).
   auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("tools/retouchSampleLayers")).toString() == QStringLiteral("current"));
   CHECK(!settings.value(QStringLiteral("tools/retouchSampleAllLayers")).toBool());
   CHECK(!settings.contains(QStringLiteral("tools/patchMode")));
   CHECK(!settings.contains(QStringLiteral("tools/patchTransparent")));
@@ -1175,6 +1721,16 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
   return {
       {"ui_retouch_sample_all_layers_switches_clone_and_healing_source",
        ui_retouch_sample_all_layers_switches_clone_and_healing_source},
+      {"ui_retouch_sample_current_and_below_heals_empty_layer_above_photo",
+       ui_retouch_sample_current_and_below_heals_empty_layer_above_photo},
+      {"ui_retouch_sample_layers_migrates_legacy_setting", ui_retouch_sample_layers_migrates_legacy_setting},
+      {"ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample",
+       ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample},
+      {"ui_healing_brush_modes_blend_the_healed_color", ui_healing_brush_modes_blend_the_healed_color},
+      {"ui_retouch_healing_test_psd_round_trips", ui_retouch_healing_test_psd_round_trips},
+      {"ui_healing_brush_cursor_feedback_and_ctrl_move", ui_healing_brush_cursor_feedback_and_ctrl_move},
+      {"ui_healing_mode_option_persists_and_reaches_new_documents",
+       ui_healing_mode_option_persists_and_reaches_new_documents},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},
       {"ui_spot_healing_escape_cancels_without_pixel_changes",
        ui_spot_healing_escape_cancels_without_pixel_changes},

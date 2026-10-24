@@ -24616,6 +24616,30 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Convert to Color Profile</source>
         <translation>색상 프로파일로 변환</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>도구가 읽는 레이어: 활성 레이어, 활성 레이어와 그 아래 레이어(이미지 위의 빈 레이어에서 복구) 또는 병합된 이미지</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>활성 레이어 및 아래</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>조정 레이어 무시</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>샘플링한 이미지에서 조정 레이어를 제외하여 수정 중인 레이어 위의 조정이 두 번 적용되지 않게 합니다</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>대체</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>복구 모드: 대체는 샘플링한 소스 질감을 그대로 유지하고, 혼합 모드는 복구된 색상을 아래 픽셀과 합성합니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

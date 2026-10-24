@@ -24688,6 +24688,30 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Convert to Color Profile</source>
         <translation>Convertir en profil colorimétrique</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Calques lus par l&apos;outil : le calque actif, celui-ci et les calques inférieurs (corriger sur un calque vide au-dessus de l&apos;image) ou l&apos;image fusionnée</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>calque actif et inférieurs</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignorer les calques de réglage</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Exclure les calques de réglage de l&apos;image échantillonnée, pour qu&apos;un réglage au-dessus du calque retouché ne soit pas appliqué deux fois</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>Remplacer</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Mode de correction : Remplacer conserve la texture source telle qu&apos;échantillonnée ; les modes de fusion combinent la couleur corrigée avec les pixels situés dessous</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -24688,6 +24688,30 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>Convert to Color Profile</source>
         <translation>Converti in profilo colore</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Quali livelli legge lo strumento: il livello attivo, questo e i livelli sottostanti (correggere su un livello vuoto sopra l&apos;immagine) o l&apos;immagine unita</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>livello attivo e sottostanti</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignora livelli di regolazione</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Escludi i livelli di regolazione dall&apos;immagine campionata, così una regolazione sopra il livello ritoccato non viene applicata due volte</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>Sostituisci</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Metodo di correzione: Sostituisci mantiene la trama di origine come campionata; i metodi di fusione combinano il colore corretto con i pixel sottostanti</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

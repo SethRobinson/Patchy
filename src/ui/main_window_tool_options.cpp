@@ -2074,8 +2074,24 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
-  canvas_->set_retouch_sample_all_layers(
-      settings.value(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers()).toBool());
+  {
+    // The retouch Sample choice (GitHub issue 382); before it, a bool that still maps on
+    // first read (true All Layers, false Current Layer).
+    std::optional<std::string> token;
+    if (settings.contains(QStringLiteral("tools/retouchSampleLayers"))) {
+      token = settings.value(QStringLiteral("tools/retouchSampleLayers")).toString().toStdString();
+    }
+    std::optional<bool> legacy_sample_all_layers;
+    if (settings.contains(QStringLiteral("tools/retouchSampleAllLayers"))) {
+      legacy_sample_all_layers = settings.value(QStringLiteral("tools/retouchSampleAllLayers")).toBool();
+    }
+    canvas_->set_retouch_sample_layers(sample_layers_from_settings(token, legacy_sample_all_layers));
+  }
+  canvas_->set_retouch_ignore_adjustments(
+      settings.value(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments()).toBool());
+  canvas_->set_healing_mode(
+      healing_mode_from_token(settings.value(QStringLiteral("tools/healingMode")).toString().toStdString())
+          .value_or(HealingMode::Normal));
   current_crop_ratio_w_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_ratio_h_ =
@@ -2409,6 +2425,45 @@ void MainWindow::save_active_tool_setting() const {
   app_settings().setValue(QLatin1String(kActiveToolSettingsKey), tool_hotkey_id(current_tool_));
 }
 
+void MainWindow::sync_retouch_sample_controls_from_canvas() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (retouch_sample_layers_combo_ != nullptr) {
+    const QSignalBlocker blocker(retouch_sample_layers_combo_);
+    retouch_sample_layers_combo_->setCurrentIndex(std::max(
+        0, retouch_sample_layers_combo_->findData(
+               QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())))));
+  }
+  if (healing_mode_combo_ != nullptr) {
+    const QSignalBlocker blocker(healing_mode_combo_);
+    healing_mode_combo_->setCurrentIndex(
+        std::max(0, healing_mode_combo_->findData(static_cast<int>(canvas_->healing_mode()))));
+  }
+  if (retouch_ignore_adjustments_check_ != nullptr) {
+    const QSignalBlocker blocker(retouch_ignore_adjustments_check_);
+    retouch_ignore_adjustments_check_->setChecked(canvas_->retouch_ignore_adjustments());
+    retouch_ignore_adjustments_check_->setEnabled(canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
+  }
+}
+
+QString MainWindow::retouch_sample_info_text() const {
+  if (canvas_ == nullptr) {
+    return {};
+  }
+  switch (canvas_->retouch_sample_layers()) {
+    case SampleLayers::CurrentLayer:
+      return tr("active layer");
+    case SampleLayers::CurrentAndBelow:
+    case SampleLayers::CurrentAndBelowNoAdjustments:
+      return tr("active layer and below");
+    case SampleLayers::AllLayers:
+    case SampleLayers::AllLayersNoAdjustments:
+      break;
+  }
+  return tr("sample all layers");
+}
+
 void MainWindow::save_tool_settings() const {
   // Nothing to save before the stored values were read: a save here would write the
   // defaults donor's values over them (startup_tool_settings_pending_).
@@ -2479,7 +2534,14 @@ void MainWindow::save_tool_settings() const {
   // must not leak them into later windows.
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
-  settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/retouchSampleLayers"),
+                    QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())));
+  // Older builds read only the bool: Current & Below reads there as All Layers.
+  settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"),
+                    canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
+  settings.setValue(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments());
+  settings.setValue(QStringLiteral("tools/healingMode"),
+                    QString::fromLatin1(healing_mode_token(canvas_->healing_mode())));
   // The remembered ratio, not the canvas's: Size mode runs the canvas unconstrained.
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);
@@ -3345,10 +3407,7 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
   }
-  if (retouch_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
-    QSignalBlocker blocker(retouch_sample_all_layers_check_);
-    retouch_sample_all_layers_check_->setChecked(canvas_->retouch_sample_all_layers());
-  }
+  sync_retouch_sample_controls_from_canvas();
   if (mixer_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(mixer_sample_all_layers_check_);
     mixer_sample_all_layers_check_->setChecked(canvas_->mixer_sample_all_layers());

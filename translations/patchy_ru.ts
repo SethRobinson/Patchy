@@ -24760,6 +24760,30 @@ Patchy может скачать обновление, заменить этот
         <source>Convert to Color Profile</source>
         <translation>Преобразовать в цветовой профиль</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Какие слои читает инструмент: активный слой, его и слои под ним (восстановление на пустом слое над изображением) или объединённое изображение</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>активный слой и ниже</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Игнорировать корректирующие слои</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Не включать корректирующие слои в образец, чтобы коррекция над ретушируемым слоем не применялась дважды</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>Замена</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Режим восстановления: «Замена» сохраняет текстуру источника как есть; режимы наложения смешивают восстановленный цвет с пикселями под ним</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

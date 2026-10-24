@@ -127,6 +127,7 @@ public:
   // region is healed with the dragged-TO pixels. Destination: a copy of the
   // region is dragged to a new spot and healed in there.
   using PatchToolMode = patchy::ui::PatchToolMode;
+  using HealingMode = patchy::ui::HealingMode;
 
   // The shape a Rectangular or Elliptical Marquee drag-out committed, kept so
   // its edges and corners can be dragged afterwards (the selection is then
@@ -396,8 +397,25 @@ public:
   [[nodiscard]] bool pattern_stamp_aligned() const noexcept;
   void set_healing_diffusion(int diffusion) noexcept;
   [[nodiscard]] int healing_diffusion() const noexcept;
-  void set_retouch_sample_all_layers(bool enabled) noexcept;
-  [[nodiscard]] bool retouch_sample_all_layers() const noexcept;
+  void set_healing_mode(HealingMode mode) noexcept;
+  [[nodiscard]] HealingMode healing_mode() const noexcept;
+  // The document point a Clone/Healing stroke samples now, while painting (GitHub
+  // issue 380); nullopt between strokes.
+  [[nodiscard]] std::optional<QPoint> retouch_source_indicator() const noexcept {
+    return retouch_source_indicator_;
+  }
+  // Clone, Healing, Spot Healing and Patch share one Sample choice (GitHub issue 382):
+  // Current Layer, Current & Below or All Layers (the No Adjustments values are not
+  // retouch choices and read as their base choice).
+  void set_retouch_sample_layers(SampleLayers mode) noexcept;
+  [[nodiscard]] SampleLayers retouch_sample_layers() const noexcept;
+  // Ignore Adjustment Layers (GitHub issue 383): the Current & Below and All Layers
+  // samples leave every adjustment layer out. Current Layer ignores it.
+  void set_retouch_ignore_adjustments(bool ignore) noexcept;
+  [[nodiscard]] bool retouch_ignore_adjustments() const noexcept;
+  // The composite the snapshot renders: the Sample choice, as its No Adjustments
+  // variant when Ignore Adjustment Layers is on.
+  [[nodiscard]] SampleLayers retouch_effective_sample_layers() const noexcept;
   void set_patch_tool_mode(PatchToolMode mode) noexcept;
   [[nodiscard]] PatchToolMode patch_tool_mode() const noexcept;
   void set_patch_tool_transparent(bool enabled) noexcept;
@@ -1503,11 +1521,14 @@ private:
 
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
-  [[nodiscard]] QImage render_document_image_with_processing();
+  // The merged document; `hidden_layer_ids` leaves those layers out (the retouch
+  // tools' Current & Below sample).
+  [[nodiscard]] QImage render_document_image_with_processing(const std::vector<LayerId>& hidden_layer_ids = {});
   // Stroke-start source snapshot for the retouch tools (Clone, Healing, Spot
-  // Healing, Patch): the merged document when Sample All Layers is on, the
-  // active pixel layer alone otherwise (null QImage when no pixel layer is
-  // active). Captured once per gesture, never per move.
+  // Healing, Patch), by the Sample choice: the merged document, the composite of the
+  // active layer and everything below it, or the active pixel layer alone (null
+  // QImage when the choice needs an active layer and there is none). Captured once
+  // per gesture, never per move.
   [[nodiscard]] QImage retouch_source_snapshot();
   void set_document_internal(Document* document, bool preserve_frame_for_same_size,
                              bool normal_composite_unchanged = false);
@@ -1936,6 +1957,15 @@ private:
   [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] PixelBuffer retouch_source_deep();
   void set_clone_source(QPoint point);
+  // Clone and Healing cursor feedback (GitHub issue 380): Alt shows the source cursor,
+  // Ctrl the temporary Move, and a press that would be refused (no source yet, no
+  // editable pixel layer) the not-allowed cursor; while painting, a small crosshair marks
+  // the point the stroke samples.
+  [[nodiscard]] bool retouch_source_tool_active() const noexcept;
+  [[nodiscard]] bool retouch_press_would_refuse() const;
+  void set_retouch_source_indicator(std::optional<QPoint> document_point);
+  [[nodiscard]] QRect retouch_source_indicator_widget_rect(QPoint document_point) const;
+  void begin_retouch_temporary_move(QMouseEvent* event, QPoint document_point);
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_at(QPoint point);
@@ -3417,10 +3447,15 @@ private:
   bool pattern_stamp_aligned_{true};
   std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
-  // Shared by Clone, Healing, Spot Healing, and Patch: checked samples the
-  // merged document (the historical behavior), unchecked samples the active
-  // layer alone.
-  bool retouch_sample_all_layers_{true};
+  HealingMode healing_mode_{HealingMode::Normal};
+  // The folded modifiers of the key event being handled, for the Clone/Healing cursor.
+  std::optional<Qt::KeyboardModifiers> retouch_cursor_modifier_override_;
+  // The document point the Clone/Healing stroke samples now (drawn while painting).
+  std::optional<QPoint> retouch_source_indicator_;
+  // Shared by Clone, Healing, Spot Healing, and Patch (GitHub issue 382): All
+  // Layers is the historical default.
+  SampleLayers retouch_sample_layers_{SampleLayers::AllLayers};
+  bool retouch_ignore_adjustments_{false};
   int local_adjustment_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};
   bool local_protect_tones_{true};

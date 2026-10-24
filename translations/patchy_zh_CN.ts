@@ -24616,6 +24616,30 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Convert to Color Profile</source>
         <translation>转换为颜色配置文件</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>工具读取的图层：当前图层、当前图层及其下方图层（在图像上方的空图层上修复）或合并后的图像</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>当前图层及下方</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>忽略调整图层</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>从取样图像中排除调整图层，使修饰图层上方的调整不会被应用两次</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>替换</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>修复模式：替换保留取样时的源纹理；混合模式将修复后的颜色与下方像素混合</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

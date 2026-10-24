@@ -232,7 +232,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
-                                                  tool_ == CanvasTool::Text || transforming_layer_ ||
+                                                  tool_ == CanvasTool::Text || retouch_source_tool_active() ||
+                                                  transforming_layer_ ||
                                                   path_transform_active_ || tool_ == CanvasTool::PathSelect ||
                                                   tool_ == CanvasTool::DirectSelect || shape_tool_active())))) {
       // The event reports the modifier state before this key, so fold the
@@ -294,6 +295,16 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // click would select (GitHub issue 73); refresh the outline from the
         // folded modifiers at the last pointer position, no motion needed.
         update_move_hover_outline(last_mouse_position_, modifiers);
+      } else if ((key_event->key() == Qt::Key_Alt || key_event->key() == Qt::Key_Control) &&
+                 retouch_source_tool_active()) {
+        // Clone and Healing (GitHub issue 380): Alt shows the source cursor and Ctrl the
+        // temporary Move, from the folded modifiers with a stationary pointer; a stroke or
+        // a Ctrl drag in progress keeps its cursor.
+        if (!painting_ && !move_drag_pending_ && !moving_layer_) {
+          retouch_cursor_modifier_override_ = modifiers;
+          update_tool_cursor();
+          retouch_cursor_modifier_override_.reset();
+        }
       } else if (key_event->key() == Qt::Key_Alt &&
                  (tool_uses_alt_left_for_color_pick(tool_) || tool_ == CanvasTool::Eyedropper) && !painting_ &&
                  !drawing_shape_) {
@@ -930,6 +941,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop ||
        effective_tool == CanvasTool::PerspectiveCrop)) {
     report_status_error(tr("This tool is unavailable while viewing a document channel"));
+    event->accept();
+    return;
+  }
+  // Ctrl is Clone's and Healing's temporary Move (GitHub issue 380), read from this
+  // press's own modifiers: the drag moves the selected layers like the Move tool with
+  // Auto-Select off. Ctrl on a ruler guide already went to the guide drag above.
+  if (event->button() == Qt::LeftButton && retouch_source_tool_active() && !painting_ &&
+      event->modifiers().testFlag(Qt::ControlModifier) && !event->modifiers().testFlag(Qt::AltModifier)) {
+    begin_retouch_temporary_move(event, document_point);
     event->accept();
     return;
   }
@@ -2432,8 +2452,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         if (tool_ == CanvasTool::Text) {
           text_ctrl_cursor_override_ = event->modifiers().testFlag(Qt::ControlModifier);
         }
+        if (retouch_source_tool_active()) {
+          retouch_cursor_modifier_override_ = event->modifiers();
+        }
         update_tool_cursor();
         text_ctrl_cursor_override_.reset();
+        retouch_cursor_modifier_override_.reset();
       }
       update_move_hover_outline(event->pos(), event->modifiers());
     }
@@ -2491,6 +2515,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  // A Clone/Healing Ctrl+drag (GitHub issue 380) gets its tool cursor back after the commit.
+  const bool ends_retouch_move =
+      retouch_source_tool_active() && (move_drag_pending_ || moving_layer_) && event->button() == Qt::LeftButton;
+  const auto restore_retouch_cursor = qScopeGuard([this, ends_retouch_move, modifiers = event->modifiers()] {
+    if (ends_retouch_move) {
+      retouch_cursor_modifier_override_ = modifiers;
+      update_tool_cursor();
+      retouch_cursor_modifier_override_.reset();
+    }
+  });
   // A Type-tool Ctrl+drag ends with this release, once the Move commit below has run.
   const bool ends_text_layer_move = text_layer_move_active_ && event->button() == Qt::LeftButton;
   const auto finish_text_move = qScopeGuard([this, ends_text_layer_move] {
@@ -2748,6 +2782,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       last_document_position_f_ = document_point_f;
     }
     painting_ = false;
+    set_retouch_source_indicator(std::nullopt);
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();
@@ -4455,6 +4490,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
       active_edit_target_changed_impl(QRegion(held_dab), DocumentChangeReason::BrushStrokePreview);
     }
     painting_ = false;
+    set_retouch_source_indicator(std::nullopt);
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
   }
@@ -4672,6 +4708,27 @@ bool CanvasWidget::begin_edit(QString label) {
     before_edit_callback_(label);
   }
   return true;
+}
+
+void CanvasWidget::begin_retouch_temporary_move(QMouseEvent* event, QPoint document_point) {
+  if (document_ == nullptr) {
+    return;
+  }
+  select_only_layer_if_none_active();
+  const auto layer_ids = movable_layer_ids();
+  if (layer_ids.empty()) {
+    const auto& document = std::as_const(*document_);
+    const auto* active =
+        document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id()) : nullptr;
+    if (active != nullptr && layer_effectively_locks_position(*active)) {
+      report_status_error(tr("Layer position is locked."));
+    } else {
+      report_status_error(tr("Click an editable layer to move"));
+    }
+    return;
+  }
+  begin_move_drag(layer_ids, document_point, event->pos());
+  setCursor(Qt::SizeAllCursor);
 }
 
 bool CanvasWidget::can_begin_pixel_edit(bool report) {

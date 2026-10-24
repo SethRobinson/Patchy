@@ -24616,6 +24616,30 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Convert to Color Profile</source>
         <translation>カラープロファイル変換</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>ツールが読み取るレイヤー: アクティブレイヤー、アクティブレイヤーとその下のレイヤー (画像の上の空のレイヤーで修復)、または統合された画像</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>アクティブレイヤーと下のレイヤー</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>調整レイヤーを無視</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>サンプリングする画像から調整レイヤーを除外し、補正するレイヤーの上の調整が二重にかからないようにします</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>置き換え</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>修復モード: 置き換えはサンプリングしたソースのテクスチャをそのまま保ちます。描画モードは修復した色を下のピクセルと合成します</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
