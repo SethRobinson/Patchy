@@ -433,6 +433,7 @@ int main(int argc, char* argv[]) {
            legacy_plugin_tests,
            gmic_ui_tests,
            history_panel_tests,
+           color_dock_panel_tests,
            history_stroke_patch_tests,
            file_info_tests,
            rgb_profile_ui_tests,

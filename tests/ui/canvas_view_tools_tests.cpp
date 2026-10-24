@@ -8430,7 +8430,7 @@ void ui_right_dock_panels_expand_within_window_height() {
   QApplication::processEvents();
 
   for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
-                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+                           "infoDockCollapseButton", "colorDockCollapseButton", "paletteDockCollapseButton"}) {
     auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
     CHECK(toggle != nullptr);
     toggle->setChecked(true);
@@ -8451,7 +8451,7 @@ void ui_right_dock_panels_expand_within_window_height() {
   CHECK(palette_scroll->verticalScrollBar()->maximum() > 0);
 
   int docks_height = 0;
-  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "paletteDock"}) {
+  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "colorDock", "paletteDock"}) {
     const auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(name));
     CHECK(dock != nullptr);
     CHECK(dock->height() <= window.height());
@@ -8516,7 +8516,8 @@ void ui_right_dock_floors_fit_the_screen_height() {
   // panel's four lines, the Properties scroll area) can exceed such a short
   // screen; then the window grows only to that irreducible minimum, never
   // because of a floor the fit could have lowered.
-  for (const auto* name : {"infoDockCollapseButton", "historyDockCollapseButton", "paletteDockCollapseButton"}) {
+  for (const auto* name : {"infoDockCollapseButton", "historyDockCollapseButton", "colorDockCollapseButton",
+                           "paletteDockCollapseButton"}) {
     auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
     CHECK(toggle != nullptr);
     if (toggle == nullptr) {
@@ -8528,7 +8529,7 @@ void ui_right_dock_floors_fit_the_screen_height() {
     CHECK(window.height() <= std::max(budget, window.minimumSizeHint().height()));
     CHECK(layers_dock->minimumHeight() <= 300);
   }
-  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "paletteDock"}) {
+  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "colorDock", "paletteDock"}) {
     const auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(name));
     CHECK(dock != nullptr);
     if (dock != nullptr) {
@@ -8556,10 +8557,10 @@ void ui_right_dock_floors_fit_the_screen_height() {
 void ui_collapsed_right_docks_have_uniform_title_height() {
   patchy::ui::MainWindow window;
   show_window(window);
-  // History/Properties/Info/Palette all start collapsed: each section is exactly its
+  // History/Properties/Info/Color/Palette all start collapsed: each section is exactly its
   // title row (min == max), with no dead band under the header, at the column width.
   int first_height = -1;
-  for (const auto* prefix : {"history", "properties", "info", "palette"}) {
+  for (const auto* prefix : {"history", "properties", "info", "color", "palette"}) {
     auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(prefix) + QStringLiteral("Dock"));
     auto* title = window.findChild<QWidget*>(QLatin1String(prefix) + QStringLiteral("DockTitle"));
     CHECK(dock != nullptr && title != nullptr);
@@ -8629,7 +8630,7 @@ void ui_short_panel_scroll_bar_drags_by_handle() {
   require_action(window, "layerNewAction")->trigger();
   QApplication::processEvents();
   for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
-                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+                           "infoDockCollapseButton", "colorDockCollapseButton", "paletteDockCollapseButton"}) {
     auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
     CHECK(toggle != nullptr);
     toggle->setChecked(true);

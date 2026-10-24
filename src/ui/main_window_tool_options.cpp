@@ -53,6 +53,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
@@ -1856,6 +1857,13 @@ void MainWindow::refresh_color_buttons() {
     secondary_color_button_->setText(tr("BG"));
     secondary_color_button_->setToolTip(named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
     secondary_color_button_->set_color(secondary_color);
+  }
+  if (color_dock_panel_ != nullptr) {
+    color_dock_panel_->set_colors(primary_color, secondary_color);
+    color_dock_panel_->foreground_chip()->setToolTip(
+        named_tooltip(tr("Foreground color %1").arg(primary_color.name(QColor::HexRgb).toUpper()), primary_color));
+    color_dock_panel_->background_chip()->setToolTip(
+        named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
   }
   refresh_text_color_button();
   refresh_gradient_controls_from_canvas();
