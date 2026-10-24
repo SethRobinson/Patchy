@@ -24760,6 +24760,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Convert to Color Profile</source>
         <translation>Konwertuj na profil kolorów</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Które warstwy odczytuje narzędzie: aktywną warstwę, ją i warstwy poniżej (korygowanie na pustej warstwie nad obrazem) lub scalony obraz</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>aktywna warstwa i poniżej</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

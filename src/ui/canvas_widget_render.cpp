@@ -1153,14 +1153,20 @@ void CanvasWidget::ensure_render_cache() {
   }
 }
 
-QImage CanvasWidget::render_document_image_with_processing() {
+QImage CanvasWidget::render_document_image_with_processing(const std::vector<LayerId>& hidden_layer_ids) {
   if (document_ == nullptr) {
     return {};
   }
+  const auto render = [](const Document& document, const std::vector<LayerId>& hidden) {
+    const auto image = hidden.empty() ? qimage_from_document(document, true)
+                                      : qimage_from_document_rect_with_hidden_layers(
+                                            document, QRect(0, 0, document.width(), document.height()), true, hidden);
+    return image.convertToFormat(QImage::Format_RGBA8888);
+  };
   const auto canvas_area = static_cast<std::int64_t>(document_->width()) *
                            static_cast<std::int64_t>(document_->height());
   if (!processing_operation_active() && canvas_area < processing_overlay_dirty_area_threshold()) {
-    return render_document_image();
+    return hidden_layer_ids.empty() ? render_document_image() : render(*document_, hidden_layer_ids);
   }
 
 #if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
@@ -1173,7 +1179,7 @@ QImage CanvasWidget::render_document_image_with_processing() {
   // need a lazy Worker spawn this blocked path cannot rely on.
   const auto idle_pool = patchy::idle_prespawned_pool_workers();
   if (paintingActive() || idle_pool < 1) {
-    return qimage_from_document(*document_, true).convertToFormat(QImage::Format_RGBA8888);
+    return render(*document_, hidden_layer_ids);
   }
   // Keep the awaited compute's strip fan-out inside the pre-spawned pool:
   // one worker for the compute, two of race margin (see worker_budget.hpp).
@@ -1181,11 +1187,11 @@ QImage CanvasWidget::render_document_image_with_processing() {
 #endif
 
   auto* document = document_;
-  auto future = launch_async([document] {
+  auto future = launch_async([document, hidden = hidden_layer_ids, render] {
     if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
-    return qimage_from_document(*document, true).convertToFormat(QImage::Format_RGBA8888);
+    return render(*document, hidden);
   });
   const auto overlay_shown = wait_for_processing_operation(
       [&future] { return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);

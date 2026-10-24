@@ -24760,6 +24760,14 @@ Patchy может скачать обновление, заменить этот
         <source>Convert to Color Profile</source>
         <translation>Преобразовать в цветовой профиль</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Какие слои читает инструмент: активный слой, его и слои под ним (восстановление на пустом слое над изображением) или объединённое изображение</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>активный слой и ниже</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

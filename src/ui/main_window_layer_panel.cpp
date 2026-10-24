@@ -4782,16 +4782,16 @@ void MainWindow::refresh_document_info() {
         }
       }
       if (current_tool_ == CanvasTool::Clone || current_tool_ == CanvasTool::Healing) {
-        lines << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+        lines << retouch_sample_info_text();
       }
     } else if (current_tool_ == CanvasTool::SpotHealing) {
       lines << tr("Size: %1 px").arg(canvas_->brush_size())
             << tr("Softness: %1%").arg(canvas_->brush_softness())
-            << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+            << retouch_sample_info_text();
     } else if (current_tool_ == CanvasTool::PatchTool) {
       lines << (canvas_->patch_tool_mode() == CanvasWidget::PatchToolMode::Destination ? tr("Destination")
                                                                                        : tr("Source"))
-            << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+            << retouch_sample_info_text();
       if (canvas_->patch_tool_transparent()) {
         lines << tr("Transparent");
       }

@@ -24616,6 +24616,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Convert to Color Profile</source>
         <translation>색상 프로파일로 변환</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>도구가 읽는 레이어: 활성 레이어, 활성 레이어와 그 아래 레이어(이미지 위의 빈 레이어에서 복구) 또는 병합된 이미지</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>활성 레이어 및 아래</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

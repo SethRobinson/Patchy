@@ -280,7 +280,6 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {crop_delete_pixels_check_, QT_TR_NOOP("Delete Cropped Pixels")},
       {crop_delete_layers_check_, QT_TR_NOOP("Delete Off-Canvas Layers")},
       {perspective_crop_grid_check_, QT_TR_NOOP("Show Grid")},
-      {retouch_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {mixer_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {patch_transparent_check_, QT_TR_NOOP("Transparent")},
       {gradient_reverse_check_, QT_TR_NOOP("Reverse")},
@@ -333,7 +332,7 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
   set_checked(move_auto_select_check_, canvas_->auto_select_layer());
   set_checked(move_show_transform_controls_check_, canvas_->show_transform_controls());
   set_checked(clone_aligned_check_, canvas_->clone_aligned());
-  set_checked(retouch_sample_all_layers_check_, canvas_->retouch_sample_all_layers());
+  sync_retouch_sample_controls_from_canvas();
   set_checked(mixer_sample_all_layers_check_, canvas_->mixer_sample_all_layers());
   set_checked(patch_transparent_check_, canvas_->patch_tool_transparent());
   if (patch_mode_combo_ != nullptr) {

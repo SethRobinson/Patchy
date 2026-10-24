@@ -9,9 +9,15 @@ Two blend engines exist:
 
 On 16/32-bit layers the Healing Brush (like Clone) runs at depth (`retouch_source_deep`); Spot Healing, Remove Object, and Patch heal a narrowed 8-bit copy through `NarrowedLayerEdit`, and only the healed pixels come back at 8-bit precision. See [high-bit-depth.md](high-bit-depth.md).
 
-## Sample All Layers
+## Sample
 
-Clone, Healing, Spot Healing, and Patch share one Sample All Layers checkbox (canvas-owned `retouch_sample_all_layers_`, key `tools/retouchSampleAllLayers`, default on). Checked keeps the historical behavior: the per-gesture source snapshot is the merged document (`CanvasWidget::retouch_source_snapshot()` wraps `render_document_image_with_processing()`). Unchecked samples the active pixel layer alone through the promoted `active_layer_sample_image` helper (layer mask and opacity folded into alpha), which the Magic Wand and Quick Select sample options also use. The snapshot is taken once at gesture start, never per move. `ui_retouch_sample_all_layers_switches_clone_and_healing_source` pins both states.
+Clone, Healing, Spot Healing, Patch and Remove Object share one Sample choice (GitHub issue 382; the "Sample:" combo `retouchSampleLayersCombo`, canvas-owned `retouch_sample_layers_`, a `SampleLayers` value restricted to the three retouch choices). It is persisted as the Pick tool's token (`core/layer_tree.hpp` `sample_layers_token`) under `tools/retouchSampleLayers`; a missing token falls back to the pre-382 bool `tools/retouchSampleAllLayers` (true All Layers, false Current Layer), which is still written (anything but Current Layer as true) for older builds. The per-gesture source snapshot (`CanvasWidget::retouch_source_snapshot()`, 16/32-bit `retouch_source_deep()`) is:
+
+- **All Layers** (default, the historical behavior): the merged document (`render_document_image_with_processing()`).
+- **Current & Below**: the merged document with every layer above the active one hidden (`sample_layers_excluded_ids`, the same walk as the Pick tool's choice: later siblings at each level of the active layer's ancestor path), rendered by `render_document_image_with_processing(hidden_ids)`; the deep path flattens a document copy with those layers hidden. This is the heal-on-an-empty-layer setup: the destination tone comes from the snapshot too, so a heal onto a transparent layer above the photo writes opaque healed pixels. No active layer yields a null snapshot (the stroke writes nothing).
+- **Current Layer**: the active pixel layer alone through the promoted `active_layer_sample_image` helper (layer mask and opacity folded into alpha), which the Magic Wand and Quick Select sample options also use.
+
+The snapshot is taken once at gesture start, never per move. `ui_retouch_sample_all_layers_switches_clone_and_healing_source`, `ui_retouch_sample_current_and_below_heals_empty_layer_above_photo` and `ui_retouch_sample_layers_migrates_legacy_setting` pin the choices and the key migration.
 
 ## Classic Healing Brush
 
@@ -23,7 +29,7 @@ Spot Healing removes a blemish with no source pick: the drag accumulates a soft 
 
 The texture comes from ONE coherent rigid mapping chosen in `core/spot_heal.cpp` (`spot_heal_source_map`): the footprint reflected across the line just past its nearest boundary, or translated clear of its own extent when the reflection would land back inside. Candidate directions (nearest-boundary, opposite, both perpendiculars; reflection before translation) are tried in a fixed order and scored only by mask-geometry validity: pixel content is never read, so there is no patch search. A coherent map keeps the sampled texture spatially continuous (a per-pixel mirror field smears radial streaks). The membrane then bends the pasted texture's tone into everything around the stroke. Off-canvas never acts as a source; edge blemishes sample from the interior side.
 
-Options: Size, Soft (the footprint skirt feathers the heal), Sample All Layers. There is deliberately no Opacity, no Aligned, no Diffusion (the membrane replaces the ring radius), and no coverage cap: one write per pixel per stroke, outside the brush stroke compositor. Shift-click stroke connect and `[`/`]` sizing work as with the other brushes. Coverage: `spot_heal_source_map_*` and `heal_membrane_interpolates_boundary_offsets` in tests/core/infra_selection_tests.cpp; behavior plus the visual gallery (`ui_spot_healing_*`, `ui_spot_healing_and_patch_texture_gallery`) in tests/ui/brush_engine_stroke_tests_healing_patch.cpp.
+Options: Size, Soft (the footprint skirt feathers the heal), Sample. There is deliberately no Opacity, no Aligned, no Diffusion (the membrane replaces the ring radius), and no coverage cap: one write per pixel per stroke, outside the brush stroke compositor. Shift-click stroke connect and `[`/`]` sizing work as with the other brushes. Coverage: `spot_heal_source_map_*` and `heal_membrane_interpolates_boundary_offsets` in tests/core/infra_selection_tests.cpp; behavior plus the visual gallery (`ui_spot_healing_*`, `ui_spot_healing_and_patch_texture_gallery`) in tests/ui/brush_engine_stroke_tests_healing_patch.cpp.
 
 ## Remove Object
 

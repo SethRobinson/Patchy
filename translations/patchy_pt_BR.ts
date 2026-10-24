@@ -24688,6 +24688,14 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>Convert to Color Profile</source>
         <translation>Converter em perfil de cor</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Quais camadas a ferramenta lê: a camada ativa, ela e as camadas abaixo (corrigir em uma camada vazia acima da imagem) ou a imagem mesclada</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>camada ativa e abaixo</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

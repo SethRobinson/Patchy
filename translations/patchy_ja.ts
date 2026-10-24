@@ -24616,6 +24616,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Convert to Color Profile</source>
         <translation>カラープロファイル変換</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>ツールが読み取るレイヤー: アクティブレイヤー、アクティブレイヤーとその下のレイヤー (画像の上の空のレイヤーで修復)、または統合された画像</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>アクティブレイヤーと下のレイヤー</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

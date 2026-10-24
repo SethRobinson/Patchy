@@ -2441,6 +2441,10 @@ private:
   // Re-reads the options-bar controls create_actions initialized from the startup
   // defaults donor; runs after the deferred load_tool_settings.
   void sync_tool_option_controls_from_canvas();
+  // The retouch tools' Sample controls (GitHub issue 382) from the active canvas.
+  void sync_retouch_sample_controls_from_canvas();
+  // The Sample choice for the document info lines ("active layer", ...).
+  [[nodiscard]] QString retouch_sample_info_text() const;
   // Derives the crop ratio preset combo's row from the canvas ratio values
   // (None / a preset / Original Ratio / Custom) without firing its handler.
   void sync_crop_ratio_preset_combo();
@@ -2698,7 +2702,7 @@ private:
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
-  QCheckBox* retouch_sample_all_layers_check_{nullptr};
+  QComboBox* retouch_sample_layers_combo_{nullptr};
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
   QComboBox* mixer_combination_combo_{nullptr};

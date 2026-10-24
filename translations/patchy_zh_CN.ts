@@ -24616,6 +24616,14 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Convert to Color Profile</source>
         <translation>转换为颜色配置文件</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>工具读取的图层：当前图层、当前图层及其下方图层（在图像上方的空图层上修复）或合并后的图像</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>当前图层及下方</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

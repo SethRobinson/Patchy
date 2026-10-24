@@ -24615,6 +24615,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Convert to Color Profile</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

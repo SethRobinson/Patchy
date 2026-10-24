@@ -396,8 +396,11 @@ public:
   [[nodiscard]] bool pattern_stamp_aligned() const noexcept;
   void set_healing_diffusion(int diffusion) noexcept;
   [[nodiscard]] int healing_diffusion() const noexcept;
-  void set_retouch_sample_all_layers(bool enabled) noexcept;
-  [[nodiscard]] bool retouch_sample_all_layers() const noexcept;
+  // Clone, Healing, Spot Healing and Patch share one Sample choice (GitHub issue 382):
+  // Current Layer, Current & Below or All Layers (the No Adjustments values are not
+  // retouch choices and read as their base choice).
+  void set_retouch_sample_layers(SampleLayers mode) noexcept;
+  [[nodiscard]] SampleLayers retouch_sample_layers() const noexcept;
   void set_patch_tool_mode(PatchToolMode mode) noexcept;
   [[nodiscard]] PatchToolMode patch_tool_mode() const noexcept;
   void set_patch_tool_transparent(bool enabled) noexcept;
@@ -1503,11 +1506,14 @@ private:
 
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
-  [[nodiscard]] QImage render_document_image_with_processing();
+  // The merged document; `hidden_layer_ids` leaves those layers out (the retouch
+  // tools' Current & Below sample).
+  [[nodiscard]] QImage render_document_image_with_processing(const std::vector<LayerId>& hidden_layer_ids = {});
   // Stroke-start source snapshot for the retouch tools (Clone, Healing, Spot
-  // Healing, Patch): the merged document when Sample All Layers is on, the
-  // active pixel layer alone otherwise (null QImage when no pixel layer is
-  // active). Captured once per gesture, never per move.
+  // Healing, Patch), by the Sample choice: the merged document, the composite of the
+  // active layer and everything below it, or the active pixel layer alone (null
+  // QImage when the choice needs an active layer and there is none). Captured once
+  // per gesture, never per move.
   [[nodiscard]] QImage retouch_source_snapshot();
   void set_document_internal(Document* document, bool preserve_frame_for_same_size,
                              bool normal_composite_unchanged = false);
@@ -3417,10 +3423,9 @@ private:
   bool pattern_stamp_aligned_{true};
   std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
-  // Shared by Clone, Healing, Spot Healing, and Patch: checked samples the
-  // merged document (the historical behavior), unchecked samples the active
-  // layer alone.
-  bool retouch_sample_all_layers_{true};
+  // Shared by Clone, Healing, Spot Healing, and Patch (GitHub issue 382): All
+  // Layers is the historical default.
+  SampleLayers retouch_sample_layers_{SampleLayers::AllLayers};
   int local_adjustment_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};
   bool local_protect_tones_{true};

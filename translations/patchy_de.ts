@@ -24688,6 +24688,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Convert to Color Profile</source>
         <translation>In Farbprofil umwandeln</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Welche Ebenen das Werkzeug liest: die aktive Ebene, sie und die Ebenen darunter (auf einer leeren Ebene über dem Bild reparieren) oder das zusammengefügte Bild</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>aktive Ebene und darunter</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

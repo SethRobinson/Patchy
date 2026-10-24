@@ -2672,19 +2672,51 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  retouch_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
-  retouch_sample_all_layers_check_->setObjectName(QStringLiteral("retouchSampleAllLayersCheck"));
-  retouch_sample_all_layers_check_->setChecked(canvas_defaults->retouch_sample_all_layers());
-  bind_tooltip(retouch_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
-  add_option_separator({CanvasTool::SpotHealing});
-  add_option_widget(retouch_sample_all_layers_check_,
-                    {CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
-  connect(retouch_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (canvas_ != nullptr) {
-      canvas_->set_retouch_sample_all_layers(checked);
-      save_tool_settings();
+  // Sample (GitHub issue 382): which layers the retouch tools read. Item data is the
+  // settings token; the texts are the Pick tool's Sample texts.
+  const std::initializer_list<CanvasTool> retouch_tools{CanvasTool::Clone, CanvasTool::Healing,
+                                                        CanvasTool::SpotHealing, CanvasTool::PatchTool};
+  add_option_separator({CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+  add_option_label(QT_TR_NOOP("Sample:"), retouch_tools);
+  retouch_sample_layers_combo_ = new QComboBox(toolbar);
+  retouch_sample_layers_combo_->setObjectName(QStringLiteral("retouchSampleLayersCombo"));
+  const auto retouch_sample_text = [](SampleLayers mode) {
+    static constexpr std::array<const char*, 3> kRetouchSampleTexts{
+        QT_TR_NOOP("Current Layer"), QT_TR_NOOP("Current & Below"), QT_TR_NOOP("All Layers")};
+    return QCoreApplication::translate(kMainWindowTranslationContext,
+                                       kRetouchSampleTexts[static_cast<std::size_t>(mode)]);
+  };
+  for (const auto mode : {SampleLayers::CurrentLayer, SampleLayers::CurrentAndBelow, SampleLayers::AllLayers}) {
+    retouch_sample_layers_combo_->addItem(retouch_sample_text(mode), QString::fromLatin1(sample_layers_token(mode)));
+  }
+  retouch_sample_layers_combo_->setCurrentIndex(std::max(
+      0, retouch_sample_layers_combo_->findData(
+             QString::fromLatin1(sample_layers_token(canvas_defaults->retouch_sample_layers())))));
+  bind_tooltip(retouch_sample_layers_combo_,
+               QT_TR_NOOP("Which layers the tool reads: the active layer, it and the layers below (heal on an "
+                          "empty layer above the image), or the merged image"));
+  add_option_widget(retouch_sample_layers_combo_, retouch_tools);
+  connect(retouch_sample_layers_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || retouch_sample_layers_combo_ == nullptr || canvas_ == nullptr) {
+      return;
     }
+    canvas_->set_retouch_sample_layers(sample_layers_from_settings(
+        retouch_sample_layers_combo_->itemData(index).toString().toStdString(), std::nullopt));
+    save_tool_settings();
   });
+  {
+    QPointer<QComboBox> retouch_combo(retouch_sample_layers_combo_);
+    register_retranslation([retouch_combo, retouch_sample_text] {
+      if (retouch_combo == nullptr) {
+        return;
+      }
+      const QSignalBlocker blocker(retouch_combo);
+      for (int index = 0; index < retouch_combo->count(); ++index) {
+        const auto token = retouch_combo->itemData(index).toString().toStdString();
+        retouch_combo->setItemText(index, retouch_sample_text(sample_layers_from_settings(token, std::nullopt)));
+      }
+    });
+  }
 
   add_option_separator({CanvasTool::PatchTool});
   // Patch tool: Remove Object heals the drawn selection automatically, the
