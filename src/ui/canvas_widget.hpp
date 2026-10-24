@@ -399,6 +399,11 @@ public:
   [[nodiscard]] int healing_diffusion() const noexcept;
   void set_healing_mode(HealingMode mode) noexcept;
   [[nodiscard]] HealingMode healing_mode() const noexcept;
+  // The document point a Clone/Healing stroke samples now, while painting (GitHub
+  // issue 380); nullopt between strokes.
+  [[nodiscard]] std::optional<QPoint> retouch_source_indicator() const noexcept {
+    return retouch_source_indicator_;
+  }
   // Clone, Healing, Spot Healing and Patch share one Sample choice (GitHub issue 382):
   // Current Layer, Current & Below or All Layers (the No Adjustments values are not
   // retouch choices and read as their base choice).
@@ -1952,6 +1957,15 @@ private:
   [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] PixelBuffer retouch_source_deep();
   void set_clone_source(QPoint point);
+  // Clone and Healing cursor feedback (GitHub issue 380): Alt shows the source cursor,
+  // Ctrl the temporary Move, and a press that would be refused (no source yet, no
+  // editable pixel layer) the not-allowed cursor; while painting, a small crosshair marks
+  // the point the stroke samples.
+  [[nodiscard]] bool retouch_source_tool_active() const noexcept;
+  [[nodiscard]] bool retouch_press_would_refuse() const;
+  void set_retouch_source_indicator(std::optional<QPoint> document_point);
+  [[nodiscard]] QRect retouch_source_indicator_widget_rect(QPoint document_point) const;
+  void begin_retouch_temporary_move(QMouseEvent* event, QPoint document_point);
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_at(QPoint point);
@@ -3434,6 +3448,10 @@ private:
   std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
   HealingMode healing_mode_{HealingMode::Normal};
+  // The folded modifiers of the key event being handled, for the Clone/Healing cursor.
+  std::optional<Qt::KeyboardModifiers> retouch_cursor_modifier_override_;
+  // The document point the Clone/Healing stroke samples now (drawn while painting).
+  std::optional<QPoint> retouch_source_indicator_;
   // Shared by Clone, Healing, Spot Healing, and Patch (GitHub issue 382): All
   // Layers is the historical default.
   SampleLayers retouch_sample_layers_{SampleLayers::AllLayers};

@@ -27,6 +27,17 @@ The Healing Brush is an explicit-source pixel tool: Alt-click picks a source fro
 
 **Mode** (GitHub issue 381; `healingModeCombo`, canvas `healing_mode_`, `HealingMode` in `ui/canvas_types.hpp`, key `tools/healingMode` holding the permanent tokens of `kHealingModeTokens`, default Normal): Normal is the classic write above, byte for byte. Replace skips the tone transfer and writes the source as sampled (Clone's write, so film grain survives at a soft edge). Multiply, Screen, Darken, Lighten, Color and Luminosity composite the healed color over the pixel as one paint dab with that layer blend mode (`composite_paint_rgba8`/`composite_paint_deep`, core/paint_mode.hpp; amount = opacity times coverage times source alpha), applied per stroke increment like the Normal write. The healing math is unchanged in every mode. `ui_healing_brush_modes_blend_the_healed_color` pins all eight at 8 and 16 bits; `ui_healing_mode_option_persists_and_reaches_new_documents` the combo. Healing writes only ordinary layer pixels; PSD/PSB round-trips need no private metadata. `ui_healing_brush_transfers_detail_and_preserves_destination_tone` pins the math and the PSD round trip.
 
+## Clone and Healing cursor feedback
+
+GitHub issue 380, shared by Clone and the Healing Brush (`retouch_source_tool_active()`), all read from the folded modifiers of the event being handled (`retouch_cursor_modifier_override_`; key events in `eventFilter`, hover in `mouseMoveEvent`):
+
+- **Alt** shows the source cursor (`build_retouch_source_cursor`, the canvas source marker's ring and crosshair; hotspot 12, 12).
+- **Ctrl** is the temporary Move: the four-way arrow while held, and a Ctrl press (`begin_retouch_temporary_move`) drags the selected layers like the Move tool with Auto-Select off (`movable_layer_ids` into `begin_move_drag`; position-locked or nothing movable reports the Move tool's messages). Ctrl on a ruler guide still drags the guide. The tool stays Clone or Healing.
+- **Not allowed** (`Qt::ForbiddenCursor`) where a press would be refused (`retouch_press_would_refuse`): no source set yet, a grayscale channel target, or no unlocked pixel layer active. On an artboard document only the missing source counts, because a press can retarget to the clicked artboard's layer.
+- **While painting** a small crosshair follows the point the stroke samples (`retouch_source_indicator_`, set by `clone_brush_segment` to the brush point plus the source offset, cleared when the stroke ends) in place of the Alt-click marker.
+
+`ui_healing_brush_cursor_feedback_and_ctrl_move` pins every state and the Ctrl drag.
+
 ## Spot Healing
 
 Spot Healing removes a blemish with no source pick: the drag accumulates a soft procedural footprint (doc-sized Grayscale8, stamped as brush_coverage capsules, shown as a translucent trail like Quick Select's) and the heal runs once on release in `finish_spot_heal_stroke()`. Escape cancels the footprint before anything is written; `begin_edit` is deferred to release, so a canceled stroke leaves no history entry (a press-time `can_begin_pixel_edit` precheck still reports refusals immediately).

@@ -859,6 +859,50 @@ void ui_crop_options_bar_groups_its_controls() {
   CHECK(problems.empty());
 }
 
+// The retouch bars (GitHub issues 381, 382, 383): Clone, Healing, Spot Healing and Patch
+// show the Sample combo with Ignore Adjustment Layers beside it, the Healing Brush its
+// Mode combo, each on one row at 1366 px. The Healing bar is the issue shot.
+void ui_retouch_options_bars_show_sample_and_mode() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1366, 738);
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options_bar != nullptr && options != nullptr);
+  if (options_bar == nullptr || options == nullptr) {
+    return;
+  }
+  const auto index_of = [](const std::vector<QString>& tokens, const QString& token) {
+    const auto found = std::find(tokens.begin(), tokens.end(), token);
+    return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+  };
+  for (const char* action : {"toolCloneAction", "toolHealingBrushAction", "toolSpotHealingAction", "toolPatchAction"}) {
+    require_action(window, action)->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    const auto tokens = options_row_tokens(*options);
+    std::printf("  %s:", action);
+    for (const auto& token : tokens) {
+      std::printf(" %s", qPrintable(token));
+    }
+    std::printf("\n");
+    const auto combo = index_of(tokens, QStringLiteral("retouchSampleLayersCombo"));
+    CHECK(combo > 0);
+    CHECK(index_of(tokens, QStringLiteral("retouchIgnoreAdjustmentsCheck")) == combo + 1);
+    CHECK(index_of(tokens, QStringLiteral("retouchSampleAllLayersCheck")) < 0);
+    const bool healing = std::string_view(action) == "toolHealingBrushAction";
+    CHECK((index_of(tokens, QStringLiteral("healingModeCombo")) >= 0) == healing);
+    const auto [right, lines] = options_row_extent(*options);
+    if (lines != 1) {
+      std::fprintf(stderr, "  %s takes %d rows (row %d px)\n", action, lines, right);
+    }
+    CHECK(lines == 1);
+    if (healing) {
+      save_widget_artifact("issue_381_383_healing_options_bar", *options_bar);
+    }
+  }
+}
+
 // GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
 // then a separator and the Sample Size and Sample fields, and the Show Sample Ring checkbox
 // (GitHub issue 320) after another separator, on one row at 1366 px.
@@ -8554,6 +8598,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
       {"ui_options_menu_buttons_show_the_gear", ui_options_menu_buttons_show_the_gear},
       {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
+      {"ui_retouch_options_bars_show_sample_and_mode", ui_retouch_options_bars_show_sample_and_mode},
       {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",

@@ -1092,7 +1092,24 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_drag_size_readout(painter);
   draw_transform_drag_readout(painter);
   draw_text_rect_preview(painter);
-  if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && clone_source_set_) {
+  if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && painting_ &&
+      retouch_source_indicator_.has_value()) {
+    // While painting, a small crosshair follows the point the stroke samples (GitHub
+    // issue 380), in the marker's dark halo and light ink.
+    const auto center = widget_position_f(QPointF(*retouch_source_indicator_) + QPointF(0.5, 0.5));
+    constexpr double kArm = 7.0;
+    constexpr double kGap = 2.0;
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    for (const auto& pen : {QPen(QColor(20, 23, 28, 200), 3.0), QPen(QColor(245, 248, 252, 235), 1.4)}) {
+      painter.setPen(pen);
+      painter.drawLine(QPointF(center.x() - kArm, center.y()), QPointF(center.x() - kGap, center.y()));
+      painter.drawLine(QPointF(center.x() + kGap, center.y()), QPointF(center.x() + kArm, center.y()));
+      painter.drawLine(QPointF(center.x(), center.y() - kArm), QPointF(center.x(), center.y() - kGap));
+      painter.drawLine(QPointF(center.x(), center.y() + kGap), QPointF(center.x(), center.y() + kArm));
+    }
+    painter.restore();
+  } else if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && clone_source_set_) {
     const auto center = widget_position_f(QPointF(clone_source_point_) + QPointF(0.5, 0.5));
     constexpr double kRadius = 7.0;
     painter.save();

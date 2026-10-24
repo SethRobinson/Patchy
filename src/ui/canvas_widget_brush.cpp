@@ -8,6 +8,7 @@
 
 #include "ui/canvas_widget.hpp"
 
+#include "core/artboard.hpp"
 #include "core/blend_math.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/brush_tip.hpp"
@@ -2682,6 +2683,7 @@ void CanvasWidget::set_clone_source(QPoint point) {
   clone_source_set_ = true;
   clone_aligned_offset_set_ = false;
   update();
+  update_tool_cursor();  // the not-allowed cursor gives way once a source exists
   if (status_callback_) {
     status_callback_((tool_ == CanvasTool::Healing ? tr("Healing source set at %1, %2")
                                                    : tr("Clone source set at %1, %2"))
@@ -2705,7 +2707,50 @@ QRect CanvasWidget::clone_brush_at(QPoint point) {
   return clone_brush_segment(point, point);
 }
 
+bool CanvasWidget::retouch_source_tool_active() const noexcept {
+  return tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing;
+}
+
+bool CanvasWidget::retouch_press_would_refuse() const {
+  if (document_ == nullptr || !clone_source_set_ || editing_grayscale_target()) {
+    return true;
+  }
+  // On an artboard document a press can retarget to the clicked artboard's layer
+  // (retarget_paint_to_clicked_artboard), so only the missing source refuses there.
+  if (document_has_artboards(std::as_const(*document_))) {
+    return false;
+  }
+  const auto* layer = active_pixel_layer();
+  return layer == nullptr || layer_effectively_locks_image_pixels(*layer);
+}
+
+QRect CanvasWidget::retouch_source_indicator_widget_rect(QPoint document_point) const {
+  const auto center = widget_position_f(QPointF(document_point) + QPointF(0.5, 0.5));
+  constexpr int kReach = 9;
+  return QRect(static_cast<int>(std::floor(center.x())) - kReach, static_cast<int>(std::floor(center.y())) - kReach,
+               2 * kReach + 2, 2 * kReach + 2);
+}
+
+void CanvasWidget::set_retouch_source_indicator(std::optional<QPoint> document_point) {
+  if (retouch_source_indicator_ == document_point) {
+    return;
+  }
+  const bool shown_before = retouch_source_indicator_.has_value();
+  if (shown_before != document_point.has_value()) {
+    // The stroke starts or ends: the Alt-click marker hides or comes back as well.
+    retouch_source_indicator_ = document_point;
+    update();
+    return;
+  }
+  update(retouch_source_indicator_widget_rect(*retouch_source_indicator_));
+  retouch_source_indicator_ = document_point;
+  update(retouch_source_indicator_widget_rect(*retouch_source_indicator_));
+}
+
 QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
+  if (painting_) {
+    set_retouch_source_indicator(to + clone_source_offset_);
+  }
   auto* layer = active_pixel_layer();
   if (document_ != nullptr && layer != nullptr && std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
     return clone_brush_segment_deep(from, to);

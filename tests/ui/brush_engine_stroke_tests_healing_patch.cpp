@@ -383,6 +383,87 @@ void ui_healing_mode_option_persists_and_reaches_new_documents() {
   QApplication::processEvents();
 }
 
+// Healing Brush cursor feedback (GitHub issue 380): not-allowed with no source and with
+// no pixel layer, the source cursor while Alt is held, the four-way arrow while Ctrl is
+// held and a Ctrl drag moves the layer, and while painting a crosshair follows the point
+// the stroke samples.
+void ui_healing_brush_cursor_feedback_and_ctrl_move() {
+  patchy::Document document(64, 32, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 32, patchy::PixelFormat::rgba8(), QColor(180, 140, 100, 255));
+  fill_pixel_rect(pixels, QRect(4, 4, 8, 8), QColor(60, 90, 160));
+  auto& layer = document.add_pixel_layer("Photo", std::move(pixels));
+  const auto layer_id = layer.id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(512, 256);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint document_point) { return canvas.widget_position_for_document_point(document_point); };
+  const auto hover = [&](QPoint document_point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(canvas, QEvent::MouseMove, at(document_point), Qt::NoButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  const QPoint source_hotspot(12, 12);
+
+  // No source yet: not allowed; Alt shows the source cursor and lets go of it.
+  hover(QPoint(40, 16));
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+  send_key_press(canvas, Qt::Key_Alt);
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas.cursor().hotSpot() == source_hotspot);
+  send_key_release(canvas, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+  hover(QPoint(40, 16), Qt::AltModifier);
+  CHECK(canvas.cursor().hotSpot() == source_hotspot);
+
+  // With a source the brush cursor returns; Ctrl shows the temporary Move.
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(8, 8)), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(8, 8)), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  hover(QPoint(40, 16));
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas.cursor().hotSpot() != source_hotspot);
+  send_key_press(canvas, Qt::Key_Control);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+  send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+
+  // While painting, the indicator sits at the brush point plus the source offset.
+  CHECK(!canvas.retouch_source_indicator().has_value());
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(40, 16)), Qt::LeftButton, Qt::LeftButton);
+  CHECK(canvas.retouch_source_indicator() == QPoint(8, 8));
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(44, 18)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.retouch_source_indicator() == QPoint(12, 10));
+  save_widget_artifact("issue_380_healing_source_indicator", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(44, 18)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas.retouch_source_indicator().has_value());
+
+  // A Ctrl drag moves the layer instead of healing.
+  const auto bounds_before = std::as_const(document).find_layer(layer_id)->bounds();
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(30, 16)), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(36, 16)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(40, 16)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(40, 16)), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  const auto bounds_after = std::as_const(document).find_layer(layer_id)->bounds();
+  CHECK(bounds_after.x == bounds_before.x + 10);
+  CHECK(bounds_after.y == bounds_before.y);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+
+  // No pixel layer selected: not allowed again.
+  document.clear_active_layer();
+  hover(QPoint(20, 16));
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+}
+
 // The pre-382 Sample All Layers bool still decides the first launch after the update:
 // unchecked opens on Current Layer, checked on All Layers, and the new key wins once
 // written (GitHub issue 382).
@@ -1528,6 +1609,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample",
        ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample},
       {"ui_healing_brush_modes_blend_the_healed_color", ui_healing_brush_modes_blend_the_healed_color},
+      {"ui_healing_brush_cursor_feedback_and_ctrl_move", ui_healing_brush_cursor_feedback_and_ctrl_move},
       {"ui_healing_mode_option_persists_and_reaches_new_documents",
        ui_healing_mode_option_persists_and_reaches_new_documents},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},
