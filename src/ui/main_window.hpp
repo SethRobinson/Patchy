@@ -1980,6 +1980,13 @@ private:
   void reset_pending_layer_fill_opacity_edit();
   void set_active_layer_blend(int index);
   void finish_pending_layer_blend_edit();
+  // Live blend preview while the panel's blend list is open (GitHub issue 367).
+  void begin_layer_blend_preview();
+  void preview_layer_blend(int index);
+  void apply_pending_layer_blend_preview();
+  void end_layer_blend_preview();
+  void cancel_layer_blend_preview();
+  [[nodiscard]] bool layer_blend_preview_matches_active() const;
   void set_active_layer_visible(bool visible);
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
   void set_active_layer_lock_flag(LayerLockFlags flag, bool locked);
@@ -2582,6 +2589,7 @@ private:
   QTimer* layer_fill_opacity_apply_timer_{nullptr};
   QTimer* layer_fill_opacity_idle_timer_{nullptr};
   QTimer* layer_blend_idle_timer_{nullptr};
+  QTimer* layer_blend_preview_timer_{nullptr};
   QTimer* tool_settings_save_timer_{nullptr};
   QComboBox* blend_combo_{nullptr};
   QCheckBox* visible_check_{nullptr};
@@ -3091,6 +3099,15 @@ private:
   std::vector<LayerId> pending_layer_opacity_ids_;
   std::vector<LayerId> pending_layer_fill_opacity_ids_;
   std::vector<LayerId> pending_layer_blend_ids_;
+  // The open blend list's preview: the session and selection it started on and each
+  // layer's own mode, which closing the list puts back (GitHub issue 367).
+  struct LayerBlendPreview {
+    std::int64_t session_id{0};
+    std::vector<LayerId> selection;
+    std::vector<std::pair<LayerId, BlendMode>> originals;
+    std::optional<BlendMode> pending_mode;
+  };
+  std::optional<LayerBlendPreview> layer_blend_preview_;
   // Displayed recent lists: the stored lists minus the entries the last
   // background existence check found missing. Loading never stats the disk
   // (a cold or unreachable volume would stall startup and the File menu).

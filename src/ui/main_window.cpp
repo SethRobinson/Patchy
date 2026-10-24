@@ -4348,6 +4348,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   layer_blend_idle_timer_->setSingleShot(true);
   layer_blend_idle_timer_->setInterval(kLayerBlendIdleFinishDelayMs);
   connect(layer_blend_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_blend_edit(); });
+  layer_blend_preview_timer_ = new QTimer(this);
+  layer_blend_preview_timer_->setSingleShot(true);
+  layer_blend_preview_timer_->setInterval(kLayerOpacityApplyDelayMs);
+  connect(layer_blend_preview_timer_, &QTimer::timeout, this, [this] { apply_pending_layer_blend_preview(); });
   tool_settings_save_timer_ = new QTimer(this);
   tool_settings_save_timer_->setSingleShot(true);
   tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
@@ -5970,6 +5974,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (reason == CanvasWidget::DocumentChangeReason::BrushStrokePreview) {
       pending_layer_thumbnail_refresh_ = true;
       return;
+    }
+    if (layer_blend_preview_.has_value()) {
+      return;  // a hovered blend mode; the rows refresh when the list closes
     }
     if (pending_layer_thumbnail_refresh_ || reason == CanvasWidget::DocumentChangeReason::BrushStrokeFinished) {
       pending_layer_thumbnail_refresh_ = false;

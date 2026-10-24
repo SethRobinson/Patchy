@@ -218,6 +218,7 @@ void MainWindow::undo() {
     update_undo_redo_actions();
     return;
   }
+  cancel_layer_blend_preview();
   finish_pending_shape_appearance_edit();
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
@@ -245,6 +246,7 @@ void MainWindow::redo() {
     update_undo_redo_actions();
     return;
   }
+  cancel_layer_blend_preview();
   finish_pending_shape_appearance_edit();
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
@@ -265,6 +267,10 @@ void MainWindow::push_undo_snapshot(QString label) {
 
 void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString label) {
   const bool target_is_active = &target_session == active_session();
+  if (layer_blend_preview_.has_value() && layer_blend_preview_->session_id == target_session.session_id) {
+    // An edit while the blend list is open (a script): never record a previewed mode.
+    cancel_layer_blend_preview();
+  }
   if (target_is_active) {
     // The pending layer-opacity edit belongs to the ACTIVE document; a snapshot
     // fired by a background canvas must not flush (and split) its coalesced run.
@@ -416,6 +422,7 @@ void MainWindow::jump_to_history_state(std::int64_t state_id) {
   }
   // Flushing a pending opacity edit can push a history entry (which clears the
   // redo stack), so it must happen before the clicked id is resolved.
+  cancel_layer_blend_preview();
   finish_pending_shape_appearance_edit();
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
