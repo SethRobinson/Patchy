@@ -40,6 +40,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <new>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -1694,6 +1695,15 @@ void pdn_corpus_matches_pypdn_if_available() {
           }
         }
       }
+    } catch (const std::bad_alloc&) {
+      // wasm32's 4 GB address space cannot hold every corpus canvas (a 9600 x 7100 file
+      // with 11 layers is about 3 GB of pixels); a native build has the room.
+#if defined(__EMSCRIPTEN__)
+      result = "too large for wasm32";
+#else
+      result = "error";
+#endif
+      detail = "out of memory";
     } catch (const std::exception& error) {
       const std::string what = error.what();
       result = what.find("Not a Paint.NET document") != std::string::npos ? "not a pdn" : "error";
@@ -1708,7 +1718,7 @@ void pdn_corpus_matches_pypdn_if_available() {
     ++by_version[major][result];
     // pypdn read it and Patchy did not agree: a real failure. (Files pypdn cannot read
     // either are reported, not failed: some are truncated downloads.)
-    if (have_oracle && oracle_error.empty() && result != "pass") {
+    if (have_oracle && oracle_error.empty() && result != "pass" && result != "too large for wasm32") {
       failures.push_back(name + ": " + result + " (" + detail + ")");
     }
   }

@@ -596,13 +596,17 @@ private:
     if (rank == 0 || rank > 32) {
       throw ParseError("NRBF array rank is invalid");
     }
+    // 2^40 elements, or what size_t holds on 32-bit targets (wasm32).
+    constexpr auto kMaxElements = static_cast<std::uint64_t>(
+        std::numeric_limits<std::size_t>::max() < (std::uint64_t{1} << 40U) ? std::numeric_limits<std::size_t>::max()
+                                                                            : (std::uint64_t{1} << 40U));
     std::size_t count = 1;
     for (std::size_t i = 0; i < rank; ++i) {
       const auto length = read_count();
       object.lengths.push_back(length);
       // Primitive elements are bounded by the bytes left and object elements by the
       // value slots; this only keeps the product from overflowing.
-      if (length != 0 && count > (std::size_t{1} << 40U) / static_cast<std::size_t>(length)) {
+      if (length != 0 && static_cast<std::uint64_t>(count) > kMaxElements / static_cast<std::uint64_t>(length)) {
         throw ParseError("NRBF array is too large");
       }
       count *= static_cast<std::size_t>(length);
