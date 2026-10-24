@@ -902,9 +902,11 @@ PanelColumn::Page* PanelColumn::page_for_header(const QObject* header) const {
 PanelColumn::Drop PanelColumn::drop_at(const QPoint& column_position) const {
   Drop drop;
   auto* source = drag_section_;
-  if (source == nullptr || !rect().contains(column_position)) {
-    return drop;  // off the column (over the canvas, say): a release there puts nothing anywhere
+  if (source == nullptr || column_position.x() < 0 || column_position.x() >= width()) {
+    return drop;  // beside the column (over the canvas, say): a release there puts nothing anywhere
   }
+  // Above or below the column, in line with it, lands at its top or bottom (the sections
+  // below find the slot): the only way above a tab group that starts at the very top.
   if (drag_tab_ >= 0) {
     // Along its own bar, or just above or below it, a tab only changes places.
     const auto* tabs = source->tabs;

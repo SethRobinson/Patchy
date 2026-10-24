@@ -1500,6 +1500,34 @@ void ui_panel_tab_drag_reorders_tabs() {
   // Tab texts follow a language rebind by panel, not by the old index.
   column->refresh_tab_titles();
   check_in_step({layers, channels, paths}, "titles refreshed");
+
+  // The Color and Palette group starts at the very top, so its tab bar covers the edge band
+  // that drops above a section. A tab dragged up past the column's top edge comes out above
+  // the group; just above the bar it still only changes places.
+  const auto color = QStringLiteral("colorDock");
+  const auto palette = QStringLiteral("paletteDock");
+  auto* top_tabs = column->tab_bar(color);
+  CHECK(top_tabs != nullptr && column->section_order().first() == color);
+  if (top_tabs != nullptr) {
+    const auto palette_tab = top_tabs->tabRect(1).center();
+    const auto just_above = top_tabs->mapFromGlobal(column->mapToGlobal(QPoint(palette_tab.x(), -3)));
+    const auto well_above = top_tabs->mapFromGlobal(column->mapToGlobal(QPoint(palette_tab.x(), -20)));
+    send_mouse(*top_tabs, QEvent::MouseButtonPress, palette_tab, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*top_tabs, QEvent::MouseMove, palette_tab + QPoint(QApplication::startDragDistance() + 2, 0),
+               Qt::NoButton, Qt::LeftButton);
+    send_mouse(*top_tabs, QEvent::MouseMove, just_above, Qt::NoButton, Qt::LeftButton);
+    auto* line = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+    CHECK(line == nullptr || !line->isVisible());
+    send_mouse(*top_tabs, QEvent::MouseMove, well_above, Qt::NoButton, Qt::LeftButton);
+    line = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+    CHECK(line != nullptr && line->isVisible() && line->width() > line->height() && line->y() <= 2);
+    send_mouse(*top_tabs, QEvent::MouseButtonRelease, well_above, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+  CHECK(column->section_order().value(0) == palette);
+  CHECK(column->section_order().value(1) == color);
+  CHECK(!column->in_tab_group(palette) && !column->in_tab_group(color));
 }
 
 // Dropping a panel's title row on another panel's title row or tab bar makes them one tab
