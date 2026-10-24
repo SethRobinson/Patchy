@@ -145,6 +145,41 @@ void ui_ora_save_warns_about_baked_content_and_stays_on_ora() {
 
 // doc.saveAs("x.ora") from a script: the layers stay, the document points at the file, and
 // the bake warning never blocks (a scripted save answers it).
+// doc.importNotes: a script sees what the reader dropped or approximated (here an unknown
+// composite-op), the same notes the status bar shows; a new document has none.
+void ui_script_import_notes_list_reader_notices() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = temp.filePath(QStringLiteral("odd-op.ora"));
+  {
+    patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+    pixels.clear(200);
+    const std::string stack = R"(<image w="4" h="4"><stack><layer src="data/a.png" name="Odd" composite-op="foo:bar"/></stack></image>)";
+    const auto bytes = patchy::ora::detail::zip_archive(
+        {{"mimetype", std::vector<std::uint8_t>{'i', 'm', 'a', 'g', 'e', '/', 'o', 'p', 'e', 'n', 'r', 'a', 's', 't', 'e', 'r'}, false},
+         {"stack.xml", std::vector<std::uint8_t>(stack.begin(), stack.end()), true},
+         {"data/a.png", patchy::ora::detail::encode_png(pixels), false}});
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  const auto source = QStringLiteral(R"JS(
+    var d = app.open('%1');
+    var kept = d.importNotes;
+    console.log('NOTES[' + kept.join('|') + ']');
+    d.close();
+    console.log('KEPT[' + kept.length + ']');  // a copy: still there after the close
+    var fresh = app.newDocument(8, 8);
+    console.log('FRESH[' + fresh.importNotes.length + ']');
+  )JS").arg(path);
+  CHECK(patchy::test::ui::scripting_support::run_script(window, source));
+  CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("Odd (foo:bar)")));
+  CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("FRESH[0]")));
+  CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("KEPT[1]")));
+}
+
 void ui_script_save_as_ora_keeps_layers_without_a_prompt() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -378,6 +413,7 @@ std::vector<patchy::test::TestCase> ora_ui_tests() {
       {"ui_save_asks_about_unsupported_blend_modes", ui_save_asks_about_unsupported_blend_modes},
       {"ui_script_save_unsupported_blend_modes_option", ui_script_save_unsupported_blend_modes_option},
       {"ui_script_save_as_ora_keeps_layers_without_a_prompt", ui_script_save_as_ora_keeps_layers_without_a_prompt},
+      {"ui_script_import_notes_list_reader_notices", ui_script_import_notes_list_reader_notices},
       {"ui_ora_review_capture_krita_file", ui_ora_review_capture_krita_file},
   };
 }

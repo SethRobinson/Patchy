@@ -929,6 +929,9 @@ interface PatchyDocument {
   readonly name: string;
   /** File path, empty for unsaved documents. */
   readonly path: string;
+  /** The notes the file's reader left when it opened (what it dropped or approximated, the
+   *  import notes the status bar shows), in the app's language; empty for new documents. */
+  readonly importNotes: string[];
   /** Pixels per inch. */
   readonly resolution: number;
   /** File > File Info fields. Change them with setFileInfo. */

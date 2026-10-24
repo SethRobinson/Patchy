@@ -585,6 +585,22 @@ void ora_reader_opens_alpha_preserve_as_clipping() {
   CHECK(kept != nullptr && kept->lock_flags() == patchy::kLayerLockNone);
 }
 
+// Drawpile writes its divide and subtract modes under its own names (corpus sweep: its
+// test recordings); they open as those modes instead of Normal with a note.
+void ora_reader_maps_drawpile_mode_names() {
+  const auto bytes = archive(R"(<image w="8" h="6"><stack>)"
+                             R"(<layer src="data/a.png" name="Div" composite-op="svg:-dp-divide"/>)"
+                             R"(<layer src="data/a.png" name="Minus" composite-op="svg:-dp-minus"/>)"
+                             R"(<layer src="data/a.png" name="Base"/>)"
+                             R"(</stack></image>)",
+                             {png_entry("data/a.png", 4, 4, 1)});
+  std::vector<std::string> notices;
+  const auto read = ora::DocumentIo::read(bytes, &notices);
+  CHECK(find_named(read.layers(), "Div")->blend_mode() == BlendMode::Divide);
+  CHECK(find_named(read.layers(), "Minus")->blend_mode() == BlendMode::Subtract);
+  CHECK(notices.empty());
+}
+
 void ora_reader_falls_back_to_the_merged_image() {
   const auto bytes = archive(R"(<image w="5" h="4"><stack></stack></image>)", {png_entry("mergedimage.png", 5, 4, 3)});
   const auto read = ora::DocumentIo::read(bytes);
@@ -920,6 +936,7 @@ std::vector<patchy::test::TestCase> ora_tests() {
       {"ora_reader_maps_groups_isolation_and_operators", ora_reader_maps_groups_isolation_and_operators},
       {"ora_round_trip_keeps_edit_locks", ora_round_trip_keeps_edit_locks},
       {"ora_reader_opens_alpha_preserve_as_clipping", ora_reader_opens_alpha_preserve_as_clipping},
+      {"ora_reader_maps_drawpile_mode_names", ora_reader_maps_drawpile_mode_names},
       {"ora_reader_falls_back_to_the_merged_image", ora_reader_falls_back_to_the_merged_image},
       {"ora_zip64_archives_read_back", ora_zip64_archives_read_back},
       {"ora_lost_content_lists_what_a_save_bakes", ora_lost_content_lists_what_a_save_bakes},

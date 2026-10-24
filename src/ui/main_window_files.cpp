@@ -2268,6 +2268,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
       (**sessions_.rbegin()).content_extension = loaded->content_extension;
+      (**sessions_.rbegin()).import_notes = loaded->import_notices;
       start_open_watermark_check((*sessions_.rbegin())->session_id);
       if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(**sessions_.rbegin())) {
         cmyk_proof_opened = true;
@@ -2932,6 +2933,7 @@ void MainWindow::open_document_path(QString path) {
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
     session().content_extension = loaded->content_extension;
+    session().import_notes = loaded->import_notices;
     start_open_watermark_check(session().session_id);
     bool cmyk_proof_opened = false;
     if (loaded->pdf_color_mode == PdfImportColorMode::Cmyk) {
@@ -3261,6 +3263,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     channel_thumbnail_cache_.clear();
     target_session.document = std::move(loaded->document);
     target_session.content_extension = loaded->content_extension;
+    target_session.import_notes = loaded->import_notices;
     initialize_session_history(target_session, tr("Reopen"));
     target_session.collapsed_layer_groups.clear();
     collect_initially_collapsed_layer_groups(target_session.document.layers(),

@@ -14,6 +14,7 @@
 #include "ui/image_save_options.hpp"
 
 #include <QString>
+#include <QStringList>
 
 #include <cstddef>
 #include <cstdint>
@@ -40,6 +41,9 @@ struct DocumentSession {
   // with that extension suggested, so a mislabeled file never gets bytes its name hides;
   // cleared once a save gives the document a file of its own.
   QString content_extension;
+  // The notes the reader left when this session's file opened (dropped or approximated
+  // features, the import notes the status bar shows); scripts read them as doc.importNotes.
+  QStringList import_notes;
   // Added in the background (SessionActivation::Background): its canvas has never been
   // shown, so it has no real size to fit to yet. The first activation fits it.
   bool fit_view_on_first_activation{false};

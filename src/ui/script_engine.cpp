@@ -1019,6 +1019,11 @@ QString ScriptEngineHost::session_file_path(std::int64_t session_id) const {
   return session != nullptr ? session->path : QString();
 }
 
+QStringList ScriptEngineHost::session_import_notes(std::int64_t session_id) const {
+  const auto* session = const_cast<MainWindow&>(window_).session_with_id(session_id);
+  return session != nullptr ? session->import_notes : QStringList();
+}
+
 bool ScriptEngineHost::session_cmyk_proof(std::int64_t session_id) const {
   const auto* session = const_cast<MainWindow&>(window_).session_with_id(session_id);
   return session != nullptr && session->cmyk_proof;
