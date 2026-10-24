@@ -1986,10 +1986,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
   brush_size_slider->setProperty(kOptionsBarCollapsibleProperty, true);
   bind_curved_slider(*brush_size_slider, *brush_size);
-  // 130 (was 150): the Brush row must keep one Options-bar line at ordinary
-  // window widths now that it also carries the Smoothing spin and gear
-  // (ui_brush_tip_picker_keeps_options_bar_height).
-  brush_size_slider->setFixedWidth(124);
+  // 84 (was 124, 150 before that): the Brush row must keep one Options-bar line,
+  // slider included, at 1366 px with the fixed-width Tip picker and the separator
+  // after Opacity (GitHub issue 364; ui_brush_tip_picker_keeps_a_fixed_width).
+  brush_size_slider->setFixedWidth(84);
   register_retranslation([brush_size_slider] {
     brush_size_slider->setToolTip(resolve_modifier_names(MainWindow::tr("Brush size: press [ or ], or %ALT%+Right-drag on the canvas")));
   });
@@ -2051,6 +2051,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Opacity and Soft have no inline slider (Flow and Smooth never did): the field's
   // popup slider, a drag on its label or inside the field, and the number keys set them.
   bind_tooltip(brush_opacity, QT_TR_NOOP("Brush opacity: press number keys (5 = 50%, 0 = 100%)"));
+  // Mode and Opacity | the tip's own settings (GitHub issue 364). Pixels mode only on the
+  // shape tools, like the controls on either side.
+  {
+    auto* separator = make_option_separator();
+    register_option_action(separator, {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone,
+                                       CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser,
+                                       CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+    vector_pixel_only_option_widgets_.push_back(separator);
+  }
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Soft:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
@@ -2301,7 +2310,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   mixer_sample_all_layers_check_->setObjectName(QStringLiteral("mixerSampleAllLayersCheck"));
   mixer_sample_all_layers_check_->setChecked(canvas_defaults->mixer_sample_all_layers());
   bind_tooltip(mixer_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
-  add_option_separator({CanvasTool::MixerBrush});
+  // No separator before the checkbox: the Mixer row has no room for it at 1366 px next to
+  // the fixed-width Tip picker (docs/options-bar.md rule 9; GitHub issue 364).
   add_option_widget(mixer_sample_all_layers_check_, {CanvasTool::MixerBrush});
   connect(mixer_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {

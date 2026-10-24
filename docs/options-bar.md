@@ -13,10 +13,10 @@ Every tool's bar follows these rules; a new bar or control is placed by them (wo
 5. **Never a separator first, last, or right after another one.** Register separators with `add_option_separator` for the tools whose groups they divide, and let hidden groups take care of themselves: `stray_option_separators` drops a separator that a tool, mode or style would leave leading, trailing or doubled.
 6. **A label precedes its field** as one scrub zone ([ui-conventions.md](ui-conventions.md)), spelled out ("Tolerance", not "Tol"; issue 290). Short names only for paired size fields (W/H) and the swap or link between them.
 7. **Icon buttons between two fields sit evenly**: the glyph is as far from the field before as from the label after (the swap button: 11 px each side, issue 286 follow-up).
-8. **A menu of further options is a gear button** (`make_options_menu_button` in main_window_actions_options_bar.cpp: `gear.svg` at 16 px, InstantPopup, the `optionsBarMenuButton` QSS rule's bordered 20 px look with no menu arrow; GitHub issue 326 follow-up): Move's align menu, Crop options and Smoothing options. Never a "..." text button.
-9. **One row at 1366 px.** A separator costs 6 px (2 px line, 4 px spacing); when a row has no room, drop a separator before a control.
+8. **A menu of further options is a gear button** (`make_options_menu_button` in main_window_actions_options_bar.cpp: `gear.svg` at 16 px, InstantPopup, the `optionsBarMenuButton` QSS rule's bordered 20 px look with no menu arrow and a 16 px content minimum, 27 px wide; GitHub issue 326 follow-up): Move's align menu, Crop options and Smoothing options. Never a "..." text button.
+9. **One row at 1366 px.** A separator costs 7 px (a 3 px widget and the flow's 4 px spacing); when a row has no room, drop a separator before a control (the Mixer row has none before Sample All Layers; GitHub issue 364).
 
-Example, the Brush bar: `Preset [combo] | Size [spin][slider] | Mode [combo] Opacity [spin] Soft [spin] Flow [spin] [Airbrush] | Smooth [spin][gear] | Tip [picker][dynamics]`. Example, the Patch bar: `[modes] | Patch [combo] | [Transparent] [Sample All Layers] | [Remove Object]`.
+Example, the Brush bar: `Preset [combo] | Size [spin][slider] | Mode [combo] Opacity [spin] | Soft [spin] Flow [spin] [Airbrush] | Smooth [spin][gear] | Tip [picker][dynamics]` (the Opacity separator: GitHub issue 364; every brush-family bar with Opacity has it). Example, the Patch bar: `[modes] | Patch [combo] | [Transparent] [Sample All Layers] | [Remove Object]`.
 
 Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (and the variants its style or mode combo switches to) in both schemes and fails on a leading, trailing or doubled separator or a wrapped row. Rules 1 to 4, 6 and 7 are review rules.
 
@@ -45,6 +45,8 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 - An inline slider that repeats the spin box beside it (the spin box already has the popup slider and the scrub label) carries `kOptionsBarCollapsibleProperty`. Today: Brush Size, Gradient Opacity, Quick Select Size, Fill Opacity and Soft. The brush family's Opacity and Soft have no inline slider at all (October 2026), like Flow and Smooth: the popup slider, a drag on the label or inside the field, and the number keys reach them.
 - At a width where any row holding one would wrap with it, all of them hide, for every tool at once, so the bar looks the same from tool to tool. A resize across that width calls back into `refresh_options_bar`.
 - Mark only true duplicates. Never mark a control that is the only way to reach a setting.
+- The decision is rechecked whenever a control changes size without the width changing (`OptionsFlowContainer::event` on `LayoutRequest`), and a change of decision drops the height reservation. Before, it followed whatever the controls measured at the last refresh: the tip picker then took its width from the tip name, so starting on the Brush tool with a long tip hid the slider and kept an empty second row, while picking that tip later kept the slider and wrapped (GitHub issue 364).
+- A control whose content changes (a name, a preset) keeps one width: the Brush Tip picker and the Artboard preset picker size from their size hints, elide the name and show it in full in the tooltip (`ui_brush_tip_picker_keeps_a_fixed_width`).
 
 ## Popups and the cursor
 
