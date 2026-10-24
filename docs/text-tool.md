@@ -101,7 +101,8 @@ back BEFORE `remove_text_editor_preview`, in commit and cancel.
 ## Session lifecycle (provisional layer, commit, cancel)
 
 - A Type-tool click inserts a provisional 1x1 text layer (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it via the marker-checked `MainWindow::take_provisional_text_layer`, then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
-- **Commit invalidation must cover old ∪ preview ∪ new.** The restore/remove teardown pair invalidates its regions BEFORE the layer mutates, so `commit_text_editor` captures the old layer and preview render bounds up front and unions them into the post-mutation `document_changed_effect_bounds`, or the old render stays baked in the canvas cache outside the new bounds (routine on warped layers). Same rule for `hide_text_editor_source_layer`: it returns the vacated rect and never invalidates itself, so every caller must consume the return.
+- **A no-op commit adds no step** (issue 387): an existing layer's commit runs on a copy first; a result equal to the layer skips `push_undo_snapshot` (`ui_text_commit_unchanged_adds_no_history_step`).
+- **Commit invalidation must cover old ∪ preview ∪ new.** The restore/remove teardown pair invalidates its regions BEFORE the layer mutates, so `commit_text_editor` captures the old layer and preview render bounds up front and unions them into the post-mutation `document_changed_effect_bounds`, or the old render stays baked in the canvas cache outside the new bounds (routine on warped layers). `hide_text_editor_source_layer` likewise returns the vacated rect without invalidating; callers must consume it.
 - **Warped text layers get a warp-aware session**: entry resolves a Move-corrected unwarped transform and gates off every raster-derived anchor. See Warp Text in [warp.md](warp.md).
 - Commit keys (`MainWindow::eventFilter`): Ctrl/Cmd+Return and the bare keypad Enter (`Key_Enter` + `KeypadModifier`, also Mac fn+Return); plain Return is a line break, Escape cancels (GitHub issue 71, `ui_text_keypad_enter_commits_and_return_breaks_line`); Preferences > Tools "Use Esc to commit text" (`input/escapeCommitsText`, default off) makes it commit (issue 173, `ui_text_escape_commits_preference`).
 - Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. The canvas event filter must leave that flag alone during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's undo-snapshot wait ([wasm.md](wasm.md); `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
@@ -129,7 +130,7 @@ the session mid-call (`configure()` runs on every cursor move). Real-click tests
 ## Options bar while an editor is open
 
 - The options bar shows session apply/cancel buttons (`textApplyButton`/`textCancelButton`) while an editor is open; they must keep `Qt::NoFocus`, or the focus-loss auto-commit fires on mouse press and Cancel commits instead of canceling.
-- The font combo is a `FontPickerCombo` (src/ui/font_picker.*, a QFontComboBox whose overridden showPopup opens a searchable list + writing-system preview); its popup objectName `textFontPickerPopup` must stay matched by `is_text_option_widget` (a Qt::Popup is a window, so isAncestorOf-based ownership misses it and focusing the search box would auto-commit the session).
+- The font combo is a `FontPickerCombo` (src/ui/font_picker.*: a searchable list + writing-system preview); its popup objectName `textFontPickerPopup` must stay matched by `is_text_option_widget` (a Qt::Popup is a window, so isAncestorOf misses it and focusing its search box auto-commits).
 - **A popup pick must apply even when its row is already current.** A family the database lacks has no row, so a control set to one parks on another family while `currentFont()` names the missing one; the commit sets the index, then pushes the family through `setCurrentFont` when `currentFont().families().value(0)` still disagrees.
 - New UI that must coexist with an open text session needs the same `is_text_option_widget` exemption (`textCharacterDialog`, `textParagraphDialog` and their buttons have it).
 - **The keyboard returns to the session** (issue 175), so the next key replaces a selected "Type" placeholder: color, alignment and Warp buttons are `Qt::NoFocus`; a combo pick (`activated`, emitted by the font popup too), Enter in the size field, closing its slider popup or the text color panel, and Enter, checkbox or combo edits in the Character/Paragraph panels call `return_keyboard_to_text_editor`. Warp Text commits for its dialog, then reopens the session with its selection (`ui_text_placeholder_survives_*`).
@@ -147,7 +148,7 @@ the buffer at the frame corner.
 
 ## The style picker, and what bold + italic cannot say
 
-A family's faces are an arbitrary list; bold and italic name only four of them. The options
+The options
 bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop (no B/I buttons).
 `PsdTextStyleRun::style` / runs v5 column 12 persist a face the flags cannot express;
 `render_text_font_for_display_family` takes it as its last argument, applying `setStyleName`
@@ -178,7 +179,7 @@ not render nothing).
   only the database knows (Light, Semibold, Black), orders the four standard faces first, and
   caches per family with `fontDatabaseChanged` invalidation. A family that is not installed still
   offers the four standard faces so the toggles never synthesize on top of a substituted face.
-- New text seeds from the picker's selection (`add_text_at`).
+- New text seeds from the picker (`add_text_at`).
 - On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
   compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
   instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup

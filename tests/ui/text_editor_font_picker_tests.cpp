@@ -2453,6 +2453,127 @@ void ui_text_escape_commits_preference() {
   CHECK(layer_count() == before_cancel + 1);
 }
 
+// GitHub issue 387: re-opening a text layer and committing it with nothing changed adds no
+// "Type" History step and leaves the document unmodified, on every commit route (Ctrl+Enter,
+// the Apply button, switching tools, Esc with "Use Esc to commit text" on). A real change
+// still records exactly one step. Point text and box text both.
+void ui_text_commit_unchanged_adds_no_history_step() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(QColor(20, 20, 20));
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto& document = Access::document(window);
+  const auto live_editor = [&] { return canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); };
+  const auto depth = [&] { return Access::active_session_undo_depth(window); };
+  auto* move_action = require_action_by_text(window, QStringLiteral("Move"));
+
+  for (const bool boxed : {false, true}) {
+    const auto label = boxed ? QStringLiteral("box") : QStringLiteral("point");
+    QTextEdit* created = nullptr;
+    if (boxed) {
+      require_action_by_text(window, QStringLiteral("Type"))->trigger();
+      drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 200)),
+           canvas->widget_position_for_document_point(QPoint(220, 260)));
+      QApplication::processEvents();
+      created = live_editor();
+    } else {
+      created = open_point_text_session(window, *canvas, QPoint(40, 80));
+    }
+    CHECK(created != nullptr);
+    if (created == nullptr) {
+      return;
+    }
+    created->setPlainText(QStringLiteral("Same"));
+    send_key(*created, Qt::Key_Return, Qt::ControlModifier);
+    process_events_for(100);
+    CHECK(live_editor() == nullptr);
+    const auto layer_id = document.active_layer_id();
+    const auto rect = canvas->active_layer_document_rect();
+    CHECK(layer_id.has_value());
+    CHECK(rect.has_value());
+    CHECK(active_layer_text(window) == QStringLiteral("Same"));
+    if (!layer_id.has_value() || !rect.has_value()) {
+      return;
+    }
+
+    Access::mark_active_session_saved(window);
+    const auto start_depth = depth();
+    const auto reopen = [&]() -> QTextEdit* {
+      auto* editor = open_point_text_session(window, *canvas, rect->center());
+      if (editor == nullptr || !editor->property("patchy.editingLayerId").isValid() ||
+          editor->property("patchy.editingLayerId").toULongLong() != static_cast<qulonglong>(*layer_id)) {
+        return nullptr;
+      }
+      return editor;
+    };
+    const auto expect_no_step = [&](const char* route) {
+      const bool unchanged = live_editor() == nullptr && depth() == start_depth &&
+                             !Access::active_session_is_modified(window) &&
+                             active_layer_text(window) == QStringLiteral("Same");
+      if (!unchanged) {
+        std::cerr << "unchanged " << label.toStdString() << " commit via " << route << " recorded a change (depth "
+                  << start_depth << " -> " << depth() << ")\n";
+      }
+      CHECK(unchanged);
+    };
+
+    auto* editor = reopen();
+    CHECK(editor != nullptr);
+    if (editor != nullptr) {
+      send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+      process_events_for(100);
+    }
+    expect_no_step("Ctrl+Enter");
+
+    editor = reopen();
+    CHECK(editor != nullptr);
+    auto* apply_button = window.findChild<QPushButton*>(QStringLiteral("textApplyButton"));
+    CHECK(apply_button != nullptr);
+    if (editor != nullptr && apply_button != nullptr) {
+      apply_button->click();
+      process_events_for(100);
+    }
+    expect_no_step("Apply");
+
+    editor = reopen();
+    CHECK(editor != nullptr);
+    if (editor != nullptr) {
+      move_action->trigger();
+      process_events_for(100);
+    }
+    expect_no_step("tool switch");
+
+    Access::set_escape_commits_text(window, true);
+    editor = reopen();
+    CHECK(editor != nullptr);
+    if (editor != nullptr) {
+      send_key(*editor, Qt::Key_Escape);
+      process_events_for(100);
+    }
+    Access::set_escape_commits_text(window, false);
+    expect_no_step("Esc commit");
+
+    // One typed character is a real edit: exactly one Type step, and the document is modified.
+    editor = reopen();
+    CHECK(editor != nullptr);
+    if (editor != nullptr) {
+      auto cursor = editor->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      editor->setTextCursor(cursor);
+      editor->insertPlainText(QStringLiteral("s"));
+      send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+      process_events_for(100);
+    }
+    CHECK(live_editor() == nullptr);
+    CHECK(depth() == start_depth + 1);
+    CHECK(Access::active_session_is_modified(window));
+    CHECK(active_layer_text(window) == QStringLiteral("Sames"));
+  }
+}
+
 // GitHub issue 74: inside a session the first click places the caret, the second selects the
 // word, and a third click in quick succession selects that row; a fourth click is a plain
 // click again. The row comes from Patchy's own line plan, so it works per visual line.
@@ -3259,6 +3380,7 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
       {"ui_text_placeholder_survives_options_bar_changes", ui_text_placeholder_survives_options_bar_changes},
       {"ui_text_placeholder_survives_panels_and_warp", ui_text_placeholder_survives_panels_and_warp},
       {"ui_text_escape_commits_preference", ui_text_escape_commits_preference},
+      {"ui_text_commit_unchanged_adds_no_history_step", ui_text_commit_unchanged_adds_no_history_step},
       {"ui_expensive_text_style_preview_never_blanks_while_typing",
        ui_expensive_text_style_preview_never_blanks_while_typing},
       {"ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard",
