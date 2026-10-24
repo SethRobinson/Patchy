@@ -87,16 +87,7 @@ Writes follow the clone conventions: selection coverage from the drag mask, tran
 
 ## Red Eye
 
-GitHub issue 370. The user picks the eye; the tool never looks for eyes (the boundary in [legal-constraints.md](legal-constraints.md), checked 2026-10-24). A click works in a square of `red_eye_click_box_size` around the press point (a sixth of the document's shorter side, 32 to 600 px); a drag of at least 3 px both ways works inside the dragged box (drawn like the Object Selection box, `draw_red_eye_overlay`); Esc mid-drag cancels. The correction runs once on release (`CanvasWidget::apply_red_eye_at`, canvas_widget_red_eye.cpp) as one "Red Eye" undo step on the active pixel layer; masks, channels, Quick Mask and non-pixel layers are refused with a status message, as is a click with no red near it.
-
-The math is `core/red_eye.{hpp,cpp}`, integer for the mask and for 8-bit pixels:
-
-- **Red rule.** A pixel (display-encoded, at least half opaque) is red when r^2 / (g^2 + b^2 + 400) reaches a threshold falling from 6.0 at Pupil Size 1 to 1.8 at 100 (50 gives 3.9). Brown irises (about 1.5) and skin (about 1.0) stay out at every setting; a flash-red pupil is near 10. A larger Pupil Size takes in more of the pink rim.
-- **Area.** The 8-connected red area containing the user's point, or the red pixel nearest it (within a quarter of the click box, or anywhere in the drag box), grown inside the box only. Its pixels weigh 192..255 by how far past the threshold they are; a one-pixel ring outside it gets the 3x3 mean (the feather). Red areas apart from the pupil, and the glint inside it, are left alone.
-- **Fix.** Red moves toward the mean of green and blue by the weight, then all three channels scale by 1 - Darken Amount x weight (Darken 50 halves the pupil). Alpha never changes and fully transparent pixels are skipped. The selection's coverage scales the weight; palette documents binarize it and snap.
-- **Depth.** 16-bit works on the encoded values through `load_pixel`/`store_pixel`; a 32-bit pixel within 0..1 goes through the sRGB curve, is fixed the same way and goes back (a brighter one is fixed in linear light, the darkening raised to 2.2), so both narrow to within a few levels of the 8-bit result and untouched pixels keep their exact values.
-
-Options bar: Pupil Size and Darken Amount, 1..100 %, default 50, a spin box and slider each (`redEyePupilSizeSpin`, `redEyeDarkenAmountSpin`), kept on MainWindow and applied to every canvas, saved as `tools/redEyePupilSize` and `tools/redEyeDarkenAmount`. Script: `layer.redEye({x, y, width?, height?, pupilSize?, darkenAmount?})` ([scripting-api-changes.md](scripting-api-changes.md)). Coverage: `red_eye_*` (core), `ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes`, `ui_script_red_eye_corrects_pupil`.
+The Red Eye tool (GitHub issue 370): the user clicks or drags over an eye, fixed color rules grow the red area from that point and desaturate and darken it by each pixel's redness. Gesture, method, calibration and limits: [red-eye.md](red-eye.md).
 
 ## Palette placement
 
