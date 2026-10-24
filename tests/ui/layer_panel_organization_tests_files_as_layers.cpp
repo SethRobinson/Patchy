@@ -251,6 +251,10 @@ void ui_layer_panel_file_drop_adds_layers_at_drop_position() {
 void ui_layer_panel_file_drop_targets_folder_and_stack_ends() {
   patchy::ui::MainWindow window;
   show_window_empty(window);
+  // The drop below the last row needs empty list space, which the expanded Color panel
+  // takes in the 780 px test window.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  QApplication::processEvents();
   const auto target = open_target(window);
   const auto c = write_image(QStringLiteral("c.png"), 4, 4, QColor(0, 0, 255, 255));
   const auto d = write_image(QStringLiteral("d.png"), 4, 4, QColor(0, 255, 255, 255));

@@ -119,8 +119,8 @@ int widget_floor(const QWidget* widget) {
 // How far above or below its own tab bar a dragged tab still only changes places.
 constexpr int kTabBarSlack = 6;
 // The dragged title row or tab follows the pointer at this opacity: faint enough to see the
-// drop line or outline through it.
-constexpr double kDragGhostOpacity = 0.35;
+// drop line, the outline and the panels through it.
+constexpr double kDragGhostOpacity = 0.5;
 
 // A page that stops being its own section drops the height limits apply_section_state set
 // on it there (a collapsed section is pinned to its title row).
@@ -136,6 +136,10 @@ public:
   explicit PanelDragGhost(QWidget* parent) : QWidget(parent) {
     setObjectName(QStringLiteral("panelDragGhost"));
     setAttribute(Qt::WA_TransparentForMouseEvents);
+    // The theme gives every plain QWidget an opaque background, which would paint under
+    // the translucent copy and hide what the drag passes over.
+    setAttribute(Qt::WA_NoSystemBackground);
+    set_themed_style(*this, QStringLiteral("QWidget#panelDragGhost { background: transparent; border: none; }"));
   }
 
   void set_pixmap(QPixmap pixmap) {

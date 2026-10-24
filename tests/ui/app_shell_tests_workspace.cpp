@@ -928,39 +928,40 @@ void ui_window_menu_hides_collapsed_panel() {
   show_window(window);
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* window_menu = window.findChild<QMenu*>(QStringLiteral("windowMenu"));
-  auto* palette_toggle = window.findChild<QToolButton*>(QStringLiteral("paletteDockCollapseButton"));
-  auto* palette_entry = require_action(window, "windowPanelPaletteAction");
-  CHECK(column != nullptr && window_menu != nullptr && palette_toggle != nullptr);
-  if (column == nullptr || window_menu == nullptr || palette_toggle == nullptr) {
+  // History has a section of its own (a tab behind another one comes forward instead).
+  auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
+  auto* history_entry = require_action(window, "windowPanelHistoryAction");
+  CHECK(column != nullptr && window_menu != nullptr && history_toggle != nullptr);
+  if (column == nullptr || window_menu == nullptr || history_toggle == nullptr) {
     return;
   }
-  const auto palette = QStringLiteral("paletteDock");
-  if (!column->panel_expanded(palette)) {
-    palette_toggle->click();
+  const auto history = QStringLiteral("historyDock");
+  if (!column->panel_expanded(history)) {
+    history_toggle->click();
     QApplication::processEvents();
   }
-  CHECK(column->panel_expanded(palette));
-  palette_toggle->click();
+  CHECK(column->panel_expanded(history));
+  history_toggle->click();
   QApplication::processEvents();
-  CHECK(column->panel_visible(palette));
-  CHECK(!column->panel_expanded(palette));
+  CHECK(column->panel_visible(history));
+  CHECK(!column->panel_expanded(history));
   emit window_menu->aboutToShow();
   QApplication::processEvents();
-  CHECK(palette_entry->isChecked());
+  CHECK(history_entry->isChecked());
 
-  palette_entry->trigger();
+  history_entry->trigger();
   QApplication::processEvents();
-  CHECK(!column->panel_visible(palette));
-  CHECK(column->section_widget(palette)->isHidden());
-  CHECK(!palette_entry->isChecked());
+  CHECK(!column->panel_visible(history));
+  CHECK(column->section_widget(history)->isHidden());
+  CHECK(!history_entry->isChecked());
 
-  palette_entry->trigger();
+  history_entry->trigger();
   QApplication::processEvents();
-  CHECK(column->panel_visible(palette));
-  CHECK(column->section_widget(palette)->isVisible());
-  CHECK(column->panel_expanded(palette));
-  CHECK(palette_toggle->isChecked());
-  CHECK(palette_entry->isChecked());
+  CHECK(column->panel_visible(history));
+  CHECK(column->section_widget(history)->isVisible());
+  CHECK(column->panel_expanded(history));
+  CHECK(history_toggle->isChecked());
+  CHECK(history_entry->isChecked());
 }
 
 void ui_window_menu_lists_panels_and_toolbars() {
@@ -1244,9 +1245,11 @@ void ui_panel_title_drag_reorders_sections() {
     return;
   }
   auto* splitter = column->splitter();
-  const QStringList defaults = {QStringLiteral("layersDock"), QStringLiteral("historyDock"),
+  // The first-launch column: the Color and Palette group, the Layers group, then Properties,
+  // Info and History.
+  const QStringList defaults = {QStringLiteral("colorDock"), QStringLiteral("layersDock"),
                                 QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                                QStringLiteral("colorDock"), QStringLiteral("paletteDock")};
+                                QStringLiteral("historyDock")};
   CHECK(column->section_order() == defaults);
   const auto check_filled = [&](const char* context) {
     int expected_top = 0;
@@ -1286,7 +1289,7 @@ void ui_panel_title_drag_reorders_sections() {
   };
 
   // Info dragged by its title text (which passes the mouse up to the row, as a real click
-  // does) above the tab group: Info moves to the top, keeping its height.
+  // does) above the top section: Info moves to the top, keeping its height.
   auto* info_header = column->title_label(QStringLiteral("infoDock"));
   CHECK(info_header != nullptr);
   const auto info_height = column->section_widget(QStringLiteral("infoDock"))->height();
@@ -1306,9 +1309,9 @@ void ui_panel_title_drag_reorders_sections() {
   QApplication::processEvents();
   QApplication::processEvents();
   CHECK(!indicator->isVisible());
-  CHECK(column->section_order() == (QStringList{QStringLiteral("infoDock"), QStringLiteral("layersDock"),
-                                                QStringLiteral("historyDock"), QStringLiteral("propertiesDock"),
-                                                QStringLiteral("colorDock"), QStringLiteral("paletteDock")}));
+  CHECK(column->section_order() == (QStringList{QStringLiteral("infoDock"), QStringLiteral("colorDock"),
+                                                QStringLiteral("layersDock"), QStringLiteral("propertiesDock"),
+                                                QStringLiteral("historyDock")}));
   CHECK(splitter->widget(0)->objectName() == QStringLiteral("infoDock"));
   CHECK(column->section_widget(QStringLiteral("infoDock"))->height() == info_height);
   check_filled("info to top");
@@ -1349,8 +1352,8 @@ void ui_panel_title_drag_reorders_sections() {
   check_filled("group to bottom");
 
   // move_section and set_section_order do the same without a mouse.
-  column->move_section(QStringLiteral("paletteDock"), 0);
-  CHECK(column->section_order().first() == QStringLiteral("paletteDock"));
+  column->move_section(QStringLiteral("historyDock"), 0);
+  CHECK(column->section_order().first() == QStringLiteral("historyDock"));
   column->set_section_order(defaults);
   QApplication::processEvents();
   CHECK(column->section_order() == defaults);
@@ -1441,8 +1444,9 @@ void ui_panel_tab_drag_reorders_tabs() {
   CHECK(changes == 1);
   CHECK(QApplication::overrideCursor() == nullptr);
   // The section stays where it was; only its name follows its first tab.
-  CHECK(column->section_order().mid(1) == section_order_before.mid(1));
-  CHECK(column->section_order().first() == channels);
+  auto renamed_order = section_order_before;
+  renamed_order[renamed_order.indexOf(layers)] = channels;
+  CHECK(column->section_order() == renamed_order);
   CHECK(QApplication::topLevelWidgets().size() == top_level_count);
   save_widget_artifact("ui_panel_tab_drag_reorders_tabs_after", *column);
 
@@ -1526,6 +1530,18 @@ void ui_panel_drag_onto_header_merges_into_tabs() {
     }
     return count;
   };
+  // Color, Palette and the Layers group all end up expanded at once below: give them the
+  // height the 780 px test window lacks (screen fitting has its own tests).
+  window.resize(window.width(), 1000);
+  QApplication::processEvents();
+  // Start from Color and Palette apart and collapsed, under the Layers group.
+  column->set_tab_groups({{layers, channels, paths}});
+  column->set_section_order({layers, history, properties, info, color, palette});
+  for (const auto& id : {history, properties, info, color, palette}) {
+    column->set_panel_expanded(id, false);
+  }
+  QApplication::processEvents();
+  QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   const auto windows_before = visible_windows();
   const auto check_filled = [&](const char* context) {
     int expected_top = 0;
@@ -1585,6 +1601,21 @@ void ui_panel_drag_onto_header_merges_into_tabs() {
     CHECK(ghost->geometry().contains(pointer));
     CHECK(ghost->height() == column->title_label(color)->parentWidget()->height());
     CHECK(ghost->testAttribute(Qt::WA_TransparentForMouseEvents));
+    // Half transparent all over: the theme's opaque widget background must not paint under
+    // the copy, or it hides what the drag passes over.
+    QImage rendered(ghost->size(), QImage::Format_ARGB32);
+    rendered.fill(Qt::transparent);
+    ghost->render(&rendered);
+    int most_opaque = 0;
+    for (int y = 0; y < rendered.height(); ++y) {
+      for (int x = 0; x < rendered.width(); ++x) {
+        most_opaque = std::max(most_opaque, qAlpha(rendered.pixel(x, y)));
+      }
+    }
+    if (most_opaque == 0 || most_opaque > 140) {
+      std::printf("ghost alpha at most %d\n", most_opaque);
+    }
+    CHECK(most_opaque > 0 && most_opaque <= 140);
   }
   CHECK(visible_windows() == windows_before);
   save_widget_artifact("ui_panel_drag_onto_header_merges_into_tabs_ghost", window);
@@ -2002,7 +2033,7 @@ void ui_panel_layout_returns_in_the_next_window() {
     column->move_section(QStringLiteral("infoDock"), 0);
     column->move_tab(QStringLiteral("pathsDock"), 0);
     CHECK(column->section_panel_ids(layers) == moved_tabs);
-    column->merge_panel(color, palette);
+    column->move_tab(palette, 0);
     column->bring_to_front(palette);
     QApplication::processEvents();
     picked_width = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window) + 40;
@@ -2018,9 +2049,9 @@ void ui_panel_layout_returns_in_the_next_window() {
     const auto settings = patchy::ui::app_settings();
     CHECK(settings.value(QStringLiteral("window/panelLayoutVersion")).toInt() == 4);
     CHECK(settings.value(QStringLiteral("window/panelGroups")).toStringList() ==
-          (QStringList{moved_tabs.join(QLatin1Char(',')), QStringLiteral("paletteDock,colorDock")}));
+          (QStringList{QStringLiteral("paletteDock,colorDock"), moved_tabs.join(QLatin1Char(','))}));
     CHECK(settings.value(QStringLiteral("window/frontPanels")).toStringList() ==
-          (QStringList{QStringLiteral("channelsDock"), palette}));
+          (QStringList{palette, QStringLiteral("channelsDock")}));
   }
   {
     // Read before the first show, as the constructor does on a desktop.
@@ -2055,11 +2086,11 @@ void ui_panel_layout_returns_in_the_next_window() {
     }
     CHECK(column->section_panel_ids(color) == (QStringList{palette, color}));
     CHECK(column->panel_in_front(palette));
-    CHECK(column->section_order().last() == palette);
+    CHECK(column->section_order().value(1) == palette);
   }
   {
-    // A version 3 record (from before the tab order was kept) keeps its choices with the
-    // default tab order.
+    // A version 3 record (from before the tab groups were kept) keeps its choices with the
+    // groups and tab order of its time: Layers, Channels and Paths, Color and Palette apart.
     auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("window/panelLayoutVersion"), 3);
     settings.sync();
@@ -2086,9 +2117,10 @@ void ui_panel_layout_returns_in_the_next_window() {
     CHECK(!window.findChild<QToolBar*>(QStringLiteral("Options"))->isHidden());
     CHECK(column->panel_expanded(properties) == properties_expanded_before);
     CHECK(patchy::ui::MainWindowTestAccess::right_dock_width_follows_content(window));
-    CHECK(column->section_order().first() == QStringLiteral("layersDock"));
+    CHECK(column->section_order().first() == color);
     CHECK(column->section_panel_ids(layers) == default_tabs);
-    CHECK(!column->in_tab_group(color));
+    CHECK(column->section_panel_ids(color) == (QStringList{color, palette}));
+    CHECK(column->panel_in_front(color));
   }
 }
 
@@ -2142,7 +2174,9 @@ void ui_reset_panels_restores_first_launch_layout() {
   const QStringList tab_order = {QStringLiteral("layersDock"), QStringLiteral("channelsDock"),
                                  QStringLiteral("pathsDock")};
   CHECK(column->section_panel_ids(QStringLiteral("layersDock")) == tab_order);
-  CHECK(column->tab_groups() == QList<QStringList>{tab_order});
+  CHECK(column->tab_groups() ==
+        (QList<QStringList>{{QStringLiteral("colorDock"), QStringLiteral("paletteDock")}, tab_order}));
+  CHECK(column->panel_in_front(QStringLiteral("colorDock")));
   if (auto* tabs = column->tab_bar(QStringLiteral("layersDock")); tabs != nullptr) {
     auto* stack = column->section_widget(QStringLiteral("layersDock"))->findChild<QStackedWidget*>();
     for (int index = 0; index < tab_order.size(); ++index) {
@@ -2151,12 +2185,14 @@ void ui_reset_panels_restores_first_launch_layout() {
     }
     CHECK(tabs->currentIndex() == 0);
   }
-  CHECK(column->section_order().first() == QStringLiteral("layersDock"));
-  // Top to bottom in the first-launch order.
+  CHECK(column->section_order().first() == QStringLiteral("colorDock"));
+  // Top to bottom in the first-launch order: the Color and Palette group, the Layers group,
+  // then Properties, Info and History.
   auto* splitter = column->splitter();
-  const QStringList order = {QStringLiteral("panelTabGroup"), QStringLiteral("historyDock"),
+  const QStringList order = {QStringLiteral("panelTabGroup"), QStringLiteral("panelTabGroup"),
                              QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                             QStringLiteral("colorDock"), QStringLiteral("paletteDock")};
+                             QStringLiteral("historyDock")};
+  CHECK(splitter->count() == order.size());
   for (int index = 0; index < splitter->count(); ++index) {
     CHECK(splitter->widget(index)->objectName() == order.value(index));
     CHECK(splitter->widget(index)->isVisible());

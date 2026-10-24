@@ -4938,6 +4938,9 @@ void ui_layer_eye_sweep_survives_folder_row_rebuild() {
 
       patchy::ui::MainWindow window;
       show_window(window);
+      // These rows need the Layers list's height, which the expanded Color panel takes in the
+      // 780 px test window.
+      patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
       window.add_document_session(std::move(document), QStringLiteral("Eye Sweep Rebuild"));
       QApplication::processEvents();
 

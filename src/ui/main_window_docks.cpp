@@ -629,28 +629,17 @@ void MainWindow::update_right_dock_minimum_width() {
 bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::LayoutRequest && layer_list_ != nullptr && watched == layer_list_->parentWidget()) {
     // A narrow column wraps the Layers panel's rows (GitHub issue 199), which
-    // raises the panel's minimum height. When that pushes the window's minimum
-    // past the screen, refit the floors. Only then: the refit also raises the
-    // panel's own floor to the wrapped height.
+    // raises the panel's minimum height. The refit raises the panel's own floor to
+    // the wrapped height (its explicit 240 px would otherwise squeeze the rows into
+    // each other when the panels above take the height, as an expanded Color
+    // panel does) and, when that pushes the window's minimum past the screen,
+    // lowers the other floors.
     const auto* panel_layout = layer_list_->parentWidget()->layout();
     const auto height = panel_layout != nullptr ? panel_layout->minimumSize().height() : 0;
     const auto grew = height > layers_panel_minimum_height_;
     layers_panel_minimum_height_ = height;
     if (grew && isVisible()) {
-      QTimer::singleShot(0, this, [this] {
-        const auto budget = available_window_height();
-        if (budget <= 0 || layout() == nullptr || panel_column_ == nullptr || workspace_splitter_ == nullptr) {
-          return;
-        }
-        // The splitter does not pass the column's minimum on to the window's
-        // layout by itself (see fit_right_dock_floors_to_screen).
-        panel_column_->updateGeometry();
-        workspace_splitter_->updateGeometry();
-        layout()->invalidate();
-        if (minimumSizeHint().height() > budget) {
-          fit_right_dock_floors_to_screen();
-        }
-      });
+      QTimer::singleShot(0, this, [this] { fit_right_dock_floors_to_screen(); });
     }
     return false;
   }
@@ -663,6 +652,10 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
   QTimer::singleShot(0, this, [this] {
     update_right_dock_minimum_width();
     reapply_right_dock_stack_width();
+    // The startup clamp fitted the floors before the first show, when the Options bar
+    // measured its wrapped height at no width (about 390 px for a 30 px row) and the
+    // minimum read far too tall. Fit again from the full floors with the real sizes.
+    panel_column_->restore_floors();
     fit_right_dock_floors_to_screen();
   });
   return false;
@@ -852,13 +845,22 @@ namespace {
 // half applied, unless read_panel_layout knows how to carry it forward.
 constexpr int kPanelLayoutVersion = 4;
 // Version 3 is version 4 without the tab groups (window/panelGroups, window/frontPanels):
-// read_panel_layout keeps it with the default groups and tab order.
+// read_panel_layout keeps it with the groups and order those versions had (below).
 constexpr int kPanelLayoutVersionBeforeTabOrder = 3;
 // Version 2 is version 3 without the Color panel (GitHub issue 365): read_panel_layout
 // keeps such a layout and adds the panel collapsed, just above Palette.
 constexpr int kPanelLayoutVersionBeforeColor = 2;
 constexpr char kColorPanel[] = "colorDock";
 constexpr char kPanelBelowColor[] = "paletteDock";
+// The column versions 2 and 3 knew: one tab group, every other panel on its own, and the
+// order a record without window/panelOrder had.
+QList<QStringList> panel_groups_before_version_4() {
+  return {{QStringLiteral("layersDock"), QStringLiteral("channelsDock"), QStringLiteral("pathsDock")}};
+}
+QStringList panel_order_before_version_4() {
+  return {QStringLiteral("layersDock"), QStringLiteral("historyDock"), QStringLiteral("propertiesDock"),
+          QStringLiteral("infoDock"), QStringLiteral("colorDock"), QStringLiteral("paletteDock")};
+}
 QString panel_layout_version_key() { return QStringLiteral("window/panelLayoutVersion"); }
 QString hidden_panels_key() { return QStringLiteral("window/hiddenPanels"); }
 QString collapsed_panels_key() { return QStringLiteral("window/collapsedPanels"); }
@@ -979,8 +981,11 @@ void MainWindow::read_panel_layout() {
   }
   const auto color_panel = QString::fromLatin1(kColorPanel);
   const bool add_color_panel = version == kPanelLayoutVersionBeforeColor && panel_column_->has_panel(color_panel);
-  // The tab groups first; older records keep the default groups and tab order.
-  if (version == kPanelLayoutVersion && settings.contains(panel_groups_key())) {
+  // The tab groups first. An older record describes the column those versions had, with
+  // Color and Palette apart, and keeps it.
+  if (version != kPanelLayoutVersion) {
+    panel_column_->set_tab_groups(panel_groups_before_version_4());
+  } else if (settings.contains(panel_groups_key())) {
     QList<QStringList> groups;
     for (const auto& group : settings.value(panel_groups_key()).toStringList()) {
       groups << group.split(QLatin1Char(','), Qt::SkipEmptyParts);
@@ -1014,16 +1019,16 @@ void MainWindow::read_panel_layout() {
     }
   }
   // The order first: the heights state is by position. A record without one (saved
-  // before panels could move) keeps the default order.
+  // before panels could move) keeps the order of its time.
   auto order = settings.value(panel_order_key()).toStringList();
+  if (order.isEmpty() && version != kPanelLayoutVersion) {
+    order = panel_order_before_version_4();
+  }
   if (add_color_panel) {
     // The old heights cover the old sections only: restore them with the Color panel
     // last (set_section_order appends sections the list leaves out), then move it
     // into place. Its height travels with it, and as a collapsed section it is its
     // title row whatever the record said.
-    if (order.isEmpty()) {
-      order = default_panel_order_;
-    }
     order.removeAll(color_panel);
   }
   if (!order.isEmpty()) {
@@ -1949,14 +1954,21 @@ void MainWindow::create_docks() {
   create_color_dock(panel_specs);
   create_palette_dock(panel_specs);
 
-  // The column: the tab group first (it takes the spare height), then the rest in
-  // order. History, Properties, Info, Color and Palette start collapsed.
+  // The first-launch column, which Reset Panels returns to (Seth, October 2026): Color and
+  // Palette as one tab group, expanded with Color in front, above the Layers, Channels and
+  // Paths group, expanded; then Properties, Info and History, collapsed. The Layers group
+  // is added first, so it is the fill section wherever it sits.
   panel_column_ = new PanelColumn(workspace_splitter_);
   panel_column_->setMinimumWidth(kRightDockFloorWidth);
   panel_column_->add_tab_group(QStringLiteral("panelTabGroup"), tab_specs, true);
   for (const auto& spec : panel_specs) {
-    panel_column_->add_panel(spec, false);
+    panel_column_->add_panel(spec, spec.id == QLatin1String(kColorPanel));
   }
+  panel_column_->merge_panel(QStringLiteral("paletteDock"), QString::fromLatin1(kColorPanel));
+  panel_column_->bring_to_front(QString::fromLatin1(kColorPanel));
+  panel_column_->set_section_order({QString::fromLatin1(kColorPanel), QString::fromLatin1(kFirstPanel),
+                                    QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
+                                    QStringLiteral("historyDock")});
   // Each title shares its panel's translation; the tab texts follow the titles.
   static constexpr std::pair<const char*, const char*> kPanelTitles[] = {
       {"layersDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers")},

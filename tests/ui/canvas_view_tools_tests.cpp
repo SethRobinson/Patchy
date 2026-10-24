@@ -6954,6 +6954,9 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
 void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   patchy::ui::MainWindow window;
   show_window(window);
+  // History's 190 px working height comes from the Layers group, which the expanded Color
+  // panel keeps at its floor in the 780 px test window.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
   auto* canvas = require_canvas(window);
   canvas->set_zoom(1.0);
   QApplication::processEvents();
@@ -7056,12 +7059,9 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   // Collapsed sections are exactly their title rows: none may show a dead
   // strip under its header (History used to sit 8px taller).
   auto* info_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("infoDock"));
-  auto* palette_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("paletteDock"));
   CHECK(info_dock != nullptr);
-  CHECK(palette_dock != nullptr);
   CHECK(history_dock->height() == properties_dock->height());
   CHECK(history_dock->height() == info_dock->height());
-  CHECK(history_dock->height() == palette_dock->height());
   CHECK(panel_column->width() >= 260);
   const auto dock_width_before_resize = panel_column->width();
   auto* dock_resize_handle = window.findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"));
@@ -7074,8 +7074,8 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
              Qt::NoButton);
   QApplication::processEvents();
   CHECK(panel_column->width() > dock_width_before_resize + 40);
-  // Every section, palette included, spans the column.
-  CHECK(palette_dock->width() == layers_dock->width());
+  // Every section, Info at the bottom included, spans the column.
+  CHECK(info_dock->width() == layers_dock->width());
   CHECK(layers_dock->width() == panel_column->width());
 
   auto* row_widget = layer_list->itemWidget(layer_list->item(0));
@@ -8543,14 +8543,22 @@ void ui_right_dock_panels_expand_within_window_height() {
   CHECK(window.height() <= 950);
   CHECK(window.minimumSizeHint().height() <= 950);
 
+  // Palette shares a tab group with Color: bring its page forward.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->bring_to_front(QStringLiteral("paletteDock"));
+  QApplication::processEvents();
   auto* palette_scroll = window.findChild<QScrollArea*>(QStringLiteral("paletteScrollArea"));
   CHECK(palette_scroll != nullptr);
   CHECK(palette_scroll->verticalScrollBar()->maximum() > 0);
 
   int docks_height = 0;
+  std::vector<const QWidget*> counted;
   for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "colorDock", "paletteDock"}) {
     const auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(name));
     CHECK(dock != nullptr);
+    if (dock == nullptr || std::find(counted.begin(), counted.end(), dock) != counted.end()) {
+      continue;  // a tab group is one section
+    }
+    counted.push_back(dock);
     CHECK(dock->height() <= window.height());
     docks_height += dock->height();
   }
@@ -8654,10 +8662,11 @@ void ui_right_dock_floors_fit_the_screen_height() {
 void ui_collapsed_right_docks_have_uniform_title_height() {
   patchy::ui::MainWindow window;
   show_window(window);
-  // History/Properties/Info/Color/Palette all start collapsed: each section is exactly its
-  // title row (min == max), with no dead band under the header, at the column width.
+  // Properties/Info/History all start collapsed (the Color and Palette group starts expanded):
+  // each section is exactly its title row (min == max), with no dead band under the header, at
+  // the column width.
   int first_height = -1;
-  for (const auto* prefix : {"history", "properties", "info", "color", "palette"}) {
+  for (const auto* prefix : {"history", "properties", "info"}) {
     auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(prefix) + QStringLiteral("Dock"));
     auto* title = window.findChild<QWidget*>(QLatin1String(prefix) + QStringLiteral("DockTitle"));
     CHECK(dock != nullptr && title != nullptr);
@@ -8780,6 +8789,9 @@ void ui_short_panel_scroll_bar_drags_by_handle() {
 void ui_right_dock_drags_below_content_minimum_with_scroll() {
   patchy::ui::MainWindow window;
   show_window(window);
+  // The wrapped Layers rows and the sideways bar need the group's spare height, which the
+  // expanded Color panel takes in the 780 px test window.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
   QApplication::processEvents();
   QWidget* layers_dock = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* history_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("historyDock"));
@@ -8907,6 +8919,10 @@ void ui_right_dock_separator_drags_between_docks() {
   // keep low floors, so a divider keeps travel either way.
   patchy::ui::MainWindow window;
   show_window(window);
+  // Collapse Color so the Layers group has height above its floor to give in the 780 px
+  // test window.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  QApplication::processEvents();
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
   CHECK(history_toggle != nullptr);
   history_toggle->setChecked(true);
@@ -8917,7 +8933,8 @@ void ui_right_dock_separator_drags_between_docks() {
   auto* layers_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("layersDock"));
   auto* history_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("historyDock"));
   CHECK(column != nullptr && layers_dock != nullptr && history_dock != nullptr);
-  auto* divider = column->splitter()->handle(1);
+  // The divider above History, under the tab group (Color sits above the group).
+  auto* divider = column->splitter()->handle(column->splitter()->indexOf(history_dock));
   CHECK(divider != nullptr && divider->height() >= 5);
   CHECK(divider->geometry().top() > layers_dock->geometry().bottom());
   CHECK(divider->geometry().bottom() < history_dock->geometry().top());

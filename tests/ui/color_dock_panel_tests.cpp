@@ -249,11 +249,12 @@ void ui_color_panel_window_menu_and_script_name() {
   if (column == nullptr) {
     return;
   }
-  // First launch: open and collapsed, just above Palette.
+  // First launch: open, expanded and in front of Palette in a tab group at the top.
   CHECK(column->panel_visible(kColorPanel));
-  CHECK(!column->panel_expanded(kColorPanel));
-  const auto order = column->section_order();
-  CHECK(order.indexOf(kColorPanel) + 1 == order.indexOf(QStringLiteral("paletteDock")));
+  CHECK(column->panel_expanded(kColorPanel));
+  CHECK(column->section_order().first() == kColorPanel);
+  CHECK(column->section_panel_ids(kColorPanel) == (QStringList{kColorPanel, QStringLiteral("paletteDock")}));
+  CHECK(column->panel_in_front(kColorPanel));
   CHECK(column->title_label(kColorPanel)->text() == QStringLiteral("Color"));
 
   auto* entry = require_action(window, "windowPanelColorAction");

@@ -597,6 +597,9 @@ void ui_layer_smart_filter_rows_collapse_and_save_state() {
   patchy::psd::DocumentIo::write_layered_rgb8_file(source, patchy::ui::to_filesystem_path(input_path));
   patchy::ui::MainWindow window;
   show_window(window);
+  // These rows need the Layers list's height, which the expanded Color panel takes in the
+  // 780 px test window.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
   patchy::ui::MainWindowTestAccess::open_document_path(window, input_path);
   QApplication::processEvents();
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
