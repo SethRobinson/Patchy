@@ -835,6 +835,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Spot Healing");
     case CanvasTool::PatchTool:
       return QObject::tr("Patch");
+    case CanvasTool::RedEye:
+      return QObject::tr("Red Eye");
     case CanvasTool::Crop:
       return QObject::tr("Crop");
     case CanvasTool::PerspectiveCrop:

@@ -12092,6 +12092,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB는 Patchy에 내장되어 있습니다. 다른 프로파일은 이 컴퓨터에 설치된 RGB 프로파일입니다. 목록에 없는 프로파일은 &apos;프로파일 파일 선택...&apos;을 사용하세요.</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>적목 현상 제거</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13825,6 +13829,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>The corners must form a convex shape</source>
         <translation>모서리는 볼록한 모양을 이루어야 합니다</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>적목 현상 제거</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>적목 현상 제거에는 열린 문서가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>마스크나 채널을 편집하는 동안에는 적목 현상 제거를 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>적목 현상 제거에는 편집 가능한 픽셀 레이어가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>적목 현상 제거: 상자 안에서 빨간 픽셀을 찾지 못했습니다</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>적목 현상 제거: 클릭한 곳 근처에서 빨간 픽셀을 찾지 못했습니다</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>적목 현상 제거: 빨간 영역이 선택 영역 밖에 있습니다</translation>
     </message>
 </context>
 <context>
@@ -24616,6 +24648,30 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Convert to Color Profile</source>
         <translation>색상 프로파일로 변환</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>적목 현상 제거</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>적목 현상 제거: 빨간 눈동자를 클릭하거나 눈 주위로 상자를 드래그하세요. 눈동자 크기를 높이면 붉은 테두리까지 포함되고, 어둡게 할 양은 눈동자가 얼마나 어두워질지 정합니다.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>눈동자 크기:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>값이 클수록 눈동자 주위의 붉은 테두리가 더 많이 포함됩니다</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>어둡게 할 양:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>보정한 눈동자를 얼마나 어둡게 할지</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26591,30 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye에는 문서의 활성 레이어가 필요합니다(먼저 doc.activeLayer를 설정하세요).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye: 빨간 픽셀을 찾지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: {x, y} 또는 {x, y, width, height}를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1은(는) 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: 알 수 없는 옵션 %1입니다.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width와 height는 1 이상이어야 합니다.</translation>
     </message>
 </context>
 <context>

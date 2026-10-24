@@ -1254,6 +1254,48 @@ void ui_script_remove_object_heals_selection() {
   CHECK(!backlog_contains(window, QStringLiteral("no-throw")));
 }
 
+// layer.redEye: a click corrects the red pupil it lands on and leaves a red patch outside
+// its box alone, a box with Darken Amount 100 blacks out the second patch, a click with
+// no red near it and an unknown option both throw.
+void ui_script_red_eye_corrects_pupil() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var layer = doc.addLayer('Eye');
+    layer.fillRect(0, 0, 64, 64, '#d7a587');
+    layer.fillRect(20, 20, 10, 10, '#c82828');
+    layer.fillRect(50, 50, 6, 6, '#c82828');
+    doc.activeLayer = layer;
+    var at = function (x, y) {
+      var px = new Uint8Array(layer.getPixels().data);
+      var i = (y * 64 + x) * 4;
+      return px[i] + ',' + px[i + 1] + ',' + px[i + 2];
+    };
+    var r = layer.redEye({x: 24, y: 24});
+    console.log('click=' + r.pupilPixels + ' at=' + at(25, 25) + ' far=' + at(52, 52));
+    var b = layer.redEye({x: 46, y: 46, width: 14, height: 14, darkenAmount: 100});
+    console.log('box=' + b.pupilPixels + ' at=' + at(52, 52));
+    try {
+      layer.redEye({x: 4, y: 60});
+      console.log('none-no-throw');
+    } catch (e) {
+      console.log('none-refused=' + (e.message.length > 0));
+    }
+    try {
+      layer.redEye({x: 24, y: 24, strength: 3});
+      console.log('option-no-throw');
+    } catch (e) {
+      console.log('option-refused=' + (e.message.indexOf('strength') >= 0));
+    }
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("click=100 at=20,20,20 far=200,40,40")));
+  CHECK(backlog_contains(window, QStringLiteral("box=36 at=0,0,0")));
+  CHECK(backlog_contains(window, QStringLiteral("none-refused=true")));
+  CHECK(backlog_contains(window, QStringLiteral("option-refused=true")));
+  CHECK(!backlog_contains(window, QStringLiteral("no-throw")));
+}
+
 // A big photo (about 98 MB RGBA) healed with removeObject and then re-opened
 // from the same file, the headless door_reopen.js scenario: the first document's
 // deferred refresh and background composite must not touch memory the second
@@ -2202,6 +2244,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part1() {
       {"ui_script_get_pixels_reads_rgb_layers", ui_script_get_pixels_reads_rgb_layers},
       {"ui_script_fill_rect_partial_updates", ui_script_fill_rect_partial_updates},
       {"ui_script_remove_object_heals_selection", ui_script_remove_object_heals_selection},
+      {"ui_script_red_eye_corrects_pupil", ui_script_red_eye_corrects_pupil},
       {"ui_script_remove_object_then_reopen_large_document", ui_script_remove_object_then_reopen_large_document},
       {"ui_script_align_and_distribute_layers", ui_script_align_and_distribute_layers},
       {"ui_script_canvas_window_receives_space_key", ui_script_canvas_window_receives_space_key},

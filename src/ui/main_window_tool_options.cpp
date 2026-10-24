@@ -2087,6 +2087,11 @@ void MainWindow::load_tool_settings() {
   }
   current_crop_delete_pixels_ = settings.value(QStringLiteral("tools/cropDeletePixels"), true).toBool();
   current_crop_delete_layers_ = settings.value(QStringLiteral("tools/cropDeleteLayers"), false).toBool();
+  current_red_eye_pupil_size_ = stored_int(settings, "tools/redEyePupilSize", 50, 1, 100);
+  current_red_eye_darken_amount_ = stored_int(settings, "tools/redEyeDarkenAmount", 50, 1, 100);
+  canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
+  sync_red_eye_controls();
   current_perspective_crop_show_grid_ = stored_bool(settings, "tools/perspectiveCropShowGrid", true);
   if (perspective_crop_grid_check_ != nullptr) {
     const QSignalBlocker blocker(perspective_crop_grid_check_);
@@ -2397,6 +2402,39 @@ void MainWindow::load_tool_settings() {
   }
 }
 
+void MainWindow::set_red_eye_pupil_size(int percent) {
+  current_red_eye_pupil_size_ = std::clamp(percent, 1, 100);
+  if (canvas_ != nullptr) {
+    canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  }
+  sync_red_eye_controls();
+  schedule_save_tool_settings();
+}
+
+void MainWindow::set_red_eye_darken_amount(int percent) {
+  current_red_eye_darken_amount_ = std::clamp(percent, 1, 100);
+  if (canvas_ != nullptr) {
+    canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
+  }
+  sync_red_eye_controls();
+  schedule_save_tool_settings();
+}
+
+void MainWindow::sync_red_eye_controls() {
+  for (const auto& [spin, slider, value] :
+       {std::tuple{red_eye_pupil_spin_, red_eye_pupil_slider_, current_red_eye_pupil_size_},
+        std::tuple{red_eye_darken_spin_, red_eye_darken_slider_, current_red_eye_darken_amount_}}) {
+    if (spin != nullptr && spin->value() != value) {
+      const QSignalBlocker blocker(spin);
+      spin->setValue(value);
+    }
+    if (slider != nullptr && slider->value() != value) {
+      const QSignalBlocker blocker(slider);
+      slider->setValue(value);
+    }
+  }
+}
+
 void MainWindow::schedule_save_tool_settings() {
   if (tool_settings_save_timer_ != nullptr) {
     tool_settings_save_timer_->start();
@@ -2487,6 +2525,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropDeletePixels"), current_crop_delete_pixels_);
   settings.setValue(QStringLiteral("tools/cropDeleteLayers"), current_crop_delete_layers_);
   settings.setValue(QStringLiteral("tools/perspectiveCropShowGrid"), current_perspective_crop_show_grid_);
+  settings.setValue(QStringLiteral("tools/redEyePupilSize"), current_red_eye_pupil_size_);
+  settings.setValue(QStringLiteral("tools/redEyeDarkenAmount"), current_red_eye_darken_amount_);
   if (crop_overlay_combo_ != nullptr && current_crop_overlay_ >= 0 &&
       current_crop_overlay_ < crop_overlay_combo_->count()) {
     settings.setValue(QStringLiteral("tools/cropOverlay"), crop_overlay_combo_->itemData(current_crop_overlay_));

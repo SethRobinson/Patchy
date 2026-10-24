@@ -532,6 +532,21 @@ interface PatchyLayer {
     feather?: number;
   }): { method: "contentAware" | "nearestEdge"; patches: number; source: number; sourceCount: number; attempt: number };
   /**
+   * The Red Eye tool: {x, y} clicks there (document pixels), {x, y, width, height} drags a box.
+   * The connected red area at or nearest the point is desaturated and darkened; a selection
+   * limits the change. pupilSize and darkenAmount are 1..100 (default 50). The layer must be
+   * the active layer. Returns the pupil's pixel count and the changed bounds; throws when no
+   * red pixel is found.
+   */
+  redEye(options: {
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    pupilSize?: number;
+    darkenAmount?: number;
+  }): { pupilPixels: number; x: number; y: number; width: number; height: number };
+  /**
    * A copy of the layer's pixels (empty layers report width/height 0). Layers
    * that store opaque 8-bit RGB (photos opened from JPEG and similar) are
    * returned expanded to RGBA with alpha 255.

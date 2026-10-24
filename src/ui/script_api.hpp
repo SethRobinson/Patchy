@@ -169,6 +169,7 @@ public:
   // document's active layer. Options {method, attempt}; returns {method,
   // patches, source, sourceCount}.
   Q_INVOKABLE QJSValue removeObject(const QJSValue& options = QJSValue());
+  Q_INVOKABLE QJSValue redEye(const QJSValue& options = QJSValue());
   // Layer > Layer Mask > Remove Background (script_ai_selection.cpp).
   Q_INVOKABLE void removeBackground(const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue getPixels();

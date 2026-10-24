@@ -351,6 +351,11 @@ public:
   bool remove_object_in_selection(std::int64_t session_id, LayerId layer_id, bool content_aware, int attempt,
                                   int tone_match, int feather, bool* used_content_aware, int* source,
                                   int* source_count, std::int64_t* patches, int* attempt_used);
+  // The Red Eye tool on the session's active layer through its canvas: a click at `point`
+  // or the box `box` (document pixels). Rides this run's undo snapshot. False (with a JS
+  // error thrown) when refused or when no red was found.
+  bool red_eye(std::int64_t session_id, LayerId layer_id, QPoint point, std::optional<QRect> box, int pupil_size,
+               int darken_amount, std::int64_t* pupil_pixels, QRect* changed);
   // Layer > Arrange > Align / Distribute over `root_ids` (empty = the
   // session's layer selection) through its canvas, riding this run's undo
   // snapshot. Returns the number of layers moved; -1 with a JS error thrown

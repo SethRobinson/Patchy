@@ -155,6 +155,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Spot Healing");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch");
+    case CanvasTool::RedEye:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye");
     case CanvasTool::Crop:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop");
     case CanvasTool::PerspectiveCrop:
@@ -249,6 +251,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.spot_healing");
     case CanvasTool::PatchTool:
       return QStringLiteral("tools.patch");
+    case CanvasTool::RedEye:
+      return QStringLiteral("tools.red_eye");
     case CanvasTool::Crop:
       return QStringLiteral("tools.crop");
     case CanvasTool::PerspectiveCrop:
@@ -343,6 +347,9 @@ const char* tool_activation_hint_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Artboard: drag on empty space to add an artboard, drag one or its name to move "
              "it with its content (%ALT% copies it), drag a handle to resize it, click + to add one beside it, "
              "double-click a name to rename it. Arrows nudge.");
+    case CanvasTool::RedEye:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye: click a red pupil, or drag a box around the eye. "
+             "Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch: draw around the area to fix, then drag the selection to a clean source area, or press Enter to remove the object automatically");
     // The selection tools name their Shift / Alt combinations (GitHub issue 192); the
@@ -958,6 +965,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::PatchTool:
       name = "tool-patch";
       break;
+    case CanvasTool::RedEye:
+      name = "tool-red-eye";
+      break;
     case CanvasTool::Crop:
       name = "tool-crop";
       break;
@@ -1204,10 +1214,12 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                                                         QKeySequence());
   auto* patch_action =
       create_flyout_tool_action(healing_menu, tr("Patch"), CanvasTool::PatchTool, QKeySequence());
+  auto* red_eye_action =
+      create_flyout_tool_action(healing_menu, tr("Red Eye"), CanvasTool::RedEye, QKeySequence());
   auto* healing_tool_button = new QToolButton(tool_palette);
   healing_tool_button->setObjectName(QStringLiteral("healingToolButton"));
   configure_tool_flyout(tool_palette, healing_menu, healing_tool_button, healing_action,
-                        {healing_action, spot_healing_action, patch_action},
+                        {healing_action, spot_healing_action, patch_action, red_eye_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Healing Tools"),
                         "toolCycleHealingAction", "tools.cycle.healing", QKeySequence(Qt::SHIFT | Qt::Key_J));
 

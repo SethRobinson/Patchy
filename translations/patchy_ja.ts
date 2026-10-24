@@ -12092,6 +12092,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB は Patchy に組み込まれています。その他のプロファイルは、このコンピューターにインストールされている RGB プロファイルです。一覧にないプロファイルは「プロファイルファイルを選択...」で選べます。</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>赤目修正</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13825,6 +13829,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>The corners must form a convex shape</source>
         <translation>角は凸形状になるように配置してください</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>赤目修正</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>赤目修正には開いているドキュメントが必要です</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>マスクやチャンネルの編集中は赤目修正を使用できません</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>赤目修正には編集可能なピクセルレイヤーが必要です</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>赤目修正: 枠内に赤いピクセルが見つかりませんでした</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>赤目修正: クリックした位置の近くに赤いピクセルが見つかりませんでした</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>赤目修正: 赤い領域が選択範囲の外にあります</translation>
     </message>
 </context>
 <context>
@@ -24616,6 +24648,30 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Convert to Color Profile</source>
         <translation>カラープロファイル変換</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>赤目修正</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>赤目修正: 赤い瞳孔をクリックするか、目の周りをドラッグして囲みます。瞳孔の大きさを上げると赤みのある縁も含まれ、暗くする量で瞳孔の暗さを決めます。</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>瞳孔の大きさ:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>値を上げると、瞳孔の周りの赤みのある縁も多く含まれます</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>暗くする量:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>補正した瞳孔をどれだけ暗くするか</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26591,30 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>このプロファイルはこの変換に使用できません。</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye にはドキュメントのアクティブレイヤーが必要です (先に doc.activeLayer を設定してください)。</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye: 赤いピクセルが見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: {x, y} または {x, y, width, height} を渡してください。</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 は数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: 不明なオプション %1 です。</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width と height は 1 以上である必要があります。</translation>
     </message>
 </context>
 <context>

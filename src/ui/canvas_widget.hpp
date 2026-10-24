@@ -402,6 +402,24 @@ public:
   [[nodiscard]] PatchToolMode patch_tool_mode() const noexcept;
   void set_patch_tool_transparent(bool enabled) noexcept;
   [[nodiscard]] bool patch_tool_transparent() const noexcept;
+  // Red Eye tool (canvas_widget_red_eye.cpp, core/red_eye.hpp): Pupil Size and Darken
+  // Amount, 1..100 each.
+  void set_red_eye_pupil_size(int percent) noexcept;
+  [[nodiscard]] int red_eye_pupil_size() const noexcept;
+  void set_red_eye_darken_amount(int percent) noexcept;
+  [[nodiscard]] int red_eye_darken_amount() const noexcept;
+  // One Red Eye correction on the active pixel layer: around `point` (a click) or inside
+  // `box` (a drag), in document pixels, with the given Pupil Size and Darken Amount. One undo
+  // step unless `record_history` is false (a script run's own snapshot covers it). Returns
+  // the corrected pupil's pixel count (0 when no red was found or the edit was refused;
+  // `error` says why).
+  struct RedEyeResult {
+    std::int64_t pupil_pixels{0};
+    QRect changed;
+    QString error;
+  };
+  RedEyeResult apply_red_eye_at(QPoint point, std::optional<QRect> box, int pupil_size, int darken_amount,
+                                bool record_history = true);
   void set_local_adjustment_strength(int strength) noexcept;
   [[nodiscard]] int local_adjustment_strength() const noexcept;
   void set_local_tone_range(LocalToneRange range) noexcept;
@@ -2245,6 +2263,14 @@ private:
   void cancel_spot_heal_stroke();
   void stamp_spot_heal_segment(QPoint from, QPoint to);
   void draw_spot_heal_stroke_overlay(QPainter& painter) const;
+  // Red Eye gesture (canvas_widget_red_eye.cpp): a click corrects around the press point,
+  // a drag corrects inside the dragged box; both run once on release.
+  void begin_red_eye_gesture(QPoint document_point);
+  void update_red_eye_gesture(QPoint document_point);
+  void finish_red_eye_gesture(QPoint document_point);
+  void cancel_red_eye_gesture();
+  [[nodiscard]] QRect red_eye_drag_box() const;
+  void draw_red_eye_overlay(QPainter& painter) const;
   // Crop tool session (canvas_widget_crop.cpp). crop_drag_rect is the third
   // deliberately-unmerged twin of marquee_selection_rect/shape_drag_rect.
   [[nodiscard]] QRect crop_drag_rect(QPoint anchor, QPoint current) const;
@@ -3109,6 +3135,12 @@ private:
   QPolygonF spot_heal_stroke_points_;
   QPoint spot_heal_last_document_point_;
   QImage spot_heal_source_cache_;
+  // Red Eye state (canvas_widget_red_eye.cpp).
+  int red_eye_pupil_size_{50};
+  int red_eye_darken_amount_{50};
+  bool red_eye_dragging_{false};
+  QPoint red_eye_press_point_;
+  QPoint red_eye_current_point_;
   // Remove Object repeat cycle: the same selection (bounds plus a hash of its
   // coverage) run again advances to the next geometry-only source candidate.
   int remove_object_attempt_{0};

@@ -2712,6 +2712,43 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Red Eye (canvas_widget_red_eye.cpp): Pupil Size and Darken Amount, a spin box and a
+  // slider each like the Fill tool's Opacity.
+  const auto add_red_eye_percent = [&](const char* label, const char* spin_name, const char* slider_name,
+                                       const char* tooltip, int value, QSpinBox*& spin_out, QSlider*& slider_out,
+                                       void (MainWindow::*apply)(int)) {
+    add_option_label(label, {CanvasTool::RedEye});
+    auto* spin = new QSpinBox(toolbar);
+    spin->setObjectName(QString::fromLatin1(spin_name));
+    spin->setRange(1, 100);
+    spin->setValue(value);
+    spin->setSuffix(percent_suffix());
+    configure_toolbar_spinbox(spin, 52);
+    bind_tooltip(spin, tooltip);
+    add_option_widget(spin, {CanvasTool::RedEye});
+    auto* slider = new QSlider(Qt::Horizontal, toolbar);
+    slider->setObjectName(QString::fromLatin1(slider_name));
+    slider->setProperty(kOptionsBarCollapsibleProperty, true);
+    slider->setRange(1, 100);
+    slider->setValue(value);
+    slider->setFixedWidth(110);
+    bind_tooltip(slider, tooltip);
+    add_option_widget(slider, {CanvasTool::RedEye});
+    connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
+    connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+    connect(spin, &QSpinBox::valueChanged, this, apply);
+    spin_out = spin;
+    slider_out = slider;
+  };
+  add_red_eye_percent(QT_TR_NOOP("Pupil Size:"), "redEyePupilSizeSpin", "redEyePupilSizeSlider",
+                      QT_TR_NOOP("Higher values take in more of the reddish rim around the pupil"),
+                      current_red_eye_pupil_size_, red_eye_pupil_spin_, red_eye_pupil_slider_,
+                      &MainWindow::set_red_eye_pupil_size);
+  add_option_separator({CanvasTool::RedEye});
+  add_red_eye_percent(QT_TR_NOOP("Darken Amount:"), "redEyeDarkenAmountSpin", "redEyeDarkenAmountSlider",
+                      QT_TR_NOOP("How much darker the corrected pupil gets"), current_red_eye_darken_amount_,
+                      red_eye_darken_spin_, red_eye_darken_slider_, &MainWindow::set_red_eye_darken_amount);
+
   add_option_separator({CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge, CanvasTool::BlurBrush,
                         CanvasTool::SharpenBrush});
   add_option_label(QT_TR_NOOP("Strength:"), {CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,

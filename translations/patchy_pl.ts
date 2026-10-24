@@ -12162,6 +12162,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB jest wbudowany w Patchy. Pozostałe profile to profile RGB zainstalowane na tym komputerze; użyj polecenia Wybierz plik profilu..., aby wybrać profil spoza listy.</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Czerwone oczy</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13895,6 +13899,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>The corners must form a convex shape</source>
         <translation>Narożniki muszą tworzyć kształt wypukły</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Czerwone oczy</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>Czerwone oczy wymaga otwartego dokumentu</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>Czerwone oczy jest niedostępne podczas edycji maski lub kanału</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>Czerwone oczy wymaga edytowalnej warstwy pikseli</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>Czerwone oczy: w ramce nie znaleziono czerwonych pikseli</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>Czerwone oczy: w pobliżu kliknięcia nie znaleziono czerwonych pikseli</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>Czerwone oczy: czerwony obszar leży poza zaznaczeniem</translation>
     </message>
 </context>
 <context>
@@ -24760,6 +24792,30 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Convert to Color Profile</source>
         <translation>Konwertuj na profil kolorów</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Czerwone oczy</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>Czerwone oczy: kliknij czerwoną źrenicę lub przeciągnij ramkę wokół oka. Rozmiar źrenicy obejmuje więcej czerwonawej obwódki, Stopień przyciemnienia określa, jak ciemna będzie źrenica.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>Rozmiar źrenicy:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>Wyższe wartości obejmują więcej czerwonawej obwódki wokół źrenicy</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>Stopień przyciemnienia:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>Jak bardzo przyciemnić poprawioną źrenicę</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26681,6 +26737,30 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Tego profilu nie można użyć do tej konwersji.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye wymaga aktywnej warstwy dokumentu (najpierw ustaw doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye nie znalazł czerwonych pikseli.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: przekaż {x, y} lub {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 musi być liczbą.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width i height muszą wynosić co najmniej 1.</translation>
     </message>
 </context>
 <context>

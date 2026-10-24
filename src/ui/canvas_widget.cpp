@@ -275,7 +275,7 @@ bool CanvasWidget::pointer_gesture_active() const noexcept {
          move_drag_pending_ ||
          moving_layer_ || dragging_transform_ || dragging_warp_handle_ || selecting_ ||
          lassoing_ || quick_selecting_ || object_selecting_ || spot_healing_stroke_active_ ||
-         patch_tool_dragging_ ||
+         patch_tool_dragging_ || red_eye_dragging_ ||
          moving_selection_ || marquee_resize_handle_ != TransformHandle::None || dragging_guide_ ||
          crop_dragging_out_ || crop_rotating_ ||
          crop_drag_handle_ != TransformHandle::None || pen_handle_dragging_ ||
@@ -463,6 +463,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   // Undo and redo swap Document copies in here; the pixel signature decides on next use.
   mark_object_select_embedding_unverified();
   cancel_spot_heal_stroke();
+  cancel_red_eye_gesture();
   cancel_patch_tool_drag();
   cancel_crop_session();
   cancel_perspective_crop_session();
@@ -513,6 +514,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     cancel_magnetic_lasso();
     cancel_polygon_lasso();
     cancel_spot_heal_stroke();
+    cancel_red_eye_gesture();
     cancel_patch_tool_drag();
     // A pending crop cancels on tool switch (never commits): an accidental
     // switch must not resize the document.
@@ -592,6 +594,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     cancel_quick_select_stroke();
     cancel_object_select();
     cancel_spot_heal_stroke();
+    cancel_red_eye_gesture();
     cancel_patch_tool_drag();
     cancel_crop_session();
     cancel_perspective_crop_session();

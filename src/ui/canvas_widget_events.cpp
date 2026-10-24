@@ -875,6 +875,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::DirectSelect:
       case CanvasTool::Crop:
       case CanvasTool::PerspectiveCrop:
+      case CanvasTool::RedEye:
         return true;
       default:
         return false;
@@ -928,7 +929,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
        effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop ||
-       effective_tool == CanvasTool::PerspectiveCrop)) {
+       effective_tool == CanvasTool::PerspectiveCrop || effective_tool == CanvasTool::RedEye)) {
     report_status_error(tr("This tool is unavailable while viewing a document channel"));
     event->accept();
     return;
@@ -1032,6 +1033,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     begin_spot_heal_stroke(document_point, connect_from);
     emit_info_for_widget_position(event->pos());
     update();
+    return;
+  }
+
+  if (effective_tool == CanvasTool::RedEye) {
+    // A click or a drag box; the correction runs once on release (canvas_widget_red_eye.cpp).
+    if (event->button() == Qt::LeftButton) {
+      begin_red_eye_gesture(document_point);
+      emit_info_for_widget_position(event->pos());
+    }
     return;
   }
 
@@ -2365,6 +2375,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     clear_move_hover_outline();
     update_patch_tool_drag(document_point);
     emit_info_for_widget_position(event->pos());
+  } else if (red_eye_dragging_) {
+    clear_move_hover_outline();
+    update_red_eye_gesture(document_point);
+    emit_info_for_widget_position(event->pos());
   } else if (zooming_ && document_ != nullptr) {
     clear_move_hover_outline();
     if (zoom_scrubbing_) {
@@ -3228,6 +3242,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  if (red_eye_dragging_) {
+    finish_red_eye_gesture(document_position(event->pos()));
+    emit_info_for_widget_position(event->pos());
+    return;
+  }
+
   if (lassoing_) {
     lassoing_ = false;
     // Alt pressed during a Lasso drag and still held at the release switches to
@@ -3603,6 +3623,12 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     cancel_spot_heal_stroke();
     reset_axis_constrained_stroke();
     update();
+    event->accept();
+    return;
+  }
+
+  if (red_eye_dragging_ && event->key() == Qt::Key_Escape) {
+    cancel_red_eye_gesture();  // nothing was written yet: the correction runs on release
     event->accept();
     return;
   }
@@ -4369,6 +4395,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   lasso_points_.clear();
   cancel_spot_heal_stroke();
   cancel_patch_tool_drag();
+  cancel_red_eye_gesture();
   drawing_shape_ = dragging_text_rect_ = dragging_text_entry_selection_ = false;
   shape_press_adds_to_shape_ = shape_temp_path_select_ = false;
   move_drag_pending_ = moving_layer_ = false;

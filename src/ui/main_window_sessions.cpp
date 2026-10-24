@@ -177,6 +177,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
   session->canvas->set_crop_overlay_options(current_crop_overlay_options_);
   session->canvas->set_perspective_crop_show_grid(current_perspective_crop_show_grid_);
+  session->canvas->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  session->canvas->set_red_eye_darken_amount(current_red_eye_darken_amount_);
   session->canvas->set_crop_keep_proportions(crop_size_link_active());
   session->canvas->set_crop_overlay(static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_),
                                     current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
@@ -446,6 +448,8 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_crop_overlay(static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_),
                             current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
   canvas_->set_perspective_crop_show_grid(current_perspective_crop_show_grid_);
+  canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
   canvas_->set_fill_shapes(current_fill_shapes_);

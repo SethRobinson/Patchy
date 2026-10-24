@@ -12092,6 +12092,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB 內建於 Patchy。其他描述檔是此電腦上安裝的 RGB 描述檔；未列出的描述檔請使用「選擇描述檔檔案...」。</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>紅眼</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13825,6 +13829,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>The corners must form a convex shape</source>
         <translation>四個角必須構成凸形</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>紅眼</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>紅眼工具需要一個已開啟的文件</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>編輯遮色片或色版時無法使用紅眼工具</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>紅眼工具需要可編輯的像素圖層</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>紅眼工具未在框內找到紅色像素</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>紅眼工具未在按一下的位置附近找到紅色像素</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>紅眼: 紅色區域在選取範圍之外</translation>
     </message>
 </context>
 <context>
@@ -24616,6 +24648,30 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Convert to Color Profile</source>
         <translation>轉換為色彩描述檔</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>紅眼</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>紅眼: 按一下紅色瞳孔，或在眼睛周圍拖出一個框。瞳孔大小越大，包含的偏紅邊緣越多；變暗量決定瞳孔變得多暗。</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>瞳孔大小:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>值越大，包含的瞳孔周圍偏紅邊緣越多</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>變暗量:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>校正後的瞳孔變暗多少</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26591,30 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>此描述檔無法用於這次轉換。</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye 需要文件的作用中圖層（請先設定 doc.activeLayer）。</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye 未找到紅色像素。</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: 請傳入 {x, y} 或 {x, y, width, height}。</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 必須是數字。</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: 未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width 和 height 必須至少為 1。</translation>
     </message>
 </context>
 <context>

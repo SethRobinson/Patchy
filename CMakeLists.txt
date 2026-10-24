@@ -188,6 +188,7 @@ add_library(patchy_core
   src/core/smart_filter_gallery.cpp
   src/core/smart_object.cpp
   src/core/spot_heal.cpp
+  src/core/red_eye.cpp
   src/core/exemplar_inpaint.cpp
   src/core/stroke_stabilizer.cpp
   src/core/style_contour.cpp
@@ -1160,6 +1161,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_selection_engines.cpp
       src/ui/canvas_widget_object_select.cpp
       src/ui/canvas_widget_spot_healing.cpp
+      src/ui/canvas_widget_red_eye.cpp
       src/ui/canvas_widget_transform.cpp
       src/ui/canvas_widget_vector_tools.cpp
       src/ui/canvas_widget_view.cpp
@@ -2131,6 +2133,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/photo_divide_tests.cpp
     tests/core/pixel_depth_tests.cpp
     tests/core/pixel_tools_tests.cpp
+    tests/core/red_eye_tests.cpp
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_deep_io_tests.cpp
     tests/core/psd_cmyk_proof_tests.cpp
