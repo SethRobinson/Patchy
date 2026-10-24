@@ -18,6 +18,10 @@ with no prompt (a scripted save answers it, like the Aseprite Fill Opacity one).
 document at the file, as for `.psd`. The extension token `ora` is a permanent identifier. No save
 options apply to it. Pinned by
 `ora_round_trip_keeps_layers_and_pixels` and `ui_ora_save_warns_about_baked_content_and_stays_on_ora`.
+2026-10-24 (additive): blend mode ids `reflect`, `glow`, `negation` and `xor` (Paint.NET's modes,
+GitHub issue 379), appended to the permanent list for `layer.blendMode` and stroke `mode`. 8 and
+16-bit documents only; a PSD save writes them as `normal`. Pinned by
+`ui_script_paint_dot_net_blend_mode_ids`.
 
 2026-10-24 (behavioral): `layer.redEye` uses the revised Red Eye method ([red-eye.md](red-eye.md)): the
 area is grown with hysteresis and its rim and glint halo corrected by redness, and Darken Amount keeps

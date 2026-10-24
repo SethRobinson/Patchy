@@ -180,6 +180,11 @@ struct WriteOp {
       return WriteOp{"krita:darker color", true};
     case BlendMode::LighterColor:
       return WriteOp{"krita:lighter color", true};
+    case BlendMode::Reflect:
+    case BlendMode::Glow:
+    case BlendMode::Negation:
+    case BlendMode::Xor:
+      return std::nullopt;  // Paint.NET's modes: no name seen in any ORA writer
   }
   return std::nullopt;
 }

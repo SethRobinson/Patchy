@@ -114,7 +114,7 @@ BevelPageControls build_bevel_page(LayerStylePageContext& context, QVBoxLayout* 
   auto* bevel_highlight_form = new QFormLayout(bevel_highlight_group);
   auto* bevel_highlight_blend = new QComboBox(bevel_highlight_group);
   bevel_highlight_blend->setObjectName(QStringLiteral("layerStyleBevelHighlightBlendModeCombo"));
-  add_blend_mode_items(bevel_highlight_blend);
+  add_blend_mode_items(bevel_highlight_blend, BlendModeMenu::Effect);
   bevel_highlight_blend->setCurrentIndex(
       std::max(0, bevel_highlight_blend->findData(static_cast<int>(bevel.highlight_blend_mode))));
   bevel_highlight_form->addRow(QObject::tr("Blend Mode"), bevel_highlight_blend);
@@ -134,7 +134,7 @@ BevelPageControls build_bevel_page(LayerStylePageContext& context, QVBoxLayout* 
   auto* bevel_shadow_form = new QFormLayout(bevel_shadow_group);
   auto* bevel_shadow_blend = new QComboBox(bevel_shadow_group);
   bevel_shadow_blend->setObjectName(QStringLiteral("layerStyleBevelShadowBlendModeCombo"));
-  add_blend_mode_items(bevel_shadow_blend);
+  add_blend_mode_items(bevel_shadow_blend, BlendModeMenu::Effect);
   bevel_shadow_blend->setCurrentIndex(
       std::max(0, bevel_shadow_blend->findData(static_cast<int>(bevel.shadow_blend_mode))));
   bevel_shadow_form->addRow(QObject::tr("Blend Mode"), bevel_shadow_blend);
@@ -234,7 +234,7 @@ PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& con
   auto* pattern_overlay_form = new QFormLayout(pattern_overlay_group);
   auto* pattern_overlay_blend = new QComboBox(pattern_overlay_group);
   pattern_overlay_blend->setObjectName(QStringLiteral("layerStylePatternOverlayBlendModeCombo"));
-  add_blend_mode_items(pattern_overlay_blend);
+  add_blend_mode_items(pattern_overlay_blend, BlendModeMenu::Effect);
   pattern_overlay_blend->setCurrentIndex(
       std::max(0, pattern_overlay_blend->findData(static_cast<int>(pattern_overlay.blend_mode))));
   pattern_overlay_form->addRow(QObject::tr("Blend Mode"), pattern_overlay_blend);
@@ -295,7 +295,7 @@ StrokePageControls build_stroke_page(LayerStylePageContext& context, QVBoxLayout
   stroke_form->addRow(QObject::tr("Position"), stroke_position);
   auto* stroke_blend = new QComboBox(stroke_group);
   stroke_blend->setObjectName(QStringLiteral("layerStyleStrokeBlendModeCombo"));
-  add_blend_mode_items(stroke_blend);
+  add_blend_mode_items(stroke_blend, BlendModeMenu::Effect);
   stroke_blend->setCurrentIndex(std::max(0, stroke_blend->findData(static_cast<int>(stroke.blend_mode))));
   stroke_form->addRow(QObject::tr("Blend Mode"), stroke_blend);
   auto* stroke_opacity = add_slider_spin_row(stroke_form, stroke_group, QObject::tr("Opacity"),
@@ -369,7 +369,7 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
   auto* inner_shadow_form = new QFormLayout(inner_shadow_group);
   auto* inner_shadow_blend = new QComboBox(inner_shadow_group);
   inner_shadow_blend->setObjectName(QStringLiteral("layerStyleInnerShadowBlendModeCombo"));
-  add_blend_mode_items(inner_shadow_blend);
+  add_blend_mode_items(inner_shadow_blend, BlendModeMenu::Effect);
   inner_shadow_blend->setCurrentIndex(
       std::max(0, inner_shadow_blend->findData(static_cast<int>(inner_shadow.blend_mode))));
   inner_shadow_form->addRow(QObject::tr("Blend Mode"), inner_shadow_blend);
@@ -425,7 +425,7 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
   auto* inner_glow_form = new QFormLayout(inner_glow_group);
   auto* inner_glow_blend = new QComboBox(inner_glow_group);
   inner_glow_blend->setObjectName(QStringLiteral("layerStyleInnerGlowBlendModeCombo"));
-  add_blend_mode_items(inner_glow_blend);
+  add_blend_mode_items(inner_glow_blend, BlendModeMenu::Effect);
   inner_glow_blend->setCurrentIndex(std::max(0, inner_glow_blend->findData(static_cast<int>(inner_glow.blend_mode))));
   inner_glow_form->addRow(QObject::tr("Blend Mode"), inner_glow_blend);
   auto* inner_glow_technique = new QComboBox(inner_glow_group);
@@ -488,7 +488,7 @@ SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* 
   auto* satin_form = new QFormLayout(satin_group);
   auto* satin_blend = new QComboBox(satin_group);
   satin_blend->setObjectName(QStringLiteral("layerStyleSatinBlendModeCombo"));
-  add_blend_mode_items(satin_blend);
+  add_blend_mode_items(satin_blend, BlendModeMenu::Effect);
   satin_blend->setCurrentIndex(std::max(0, satin_blend->findData(static_cast<int>(satin.blend_mode))));
   satin_form->addRow(QObject::tr("Blend Mode"), satin_blend);
   auto* satin_opacity =
@@ -527,7 +527,7 @@ ColorOverlayPageControls build_color_overlay_page(LayerStylePageContext& context
   auto* color_overlay_form = new QFormLayout(color_overlay_group);
   auto* color_overlay_blend = new QComboBox(color_overlay_group);
   color_overlay_blend->setObjectName(QStringLiteral("layerStyleColorOverlayBlendModeCombo"));
-  add_blend_mode_items(color_overlay_blend);
+  add_blend_mode_items(color_overlay_blend, BlendModeMenu::Effect);
   color_overlay_blend->setCurrentIndex(
       std::max(0, color_overlay_blend->findData(static_cast<int>(color_overlay.blend_mode))));
   color_overlay_form->addRow(QObject::tr("Blend Mode"), color_overlay_blend);
@@ -585,7 +585,7 @@ GradientPageControls build_gradient_page(LayerStylePageContext& context, QVBoxLa
   auto* gradient_form = new QFormLayout(gradient_group);
   auto* gradient_blend = new QComboBox(gradient_group);
   gradient_blend->setObjectName(QStringLiteral("layerStyleGradientBlendModeCombo"));
-  add_blend_mode_items(gradient_blend);
+  add_blend_mode_items(gradient_blend, BlendModeMenu::Effect);
   gradient_blend->setCurrentIndex(std::max(0, gradient_blend->findData(static_cast<int>(gradient.blend_mode))));
   gradient_form->addRow(QObject::tr("Blend Mode"), gradient_blend);
   auto* gradient_opacity =
@@ -607,7 +607,7 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
   auto* outer_glow_form = new QFormLayout(outer_glow_group);
   auto* outer_glow_blend = new QComboBox(outer_glow_group);
   outer_glow_blend->setObjectName(QStringLiteral("layerStyleOuterGlowBlendModeCombo"));
-  add_blend_mode_items(outer_glow_blend);
+  add_blend_mode_items(outer_glow_blend, BlendModeMenu::Effect);
   outer_glow_blend->setCurrentIndex(std::max(0, outer_glow_blend->findData(static_cast<int>(outer_glow.blend_mode))));
   outer_glow_form->addRow(QObject::tr("Blend Mode"), outer_glow_blend);
   auto* outer_glow_technique = new QComboBox(outer_glow_group);
@@ -651,7 +651,7 @@ ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout
   auto* shadow_form = new QFormLayout(shadow_group);
   auto* shadow_blend = new QComboBox(shadow_group);
   shadow_blend->setObjectName(QStringLiteral("layerStyleDropShadowBlendModeCombo"));
-  add_blend_mode_items(shadow_blend);
+  add_blend_mode_items(shadow_blend, BlendModeMenu::Effect);
   shadow_blend->setCurrentIndex(std::max(0, shadow_blend->findData(static_cast<int>(shadow.blend_mode))));
   shadow_form->addRow(QObject::tr("Blend Mode"), shadow_blend);
   auto* shadow_opacity = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Opacity"),

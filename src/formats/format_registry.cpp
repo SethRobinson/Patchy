@@ -14,6 +14,7 @@
 #include "formats/jxl_document_io.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
+#include "formats/pdn_document_io.hpp"
 #include "formats/raw_document_io.hpp"
 #include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
@@ -236,6 +237,19 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              nullptr,
                              [](std::span<const std::uint8_t> bytes) { return af::sniff(bytes); }});
+  // Paint.NET documents are a read-only source like Affinity's (docs/pdn-format.md). The
+  // sniff matches PDN3 files only; Paint.NET 1.x/2.x files are a bare gzip stream and open
+  // by their extension.
+  registry.register_handler({"patchy.formats.pdn",
+                             "Paint.NET Image",
+                             pdn::pdn_extensions(),
+                             [](std::span<const std::uint8_t> bytes) {
+                               FormatReadResult result;
+                               result.document = pdn::DocumentIo::read(bytes, &result.notices);
+                               return result;
+                             },
+                             nullptr,
+                             [](std::span<const std::uint8_t> bytes) { return pdn::sniff(bytes); }});
   // Camera raws are read-only sources (write stays null). This headless path develops with
   // camera-JPEG-like defaults; the interactive develop dialog lives in the UI layer and runs
   // BEFORE load_document_from_path reaches the registry.

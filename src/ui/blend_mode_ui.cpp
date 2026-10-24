@@ -112,6 +112,14 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Darker Color");
     case BlendMode::LighterColor:
       return QObject::tr("Lighter Color");
+    case BlendMode::Reflect:
+      return QObject::tr("Reflect");
+    case BlendMode::Glow:
+      return QObject::tr("Glow");
+    case BlendMode::Negation:
+      return QObject::tr("Negation");
+    case BlendMode::Xor:
+      return QObject::tr("Xor");
   }
   return QObject::tr("Normal");
 }
@@ -131,6 +139,12 @@ constexpr std::array kBlendModes = {
       BlendMode::VividLight, BlendMode::LinearLight, BlendMode::PinLight,   BlendMode::HardMix,
       BlendMode::Difference, BlendMode::Exclusion,   BlendMode::Subtract,   BlendMode::Divide,
       BlendMode::Hue,        BlendMode::Saturation,  BlendMode::Color,      BlendMode::Luminosity,
+};
+
+// Paint.NET's modes (GitHub issue 379), after Photoshop's list in layer and folder menus
+// only: layer effects, recipes and brush modes have no file form for them.
+constexpr std::array kPaintDotNetBlendModes = {
+    BlendMode::Negation, BlendMode::Reflect, BlendMode::Glow, BlendMode::Xor,
 };
 
 // Behind and Clear are not BlendMode values; their item data sits past the enum.
@@ -155,6 +169,11 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
       continue;
     }
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
+  }
+  if (menu == BlendModeMenu::Layer || menu == BlendModeMenu::Folder) {
+    for (const auto mode : kPaintDotNetBlendModes) {
+      combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
+    }
   }
   install_blend_mode_arrow_keys(combo);
 }

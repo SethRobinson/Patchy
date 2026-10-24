@@ -16,8 +16,10 @@ namespace patchy::ui {
 // the ones a recipe / Smart Filter blend step cannot execute (currently
 // Dissolve), so the combo never offers a mode that would be rejected on save.
 // Folder is Layer with Pass Through first: only a folder can pass through, and
-// folders are created and imported in it (GitHub issue 235).
-enum class BlendModeMenu : std::uint8_t { Layer, Filter, Folder };
+// folders are created and imported in it (GitHub issue 235). Layer and Folder end with
+// Paint.NET's modes (GitHub issue 379); Effect is the layer-effect list, which leaves
+// them out because a layer style has no file form for them.
+enum class BlendModeMenu : std::uint8_t { Layer, Filter, Folder, Effect };
 
 [[nodiscard]] QString blend_mode_name(BlendMode mode);
 // Fills `combo` with the modes in Photoshop's menu order and makes Left/Right

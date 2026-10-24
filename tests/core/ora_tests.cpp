@@ -671,6 +671,10 @@ const char* blend_mode_label(BlendMode mode) {
     case BlendMode::DarkerColor: return "darker-color";
     case BlendMode::LighterColor: return "lighter-color";
     case BlendMode::Dissolve: return "dissolve";
+    case BlendMode::Reflect: return "reflect";
+    case BlendMode::Glow: return "glow";
+    case BlendMode::Negation: return "negation";
+    case BlendMode::Xor: return "xor";
   }
   return "unknown";
 }

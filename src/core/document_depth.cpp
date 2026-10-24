@@ -138,6 +138,11 @@ bool blend_mode_supported_at_depth(BlendMode mode, BitDepth depth) noexcept {
     case BlendMode::PinLight:
     case BlendMode::HardMix:
     case BlendMode::Exclusion:
+    // Paint.NET's modes stay 8 and 16-bit: no 32-bit file can carry them.
+    case BlendMode::Reflect:
+    case BlendMode::Glow:
+    case BlendMode::Negation:
+    case BlendMode::Xor:
       return false;
     default:
       return true;

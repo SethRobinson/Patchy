@@ -114,8 +114,6 @@ Read these before acting in the named area:
 
 ## Feature index
 
-Read the linked document before working on a feature; it owns the constraints.
-
 - **Smart Objects and Smart Filters:** [docs/smart-objects.md](docs/smart-objects.md), the native-filter calibration in [docs/smart-filters-native.md](docs/smart-filters-native.md) (table-described filters: [docs/smart-filters-pixelate-render.md](docs/smart-filters-pixelate-render.md); Image > Adjustments entries: [docs/smart-filters-adjustments.md](docs/smart-filters-adjustments.md)), plus the binding boundaries in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Liquify:** [docs/liquify.md](docs/liquify.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Warp:** [docs/warp.md](docs/warp.md).
@@ -125,7 +123,7 @@ Read the linked document before working on a feature; it owns the constraints.
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md). CMYK: [docs/cmyk.md](docs/cmyk.md).
 - **RGB profiles (convert on open, Convert to Color Profile):** [docs/rgb-profiles.md](docs/rgb-profiles.md). RGB is always shown as sRGB; sRGB is detected by colorants and curves, never bytes.
 - **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [docs/high-bit-depth.md](docs/high-bit-depth.md).
-- **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), layered TIFF in [docs/tiff.md](docs/tiff.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md); TrustMark watermarks: [docs/watermarks.md](docs/watermarks.md).
+- **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), layered TIFF in [docs/tiff.md](docs/tiff.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), Paint.NET in [docs/pdn-format.md](docs/pdn-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md); TrustMark watermarks: [docs/watermarks.md](docs/watermarks.md).
 - **JPEG XR, JPEG XL, JPEG 2000, Radiance HDR, OpenEXR, AVIF:** [docs/jxr.md](docs/jxr.md), [docs/jxl.md](docs/jxl.md), [docs/hdr-formats.md](docs/hdr-formats.md), [docs/avif.md](docs/avif.md); codec rules in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Proton (.rttex), DDS (.dds) and OpenRaster (.ora):** [docs/rttex.md](docs/rttex.md), [docs/dds.md](docs/dds.md), [docs/ora.md](docs/ora.md) (clean-room).
 - **PDF import/export:** [docs/pdf.md](docs/pdf.md); timings in [docs/pdf-performance.md](docs/pdf-performance.md).

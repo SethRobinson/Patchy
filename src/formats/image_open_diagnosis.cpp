@@ -97,6 +97,7 @@ struct Detected {
   if (bytes_at(bytes, 0, "\x01\xda")) return Detected{"SGI", "", "sgi"};
   if (bytes_at(bytes, 0, "RIFF") && bytes_at(bytes, 8, "ACON")) return Detected{"animated cursor", "", "ani"};
   if (bytes_at(bytes, 0, "8BPS")) return Detected{"Photoshop", "psd", "psd"};
+  if (bytes_at(bytes, 0, "PDN3")) return Detected{"Paint.NET", "pdn", "pdn"};
   if (bytes_at(bytes, 0, "%PDF")) return Detected{"PDF", "pdf", "pdf"};
   if (bytes_at(bytes, 0, "DDS ")) return Detected{"DDS", "dds", "dds"};
   if (bytes_at(bytes, 0, "gimp xcf")) return Detected{"GIMP XCF", "", "xcf"};

@@ -12231,6 +12231,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Rote Augen</translation>
     </message>
     <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>Diese Paint.NET-Datei ist beschädigt und konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Kein Paint.NET-Dokument</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>Einige Ebenenpixel dieser Paint.NET-Datei sind beschädigt oder fehlen; diese Bereiche wurden transparent geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>Einige Ebenenpixel dieser Paint.NET-Datei haben die Prüfsumme nicht bestanden und sind möglicherweise beschädigt.</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>Eine Ebene dieser Paint.NET-Datei verwendet eine Füllmethode, die Patchy nicht hat; sie wurde als Normal geöffnet.</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>Die Ebenen dieser Paint.NET-Datei konnten nicht gelesen werden, daher wurde ihr kleines eingebettetes Vorschaubild geöffnet.</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>Reflektieren</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>Negation</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>Ebenen mit den Paint.NET-Füllmethoden Reflektieren, Leuchten, Negation oder Xor wurden als Normal gespeichert; dieses Format kennt diese Methoden nicht.</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET-Bild</translation>
+    </message>
+    <message>
         <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
         <translation>Die OpenRaster-Datei ist beschädigt: Ihr ZIP-Verzeichnis fehlt oder ist abgeschnitten</translation>
     </message>

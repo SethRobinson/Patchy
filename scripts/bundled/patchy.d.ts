@@ -41,7 +41,8 @@
 // "soft-light", "difference", "linear-burn", "pin-light", "saturation",
 // "luminosity", "exclusion", "hue", "color", "linear-dodge", "subtract",
 // "divide", "vivid-light", "linear-light", "hard-mix", "darker-color",
-// "lighter-color".
+// "lighter-color", and Paint.NET's "reflect", "glow", "negation", "xor" (8 and
+// 16-bit documents only; a PSD save writes them as "normal").
 // Brush Mode ids (stroke `mode`): every blend mode id except "pass-through", plus
 // "behind" (paints only into transparent pixels) and "clear" (removes alpha).
 

@@ -12196,6 +12196,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>赤目修正</translation>
     </message>
     <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>この Paint.NET ファイルは破損しているため開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Paint.NET ドキュメントではありません</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>この Paint.NET ファイルの一部のレイヤーピクセルが破損しているか欠けているため、その部分は透明で開きました。</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>この Paint.NET ファイルの一部のレイヤーピクセルがチェックサムに一致せず、破損している可能性があります。</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>この Paint.NET ファイルのレイヤーは Patchy にない描画モードを使っているため、「通常」で開きました。</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>この Paint.NET ファイルのレイヤーを読み込めなかったため、埋め込まれた小さなプレビュー画像を開きました。</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>反射</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>ネゲーション</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>Paint.NET の描画モード（反射、グロー、ネゲーション、Xor）を使うレイヤーは「通常」として保存されました。この形式にはこれらのモードがありません。</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 画像</translation>
+    </message>
+    <message>
         <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
         <translation>OpenRaster ファイルが破損しています: zip のディレクトリがないか途中で切れています</translation>
     </message>

@@ -12196,6 +12196,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>紅眼</translation>
     </message>
     <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>此 Paint.NET 檔案已損毀，無法開啟。</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>不是 Paint.NET 文件</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>此 Paint.NET 檔案中的部分圖層像素已損毀或遺失，這些區域以透明方式開啟。</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>此 Paint.NET 檔案中的部分圖層像素未通過總和檢查碼驗證，可能已損毀。</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>此 Paint.NET 檔案中的一個圖層使用了 Patchy 沒有的混合模式，已以「正常」開啟。</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>無法讀取此 Paint.NET 檔案的圖層，因此開啟了其內嵌的小型預覽影像。</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>反射</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>反相</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>使用 Paint.NET 混合模式（反射、光暈、反相、Xor）的圖層已儲存為「正常」；此格式沒有這些模式。</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 影像</translation>
+    </message>
+    <message>
         <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
         <translation>OpenRaster 檔案已損毀：其 zip 目錄遺失或被截斷</translation>
     </message>

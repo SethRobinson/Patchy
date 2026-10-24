@@ -610,6 +610,8 @@ const QList<FileFormatEntry>& file_format_entries() {
                     {},
                     false,
                     false});
+    // Paint.NET documents open read-only too (docs/pdn-format.md).
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "Paint.NET Image"), {QStringLiteral("pdn")}, {}, false, false});
     // HEIF/HEIC is decode-only like camera raw (platform codecs never encode for us and
     // Patchy must not ship an HEVC encoder), so its entry is read-only too. Where no
     // decoder exists at all (an AppImage on a machine without libheif) the row is left out

@@ -583,6 +583,7 @@ add_library(patchy_formats
   src/formats/font_zip.cpp
   src/formats/format_file_io.cpp
   src/formats/format_registry.cpp
+  src/formats/nrbf_reader.cpp
   src/formats/gif_document_io.cpp
   src/formats/heif_document_io.cpp
   src/formats/ico_document_io.cpp
@@ -608,6 +609,7 @@ add_library(patchy_formats
   src/formats/ora_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
+  src/formats/pdn_document_io.cpp
   src/formats/pdf_content.cpp
   src/formats/pdf_crypt.cpp
   src/formats/pdf_document_io.cpp
@@ -2112,6 +2114,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_descriptors_test_support.cpp
     tests/core/adjustments_curves_tests.cpp
     tests/core/af_tests.cpp
+    tests/core/pdn_tests.cpp
     tests/core/brush_engine_tests.cpp
     tests/core/composite_corpus_tests.cpp
     tests/core/compositor_blend_if_tests.cpp
