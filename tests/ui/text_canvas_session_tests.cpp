@@ -424,10 +424,84 @@ void ui_text_rotate_sample_session_captures_if_available() {
   QApplication::setCursorFlashTime(flash_time);
 }
 
+void ui_text_caret_spans_the_drawn_line() {
+  // The caret runs from the line's ascent to its descent around the baseline the glyphs are
+  // drawn on. It used to be centred in QTextLine::height(), which counts the font's line gap,
+  // so it sat half that gap low (GitHub issue 384: Myriad Pro, a 0.2 em gap). Nanum Gothic
+  // uses its typographic metrics with a 0.25 em line gap (75 px at 300 px), and ships in the
+  // source tree (third_party/fonts-web), so every platform has it.
+  const auto font_id = QFontDatabase::addApplicationFont(QString::fromStdString(
+      (patchy::test::source_root_path() / "third_party" / "fonts-web" / "nanum_gothic" / "NanumGothic-Regular.ttf")
+          .string()));
+  const auto families = QFontDatabase::applicationFontFamilies(font_id);
+  CHECK(!families.isEmpty());
+  if (families.isEmpty()) {
+    return;
+  }
+  const auto family = families.front();
+  QFont font(family);
+  font.setPixelSize(300);
+  std::printf("  %s at 300 px: line gap %.1f\n", family.toStdString().c_str(), QFontMetricsF(font).leading());
+  CHECK(QFontMetricsF(font).leading() >= 20.0);
+  const QFontMetricsF metrics(font);
+  patchy::Document document(1200, 420, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  SessionWindow session;
+  open_document(session, std::move(document), QStringLiteral("Caret Line"));
+  session.window.resize(1400, 900);
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* family_combo = session.window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* size = session.window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(family_combo != nullptr && size != nullptr);
+  if (family_combo == nullptr || size == nullptr) {
+    return;
+  }
+  family_combo->setCurrentFont(QFont(family));
+  size->setValue(300.0);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::add_text_at(session.window, QPoint(40, 40));
+  QApplication::processEvents();
+  auto* editor = live_editor(*session.canvas);
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->textCursor().insertText(QStringLiteral("HHH"));
+  session.window.activateWindow();
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  process_events_for(400);
+  print_caret_against_ink(session, *editor, "caret line");
+  const auto flash_time = QApplication::cursorFlashTime();
+  QApplication::setCursorFlashTime(0);  // A steady caret for the capture.
+  editor->viewport()->update();
+  QApplication::processEvents();
+  save_widget_artifact("tcs_caret_line", *session.canvas);
+  QApplication::setCursorFlashTime(flash_time);
+  const auto caret = caret_canvas_polygon(*session.canvas, *editor).boundingRect();
+  const auto ink = preview_ink_canvas_rect(session, *editor);
+  CHECK(!caret.isEmpty());
+  CHECK(ink.has_value());
+  if (caret.isEmpty() || !ink.has_value()) {
+    return;
+  }
+  // "H" sits flat on the baseline, so the ink's exclusive bottom is the baseline.
+  const double baseline = ink->bottom() + 1.0;
+  std::printf("  line gap %.1f: caret top %.1f (baseline - ascent %.1f), bottom %.1f (baseline + descent %.1f)\n",
+              metrics.leading(), caret.top(), baseline - metrics.ascent(), caret.bottom(),
+              baseline + metrics.descent());
+  CHECK(std::abs(caret.top() - (baseline - metrics.ascent())) <= 2.0);
+  CHECK(std::abs(caret.bottom() - (baseline + metrics.descent())) <= 2.0);
+  commit_session(*session.canvas);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_canvas_session_tests() {
   return {
+      {"ui_text_caret_spans_the_drawn_line", ui_text_caret_spans_the_drawn_line},
       {"ui_rotated_psd_box_text_edit_keeps_transform", ui_rotated_psd_box_text_edit_keeps_transform},
       {"ui_text_rotate_sample_edits_keep_transform_if_available",
        ui_text_rotate_sample_edits_keep_transform_if_available},
