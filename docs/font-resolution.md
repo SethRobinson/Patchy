@@ -141,6 +141,47 @@ The text engine's font lookup and the PSD reader's naming rules. The session mac
 
 Font lookup, style matching, fallback coverage and system-font registration live in `ui/text_font_service.{hpp,cpp}`. Its API has no MainWindow dependency; the PSD resolver, font picker and text document builder share it.
 
+## The style picker (faces bold + italic cannot name)
+
+A family's faces are an arbitrary list; bold and italic name only four of them. The options
+bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop (no B/I buttons).
+`PsdTextStyleRun::style` / runs v5 column 12 persist a face the flags cannot express;
+`render_text_font_for_display_family` takes it as its last argument, applying `setStyleName`
+when the family offers it and falling back to the flags otherwise (a stray style must
+not render nothing).
+
+- **A style is recorded only when the flags cannot express it.** The DirectWrite resolver and the
+  picker both drop Regular/Bold/Italic/Bold Italic/Oblique variants
+  (`text_style_is_flag_expressible` mirrors the reader's list), so ordinary imports and picks
+  stay on runs v1-v4 and the byte-stability canaries do not move. The picker derives those four
+  rows from `bold`/`italic` and previews each row in its own face (per-item `Qt::FontRole`).
+- **A face name's flags union the database's answer; the database never vetoes the name.**
+  (`text_style_flags_for_style`): `QFontDatabase::bold` calls only weight >= 700 bold;
+  Bookman Old Style declares Bold at 600, which collapsed a "Bold Italic" pick to plain italic;
+  the database still adds axes for localized face names.
+- **Ctrl+B / Ctrl+I toggle the face axis during a session** (`toggle_text_bold_face` /
+  `toggle_text_italic_face`): the real face when `family_offers_face_axis` says the family ships
+  one, FAUX bold/italic otherwise (Ctrl+I on Century Gothic, which has no italic, slants). The axis state folds the faux flag in, so a second press always turns the
+  axis off, and the toggle clears any recorded exotic style (Ctrl+B on a Black run selects the
+  Bold face, as Photoshop does). `family_offers_face_axis` is asked ONE AXIS AT A TIME and
+  `real_face_style_name` masks the flags the same way, so bold + italic on Century Gothic renders
+  the real Bold face plus a synthetic slant.
+- **Never ask `QFontDatabase::styles()` with an unresolved display family.** A face-baked name
+  ("ITC Lubalin Graph Demi") lists its faces only under the SPLIT base family; the unsplit name
+  answers nothing, which emptied the picker and diverted Ctrl+B/Ctrl+I to faux.
+  `available_text_family_styles` resolves through `text_style_query_family`, probes the four flag
+  combinations with `QRawFont` (forcing Qt's lazy per-family population), re-queries for faces
+  only the database knows (Light, Semibold, Black), orders the four standard faces first, and
+  caches per family with `fontDatabaseChanged` invalidation. A family that is not installed still
+  offers the four standard faces so the toggles never synthesize on top of a substituted face.
+- New text seeds from the picker's selection (`add_text_at`).
+- On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
+  compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
+  instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup
+  byte-identical; a split whose remainder names no real face exports verbatim like any unknown
+  family.
+- `textStyleCombo` needs the `is_text_option_widget` exemption or focusing it auto-commits.
+
 ## Missing fonts
 
 - **The substitution prompt** (`confirm_psd_raster_preview_font_substitution`) opens before a
