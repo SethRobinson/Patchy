@@ -12162,6 +12162,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB встроен в Patchy. Остальные профили являются профилями RGB, установленными на этом компьютере; для профиля, которого нет в списке, используйте «Выбрать файл профиля...».</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>Не удалось закодировать кадр анимированного PNG.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>Для анимированного PNG нужен хотя бы один кадр.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>В документе нет видимых слоёв верхнего уровня для экспорта в анимированный PNG.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>Неверный кадр или длительность анимированного PNG.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>Не удалось открыть файл PNG для записи</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>Не удалось записать файл PNG</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>Параметры анимированного PNG</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24760,6 +24788,14 @@ Patchy может скачать обновление, заменить этот
         <source>Convert to Color Profile</source>
         <translation>Преобразовать в цветовой профиль</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>Слои как анимированный &amp;PNG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>Экспорт анимированного PNG</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26681,6 +26717,18 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Этот профиль нельзя использовать для такого преобразования.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng требует путь вывода с расширением .png или .apng.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>Параметры exportAnimatedPng должны быть объектом.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: неверный параметр %1.</translation>
     </message>
 </context>
 <context>

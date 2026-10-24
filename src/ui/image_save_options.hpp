@@ -152,6 +152,11 @@ struct ImageSaveOptions {
   // frame delay is the shared animation_frame_delay_ms.
   bool jxl_animate{false};
   int jxl_loop_count{0};  // 0 forever; otherwise total plays, up to 65535
+  // Animated PNG from the visible top-level layers (File > Export > Layers as Animated
+  // PNG and scripts' exportAnimatedPng only; Save As .png stays flat). The default frame
+  // delay is the shared animation_frame_delay_ms.
+  bool apng_animate{false};
+  int apng_loop_count{0};  // 0 forever; otherwise total plays, up to 65535
   // Proton texture (.rttex): pixel encoding, JPEG quality (Jpeg only), power-of-two handling,
   // and the RTPack-style flags. Persist as saveOptions/rttexEncoding, rttexJpegQuality,
   // rttexPowerOfTwo, rttexForceSquare, rttexForceAlpha, and rttexCompress.

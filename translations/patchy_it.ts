@@ -12127,6 +12127,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB è integrato in Patchy. Gli altri profili sono i profili RGB installati su questo computer; usa Scegli file del profilo... per uno non elencato.</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>Impossibile codificare un fotogramma del PNG animato.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>Il PNG animato richiede almeno un fotogramma.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>Il documento non ha livelli visibili di primo livello da esportare come PNG animato.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>Fotogramma o durata del PNG animato non validi.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>Impossibile aprire il file PNG in scrittura</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>Impossibile scrivere il file PNG</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>Opzioni PNG animato</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24688,6 +24716,14 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>Convert to Color Profile</source>
         <translation>Converti in profilo colore</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>Livelli come &amp;PNG animato...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>Esporta PNG animato</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26608,6 +26644,18 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Il profilo non può essere usato per questa conversione.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng richiede un percorso di uscita .png o .apng.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>Le opzioni di exportAnimatedPng devono essere un oggetto.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: opzione %1 non valida.</translation>
     </message>
 </context>
 <context>

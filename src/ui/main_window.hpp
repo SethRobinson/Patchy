@@ -996,6 +996,7 @@ private:
   void export_image_sequence();
   void export_animated_gif();
   void export_animated_webp();
+  void export_animated_png();
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
   void toggle_animation_preview_window();
   bool accept_open_file_drag(QDropEvent* event);

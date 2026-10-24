@@ -12111,6 +12111,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24615,6 +24643,14 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Convert to Color Profile</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26534,6 +26570,18 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>The profile cannot be used for this conversion.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

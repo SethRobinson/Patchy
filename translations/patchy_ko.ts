@@ -12092,6 +12092,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB는 Patchy에 내장되어 있습니다. 다른 프로파일은 이 컴퓨터에 설치된 RGB 프로파일입니다. 목록에 없는 프로파일은 &apos;프로파일 파일 선택...&apos;을 사용하세요.</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>애니메이션 PNG 프레임을 인코딩할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>애니메이션 PNG에는 프레임이 하나 이상 필요합니다.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>문서에 애니메이션 PNG로 내보낼 표시된 최상위 레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>애니메이션 PNG의 프레임 또는 시간이 잘못되었습니다.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>PNG 파일을 쓰기용으로 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>PNG 파일을 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>애니메이션 PNG 옵션</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24616,6 +24644,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Convert to Color Profile</source>
         <translation>색상 프로파일로 변환</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>레이어를 애니메이션 &amp;PNG로...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>애니메이션 PNG 내보내기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26571,18 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng에는 .png 또는 .apng 출력 경로가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>exportAnimatedPng 옵션은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: 잘못된 옵션 %1.</translation>
     </message>
 </context>
 <context>

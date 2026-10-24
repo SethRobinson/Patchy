@@ -12092,6 +12092,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB 内置于 Patchy。其他配置文件是此计算机上安装的 RGB 配置文件；未列出的配置文件请使用“选择配置文件...”。</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>无法编码动画 PNG 帧。</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>动画 PNG 至少需要一帧。</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>文档没有可导出为动画 PNG 的可见顶层图层。</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>动画 PNG 的帧或时长无效。</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>无法打开 PNG 文件进行写入</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>无法写入 PNG 文件</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>动画 PNG 选项</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24616,6 +24644,14 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Convert to Color Profile</source>
         <translation>转换为颜色配置文件</translation>
     </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>图层导出为动画 &amp;PNG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>导出动画 PNG</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26571,18 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>该配置文件不能用于此转换。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng 需要 .png 或 .apng 输出路径。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>exportAnimatedPng 的选项必须是对象。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: 选项 %1 无效。</translation>
     </message>
 </context>
 <context>

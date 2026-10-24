@@ -208,6 +208,8 @@ public:
   // Writes `source` at <user scripts>/<relative_path> (a ".js" path below the folder)
   // and rescans. False with *error set for a bad path or a write failure.
   bool install_script(const QString& relative_path, const QString& source, QString* error);
+  bool export_session_animated_png(std::int64_t session_id, const QString& path, const ImageSaveOptions& options,
+                                   QString* error);
   bool export_session_animated_webp(std::int64_t session_id, const QString& path,
                                     const ImageSaveOptions& options, QString* error);
   // app.exportPdf: the sessions as the pages of one PDF, in order. False with *error

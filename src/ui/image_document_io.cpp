@@ -18,6 +18,7 @@
 #include "formats/document_flatten.hpp"
 #include "formats/gif_document_io.hpp"
 #include "formats/animation_timing.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 #include "support/atomic_file_write.hpp"
 #include "support/translate_noop.hpp"
@@ -2663,7 +2664,7 @@ void write_flat_qimage(const Document& document, const ImageSaveOptions& options
                                                    const ImageSaveOptions& options) {
   return export_transform_requested(options) || options.export_cmyk || lower == "gif" ||
          (lower == "webp" && options.webp_animate) || (jxl::is_jxl_extension(lower) && options.jxl_animate) ||
-         lower == "tga" || lower == "pcx" || lower == "lbm" || lower == "iff" || lower == "bbm" ||
+         ((lower == "png" || lower == "apng") && options.apng_animate) || lower == "tga" || lower == "pcx" || lower == "lbm" || lower == "iff" || lower == "bbm" ||
          lower == "ico" || lower == "cur" || jxr::is_jxr_extension(lower) || rttex::is_rttex_extension(lower) ||
          dds::is_dds_extension(lower) || is_bmp_extension(extension);
 }
@@ -2750,6 +2751,10 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   }
   if (jxl::is_jxl_extension(lower) && options.jxl_animate) {
     write_animated_jxl_file(document, path, options, notices);
+    return;
+  }
+  if ((lower == "png" || lower == "apng") && options.apng_animate) {
+    write_animated_png_file(document, path, options, notices);
     return;
   }
   if (lower == "gif" && options.gif_animate) {
@@ -2935,13 +2940,14 @@ void write_flat_image_file(const Document& document, const QString& path, const 
 }
 
 namespace {
-enum class AnimatedFormat : std::uint8_t { Gif, Webp, Jxl };
+enum class AnimatedFormat : std::uint8_t { Gif, Webp, Jxl, Png };
 }  // namespace
 
 static void write_animated_layers(const Document& document, const QString& path, const ImageSaveOptions& options,
                                   std::vector<std::string>* notices, AnimatedFormat format) {
   const bool as_webp = format == AnimatedFormat::Webp;
   const bool as_jxl = format == AnimatedFormat::Jxl;
+  const bool as_png = format == AnimatedFormat::Png;
   const bool palette_mode =
       document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty();
   const auto default_delay_cs =
@@ -2958,6 +2964,7 @@ static void write_animated_layers(const Document& document, const QString& path,
     throw std::runtime_error(
         as_webp  ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated WebP.")
         : as_jxl ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated JPEG XL.")
+        : as_png ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated PNG.")
                  : "The document has no visible top-level layers to export as an animated GIF.");
   }
 
@@ -2994,6 +3001,7 @@ static void write_animated_layers(const Document& document, const QString& path,
 
   std::unique_ptr<webp::AnimationEncoder> webp_encoder;
   std::unique_ptr<jxl::AnimationEncoder> jxl_encoder;
+  std::unique_ptr<apng::AnimationEncoder> png_encoder;
   std::vector<gif::GifFrame> frames;
   frames.reserve(visible_layers.size());
   std::int32_t frame_width = canvas_width;
@@ -3037,6 +3045,21 @@ static void write_animated_layers(const Document& document, const QString& path,
           static_cast<std::uint32_t>(options.animation_frame_delay_ms)));
       continue;
     }
+    if (as_png) {
+      if (!png_encoder) {
+        if (options.apng_loop_count < 0 || options.apng_loop_count > 65535 || options.animation_frame_delay_ms < 0 ||
+            options.animation_frame_delay_ms > static_cast<int>(animation::kMaxFrameDelayMs)) {
+          throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Invalid animated PNG frame or duration."));
+        }
+        png_encoder = std::make_unique<apng::AnimationEncoder>(
+            frame_width, frame_height, static_cast<std::uint32_t>(options.apng_loop_count),
+            dots_per_meter_from_ppi(document.print_settings().horizontal_ppi),
+            dots_per_meter_from_ppi(document.print_settings().vertical_ppi));
+      }
+      png_encoder->add(rgba, animation::parse_layer_name_delay_ms(layer.name()).value_or(
+          static_cast<std::uint32_t>(options.animation_frame_delay_ms)));
+      continue;
+    }
     auto indexed = palette_mode
                        ? indexed_rgba8_with_palette(rgba, document.palette_editing()->palette.colors,
                                                     document.palette_editing()->alpha_threshold)
@@ -3054,8 +3077,17 @@ static void write_animated_layers(const Document& document, const QString& path,
         PATCHY_TRANSLATE_NOOP("QObject", "Could not write JPEG XL file"));
     return;
   }
-  const auto metadata = save_metadata_for(document, options, as_webp ? "webp" : "gif", frame_width, frame_height);
-  if (as_webp) {
+  const auto metadata =
+      save_metadata_for(document, options, as_webp ? "webp" : as_png ? "png" : "gif", frame_width, frame_height);
+  if (as_png) {
+    auto bytes = png_encoder->finish();
+    if (metadata) {
+      bytes = metadata::inject_metadata(std::move(bytes), "png", *metadata);
+    }
+    write_file_bytes_atomically(to_filesystem_path(path), bytes,
+        PATCHY_TRANSLATE_NOOP("QObject", "Could not open PNG file for writing"),
+        PATCHY_TRANSLATE_NOOP("QObject", "Could not write PNG file"));
+  } else if (as_webp) {
     auto bytes = webp_encoder->finish();
     if (metadata) {
       bytes = metadata::inject_metadata(std::move(bytes), "webp", *metadata);
@@ -3084,6 +3116,11 @@ void write_animated_webp_file(const Document& document, const QString& path, con
 void write_animated_jxl_file(const Document& document, const QString& path, const ImageSaveOptions& options,
                              std::vector<std::string>* notices) {
   write_animated_layers(document, path, options, notices, AnimatedFormat::Jxl);
+}
+
+void write_animated_png_file(const Document& document, const QString& path, const ImageSaveOptions& options,
+                             std::vector<std::string>* notices) {
+  write_animated_layers(document, path, options, notices, AnimatedFormat::Png);
 }
 
 }  // namespace patchy::ui

@@ -375,6 +375,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.saveAs(path, options?)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). The document then points at that file; a layered document saved to a flat format keeps its own path (save-a-copy). `options` sets the format's save options with no dialog (below); without it the save uses your Save Options defaults. WebP stays a single flattened image. |
 | `doc.exportAs(path, options?)` | Writes a copy with the same formats and options as `saveAs` and leaves the document alone: path, title and modified state never change. |
 | `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. Leaves the document path and modified state unchanged. |
+| `doc.exportAnimatedPng(path, options?)` | The same frames as an animated PNG (APNG). Options `frameDelayMs` and `loopCount`, as for WebP. |
 | `doc.close()` | Closes without prompting. |
 | `doc.activate()` | Makes this the active tab. |
 
@@ -441,6 +442,15 @@ Delays are integer milliseconds (0 through 16777215), play counts are integers
 lossless. Invalid options, an output extension other than `.webp`, or an export failure
 throw an error. Hidden layers are skipped. Identical consecutive frames can be combined
 by the encoder. Loop counts are retained for the open document, not in PSD or recovery files.
+
+`doc.exportAnimatedPng(path, options?)` writes the same frames as an animated PNG
+(APNG: lossless 8-bit RGBA, frame 1 doubles as the still image for viewers without
+animation support). It takes `frameDelayMs` and `loopCount` with the same ranges and
+defaults; the path must end in `.png` or `.apng`. Every layer stays one frame.
+
+```js
+app.activeDocument.exportAnimatedPng("animation.png", { frameDelayMs: 100, loopCount: 0 });
+```
 
 ### Palettes and indexed PNG
 

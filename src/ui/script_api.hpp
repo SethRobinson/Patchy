@@ -353,6 +353,7 @@ public:
   Q_INVOKABLE bool saveAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE bool exportAnimatedPng(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE void close();
   Q_INVOKABLE void activate();
   // Artboards (script_artboards.cpp).

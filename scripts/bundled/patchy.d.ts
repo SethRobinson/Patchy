@@ -1182,6 +1182,14 @@ interface PatchyDocument {
   exportAnimatedWebp(path: string, options?: {
     frameDelayMs?: number; loopCount?: number; quality?: number; lossless?: boolean;
   }): boolean;
+  /** Exports visible top-level layers, top first, as an animated PNG (APNG, 8-bit RGBA,
+   * lossless). Groups become one frame. Trailing seconds tokens ("blink 0.033s") override
+   * frameDelayMs. Preserves the document path and modified state. loopCount is total plays
+   * (0 = forever), defaults to the imported or last exported count, otherwise 0; frameDelayMs
+   * defaults to 100. Integers: frameDelayMs 0..16777215, loopCount 0..65535. Unknown/invalid
+   * options, paths not ending in .png or .apng and export failures throw. saveAs/exportAs with
+   * .png continue to write a single flattened image. */
+  exportAnimatedPng(path: string, options?: { frameDelayMs?: number; loopCount?: number }): boolean;
   /** Closes without prompting (the script decided). */
   close(): void;
   /** Makes this the active document tab. */
