@@ -3748,19 +3748,6 @@ void collect_layer_render_order(const std::vector<Layer>& layers, std::vector<La
   }
 }
 
-bool layer_is_effectively_visible(const std::vector<Layer>& layers, LayerId id, bool ancestor_visible = true) {
-  for (const auto& layer : layers) {
-    const auto visible = ancestor_visible && layer.visible();
-    if (layer.id() == id) {
-      return visible;
-    }
-    if (layer.kind() == LayerKind::Group && layer_is_effectively_visible(layer.children(), id, visible)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, QColor color,
                                 const QString& rich_text_runs, const QString& paragraph_runs, int text_width,
                                 int text_height) {
@@ -9721,13 +9708,26 @@ void MainWindow::merge_down() {
   const auto merge_depth = std::as_const(doc).color_state().bit_depth;
   merge_document.color_state().bit_depth = merge_depth;
   LayerId target_id = 0;
+  // A hidden folder that holds the whole merge hides its result too, so only the items' own
+  // visibility and that of folders below the shared ones count (Photoshop; GitHub issue 389).
+  const auto shared_groups = layer_shared_ancestor_groups(std::as_const(doc).layers(), merge_list);
+  const auto draws_in_merge = [&doc, &shared_groups](LayerId id) {
+    std::vector<LayerId> ancestors;
+    (void)collect_layer_ancestor_groups(std::as_const(doc).layers(), id, ancestors);
+    const auto* layer = std::as_const(doc).find_layer(id);
+    return layer != nullptr && layer->visible() &&
+        std::all_of(ancestors.begin(), ancestors.end(), [&](LayerId ancestor) {
+          const auto* group = std::as_const(doc).find_layer(ancestor);
+          return shared_groups.contains(ancestor) || (group != nullptr && group->visible());
+        });
+  };
   for (const auto id : merge_list) {
     const auto* layer = std::as_const(doc).find_layer(id);
     if (layer == nullptr) {
       show_status_error(tr("Select a layer to merge down"));
       return;
     }
-    if (!layer_is_effectively_visible(std::as_const(doc).layers(), id)) {
+    if (!draws_in_merge(id)) {
       continue;
     }
     std::optional<Layer> renderable;
