@@ -128,6 +128,8 @@ The large quarantine keeps long-ago frees poisoned for the whole run, so the hos
 
 `ThemeManager` mirrors the resolved scheme onto Qt with `QStyleHints::setColorScheme` (`unsetColorScheme` for "follow system"). On Windows that re-tints the chrome Patchy does not style (native dialog title bars, dock and list scroll bars, tooltips, `QMessageBox`, the color picker), so there is no `DWMWA_USE_IMMERSIVE_DARK_MODE` call and no registry read. Under `QT_QPA_PLATFORM=offscreen` the call is a no-op and `colorScheme()` reports `Unknown`, which keeps the UI suite deterministic regardless of the host's setting.
 
+When the platform reports `Unknown` (no desktop color scheme: a bare X server, a window manager without a portal), "follow system" resolves to Light on Linux under the `xcb` and `wayland*` platforms and to Dark everywhere else, offscreen on Linux included, so the Linux UI suite keeps its Dark baselines. The AppImage catalog's test runs under a bare X server and warned about a mostly dark window (GitHub issue 334). `tests/ui/main.cpp` pins the suite to Dark anyway; `ui_color_scheme_unknown_resolves_light_on_desktop_linux` covers the mapping on every platform.
+
 The frameless main window has no native title bar to tint; it draws its own 1px edge from the `window_border` role, overridden by the Light palette so it keeps a silhouette on a light desktop. `DWMWA_BORDER_COLOR` in `main_window_chrome.cpp` stays unconditionally `COLOR_NONE`.
 
 ## Linux base widget style

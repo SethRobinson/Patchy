@@ -2789,8 +2789,8 @@ void ui_color_scheme_follow_system_tracks_style_hints() {
   CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Dark);
   CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Dark);
 
-  // Unknown is what every platform without a color-scheme notion reports; it must
-  // land on Patchy's historical Dark rather than an invalid state.
+  // Unknown under offscreen lands on Patchy's historical Dark on every platform,
+  // Linux included, so the Linux suite never starts in Light by accident.
   manager.set_system_color_scheme_for_testing(Qt::ColorScheme::Unknown);
   CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Dark);
 
@@ -2799,6 +2799,27 @@ void ui_color_scheme_follow_system_tracks_style_hints() {
   manager.set_system_color_scheme_for_testing(Qt::ColorScheme::Dark);
   CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Light);
   CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light);
+}
+
+// #334: with no desktop color scheme, a desktop Linux session (xcb, wayland)
+// follows the system to Light; offscreen and every other platform stay Dark,
+// and an explicit report always wins.
+void ui_color_scheme_unknown_resolves_light_on_desktop_linux() {
+  using patchy::ui::ColorScheme;
+  using patchy::ui::resolve_reported_color_scheme;
+  const auto unknown = Qt::ColorScheme::Unknown;
+  CHECK(resolve_reported_color_scheme(unknown, true, QStringLiteral("xcb")) == ColorScheme::Light);
+  CHECK(resolve_reported_color_scheme(unknown, true, QStringLiteral("wayland")) == ColorScheme::Light);
+  CHECK(resolve_reported_color_scheme(unknown, true, QStringLiteral("wayland-egl")) == ColorScheme::Light);
+  CHECK(resolve_reported_color_scheme(unknown, true, QStringLiteral("offscreen")) == ColorScheme::Dark);
+  CHECK(resolve_reported_color_scheme(unknown, true, QStringLiteral("minimal")) == ColorScheme::Dark);
+  CHECK(resolve_reported_color_scheme(unknown, false, QStringLiteral("xcb")) == ColorScheme::Dark);
+  CHECK(resolve_reported_color_scheme(unknown, false, QStringLiteral("windows")) == ColorScheme::Dark);
+  CHECK(resolve_reported_color_scheme(unknown, false, QStringLiteral("cocoa")) == ColorScheme::Dark);
+  CHECK(resolve_reported_color_scheme(Qt::ColorScheme::Dark, true, QStringLiteral("xcb")) ==
+        ColorScheme::Dark);
+  CHECK(resolve_reported_color_scheme(Qt::ColorScheme::Light, false, QStringLiteral("windows")) ==
+        ColorScheme::Light);
 }
 
 // Exports the full palette, tweaks are not needed to prove fidelity: two
@@ -3003,6 +3024,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_color_scheme_cancel_restores_entry_scheme", ui_color_scheme_cancel_restores_entry_scheme},
       {"ui_color_scheme_commit_after_preview_clears_stored_custom_theme", ui_color_scheme_commit_after_preview_clears_stored_custom_theme},
       {"ui_color_scheme_follow_system_tracks_style_hints", ui_color_scheme_follow_system_tracks_style_hints},
+      {"ui_color_scheme_unknown_resolves_light_on_desktop_linux",
+       ui_color_scheme_unknown_resolves_light_on_desktop_linux},
       {"ui_theme_file_round_trips_full_palette", ui_theme_file_round_trips_full_palette},
       {"ui_theme_file_missing_role_falls_back_to_base", ui_theme_file_missing_role_falls_back_to_base},
       {"ui_theme_file_invalid_hex_is_a_hard_error", ui_theme_file_invalid_hex_is_a_hard_error},
