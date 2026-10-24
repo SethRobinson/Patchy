@@ -12,6 +12,12 @@ those of 2026-10-06 to 2026-10-09 in
 [scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md).
 Every entry below is API 1.
 
+2026-10-25 (additive): save option `unsupportedBlendModes` for `.psd`, `.psb`, layered `.tif`/`.tiff`
+and `.aseprite`/`.ase` (GitHub issue 379, [blend-modes.md](blend-modes.md#layered-saves)): `"normal"`
+(the default, as before) writes layers in blend modes the format cannot store as Normal; `"bake"`
+rebuilds each as a Normal layer that keeps the look. Scripted saves never show the Save prompt that
+asks this. The key and its tokens are permanent identifiers. Pinned by
+`ui_script_save_unsupported_blend_modes_option`.
 2026-10-24 (additive): `doc.saveAs` and `doc.exportAs` write OpenRaster for a `.ora` path
 ([ora.md](ora.md)): the layer tree stays, and what the format cannot hold is baked into layer pixels
 with no prompt (a scripted save answers it, like the Aseprite Fill Opacity one). `saveAs` points the

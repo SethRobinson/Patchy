@@ -12302,10 +12302,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>Warstwy z trybami mieszania Paint.NET Odbicie, Blask, Negacja lub Xor zapisano jako Zwykły; ten format nie ma takich trybów.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Obraz Paint.NET</translation>
     </message>
@@ -12352,6 +12348,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>Ten obraz Paint.NET jest zbyt duży, aby Patchy otworzył jego warstwy, więc otwarto jego mały osadzony podgląd.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>Warstwy w trybach mieszania, których ten format nie może zapisać, odtworzono jako warstwy Zwykły zachowujące wygląd.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>Warstwy w trybach mieszania, których ten format nie może zapisać, zapisano jako Zwykły, więc zapisany obraz wygląda inaczej.</translation>
     </message>
 </context>
 <context>
@@ -25117,6 +25121,42 @@ Changed: %1.</source>
         <translation>OpenRaster zachowuje warstwy, grupy, krycie i tryby mieszania, ale części zawartości tego dokumentu nie można zapisać w obecnej postaci. Kontynuować zapisywanie, wtapiając ją w piksele warstw lub ją pomijając? Aby wszystko pozostało edytowalne, zapisz też dokument programu Photoshop (.psd).
 
 Zmiany: %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>Nieobsługiwane tryby mieszania</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>Pliki %1 nie mogą zapisać tych trybów mieszania: %2 (%n warstwa).</numerusform>
+            <numerusform>Pliki %1 nie mogą zapisać tych trybów mieszania: %2 (%n warstwy).</numerusform>
+            <numerusform>Pliki %1 nie mogą zapisać tych trybów mieszania: %2 (%n warstw).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>Warstwy: %1.
+
+Zachowaj wygląd: każda z tych warstw zostanie zapisana jako warstwa Zwykły, która pokazuje to, co pokazywał jej tryb mieszania, więc zapisany obraz wygląda tak samo. Jej piksele zawierają wtedy to, co było pod nią, a folder lub grupa przycinania zawierająca taką warstwę zostanie zapisana jako jedna warstwa.
+
+Zapisz jako Zwykły: warstwy zachowują własne piksele, ale przechodzą na tryb Zwykły, więc zapisany obraz wygląda inaczej.
+
+Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>Zachowaj wygląd</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>Zapisz jako Zwykły</translation>
     </message>
 </context>
 <context>

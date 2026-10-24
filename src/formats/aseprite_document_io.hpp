@@ -14,6 +14,11 @@ namespace patchy::aseprite {
 // disambiguate ".ase" from Adobe swatch palettes, which share the extension.
 [[nodiscard]] bool sniff(std::span<const std::uint8_t> bytes) noexcept;
 
+// True when an Aseprite layer can store `mode` as itself. Pass Through writes as Normal
+// (Aseprite groups always isolate), so it reports false; the writer maps every other
+// mode it lacks to Normal too.
+[[nodiscard]] bool stores_blend_mode(BlendMode mode) noexcept;
+
 class DocumentIo {
 public:
   [[nodiscard]] static bool can_read(std::span<const std::uint8_t> bytes) noexcept;

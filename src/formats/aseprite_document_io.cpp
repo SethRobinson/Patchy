@@ -239,6 +239,15 @@ void write_ase_string(LittleEndianWriter& writer, const std::string& text) {
 
 }  // namespace
 
+bool stores_blend_mode(BlendMode mode) noexcept {
+  if (mode == BlendMode::PassThrough) {
+    return false;
+  }
+  bool lossy = false;
+  static_cast<void>(blend_mode_to_aseprite(mode, &lossy));
+  return !lossy;
+}
+
 bool sniff(std::span<const std::uint8_t> bytes) noexcept {
   return bytes.size() >= 6 && (static_cast<std::uint16_t>(bytes[4] | (bytes[5] << 8U)) == kHeaderMagic);
 }

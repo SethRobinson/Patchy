@@ -12267,10 +12267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>Las capas con los modos de fusión de Paint.NET Reflejar, Resplandor, Negación o Xor se guardaron como Normal; este formato no tiene esos modos.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Imagen de Paint.NET</translation>
     </message>
@@ -12317,6 +12313,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>Esta imagen de Paint.NET es demasiado grande para que Patchy abra sus capas, así que se abrió su pequeña vista previa incrustada.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>Las capas con modos de fusión que este formato no puede guardar se rehicieron como capas Normal que conservan el aspecto.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>Las capas con modos de fusión que este formato no puede guardar se guardaron como Normal, así que la imagen guardada se ve distinta.</translation>
     </message>
 </context>
 <context>
@@ -25045,6 +25049,41 @@ Changed: %1.</source>
         <translation>OpenRaster conserva capas, grupos, opacidad y modos de fusión, pero parte del contenido de este documento no se puede almacenar tal como está. ¿Desea continuar guardando con ese contenido integrado en los píxeles de las capas u omitido? Para que todo siga siendo editable, guarde también un documento de Photoshop (.psd).
 
 Cambios: %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>Modos de fusión no admitidos</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>Los archivos %1 no pueden guardar estos modos de fusión: %2 (%n capa).</numerusform>
+            <numerusform>Los archivos %1 no pueden guardar estos modos de fusión: %2 (%n capas).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>Capas: %1.
+
+Conservar el aspecto: cada una de estas capas se guarda como una capa Normal que muestra lo que mostraba su modo de fusión, así que la imagen guardada se ve igual. Sus píxeles incluyen entonces lo que había debajo, y una carpeta o un grupo de recorte que contenga una se guarda como una sola capa.
+
+Guardar como Normal: las capas conservan sus propios píxeles pero pasan a Normal, así que la imagen guardada se ve distinta.
+
+El documento abierto conserva sus modos de fusión en ambos casos.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>Conservar el aspecto</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>Guardar como Normal</translation>
     </message>
 </context>
 <context>

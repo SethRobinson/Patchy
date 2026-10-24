@@ -12232,10 +12232,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>Paint.NET の描画モード（反射、グロー、ネゲーション、Xor）を使うレイヤーは「通常」として保存されました。この形式にはこれらのモードがありません。</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Paint.NET 画像</translation>
     </message>
@@ -12282,6 +12278,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>この Paint.NET 画像は大きすぎて Patchy ではレイヤーを開けないため、埋め込まれた小さなプレビュー画像を開きました。</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>この形式で保存できない描画モードのレイヤーは、見た目を保つ通常レイヤーとして作り直されました。</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>この形式で保存できない描画モードのレイヤーは通常として保存されたため、保存された画像の見た目は異なります。</translation>
     </message>
 </context>
 <context>
@@ -24973,6 +24977,40 @@ Changed: %1.</source>
         <translation>OpenRaster はレイヤー、グループ、不透明度、描画モードを保持しますが、このドキュメントの一部の内容はそのままでは保存できません。それらをレイヤーのピクセルに焼き込むか省いて保存を続けますか？すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) も保存してください。
 
 変更: %1。</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>描画モードがサポートされていません</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>%1 ファイルには次の描画モードを保存できません: %2 (%n 個のレイヤー)。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>レイヤー: %1。
+
+見た目を保つ: これらの各レイヤーは、描画モードが表示していた内容を表示する通常レイヤーとして保存されるため、保存された画像の見た目は変わりません。そのピクセルには下にあった内容が含まれ、そのようなレイヤーを含むフォルダーやクリッピンググループは 1 つのレイヤーとして保存されます。
+
+通常として保存: レイヤーは自身のピクセルを保ちますが通常に切り替わるため、保存された画像の見た目は異なります。
+
+どちらの場合も、開いているドキュメントの描画モードは変わりません。</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>見た目を保つ</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>通常として保存</translation>
     </message>
 </context>
 <context>

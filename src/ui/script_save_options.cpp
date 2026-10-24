@@ -231,6 +231,16 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
     options.tiff_layers = keep;
     return true;
   }
+  // Layered saves (docs/blend-modes.md, "Layered saves"): layers in blend modes the format
+  // cannot store are saved as Normal ("normal", the default) or keep the look ("bake").
+  if (key == QStringLiteral("unsupportedBlendModes") &&
+      (extension == QStringLiteral("psd") || extension == QStringLiteral("psb") ||
+       extension == QStringLiteral("tif") || extension == QStringLiteral("tiff") ||
+       extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase"))) {
+    reader.read_token(key, value, {QStringLiteral("normal"), QStringLiteral("bake")},
+                      [&](const QString& token) { options.bake_unsupported_blend_modes = token == QStringLiteral("bake"); });
+    return true;
+  }
   if (is_jpeg_extension(extension)) {
     if (key == QStringLiteral("quality")) {
       reader.read_int(key, value, 0, 100, options.jpeg_quality);

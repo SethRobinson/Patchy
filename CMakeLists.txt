@@ -597,6 +597,7 @@ add_library(patchy_formats
   src/formats/avif_document_io.cpp
   src/formats/hdr_transfer.cpp
   src/formats/jxr_document_io.cpp
+  src/formats/layered_blend_support.cpp
   src/formats/metadata/exif_tags.cpp
   src/formats/metadata/iptc_iim.cpp
   src/formats/metadata/jumbf.cpp

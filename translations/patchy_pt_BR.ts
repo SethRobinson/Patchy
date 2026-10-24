@@ -12267,10 +12267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>As camadas com os modos de mesclagem do Paint.NET Refletir, Brilho, Negação ou Xor foram salvas como Normal; este formato não tem esses modos.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Imagem do Paint.NET</translation>
     </message>
@@ -12317,6 +12313,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>Esta imagem do Paint.NET é grande demais para o Patchy abrir suas camadas, então foi aberta a pequena imagem de prévia incorporada.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>As camadas em modos de mesclagem que este formato não pode salvar foram refeitas como camadas Normal que mantêm a aparência.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>As camadas em modos de mesclagem que este formato não pode salvar foram salvas como Normal, então a imagem salva fica diferente.</translation>
     </message>
 </context>
 <context>
@@ -25045,6 +25049,41 @@ Changed: %1.</source>
         <translation>O OpenRaster mantém camadas, grupos, opacidade e modos de mesclagem, mas parte do conteúdo deste documento não pode ser armazenada como está. Continuar salvando com esse conteúdo incorporado aos pixels das camadas ou omitido? Para manter tudo editável, salve também um documento do Photoshop (.psd).
 
 Alterado: %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>Modos de mesclagem sem suporte</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>Arquivos %1 não podem salvar estes modos de mesclagem: %2 (%n camada).</numerusform>
+            <numerusform>Arquivos %1 não podem salvar estes modos de mesclagem: %2 (%n camadas).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>Camadas: %1.
+
+Manter a aparência: cada uma dessas camadas é salva como uma camada Normal que mostra o que o modo de mesclagem mostrava, então a imagem salva fica igual. Os pixels dela passam a incluir o que estava abaixo, e uma pasta ou um grupo de recorte que contenha uma delas é salvo como uma só camada.
+
+Salvar como Normal: as camadas mantêm os próprios pixels, mas passam para Normal, então a imagem salva fica diferente.
+
+O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>Manter a aparência</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>Salvar como Normal</translation>
     </message>
 </context>
 <context>

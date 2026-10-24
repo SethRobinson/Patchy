@@ -7,9 +7,11 @@
 #include "core/document_depth.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
+#include "formats/aseprite_document_io.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
+#include "formats/layered_blend_support.hpp"
 #include "formats/metadata/metadata_containers.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
 #include "formats/nrbf_reader.hpp"
@@ -923,6 +925,302 @@ void psd_saves_paint_dot_net_blend_modes_as_normal() {
   CHECK(!patchy::layers_use_paint_dot_net_blend_modes(reread.layers()));
 }
 
+// Layered saves (docs/blend-modes.md, "Layered saves"): which modes each format stores.
+void layered_blend_support_lists_what_each_format_stores() {
+  using patchy::LayeredSaveFormat;
+  using patchy::layered_format_stores_blend_mode;
+  constexpr auto u8 = patchy::BitDepth::UInt8;
+  CHECK(!layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::Xor, false, u8));
+  CHECK(!layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::Reflect, true, u8));
+  CHECK(layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::Multiply, false, u8));
+  CHECK(layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::Dissolve, false, u8));
+  CHECK(layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::PassThrough, true, u8));
+  CHECK(!layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::PassThrough, false, u8));
+  CHECK(!layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::Screen, false,
+                                          patchy::BitDepth::Float32));
+  CHECK(layered_format_stores_blend_mode(LayeredSaveFormat::Photoshop, BlendMode::Screen, false,
+                                         patchy::BitDepth::UInt16));
+  for (const auto mode : {BlendMode::LinearBurn, BlendMode::PinLight, BlendMode::VividLight, BlendMode::LinearLight,
+                          BlendMode::HardMix, BlendMode::DarkerColor, BlendMode::LighterColor, BlendMode::Dissolve,
+                          BlendMode::Xor, BlendMode::Glow, BlendMode::PassThrough}) {
+    CHECK(!layered_format_stores_blend_mode(LayeredSaveFormat::Aseprite, mode, true, u8));
+  }
+  for (const auto mode : {BlendMode::Normal, BlendMode::Multiply, BlendMode::Screen, BlendMode::Overlay,
+                          BlendMode::Difference, BlendMode::Hue, BlendMode::Luminosity}) {
+    CHECK(layered_format_stores_blend_mode(LayeredSaveFormat::Aseprite, mode, false, u8));
+  }
+
+  Document document(4, 4, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Base", patchy::test::solid_rgba(4, 4, 10, 20, 30, 255));
+  auto& xor_layer = document.add_pixel_layer("Xor one", patchy::test::solid_rgba(4, 4, 200, 20, 30, 255));
+  xor_layer.set_blend_mode(BlendMode::Xor);
+  auto& hidden = document.add_pixel_layer("Hidden glow", patchy::test::solid_rgba(4, 4, 200, 20, 30, 255));
+  hidden.set_blend_mode(BlendMode::Glow);
+  hidden.set_visible(false);
+  auto& burn = document.add_pixel_layer("Burn", patchy::test::solid_rgba(4, 4, 200, 20, 30, 255));
+  burn.set_blend_mode(BlendMode::LinearBurn);
+  Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.set_blend_mode(BlendMode::PassThrough);
+  folder.children().emplace_back(document.allocate_layer_id(), "Plain", patchy::test::solid_rgba(4, 4, 1, 2, 3, 255));
+  document.add_layer(folder);
+
+  const auto psd = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Photoshop);
+  CHECK((psd.modes == std::vector<BlendMode>{BlendMode::Xor, BlendMode::Glow}));
+  CHECK((psd.layer_names == std::vector<std::string>{"Xor one", "Hidden glow"}));
+  // A Pass Through folder of Normal layers isolates to the same pixels: Aseprite keeps it.
+  const auto ase = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Aseprite);
+  CHECK((ase.modes == std::vector<BlendMode>{BlendMode::Xor, BlendMode::Glow, BlendMode::LinearBurn}));
+  CHECK(ase.layer_names.size() == 3);
+  document.layers().back().children().front().set_blend_mode(BlendMode::Multiply);
+  const auto ase_multiply = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Aseprite);
+  CHECK(ase_multiply.layer_names.size() == 4 && ase_multiply.layer_names.back() == "Folder");
+  CHECK(patchy::find_unsupported_blend_modes(Document(2, 2, patchy::PixelFormat::rgba8()), LayeredSaveFormat::Photoshop)
+            .empty());
+}
+
+patchy::PixelBuffer bake_test_pattern(std::int32_t width, std::int32_t height, int seed, bool partial_alpha) {
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+  auto data = pixels.data();
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* p = data.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)) * 4U;
+      p[0] = static_cast<std::uint8_t>((x * 37 + y * 11 + seed * 53) & 255);
+      p[1] = static_cast<std::uint8_t>((x * 5 + y * 29 + seed * 17) & 255);
+      p[2] = static_cast<std::uint8_t>((x * y + seed * 91) & 255);
+      p[3] = partial_alpha ? static_cast<std::uint8_t>((x * 13 + y * 7 + seed * 31) & 255) : 255;
+    }
+  }
+  return pixels;
+}
+
+// Largest difference between two composites, in levels: alpha directly, colour weighted by
+// the smaller cover (a colour under 2% cover is not a visible difference of 255 levels).
+int composite_difference(const Document& a, const Document& b, bool report = false) {
+  const patchy::Rect canvas{0, 0, a.width(), a.height()};
+  const auto left = patchy::flatten_document_rgba8_rect(a, canvas);
+  const auto right = patchy::flatten_document_rgba8_rect(b, canvas);
+  if (left.width() != right.width() || left.height() != right.height()) {
+    return 255;
+  }
+  const auto l = left.data();
+  const auto r = right.data();
+  int worst = 0;
+  std::size_t worst_at = 0;
+  for (std::size_t i = 0; i < l.size(); i += 4) {
+    int here = std::abs(int{l[i + 3]} - int{r[i + 3]});
+    const int cover = std::min(int{l[i + 3]}, int{r[i + 3]});
+    for (std::size_t c = 0; c < 3; ++c) {
+      here = std::max(here, (std::abs(int{l[i + c]} - int{r[i + c]}) * cover + 254) / 255);
+    }
+    if (here > worst) {
+      worst = here;
+      worst_at = i;
+    }
+  }
+  if (report && worst > 1) {
+    const auto pixel = worst_at / 4U;
+    std::cout << "    worst at (" << pixel % static_cast<std::size_t>(a.width()) << ", "
+              << pixel / static_cast<std::size_t>(a.width()) << "): " << int{l[worst_at]} << ' ' << int{l[worst_at + 1]}
+              << ' ' << int{l[worst_at + 2]} << ' ' << int{l[worst_at + 3]} << " vs " << int{r[worst_at]} << ' '
+              << int{r[worst_at + 1]} << ' ' << int{r[worst_at + 2]} << ' ' << int{r[worst_at + 3]} << '\n';
+  }
+  return worst;
+}
+
+// Bakes `document` for Photoshop, writes and re-reads a PSD, and returns how far the
+// re-read composite is from the original's. With an artifact name, the baked PSD and the
+// original's composite (BMP) land in test-artifacts for a Photoshop open check.
+int psd_bake_round_trip_difference(const Document& document, const char* label, const char* artifact = nullptr) {
+  Document baked = document;
+  (void)patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop);
+  CHECK(patchy::find_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop).empty());
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(baked);
+  if (artifact != nullptr) {
+    std::filesystem::create_directories("test-artifacts");
+    std::ofstream out(std::filesystem::path("test-artifacts") / (std::string(artifact) + ".psd"), std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    patchy::test::write_bmp_artifact(std::string(artifact) + "_patchy", document);
+  }
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  const int difference = composite_difference(document, reread, true);
+  if (difference > 1) {
+    std::cout << "  " << label << ": baked PSD composite is " << difference << " levels off (before the PSD: "
+              << composite_difference(document, baked, true) << ")\n";
+  }
+  return difference;
+}
+
+Layer bake_test_layer(Document& document, const char* name, int seed, bool partial, BlendMode mode,
+                      patchy::Rect bounds) {
+  Layer layer(document.allocate_layer_id(), name, bake_test_pattern(bounds.width, bounds.height, seed, partial));
+  layer.set_bounds(bounds);
+  layer.set_blend_mode(mode);
+  return layer;
+}
+
+void layered_blend_bake_round_trips_through_psd() {
+  constexpr std::int32_t w = 24;
+  constexpr std::int32_t h = 16;
+  const patchy::Rect full{0, 0, w, h};
+  const patchy::Rect inset{3, 2, 15, 11};
+  const auto fresh = [&] { return Document(w, h, patchy::PixelFormat::rgba8()); };
+  int worst = 0;
+  const auto check = [&](const Document& document, const char* label, int tolerance = 1) {
+    // Scored against each case's own tolerance: `worst <= 1` means every case is within it.
+    worst = std::max(worst, psd_bake_round_trip_difference(document, label) - tolerance + 1);
+  };
+
+  {  // Opaque backdrop, offset partial-alpha Xor, Glow at 60%, a Multiply layer above both.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 1, false, BlendMode::Normal, full));
+    document.add_layer(bake_test_layer(document, "Xor", 2, true, BlendMode::Xor, inset));
+    auto glow = bake_test_layer(document, "Glow", 3, true, BlendMode::Glow, full);
+    glow.set_opacity(0.6F);
+    document.add_layer(std::move(glow));
+    document.add_layer(bake_test_layer(document, "Multiply", 4, true, BlendMode::Multiply, inset));
+    Document normal = document;
+    for (auto& layer : normal.layers()) {
+      if (patchy::blend_mode_is_paint_dot_net_only(layer.blend_mode())) layer.set_blend_mode(BlendMode::Normal);
+    }
+    CHECK(composite_difference(document, normal) > 20);  // what Save as Normal loses
+    check(document, "opaque backdrop");
+    Document baked = document;
+    const auto result = patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop);
+    CHECK(result.baked == 2 && result.merged == 0 && result.cleared == 0);
+    CHECK(baked.layers().size() == 4 && baked.layers()[1].name() == "Xor" &&
+          baked.layers()[1].blend_mode() == BlendMode::Normal && baked.layers()[1].opacity() == 1.0F);
+    CHECK(baked.layers()[3].blend_mode() == BlendMode::Multiply);
+  }
+  {  // No backdrop: partial cover everywhere.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Base", 5, true, BlendMode::Normal, full));
+    document.add_layer(bake_test_layer(document, "Reflect", 6, true, BlendMode::Reflect, inset));
+    document.add_layer(bake_test_layer(document, "Negation", 7, true, BlendMode::Negation, full));
+    check(document, "transparent backdrop");
+  }
+  {  // A Pass Through folder: its children bake against the parent's composite.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 8, false, BlendMode::Normal, full));
+    Layer folder(document.allocate_layer_id(), "Pass", patchy::LayerKind::Group);
+    folder.set_blend_mode(BlendMode::PassThrough);
+    folder.children().push_back(bake_test_layer(document, "Negation", 9, true, BlendMode::Negation, inset));
+    folder.children().push_back(bake_test_layer(document, "Screen", 10, true, BlendMode::Screen, full));
+    document.add_layer(std::move(folder));
+    check(document, "pass through folder");
+    Document baked = document;
+    (void)patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop);
+    CHECK(baked.layers().size() == 2 && baked.layers()[1].children().size() == 2);
+  }
+  {  // A Pass Through folder at half opacity bakes whole.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 11, false, BlendMode::Normal, full));
+    Layer folder(document.allocate_layer_id(), "Faded", patchy::LayerKind::Group);
+    folder.set_blend_mode(BlendMode::PassThrough);
+    folder.set_opacity(0.5F);
+    folder.children().push_back(bake_test_layer(document, "Xor", 12, true, BlendMode::Xor, inset));
+    document.add_layer(std::move(folder));
+    check(document, "faded pass through folder");
+    Document baked = document;
+    const auto result = patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop);
+    CHECK(result.merged == 1 && baked.layers().size() == 2 && baked.layers()[1].kind() == patchy::LayerKind::Pixel);
+  }
+  {  // Isolated folders (Normal, Multiply): the bake rebuilds the folder's own content.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 13, false, BlendMode::Normal, full));
+    for (const auto mode : {BlendMode::Normal, BlendMode::Multiply}) {
+      Layer folder(document.allocate_layer_id(), "Isolated", patchy::LayerKind::Group);
+      folder.set_blend_mode(mode);
+      folder.set_opacity(0.8F);
+      folder.children().push_back(bake_test_layer(document, "Base", 14, true, BlendMode::Normal, full));
+      folder.children().push_back(bake_test_layer(document, "Xor", 15, true, BlendMode::Xor, inset));
+      folder.children().push_back(bake_test_layer(document, "Overlay", 16, true, BlendMode::Overlay, full));
+      document.add_layer(std::move(folder));
+    }
+    // Overlay above the baked layer in the same folder doubles the bake's one-level rounding
+    // (Overlay's slope is 2), so this case is allowed two levels.
+    check(document, "isolated folders", 2);
+  }
+  {  // Clipping: a Xor layer clipped to a Normal base, and a Xor base under a clipped layer.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 17, false, BlendMode::Normal, full));
+    document.add_layer(bake_test_layer(document, "Base", 18, true, BlendMode::Normal, inset));
+    auto clipped_xor = bake_test_layer(document, "Clipped xor", 19, true, BlendMode::Xor, full);
+    clipped_xor.set_clipped(true);
+    document.add_layer(std::move(clipped_xor));
+    document.add_layer(bake_test_layer(document, "Glow base", 20, true, BlendMode::Glow, full));
+    auto clipped = bake_test_layer(document, "Clipped", 21, true, BlendMode::HardLight, inset);
+    clipped.set_clipped(true);
+    document.add_layer(std::move(clipped));
+    check(document, "clipping runs");
+    Document baked = document;
+    const auto result = patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop);
+    CHECK(result.baked == 2 && result.merged == 2 && baked.layers().size() == 3);
+  }
+  {  // A masked Xor layer, and a hidden Glow layer that only switches to Normal.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 22, false, BlendMode::Normal, full));
+    auto masked = bake_test_layer(document, "Masked", 23, false, BlendMode::Xor, full);
+    patchy::LayerMask mask;
+    mask.bounds = patchy::Rect{0, 0, w / 2, h};
+    mask.pixels = patchy::PixelBuffer(w / 2, h, patchy::PixelFormat::gray8());
+    mask.pixels.clear(255);
+    mask.default_color = 0;
+    masked.set_mask(std::move(mask));
+    document.add_layer(std::move(masked));
+    auto hidden = bake_test_layer(document, "Hidden", 24, true, BlendMode::Glow, full);
+    hidden.set_visible(false);
+    const auto hidden_pixels = hidden.pixels();
+    document.add_layer(std::move(hidden));
+    check(document, "masked and hidden");
+    Document baked = document;
+    const auto result = patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Photoshop);
+    CHECK(result.baked == 1 && result.cleared == 1);
+    const auto& kept = std::as_const(baked).layers()[2];
+    CHECK(!kept.visible() && kept.blend_mode() == BlendMode::Normal && std::ranges::equal(kept.pixels().data(), hidden_pixels.data()));
+  }
+  {  // 16 bits: the bake goes through the 8-bit composite and back.
+    auto document = fresh();
+    document.add_layer(bake_test_layer(document, "Backdrop", 25, false, BlendMode::Normal, full));
+    document.add_layer(bake_test_layer(document, "Xor", 26, true, BlendMode::Xor, inset));
+    patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+    check(document, "16-bit document");
+  }
+
+  // Paint.NET's own files: every mode Paint.NET has, partial alpha rows, a hidden layer.
+  for (const char* name : {"blend-modes.pdn", "demo.pdn", "opacity-stack.pdn"}) {
+    const auto document = patchy::pdn::DocumentIo::read_file(patchy::test::committed_format_fixture_path("pdn", name));
+    const std::string stem = std::filesystem::path(name).stem().string();
+    const auto artifact = "layered_blend_bake_" + stem;
+    worst = std::max(worst, psd_bake_round_trip_difference(document, name, artifact.c_str()));
+  }
+  CHECK(worst <= 1);
+}
+
+void layered_blend_bake_round_trips_through_aseprite() {
+  constexpr std::int32_t w = 20;
+  constexpr std::int32_t h = 12;
+  const patchy::Rect full{0, 0, w, h};
+  Document document(w, h, patchy::PixelFormat::rgba8());
+  document.add_layer(bake_test_layer(document, "Backdrop", 30, false, BlendMode::Normal, full));
+  document.add_layer(bake_test_layer(document, "Linear burn", 31, true, BlendMode::LinearBurn, {2, 2, 12, 8}));
+  document.add_layer(bake_test_layer(document, "Pin light", 32, true, BlendMode::PinLight, full));
+  Layer folder(document.allocate_layer_id(), "Pass", patchy::LayerKind::Group);
+  folder.set_blend_mode(BlendMode::PassThrough);
+  folder.children().push_back(bake_test_layer(document, "Multiply", 33, true, BlendMode::Multiply, full));
+  document.add_layer(std::move(folder));
+  document.add_layer(bake_test_layer(document, "Screen", 34, true, BlendMode::Screen, full));
+  Document baked = document;
+  (void)patchy::bake_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Aseprite);
+  CHECK(patchy::find_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Aseprite).empty());
+  CHECK(baked.layers().back().blend_mode() == BlendMode::Screen);
+  const auto reread = patchy::aseprite::DocumentIo::read(patchy::aseprite::DocumentIo::write(baked));
+  const int difference = composite_difference(document, reread);
+  if (difference > 1) {
+    std::cout << "  baked Aseprite composite is " << difference << " levels off\n";
+  }
+  CHECK(difference <= 1);
+}
+
 std::optional<std::vector<std::uint8_t>> load_png_rgba(const std::filesystem::path& path, int& width, int& height) {
   const auto bytes = patchy::test::read_binary_file(path);
   int components = 0;
@@ -1475,5 +1773,8 @@ std::vector<patchy::test::TestCase> pdn_tests() {
       {"pdn_paint_net_5_probe_files_import_as_pixel_layers", pdn_paint_net_5_probe_files_import_as_pixel_layers},
       {"blend_math_paint_dot_net_modes_match_paint_net_renders", blend_math_paint_dot_net_modes_match_paint_net_renders},
       {"psd_saves_paint_dot_net_blend_modes_as_normal", psd_saves_paint_dot_net_blend_modes_as_normal},
+      {"layered_blend_support_lists_what_each_format_stores", layered_blend_support_lists_what_each_format_stores},
+      {"layered_blend_bake_round_trips_through_psd", layered_blend_bake_round_trips_through_psd},
+      {"layered_blend_bake_round_trips_through_aseprite", layered_blend_bake_round_trips_through_aseprite},
   };
 }
