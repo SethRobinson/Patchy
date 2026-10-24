@@ -1924,7 +1924,10 @@ void ui_text_options_bar_follows_active_text_layer() {
 
   // Selecting a text layer with no session shows ITS family and size, and mutates nothing.
   select_layer_rows(window, {QStringLiteral("Beta")});
-  CHECK(std::abs(size_spin->value() - 24.0 * points_per_pixel) < 0.01);
+  // 24 px is 5.76 pt at 300 ppi; the bar shows the plainest points naming 24 px (5.8,
+  // text_pixels_to_points), so check the size it names.
+  CHECK(std::abs(size_spin->value() - 24.0 * points_per_pixel) < 0.05);
+  CHECK(std::lround(size_spin->value() / points_per_pixel) == 24);
   CHECK(font_combo->currentFont().family() == QApplication::font().family());
   select_layer_rows(window, {QStringLiteral("Gamma")});
   CHECK(std::abs(size_spin->value() - 30.0 * points_per_pixel) < 0.01);

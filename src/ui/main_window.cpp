@@ -6359,7 +6359,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         // Blocked like the family combo: an unblocked write fires the size slot, which with no
         // live editor yet would start a layer edit from inside this session's setup.
         QSignalBlocker blocker(text_size_spin_);
-        text_size_spin_->setValue(text_pixels_to_points(
+        text_size_spin_->setValue(text_points_for_display(
+            text_size_spin_->value(),
             std::max(1, static_cast<int>(std::lround(document_text_size * text_size_display_scale))), document()));
       }
       // The first run's face, so the picker opens on what the layer actually uses rather than
@@ -9901,9 +9902,11 @@ void MainWindow::sync_text_options_from_active_editor() {
     QSignalBlocker blocker(text_size_spin_);
     const auto display_size = std::max(
         1, static_cast<int>(std::lround(document_text_size * text_editor_size_display_scale(*editor))));
+    // A size the user just typed (50) stays as typed while it names the same pixel size, rather
+    // than turning into the pixel size's exact points (50.26 at 95.99 ppi, GitHub issue 371).
     text_size_spin_->setValue(
-        std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
-                   text_size_spin_->maximum()));
+        std::clamp(text_points_for_display(text_size_spin_->value(), display_size, document()),
+                   text_size_spin_->minimum(), text_size_spin_->maximum()));
   }
 
   // A run with no recorded face still lands on the style its bold/italic flags describe.
@@ -10009,8 +10012,8 @@ void MainWindow::sync_text_options_from_active_layer() {
     QSignalBlocker blocker(text_size_spin_);
     const auto display_size =
         std::max(1, static_cast<int>(std::lround(document_text_size * size_display_scale)));
-    text_size_spin_->setValue(std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
-                                         text_size_spin_->maximum()));
+    text_size_spin_->setValue(std::clamp(text_points_for_display(text_size_spin_->value(), display_size, document()),
+                                         text_size_spin_->minimum(), text_size_spin_->maximum()));
   }
   refresh_text_style_combo(family, style, text_bold, text_italic);
   set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);

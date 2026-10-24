@@ -424,6 +424,87 @@ void ui_text_rotate_sample_session_captures_if_available() {
   QApplication::setCursorFlashTime(flash_time);
 }
 
+void ui_text_size_points_round_trip_at_common_resolutions() {
+  // Sizes are whole document pixels shown as points. Every resolution must show a whole-point
+  // size it can hold as that whole number, and whatever it shows must name the same pixels
+  // (GitHub issue 371: 50 pt came back as 50.26 pt at 3779 pixels per meter, 95.99 ppi).
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  for (const double ppi : {72.0, 96.0, 3779.0 * 0.0254, 150.0, 300.0, 600.0}) {
+    document.print_settings().horizontal_ppi = ppi;
+    for (const double points : {6.0, 8.0, 9.0, 10.0, 11.0, 12.0, 12.5, 14.0, 18.0, 24.0, 36.0, 48.0, 50.0, 72.0, 144.0}) {
+      const int pixels = patchy::ui::text_points_to_pixels(points, document);
+      const double shown = patchy::ui::text_pixels_to_points(pixels, document);
+      CHECK(patchy::ui::text_points_to_pixels(shown, document) == pixels);
+      // The size typed stays what the field shows.
+      CHECK(patchy::ui::text_points_for_display(points, pixels, document) == points);
+      if (points == std::round(points)) {
+        if (std::abs(shown - points) > 1e-9) {
+          std::printf("  %.2f ppi: %.2f pt -> %d px shows %.4f pt\n", ppi, points, pixels, shown);
+        }
+        CHECK(std::abs(shown - points) < 1e-9);
+      }
+    }
+    // Every pixel size shows with at most two decimals and comes back to itself.
+    for (int pixels = 1; pixels <= 400; ++pixels) {
+      const double shown = patchy::ui::text_pixels_to_points(pixels, document);
+      CHECK(patchy::ui::text_points_to_pixels(shown, document) == pixels);
+      CHECK(std::abs(shown * 100.0 - std::round(shown * 100.0)) < 1e-6);
+    }
+  }
+}
+
+void ui_text_size_field_keeps_typed_points() {
+  // The reporter's case end to end: a 3779 pixels-per-meter document, 50 typed into the size
+  // field during a session, the caret moved (which re-reads the bar from the editor), then the
+  // commit and the bar mirroring the layer.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(400, 240, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 3779.0 * 0.0254;
+  document.print_settings().vertical_ppi = 3779.0 * 0.0254;
+  SessionWindow session;
+  open_document(session, std::move(document), QStringLiteral("Size Round Trip"));
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::add_text_at(session.window, QPoint(40, 60));
+  QApplication::processEvents();
+  process_events_for(200);
+  auto* editor = live_editor(*session.canvas);
+  auto* size = session.window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(editor != nullptr);
+  CHECK(size != nullptr);
+  if (editor == nullptr || size == nullptr) {
+    return;
+  }
+  size->setValue(50.0);
+  QApplication::processEvents();
+  process_events_for(200);
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  cursor.movePosition(QTextCursor::Start);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  std::printf("  size field after the caret moved: %s\n", size->text().toStdString().c_str());
+  CHECK(std::abs(size->value() - 50.0) < 1e-9);
+  CHECK(size->text() == QStringLiteral("50 pt"));
+  commit_session(*session.canvas);
+  auto& document_now = patchy::ui::MainWindowTestAccess::document(session.window);
+  const auto text_layer = find_layer_id(document_now, [](const patchy::Layer& layer) { return patchy::layer_is_text(layer); });
+  CHECK(text_layer.has_value());
+  if (text_layer.has_value()) {
+    const auto* layer = std::as_const(document_now).find_layer(*text_layer);
+    const auto stored = layer->metadata().find(patchy::kLayerMetadataTextSize);
+    CHECK(stored != layer->metadata().end() && stored->second == "67");
+  }
+  require_action_by_text(session.window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  std::printf("  size field mirroring the layer: %s\n", size->text().toStdString().c_str());
+  CHECK(size->text() == QStringLiteral("50 pt"));
+}
+
 void ui_text_box_outline_shows_on_unrotated_text() {
   // An unrotated session drew no box at all, only the corner handles (GitHub issue 385), and a
   // single blue line vanished over matching ink (issue 371). The outline is a light line under
@@ -554,6 +635,8 @@ std::vector<patchy::test::TestCase> text_canvas_session_tests() {
   return {
       {"ui_text_box_outline_shows_on_unrotated_text", ui_text_box_outline_shows_on_unrotated_text},
       {"ui_text_caret_spans_the_drawn_line", ui_text_caret_spans_the_drawn_line},
+      {"ui_text_size_points_round_trip_at_common_resolutions", ui_text_size_points_round_trip_at_common_resolutions},
+      {"ui_text_size_field_keeps_typed_points", ui_text_size_field_keeps_typed_points},
       {"ui_rotated_psd_box_text_edit_keeps_transform", ui_rotated_psd_box_text_edit_keeps_transform},
       {"ui_text_rotate_sample_edits_keep_transform_if_available",
        ui_text_rotate_sample_edits_keep_transform_if_available},

@@ -179,7 +179,7 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   the alignment buttons read the first paragraph run). A mixed selection shows the active
   layer's values, the color button keeps the primary color, and a pixel layer leaves the bar
   alone (it seeds the next new layer). Sizes travel through the session's zoomed editor, so a
-  size typed at a very low zoom can round; the bar shows what landed.
+  size typed at a very low zoom can round; the bar shows what landed. Sizes are whole document pixels: the bar shows the fewest-decimal points naming them (`text_pixels_to_points`: 67 px at 96 ppi shows 50, not 50.25) and keeps a typed value that names the same pixels (`text_points_for_display`; issue 371, `ui_text_size_*`).
 - Tests: `ui_text_options_bar_size_applies_to_selected_layers_without_session`,
   `ui_text_options_bar_family_and_style_apply_to_selected_layers_without_session`,
   `ui_text_options_bar_follows_active_text_layer`,
