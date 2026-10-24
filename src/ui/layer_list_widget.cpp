@@ -1587,6 +1587,10 @@ int LayerListWidget::row_content_left(QListWidgetItem* item) const {
       thumbnail != nullptr) {
     return row_widget->mapTo(viewport(), thumbnail->pos()).x();
   }
+  // Thumbnail size None (GitHub issue 386) builds no content tile: the name starts the content.
+  if (auto* name = row_widget->findChild<QWidget*>(QStringLiteral("layerRowName")); name != nullptr) {
+    return name->mapTo(viewport(), QPoint()).x();
+  }
   return row_widget->mapTo(viewport(), QPoint()).x();
 }
 

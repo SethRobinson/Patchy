@@ -2859,6 +2859,8 @@ void MainWindow::load_view_settings() {
   zoom_layer_thumbnails_to_content_ =
       settings.value(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom_layer_thumbnails_to_content_)
           .toBool();
+  layer_thumbnail_size_ = layer_thumbnail_size_from_token(
+      settings.value(QLatin1String(kLayerThumbnailSizeSettingsKey)).toString());
   const bool migrate_legacy_guide_default =
       !settings.value(QStringLiteral("view/guideColorDefaultMigrated"), false).toBool();
   if (!view_grid_color_.isValid()) {
@@ -2934,6 +2936,7 @@ void MainWindow::save_view_settings() const {
     settings.remove(QStringLiteral("view/canvasBackdropColor"));
   }
   settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom_layer_thumbnails_to_content_);
+  settings.setValue(QLatin1String(kLayerThumbnailSizeSettingsKey), layer_thumbnail_size_token(layer_thumbnail_size_));
   settings.setValue(QStringLiteral("view/guideColorDefaultMigrated"), true);
 }
 

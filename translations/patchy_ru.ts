@@ -24899,6 +24899,22 @@ Patchy может скачать обновление, заменить этот
         <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
         <translation>Если выключено, Файл &gt; Новый создаёт только фоновый слой и выделяет его. Документы с монтажными областями и из буфера обмена не меняются.</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>Мелкий</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Средний</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Крупный</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Размер миниатюр</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

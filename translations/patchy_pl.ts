@@ -24899,6 +24899,22 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
         <translation>Po wyłączeniu Plik &gt; Nowy tworzy tylko warstwę tła, zaznaczoną. Dokumenty z obszarami roboczymi i dokumenty ze schowka się nie zmieniają.</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>Mały</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Średni</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Duży</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Rozmiar miniatur</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

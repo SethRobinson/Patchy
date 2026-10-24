@@ -24755,6 +24755,22 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
         <translation>停用时，“文件 &gt; 新建”只创建背景图层并将其选中。画板文档和来自剪贴板的文档不受影响。</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>缩览图大小</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

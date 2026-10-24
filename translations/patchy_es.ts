@@ -24827,6 +24827,22 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
         <translation>Si se desactiva, Archivo &gt; Nuevo crea solo la capa de fondo, seleccionada. Los documentos con mesas de trabajo y los del portapapeles no cambian.</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>Pequeño</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Mediano</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Grande</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Tamaño de miniatura</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

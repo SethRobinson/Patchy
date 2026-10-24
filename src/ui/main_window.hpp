@@ -22,6 +22,7 @@
 #include "ui/image_save_options.hpp"
 #include "ui/watermark_settings.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
 #include "ui/script_stroke.hpp"
 #include "ui/stress_test.hpp"
@@ -1876,6 +1877,10 @@ private:
   // The Background's shorter row menu (GitHub issue 274) and the eye's color menu (issue 276).
   void show_background_context_menu(QPoint global_position);
   void show_layer_eye_color_menu(QPoint global_position);
+  // Layers panel thumbnail size (GitHub issue 386): the Thumbnail Size submenu at the end of the
+  // layer context menus, its radio actions, and the setter that saves and rebuilds the rows.
+  void add_layer_thumbnail_size_menu(QMenu* menu);
+  void set_layer_thumbnail_size(LayerThumbnailSize size);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.
@@ -3308,6 +3313,9 @@ private:
   // "Use ESC key to commit text", GitHub issue 173). Persisted identifier.
   bool escape_commits_text_{false};
   bool zoom_layer_thumbnails_to_content_{true};
+  // view/layerThumbnailSize (kLayerThumbnailSizeSettingsKey). Persisted identifier.
+  LayerThumbnailSize layer_thumbnail_size_{kDefaultLayerThumbnailSize};
+  std::array<QAction*, 4> layer_thumbnail_size_actions_{};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   std::vector<QWidget*> warp_option_actions_;

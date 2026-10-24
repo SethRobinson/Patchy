@@ -24755,6 +24755,22 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
         <translation>사용하지 않으면 파일 &gt; 새로 만들기가 배경 레이어만 만들고 선택합니다. 대지 문서와 클립보드 문서는 그대로입니다.</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>작게</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>중간</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>크게</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>축소판 크기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1296,6 +1296,7 @@ void MainWindow::create_docks() {
   });
   connect(layer_list_, &QListWidget::customContextMenuRequested, this,
           [this](const QPoint& position) { show_layer_context_menu(position); });
+  add_layer_thumbnail_size_menu(nullptr);
   connect(layer_list_->model(), &QAbstractItemModel::rowsMoved, this, [this] {
     if (updating_layer_list_) {
       return;
