@@ -13985,6 +13985,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::ColorDockPanel</name>
+    <message>
+        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните с %ALT% или перетащите с %ALT%, чтобы задать цвет фона.</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::FontPickerCombo</name>
     <message>
         <source>The quick brown fox jumps over the lazy dog. 0123456789</source>

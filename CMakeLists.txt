@@ -1170,6 +1170,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/default_brush_tips.hpp
       src/ui/default_brush_tips.cpp
       src/ui/color_panel.cpp
+      src/ui/color_dock_panel.hpp
+      src/ui/color_dock_panel.cpp
+      src/ui/color_field_widgets.hpp
+      src/ui/color_field_widgets.cpp
       src/ui/compatibility_report.cpp
       src/ui/coalesced_preview_emitter.hpp
       src/ui/curved_slider.hpp
@@ -2319,6 +2323,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gmic_tests.cpp
       tests/ui/history_panel_tests.cpp
+      tests/ui/color_dock_panel_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
       tests/ui/rgb_profile_tests.cpp

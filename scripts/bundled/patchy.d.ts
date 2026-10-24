@@ -255,7 +255,7 @@ interface PatchySmartObjectState {
 /** An artboard's background: "color" paints `color`. */
 type PatchyArtboardBackground = "white" | "black" | "transparent" | "color";
 /** The right column's panels, by permanent name (patchy.ui.expandPanel and friends). */
-type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette";
+type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette" | "color";
 
 /** An artboard's rect (document pixels) and background, as layer.artboard reads it. */
 interface PatchyArtboard {

@@ -173,6 +173,7 @@ struct OrphanedRecoveryFolder;
 class CustomShapeLibrary;
 class AnimationPreviewWindow;
 class PalettePanel;
+class ColorDockPanel;
 class PathsPanel;
 class StartPanel;
 class PatternLibrary;
@@ -617,6 +618,10 @@ private:
   // Window > Reset Panels: the first-launch layout, column width included.
   void reset_panels();
   void create_palette_dock(std::vector<PanelSpec>& specs);
+  // The Color panel (GitHub issue 365): a pick sets the foreground, or the background
+  // when Alt was held at the press.
+  void create_color_dock(std::vector<PanelSpec>& specs);
+  void apply_color_panel_pick(QColor color, bool background);
   // Palette (indexed) mode plumbing. Every document-palette mutation goes through
   // these so the undo snapshot, the revision bump (app-globally unique values,
   // keying the canvas LUT cache), the indexed_palette export mirror, and the UI
@@ -2951,6 +2956,7 @@ private:
   QToolButton* mask_edit_mode_chip_{nullptr};
   // Palette (indexed) mode UI: dock panel, status chip, advisory compliance scan.
   PalettePanel* palette_panel_{nullptr};
+  ColorDockPanel* color_dock_panel_{nullptr};
   // The right-hand panel column (panel_column.hpp) and the splitter that puts it
   // beside the document tabs; the splitter is the central widget.
   PanelColumn* panel_column_{nullptr};
