@@ -12214,6 +12214,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Red Eye</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

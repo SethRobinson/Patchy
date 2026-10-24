@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace patchy {
 
@@ -61,6 +62,11 @@ enum class DissolveField : std::uint32_t {
 [[nodiscard]] float dissolve_coverage(std::int32_t x, std::int32_t y, float alpha,
                                       DissolveField field = DissolveField::Layer) noexcept;
 [[nodiscard]] bool blend_mode_has_special_fill(BlendMode mode) noexcept;
+// Paint.NET's Reflect, Glow, Negation and Xor (GitHub issue 379): modes no Photoshop or
+// Aseprite file can carry, so those saves write Normal and say so.
+[[nodiscard]] bool blend_mode_is_paint_dot_net_only(BlendMode mode) noexcept;
+// True when any layer in the tree (groups included) uses one of those modes.
+[[nodiscard]] bool layers_use_paint_dot_net_blend_modes(const std::vector<Layer>& layers) noexcept;
 [[nodiscard]] FillCompositeResult composite_special_fill_rgb(
     std::array<std::uint8_t, 3> source, std::array<std::uint8_t, 3> destination, BlendMode mode,
     float source_coverage, float fill_opacity, float layer_opacity, float destination_alpha);

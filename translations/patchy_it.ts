@@ -12230,6 +12230,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>Occhi rossi</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>Questo file Paint.NET è danneggiato e non è stato possibile aprirlo.</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Non è un documento Paint.NET</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>Alcuni pixel di livello di questo file Paint.NET sono danneggiati o mancanti; quelle aree sono state aperte trasparenti.</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>Alcuni pixel di livello di questo file Paint.NET non hanno superato il checksum e potrebbero essere danneggiati.</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>Un livello di questo file Paint.NET usa un metodo di fusione che Patchy non ha; è stato aperto come Normale.</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>Non è stato possibile leggere i livelli di questo file Paint.NET, quindi è stata aperta la sua piccola anteprima incorporata.</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>Riflesso</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>Negazione</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>I livelli con i metodi di fusione di Paint.NET Riflesso, Bagliore, Negazione o Xor sono stati salvati come Normale; questo formato non ha questi metodi.</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Immagine Paint.NET</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

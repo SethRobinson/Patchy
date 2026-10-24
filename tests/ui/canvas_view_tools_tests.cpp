@@ -7543,8 +7543,9 @@ void ui_brush_mode_combo_lists_paint_modes_and_persists() {
     auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
     CHECK(combo != nullptr);
     CHECK(combo->isVisible());
+    // Photoshop's list: the brush has no Paint.NET modes (GitHub issue 379).
     QComboBox layer_modes;
-    patchy::ui::add_blend_mode_items(&layer_modes);
+    patchy::ui::add_blend_mode_items(&layer_modes, patchy::ui::BlendModeMenu::Effect);
     CHECK(combo->count() == layer_modes.count() + 2);
     const QStringList head{QStringLiteral("Normal"), QStringLiteral("Dissolve"), QStringLiteral("Behind"),
                            QStringLiteral("Clear")};

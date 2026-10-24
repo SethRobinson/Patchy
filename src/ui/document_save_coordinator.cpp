@@ -2,6 +2,7 @@
 #include "ui/save_progress.hpp"
 
 #include "color/color_management.hpp"
+#include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/format_registry.hpp"
@@ -200,11 +201,21 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
       };
       psd::DocumentIo::write_layered_rgb8_file(snapshot, to_filesystem_path(path), options);
     });
+    if (layers_use_paint_dot_net_blend_modes(snapshot.layers())) {
+      writer_notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
+                          "Layers using Paint.NET's Reflect, Glow, Negation or Xor blend modes were saved as "
+                          "Normal; this format has no such modes."));
+    }
   } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
     // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
     const Document written = std::as_const(*target).document_for_write();
     std::optional<Document> narrowed;
     aseprite::DocumentIo::write_file(document_for_8bit_writer(written, narrowed), to_filesystem_path(path));
+    if (layers_use_paint_dot_net_blend_modes(written.layers())) {
+      writer_notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
+                          "Layers using Paint.NET's Reflect, Glow, Negation or Xor blend modes were saved as "
+                          "Normal; this format has no such modes."));
+    }
   } else if (extension == QStringLiteral("svg")) {
     // Structure-preserving vector write (never write_flat_image_file):
     // shape layers stay SVG vectors, the writer reports what it baked.
@@ -229,6 +240,13 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
                       write_flat_image_file(marked.has_value() ? *marked : snapshot, path, extension,
                                             effective_image_options, &writer_notices);
                     });
+    // A layered TIFF carries Photoshop layer records; a flat one is the composite.
+    if (is_tiff_extension(extension) && effective_image_options.tiff_layers.value_or(false) &&
+        layers_use_paint_dot_net_blend_modes(snapshot.layers())) {
+      writer_notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
+                          "Layers using Paint.NET's Reflect, Glow, Negation or Xor blend modes were saved as "
+                          "Normal; this format has no such modes."));
+    }
   }
   host_.offer_download(path);
   target = host_.find_session(session_id);

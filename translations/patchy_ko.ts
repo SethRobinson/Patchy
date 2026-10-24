@@ -12195,6 +12195,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>적목 현상 제거</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>이 Paint.NET 파일은 손상되어 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Paint.NET 문서가 아닙니다</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>이 Paint.NET 파일의 일부 레이어 픽셀이 손상되었거나 없어서 해당 영역을 투명하게 열었습니다.</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>이 Paint.NET 파일의 일부 레이어 픽셀이 체크섬 검사를 통과하지 못해 손상되었을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>이 Paint.NET 파일의 레이어가 Patchy에 없는 혼합 모드를 사용하여 표준으로 열었습니다.</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>이 Paint.NET 파일의 레이어를 읽을 수 없어 포함된 작은 미리 보기 이미지로 열었습니다.</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>반사</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>부정</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>Paint.NET 혼합 모드(반사, 광선, 부정, Xor)를 사용하는 레이어는 표준으로 저장되었습니다. 이 형식에는 해당 모드가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 이미지</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -2,13 +2,21 @@
 // committed test builds its bytes in code (tests/pdn_test_builder.hpp); public sample
 // files are optional local fixtures (local-test-fixtures/pdn) checked against pypdn dumps.
 
+#include "core/blend_math.hpp"
+#include "core/blend_math_deep.hpp"
+#include "core/document_depth.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
+#include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
+#include "formats/metadata/metadata_containers.hpp"
+#include "formats/metadata/tiff_ifd.hpp"
 #include "formats/nrbf_reader.hpp"
 #include "formats/pdf_png_writer.hpp"
 #include "formats/pdn_document_io.hpp"
+#include "formats/stb/stb_image.h"
+#include "psd/psd_document_io.hpp"
 #include "core_test_support.hpp"
 #include "local_psd_fixtures.hpp"
 #include "pdn_test_builder.hpp"
@@ -22,6 +30,7 @@
 #include <cstring>
 #include <functional>
 #include <optional>
+#include <span>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -424,18 +433,19 @@ void pdn_reads_legacy_blend_op_classes_and_unknown_modes() {
   auto spec = three_layer_spec();
   spec.write_blend_mode = false;  // Paint.NET 3.x: only the blend-op class says the mode
   spec.layers[1].blend_op = "Darken";
-  spec.layers[2].blend_op = "Additive";
+  spec.layers[2].blend_op = "Xor";
   const auto document = patchy::pdn::DocumentIo::read(build_pdn(spec));
   CHECK(document.layers()[0].blend_mode() == BlendMode::Normal);
   CHECK(document.layers()[1].blend_mode() == BlendMode::Darken);
-  CHECK(document.layers()[2].blend_mode() == BlendMode::LinearDodge);
+  CHECK(document.layers()[2].blend_mode() == BlendMode::Xor);
 
   // The 4.x enum wins over the class when both are present; every enum value maps.
-  const std::array<BlendMode, 10> known{BlendMode::Normal,     BlendMode::Multiply,  BlendMode::LinearDodge,
-                                        BlendMode::ColorBurn,  BlendMode::ColorDodge, BlendMode::Overlay,
-                                        BlendMode::Difference, BlendMode::Lighten,   BlendMode::Darken,
-                                        BlendMode::Screen};
-  const std::array<int, 10> indices{0, 1, 2, 3, 4, 7, 8, 10, 11, 12};
+  const std::array<BlendMode, 14> known{BlendMode::Normal,     BlendMode::Multiply,   BlendMode::LinearDodge,
+                                        BlendMode::ColorBurn,  BlendMode::ColorDodge, BlendMode::Reflect,
+                                        BlendMode::Glow,       BlendMode::Overlay,    BlendMode::Difference,
+                                        BlendMode::Negation,   BlendMode::Lighten,    BlendMode::Darken,
+                                        BlendMode::Screen,     BlendMode::Xor};
+  const std::array<int, 14> indices{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
   for (std::size_t i = 0; i < known.size(); ++i) {
     auto mapped = three_layer_spec();
     mapped.layers[1].blend = indices[i];
@@ -655,11 +665,15 @@ std::optional<BlendMode> expected_blend(int index) {
     case 2: return BlendMode::LinearDodge;
     case 3: return BlendMode::ColorBurn;
     case 4: return BlendMode::ColorDodge;
+    case 5: return BlendMode::Reflect;
+    case 6: return BlendMode::Glow;
     case 7: return BlendMode::Overlay;
     case 8: return BlendMode::Difference;
+    case 9: return BlendMode::Negation;
     case 10: return BlendMode::Lighten;
     case 11: return BlendMode::Darken;
     case 12: return BlendMode::Screen;
+    case 13: return BlendMode::Xor;
     default: return BlendMode::Normal;
   }
 }
@@ -746,6 +760,420 @@ void pdn_public_samples_match_pypdn_if_available() {
   }
 }
 
+
+// EXIF that Paint.NET keeps as "$exif.tag<N>" user metadata (both the 4.x key form and
+// 5.x's "$exif.tag<N>[0]") reaches File Info as one TIFF stream, IFD0, Exif and GPS
+// tags in their own directories; other user metadata is shown, not written.
+void pdn_exif_metadata_reaches_file_info() {
+  auto spec = three_layer_spec();
+  const std::string software = "Paint.NET 5.1.12";
+  std::vector<std::uint8_t> software_bytes(software.begin(), software.end());
+  software_bytes.push_back(0);
+  spec.metadata = {
+      {"$exif.tag0[0]", exif_item(0, 305, 2, software_bytes).second},
+      exif_item(1, 296, 3, {2, 0}),
+      exif_item(2, 282, 5, rational(300, 1)),
+      exif_item(3, 283, 5, rational(300, 1)),
+      exif_item(4, 33434, 5, rational(1, 250)),  // ExposureTime (Exif IFD)
+      exif_item(5, 1, 2, {'N', 0}),              // GPSLatitudeRef
+      {"Notes", "hello"},
+  };
+  const auto bytes = build_pdn(spec);
+  const auto document = patchy::pdn::DocumentIo::read(bytes);
+  CHECK(document.print_settings().horizontal_ppi == 300.0);
+  const auto info = patchy::metadata::extract_file_info(bytes);
+  CHECK(info.source_format == "PDN");
+  CHECK(info.exif != nullptr);
+  const auto stream = patchy::metadata::parse_tiff(*info.exif);
+  CHECK(stream.has_value());
+  const auto* ifd0 = stream->find(patchy::metadata::IfdKind::Ifd0);
+  const auto* exif = stream->find(patchy::metadata::IfdKind::Exif);
+  const auto* gps = stream->find(patchy::metadata::IfdKind::Gps);
+  CHECK(ifd0 != nullptr && exif != nullptr && gps != nullptr);
+  CHECK(stream->string_value(*ifd0->find(305)) == software);
+  CHECK(stream->rational_value(*ifd0->find(282)) == (std::pair<std::int64_t, std::int64_t>{300, 1}));
+  CHECK(stream->rational_value(*exif->find(33434)) == (std::pair<std::int64_t, std::int64_t>{1, 250}));
+  CHECK(stream->string_value(*gps->find(1)) == "N");
+  const auto notes = std::find_if(info.observed.begin(), info.observed.end(),
+                                  [](const auto& item) { return item.label == "Notes"; });
+  CHECK(notes != info.observed.end() && notes->summary == "hello");
+}
+
+// --- Paint.NET's blend modes ------------------------------------------------
+
+struct BlendSample {
+  std::uint8_t backdrop;
+  std::uint8_t layer;
+  std::uint8_t result;
+};
+
+// Opaque pixels of pypdn's FlattenBlendTest.pdn and the per-mode PNGs Paint.NET 4.21
+// flattened from it (tests/data in pypdn): {backdrop, layer, Paint.NET's result}.
+constexpr BlendSample kReflectSamples[] = {
+    {35, 133, 10},   {35, 155, 12},   {35, 182, 16},   {35, 199, 21},   {35, 216, 31},   {35, 229, 47},
+    {35, 236, 64},   {128, 3, 65},    {128, 33, 73},   {128, 68, 87},   {128, 98, 104},  {128, 117, 118},
+    {128, 129, 130}, {128, 136, 137}, {128, 180, 218}, {128, 192, 255}, {128, 254, 255}, {255, 255, 255}};
+constexpr BlendSample kGlowSamples[] = {
+    {35, 136, 84},  {35, 157, 112}, {35, 184, 153}, {35, 197, 176},  {35, 228, 236},  {35, 238, 255},
+    {128, 2, 0},    {128, 17, 2},   {128, 43, 14},  {128, 78, 47},   {128, 106, 88},  {128, 126, 125},
+    {128, 143, 161}, {128, 162, 206}, {128, 170, 227}, {128, 199, 255}, {128, 239, 255}, {255, 255, 255}};
+constexpr BlendSample kNegationSamples[] = {{35, 30, 65}, {128, 50, 178}, {255, 200, 55}};
+constexpr BlendSample kXorSamples[] = {{35, 187, 152}, {128, 112, 240}, {255, 200, 55}};
+
+void blend_math_paint_dot_net_modes_match_paint_net_renders() {
+  const auto check_samples = [](BlendMode mode, std::span<const BlendSample> samples) {
+    for (const auto& sample : samples) {
+      const auto out = patchy::blend_rgb({sample.layer, sample.layer, sample.layer},
+                                         {sample.backdrop, sample.backdrop, sample.backdrop}, mode);
+      if (out[0] != sample.result) {
+        throw std::runtime_error("blend mode " + std::to_string(static_cast<int>(mode)) + " gives " +
+                                 std::to_string(out[0]) + " for backdrop " + std::to_string(sample.backdrop) +
+                                 ", layer " + std::to_string(sample.layer) + "; Paint.NET gives " +
+                                 std::to_string(sample.result));
+      }
+    }
+  };
+  check_samples(BlendMode::Reflect, kReflectSamples);
+  check_samples(BlendMode::Glow, kGlowSamples);
+  check_samples(BlendMode::Negation, kNegationSamples);
+  check_samples(BlendMode::Xor, kXorSamples);
+  // Whole-table properties: Glow is Reflect with the operands swapped, Negation and Xor
+  // are symmetric, and the 16/32-bit kernels agree with the byte kernels within a level.
+  for (int a = 0; a < 256; ++a) {
+    for (int b = 0; b < 256; ++b) {
+      const auto s = static_cast<std::uint8_t>(a);
+      const auto d = static_cast<std::uint8_t>(b);
+      CHECK(patchy::blend_rgb({s, s, s}, {d, d, d}, BlendMode::Glow)[0] ==
+            patchy::blend_rgb({d, d, d}, {s, s, s}, BlendMode::Reflect)[0]);
+      CHECK(patchy::blend_rgb({s, s, s}, {d, d, d}, BlendMode::Negation)[0] ==
+            patchy::blend_rgb({d, d, d}, {s, s, s}, BlendMode::Negation)[0]);
+      CHECK(patchy::blend_rgb({s, s, s}, {d, d, d}, BlendMode::Xor)[0] == (a ^ b));
+      for (const auto mode : {BlendMode::Reflect, BlendMode::Glow, BlendMode::Negation, BlendMode::Xor}) {
+        const auto byte = patchy::blend_rgb({s, s, s}, {d, d, d}, mode)[0];
+        const auto deep = patchy::blend_rgb_deep({static_cast<float>(a), static_cast<float>(a), static_cast<float>(a)},
+                                                 {static_cast<float>(b), static_cast<float>(b), static_cast<float>(b)},
+                                                 mode, patchy::DeepDomain::Encoded)[0];
+        CHECK(std::abs(deep - static_cast<float>(byte)) <= 1.0F);
+      }
+    }
+  }
+  CHECK(patchy::blend_mode_is_paint_dot_net_only(BlendMode::Xor));
+  CHECK(!patchy::blend_mode_is_paint_dot_net_only(BlendMode::Exclusion));
+  CHECK(!patchy::blend_mode_supported_at_depth(BlendMode::Reflect, patchy::BitDepth::Float32));
+  CHECK(patchy::blend_mode_supported_at_depth(BlendMode::Reflect, patchy::BitDepth::UInt16));
+}
+
+void psd_saves_paint_dot_net_blend_modes_as_normal() {
+  Document document(4, 2, patchy::PixelFormat::rgba8());
+  const std::array modes{BlendMode::Reflect, BlendMode::Glow, BlendMode::Negation, BlendMode::Xor,
+                         BlendMode::Multiply};
+  for (const auto mode : modes) {
+    auto& layer = document.add_pixel_layer("layer", patchy::test::solid_rgba(4, 2, 100, 150, 200, 255));
+    layer.set_blend_mode(mode);
+  }
+  CHECK(patchy::layers_use_paint_dot_net_blend_modes(document.layers()));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  CHECK(reread.layers().size() == modes.size());
+  for (std::size_t i = 0; i < 4; ++i) {
+    CHECK(reread.layers()[i].blend_mode() == BlendMode::Normal);
+  }
+  CHECK(reread.layers()[4].blend_mode() == BlendMode::Multiply);
+  CHECK(!patchy::layers_use_paint_dot_net_blend_modes(reread.layers()));
+}
+
+std::optional<std::vector<std::uint8_t>> load_png_rgba(const std::filesystem::path& path, int& width, int& height) {
+  const auto bytes = patchy::test::read_binary_file(path);
+  int components = 0;
+  auto* decoded = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &width, &height, &components, 4);
+  if (decoded == nullptr) {
+    return std::nullopt;
+  }
+  std::vector<std::uint8_t> out(decoded, decoded + static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
+  stbi_image_free(decoded);
+  return out;
+}
+
+// Patchy's composite of a sample against the PNG Paint.NET flattened from it, with only
+// the listed layers visible. Returns {differing channel values, largest difference}.
+std::pair<std::size_t, int> composite_difference(const std::filesystem::path& pdn, const std::vector<std::size_t>& visible,
+                                                 const std::filesystem::path& png) {
+  auto document = patchy::pdn::DocumentIo::read_file(pdn);
+  for (std::size_t i = 0; i < document.layers().size(); ++i) {
+    document.layers()[i].set_visible(std::find(visible.begin(), visible.end(), i) != visible.end());
+  }
+  const auto flat = patchy::flatten_document_rgba8(document);
+  int width = 0;
+  int height = 0;
+  const auto reference = load_png_rgba(png, width, height);
+  CHECK(reference.has_value() && width == document.width() && height == document.height());
+  const auto ours = flat.data();
+  std::size_t differing = 0;
+  int largest = 0;
+  for (std::size_t i = 0; i < reference->size(); ++i) {
+    const auto difference = std::abs(static_cast<int>(ours[i]) - static_cast<int>((*reference)[i]));
+    differing += difference != 0 ? 1U : 0U;
+    largest = std::max(largest, difference);
+  }
+  return {differing, largest};
+}
+
+// The modes whose kernels are Paint.NET's own or agree with it exactly.
+bool paint_net_exact_mode(int index) {
+  return index == 0 || index == 2 || index == 5 || index == 6 || index == 8 || index == 9 || index == 10 ||
+         index == 11 || index == 13;
+}
+
+struct ExportDifference {
+  std::size_t differing{0};  // channel values that differ
+  std::size_t over_one{0};   // channel values that differ by more than one level
+  int largest{0};
+};
+
+// Patchy's flatten of `document` rows [first_row, last_row) against Paint.NET's PNG of the
+// same file. Colour is compared premultiplied by its alpha (rounded to a level), so a
+// pixel at alpha 3 does not turn a sub-level difference into a large straight-colour one.
+ExportDifference export_difference(const Document& document, const std::vector<std::uint8_t>& reference,
+                                   std::int32_t first_row, std::int32_t last_row) {
+  const auto flat = patchy::flatten_document_rgba8(document);
+  const auto ours = flat.data();
+  ExportDifference result;
+  const auto row_bytes = static_cast<std::size_t>(document.width()) * 4U;
+  for (auto y = first_row; y < last_row; ++y) {
+    for (std::size_t i = static_cast<std::size_t>(y) * row_bytes; i < static_cast<std::size_t>(y + 1) * row_bytes;
+         i += 4) {
+      for (std::size_t c = 0; c < 4; ++c) {
+        const auto premultiplied = [&](const auto& pixels) {
+          return c == 3 ? static_cast<int>(pixels[i + 3])
+                        : (static_cast<int>(pixels[i + c]) * static_cast<int>(pixels[i + 3]) + 127) / 255;
+        };
+        const auto difference = std::abs(premultiplied(ours) - premultiplied(reference));
+        result.differing += difference != 0 ? 1U : 0U;
+        result.over_one += difference > 1 ? 1U : 0U;
+        result.largest = std::max(result.largest, difference);
+      }
+    }
+  }
+  return result;
+}
+
+// Paint.NET's Color Burn returns 0 wherever the layer is 0 and its Color Dodge 255
+// wherever the layer is 255; Photoshop's kernels (which Patchy keeps) give a white
+// backdrop's 255 and a black backdrop's 0 there. Only those corners may differ by more
+// than one level (docs/pdn-format.md, "Blend calibration").
+bool export_within_residual(int mode_index, const ExportDifference& difference, std::size_t corner_budget) {
+  if (paint_net_exact_mode(mode_index)) {
+    return difference.largest == 0;
+  }
+  if (mode_index == 3 || mode_index == 4) {
+    return difference.over_one <= corner_budget;
+  }
+  return difference.largest <= 1;
+}
+
+// Partial alpha adds one level of compositing rounding to every mode, and a second
+// where a rounding mode's own residual meets it.
+bool partial_within_residual(int mode_index, const ExportDifference& difference, std::size_t corner_budget) {
+  if (paint_net_exact_mode(mode_index)) {
+    return difference.largest <= 1;
+  }
+  if (mode_index == 3 || mode_index == 4) {
+    return difference.largest <= 2 || difference.over_one <= corner_budget;
+  }
+  return difference.largest <= 2;
+}
+
+// Files we made and Paint.NET 5.1.12 re-saved, beside Paint.NET's flattened PNG export
+// (docs/pdn-format.md, "Fixtures and tests"): the 5.x graph reads, and Patchy's composite
+// matches Paint.NET's within the calibrated residuals.
+void pdn_paint_net_5_files_match_their_exports() {
+  const auto fixture = [](const char* name) { return patchy::test::committed_format_fixture_path("pdn", name); };
+  int width = 0;
+  int height = 0;
+  {
+    std::vector<std::string> notices;
+    const auto document = patchy::pdn::DocumentIo::read_file(fixture("blend-modes.pdn"), &notices);
+    CHECK(notices.empty());
+    CHECK(document.layers().size() == 15);
+    CHECK(patchy::background_layer(document.layers(), document.width(), document.height()) != nullptr);
+    const std::array<BlendMode, 14> modes{BlendMode::Normal,     BlendMode::Multiply,   BlendMode::LinearDodge,
+                                          BlendMode::ColorBurn,  BlendMode::ColorDodge, BlendMode::Reflect,
+                                          BlendMode::Glow,       BlendMode::Overlay,    BlendMode::Difference,
+                                          BlendMode::Negation,   BlendMode::Lighten,    BlendMode::Darken,
+                                          BlendMode::Screen,     BlendMode::Xor};
+    for (std::size_t k = 0; k < modes.size(); ++k) {
+      CHECK(document.layers()[k + 1].blend_mode() == modes[k]);
+    }
+    const auto reference = load_png_rgba(fixture("blend-modes.png"), width, height);
+    CHECK(reference.has_value() && width == document.width() && height == document.height());
+    // 14 bands of 80 rows: a 66-row opaque value table, then 14 partial-alpha rows.
+    const std::int32_t band = height / 14;
+    const std::int32_t table = band - 14;
+    std::vector<bool> results;
+    for (int k = 0; k < 14; ++k) {
+      const auto opaque = export_difference(document, *reference, k * band, k * band + table);
+      const auto partial = export_difference(document, *reference, k * band + table, (k + 1) * band);
+      std::cout << "  " << document.layers()[static_cast<std::size_t>(k) + 1].name() << ": opaque " << opaque.differing
+                << " values differ (" << opaque.over_one << " by more than 1, largest " << opaque.largest
+                << "), partial alpha " << partial.differing << " (" << partial.over_one << " by more than 1, largest "
+                << partial.largest << ")\n";
+      // A 66-value table holds one 0 and one 255 per channel and row or column.
+      results.push_back(export_within_residual(k, opaque, 3U * 66U) &&
+                        partial_within_residual(k, partial, 3U * 66U));
+    }
+    for (int k = 0; k < 14; ++k) {
+      if (!results[static_cast<std::size_t>(k)]) {
+        throw std::runtime_error("blend band " + std::to_string(k) + " differs from Paint.NET beyond its residual");
+      }
+    }
+  }
+  {
+    const auto document = patchy::pdn::DocumentIo::read_file(fixture("opacity-stack.pdn"));
+    CHECK(document.layers().size() == 5);
+    CHECK(patchy::background_layer(document.layers(), document.width(), document.height()) == nullptr);
+    CHECK(std::abs(document.layers()[1].opacity() * 255.0F - 102.0F) < 0.01F);
+    CHECK(!document.layers()[3].visible());
+    const auto reference = load_png_rgba(fixture("opacity-stack.png"), width, height);
+    CHECK(reference.has_value() && width == document.width());
+    // Several partial layers over transparency: each 8-bit intermediate composite rounds,
+    // so the stack drifts up to 4 premultiplied levels from Paint.NET's.
+    const auto difference = export_difference(document, *reference, 0, height);
+    std::cout << "  opacity-stack: " << difference.differing << " values differ (largest " << difference.largest
+              << ")\n";
+    CHECK(difference.largest <= 4);
+  }
+  {
+    // A landscape with Screen, Glow and Xor layers, a hidden layer and a non-ASCII name.
+    const auto document = patchy::pdn::DocumentIo::read_file(fixture("demo.pdn"));
+    CHECK(document.width() == 640 && document.height() == 400 && document.layers().size() == 6);
+    CHECK(document.layers()[1].blend_mode() == BlendMode::Screen);
+    CHECK(document.layers()[2].name() == "H\xC3\xBCgel");
+    CHECK(document.layers()[3].blend_mode() == BlendMode::Glow);
+    CHECK(document.layers()[4].blend_mode() == BlendMode::Xor);
+    CHECK(!document.layers()[5].visible());
+    CHECK(document.print_settings().horizontal_ppi == 150.0);
+    const auto reference = load_png_rgba(fixture("demo.png"), width, height);
+    CHECK(reference.has_value() && width == 640 && height == 400);
+    const auto difference = export_difference(document, *reference, 0, height);
+    std::cout << "  demo: " << difference.differing << " values differ (largest " << difference.largest << ")\n";
+    CHECK(difference.largest <= 4);
+  }
+  {
+    const auto document = patchy::pdn::DocumentIo::read_file(fixture("odd-size-unicode.pdn"));
+    CHECK(document.width() == 33 && document.height() == 17);
+    CHECK(document.layers()[1].name() == "caf\xC3\xA9 \xE3\x83\x86\xE3\x82\xB9\xE3\x83\x88 \xF0\x9F\x8E\xA8");
+    CHECK(std::abs(document.print_settings().horizontal_ppi - 300.0) < 0.01);
+    CHECK(document.print_settings().horizontal_resolution_display_unit == 2);
+    const auto reference = load_png_rgba(fixture("odd-size-unicode.png"), width, height);
+    CHECK(reference.has_value());
+    CHECK(export_difference(document, *reference, 0, height).largest <= 1);
+  }
+}
+
+// The full 256 x 256 value tables (local-test-fixtures/pdn/pdn5: the same kind of files at
+// full resolution, one mode per file): prints the residual per mode.
+void pdn_paint_net_5_full_tables_if_available() {
+  const auto dir = patchy::test::local_format_fixture_path("pdn", "pdn5");
+  patchy::test::skip_unless_exists(dir / "blend-13-xor.pdn");
+  std::size_t checked = 0;
+  bool all_within = true;
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    if (entry.path().extension() != ".pdn") {
+      continue;
+    }
+    auto png = entry.path();
+    png.replace_extension(".png");
+    if (!std::filesystem::exists(png)) {
+      continue;
+    }
+    const auto document = patchy::pdn::DocumentIo::read_file(entry.path());
+    int width = 0;
+    int height = 0;
+    const auto reference = load_png_rgba(png, width, height);
+    CHECK(reference.has_value() && width == document.width() && height == document.height());
+    const auto stem = entry.path().stem().string();
+    const bool table = stem.starts_with("blend-");
+    const auto opaque = export_difference(document, *reference, 0, table ? 256 : height);
+    std::cout << "  " << stem << ": " << opaque.differing << " values differ (largest " << opaque.largest << ")";
+    if (table) {
+      const auto partial = export_difference(document, *reference, 256, height);
+      std::cout << ", partial alpha " << partial.differing << " (" << partial.over_one << " by more than 1, largest "
+                << partial.largest << ")";
+      const auto mode = std::stoi(stem.substr(6, 2));
+      std::cout << (export_within_residual(mode, opaque, 3U * 256U) && partial_within_residual(mode, partial, 3U * 256U)
+                        ? ""
+                        : " OUTSIDE THE RESIDUAL");
+      all_within = all_within && export_within_residual(mode, opaque, 3U * 256U) &&
+                   partial_within_residual(mode, partial, 3U * 256U);
+    } else {
+      CHECK(opaque.largest <= 4);
+    }
+    std::cout << '\n';
+    ++checked;
+  }
+  CHECK(checked > 0);
+  CHECK(all_within);
+}
+
+// Paint.NET's own flattened exports of the pypdn samples (local-test-fixtures/pdn). The
+// modes Paint.NET computes exactly like Photoshop match exactly; Multiply, Screen and
+// Overlay round where Photoshop's calibrated kernels floor, and Color Burn/Dodge floor
+// where they round, so those stay within one level (docs/pdn-format.md).
+void pdn_composites_match_paint_net_exports_if_available() {
+  const auto dir = patchy::test::local_format_fixture_path("pdn", "");
+  patchy::test::skip_unless_exists(dir / "FlattenBlendTest.pdn");
+  struct Case {
+    const char* pdn;
+    std::vector<std::size_t> visible;
+    const char* png;
+    int tolerance;
+  };
+  const std::vector<Case> cases{
+      {"FlattenBlendTest.pdn", {0, 1}, "FlattenMultiplyTest.png", 1},
+      {"FlattenBlendTest.pdn", {0, 2}, "FlattenAdditiveTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 3}, "FlattenColorBurnTest.png", 1},
+      {"FlattenBlendTest.pdn", {0, 4}, "FlattenColorDodgeTest.png", 1},
+      {"FlattenBlendTest.pdn", {0, 5}, "FlattenReflectTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 6}, "FlattenGlowTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 7}, "FlattenOverlayTest.png", 1},
+      {"FlattenBlendTest.pdn", {0, 8}, "FlattenDifferenceTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 9}, "FlattenNegationTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 10}, "FlattenLightenTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 11}, "FlattenDarkenTest.png", 0},
+      {"FlattenBlendTest.pdn", {0, 12}, "FlattenScreenTest.png", 1},
+      {"FlattenBlendTest.pdn", {0, 13}, "FlattenXORTest.png", 0},
+      {"Untitled2.pdn", {0}, "flattenNormalTest2.png", 0},
+      {"Untitled2.pdn", {0, 1}, "flattenNormalTest.png", 1},
+      {"Untitled3.pdn", {0, 1}, "flattenOpacityTest.png", 1},
+  };
+  for (const auto& entry : cases) {
+    const auto png = dir / entry.png;
+    if (!std::filesystem::exists(png)) {
+      patchy::test::skip(std::string("optional fixture missing: local-test-fixtures/pdn/") + entry.png);
+    }
+    const auto [differing, largest] = composite_difference(dir / entry.pdn, entry.visible, png);
+    std::cout << "  " << entry.png << ": " << differing << " channel values differ, largest " << largest << '\n';
+    CHECK(largest <= entry.tolerance);
+  }
+}
+
+// A 4000 x 4000 file with ten layers (local-test-fixtures/pdn/large-4000x4000x10.pdn,
+// 250 MB, made by the fixture scripts): prints the open time for docs/pdn-format.md.
+void pdn_large_file_timing_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("pdn", "large-4000x4000x10.pdn");
+  patchy::test::skip_unless_exists(path);
+  const auto bytes = patchy::test::read_binary_file(path);
+  const auto started = std::chrono::steady_clock::now();
+  std::vector<std::string> notices;
+  const auto document = patchy::pdn::DocumentIo::read(bytes, &notices);
+  const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  std::cout << "  4000x4000, 10 layers: " << static_cast<int>(elapsed) << " ms for " << bytes.size() / (1024 * 1024)
+            << " MB\n";
+  CHECK(notices.empty());
+  CHECK(document.layers().size() == 10 && document.width() == 4000);
+  CHECK(document.layers()[5].blend_mode() == BlendMode::Xor);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pdn_tests() {
@@ -758,11 +1186,18 @@ std::vector<patchy::test::TestCase> pdn_tests() {
       {"pdn_reads_legacy_blend_op_classes_and_unknown_modes", pdn_reads_legacy_blend_op_classes_and_unknown_modes},
       {"pdn_reads_gzipped_graphs_and_headerless_legacy_files", pdn_reads_gzipped_graphs_and_headerless_legacy_files},
       {"pdn_reads_resolution_from_exif_metadata", pdn_reads_resolution_from_exif_metadata},
+      {"pdn_exif_metadata_reaches_file_info", pdn_exif_metadata_reaches_file_info},
       {"pdn_broken_graph_falls_back_to_the_thumbnail", pdn_broken_graph_falls_back_to_the_thumbnail},
       {"pdn_damaged_chunks_open_transparent_with_a_notice", pdn_damaged_chunks_open_transparent_with_a_notice},
       {"pdn_mutation_sweep_never_crashes", pdn_mutation_sweep_never_crashes},
       {"pdn_registry_sniff_and_open_by_content_detection", pdn_registry_sniff_and_open_by_content_detection},
       {"pdn_unicode_path_opens", pdn_unicode_path_opens},
       {"pdn_public_samples_match_pypdn_if_available", pdn_public_samples_match_pypdn_if_available},
+      {"pdn_composites_match_paint_net_exports_if_available", pdn_composites_match_paint_net_exports_if_available},
+      {"pdn_paint_net_5_files_match_their_exports", pdn_paint_net_5_files_match_their_exports},
+      {"pdn_paint_net_5_full_tables_if_available", pdn_paint_net_5_full_tables_if_available},
+      {"pdn_large_file_timing_if_available", pdn_large_file_timing_if_available},
+      {"blend_math_paint_dot_net_modes_match_paint_net_renders", blend_math_paint_dot_net_modes_match_paint_net_renders},
+      {"psd_saves_paint_dot_net_blend_modes_as_normal", psd_saves_paint_dot_net_blend_modes_as_normal},
   };
 }

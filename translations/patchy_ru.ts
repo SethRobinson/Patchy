@@ -12265,6 +12265,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>Красные глаза</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>Этот файл Paint.NET повреждён, и его не удалось открыть.</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Это не документ Paint.NET</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>Часть пикселей слоёв в этом файле Paint.NET повреждена или отсутствует; эти области открыты прозрачными.</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>Часть пикселей слоёв в этом файле Paint.NET не прошла проверку контрольной суммы и может быть повреждена.</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>Слой в этом файле Paint.NET использует режим наложения, которого нет в Patchy; он открыт как «Обычный».</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>Не удалось прочитать слои этого файла Paint.NET, поэтому открыто его маленькое встроенное изображение для предпросмотра.</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>Отражение</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>Отрицание</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>Слои с режимами наложения Paint.NET «Отражение», «Свечение», «Отрицание» или «Xor» сохранены как «Обычный»: в этом формате таких режимов нет.</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Изображение Paint.NET</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

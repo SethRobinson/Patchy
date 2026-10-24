@@ -1075,6 +1075,26 @@ void ui_script_mutations_ride_single_undo_entry() {
   CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "Scripted") == nullptr);
 }
 
+void ui_script_paint_dot_net_blend_mode_ids() {
+  // GitHub issue 379: Paint.NET's modes have permanent script ids, appended to the list.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var ids = ['reflect', 'glow', 'negation', 'xor'];
+    for (var i = 0; i < ids.length; ++i) {
+      var layer = doc.addLayer('Mode ' + ids[i]);
+      layer.blendMode = ids[i];
+      if (layer.blendMode !== ids[i]) throw new Error('read back ' + layer.blendMode);
+    }
+  )JS")));
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(layer_named(document, "Mode reflect")->blend_mode() == patchy::BlendMode::Reflect);
+  CHECK(layer_named(document, "Mode glow")->blend_mode() == patchy::BlendMode::Glow);
+  CHECK(layer_named(document, "Mode negation")->blend_mode() == patchy::BlendMode::Negation);
+  CHECK(layer_named(document, "Mode xor")->blend_mode() == patchy::BlendMode::Xor);
+}
+
 void ui_script_stale_layer_wrapper_throws() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2238,6 +2258,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part1() {
       {"ui_script_automation_preview_ids_and_errors", ui_script_automation_preview_ids_and_errors},
       {"ui_script_automation_pressure_seed_selection_palette", ui_script_automation_pressure_seed_selection_palette},
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
+      {"ui_script_paint_dot_net_blend_mode_ids", ui_script_paint_dot_net_blend_mode_ids},
       {"ui_script_stale_layer_wrapper_throws", ui_script_stale_layer_wrapper_throws},
       {"ui_script_shape_feather_and_density", ui_script_shape_feather_and_density},
       {"ui_script_pixels_roundtrip_and_palette_snap", ui_script_pixels_roundtrip_and_palette_snap},

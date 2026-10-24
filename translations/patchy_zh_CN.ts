@@ -12195,6 +12195,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>红眼</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>此 Paint.NET 文件已损坏，无法打开。</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>不是 Paint.NET 文档</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>此 Paint.NET 文件中的部分图层像素已损坏或缺失，这些区域以透明方式打开。</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>此 Paint.NET 文件中的部分图层像素未通过校验和检查，可能已损坏。</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>此 Paint.NET 文件中的一个图层使用了 Patchy 没有的混合模式，已按“正常”打开。</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>无法读取此 Paint.NET 文件的图层，因此打开了其嵌入的小预览图像。</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>反射</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>反相</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>使用 Paint.NET 混合模式（反射、发光、反相、Xor）的图层已保存为“正常”；此格式没有这些模式。</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 图像</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

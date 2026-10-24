@@ -26,6 +26,7 @@ docs/scripting-api-changes.md merge=union
 *.jpg binary -eol
 *.jpeg binary -eol
 *.jxl binary -eol
+*.pdn binary -eol
 *.ico binary -eol
 *.icns binary -eol
 *.icc binary -eol

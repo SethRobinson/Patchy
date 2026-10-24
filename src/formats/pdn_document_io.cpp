@@ -4,6 +4,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/worker_budget.hpp"
 #include "formats/format_file_io.hpp"
+#include "formats/metadata/tiff_ifd.hpp"
 #include "formats/miniz/miniz.h"
 #include "formats/nrbf_reader.hpp"
 #include "formats/stb/stb_image.h"
@@ -46,6 +47,14 @@
 namespace patchy::pdn {
 
 namespace {
+
+// Why a structural read failed. Never shown to users: DocumentIo::read turns it into the
+// thumbnail fallback and its translated notice, or the translated "damaged" error, and
+// PATCHY_PDN_TRACE prints it.
+class ImportError : public std::runtime_error {
+public:
+  using std::runtime_error::runtime_error;
+};
 
 constexpr std::int32_t kMaxSide = 300000;            // the PSB cap every importer shares
 constexpr std::uint64_t kMaxLayerPixels = 1ULL << 28U;
@@ -149,13 +158,13 @@ void trace(const std::string& message) {
 // The offset of the deflate body inside an RFC 1952 member starting at `bytes[0]`.
 [[nodiscard]] std::size_t gzip_body_offset(std::span<const std::uint8_t> bytes) {
   if (bytes.size() < 18 || bytes[0] != 0x1F || bytes[1] != 0x8B || bytes[2] != 8) {
-    throw std::runtime_error("gzip header is invalid");
+    throw ImportError("gzip header is invalid");
   }
   const auto flags = bytes[3];
   std::size_t position = 10;
   if ((flags & 0x04U) != 0) {  // FEXTRA
     if (position + 2 > bytes.size()) {
-      throw std::runtime_error("gzip header is truncated");
+      throw ImportError("gzip header is truncated");
     }
     position += 2 + (bytes[position] | (static_cast<std::size_t>(bytes[position + 1]) << 8U));
   }
@@ -171,7 +180,7 @@ void trace(const std::string& message) {
     position += 2;
   }
   if (position + 8 > bytes.size()) {
-    throw std::runtime_error("gzip member is truncated");
+    throw ImportError("gzip member is truncated");
   }
   return position;
 }
@@ -181,7 +190,7 @@ public:
   Inflater() {
     std::memset(&stream_, 0, sizeof(stream_));
     if (mz_inflateInit2(&stream_, -MZ_DEFAULT_WINDOW_BITS) != MZ_OK) {
-      throw std::runtime_error("inflate could not start");
+      throw ImportError("inflate could not start");
     }
   }
   ~Inflater() { mz_inflateEnd(&stream_); }
@@ -243,7 +252,7 @@ private:
     const auto input = member.subspan(body);
     while (true) {
       if (out.size() >= limit) {
-        throw std::runtime_error("gzip data decompresses to an unreasonable size");
+        throw ImportError("gzip data decompresses to an unreasonable size");
       }
       const auto grow = static_cast<std::size_t>(std::min<std::uint64_t>(
           limit - out.size(), std::max<std::uint64_t>(1U << 20U, out.size())));
@@ -263,16 +272,16 @@ private:
         break;
       }
       if (status != MZ_OK && status != MZ_BUF_ERROR) {
-        throw std::runtime_error("gzip data is damaged");
+        throw ImportError("gzip data is damaged");
       }
       if (in_before == stream.avail_in && out_before == stream.avail_out) {
-        throw std::runtime_error("gzip data is truncated");
+        throw ImportError("gzip data is truncated");
       }
     }
     position += body + consumed + 8;
   }
   if (out.empty()) {
-    throw std::runtime_error("gzip data is empty");
+    throw ImportError("gzip data is empty");
   }
   return out;
 }
@@ -308,7 +317,7 @@ struct Payload {
     payload.data = payload.owned;
     const auto at = graph_start(payload.data, 0);
     if (!at.has_value()) {
-      throw std::runtime_error("the gzipped payload is not a .NET serialization stream");
+      throw ImportError("the gzipped payload is not a .NET serialization stream");
     }
     payload.graph_offset = *at;
     return payload;
@@ -316,7 +325,7 @@ struct Payload {
   payload.data = bytes;
   const auto at = graph_start(bytes, start);
   if (!at.has_value()) {
-    throw std::runtime_error("no .NET serialization stream follows the header");
+    throw ImportError("no .NET serialization stream follows the header");
   }
   payload.graph_offset = *at;
   return payload;
@@ -356,12 +365,16 @@ struct Payload {
     case 2: return BlendMode::LinearDodge;  // Additive
     case 3: return BlendMode::ColorBurn;
     case 4: return BlendMode::ColorDodge;
+    case 5: return BlendMode::Reflect;
+    case 6: return BlendMode::Glow;
     case 7: return BlendMode::Overlay;
     case 8: return BlendMode::Difference;
+    case 9: return BlendMode::Negation;
     case 10: return BlendMode::Lighten;
     case 11: return BlendMode::Darken;
     case 12: return BlendMode::Screen;
-    default: return std::nullopt;  // Reflect, Glow, Negation, Xor and unknown values
+    case 13: return BlendMode::Xor;
+    default: return std::nullopt;  // a value newer than this reader
   }
 }
 
@@ -387,7 +400,7 @@ struct GraphDocument {
 [[nodiscard]] const nrbf::Object* document_root(const nrbf::Graph& graph) {
   const auto* root = graph.root();
   if (!class_is(root, "PaintDotNet.Document")) {
-    throw std::runtime_error("the graph's root is not a Paint.NET document");
+    throw ImportError("the graph's root is not a Paint.NET document");
   }
   return root;
 }
@@ -399,13 +412,13 @@ struct GraphDocument {
   const auto height = graph.member_integer(*root, "height");
   if (!width || !height || *width <= 0 || *height <= 0 || *width > kMaxSide || *height > kMaxSide ||
       static_cast<std::uint64_t>(*width) * static_cast<std::uint64_t>(*height) > kMaxLayerPixels) {
-    throw std::runtime_error("the document size is invalid");
+    throw ImportError("the document size is invalid");
   }
   document.width = static_cast<std::int32_t>(*width);
   document.height = static_cast<std::int32_t>(*height);
   const auto* list = graph.member_object(*root, "layers");
   if (list == nullptr) {
-    throw std::runtime_error("the document has no layer list");
+    throw ImportError("the document has no layer list");
   }
   const auto* items = graph.member_object(*list, "ArrayList+_items");
   auto size = graph.member_integer(*list, "ArrayList+_size");
@@ -415,7 +428,7 @@ struct GraphDocument {
   }
   if (items == nullptr || items->kind != nrbf::Object::Kind::ObjectArray || !size || *size < 0 ||
       static_cast<std::size_t>(*size) > items->value_count || static_cast<std::size_t>(*size) > kMaxLayers) {
-    throw std::runtime_error("the layer list is invalid");
+    throw ImportError("the layer list is invalid");
   }
   const auto elements = graph.values(*items);
   for (std::size_t index = 0; index < static_cast<std::size_t>(*size); ++index) {
@@ -501,7 +514,7 @@ struct BlockData {
     block.length = static_cast<std::uint64_t>(length);
     total += block.length;
     if (total > kMaxTotalPixelBytes) {
-      throw std::runtime_error("the layers are too large");
+      throw ImportError("the layers are too large");
     }
     if (!deferred) {
       // Inline data: the first byte array member that covers the block.
@@ -892,7 +905,7 @@ struct ImportStats {
     largest_block = std::max(largest_block, block.length);
   }
   if (static_cast<std::uint64_t>(source.width) * static_cast<std::uint64_t>(source.height) * 4U > largest_block) {
-    throw std::runtime_error("the document is larger than its pixel data");
+    throw ImportError("the document is larger than its pixel data");
   }
   Document document(source.width, source.height, PixelFormat::rgba8());
   // Layers whose pixels cannot be read share one transparent buffer (copy-on-write).
@@ -954,7 +967,7 @@ struct ImportStats {
     document.add_layer(std::move(layer));
   }
   if (opened_layers == 0) {
-    throw std::runtime_error("no layer's pixels could be read");
+    throw ImportError("no layer's pixels could be read");
   }
   apply_resolution(document, exif_entries(collect_user_metadata(graph, *document_root(graph))));
   if (!document.layers().empty()) {
@@ -1010,7 +1023,7 @@ std::optional<Header> read_header(std::span<const std::uint8_t> bytes) {
   const std::size_t length = bytes[4] | (static_cast<std::size_t>(bytes[5]) << 8U) |
                              (static_cast<std::size_t>(bytes[6]) << 16U);
   if (7 + length > bytes.size()) {
-    throw std::runtime_error("the .pdn header is truncated");
+    throw ImportError("the .pdn header is truncated");
   }
   Header header;
   header.payload_offset = 7 + length;
@@ -1036,106 +1049,34 @@ std::vector<std::pair<std::string, std::string>> read_user_metadata(std::span<co
 }
 
 std::vector<std::uint8_t> exif_from_user_metadata(const std::vector<std::pair<std::string, std::string>>& items) {
-  auto entries = exif_entries(items);
+  const auto entries = exif_entries(items);
   if (entries.empty()) {
     return {};
   }
-  // TIFF tags Patchy's EXIF reader expects under the Exif (0x8769) and GPS (0x8825)
-  // sub-IFDs: the Exif range starts at ExposureTime (0x829A) except the IFD0 copyright,
-  // and GPS tags are 0..31. Paint.NET flattens all of them into one list.
-  const auto is_gps = [](const ExifEntry& entry) { return entry.id <= 31; };
-  const auto is_exif = [](const ExifEntry& entry) {
-    return entry.id >= 0x829A && entry.id != 0x8298 && entry.id != 0x8769 && entry.id != 0x8825;
-  };
-  std::vector<ExifEntry> ifd0;
-  std::vector<ExifEntry> exif;
-  std::vector<ExifEntry> gps;
-  std::map<std::uint16_t, bool> seen;
-  for (auto& entry : entries) {
-    if (entry.id == 0x8769 || entry.id == 0x8825 || entry.id == 0xA005 || seen[entry.id]) {
-      continue;  // pointers are rebuilt below; the interoperability IFD is not kept
+  // Paint.NET flattens IFD0, Exif and GPS tags into one list. GPS tags are 0..31 (no
+  // IFD0 tag is that low); the Exif IFD holds the camera range from ExposureTime
+  // (0x829A) up, except the few IFD0 tags that sit there (IPTC, ICC, Windows XP*).
+  const auto kind_of = [](std::uint16_t tag) {
+    if (tag <= 31) {
+      return metadata::IfdKind::Gps;
     }
-    seen[entry.id] = true;
-    (is_gps(entry) ? gps : is_exif(entry) ? exif : ifd0).push_back(std::move(entry));
+    const bool ifd0_exception = tag == 0x83BB || tag == 0x8773 || (tag >= 0x9C9B && tag <= 0x9C9F);
+    return tag >= 0x829A && tag <= 0xA4FF && !ifd0_exception ? metadata::IfdKind::Exif : metadata::IfdKind::Ifd0;
+  };
+  metadata::TiffStream stream;
+  for (const auto& entry : entries) {
+    if (entry.id == metadata::kTagExifIfd || entry.id == metadata::kTagGpsIfd ||
+        entry.id == metadata::kTagInteropIfd) {
+      continue;  // write_tiff regenerates the pointers
+    }
+    auto& ifd = stream.find_or_add(kind_of(entry.id));
+    if (ifd.find(entry.id) != nullptr) {
+      continue;
+    }
+    ifd.entries.push_back(metadata::TiffEntry{entry.id, entry.type, entry.count, entry.value});
   }
-  const auto by_id = [](const ExifEntry& a, const ExifEntry& b) { return a.id < b.id; };
-  std::vector<std::uint8_t> out{'I', 'I', 42, 0, 8, 0, 0, 0};
-  const auto put16 = [&](std::size_t at, std::uint32_t value) {
-    out[at] = static_cast<std::uint8_t>(value & 0xFFU);
-    out[at + 1] = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
-  };
-  const auto put32 = [&](std::size_t at, std::uint32_t value) {
-    for (std::size_t i = 0; i < 4; ++i) {
-      out[at + i] = static_cast<std::uint8_t>((value >> (8U * i)) & 0xFFU);
-    }
-  };
-  // Writes one IFD at the end of `out` with `pointers` (tag, placeholder) entries
-  // appended; returns the offsets of those pointer values.
-  const auto write_ifd = [&](std::vector<ExifEntry>& list, const std::vector<std::uint16_t>& pointers) {
-    std::sort(list.begin(), list.end(), by_id);
-    const auto count = list.size() + pointers.size();
-    const auto start = out.size();
-    out.resize(start + 2 + count * 12 + 4, 0);
-    put16(start, static_cast<std::uint32_t>(count));
-    std::vector<std::pair<std::uint16_t, std::size_t>> rows;
-    for (const auto& entry : list) {
-      rows.emplace_back(entry.id, 0);
-    }
-    for (const auto tag : pointers) {
-      rows.emplace_back(tag, 1);
-    }
-    std::sort(rows.begin(), rows.end());
-    std::map<std::uint16_t, std::size_t> pointer_slots;
-    std::size_t list_index = 0;
-    std::vector<const ExifEntry*> ordered;
-    for (const auto& entry : list) {
-      ordered.push_back(&entry);
-    }
-    for (std::size_t row = 0; row < rows.size(); ++row) {
-      const auto at = start + 2 + row * 12;
-      put16(at, rows[row].first);
-      if (rows[row].second == 1) {
-        put16(at + 2, 4);  // LONG
-        put32(at + 4, 1);
-        pointer_slots[rows[row].first] = at + 8;
-        continue;
-      }
-      const auto& entry = *ordered[list_index++];
-      put16(at + 2, entry.type);
-      put32(at + 4, entry.count);
-      if (entry.value.size() <= 4) {
-        std::copy(entry.value.begin(), entry.value.end(), out.begin() + static_cast<std::ptrdiff_t>(at + 8));
-      } else {
-        if (out.size() % 2 != 0) {
-          out.push_back(0);
-        }
-        put32(at + 8, static_cast<std::uint32_t>(out.size()));
-        out.insert(out.end(), entry.value.begin(), entry.value.end());
-      }
-    }
-    return pointer_slots;
-  };
-  std::vector<std::uint16_t> pointers;
-  if (!exif.empty()) {
-    pointers.push_back(0x8769);
-  }
-  if (!gps.empty()) {
-    pointers.push_back(0x8825);
-  }
-  const auto slots = write_ifd(ifd0, pointers);
-  const auto link = [&](std::uint16_t tag, std::vector<ExifEntry>& list) {
-    if (list.empty()) {
-      return;
-    }
-    if (out.size() % 2 != 0) {
-      out.push_back(0);
-    }
-    put32(slots.at(tag), static_cast<std::uint32_t>(out.size()));
-    static_cast<void>(write_ifd(list, {}));
-  };
-  link(0x8769, exif);
-  link(0x8825, gps);
-  return out;
+  stream.find_or_add(metadata::IfdKind::Ifd0);
+  return metadata::write_tiff(stream);
 }
 
 Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::string>* notices) {

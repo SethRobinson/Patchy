@@ -4,6 +4,11 @@
 #include <QUrl>
 #include "ui/qt_paths.hpp"
 #include "unicode_path_names.hpp"
+#include "pdn_test_builder.hpp"
+#include "local_psd_fixtures.hpp"
+#include "core/layer_metadata.hpp"
+#include "psd/psd_document_io.hpp"
+#include "ui/blend_mode_ui.hpp"
 #include <QScrollBar>
 #include <QStatusBar>
 
@@ -3223,6 +3228,107 @@ void ui_open_by_content_when_the_extension_is_wrong() {
   CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 4U);
 }
 
+// Paint.NET documents (GitHub issue 379) open through load_document_from_path with their
+// layers, by content under a wrong or missing extension, offer Paint.NET's blend modes in
+// the Layers panel only, and a PSD save of one says those modes became Normal.
+void ui_pdn_files_open_with_layers_and_by_content() {
+  ensure_artifact_dir();
+  const auto dir = patchy::ui::to_qstring(std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"pdn-open")));
+  namespace build = patchy::test::pdn_build;
+  build::PdnSpec spec;
+  spec.width = 6;
+  spec.height = 4;
+  build::LayerSpec background;
+  background.name = "Background";
+  background.is_background = true;
+  background.bgra = build::bgra_surface(6, 4, [](std::int32_t x, std::int32_t y) -> std::array<std::uint8_t, 4> {
+    return {static_cast<std::uint8_t>(x * 40), static_cast<std::uint8_t>(y * 60), 90, 255};
+  });
+  build::LayerSpec xor_layer;
+  xor_layer.name = "Xor layer";
+  xor_layer.blend = 13;
+  xor_layer.blend_op = "Xor";
+  xor_layer.opacity = 200;
+  xor_layer.bgra = build::bgra_surface(6, 4, [](std::int32_t, std::int32_t) -> std::array<std::uint8_t, 4> {
+    return {255, 128, 0, 255};
+  });
+  spec.layers = {background, xor_layer};
+  const auto bytes = build::build_pdn(spec);
+  const auto write = [&](const QString& name) {
+    const auto path = QDir(dir).filePath(name);
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()));
+    return path;
+  };
+  const auto stem = patchy::ui::to_qstring(patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem));
+  const auto pdn_path = write(stem + QStringLiteral(".pdn"));
+  const auto bin_path = write(QStringLiteral("drawing.bin"));
+  const auto png_path = write(QStringLiteral("drawing.png"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto before = patchy::ui::MainWindowTestAccess::session_count(window);
+  const auto check_document = [&] {
+    const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(document.width() == 6 && document.height() == 4);
+    CHECK(document.layers().size() == 2);
+    CHECK(document.layers()[0].name() == "Background");
+    CHECK(patchy::background_layer(document.layers(), 6, 4) != nullptr);
+    CHECK(document.layers()[1].name() == "Xor layer");
+    CHECK(document.layers()[1].blend_mode() == patchy::BlendMode::Xor);
+    CHECK(std::abs(document.layers()[1].opacity() - 200.0F / 255.0F) < 0.001F);
+  };
+  patchy::ui::MainWindowTestAccess::open_document_path(window, pdn_path);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 1U);
+  check_document();
+  // The Layers panel shows the active layer's Paint.NET mode by name.
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr && blend_combo->currentText() == QStringLiteral("Xor"));
+
+  // An unknown extension opens by content; a .png name fails as PNG, then opens by content.
+  patchy::ui::MainWindowTestAccess::open_document_path(window, bin_path);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 2U);
+  check_document();
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Paint.NET")));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, png_path);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 3U);
+  check_document();
+
+  // Only layer and folder menus list Paint.NET's modes.
+  QComboBox layer_menu;
+  QComboBox effect_menu;
+  QComboBox filter_menu;
+  patchy::ui::add_blend_mode_items(&layer_menu, patchy::ui::BlendModeMenu::Layer);
+  patchy::ui::add_blend_mode_items(&effect_menu, patchy::ui::BlendModeMenu::Effect);
+  patchy::ui::add_blend_mode_items(&filter_menu, patchy::ui::BlendModeMenu::Filter);
+  for (const auto mode : {patchy::BlendMode::Reflect, patchy::BlendMode::Glow, patchy::BlendMode::Negation,
+                          patchy::BlendMode::Xor}) {
+    CHECK(layer_menu.findData(static_cast<int>(mode)) >= 0);
+    CHECK(effect_menu.findData(static_cast<int>(mode)) < 0);
+    CHECK(filter_menu.findData(static_cast<int>(mode)) < 0);
+  }
+  CHECK(layer_menu.count() == effect_menu.count() + 4);
+
+  // A PSD save writes them as Normal and says so.
+  const auto psd_path = QDir(dir).filePath(QStringLiteral("saved.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("saved as Normal")));
+  QFile saved(psd_path);
+  CHECK(saved.open(QIODevice::ReadOnly));
+  const auto saved_bytes = saved.readAll();
+  const auto reread = patchy::psd::DocumentIo::read(std::span<const std::uint8_t>(
+      reinterpret_cast<const std::uint8_t*>(saved_bytes.constData()), static_cast<std::size_t>(saved_bytes.size())));
+  CHECK(reread.layers().size() == 2 && reread.layers()[1].blend_mode() == patchy::BlendMode::Normal);
+
+  // The Paint.NET 5 demo file, for the visual record: layers, names and modes in the panel.
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, patchy::ui::to_qstring(patchy::test::committed_format_fixture_path("pdn", "demo.pdn")));
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).layers().size() == 6);
+  QApplication::processEvents();
+  save_widget_artifact("ui_pdn_demo_opened", window);
+}
+
 void ui_open_recent_folders_list_two_hundred_folders_with_filter() {
   ensure_artifact_dir();
   QStringList recent_folders;
@@ -3709,6 +3815,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_open_dialog_remembers_last_filter", ui_open_dialog_remembers_last_filter},
       {"ui_open_failed_box_names_the_file", ui_open_failed_box_names_the_file},
       {"ui_open_by_content_when_the_extension_is_wrong", ui_open_by_content_when_the_extension_is_wrong},
+      {"ui_pdn_files_open_with_layers_and_by_content", ui_pdn_files_open_with_layers_and_by_content},
       {"ui_open_recent_folders_list_two_hundred_folders_with_filter", ui_open_recent_folders_list_two_hundred_folders_with_filter},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
       {"ui_recent_folder_context_menu_copies_path_and_offers_explorer", ui_recent_folder_context_menu_copies_path_and_offers_explorer},

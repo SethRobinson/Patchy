@@ -12,6 +12,11 @@ those of 2026-10-06 to 2026-10-09 in
 [scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md).
 Every entry below is API 1.
 
+2026-10-24 (additive): blend mode ids `reflect`, `glow`, `negation` and `xor` (Paint.NET's modes,
+GitHub issue 379), appended to the permanent list for `layer.blendMode` and stroke `mode`. 8 and
+16-bit documents only; a PSD save writes them as `normal`. Pinned by
+`ui_script_paint_dot_net_blend_mode_ids`.
+
 2026-10-24 (behavioral): `layer.redEye` uses the revised Red Eye method ([red-eye.md](red-eye.md)): the
 area is grown with hysteresis and its rim and glint halo corrected by redness, and Darken Amount keeps
 a quarter of the brightness at 100 instead of going black (Darken 50 keeps about 60%). Options and
