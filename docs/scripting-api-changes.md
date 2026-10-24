@@ -12,6 +12,11 @@ those of 2026-10-06 to 2026-10-09 in
 [scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md).
 Every entry below is API 1.
 
+2026-10-25 (additive): `doc.importNotes` (read only, string array): the notes the file's reader left
+when the document opened (dropped or approximated features, the import notes the status bar shows),
+empty for new documents. Permanent identifier: the property name. Pinned by
+`ui_script_import_notes_list_reader_notices`.
+
 2026-10-24 (additive): `doc.saveAs` and `doc.exportAs` write OpenRaster for a `.ora` path
 ([ora.md](ora.md)): the layer tree stays, and what the format cannot hold is baked into layer pixels
 with no prompt (a scripted save answers it, like the Aseprite Fill Opacity one). `saveAs` points the

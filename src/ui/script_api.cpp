@@ -1883,6 +1883,20 @@ QString ScriptDocumentObject::name() const { const ScriptApiCall api_call(host_)
 
 QString ScriptDocumentObject::path() const { const ScriptApiCall api_call(host_); return host_.session_file_path(session_id_); }
 
+// The reader's notes from the open that made this document (what it dropped or
+// approximated), as the status bar shows them; empty for a new document. A plain array
+// copy: a QStringList property would reach scripts as a live sequence that empties once the
+// document closes.
+QJSValue ScriptDocumentObject::import_notes() const {
+  const ScriptApiCall api_call(host_);
+  const auto notes = host_.session_import_notes(session_id_);
+  auto array = host_.engine()->newArray(static_cast<quint32>(notes.size()));
+  for (qsizetype i = 0; i < notes.size(); ++i) {
+    array.setProperty(static_cast<quint32>(i), notes.at(i));
+  }
+  return array;
+}
+
 // Image > Mode > CMYK Proof (docs/cmyk.md). Refused (a JS error) in palette mode or
 // without a CMYK profile, like the menu command.
 bool ScriptDocumentObject::cmyk_proof() const {
