@@ -145,6 +145,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.17" date="2026-10-24">
+      <description>
+        <ul>
+          <li>Images in other RGB profiles convert to sRGB on open, and Edit &gt; Convert to Color Profile</li>
+          <li>Watermark detection in File Info and an optional invisible TrustMark watermark on save</li>
+          <li>The Perspective Crop tool, Image &gt; Trim, and tools that work with no document open</li>
+          <li>Photoshop 2025 opens Patchy text and grayscale files; files with a wrong extension open by content</li>
+          <li>Any interface scale from 50 to 300 percent, bolder tool icons and a toolbar icon size setting</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.16" date="2026-10-22">
       <description>
         <ul>
