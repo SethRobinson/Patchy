@@ -2,6 +2,10 @@
 // a click in its field or hue strip sets the foreground, Alt at the press sets the
 // background for the whole drag, the panel follows color changes made elsewhere, the
 // Window menu and patchy.ui reach it, and a saved layout from before it keeps its panels.
+// Alt over the field, the hue strip or a Palette swatch shows the background cursor, and an
+// Alt-click on a Palette swatch sets the background.
+#include "core/document.hpp"
+#include "core/palette_presets.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_dock_panel.hpp"
@@ -9,6 +13,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
+#include "ui/tool_cursors.hpp"
 #include "ui/tool_palette_footer.hpp"
 #include <QAbstractButton>
 #include <QAction>
@@ -16,6 +21,8 @@
 #include <QColor>
 #include <QDataStream>
 #include <QDialog>
+#include <QEnterEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QSplitter>
@@ -346,6 +353,161 @@ void ui_panel_layout_from_before_color_panel_keeps_its_panels() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelOrder")).toStringList().contains(kColorPanel));
 }
 
+// The background cursor (the Pick tool's, eyedropper_target_cursor(true)) over a widget.
+bool shows_background_cursor(const QWidget& widget) {
+  const auto expected = patchy::ui::eyedropper_target_cursor(true);
+  return widget.cursor().shape() == Qt::BitmapCursor && widget.cursor().hotSpot() == expected.hotSpot() &&
+         widget.cursor().pixmap().cacheKey() == expected.pixmap().cacheKey();
+}
+
+void send_key(QWidget& receiver, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers) {
+  QKeyEvent event(type, key, modifiers);
+  QApplication::sendEvent(&receiver, &event);
+  QApplication::processEvents();
+}
+
+void hover(QWidget& widget, QPoint point, Qt::KeyboardModifiers modifiers) {
+  QEnterEvent enter(QPointF(point), QPointF(widget.mapTo(widget.window(), point)),
+                    QPointF(widget.mapToGlobal(point)));
+  QApplication::sendEvent(&widget, &enter);
+  send_mouse(widget, QEvent::MouseMove, point, Qt::NoButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+}
+
+void ui_color_panel_alt_shows_background_cursor() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  auto* field = panel->field();
+  auto* strip = panel->hue_strip();
+  const auto field_shape = field->cursor().shape();
+  const auto strip_shape = strip->cursor().shape();
+  CHECK(field_shape == Qt::CrossCursor);
+  CHECK(strip_shape == Qt::PointingHandCursor);
+  const QPoint middle(field->width() / 2, field->height() / 2);
+
+  // Alt held on arrival, then released and pressed again over the field: the cursor
+  // follows the key itself (sent to the window, which has the focus, not to the field).
+  hover(*field, middle, Qt::AltModifier);
+  CHECK(shows_background_cursor(*field));
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(field->cursor().shape() == field_shape);
+  send_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(shows_background_cursor(*field));
+  send_mouse(*field, QEvent::MouseMove, middle + QPoint(3, 3), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  CHECK(field->cursor().shape() == field_shape);
+
+  // An Alt press keeps the background cursor for its whole drag, Alt released or not.
+  send_mouse(*field, QEvent::MouseButtonPress, middle, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(shows_background_cursor(*field));
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  send_mouse(*field, QEvent::MouseMove, middle + QPoint(5, 0), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+  CHECK(shows_background_cursor(*field));
+  send_mouse(*field, QEvent::MouseButtonRelease, middle + QPoint(5, 0), Qt::LeftButton, Qt::NoButton,
+             Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(field->cursor().shape() == field_shape);
+  // A plain press keeps the normal cursor even if Alt goes down mid-drag.
+  send_mouse(*field, QEvent::MouseButtonPress, middle, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(field->cursor().shape() == field_shape);
+  send_mouse(*field, QEvent::MouseButtonRelease, middle, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  // Released with Alt still down: the next click would set the background.
+  CHECK(shows_background_cursor(*field));
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(field, &leave);
+  CHECK(field->cursor().shape() == field_shape);
+  // Off the field, Alt changes nothing there.
+  send_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(field->cursor().shape() == field_shape);
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+
+  // The hue strip does the same.
+  hover(*strip, QPoint(strip->width() / 2, strip->height() / 2), Qt::AltModifier);
+  CHECK(shows_background_cursor(*strip));
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(strip->cursor().shape() == strip_shape);
+
+  // The picker window's own field, which edits one color, keeps its cursor.
+  panel->foreground_chip()->click();
+  QApplication::processEvents();
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr);
+  if (dialog != nullptr) {
+    auto* plane = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPlane"));
+    CHECK(plane != nullptr);
+    if (plane != nullptr) {
+      hover(*plane, QPoint(20, 20), Qt::AltModifier);
+      CHECK(plane->cursor().shape() == Qt::CrossCursor);
+    }
+    dialog->close();
+    QApplication::processEvents();
+  }
+}
+
+void ui_palette_panel_alt_click_sets_background() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = MainWindowTestAccess::document(window);
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  if (preset == nullptr) {
+    return;
+  }
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 903;
+  document.palette_editing() = editing;
+  MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+  auto* grid = window.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  CHECK(grid != nullptr);
+  if (grid == nullptr) {
+    return;
+  }
+  // Cell n center: 12 cells per row, 18 px cells with a 2 px gap.
+  const auto cell = [](int index) { return QPoint(index * 20 + 9, 9); };
+  const auto color_of = [&](int index) {
+    const auto& entry = preset->colors[static_cast<std::size_t>(index)];
+    return QColor(entry.red, entry.green, entry.blue);
+  };
+
+  const auto normal_shape = grid->cursor().shape();
+  CHECK(normal_shape != Qt::BitmapCursor);
+
+  // A plain click sets the foreground, as before.
+  const auto background_before = canvas->secondary_color();
+  click(*grid, cell(2));
+  CHECK(canvas->primary_color().rgb() == color_of(2).rgb());
+  CHECK(canvas->secondary_color().rgb() == background_before.rgb());
+
+  // Alt-click sets the background and leaves the foreground.
+  click(*grid, cell(5), Qt::AltModifier);
+  CHECK(canvas->secondary_color().rgb() == color_of(5).rgb());
+  CHECK(canvas->primary_color().rgb() == color_of(2).rgb());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Background color changed"));
+  // The Color panel's background chip follows.
+  if (auto* panel = window.findChild<ColorDockPanel*>(QStringLiteral("colorPanel")); panel != nullptr) {
+    CHECK(panel->background_chip()->color().rgb() == color_of(5).rgb());
+  }
+
+  // Released with Alt still down, the grid shows the background cursor; Alt over the
+  // swatches shows it too, and releasing the key brings the normal one back.
+  CHECK(shows_background_cursor(*grid));
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(grid->cursor().shape() == normal_shape);
+  hover(*grid, cell(3), Qt::AltModifier);
+  CHECK(shows_background_cursor(*grid));
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(grid->cursor().shape() == normal_shape);
+  CHECK(!shows_background_cursor(*grid));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> color_dock_panel_tests() {
@@ -356,5 +518,7 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
       {"ui_color_panel_window_menu_and_script_name", ui_color_panel_window_menu_and_script_name},
       {"ui_panel_layout_from_before_color_panel_keeps_its_panels",
        ui_panel_layout_from_before_color_panel_keeps_its_panels},
+      {"ui_color_panel_alt_shows_background_cursor", ui_color_panel_alt_shows_background_cursor},
+      {"ui_palette_panel_alt_click_sets_background", ui_palette_panel_alt_click_sets_background},
   };
 }

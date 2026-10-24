@@ -1,5 +1,6 @@
 #include "ui/color_dock_panel.hpp"
 
+#include "ui/background_pick_cursor.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/tool_palette_footer.hpp"
 
@@ -58,6 +59,10 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   hue_strip_->setMinimumSize(HueSliderWidget::kDefaultWidth, kFieldMinimum);
   hue_strip_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
   hue_strip_->setFocusPolicy(Qt::NoFocus);
+  // Alt over either shows the background cursor; the picker window's field and strip,
+  // which edit one color, do not get one.
+  field_cursor_ = new BackgroundPickCursor(field_);
+  hue_strip_cursor_ = new BackgroundPickCursor(hue_strip_);
 
   auto* well_column = new QVBoxLayout;
   well_column->setContentsMargins(0, 0, 0, 0);

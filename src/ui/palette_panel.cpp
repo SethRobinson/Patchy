@@ -3,6 +3,7 @@
 #include "core/palette_presets.hpp"
 #include "formats/palette_io.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_pick_cursor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/localization.hpp"
@@ -82,6 +83,7 @@ public:
     // Clicking a swatch takes keyboard focus so Edit > Copy/Paste route to the
     // palette while the panel is focused.
     setFocusPolicy(Qt::ClickFocus);
+    new BackgroundPickCursor(this);
   }
 
   void set_selection_changed_callback(std::function<void()> callback) {
@@ -196,7 +198,12 @@ protected:
       selection_changed_();
     }
     if (event->button() == Qt::LeftButton) {
-      emit panel_->entry_clicked(index);
+      // Alt read from the press itself, as the Pick tool's Alt-click.
+      if ((event->modifiers() & Qt::AltModifier) != 0) {
+        emit panel_->entry_background_requested(index);
+      } else {
+        emit panel_->entry_clicked(index);
+      }
     }
   }
 

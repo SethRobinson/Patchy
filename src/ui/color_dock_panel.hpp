@@ -17,6 +17,7 @@ class QEvent;
 
 namespace patchy::ui {
 
+class BackgroundPickCursor;
 class ColorWellSwatch;
 class ColorWellGlyphButton;
 
@@ -33,6 +34,8 @@ public:
   [[nodiscard]] ColorWellSwatch* background_chip() const noexcept { return background_chip_; }
   [[nodiscard]] ColorPlaneWidget* field() const noexcept { return field_; }
   [[nodiscard]] HueSliderWidget* hue_strip() const noexcept { return hue_strip_; }
+  [[nodiscard]] BackgroundPickCursor* field_cursor() const noexcept { return field_cursor_; }
+  [[nodiscard]] BackgroundPickCursor* hue_strip_cursor() const noexcept { return hue_strip_cursor_; }
 
   // HsvFieldSource: the foreground's hue, saturation and value.
   [[nodiscard]] int hue() const override { return hue_; }
@@ -61,6 +64,8 @@ private:
   ColorWellGlyphButton* default_{nullptr};
   ColorPlaneWidget* field_{nullptr};
   HueSliderWidget* hue_strip_{nullptr};
+  BackgroundPickCursor* field_cursor_{nullptr};
+  BackgroundPickCursor* hue_strip_cursor_{nullptr};
   int hue_{0};
   int saturation_{0};
   int value_{0};
