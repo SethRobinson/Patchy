@@ -153,19 +153,6 @@ QString automatic_selection_out_of_memory_message(const QString& command);
 // stamper.
 float brush_coverage(double distance_squared, int radius, int softness);
 
-// Alpha-weighted average of 8 ring samples at `radius` around `center` over an
-// RGBA8888 snapshot (center-pixel fallback when the ring is fully
-// transparent); the low-frequency "tone" term of the healing math. Shared by
-// the brush TU (Healing Brush) and the spot-healing / patch commit loops.
-std::array<double, 3> healing_ring_tone(const QImage& snapshot, QPoint center, int radius);
-
-// Classic frequency-separation healing sample: destination ring tone plus the
-// source pixel's difference from its own ring tone (see the constraint comment
-// at the definition). Shared by the brush TU (Healing Brush) and the
-// spot-healing / patch commit loops.
-std::array<std::uint8_t, 4> healing_sample(const QImage& snapshot, QPoint source, QPoint destination,
-                                           int tone_radius);
-
 // Straight-alpha RGBA mix of `src` over `dst` by `amount`; the write primitive
 // of the clone/heal family. Shared by the brush TU and the spot-healing /
 // patch commit loops.

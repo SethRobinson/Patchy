@@ -288,53 +288,6 @@ float brush_coverage(double distance_squared, int radius, int softness) {
   return static_cast<float>(1.0 - smooth);
 }
 
-std::array<double, 3> healing_ring_tone(const QImage& snapshot, QPoint center, int radius) {
-  constexpr std::array<std::array<int, 2>, 8> kDirections{{
-      {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}},
-      {{1, 0}},   {{-1, 1}}, {{0, 1}},  {{1, 1}},
-  }};
-  std::array<double, 3> sum{};
-  double alpha_weight = 0.0;
-  for (const auto& direction : kDirections) {
-    const auto x = std::clamp(center.x() + direction[0] * radius, 0, snapshot.width() - 1);
-    const auto y = std::clamp(center.y() + direction[1] * radius, 0, snapshot.height() - 1);
-    const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
-    const auto alpha = static_cast<double>(pixel[3]) / 255.0;
-    alpha_weight += alpha;
-    for (std::size_t channel = 0; channel < sum.size(); ++channel) {
-      sum[channel] += static_cast<double>(pixel[channel]) * alpha;
-    }
-  }
-  if (alpha_weight > std::numeric_limits<double>::epsilon()) {
-    for (auto& channel : sum) {
-      channel /= alpha_weight;
-    }
-    return sum;
-  }
-
-  const auto x = std::clamp(center.x(), 0, snapshot.width() - 1);
-  const auto y = std::clamp(center.y(), 0, snapshot.height() - 1);
-  const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
-  return {static_cast<double>(pixel[0]), static_cast<double>(pixel[1]), static_cast<double>(pixel[2])};
-}
-
-std::array<std::uint8_t, 4> healing_sample(const QImage& snapshot, QPoint source, QPoint destination,
-                                           int tone_radius) {
-  const auto source_tone = healing_ring_tone(snapshot, source, tone_radius);
-  const auto destination_tone = healing_ring_tone(snapshot, destination, tone_radius);
-  const auto* source_pixel = snapshot.constScanLine(source.y()) + static_cast<std::size_t>(source.x()) * 4U;
-  std::array<std::uint8_t, 4> result{};
-  for (std::size_t channel = 0; channel < 3; ++channel) {
-    // Classic frequency-separation healing: carry sampled detail into the
-    // destination's local tone. This is deliberately a fixed local operation,
-    // not patch search, synthesis, or a gradient-domain optimization.
-    result[channel] = clamp_byte(destination_tone[channel] + static_cast<double>(source_pixel[channel]) -
-                                 source_tone[channel]);
-  }
-  result[3] = source_pixel[3];
-  return result;
-}
-
 void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
   amount = std::clamp(amount, 0.0F, 1.0F);
   if (amount <= 0.0F) {

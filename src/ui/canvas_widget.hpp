@@ -1986,6 +1986,14 @@ private:
   void begin_retouch_temporary_move(QMouseEvent* event, QPoint document_point);
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
+  [[nodiscard]] QRect clone_brush_stamp_segment(QPoint from, QPoint to);
+  // The Healing Brush's heal, once on release (docs/healing.md "Classic Healing Brush"):
+  // the stroke footprint (the per-pixel coverage the stamp recorded) is healed from the
+  // gesture snapshot through the stroke's source offset plus the healing membrane of the
+  // expired US 6587592 (core/heal_membrane.hpp) and written over the stroke-start pixels
+  // by that coverage with the Mode. No patch search and no per-move heal or preview
+  // (docs/legal-constraints.md). Returns the written rect.
+  [[nodiscard]] QRect finish_healing_brush_stroke();
   [[nodiscard]] QRect clone_brush_at(QPoint point);
   void draw_pixel(Layer& layer, QPoint document_point, QColor color, bool erase);
   [[nodiscard]] QRect draw_line(QPoint from, QPoint to, bool erase);
@@ -3480,6 +3488,12 @@ private:
   std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
   HealingMode healing_mode_{HealingMode::Normal};
+  // The Healing Brush stroke in flight (not Replace): the layer pixels and bounds at the
+  // press and the union of what the raw-source preview wrote.
+  bool healing_membrane_stroke_{false};
+  std::optional<PixelBuffer> healing_stroke_original_pixels_;
+  Rect healing_stroke_original_bounds_{};
+  QRect healing_stroke_footprint_;
   // The folded modifiers of the key event being handled, for the Clone/Healing cursor.
   std::optional<Qt::KeyboardModifiers> retouch_cursor_modifier_override_;
   // The document point the Clone/Healing stroke samples now (drawn while painting).

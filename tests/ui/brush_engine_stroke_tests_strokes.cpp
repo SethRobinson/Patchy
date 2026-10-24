@@ -2486,7 +2486,10 @@ void ui_healing_brush_transfers_detail_and_preserves_destination_tone() {
   canvas.set_brush_size(1);
   canvas.set_brush_opacity(100);
   canvas.set_brush_softness(0);
-  canvas.set_healing_diffusion(5);
+  // Diffusion 1 heals from the four cells beside the one-pixel footprint, unaveraged, so
+  // the result is the classic transfer: their destination (40,80,120) minus their source
+  // (the 100 ring) carried onto the source center.
+  canvas.set_healing_diffusion(1);
   canvas.show();
   QApplication::processEvents();
 

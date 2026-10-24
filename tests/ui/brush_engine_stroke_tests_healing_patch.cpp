@@ -109,10 +109,11 @@ void ui_retouch_sample_all_layers_switches_clone_and_healing_source() {
   CHECK(cloned[0] == 240 && cloned[1] == 90 && cloned[2] == 60 && cloned[3] == 255);
 
   // Checked healing: detail from the composite source carried into the Edit
-  // layer's local tone: (10,20,30) + (240,90,60) - (200,50,25).
+  // layer's local tone: (10,20,30) + (240,90,60) - (200,50,25). At x = 30 the rim the
+  // heal averages (Diffusion 5: 4 px around the footprint) stays clear of the clone at 36.
   canvas.set_tool(patchy::ui::CanvasTool::Healing);
-  stroke_at(QPoint(32, 8));
-  const auto* healed = edit_layer.pixels().pixel(32, 8);
+  stroke_at(QPoint(30, 8));
+  const auto* healed = edit_layer.pixels().pixel(30, 8);
   CHECK(healed[0] == 50 && healed[1] == 60 && healed[2] == 65 && healed[3] == 255);
 
   // Current Layer: the same source point sampled from the active layer alone is
@@ -199,7 +200,9 @@ void ui_retouch_sample_current_and_below_heals_empty_layer_above_photo() {
 // artifact test-artifacts/issue-382-healing-layers.psd: a grainy synthetic "photo" with
 // dark spots and a scratch to heal, an empty "Heal here" layer above it (active), and a
 // Curves layer over both. It must read back with its three layers and the same composite.
-void ui_retouch_healing_test_psd_round_trips() {
+// The healing test document: a grainy synthetic "photo" with dark spots and a scratch,
+// an empty "Heal here" layer above it (active), and a Curves layer over both.
+patchy::Document healing_test_document() {
   constexpr int kWidth = 480;
   constexpr int kHeight = 320;
   patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
@@ -264,6 +267,12 @@ void ui_retouch_healing_test_psd_round_trips() {
   patchy::configure_adjustment_layer(curves_layer, curves);
   document.add_layer(std::move(curves_layer));
   document.set_active_layer(heal_id);
+  return document;
+}
+
+void ui_retouch_healing_test_psd_round_trips() {
+  auto document = healing_test_document();
+  const auto heal_id = *document.active_layer_id();
 
   ensure_artifact_dir();
   const auto path = QStringLiteral("test-artifacts/issue-382-healing-layers.psd");
@@ -310,6 +319,67 @@ void ui_retouch_healing_test_psd_round_trips() {
   const auto heal_bounds = heal_layer->bounds();
   CHECK(heal_layer->pixels().pixel(300 - heal_bounds.x, 90 - heal_bounds.y)[3] == 255);
   CHECK(std::as_const(document).layers()[0].pixels().pixel(300, 90)[0] < 60);
+}
+
+// The Healing Brush heals a blemish wider than its Diffusion ring (the follow-up to GitHub
+// issue 382): the whole footprint takes the tone around the stroke, so a dark spot blends
+// into the sky instead of staying a dark blotch. Seth's settings: All Layers with Ignore
+// Adjustment Layers, size 31, Diffusion 6, healing onto the empty layer under the Curves.
+void ui_healing_brush_heals_a_spot_wider_than_the_ring() {
+  auto document = healing_test_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(760, 520);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::AllLayers);
+  canvas.set_retouch_ignore_adjustments(true);
+  canvas.set_brush_size(31);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_healing_diffusion(6);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+  // The spot at (90, 60), radius 6, in the sky; the source is clean sky on the same row.
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(140, 60)), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(140, 60)), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(88, 60)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(90, 60)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(92, 60)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(92, 60)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto composite = patchy::ui::qimage_from_document(document, true);
+  // Mean color over the spot (radius 6) and over a ring around the stroke (22..28 px).
+  const auto mean = [&composite](int inner, int outer) {
+    std::array<double, 3> sum{};
+    int count = 0;
+    for (int y = 60 - outer; y <= 60 + outer; ++y) {
+      for (int x = 90 - outer; x <= 90 + outer; ++x) {
+        const auto d2 = (x - 90) * (x - 90) + (y - 60) * (y - 60);
+        if (d2 < inner * inner || d2 > outer * outer) {
+          continue;
+        }
+        const auto color = composite.pixelColor(x, y);
+        sum[0] += color.red();
+        sum[1] += color.green();
+        sum[2] += color.blue();
+        ++count;
+      }
+    }
+    return std::array<double, 3>{sum[0] / count, sum[1] / count, sum[2] / count};
+  };
+  // The issue shot first: a failed check ends the test.
+  save_image_artifact("issue_382_healed_spot",
+                      composite.copy(QRect(50, 30, 80, 60)).scaled(320, 240, Qt::IgnoreAspectRatio, Qt::FastTransformation));
+  const auto spot = mean(0, 6);
+  const auto around = mean(22, 28);
+  std::fprintf(stderr, "  spot %.1f %.1f %.1f, around %.1f %.1f %.1f\n", spot[0], spot[1], spot[2], around[0],
+               around[1], around[2]);
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    CHECK(std::abs(spot[channel] - around[channel]) < 8.0);
+  }
 }
 
 // Ignore Adjustment Layers (GitHub issue 383): with it on, the composite samples leave
@@ -400,8 +470,8 @@ void ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample() {
 void ui_healing_brush_modes_blend_the_healed_color() {
   using patchy::ui::HealingMode;
   const auto make_document = [] {
-    patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
-    auto pixels = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(80, 120, 160, 255));
+    patchy::Document document(160, 16, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(160, 16, patchy::PixelFormat::rgba8(), QColor(80, 120, 160, 255));
     fill_pixel_rect(pixels, QRect(0, 0, 24, 16), QColor(200, 60, 40));
     auto* detail = pixels.pixel(4, 8);
     detail[0] = 230;
@@ -436,7 +506,7 @@ void ui_healing_brush_modes_blend_the_healed_color() {
       patchy::convert_document_depth(document, depth);
     }
     patchy::ui::CanvasWidget canvas;
-    canvas.resize(192, 64);
+    canvas.resize(640, 64);
     canvas.set_document(&document);
     canvas.set_tool(patchy::ui::CanvasTool::Healing);
     canvas.set_brush_size(1);
@@ -449,7 +519,9 @@ void ui_healing_brush_modes_blend_the_healed_color() {
     const auto source = canvas.widget_position_for_document_point(QPoint(4, 8));
     send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
     send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
-    int x = 30;
+    // 14 px apart: each heal averages the rim 4 px around its footprint (Diffusion 5),
+    // which must not reach an earlier stroke's result.
+    int x = 40;
     for (const auto& [mode, expected] : cases) {
       canvas.set_healing_mode(mode);
       CHECK(canvas.healing_mode() == mode);
@@ -464,7 +536,7 @@ void ui_healing_brush_modes_blend_the_healed_color() {
                      qPrintable(actual.name()), qPrintable(wanted.name()));
       }
       CHECK(color_close(actual, wanted, depth == patchy::BitDepth::UInt8 ? 1 : 2));
-      x += 2;
+      x += 14;
     }
     patchy::set_deep_editing_override(std::nullopt);
   }
@@ -1856,6 +1928,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
        ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample},
       {"ui_healing_brush_modes_blend_the_healed_color", ui_healing_brush_modes_blend_the_healed_color},
       {"ui_retouch_healing_test_psd_round_trips", ui_retouch_healing_test_psd_round_trips},
+      {"ui_healing_brush_heals_a_spot_wider_than_the_ring", ui_healing_brush_heals_a_spot_wider_than_the_ring},
       {"ui_healing_brush_cursor_feedback_and_ctrl_move", ui_healing_brush_cursor_feedback_and_ctrl_move},
       {"ui_healing_mode_option_persists_and_reaches_new_documents",
        ui_healing_mode_option_persists_and_reaches_new_documents},

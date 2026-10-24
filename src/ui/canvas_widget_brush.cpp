@@ -885,6 +885,9 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   }
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
+  healing_membrane_stroke_ = false;
+  healing_stroke_original_pixels_.reset();
+  healing_stroke_footprint_ = QRect();
   brush_stroke_accumulated_alpha_.clear();
   brush_stroke_union_coverage_.clear();
   brush_stroke_wet_edge_primary_.clear();
@@ -2751,6 +2754,19 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   if (painting_) {
     set_retouch_source_indicator(to + clone_source_offset_);
   }
+  const auto dirty = clone_brush_stamp_segment(from, to);
+  if (healing_membrane_stroke_) {
+    // The Healing Brush stroke's footprint, healed once on release
+    // (finish_healing_brush_stroke); the stamp itself is the raw-source preview.
+    healing_stroke_footprint_ = healing_stroke_footprint_.united(dirty);
+  }
+  return dirty;
+}
+
+// The Clone stamp, also the Healing Brush's live preview: the source as sampled,
+// written by opacity and coverage. The Healing Brush heals on release instead of per
+// dab (finish_healing_brush_stroke, docs/healing.md), so nothing here is tone matched.
+QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
   if (document_ != nullptr && layer != nullptr && std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
     return clone_brush_segment_deep(from, to);
@@ -2762,26 +2778,6 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   const auto* palette_snap = palette_snap_for_edits();
 
   const auto brush = effective_brush_input();
-  // The Healing Brush's Mode (GitHub issue 381): Replace skips the tone transfer and
-  // writes the source like Clone; a blending mode composites the healed color into the
-  // pixel with that layer blend mode (core/paint_mode.hpp); Normal keeps the classic
-  // straight-alpha write below byte for byte.
-  const auto healing_mode = tool_ == CanvasTool::Healing ? healing_mode_ : HealingMode::Normal;
-  const auto healing = tool_ == CanvasTool::Healing && healing_mode != HealingMode::Replace;
-  const auto heal_paint_mode = PaintMode::of(healing_mode_blend(healing_mode));
-  const auto healing_tone_radius =
-      std::max(1, (brush.size * (9 - std::clamp(healing_diffusion_, 1, 7)) + 15) / 16);
-  // A blending mode's write: the healed color over the pixel by `amount` (opacity times
-  // coverage) times the source alpha, as one paint dab.
-  const auto blend_healed = [&heal_paint_mode](std::uint8_t* dst, const std::uint8_t* src, std::uint16_t channels,
-                                               float amount, bool lock_alpha, QPoint point) {
-    const std::array<std::uint8_t, 4> original{dst[0], dst[1], dst[2],
-                                               channels >= 4 ? dst[3] : static_cast<std::uint8_t>(255)};
-    const auto painted = patchy::composite_paint_rgba8(
-        original, {src[0], src[1], src[2]}, amount * (static_cast<float>(src[3]) / 255.0F), heal_paint_mode,
-        point.x(), point.y(), channels >= 4, lock_alpha);
-    std::copy_n(painted.begin(), std::min<std::size_t>(channels, 4U), dst);
-  };
   const auto radius = std::max(1, brush.size) / 2;
   if (radius == 0) {
     const auto path_rect = QRect(std::min(from.x(), to.x()),
@@ -2834,17 +2830,10 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
         return;
       }
 
-      std::array<std::uint8_t, 4> healed{};
       const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
                         static_cast<std::size_t>(source_point.x()) * 4U;
-      if (healing) {
-        healed = healing_sample(clone_source_cache_, source_point, document_point, healing_tone_radius);
-        src = healed.data();
-      }
       const auto covered_opacity = opacity * coverage;
-      if (!heal_paint_mode.is_normal()) {
-        blend_healed(dst, src, channels, covered_opacity, lock_transparent_pixels, document_point);
-      } else if (channels >= 4 && !lock_transparent_pixels) {
+      if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, src, covered_opacity);
       } else {
         const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
@@ -2948,17 +2937,10 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
         continue;
       }
 
-      std::array<std::uint8_t, 4> healed{};
       const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
                         static_cast<std::size_t>(source_point.x()) * 4U;
-      if (healing) {
-        healed = healing_sample(clone_source_cache_, source_point, document_point, healing_tone_radius);
-        src = healed.data();
-      }
       const auto covered_opacity = opacity * coverage;
-      if (!heal_paint_mode.is_normal()) {
-        blend_healed(dst, src, channels, covered_opacity, lock_transparent_pixels, document_point);
-      } else if (channels >= 4 && !lock_transparent_pixels) {
+      if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, src, covered_opacity);
       } else {
         const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
@@ -2982,8 +2964,8 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   return dirty;
 }
 
-// clone_brush_segment for 16/32-bit layers (docs/high-bit-depth.md): the same stamp and
-// frequency-separation healing on the depth-native source (clone_source_deep_), in float.
+// clone_brush_stamp_segment for 16/32-bit layers (docs/high-bit-depth.md): the same stamp
+// on the depth-native source (clone_source_deep_), in float.
 QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
   const auto& source = clone_source_deep_;
@@ -2991,11 +2973,6 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
     return {};
   }
   const auto brush = effective_brush_input();
-  // The Healing Brush's Mode (GitHub issue 381), as in clone_brush_segment.
-  const auto healing_mode = tool_ == CanvasTool::Healing ? healing_mode_ : HealingMode::Normal;
-  const auto healing = tool_ == CanvasTool::Healing && healing_mode != HealingMode::Replace;
-  const auto heal_paint_mode = PaintMode::of(healing_mode_blend(healing_mode));
-  const auto tone_radius = std::max(1, (brush.size * (9 - std::clamp(healing_diffusion_, 1, 7)) + 15) / 16);
   const auto radius = std::max(1, brush.size) / 2;
   const auto document_rect = QRect(0, 0, document_->width(), document_->height());
   auto stroke_rect = QRect(std::min(from.x(), to.x()) - radius, std::min(from.y(), to.y()) - radius,
@@ -3019,30 +2996,6 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
     x = std::clamp(x, 0, source.width() - 1);
     y = std::clamp(y, 0, source.height() - 1);
     return load_pixel(source.format(), source.pixel(x, y));
-  };
-  // healing_ring_tone on float samples: the alpha-weighted mean of eight ring points.
-  const auto ring_tone = [&](QPoint center) {
-    constexpr std::array<std::array<int, 2>, 8> kDirections{{
-        {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}}, {{1, 0}}, {{-1, 1}}, {{0, 1}}, {{1, 1}},
-    }};
-    std::array<double, 3> sum{};
-    double alpha_weight = 0.0;
-    for (const auto& direction : kDirections) {
-      const auto value = sample(center.x() + direction[0] * tone_radius, center.y() + direction[1] * tone_radius);
-      const auto alpha = static_cast<double>(value[3]) / 255.0;
-      alpha_weight += alpha;
-      for (std::size_t c = 0; c < 3U; ++c) {
-        sum[c] += static_cast<double>(value[c]) * alpha;
-      }
-    }
-    if (alpha_weight > std::numeric_limits<double>::epsilon()) {
-      for (auto& channel : sum) {
-        channel /= alpha_weight;
-      }
-      return sum;
-    }
-    const auto value = sample(center.x(), center.y());
-    return std::array<double, 3>{value[0], value[1], value[2]};
   };
   const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
   const auto dx = static_cast<double>(to.x() - from.x());
@@ -3083,24 +3036,10 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
       if (coverage <= 0.0F) {
         continue;
       }
-      auto src = sample(source_point.x(), source_point.y());
-      if (healing) {
-        const auto source_tone = ring_tone(source_point);
-        const auto destination_tone = ring_tone(document_point);
-        for (std::size_t c = 0; c < 3U; ++c) {
-          // Display-encoded (16-bit) values clamp to full scale as the 8-bit path does;
-          // 32-bit linear light is unbounded above.
-          const auto healed = std::max(0.0, destination_tone[c] + static_cast<double>(src[c]) - source_tone[c]);
-          src[c] = static_cast<float>(format.bit_depth == BitDepth::Float32 ? healed : std::min(healed, 255.0));
-        }
-      }
+      const auto src = sample(source_point.x(), source_point.y());
       const auto amount = std::clamp(opacity * coverage, 0.0F, 1.0F);
       auto value = before;
-      if (!heal_paint_mode.is_normal()) {
-        value = patchy::composite_paint_deep(before, {src[0], src[1], src[2]}, amount * (src[3] / 255.0F),
-                                             heal_paint_mode, x, y, format.channels >= 4, lock_transparent_pixels,
-                                             deep_domain_for(format.bit_depth));
-      } else if (format.channels >= 4 && !lock_transparent_pixels) {
+      if (format.channels >= 4 && !lock_transparent_pixels) {
         // blend_straight_rgba in float.
         const auto source_alpha = src[3] / 255.0F;
         const auto destination_alpha = before[3] / 255.0F;

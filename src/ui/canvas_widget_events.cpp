@@ -1022,6 +1022,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         clone_aligned_offset_set_ = clone_aligned_;
       }
       clear_brush_stroke_tracking();
+      // The Healing Brush (except Replace) previews the raw source while painting and
+      // heals the whole footprint once on release, from the stroke-start pixels kept here.
+      if (healing && healing_mode_ != HealingMode::Replace) {
+        if (const auto* target = active_pixel_layer(); target != nullptr) {
+          healing_membrane_stroke_ = true;
+          healing_stroke_original_pixels_ = std::as_const(*target).pixels();
+          healing_stroke_original_bounds_ = target->bounds();
+          healing_stroke_footprint_ = QRect();
+        }
+      }
       begin_axis_constrained_stroke(QPointF(document_point));
       painting_ = true;
       begin_coalesced_mouse_tracking(*this, *event, coalesced_mouse_state_);
@@ -2795,6 +2805,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
     }
+    dirty = dirty.united(finish_healing_brush_stroke());
     painting_ = false;
     set_retouch_source_indicator(std::nullopt);
     sync_stroke_input_compression();
@@ -4515,6 +4526,10 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     const auto held_dab = finish_brush_tip_stroke(effective_tool_for_input() == CanvasTool::Eraser);
     if (!held_dab.isEmpty()) {
       active_edit_target_changed_impl(QRegion(held_dab), DocumentChangeReason::BrushStrokePreview);
+    }
+    // A Healing Brush stroke cut short heals what it painted, like a released one.
+    if (const auto healed = finish_healing_brush_stroke(); !healed.isEmpty()) {
+      active_edit_target_changed_impl(QRegion(healed), DocumentChangeReason::BrushStrokePreview);
     }
     painting_ = false;
     set_retouch_source_indicator(std::nullopt);

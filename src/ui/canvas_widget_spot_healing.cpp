@@ -32,6 +32,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_buffer.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/spot_heal.hpp"
 #include "core/worker_budget.hpp"
@@ -729,6 +730,295 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
   } else {
     notify_document_changed(DocumentChangeReason::BrushStrokeFinished);
   }
+  return dirty;
+}
+
+// The Healing Brush's release-time heal (docs/healing.md "Classic Healing Brush"). The
+// stroke painted the raw source as a preview (clone_brush_stamp_segment) and recorded each
+// pixel's coverage, opacity included, in brush_stroke_alpha_caps_. Here the footprint is
+// healed once: the destination-minus-source offsets on the cells just outside it (source =
+// pixel + the stroke's Alt-click/Aligned offset, both read from the frozen gesture
+// snapshot) are interpolated across it by the healing membrane of the expired US 6587592
+// (core/heal_membrane.hpp, the OFFSET field only, no source gradients), and the healed
+// color (source + membrane) is written over the stroke-start pixels by that coverage with
+// the Mode. Diffusion sets how far along the boundary the offsets are averaged before the
+// solve (Diffusion - 1 pixels), so film grain on the rim does not print into the heal.
+// The source mapping is the user's offset alone: no patch search, no per-move heal or
+// preview (US 8050498; docs/legal-constraints.md).
+QRect CanvasWidget::finish_healing_brush_stroke() {
+  if (!healing_membrane_stroke_) {
+    return {};
+  }
+  healing_membrane_stroke_ = false;
+  auto original = std::move(healing_stroke_original_pixels_);
+  healing_stroke_original_pixels_.reset();
+  const auto original_bounds = healing_stroke_original_bounds_;
+  auto* layer = active_pixel_layer();
+  if (document_ == nullptr || layer == nullptr || !original.has_value()) {
+    return {};
+  }
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto footprint = healing_stroke_footprint_.intersected(canvas_rect);
+  healing_stroke_footprint_ = QRect();
+  const auto format = std::as_const(*layer).pixels().format();
+  const bool deep = format.bit_depth != BitDepth::UInt8;
+  if (footprint.isEmpty() || format.channels < 3 || (deep ? clone_source_deep_.empty() : clone_source_cache_.isNull())) {
+    return {};
+  }
+
+  const int smoothing = std::clamp(healing_diffusion_, 1, 7) - 1;
+  const int pad = smoothing + 1;
+  const auto grid = footprint.adjusted(-pad, -pad, pad, pad).intersected(canvas_rect);
+  const auto width = grid.width();
+  const auto height = grid.height();
+  const auto cells = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  const auto cell_index = [width](int x, int y) {
+    return static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+  };
+  // The footprint's coverage, read once here: the stroke map is not safe to share with
+  // the worker strips below.
+  std::vector<float> amount(cells, 0.0F);
+  std::vector<std::uint8_t> interior(cells, 0U);
+  for (int y = footprint.top(); y <= footprint.bottom(); ++y) {
+    for (int x = footprint.left(); x <= footprint.right(); ++x) {
+      if (const auto* cap = brush_stroke_alpha_caps_.find(x, y); cap != nullptr && *cap > 0.0F) {
+        const auto index = cell_index(x - grid.left(), y - grid.top());
+        amount[index] = std::min(*cap, 1.0F);
+        interior[index] = 1U;
+      }
+    }
+  }
+
+  begin_processing_operation();
+  const auto offset = clone_source_offset_;
+  // 16/32-bit offsets carry four extra bits through the integer solver (it is linear,
+  // so the scale divides back out); 8-bit stays on whole levels like Spot Healing.
+  const int scale = deep ? 16 : 1;
+  const auto canvas_width = canvas_rect.width();
+  const auto canvas_height = canvas_rect.height();
+  const auto& source_deep = clone_source_deep_;
+  const auto& source_image = clone_source_cache_;
+  const auto snapshot = [&](std::int32_t x, std::int32_t y) {
+    x = std::clamp(x, 0, canvas_width - 1);
+    y = std::clamp(y, 0, canvas_height - 1);
+    if (deep) {
+      return load_pixel(source_deep.format(), source_deep.pixel(x, y));
+    }
+    const auto* px = source_image.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
+    return std::array<float, 4>{static_cast<float>(px[0]), static_cast<float>(px[1]), static_cast<float>(px[2]),
+                                static_cast<float>(px[3])};
+  };
+  std::vector<std::int32_t> raw(cells * 3U, 0);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const auto index = cell_index(x, y);
+      if (interior[index] != 0U) {
+        continue;
+      }
+      const auto doc_x = grid.left() + x;
+      const auto doc_y = grid.top() + y;
+      const auto destination = snapshot(doc_x, doc_y);
+      const auto source = snapshot(doc_x + offset.x(), doc_y + offset.y());
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const auto value = std::lround((destination[channel] - source[channel]) * static_cast<float>(scale));
+        raw[index * 3U + channel] = static_cast<std::int32_t>(std::clamp<long>(value, -32767L, 32767L));
+      }
+    }
+  }
+  std::vector<std::int16_t> offsets(cells * 3U);
+  for (std::size_t i = 0; i < offsets.size(); ++i) {
+    offsets[i] = static_cast<std::int16_t>(raw[i]);
+  }
+  if (smoothing > 0) {
+    // Box means of the boundary offsets over the boundary cells within `smoothing`
+    // (integral images, integer sums, round half away from zero), for the cells the
+    // solve reads: those beside the footprint.
+    const auto integral_width = static_cast<std::size_t>(width) + 1U;
+    std::vector<std::int64_t> sums((static_cast<std::size_t>(height) + 1U) * integral_width * 3U, 0);
+    std::vector<std::int64_t> counts((static_cast<std::size_t>(height) + 1U) * integral_width, 0);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const auto index = cell_index(x, y);
+        const auto at = (static_cast<std::size_t>(y) + 1U) * integral_width + static_cast<std::size_t>(x) + 1U;
+        const auto up = at - integral_width;
+        const bool boundary = interior[index] == 0U;
+        counts[at] = counts[up] + counts[at - 1U] - counts[up - 1U] + (boundary ? 1 : 0);
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          sums[at * 3U + channel] = sums[up * 3U + channel] + sums[(at - 1U) * 3U + channel] -
+                                    sums[(up - 1U) * 3U + channel] + (boundary ? raw[index * 3U + channel] : 0);
+        }
+      }
+    }
+    const auto box = [&](const std::vector<std::int64_t>& table, std::size_t stride, std::size_t channel, int x0,
+                         int y0, int x1, int y1) {
+      const auto row0 = static_cast<std::size_t>(y0) * integral_width;
+      const auto row1 = (static_cast<std::size_t>(y1) + 1U) * integral_width;
+      const auto col0 = static_cast<std::size_t>(x0);
+      const auto col1 = static_cast<std::size_t>(x1) + 1U;
+      return table[(row1 + col1) * stride + channel] - table[(row0 + col1) * stride + channel] -
+             table[(row1 + col0) * stride + channel] + table[(row0 + col0) * stride + channel];
+    };
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const auto index = cell_index(x, y);
+        if (interior[index] != 0U) {
+          continue;
+        }
+        const bool beside_footprint = (x > 0 && interior[index - 1U] != 0U) ||
+                                      (x + 1 < width && interior[index + 1U] != 0U) ||
+                                      (y > 0 && interior[index - static_cast<std::size_t>(width)] != 0U) ||
+                                      (y + 1 < height && interior[index + static_cast<std::size_t>(width)] != 0U);
+        if (!beside_footprint) {
+          continue;
+        }
+        const auto x0 = std::max(0, x - smoothing);
+        const auto y0 = std::max(0, y - smoothing);
+        const auto x1 = std::min(width - 1, x + smoothing);
+        const auto y1 = std::min(height - 1, y + smoothing);
+        const auto count = box(counts, 1U, 0U, x0, y0, x1, y1);
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          const auto sum = box(sums, 3U, channel, x0, y0, x1, y1);
+          const auto mean = sum >= 0 ? (sum + count / 2) / count : -((-sum + count / 2) / count);
+          offsets[index * 3U + channel] = static_cast<std::int16_t>(std::clamp<std::int64_t>(mean, -32767, 32767));
+        }
+      }
+    }
+  }
+  tick_processing_operation();
+  patchy::solve_heal_membrane(interior.data(), width, height, offsets.data());
+
+  const auto* palette_snap = palette_snap_for_edits();
+  const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
+  const auto paint_mode = PaintMode::of(healing_mode_blend(healing_mode_));
+  const auto domain = deep_domain_for(format.bit_depth);
+  auto& pixels = layer->pixels();
+  const auto layer_bounds = layer->bounds();
+  const auto layer_rect = to_qrect(layer_bounds);
+  const auto channels = format.channels;
+  const auto pixel_size = bytes_per_pixel(format);
+  const auto stride = pixels.stride_bytes();
+  const auto& original_pixels = std::as_const(*original);
+  const auto original_rect = to_qrect(original_bounds);
+  // Writes go through this span only (taken after the last event pump; see
+  // heal_mask_from_surroundings for the copy-on-write rule).
+  std::span<std::uint8_t> pixel_bytes;
+  const auto heal_rows = [&](int row_begin, int row_end, bool allow_ticks) {
+    QRect dirty;
+    for (int y = row_begin; y < row_end; ++y) {
+      if (allow_ticks) {
+        tick_processing_operation();
+      }
+      for (int x = footprint.left(); x <= footprint.right(); ++x) {
+        const auto index = cell_index(x - grid.left(), y - grid.top());
+        if (interior[index] == 0U) {
+          continue;
+        }
+        const QPoint document_point(x, y);
+        if (!layer_rect.contains(document_point)) {
+          continue;
+        }
+        auto* dst = pixel_bytes.data() + static_cast<std::size_t>(y - layer_bounds.y) * stride +
+                    static_cast<std::size_t>(x - layer_bounds.x) * pixel_size;
+        // The pixel before the stroke (transparent where the layer grew under it).
+        std::array<float, 4> before{0.0F, 0.0F, 0.0F, 0.0F};
+        if (original_rect.contains(document_point)) {
+          before = load_pixel(original_pixels.format(),
+                              original_pixels.pixel(x - original_bounds.x, y - original_bounds.y));
+        }
+        if (channels < 4) {
+          before[3] = 255.0F;
+        }
+        const auto source = snapshot(x + offset.x(), y + offset.y());
+        std::array<float, 4> healed{};
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          const auto value = source[channel] + static_cast<float>(offsets[index * 3U + channel]) /
+                                                   static_cast<float>(scale);
+          healed[channel] = format.bit_depth == BitDepth::Float32 ? std::max(0.0F, value)
+                                                                    : std::clamp(value, 0.0F, 255.0F);
+        }
+        healed[3] = source[3];
+        const auto coverage = amount[index];
+        std::array<float, 4> value = before;
+        if (!deep) {
+          // 8-bit: the bytes the classic write and the paint compositor take.
+          std::array<std::uint8_t, 4> out{clamp_byte(before[0]), clamp_byte(before[1]), clamp_byte(before[2]),
+                                          clamp_byte(before[3])};
+          const std::array<std::uint8_t, 4> healed_bytes{clamp_byte(healed[0]), clamp_byte(healed[1]),
+                                                         clamp_byte(healed[2]), clamp_byte(healed[3])};
+          if (!paint_mode.is_normal()) {
+            out = patchy::composite_paint_rgba8(out, {healed_bytes[0], healed_bytes[1], healed_bytes[2]},
+                                                coverage * (static_cast<float>(healed_bytes[3]) / 255.0F),
+                                                paint_mode, x, y, channels >= 4, lock_transparent_pixels);
+          } else if (channels >= 4 && !lock_transparent_pixels) {
+            blend_straight_rgba(out.data(), healed_bytes.data(), coverage);
+          } else {
+            const auto effective = coverage * (static_cast<float>(healed_bytes[3]) / 255.0F);
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+              out[channel] = clamp_byte(static_cast<float>(healed_bytes[channel]) * effective +
+                                        static_cast<float>(out[channel]) * (1.0F - effective));
+            }
+          }
+          std::copy_n(out.begin(), std::min<std::size_t>(channels, 4U), dst);
+          if (palette_snap != nullptr) {
+            patchy::snap_pixel_to_palette(dst, channels, *palette_snap);
+          }
+        } else {
+          if (!paint_mode.is_normal()) {
+            value = patchy::composite_paint_deep(before, {healed[0], healed[1], healed[2]},
+                                                 coverage * (healed[3] / 255.0F), paint_mode, x, y, channels >= 4,
+                                                 lock_transparent_pixels, domain);
+          } else if (channels >= 4 && !lock_transparent_pixels) {
+            // blend_straight_rgba in float, as the deep Clone stamp writes.
+            const auto source_alpha = healed[3] / 255.0F;
+            const auto destination_alpha = before[3] / 255.0F;
+            const auto out_alpha = source_alpha * coverage + destination_alpha * (1.0F - coverage);
+            if (coverage >= 0.999F) {
+              value = healed;
+            } else if (out_alpha <= 0.0F) {
+              value = {healed[0], healed[1], healed[2], 0.0F};
+            } else {
+              for (std::size_t channel = 0; channel < 3U; ++channel) {
+                value[channel] = (healed[channel] * source_alpha * coverage +
+                                  before[channel] * destination_alpha * (1.0F - coverage)) /
+                                 out_alpha;
+              }
+              value[3] = out_alpha * 255.0F;
+            }
+          } else {
+            const auto effective = coverage * (healed[3] / 255.0F);
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+              value[channel] = healed[channel] * effective + before[channel] * (1.0F - effective);
+            }
+          }
+          store_pixel(format, dst, value);
+        }
+        dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+      }
+    }
+    return dirty;
+  };
+
+  const auto area = static_cast<std::int64_t>(footprint.width()) * footprint.height();
+  pixel_bytes = pixels.data();  // detaches shared storage on this thread
+  const auto hardware_threads = patchy::hardware_worker_threads();
+  const auto workers = patchy::max_blocking_fanout_workers(
+      std::clamp(std::min(footprint.height() / 64, hardware_threads), 1, 16));
+  QRect dirty;
+  if (area >= kHealParallelArea && workers >= 2 && !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    std::vector<std::future<QRect>> strips;
+    strips.reserve(static_cast<std::size_t>(workers));
+    const auto rows_per_strip = (footprint.height() + workers - 1) / workers;
+    for (int start = footprint.top(); start <= footprint.bottom(); start += rows_per_strip) {
+      const auto end = std::min(start + rows_per_strip, footprint.bottom() + 1);
+      strips.push_back(std::async(std::launch::async, heal_rows, start, end, false));
+    }
+    for (auto& strip : strips) {
+      dirty = dirty.united(strip.get());
+    }
+  } else {
+    dirty = heal_rows(footprint.top(), footprint.bottom() + 1, true);
+  }
+  end_processing_operation();
   return dirty;
 }
 
