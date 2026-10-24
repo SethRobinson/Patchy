@@ -4438,6 +4438,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   startup_trace::Scope hotkeys_phase("mw.panel_entries_hotkeys");
   default_collapsed_panels_ = collapsed_panel_names();
   default_panel_order_ = panel_column_->section_order();
+  default_tab_groups_ = panel_column_->tab_groups();
   install_window_panel_entries();
   hotkey_registry_.apply_to_actions();
   hotkeys_phase.end();

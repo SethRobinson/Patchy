@@ -437,6 +437,9 @@ public:
     return last_history_retained_bytes_;
   }
 
+  // The toolbar right-click menu: the panel and toolbar toggles and Reset Panels.
+  QMenu* createPopupMenu() override;
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
@@ -606,8 +609,8 @@ private:
   // toggles and Reset Panels.
   void show_panel_header_menu(const QString& panel_id, const QPoint& global_position, bool on_tab_bar);
   // The saved panel layout (docs/right-docks.md "Saved panel layout"): which panels and
-  // toolbars are closed, which are collapsed, the tab group's front panel and a picked
-  // column width. Read once after the window geometry, written on a consented close;
+  // toolbars are closed, which are collapsed, the tab group's tab order and front panel,
+  // the section order and heights, and a picked column width. Read once after the window geometry, written on a consented close;
   // offscreen runs skip both (panel_layout_persists).
   static bool panel_layout_persists();
   void save_panel_layout();
@@ -3016,6 +3019,7 @@ private:
   QAction* window_reset_panels_action_{nullptr};
   QStringList default_collapsed_panels_;
   QStringList default_panel_order_;
+  QList<QStringList> default_tab_groups_;
   std::vector<QAction*> window_document_actions_;
   QAction* duplicate_layer_to_document_action_{nullptr};
   QAction* dock_document_action_{nullptr};

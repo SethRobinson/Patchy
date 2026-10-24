@@ -5,7 +5,8 @@
 // title row (collapse toggle and title) over its panel. Sections sit in a vertical
 // QSplitter, so the dividers between them drag; a collapsed section is exactly its
 // title row. Dragging a title row (or the group's tab bar) up or down moves its
-// section within the column; a click on a collapsed section's title row expands it and
+// section within the column, and dragging a tab sideways reorders its group's tabs;
+// a click on a collapsed section's title row expands it and
 // a double click on an expanded one collapses it (GitHub issue 335). Patchy owns this
 // layout: nothing floats, nothing is a QDockWidget, and every size is set through plain
 // layout and splitter calls.
@@ -102,7 +103,7 @@ public:
   void restore_floors();
 
   // The sections top to bottom, each named by its first panel's id (the tab group by
-  // its first tab, "layersDock"), closed sections included.
+  // its first tab, "layersDock" until its tabs move), closed sections included.
   [[nodiscard]] QStringList section_order() const;
   // Reorders the sections to follow `ids` (any panel id names its section). Unknown ids
   // are skipped; sections left unnamed keep their relative order after the named ones.
@@ -112,6 +113,15 @@ public:
   // count: the bottom), as a title-row drag does.
   void move_section(const QString& id, int slot);
 
+  // Each tab group's panel ids in tab order, top to bottom.
+  [[nodiscard]] QList<QStringList> tab_groups() const;
+  // Reorders the tabs of the group holding `ids`' first tab to follow `ids`. Ids of other
+  // sections are skipped; tabs left unnamed keep their relative order after the named ones.
+  void set_tab_order(const QStringList& ids);
+  // Moves tab `id` to sit just before the tab now at `slot` (the tab count: the end), as a
+  // sideways drag in the tab bar does.
+  void move_tab(const QString& id, int slot);
+
 signals:
   // A right-click on a title row or a tab: the panel under the pointer.
   void header_context_menu_requested(const QString& panel_id, const QPoint& global_position, bool on_tab_bar);
@@ -119,6 +129,8 @@ signals:
   void panel_expanded_changed(const QString& panel_id, bool expanded);
   // A drag, move_section or set_section_order changed the order.
   void section_order_changed();
+  // A tab drag, move_tab or set_tab_order changed a group's tab order.
+  void tab_order_changed();
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -144,10 +156,14 @@ private:
   [[nodiscard]] Section* section_for_drag_handle(const QObject* handle) const;
   [[nodiscard]] Page* page_for_header(const QObject* header) const;
   [[nodiscard]] int drop_slot_at(const QPoint& column_position) const;
+  void ensure_drop_indicator();
   void show_drop_indicator(int slot);
+  [[nodiscard]] int tab_drop_slot_at(const Section& section, const QPoint& bar_position) const;
+  void show_tab_drop_indicator(const Section& section, int slot);
   void end_section_drag(bool apply);
   void move_section_index(int from, int slot);
   void reorder_sections(std::vector<std::unique_ptr<Section>> order);
+  bool move_tab_index(Section& section, int from, int slot);
 
   QSplitter* splitter_{nullptr};
   std::vector<std::unique_ptr<Section>> sections_;
@@ -156,6 +172,11 @@ private:
   Section* drag_section_{nullptr};
   QPoint drag_press_global_;
   bool dragging_{false};
+  // On a tab bar: the tab the press landed on (-1: none). A mostly sideways drag from it
+  // moves that tab (drag_tab_) to tab_drop_slot_ instead of moving the section.
+  int press_tab_{-1};
+  int drag_tab_{-1};
+  int tab_drop_slot_{-1};
   // The title row a left press landed on, for the click that expands it, and the section
   // that click expanded, so the double click it starts does not collapse it again.
   Page* click_page_{nullptr};

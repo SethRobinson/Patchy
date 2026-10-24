@@ -290,7 +290,7 @@ void ui_panel_layout_from_before_color_panel_keeps_its_panels() {
   const QStringList keys = {QStringLiteral("window/panelLayoutVersion"), QStringLiteral("window/hiddenPanels"),
                             QStringLiteral("window/collapsedPanels"), QStringLiteral("window/frontPanel"),
                             QStringLiteral("window/panelColumnWidth"), QStringLiteral("window/panelSplitterState"),
-                            QStringLiteral("window/panelOrder")};
+                            QStringLiteral("window/panelOrder"), QStringLiteral("window/panelGroups")};
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
   for (const auto& key : keys) {
     restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
@@ -348,9 +348,14 @@ void ui_panel_layout_from_before_color_panel_keeps_its_panels() {
   CHECK(column->section_widget(kColorPanel)->height() ==
         column->section_widget(QStringLiteral("paletteDock"))->height());
   CHECK(column->section_widget(kColorPanel)->isVisible());
+  // The record has no tab order: the group keeps the default one.
+  CHECK(column->section_panel_ids(QStringLiteral("layersDock")) ==
+        (QStringList{QStringLiteral("layersDock"), QStringLiteral("channelsDock"), QStringLiteral("pathsDock")}));
   // Saving writes the current version, which a later launch reads as is.
   MainWindowTestAccess::write_panel_layout(window);
-  CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelLayoutVersion")).toInt() == 3);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelLayoutVersion")).toInt() == 4);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelGroups")).toStringList() ==
+        QStringList{QStringLiteral("layersDock,channelsDock,pathsDock")});
   CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelOrder")).toStringList().contains(kColorPanel));
 }
 

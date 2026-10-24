@@ -825,13 +825,35 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
   menu.exec(global_position);
 }
 
+QMenu* MainWindow::createPopupMenu() {
+  if (window_panel_actions_.empty()) {
+    return QMainWindow::createPopupMenu();
+  }
+  // A right-click on a toolbar (or the menu bar) lists the panels and toolbars, as the
+  // panel header menu does. QMainWindow deletes the menu once it closes; the actions stay.
+  auto* menu = new QMenu(this);
+  menu->setObjectName(QStringLiteral("toolbarPanelMenu"));
+  sort_window_panel_entries();
+  for (auto* action : sorted_window_panel_actions()) {
+    menu->addAction(action);
+  }
+  if (window_reset_panels_action_ != nullptr) {
+    menu->addSeparator();
+    menu->addAction(window_reset_panels_action_);
+  }
+  return menu;
+}
+
 namespace {
 
 // The saved panel layout (docs/right-docks.md, "Saved panel layout"). Every key is a
 // compatibility contract. The version guards what the values mean: a release that adds,
 // renames or regroups panels bumps it, and an older record is then ignored rather than
 // half applied, unless read_panel_layout knows how to carry it forward.
-constexpr int kPanelLayoutVersion = 3;
+constexpr int kPanelLayoutVersion = 4;
+// Version 3 is version 4 without the tab order (window/panelGroups): read_panel_layout keeps
+// it with the default tab order.
+constexpr int kPanelLayoutVersionBeforeTabOrder = 3;
 // Version 2 is version 3 without the Color panel (GitHub issue 365): read_panel_layout
 // keeps such a layout and adds the panel collapsed, just above Palette.
 constexpr int kPanelLayoutVersionBeforeColor = 2;
@@ -844,6 +866,8 @@ QString front_panel_key() { return QStringLiteral("window/frontPanel"); }
 QString panel_column_width_key() { return QStringLiteral("window/panelColumnWidth"); }
 QString panel_heights_key() { return QStringLiteral("window/panelSplitterState"); }
 QString panel_order_key() { return QStringLiteral("window/panelOrder"); }
+// One entry per tab group: its panel ids in tab order, joined by commas.
+QString panel_groups_key() { return QStringLiteral("window/panelGroups"); }
 
 // The two toolbars, by object name, with the area each starts in.
 struct DefaultToolbar {
@@ -923,6 +947,11 @@ void MainWindow::write_panel_layout() {
   settings.setValue(collapsed_panels_key(), collapsed_panel_names());
   settings.setValue(front_panel_key(), front);
   settings.setValue(panel_order_key(), panel_column_->section_order());
+  QStringList groups;
+  for (const auto& group : panel_column_->tab_groups()) {
+    groups << group.join(QLatin1Char(','));
+  }
+  settings.setValue(panel_groups_key(), groups);
   settings.setValue(panel_heights_key(), panel_column_->save_heights());
   if (right_dock_width_follows_minimum_ || right_dock_pinned_width_ <= 0) {
     settings.remove(panel_column_width_key());
@@ -940,11 +969,18 @@ void MainWindow::restore_panel_layout() {
 void MainWindow::read_panel_layout() {
   const auto settings = app_settings();
   const auto version = settings.value(panel_layout_version_key(), 0).toInt();
-  if (panel_column_ == nullptr || (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeColor)) {
+  if (panel_column_ == nullptr || (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeTabOrder &&
+                                    version != kPanelLayoutVersionBeforeColor)) {
     return;
   }
   const auto color_panel = QString::fromLatin1(kColorPanel);
   const bool add_color_panel = version == kPanelLayoutVersionBeforeColor && panel_column_->has_panel(color_panel);
+  // The tab order first; older records keep the default one.
+  if (version == kPanelLayoutVersion) {
+    for (const auto& group : settings.value(panel_groups_key()).toStringList()) {
+      panel_column_->set_tab_order(group.split(QLatin1Char(','), Qt::SkipEmptyParts));
+    }
+  }
   auto collapsed = settings.value(collapsed_panels_key()).toStringList();
   if (add_color_panel) {
     collapsed << color_panel;
@@ -998,12 +1034,15 @@ void MainWindow::reset_panels() {
   if (panel_column_ == nullptr) {
     return;
   }
-  // Every panel open in the first-launch order, collapse states and heights, Layers in
-  // front. Nothing is re-parented, so the window keeps its size and place.
+  // Every panel open in the first-launch section and tab order, collapse states and
+  // heights, Layers in front. Nothing is re-parented, so the window keeps its size and place.
   // Floors a short screen lowered stay lowered: putting them back would ask for more
   // height than the window has and grow it past the screen.
   for (const auto& id : panel_column_->panel_ids()) {
     panel_column_->set_panel_visible(id, true);
+  }
+  for (const auto& group : default_tab_groups_) {
+    panel_column_->set_tab_order(group);
   }
   panel_column_->set_section_order(default_panel_order_);
   apply_collapsed_panels(default_collapsed_panels_);

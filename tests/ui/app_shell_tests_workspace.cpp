@@ -53,6 +53,7 @@
 #include <QAbstractButton>
 #include <QTabBar>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QToolBar>
 #include <QPainter>
 #include <QPixmap>
@@ -1350,6 +1351,147 @@ void ui_panel_title_drag_reorders_sections() {
   check_filled("defaults again");
 }
 
+// Dragging a tab sideways in the group's tab bar reorders the tabs; the stack's pages, the
+// tab texts and every per-tab state follow, a drop line shows where the tab lands, Escape
+// cancels, and nothing floats or leaves the bar.
+void ui_panel_tab_drag_reorders_tabs() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (column == nullptr) {
+    return;
+  }
+  const auto layers = QStringLiteral("layersDock");
+  const auto channels = QStringLiteral("channelsDock");
+  const auto paths = QStringLiteral("pathsDock");
+  auto* tabs = column->tab_bar(layers);
+  auto* stack = column->section_widget(layers)->findChild<QStackedWidget*>();
+  CHECK(tabs != nullptr && stack != nullptr);
+  if (tabs == nullptr || stack == nullptr) {
+    return;
+  }
+  CHECK(column->section_panel_ids(layers) == (QStringList{layers, channels, paths}));
+  int changes = 0;
+  QObject::connect(column, &patchy::ui::PanelColumn::tab_order_changed, column, [&changes] { ++changes; });
+  const auto top_level_count = QApplication::topLevelWidgets().size();
+  // The tabs, the stack and the pages keep one index per panel.
+  const auto check_in_step = [&](const QStringList& expected, const char* context) {
+    const auto ids = column->section_panel_ids(layers);
+    bool ok = ids == expected && tabs->count() == expected.size() && stack->count() == expected.size();
+    for (int index = 0; ok && index < expected.size(); ++index) {
+      ok = stack->widget(index) == column->panel_page(expected[index]) &&
+           tabs->tabText(index) == column->title_label(expected[index])->text() &&
+           tabs->isTabVisible(index) == column->panel_visible(expected[index]);
+    }
+    ok = ok && stack->currentIndex() == tabs->currentIndex();
+    if (!ok) {
+      std::printf("%s: tabs %s, expected %s\n", context, qPrintable(ids.join(QLatin1Char(','))),
+                  qPrintable(expected.join(QLatin1Char(','))));
+    }
+    CHECK(ok);
+  };
+  // Presses tab `index`, crosses the drag distance sideways (with a little vertical
+  // jitter), then moves to the bar point `to` and releases unless told not to.
+  const auto drag_tab = [&](int index, QPoint to, bool release) {
+    const auto from = tabs->tabRect(index).center();
+    const int distance = QApplication::startDragDistance() + 2;
+    const int step = to.x() >= from.x() ? distance : -distance;
+    send_mouse(*tabs, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*tabs, QEvent::MouseMove, from + QPoint(step, 1), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*tabs, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    if (release) {
+      send_mouse(*tabs, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+    }
+  };
+  const auto section_order_before = column->section_order();
+
+  // Layers dragged past the middle of Paths lands last; it was pressed, so it is in front.
+  const auto paths_rect = tabs->tabRect(2);
+  const QPoint past_paths(paths_rect.right() - 2, paths_rect.center().y());
+  drag_tab(0, past_paths, false);
+  auto* indicator = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+  CHECK(indicator != nullptr && indicator->isVisible());
+  if (indicator != nullptr) {
+    // A vertical line at the last tab's trailing edge, as tall as the bar.
+    const auto edge = tabs->mapTo(column, QPoint(paths_rect.right() + 1, 0));
+    const bool placed = std::abs(indicator->geometry().center().x() - edge.x()) <= 2 &&
+                        indicator->height() == tabs->height() && indicator->y() == edge.y();
+    if (!placed) {
+      std::printf("tab drop line at %d,%d %dx%d, tab edge at %d,%d\n", indicator->x(), indicator->y(),
+                  indicator->width(), indicator->height(), edge.x(), edge.y());
+    }
+    CHECK(placed);
+  }
+  save_widget_artifact("ui_panel_tab_drag_reorders_tabs_drop_line", *column);
+  send_mouse(*tabs, QEvent::MouseButtonRelease, past_paths, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(indicator == nullptr || !indicator->isVisible());
+  check_in_step({channels, paths, layers}, "layers to the end");
+  CHECK(column->panel_in_front(layers));
+  CHECK(stack->currentWidget() == column->panel_page(layers));
+  CHECK(changes == 1);
+  CHECK(QApplication::overrideCursor() == nullptr);
+  // The section stays where it was; only its name follows its first tab.
+  CHECK(column->section_order().mid(1) == section_order_before.mid(1));
+  CHECK(column->section_order().first() == channels);
+  CHECK(QApplication::topLevelWidgets().size() == top_level_count);
+  save_widget_artifact("ui_panel_tab_drag_reorders_tabs_after", *column);
+
+  // Paths dragged left of the first tab's middle lands first.
+  drag_tab(1, QPoint(tabs->tabRect(0).left() + 2, tabs->tabRect(0).center().y()), true);
+  check_in_step({paths, channels, layers}, "paths to the front");
+  CHECK(column->panel_in_front(paths));
+  CHECK(changes == 2);
+
+  // A drop beside the tab's own place changes nothing and shows no line.
+  const auto channels_rect = tabs->tabRect(1);
+  const QPoint inside_channels(channels_rect.right() - 2, channels_rect.center().y());
+  drag_tab(1, inside_channels, false);
+  CHECK(indicator == nullptr || !indicator->isVisible());
+  send_mouse(*tabs, QEvent::MouseButtonRelease, inside_channels, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  check_in_step({paths, channels, layers}, "drop in place");
+  CHECK(changes == 2);
+
+  // Escape cancels a tab drag.
+  drag_tab(0, QPoint(tabs->tabRect(2).right() - 2, tabs->tabRect(2).center().y()), false);
+  CHECK(indicator != nullptr && indicator->isVisible());
+  QTest::keyClick(&window, Qt::Key_Escape);
+  CHECK(indicator == nullptr || !indicator->isVisible());
+  send_mouse(*tabs, QEvent::MouseButtonRelease, tabs->tabRect(2).center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  check_in_step({paths, channels, layers}, "escape");
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  // Closing a tab after a move hides that tab, not the one that used to sit at its index.
+  column->set_panel_visible(channels, false);
+  check_in_step({paths, channels, layers}, "channels closed");
+  CHECK(!tabs->isTabVisible(1));
+  // A drop with only a closed tab between changes nothing either.
+  column->bring_to_front(paths);
+  const auto layers_rect = tabs->tabRect(2);
+  drag_tab(0, QPoint(layers_rect.left() + 2, layers_rect.center().y()), true);
+  check_in_step({paths, channels, layers}, "past a closed tab");
+  CHECK(changes == 2);
+  column->set_panel_visible(channels, true);
+  check_in_step({paths, channels, layers}, "channels reopened");
+  CHECK(column->panel_in_front(channels));
+
+  // move_tab and set_tab_order do the same without a mouse.
+  column->move_tab(layers, 0);
+  check_in_step({layers, paths, channels}, "move_tab");
+  column->set_tab_order({layers, channels, paths});
+  check_in_step({layers, channels, paths}, "set_tab_order");
+  CHECK(column->section_order() == section_order_before);
+  CHECK(changes == 4);
+  // Tab texts follow a language rebind by panel, not by the old index.
+  column->refresh_tab_titles();
+  check_in_step({layers, channels, paths}, "titles refreshed");
+}
+
 // GitHub issue 335: a click on a collapsed panel's title row expands it, a double click
 // collapses an expanded one and expands a collapsed one, and a drag from the title row or
 // a click on the collapse button toggles nothing extra. Every change goes through the
@@ -1533,15 +1675,57 @@ void ui_panel_header_right_click_opens_panel_menu() {
   }
 }
 
-// The saved panel layout: closed panels and toolbars, collapsed panels, the tab group's front
-// panel, the section order and heights and a picked column width come back in the next window; a
-// record from another layout version is ignored. Offscreen windows neither read nor write
+// A right-click on a toolbar lists the panels and toolbars and Reset Panels, as the panel
+// header menu does.
+void ui_panel_list_opens_on_toolbar_right_click() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  {
+    std::unique_ptr<QMenu> menu(window.createPopupMenu());
+    CHECK(menu != nullptr);
+    if (menu == nullptr) {
+      return;
+    }
+    CHECK(menu->objectName() == QStringLiteral("toolbarPanelMenu"));
+    for (const char* name : {"windowPanelLayersAction", "windowPanelChannelsAction", "windowPanelPathsAction",
+                             "windowPanelHistoryAction", "windowPanelPropertiesAction", "windowPanelInfoAction",
+                             "windowPanelColorAction", "windowPanelPaletteAction", "windowResetPanelsAction"}) {
+      CHECK(menu->actions().contains(require_action(window, name)));
+    }
+    for (const char* name : {"toolPalette", "Options"}) {
+      CHECK(menu->actions().contains(window.findChild<QToolBar*>(QLatin1String(name))->toggleViewAction()));
+    }
+  }
+  // A right-click on the tool palette opens that menu; the shared entries outlive it.
+  auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(toolbar != nullptr);
+  if (toolbar == nullptr) {
+    return;
+  }
+  const QPoint position(toolbar->width() / 2, 4);
+  QContextMenuEvent event(QContextMenuEvent::Mouse, position, toolbar->mapToGlobal(position));
+  QApplication::sendEvent(toolbar, &event);
+  QApplication::processEvents();
+  auto* open = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+  CHECK(open != nullptr && open->objectName() == QStringLiteral("toolbarPanelMenu"));
+  if (open != nullptr) {
+    CHECK(open->actions().contains(require_action(window, "windowPanelLayersAction")));
+    open->close();
+    QApplication::processEvents();
+  }
+  CHECK(require_action(window, "windowPanelLayersAction") != nullptr);
+}
+
+// The saved panel layout: closed panels and toolbars, collapsed panels, the tab group's tab order
+// and front panel, the section order and heights and a picked column width come back in the next
+// window; a version 3 record keeps the default tab order; a record from another layout version is
+// ignored. Offscreen windows neither read nor write
 // it on their own.
 void ui_panel_layout_returns_in_the_next_window() {
   const QStringList keys = {QStringLiteral("window/panelLayoutVersion"), QStringLiteral("window/hiddenPanels"),
                             QStringLiteral("window/collapsedPanels"), QStringLiteral("window/frontPanel"),
                             QStringLiteral("window/panelColumnWidth"), QStringLiteral("window/panelSplitterState"),
-                            QStringLiteral("window/panelOrder")};
+                            QStringLiteral("window/panelOrder"), QStringLiteral("window/panelGroups")};
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
   for (const auto& key : keys) {
     restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
@@ -1554,6 +1738,9 @@ void ui_panel_layout_returns_in_the_next_window() {
     settings.sync();
   }
   CHECK(!patchy::ui::MainWindowTestAccess::panel_layout_persists());
+  const auto layers = QStringLiteral("layersDock");
+  const QStringList default_tabs = {layers, QStringLiteral("channelsDock"), QStringLiteral("pathsDock")};
+  const QStringList moved_tabs = {QStringLiteral("pathsDock"), layers, QStringLiteral("channelsDock")};
   const auto properties = QStringLiteral("propertiesDock");
   const auto history = QStringLiteral("historyDock");
   bool properties_expanded_before = false;
@@ -1568,6 +1755,8 @@ void ui_panel_layout_returns_in_the_next_window() {
     require_action(window, "windowPanelChannelsAction")->trigger();
     window.findChild<QToolBar*>(QStringLiteral("Options"))->toggleViewAction()->trigger();
     column->move_section(QStringLiteral("infoDock"), 0);
+    column->move_tab(QStringLiteral("pathsDock"), 0);
+    CHECK(column->section_panel_ids(layers) == moved_tabs);
     QApplication::processEvents();
     picked_width = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window) + 40;
     patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, picked_width);
@@ -1579,6 +1768,10 @@ void ui_panel_layout_returns_in_the_next_window() {
     QApplication::processEvents();
     CHECK(!patchy::ui::app_settings().contains(QStringLiteral("window/hiddenPanels")));
     patchy::ui::MainWindowTestAccess::write_panel_layout(window);
+    const auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("window/panelLayoutVersion")).toInt() == 4);
+    CHECK(settings.value(QStringLiteral("window/panelGroups")).toStringList() ==
+          QStringList{moved_tabs.join(QLatin1Char(','))});
   }
   {
     // Read before the first show, as the constructor does on a desktop.
@@ -1600,6 +1793,32 @@ void ui_panel_layout_returns_in_the_next_window() {
     CHECK(column->panel_in_front(QStringLiteral("channelsDock")));
     CHECK(column->section_order().first() == QStringLiteral("infoDock"));
     CHECK(column->splitter()->widget(0)->objectName() == QStringLiteral("infoDock"));
+    CHECK(column->section_panel_ids(layers) == moved_tabs);
+    auto* tabs = column->tab_bar(layers);
+    auto* stack = column->section_widget(layers)->findChild<QStackedWidget*>();
+    CHECK(tabs != nullptr && stack != nullptr);
+    if (tabs != nullptr && stack != nullptr) {
+      for (int index = 0; index < moved_tabs.size(); ++index) {
+        CHECK(stack->widget(index) == column->panel_page(moved_tabs[index]));
+        CHECK(tabs->tabText(index) == column->title_label(moved_tabs[index])->text());
+      }
+      CHECK(stack->currentWidget() == column->panel_page(QStringLiteral("channelsDock")));
+    }
+  }
+  {
+    // A version 3 record (from before the tab order was kept) keeps its choices with the
+    // default tab order.
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("window/panelLayoutVersion"), 3);
+    settings.sync();
+    patchy::ui::MainWindow window;
+    patchy::ui::MainWindowTestAccess::read_panel_layout(window);
+    show_window(window);
+    auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    CHECK(!column->panel_visible(history));
+    CHECK(column->section_order().first() == QStringLiteral("infoDock"));
+    CHECK(column->section_panel_ids(layers) == default_tabs);
+    CHECK(column->panel_in_front(QStringLiteral("channelsDock")));
   }
   {
     // A record from another layout version is ignored: the defaults stand.
@@ -1615,11 +1834,12 @@ void ui_panel_layout_returns_in_the_next_window() {
     CHECK(column->panel_expanded(properties) == properties_expanded_before);
     CHECK(patchy::ui::MainWindowTestAccess::right_dock_width_follows_content(window));
     CHECK(column->section_order().first() == QStringLiteral("layersDock"));
+    CHECK(column->section_panel_ids(layers) == default_tabs);
   }
 }
 
 // Window > Reset Panels returns the first-launch layout: closed panels and toolbars back, the
-// first-launch order, the default collapse states, Layers in front and the content-fit column
+// first-launch section and tab order, the default collapse states, Layers in front and the content-fit column
 // width.
 void ui_reset_panels_restores_first_launch_layout() {
   patchy::ui::MainWindow window;
@@ -1645,6 +1865,9 @@ void ui_reset_panels_restores_first_launch_layout() {
   tool_palette->toggleViewAction()->trigger();
   column->move_section(QStringLiteral("propertiesDock"), 0);
   column->move_section(QStringLiteral("layersDock"), 5);
+  column->move_tab(QStringLiteral("layersDock"), 3);
+  CHECK(column->section_panel_ids(QStringLiteral("layersDock")) ==
+        (QStringList{QStringLiteral("channelsDock"), QStringLiteral("pathsDock"), QStringLiteral("layersDock")}));
   patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
       window, patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window) + 60);
   QApplication::processEvents();
@@ -1660,6 +1883,18 @@ void ui_reset_panels_restores_first_launch_layout() {
   }
   CHECK(column->panel_in_front(QStringLiteral("layersDock")));
   CHECK(collapse_states() == defaults);
+  const QStringList tab_order = {QStringLiteral("layersDock"), QStringLiteral("channelsDock"),
+                                 QStringLiteral("pathsDock")};
+  CHECK(column->section_panel_ids(QStringLiteral("layersDock")) == tab_order);
+  if (auto* tabs = column->tab_bar(QStringLiteral("layersDock")); tabs != nullptr) {
+    auto* stack = column->section_widget(QStringLiteral("layersDock"))->findChild<QStackedWidget*>();
+    for (int index = 0; index < tab_order.size(); ++index) {
+      CHECK(tabs->tabText(index) == column->title_label(tab_order[index])->text());
+      CHECK(stack != nullptr && stack->widget(index) == column->panel_page(tab_order[index]));
+    }
+    CHECK(tabs->currentIndex() == 0);
+  }
+  CHECK(column->section_order().first() == QStringLiteral("layersDock"));
   // Top to bottom in the first-launch order.
   auto* splitter = column->splitter();
   const QStringList order = {QStringLiteral("panelTabGroup"), QStringLiteral("historyDock"),
@@ -3683,9 +3918,11 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
       {"ui_panel_all_collapsed_stack_at_top", ui_panel_all_collapsed_stack_at_top},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},
+      {"ui_panel_tab_drag_reorders_tabs", ui_panel_tab_drag_reorders_tabs},
       {"ui_panel_title_click_expands_and_double_click_collapses",
        ui_panel_title_click_expands_and_double_click_collapses},
       {"ui_panel_header_right_click_opens_panel_menu", ui_panel_header_right_click_opens_panel_menu},
+      {"ui_panel_list_opens_on_toolbar_right_click", ui_panel_list_opens_on_toolbar_right_click},
       {"ui_panel_layout_returns_in_the_next_window", ui_panel_layout_returns_in_the_next_window},
       {"ui_reset_panels_restores_first_launch_layout", ui_reset_panels_restores_first_launch_layout},
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
