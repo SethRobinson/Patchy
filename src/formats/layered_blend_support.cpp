@@ -149,7 +149,8 @@ void clear_lost_modes(Layer& layer, LayeredSaveFormat format, BitDepth depth) {
                                          std::size_t first, std::size_t last, bool include_unit, Rect rect) {
   Document temp = document;
   if (!context.empty()) {
-    const auto& parent = list_at(document, Path(context.begin(), context.end() - 1));
+    const Path parent_path(context.begin(), context.end() - 1);
+    const auto& parent = list_at(document, parent_path);
     temp.layers() = parent[context.back()].children();
   }
   auto* list = &temp.layers();
