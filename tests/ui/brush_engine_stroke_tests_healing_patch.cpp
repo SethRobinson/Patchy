@@ -26,6 +26,8 @@
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/qt_paths.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -187,6 +189,123 @@ void ui_retouch_sample_current_and_below_heals_empty_layer_above_photo() {
   // A No Adjustments value is not a retouch choice; it reads as its base.
   canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelowNoAdjustments);
   CHECK(canvas.retouch_sample_layers() == patchy::SampleLayers::CurrentAndBelow);
+}
+
+// The layered test file for the Healing Brush group (GitHub issues 380 to 383), as the
+// artifact test-artifacts/issue-382-healing-layers.psd: a grainy synthetic "photo" with
+// dark spots and a scratch to heal, an empty "Heal here" layer above it (active), and a
+// Curves layer over both. It must read back with its three layers and the same composite.
+void ui_retouch_healing_test_psd_round_trips() {
+  constexpr int kWidth = 480;
+  constexpr int kHeight = 320;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  auto photo = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+  const auto grain = [](int x, int y) {
+    auto value = static_cast<std::uint64_t>(y) * 7919U + static_cast<std::uint64_t>(x) * 104729U + 0x9E3779B97F4A7C15ULL;
+    value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    value = (value ^ (value >> 27U)) * 0x94D049BB133111EBULL;
+    value ^= value >> 31U;
+    return static_cast<int>(value % 25U) - 12;
+  };
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      int r = 0;
+      int g = 0;
+      int b = 0;
+      if (y < 150) {
+        r = 110 + y / 3;
+        g = 150 + y / 4;
+        b = 215 - y / 10;
+      } else {
+        r = 120 - (y - 150) / 6 + (x % 40) / 8;
+        g = 140 - (y - 150) / 5;
+        b = 70 - (y - 150) / 10;
+      }
+      const auto noise = grain(x, y);
+      auto* px = photo.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(std::clamp(r + noise, 0, 255));
+      px[1] = static_cast<std::uint8_t>(std::clamp(g + noise, 0, 255));
+      px[2] = static_cast<std::uint8_t>(std::clamp(b + noise, 0, 255));
+    }
+  }
+  // Dark spots and one scratch: the blemishes to heal.
+  for (const auto& [cx, cy, radius] : std::array<std::array<int, 3>, 6>{
+           {{90, 60, 6}, {300, 90, 5}, {380, 40, 4}, {140, 230, 7}, {260, 260, 5}, {410, 210, 6}}}) {
+    for (int y = cy - radius; y <= cy + radius; ++y) {
+      for (int x = cx - radius; x <= cx + radius; ++x) {
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= radius * radius) {
+          auto* px = photo.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>(px[0] / 4);
+          px[1] = static_cast<std::uint8_t>(px[1] / 4);
+          px[2] = static_cast<std::uint8_t>(px[2] / 4);
+        }
+      }
+    }
+  }
+  for (int x = 180; x < 330; ++x) {
+    const auto y = 190 + (x - 180) / 6;
+    auto* px = photo.pixel(x, y);
+    px[0] = 235;
+    px[1] = 235;
+    px[2] = 230;
+  }
+  document.add_pixel_layer("Photo", std::move(photo));
+  auto& heal = document.add_pixel_layer(
+      "Heal here", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto heal_id = heal.id();
+  patchy::AdjustmentSettings curves;
+  curves.kind = patchy::AdjustmentKind::Curves;
+  curves.curves.rgb = {{0, 0}, {64, 40}, {192, 215}, {255, 255}};
+  patchy::Layer curves_layer(document.allocate_layer_id(), "Curves", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(curves_layer, curves);
+  document.add_layer(std::move(curves_layer));
+  document.set_active_layer(heal_id);
+
+  ensure_artifact_dir();
+  const auto path = QStringLiteral("test-artifacts/issue-382-healing-layers.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
+  const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  CHECK(reread.layers().size() == 3);
+  CHECK(reread.layers().size() == 3 && reread.layers()[2].kind() == patchy::LayerKind::Adjustment);
+  const auto composite = patchy::ui::qimage_from_document(document, true);
+  const auto reread_composite = patchy::ui::qimage_from_document(reread, true);
+  for (const auto& point : {QPoint(90, 60), QPoint(200, 100), QPoint(250, 200), QPoint(470, 310)}) {
+    CHECK(color_close(reread_composite.pixelColor(point), composite.pixelColor(point), 1));
+  }
+
+  // The issue shot for the source crosshair (GitHub issue 380): healing the spot at
+  // (300, 90) onto the empty layer with Current & Below, mid-stroke, the crosshair 34 px
+  // to the right where the stroke samples.
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(760, 520);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentAndBelow);
+  canvas.set_retouch_ignore_adjustments(true);
+  canvas.set_brush_size(16);
+  canvas.set_brush_softness(30);
+  canvas.set_clone_aligned(false);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_view_zoom(1.5);
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint point) { return canvas.widget_position_for_document_point(point); };
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(330, 92)), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(330, 92)), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(296, 88)), Qt::LeftButton, Qt::LeftButton);
+  for (const auto& point : {QPoint(298, 89), QPoint(300, 90), QPoint(302, 91)}) {
+    send_mouse(canvas, QEvent::MouseMove, at(point), Qt::LeftButton, Qt::LeftButton);
+  }
+  QApplication::processEvents();
+  CHECK(canvas.retouch_source_indicator() == QPoint(336, 95));
+  save_widget_artifact("issue_380_healing_source_indicator", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(302, 91)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  // The heal landed on the empty layer, over the dark spot, and nothing else changed.
+  const auto* heal_layer = std::as_const(document).find_layer(heal_id);
+  const auto heal_bounds = heal_layer->bounds();
+  CHECK(heal_layer->pixels().pixel(300 - heal_bounds.x, 90 - heal_bounds.y)[3] == 255);
+  CHECK(std::as_const(document).layers()[0].pixels().pixel(300, 90)[0] < 60);
 }
 
 // Ignore Adjustment Layers (GitHub issue 383): with it on, the composite samples leave
@@ -438,7 +557,6 @@ void ui_healing_brush_cursor_feedback_and_ctrl_move() {
   send_mouse(canvas, QEvent::MouseMove, at(QPoint(44, 18)), Qt::LeftButton, Qt::LeftButton);
   QApplication::processEvents();
   CHECK(canvas.retouch_source_indicator() == QPoint(12, 10));
-  save_widget_artifact("issue_380_healing_source_indicator", canvas);
   send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(44, 18)), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(!canvas.retouch_source_indicator().has_value());
@@ -1609,6 +1727,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample",
        ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample},
       {"ui_healing_brush_modes_blend_the_healed_color", ui_healing_brush_modes_blend_the_healed_color},
+      {"ui_retouch_healing_test_psd_round_trips", ui_retouch_healing_test_psd_round_trips},
       {"ui_healing_brush_cursor_feedback_and_ctrl_move", ui_healing_brush_cursor_feedback_and_ctrl_move},
       {"ui_healing_mode_option_persists_and_reaches_new_documents",
        ui_healing_mode_option_persists_and_reaches_new_documents},
