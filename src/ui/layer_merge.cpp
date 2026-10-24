@@ -128,7 +128,8 @@ unsigned vector_paint_type(const VectorShapeContent& shape) {
 class Planner {
 public:
   Planner(const Document& document, const std::vector<LayerId>& ids, LayerMergeOptions options, bool copy)
-      : document_(document), selected_(ids.begin(), ids.end()), options_(options), copy_(copy) {
+      : document_(document), selected_(ids.begin(), ids.end()), options_(options), copy_(copy),
+        shared_groups_(copy ? std::set<LayerId>{} : layer_shared_ancestor_groups(document.layers(), ids)) {
     const auto index = [&](const auto& self, const std::vector<Layer>& layers) -> void {
       for (const auto& layer : layers) {
         sources_.emplace(layer.id(), &layer);
@@ -214,7 +215,9 @@ private:
       if (layer.kind() == LayerKind::Group &&
           (!selected || options_.keep_vectors || options_.within_groups || locked || clipping || !layer.visible())) {
         const auto removed_before = plan_.removed_layers;
-        node.children = visit(layer.children(), selected, locked || clipping || !layer.visible());
+        // A hidden folder holding the whole merge does not hide its members (GitHub issue 389).
+        const bool hides_children = !layer.visible() && !shared_groups_.contains(layer.id());
+        node.children = visit(layer.children(), selected, locked || clipping || hides_children);
         node.rebuild_group = true;
         node.changed = removed_before != plan_.removed_layers ||
             std::any_of(node.children.begin(), node.children.end(), [](const auto& child) { return child.changed; });
@@ -278,6 +281,7 @@ private:
   std::set<LayerId> selected_;
   LayerMergeOptions options_;
   bool copy_{false};
+  std::set<LayerId> shared_groups_;
   std::map<LayerId, const Layer*> sources_;
   std::map<LayerId, std::optional<VectorPathBounds>> bounds_;
   LayerMergePlan plan_;
@@ -292,6 +296,8 @@ LayerMergePlan plan_single_vector_merge(const Document& document, const std::vec
   std::map<LayerId, const Layer*> sources;
   std::set<LayerId> clipping_boundaries;
   std::set<std::pair<LayerId, LayerMergeBlocker>> reported;
+  // A hidden folder holding the whole merge does not hide its members (GitHub issue 389).
+  const auto shared_groups = layer_shared_ancestor_groups(document.layers(), ids);
   std::size_t order = 0;
   const auto issue = [&](LayerId id, LayerMergeBlocker reason) {
     if (reported.emplace(id, reason).second) { plan.blockers.push_back({id, reason}); }
@@ -309,7 +315,8 @@ LayerMergePlan plan_single_vector_merge(const Document& document, const std::vec
       if (layer.kind() == LayerKind::Group) {
         auto next = ancestors;
         next.push_back(layer.id());
-        self(self, layer.children(), std::move(next), chosen, layer_locked, layer_hidden);
+        self(self, layer.children(), std::move(next), chosen, layer_locked,
+             hidden || (!layer.visible() && !shared_groups.contains(layer.id())));
         if (chosen && layer_locked) { issue(layer.id(), LayerMergeBlocker::Locked); }
         continue;
       }

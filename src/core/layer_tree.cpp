@@ -216,6 +216,30 @@ bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id,
   return false;
 }
 
+std::set<LayerId> layer_shared_ancestor_groups(const std::vector<Layer>& layers, const std::vector<LayerId>& ids) {
+  std::set<LayerId> shared;
+  bool first = true;
+  for (const auto id : ids) {
+    std::vector<LayerId> ancestors;
+    if (!collect_layer_ancestor_groups(layers, id, ancestors)) {
+      return {};
+    }
+    if (first) {
+      shared.insert(ancestors.begin(), ancestors.end());
+      first = false;
+      continue;
+    }
+    std::set<LayerId> kept;
+    for (const auto ancestor : ancestors) {
+      if (shared.contains(ancestor)) {
+        kept.insert(ancestor);
+      }
+    }
+    shared = std::move(kept);
+  }
+  return shared;
+}
+
 std::string_view sample_layers_token(SampleLayers mode) noexcept {
   switch (mode) {
   case SampleLayers::CurrentLayer:
