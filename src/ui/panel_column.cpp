@@ -159,7 +159,11 @@ PanelColumn::PanelColumn(QWidget* parent) : QWidget(parent) {
   splitter_->setObjectName(QStringLiteral("panelColumnSplitter"));
   splitter_->setChildrenCollapsible(false);
   splitter_->setHandleWidth(kSectionHandleWidth);
-  layout->addWidget(splitter_);
+  // The splitter takes the whole height while any section is expanded. With every
+  // section collapsed its maximum is the title rows, and the stretch under it takes
+  // the rest, so the rows stack from the top (GitHub issue 391).
+  layout->addWidget(splitter_, 1);
+  layout->addStretch(0);
 }
 
 PanelColumn::~PanelColumn() {

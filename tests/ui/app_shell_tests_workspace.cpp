@@ -1157,6 +1157,80 @@ void ui_panel_collapse_and_close_leave_no_gap() {
   save_widget_artifact("ui_panel_collapse_and_close_leave_no_gap", *column);
 }
 
+// With every section collapsed the title rows stack from the top of the column, the
+// spare height below them; expanding a section fills the column again (GitHub issue 391).
+void ui_panel_all_collapsed_stack_at_top() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (column == nullptr) {
+    return;
+  }
+  auto* splitter = column->splitter();
+  // Checks the shown sections sit one under the next from y 0 of the column and returns
+  // the bottom edge of the last one, in column coordinates.
+  const auto check_stacked = [&](const QString& context) {
+    QApplication::processEvents();
+    QApplication::processEvents();
+    int expected_top = 0;
+    int last_bottom = -1;
+    for (int index = 0; index < splitter->count(); ++index) {
+      auto* section = splitter->widget(index);
+      if (section->isHidden()) {
+        continue;
+      }
+      const int top = section->mapTo(column, QPoint(0, 0)).y();
+      if (top != expected_top) {
+        std::printf("%s: section %s at y %d, expected %d\n", qPrintable(context),
+                    qPrintable(section->objectName()), top, expected_top);
+      }
+      CHECK(top == expected_top);
+      expected_top = top + section->height() + splitter->handleWidth();
+      last_bottom = top + section->height() - 1;
+    }
+    return last_bottom;
+  };
+  // One panel per section: the group's front tab and every other open panel.
+  QStringList sections;
+  for (const auto& id : column->panel_ids()) {
+    if (column->panel_visible(id) && column->panel_in_front(id)) {
+      sections.append(id);
+      if (column->panel_expanded(id)) {
+        column->collapse_button(id)->click();
+      }
+    }
+  }
+  CHECK(sections.size() >= 3);
+  for (const auto& id : sections) {
+    CHECK(!column->panel_expanded(id));
+  }
+  QApplication::processEvents();
+  QApplication::processEvents();
+  save_widget_artifact("ui_panel_all_collapsed_stack_at_top", window);
+  const int collapsed_bottom = check_stacked(QStringLiteral("all collapsed"));
+  if (collapsed_bottom >= column->height() - 1) {
+    std::printf("all collapsed: title rows end at %d, column height %d\n", collapsed_bottom, column->height());
+  }
+  CHECK(collapsed_bottom < column->height() - 1);
+  for (const auto& id : sections) {
+    column->collapse_button(id)->click();
+    CHECK(column->panel_expanded(id));
+    const int bottom = check_stacked(QStringLiteral("expanded ") + id);
+    // A section with a maximum (Properties, Color) can leave the column short; then the
+    // rows still stack from the top, and the splitter stands at its maximum.
+    const int expected_bottom = std::min(column->height(), splitter->maximumHeight()) - 1;
+    if (bottom != expected_bottom) {
+      std::printf("expanded %s: last section ends at %d, expected %d (column height %d)\n", qPrintable(id),
+                  bottom, expected_bottom, column->height());
+    }
+    CHECK(bottom == expected_bottom);
+    column->collapse_button(id)->click();
+    CHECK(!column->panel_expanded(id));
+    CHECK(check_stacked(QStringLiteral("collapsed again ") + id) == collapsed_bottom);
+  }
+}
+
 // Dragging a title row up or down moves its section in the column (the tab group by its
 // title row or its tab bar); a drop line shows where it lands, Escape cancels, and the
 // moved sections keep the column filled.
@@ -3607,6 +3681,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_window_menu_hides_collapsed_panel", ui_window_menu_hides_collapsed_panel},
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
+      {"ui_panel_all_collapsed_stack_at_top", ui_panel_all_collapsed_stack_at_top},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},
       {"ui_panel_title_click_expands_and_double_click_collapses",
        ui_panel_title_click_expands_and_double_click_collapses},
