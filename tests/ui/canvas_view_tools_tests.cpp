@@ -4399,6 +4399,158 @@ void ui_tool_flyout_right_click_opens_only_the_flyout() {
   CHECK(flyout_shows == 1);
 }
 
+// GitHub issue 368: a left hold, a right-click and a double-click on a flyout button select
+// the tool it shows as the flyout opens, so Escape leaves that tool active; a pick in the
+// flyout still selects that member and becomes the button's face. The already-active tool
+// is not triggered again (a hold on it, the double-click's second press). Each flyout is
+// opened from Brush; the menus block in exec(), so a queued timer records the open menu and
+// answers it with Escape or Return.
+void check_flyout_ways_in_select_the_shown_tool(patchy::ui::MainWindow& window) {
+  auto* brush = require_action(window, "toolBrushAction");
+  auto* marquee_button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+  auto* lasso_button = window.findChild<QToolButton*>(QStringLiteral("lassoToolButton"));
+  auto* wand_button = window.findChild<QToolButton*>(QStringLiteral("wandToolButton"));
+  CHECK(marquee_button != nullptr && lasso_button != nullptr && wand_button != nullptr);
+  if (marquee_button == nullptr || lasso_button == nullptr || wand_button == nullptr) {
+    return;
+  }
+  auto* marquee = require_action(window, "toolMarqueeAction");
+  auto* lasso = require_action(window, "toolLassoAction");
+  auto* polygonal = require_action(window, "toolPolygonalLassoAction");
+  auto* wand = require_action(window, "toolMagicWandAction");
+  CHECK(marquee_button->defaultAction() == marquee);
+  CHECK(lasso_button->defaultAction() == lasso);
+  CHECK(wand_button->defaultAction() == wand);
+
+  int shows = 0;
+  bool shown_tool_active = false;
+  QAction* pick = nullptr;
+  QList<QMetaObject::Connection> connections;
+  for (auto* button : {marquee_button, lasso_button, wand_button}) {
+    auto* menu = button->menu();
+    CHECK(menu != nullptr);
+    connections.append(QObject::connect(menu, &QMenu::aboutToShow, menu, [&, button, menu] {
+      QTimer::singleShot(0, menu, [&, button, menu] {
+        if (!menu->isVisible()) {
+          return;
+        }
+        ++shows;
+        shown_tool_active = button->defaultAction()->isChecked();
+        if (pick != nullptr) {
+          menu->setActiveAction(pick);
+          QTest::keyClick(menu, Qt::Key_Return);
+        } else {
+          QTest::keyClick(menu, Qt::Key_Escape);
+        }
+        if (menu->isVisible()) {  // never leave exec() blocked if the key went astray
+          menu->close();
+        }
+      });
+    }));
+  }
+  int marquee_triggers = 0;
+  int wand_triggers = 0;
+  connections.append(QObject::connect(marquee, &QAction::triggered, marquee, [&] { ++marquee_triggers; }));
+  connections.append(QObject::connect(wand, &QAction::triggered, wand, [&] { ++wand_triggers; }));
+  const auto start_on_brush = [&] {
+    brush->trigger();
+    QApplication::processEvents();
+    CHECK(brush->isChecked());
+    shows = 0;
+    shown_tool_active = false;
+    pick = nullptr;
+  };
+  const int delay =
+      marquee_button->style()->styleHint(QStyle::SH_ToolButton_PopupDelay, nullptr, marquee_button);
+  const auto hold = [&](QToolButton& button) {
+    const QPoint center = button.rect().center();
+    send_mouse(button, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    process_events_until([&] { return shows > 0; }, delay + 1000);
+    send_mouse(button, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    process_events_for(20);
+  };
+  // The right press opens the flyout; the ContextMenu event Qt sends after it stays at the
+  // button (GitHub issue 356), so no other menu opens.
+  const auto right_click = [&](QToolButton& button) {
+    const QPoint center = button.rect().center();
+    send_mouse(button, QEvent::MouseButtonPress, center, Qt::RightButton, Qt::RightButton);
+    send_mouse(button, QEvent::MouseButtonRelease, center, Qt::RightButton, Qt::NoButton);
+    QContextMenuEvent context(QContextMenuEvent::Mouse, center, button.mapToGlobal(center));
+    QApplication::sendEvent(&button, &context);
+    process_events_for(20);
+    int other_menus = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->isVisible()) {
+        ++other_menus;
+        menu->close();
+      }
+    }
+    CHECK(other_menus == 0);
+  };
+
+  // Hold, then Escape: Marquee is active while the flyout is open and stays active.
+  start_on_brush();
+  hold(*marquee_button);
+  CHECK(shows == 1);
+  CHECK(shown_tool_active);
+  CHECK(!marquee_button->menu()->isVisible());
+  CHECK(marquee->isChecked());
+  CHECK(marquee_triggers == 1);
+  CHECK(marquee_button->defaultAction() == marquee);
+  // A hold on the active tool opens the flyout without selecting it again.
+  shows = 0;
+  hold(*marquee_button);
+  CHECK(shows == 1);
+  CHECK(marquee->isChecked());
+  CHECK(marquee_triggers == 1);
+
+  // Right-click, then Escape: Lasso.
+  start_on_brush();
+  right_click(*lasso_button);
+  CHECK(shows == 1);
+  CHECK(shown_tool_active);
+  CHECK(lasso->isChecked());
+  CHECK(lasso_button->defaultAction() == lasso);
+  // Right-click, then pick Polygonal Lasso: it is selected and becomes the button's face.
+  start_on_brush();
+  pick = polygonal;
+  right_click(*lasso_button);
+  CHECK(shows == 1);
+  CHECK(polygonal->isChecked());
+  CHECK(lasso_button->defaultAction() == polygonal);
+
+  // Double-click, then Escape: the first click selects Magic Wand, the second press only
+  // opens the flyout.
+  start_on_brush();
+  wand_triggers = 0;
+  send_double_click(*wand_button, wand_button->rect().center());
+  process_events_for(20);
+  CHECK(shows == 1);
+  CHECK(shown_tool_active);
+  CHECK(wand->isChecked());
+  CHECK(wand_triggers == 1);
+
+  for (const auto& connection : connections) {
+    QObject::disconnect(connection);
+  }
+}
+
+void ui_tool_flyout_hold_and_right_click_select_the_shown_tool() {
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    check_flyout_ways_in_select_the_shown_tool(window);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
+  }
+  // The home screen: tool buttons are enabled with no document open (local-008).
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  check_flyout_ways_in_select_the_shown_tool(window);
+}
+
 // Where a flyout row's icon box starts (GitHub issue 284). The current tool's marker (issue
 // 284 follow-up) sits in the margin before it.
 constexpr int kFlyoutIconLeft = 14;
@@ -8527,6 +8679,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tools_work_with_no_document_open", ui_tools_work_with_no_document_open},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_only_the_flyout", ui_tool_flyout_right_click_opens_only_the_flyout},
+      {"ui_tool_flyout_hold_and_right_click_select_the_shown_tool",
+       ui_tool_flyout_hold_and_right_click_select_the_shown_tool},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
        ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_flyout_marks_the_tool_its_button_shows", ui_tool_flyout_marks_the_tool_its_button_shows},

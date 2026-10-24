@@ -1059,6 +1059,17 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
           }
         },
         button));
+    // Every way in (the hold timer, a double-click, a right-click) also selects the tool
+    // the button shows as the flyout opens, so dismissing it leaves that tool active
+    // (GitHub issue 368); a pick in the flyout then selects that member as usual. The
+    // already-active tool is left alone, so the first click of a double-click is the only
+    // selection that pair makes.
+    QObject::connect(menu, &QMenu::aboutToShow, button, [button] {
+      auto* shown = button->defaultAction();
+      if (button->isEnabled() && shown != nullptr && shown->isEnabled() && !shown->isChecked()) {
+        shown->trigger();
+      }
+    });
     new ToolFlyoutMenuPlacement(button, menu);
     new ToolFlyoutCurrentMarker(button, menu);
     menu->setStyleSheet(tool_flyout_menu_style(palette->iconSize().width()));
