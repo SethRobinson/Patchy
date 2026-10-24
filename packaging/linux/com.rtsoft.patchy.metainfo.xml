@@ -145,6 +145,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.18" date="2026-10-25">
+      <description>
+        <ul>
+          <li>Open and save OpenRaster (.ora) files, and open Paint.NET (.pdn) files</li>
+          <li>Healing Brush blend modes and sampling choices, and a Red Eye tool</li>
+          <li>Panels combine into tab groups by drag, and a Color panel in the sidebar</li>
+          <li>Rotated paragraph text edits in place; caret and text box outline fixes</li>
+          <li>Export Layers as Animated PNG, and New Document names, presets and color modes</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.17" date="2026-10-24">
       <description>
         <ul>
