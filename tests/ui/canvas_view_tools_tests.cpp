@@ -4443,9 +4443,14 @@ void ui_tool_flyout_right_click_opens_only_the_flyout() {
     CHECK(close_other_menus() == 0);
   }
 
+  // A plain tool button swallows it too (GitHub issue 388); the toolbar menu still opens
+  // from the palette itself.
   auto* hand_button = palette->widgetForAction(require_action(window, "toolHandAction"));
   CHECK(hand_button != nullptr);
   send_context_menu(*hand_button, hand_button->rect().center());
+  process_events_for(20);
+  CHECK(close_other_menus() == 0);
+  send_context_menu(*palette, QPoint(1, 1));
   process_events_for(20);
   CHECK(close_other_menus() == 1);
   CHECK(flyout_shows == 1);
@@ -4601,6 +4606,93 @@ void ui_tool_flyout_hold_and_right_click_select_the_shown_tool() {
   show_window_empty(window);
   CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
   check_flyout_ways_in_select_the_shown_tool(window);
+}
+
+// GitHub issue 388: a right-click on a tool button without a flyout selects its tool, as a
+// left click does, and opens no menu (the ContextMenu event comes with the release on
+// Windows, with the press on macOS and X11). The toolbar menu still opens from the empty
+// part of the palette: a separator stands in for it, and the event bubbles from there.
+void ui_tool_button_right_click_selects_plain_tool() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(palette != nullptr);
+  if (palette == nullptr) {
+    return;
+  }
+  const auto close_visible_menus = [] {
+    int visible = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->isVisible()) {
+        ++visible;
+        menu->close();
+      }
+    }
+    process_events_for(20);
+    return visible;
+  };
+  const auto send_context_menu = [](QWidget& target, QPoint position) {
+    QContextMenuEvent context(QContextMenuEvent::Mouse, position, target.mapToGlobal(position));
+    QApplication::sendEvent(&target, &context);
+  };
+  const auto right_click = [&](QWidget& button, bool context_on_press) {
+    const QPoint center = button.rect().center();
+    send_mouse(button, QEvent::MouseButtonPress, center, Qt::RightButton, Qt::RightButton);
+    if (context_on_press) {
+      send_context_menu(button, center);
+    }
+    send_mouse(button, QEvent::MouseButtonRelease, center, Qt::RightButton, Qt::NoButton);
+    if (!context_on_press) {
+      send_context_menu(button, center);
+    }
+    process_events_for(20);
+  };
+  auto* brush = require_action(window, "toolBrushAction");
+  struct PlainTool {
+    const char* action_name;
+    patchy::ui::CanvasTool tool;
+  };
+  const PlainTool plain_tools[] = {{"toolEraserAction", patchy::ui::CanvasTool::Eraser},
+                                   {"toolHandAction", patchy::ui::CanvasTool::Pan},
+                                   {"toolZoomAction", patchy::ui::CanvasTool::Zoom}};
+  for (const auto& plain : plain_tools) {
+    auto* action = require_action(window, plain.action_name);
+    auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action));
+    CHECK(button != nullptr);
+    if (button == nullptr) {
+      continue;
+    }
+    CHECK(button->menu() == nullptr);
+    for (const bool context_on_press : {false, true}) {
+      brush->trigger();
+      QApplication::processEvents();
+      CHECK(brush->isChecked());
+      right_click(*button, context_on_press);
+      CHECK(action->isChecked());
+      CHECK(canvas->tool() == plain.tool);
+      CHECK(close_visible_menus() == 0);
+    }
+    // A right-click on the active tool keeps it.
+    right_click(*button, false);
+    CHECK(action->isChecked());
+    CHECK(close_visible_menus() == 0);
+  }
+
+  QWidget* separator = nullptr;
+  for (auto* action : palette->actions()) {
+    if (action->isSeparator()) {
+      separator = palette->widgetForAction(action);
+      break;
+    }
+  }
+  CHECK(separator != nullptr);
+  if (separator != nullptr) {
+    send_context_menu(*separator, separator->rect().center());
+    process_events_for(20);
+    CHECK(close_visible_menus() == 1);
+  }
 }
 
 // Where a flyout row's icon box starts (GitHub issue 284). The current tool's marker (issue
@@ -8908,6 +9000,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_flyout_right_click_opens_only_the_flyout", ui_tool_flyout_right_click_opens_only_the_flyout},
       {"ui_tool_flyout_hold_and_right_click_select_the_shown_tool",
        ui_tool_flyout_hold_and_right_click_select_the_shown_tool},
+      {"ui_tool_button_right_click_selects_plain_tool", ui_tool_button_right_click_selects_plain_tool},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
        ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_flyout_marks_the_tool_its_button_shows", ui_tool_flyout_marks_the_tool_its_button_shows},

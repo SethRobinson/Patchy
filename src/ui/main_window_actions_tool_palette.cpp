@@ -420,17 +420,23 @@ private:
   std::function<void()> callback_;
 };
 
-class ToolFlyoutEventFilter final : public QObject {
+// Right press on a tool palette button: a flyout button opens its flyout, a plain tool
+// button selects its tool (GitHub issue 388). A flyout button also opens on a left
+// double-click; plain buttons pass no double-click callback and keep Qt's handling.
+class ToolButtonPressFilter final : public QObject {
 public:
-  ToolFlyoutEventFilter(std::function<void()> open_menu, QObject* parent)
-      : QObject(parent), open_menu_(std::move(open_menu)) {}
+  ToolButtonPressFilter(std::function<void()> on_right_press, std::function<void()> on_left_double_click,
+                        QObject* parent)
+      : QObject(parent),
+        on_right_press_(std::move(on_right_press)),
+        on_left_double_click_(std::move(on_left_double_click)) {}
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    // The right press already opened the flyout. Qt follows it with a separate
-    // ContextMenu event (on release on Windows, on press on macOS and X11) that
-    // would otherwise bubble up to the main window and open the toolbar menu on
-    // top of the flyout (GitHub issue 356), so the button swallows it.
+    // The right press already acted. Qt follows it with a separate ContextMenu
+    // event (on release on Windows, on press on macOS and X11) that would
+    // otherwise bubble up to the main window and open the toolbar menu (on top
+    // of the flyout, GitHub issue 356), so the button swallows it.
     if (event->type() == QEvent::ContextMenu) {
       event->accept();
       return true;
@@ -438,16 +444,15 @@ protected:
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
       auto* mouse_event = static_cast<QMouseEvent*>(event);
       if (mouse_event->button() == Qt::RightButton && event->type() == QEvent::MouseButtonPress) {
-        if (open_menu_) {
-          open_menu_();
+        if (on_right_press_) {
+          on_right_press_();
         }
         mouse_event->accept();
         return true;
       }
-      if (mouse_event->button() == Qt::LeftButton && event->type() == QEvent::MouseButtonDblClick) {
-        if (open_menu_) {
-          open_menu_();
-        }
+      if (on_left_double_click_ && mouse_event->button() == Qt::LeftButton &&
+          event->type() == QEvent::MouseButtonDblClick) {
+        on_left_double_click_();
         mouse_event->accept();
         return true;
       }
@@ -456,7 +461,8 @@ protected:
   }
 
 private:
-  std::function<void()> open_menu_;
+  std::function<void()> on_right_press_;
+  std::function<void()> on_left_double_click_;
 };
 
 // Flyout row layout (GitHub issue 284). Qt draws a menu icon at the item's left edge plus
@@ -1062,13 +1068,12 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // of the pair still selects the default tool, as in Photoshop. The filter sees
     // events before Qt's disabled check, so a disabled button (a preview dialog's edit
     // lock) stays shut here as it does for the left press.
-    button->installEventFilter(new ToolFlyoutEventFilter(
-        [button] {
-          if (button->isEnabled()) {
-            button->showMenu();
-          }
-        },
-        button));
+    const auto open_flyout = [button] {
+      if (button->isEnabled()) {
+        button->showMenu();
+      }
+    };
+    button->installEventFilter(new ToolButtonPressFilter(open_flyout, open_flyout, button));
     // Every way in (the hold timer, a double-click, a right-click) also selects the tool
     // the button shows as the flyout opens, so dismissing it leaves that tool active
     // (GitHub issue 368); a pick in the flyout then selects that member as usual. The
@@ -1458,6 +1463,18 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
   group->addAction(action);
   register_tool_action(action);
+  // A right-click selects the tool like a left click and opens no toolbar menu, as a
+  // right-click on a flyout button does (GitHub issue 388). The filter sees events
+  // before Qt's disabled check, so a disabled button stays inert.
+  if (auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action)); button != nullptr) {
+    button->installEventFilter(new ToolButtonPressFilter(
+        [button, action] {
+          if (button->isEnabled() && action->isEnabled()) {
+            action->trigger();
+          }
+        },
+        {}, button));
+  }
   return action;
 }
 
