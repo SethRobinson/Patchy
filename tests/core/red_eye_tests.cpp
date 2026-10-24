@@ -26,7 +26,7 @@ constexpr int kEyeY = 40;
 constexpr std::array<std::uint8_t, 3> kSkin{215, 165, 135};
 constexpr std::array<std::uint8_t, 3> kIris{90, 60, 40};
 constexpr std::array<std::uint8_t, 3> kPupilRed{200, 40, 40};
-constexpr std::array<std::uint8_t, 3> kRim{170, 80, 80};
+constexpr std::array<std::uint8_t, 3> kRim{190, 120, 140};
 
 void put(PixelBuffer& pixels, int x, int y, const std::array<std::uint8_t, 3>& color) {
   auto* px = pixels.pixel(x, y);
@@ -40,8 +40,8 @@ std::array<int, 3> get(const PixelBuffer& pixels, int x, int y) {
   return {px[0], px[1], px[2]};
 }
 
-// Skin with one eye: a brown iris (radius 14) around a flash-red pupil (radius 7) with a
-// pinkish rim (radius 7..9) and a 2x2 white glint. A red square far right sits outside a
+// Skin with one eye: a brown iris (radius 12..16) around a flash-red pupil (radius 7) with a
+// pale pink rim (radius 7..12) and a 2x2 white glint. A red square far right sits outside a
 // click's box, and a red dot up and right of the eye sits inside the box but apart from
 // the pupil.
 PixelBuffer make_face() {
@@ -53,9 +53,9 @@ PixelBuffer make_face() {
       const auto d2 = dx * dx + dy * dy;
       if (d2 <= 7 * 7) {
         put(pixels, x, y, kPupilRed);
-      } else if (d2 <= 9 * 9) {
+      } else if (d2 <= 12 * 12) {
         put(pixels, x, y, kRim);
-      } else if (d2 <= 14 * 14) {
+      } else if (d2 <= 16 * 16) {
         put(pixels, x, y, kIris);
       } else {
         put(pixels, x, y, kSkin);
@@ -88,7 +88,7 @@ Rect click_region(int x, int y) {
 Rect click_and_apply(PixelBuffer& pixels, int x, int y, const RedEyeOptions& options,
                      const std::function<float(std::int32_t, std::int32_t)>& coverage = {}) {
   const auto region = click_region(x, y);
-  const auto mask = patchy::find_red_eye(pixels, region, x, y, region.width / 4, options);
+  const auto mask = patchy::find_red_eye(pixels, region, x, y, region.width / 6, options);
   return patchy::apply_red_eye(pixels, mask, options, coverage);
 }
 
@@ -104,16 +104,19 @@ void red_eye_click_removes_red_and_darkens_pupil() {
   auto pixels = make_face();
   const auto dirty = click_and_apply(pixels, kEyeX + 3, kEyeY + 2, RedEyeOptions{});
   CHECK(!dirty.empty());
-  // The pupil turns neutral and, at Darken 50, half as bright as its green/blue level.
+  // The pupil turns neutral and, at Darken 50, keeps 160/256 of its green/blue level (40).
   const auto pupil = get(pixels, kEyeX + 4, kEyeY);
   CHECK(!red_dominant(pupil));
-  CHECK(std::abs(pupil[0] - 20) <= 2 && std::abs(pupil[1] - 20) <= 2 && std::abs(pupil[2] - 20) <= 2);
+  CHECK(std::abs(pupil[0] - 25) <= 1 && std::abs(pupil[1] - 25) <= 1 && std::abs(pupil[2] - 25) <= 1);
+  // The white glint inside the pupil keeps its brightness.
+  const auto glint = get(pixels, 37, 37);
+  CHECK(glint[0] >= 240 && glint[1] >= 240 && glint[2] >= 240);
   // Skin, iris, the red square outside the box and the red dot apart from the pupil stay.
   CHECK(same(get(pixels, 5, 5), kSkin));
-  CHECK(same(get(pixels, kEyeX + 12, kEyeY), kIris));
+  CHECK(same(get(pixels, kEyeX + 14, kEyeY), kIris));
   CHECK(same(get(pixels, 105, 40), kPupilRed));
   CHECK(same(get(pixels, 53, 27), kPupilRed));
-  CHECK(dirty.x >= kEyeX - 10 && dirty.x + dirty.width <= kEyeX + 11);
+  CHECK(dirty.x >= kEyeX - 11 && dirty.x + dirty.width <= kEyeX + 12);
 }
 
 void red_eye_click_beside_pupil_finds_nearest_red() {
@@ -126,13 +129,13 @@ void red_eye_click_beside_pupil_finds_nearest_red() {
   // Far from any red there is nothing to fix.
   auto untouched = make_face();
   const auto region = click_region(8, 8);
-  CHECK(patchy::find_red_eye(untouched, region, 8, 8, region.width / 4, RedEyeOptions{}).empty());
+  CHECK(patchy::find_red_eye(untouched, region, 8, 8, region.width / 6, RedEyeOptions{}).empty());
 }
 
 void red_eye_pupil_size_takes_in_the_rim() {
-  // The rim's outer ring (radius about 8.5) is not red enough at the default Pupil Size
-  // and is not next to the pupil, so it stays; at 100 the rim counts as pupil.
-  const int rim_x = kEyeX + 8;
+  // The pale pink rim is not red enough to grow into at the default Pupil Size, and a point
+  // of it past the pupil's soft edge stays; at 100 the rim counts as pupil.
+  const int rim_x = kEyeX + 11;
   const int rim_y = kEyeY + 3;
   auto pixels = make_face();
   click_and_apply(pixels, kEyeX, kEyeY + 3, RedEyeOptions{50, 50});
@@ -140,9 +143,9 @@ void red_eye_pupil_size_takes_in_the_rim() {
   auto wide = make_face();
   click_and_apply(wide, kEyeX, kEyeY + 3, RedEyeOptions{100, 50});
   CHECK(!red_dominant(get(wide, rim_x, rim_y)));
-  CHECK(same(get(wide, kEyeX + 12, kEyeY), kIris));
-  CHECK(patchy::red_eye_is_red(kRim[0], kRim[1], kRim[2], 100));
-  CHECK(!patchy::red_eye_is_red(kRim[0], kRim[1], kRim[2], 50));
+  CHECK(same(get(wide, kEyeX + 16, kEyeY), kIris));
+  CHECK(patchy::red_eye_redness(kRim[0], kRim[1], kRim[2], 100) > patchy::red_eye_redness(kRim[0], kRim[1], kRim[2], 50));
+  CHECK(patchy::red_eye_is_red(kPupilRed[0], kPupilRed[1], kPupilRed[2], 50));
   CHECK(!patchy::red_eye_is_red(kIris[0], kIris[1], kIris[2], 100));
   CHECK(!patchy::red_eye_is_red(kSkin[0], kSkin[1], kSkin[2], 100));
 }
@@ -154,8 +157,9 @@ void red_eye_darken_amount_scales_brightness() {
   click_and_apply(dark, kEyeX, kEyeY + 3, RedEyeOptions{50, 100});
   const auto light_pupil = get(light, kEyeX + 4, kEyeY);
   const auto dark_pupil = get(dark, kEyeX + 4, kEyeY);
-  CHECK(std::abs(light_pupil[1] - 30) <= 2);  // 40 * 0.75
-  CHECK(dark_pupil[0] <= 2 && dark_pupil[1] <= 2 && dark_pupil[2] <= 2);
+  CHECK(std::abs(light_pupil[1] - 32) <= 1);  // 40 * 208 / 256
+  // Darken 100 keeps a quarter, so the pupil is very dark but not flat black.
+  CHECK(std::abs(dark_pupil[0] - 10) <= 1 && std::abs(dark_pupil[1] - 10) <= 1 && std::abs(dark_pupil[2] - 10) <= 1);
 }
 
 void red_eye_selection_limits_the_change() {
@@ -222,7 +226,7 @@ void red_eye_keeps_alpha_and_skips_transparent_red() {
       px[3] = x < 8 ? 255 : 0;
     }
   }
-  const auto mask = patchy::find_red_eye(pixels, Rect{0, 0, 16, 16}, 4, 8, 8, RedEyeOptions{});
+  const auto mask = patchy::find_red_eye(pixels, Rect{0, 0, 16, 16}, 4, 8, 8, RedEyeOptions{}, false);
   CHECK(mask.pupil_pixels == 8 * 16);
   patchy::apply_red_eye(pixels, mask, RedEyeOptions{});
   CHECK(pixels.pixel(3, 8)[0] < 40 && pixels.pixel(3, 8)[3] == 255);

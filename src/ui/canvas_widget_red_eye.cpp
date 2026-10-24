@@ -1,7 +1,7 @@
-// CanvasWidget's Red Eye tool (docs/healing.md, "Red Eye"). The user picks the eye: a click
+// CanvasWidget's Red Eye tool (docs/red-eye.md). The user picks the eye: a click
 // works in a fixed box around the press point, a drag inside the dragged box. The correction
-// (core/red_eye.hpp) marks red pixels by a fixed color rule, keeps the connected red area at
-// or nearest the user's point, and desaturates and darkens it, once, on release. Nothing here
+// (core/red_eye.hpp) weighs pixels by fixed color rules, grows the red area from the user's
+// point, and desaturates and darkens it by each pixel's redness, once, on release. Nothing here
 // may look for faces or eyes, scan the whole image, or correct every eye at once: that needs
 // a new patent check first (docs/legal-constraints.md, "Red Eye").
 
@@ -125,13 +125,14 @@ CanvasWidget::RedEyeResult CanvasWidget::apply_red_eye_at(QPoint point, std::opt
   } else {
     const auto side = patchy::red_eye_click_box_size(document_->width(), document_->height());
     region = QRect(point.x() - side / 2, point.y() - side / 2, side, side);
-    search_radius = side / 4;
+    search_radius = side / 6;
   }
   const patchy::RedEyeOptions options{std::clamp(pupil_size, 1, 100), std::clamp(darken_amount, 1, 100)};
   const patchy::Rect buffer_region{region.x() - layer_bounds.x, region.y() - layer_bounds.y, region.width(),
                            region.height()};
   const auto mask = patchy::find_red_eye(std::as_const(*layer).pixels(), buffer_region, point.x() - layer_bounds.x,
-                                         point.y() - layer_bounds.y, search_radius, options);
+                                         point.y() - layer_bounds.y, search_radius, options,
+                                         /*limit_to_disk=*/!box.has_value());
   if (mask.empty()) {
     return refuse(box.has_value() ? tr("Red Eye found no red pixels in the box")
                                   : tr("Red Eye found no red pixels near the click"));

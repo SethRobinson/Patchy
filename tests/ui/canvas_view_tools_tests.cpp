@@ -5439,6 +5439,103 @@ void ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans() {
   CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
 }
 
+// GitHub issue 390: the Crop tool icon leaves a larger clear square between its crop marks
+// (philipzae's mockup) and its art still spans 29 of 32 units (issue 338). The artifacts are
+// the issue shots: the palette around the Crop button and its open flyout, in both schemes
+// at 100% and 200%, plus the icon at 32 px.
+void ui_tool_palette_crop_icon_has_large_center() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Light, patchy::ui::ColorSchemePreference::Dark}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("cropToolButton"));
+    CHECK(button != nullptr && button->menu() != nullptr);
+    if (button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    auto* action = require_action(window, "toolCropAction");
+    const QImage icon = action->icon().pixmap(QSize(32, 32), 1.0).toImage().convertToFormat(QImage::Format_ARGB32);
+    const std::string suffix = light ? "_light" : "_dark";
+    ensure_artifact_dir();
+    CHECK(icon.save(QString::fromStdString("test-artifacts/issue_390_crop_icon_32" + suffix + ".png")));
+    // The palette around the Crop button, then the open flyout over the window, each at 100%
+    // and 200%: QWidget::render into an image of that pixel ratio draws the icons at it.
+    const QPoint button_origin = button->mapTo(&window, QPoint(0, 0));
+    const auto render_region = [&window](const QRect& region, qreal ratio, QWidget* popup, QPoint popup_position) {
+      QImage image(region.size() * ratio, QImage::Format_ARGB32_Premultiplied);
+      image.setDevicePixelRatio(ratio);
+      image.fill(Qt::transparent);
+      window.render(&image, QPoint(), QRegion(region));
+      if (popup != nullptr) {
+        QPainter painter(&image);
+        popup->render(&painter, popup_position - region.topLeft());
+      }
+      return image;
+    };
+    for (const qreal ratio : {1.0, 2.0}) {
+      const std::string scale = ratio > 1.5 ? "_200" : "_100";
+      const QRect around = QRect(button_origin, button->size()).adjusted(-8, -60, 8, 60).intersected(window.rect());
+      CHECK(render_region(around, ratio, nullptr, QPoint())
+                .save(QString::fromStdString("test-artifacts/issue_390_crop_palette" + suffix + scale + ".png")));
+    }
+    auto* menu = button->menu();
+    QTimer::singleShot(0, [&] {
+      const QPoint popup_position = menu->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0));
+      const QRect crop = QRect(button_origin, button->size())
+                             .united(QRect(popup_position, menu->size()))
+                             .adjusted(-8, -14, 14, 14)
+                             .intersected(window.rect());
+      for (const qreal ratio : {1.0, 2.0}) {
+        const std::string scale = ratio > 1.5 ? "_200" : "_100";
+        CHECK(render_region(crop, ratio, menu, popup_position)
+                  .save(QString::fromStdString("test-artifacts/issue_390_crop_flyout" + suffix + scale + ".png")));
+      }
+      menu->close();
+    });
+    button->showMenu();
+    QApplication::processEvents();
+    CHECK(!menu->isVisible());
+    if (!light) {
+      // Ink extent: the longer side at 29 of 32 units.
+      int left = icon.width();
+      int right = -1;
+      int top = icon.height();
+      int bottom = -1;
+      for (int y = 0; y < icon.height(); ++y) {
+        for (int x = 0; x < icon.width(); ++x) {
+          if (qAlpha(icon.pixel(x, y)) > 28) {
+            left = std::min(left, x);
+            right = std::max(right, x);
+            top = std::min(top, y);
+            bottom = std::max(bottom, y);
+          }
+        }
+      }
+      const int extent = std::max(right - left + 1, bottom - top + 1);
+      // The clear center on the middle row: the run between the two frame strokes, with the
+      // accent diagonal (the blue ink) counted as clear.
+      const auto frame_ink = [&icon](int x, int y) {
+        const QColor color = QColor::fromRgba(icon.pixel(x, y));
+        return color.alpha() > 128 && color.blue() <= color.red() + 40;
+      };
+      int clear_left = 16;
+      while (clear_left > 0 && !frame_ink(clear_left - 1, 16)) {
+        --clear_left;
+      }
+      int clear_right = 16;
+      while (clear_right < 31 && !frame_ink(clear_right + 1, 16)) {
+        ++clear_right;
+      }
+      const int clear = clear_right - clear_left + 1;
+      std::printf("  crop icon ink extent %d px, clear center %d px (x %d..%d)\n", extent, clear, clear_left,
+                  clear_right);
+      CHECK(extent >= 28 && extent <= 30);
+      CHECK(clear >= 13);
+    }
+  }
+}
+
 void ui_tool_palette_icons_render_sheet() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -9005,6 +9102,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
        ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_flyout_marks_the_tool_its_button_shows", ui_tool_flyout_marks_the_tool_its_button_shows},
+      {"ui_tool_palette_crop_icon_has_large_center", ui_tool_palette_crop_icon_has_large_center},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_toolbar_spin_boxes_select_all_on_focus", ui_toolbar_spin_boxes_select_all_on_focus},

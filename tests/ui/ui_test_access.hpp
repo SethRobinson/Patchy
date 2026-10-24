@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -29,6 +30,10 @@ class MainWindowTestAccess {
 public:
   static Document& document(MainWindow& window) {
     return window.document();
+  }
+
+  static std::vector<LayerId> selected_layer_ids(const MainWindow& window) {
+    return window.selected_layer_ids();
   }
 
   // The High Quality Object Selection model offer (main_window_ai_selection.cpp).

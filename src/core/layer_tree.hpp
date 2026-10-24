@@ -65,6 +65,11 @@ void apply_layer_fx_disclosure(std::vector<Layer>& layers, const std::set<LayerI
                                const std::set<LayerId>& collapsed_smart_filters);
 [[nodiscard]] bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id,
                                                  std::vector<LayerId>& ancestors);
+// The groups that enclose every listed layer: the folders a merge of those layers stays
+// inside. Their own visibility does not hide the merge (Photoshop merges inside a hidden
+// folder; GitHub issue 389). Empty when an id is missing or the list is empty.
+[[nodiscard]] std::set<LayerId> layer_shared_ancestor_groups(const std::vector<Layer>& layers,
+                                                             const std::vector<LayerId>& ids);
 [[nodiscard]] const Layer* find_layer_in_tree(const std::vector<Layer>& layers, LayerId id);
 [[nodiscard]] Layer* find_layer_in_tree(std::vector<Layer>& layers, LayerId id);
 [[nodiscard]] bool layer_contains_descendant(const Layer& layer, LayerId id);

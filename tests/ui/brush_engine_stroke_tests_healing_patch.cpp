@@ -23,6 +23,7 @@
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/red_eye.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
@@ -1820,6 +1821,103 @@ std::optional<patchy::LayerId> paint_red_eye_layer(patchy::Document& document) {
 // Amount in the options bar (spin box and slider, saved under tools/redEye*), corrects the
 // pupil under a click as one undo step, leaves a red area outside its box alone, and
 // corrects inside a drag box (Esc mid-drag writes nothing).
+// The Red Eye correction on real flash photos (test-fixtures/red-eye, licenses in its
+// README): one click on each pupil at the default settings. Afterwards no pixel of the
+// corrected area plus a 2 px ring is still clearly red (red-eye strength: bright, red 1.7x and
+// 45 levels above green and blue, hue within 10 degrees of red; reddish skin stays out), nothing outside the area changed, the area did not
+// leak far past the pupil, and the glint keeps its brightness.
+void ui_red_eye_real_photos_leave_no_red_fringe() {
+  struct Photo {
+    const char* file;
+    std::vector<QPoint> pupils;
+  };
+  const std::vector<Photo> photos{
+      {"bold.png", {QPoint(155, 166)}},
+      {"belinda.png", {QPoint(260, 62), QPoint(67, 60)}},
+      {"glasses.png", {QPoint(168, 42), QPoint(44, 45)}},
+      {"boy.png", {QPoint(109, 90), QPoint(395, 84)}},
+      {"small.png", {QPoint(76, 39)}},
+      {"tiny.png", {QPoint(80, 43), QPoint(161, 59)}},
+  };
+  for (const auto& photo : photos) {
+    const QImage image =
+        QImage(QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/red-eye/") + QString::fromLatin1(photo.file))
+            .convertToFormat(QImage::Format_RGB888);
+    CHECK(!image.isNull());
+    if (image.isNull()) {
+      continue;
+    }
+    patchy::PixelBuffer original(image.width(), image.height(), patchy::PixelFormat::rgb8());
+    for (int y = 0; y < image.height(); ++y) {
+      std::memcpy(original.pixel(0, y), image.constScanLine(y), static_cast<std::size_t>(image.width()) * 3U);
+    }
+    auto pixels = original;
+    std::vector<patchy::RedEyeMask> masks;
+    const auto side = patchy::red_eye_click_box_size(image.width(), image.height());
+    for (const auto pupil : photo.pupils) {
+      const patchy::Rect region{pupil.x() - side / 2, pupil.y() - side / 2, side, side};
+      auto mask = patchy::find_red_eye(pixels, region, pupil.x(), pupil.y(), side / 6, patchy::RedEyeOptions{});
+      CHECK(!mask.empty());
+      if (mask.empty()) {
+        continue;
+      }
+      // No leak: the area stays near the size of a round pupil of its own pixel count.
+      const auto limit = 2.0 * std::sqrt(static_cast<double>(mask.pupil_pixels)) + 14.0;
+      CHECK(mask.bounds.width <= limit && mask.bounds.height <= limit);
+      patchy::apply_red_eye(pixels, mask, patchy::RedEyeOptions{});
+      masks.push_back(std::move(mask));
+    }
+    const auto touched = [&](int x, int y, int ring) {
+      for (const auto& mask : masks) {
+        for (int dy = -ring; dy <= ring; ++dy) {
+          for (int dx = -ring; dx <= ring; ++dx) {
+            if (mask.at(x + dx, y + dy) != 0U) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    };
+    int checked = 0;
+    int still_red = 0;
+    int glint = 0;
+    int dimmed_glint = 0;
+    int changed_outside = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto* before = original.pixel(x, y);
+        const auto* after = pixels.pixel(x, y);
+        if (!touched(x, y, 0)) {
+          changed_outside += std::memcmp(before, after, 3) != 0 ? 1 : 0;
+        }
+        if (!touched(x, y, 2)) {
+          continue;
+        }
+        ++checked;
+        const int r = after[0];
+        const int g = after[1];
+        const int b = after[2];
+        const int high = std::max(g, b);
+        if (r >= 80 && r - high > 45 && r * 10 > high * 17 && std::abs(g - b) * 6 < r - std::min(g, b)) {
+          ++still_red;
+        }
+        if (touched(x, y, 0) && std::min({before[0], before[1], before[2]}) >= 220) {
+          ++glint;
+          const int lum_before = before[0] + before[1] + before[2];
+          const int lum_after = after[0] + after[1] + after[2];
+          dimmed_glint += lum_after * 100 < lum_before * 85 ? 1 : 0;
+        }
+      }
+    }
+    std::cout << "red eye " << photo.file << ": " << still_red << " clearly red of " << checked << ", glint "
+              << glint << " (" << dimmed_glint << " dimmed)\n";
+    CHECK(changed_outside == 0);
+    CHECK(still_red * 200 <= checked);  // at most 0.5% (lone JPEG pixels)
+    CHECK(dimmed_glint == 0);
+  }
+}
+
 void ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes() {
   SettingsValueRestorer pupil_restorer(QStringLiteral("tools/redEyePupilSize"));
   SettingsValueRestorer darken_restorer(QStringLiteral("tools/redEyeDarkenAmount"));
@@ -1890,8 +1988,8 @@ void ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes() {
   send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
-  // Darken 100 takes the neutral pupil to black; skin and the far red patch stay.
-  CHECK((pixel(25, 25) == std::array<int, 3>{0, 0, 0}));
+  // Darken 100 keeps a quarter of the neutral pupil (40 -> 10); skin and the far red patch stay.
+  CHECK((pixel(25, 25) == std::array<int, 3>{10, 10, 10}));
   CHECK((pixel(5, 5) == std::array<int, 3>{215, 165, 135}));
   CHECK((pixel(52, 52) == std::array<int, 3>{200, 40, 40}));
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
@@ -1911,7 +2009,7 @@ void ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes() {
   send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
-  CHECK((pixel(52, 52) == std::array<int, 3>{0, 0, 0}));
+  CHECK((pixel(52, 52) == std::array<int, 3>{10, 10, 10}));
   CHECK((pixel(25, 25) == std::array<int, 3>{200, 40, 40}));
 }
 
@@ -1933,6 +2031,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_healing_mode_option_persists_and_reaches_new_documents",
        ui_healing_mode_option_persists_and_reaches_new_documents},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},
+      {"ui_red_eye_real_photos_leave_no_red_fringe", ui_red_eye_real_photos_leave_no_red_fringe},
       {"ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes",
        ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes},
       {"ui_spot_healing_escape_cancels_without_pixel_changes",

@@ -2046,6 +2046,16 @@ void MainWindow::create_palette_dock(std::vector<PanelSpec>& specs) {
     refresh_palette_panel();
     statusBar()->showMessage(tr("Foreground: palette index %1 (%2)").arg(index).arg(color.name()));
   });
+  connect(palette_panel_, &PalettePanel::entry_background_requested, this, [this](int index) {
+    const auto colors = displayed_palette_colors();
+    if (canvas_ == nullptr || index < 0 || index >= static_cast<int>(colors.size())) {
+      return;
+    }
+    const auto& entry = colors[static_cast<std::size_t>(index)];
+    // The same path as the Color panel's Alt pick: the canvas background, an open
+    // Background Color window, the color well.
+    apply_color_panel_pick(QColor(entry.red, entry.green, entry.blue), true);
+  });
   connect(palette_panel_, &PalettePanel::entry_edit_requested, this, [this](int index) { edit_palette_entry(index); });
   connect(palette_panel_, &PalettePanel::entry_name_requested, this, [this](int index) { rename_palette_entry(index); });
   connect(palette_panel_, &PalettePanel::entry_swap_requested, this,

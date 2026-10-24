@@ -1172,6 +1172,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/default_brush_tips.hpp
       src/ui/default_brush_tips.cpp
       src/ui/color_panel.cpp
+      src/ui/background_pick_cursor.hpp
+      src/ui/background_pick_cursor.cpp
       src/ui/color_dock_panel.hpp
       src/ui/color_dock_panel.cpp
       src/ui/color_field_widgets.hpp

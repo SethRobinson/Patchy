@@ -53,6 +53,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/layer_list_widget.hpp"
 #include "ui/layer_merge.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/vector_preview_renderer.hpp"
@@ -1727,10 +1728,147 @@ void ui_merge_visible_menu_placement_and_captures() {
   capture_window("issue294_after_dark", "issue294_after_light");
 }
 
+// GitHub issue 389: Duplicate on a folder, then Merge Down on a child of the
+// copy (and of the original), driven through Layers panel clicks.
+std::string dump_tree(const std::vector<Layer>& layers, int depth = 0) {
+  std::string out;
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    out += std::string(static_cast<std::size_t>(depth) * 2U, ' ') + it->name() + " #" + std::to_string(it->id()) + "\n";
+    out += dump_tree(it->children(), depth + 1);
+  }
+  return out;
+}
+
+QListWidgetItem* layer_item_by_id(QListWidget& list, LayerId id) {
+  for (int row = 0; row < list.count(); ++row) {
+    auto* item = list.item(row);
+    if (static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()) == id) { return item; }
+  }
+  return nullptr;
+}
+
+void click_layer_row_by_id(QListWidget& list, LayerId id) {
+  const auto fetch = [&]() -> QLabel* {
+    auto* item = layer_item_by_id(list, id);
+    CHECK(item != nullptr);
+    list.scrollToItem(item);
+    auto* label = list.itemWidget(item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+    CHECK(label != nullptr);
+    return label;
+  };
+  auto* press = fetch();
+  send_mouse(*press, QEvent::MouseButtonPress, press->rect().center(), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  auto* release = fetch();
+  send_mouse(*release, QEvent::MouseButtonRelease, release->rect().center(), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+}
+
+void issue389_scenario(bool shapes, bool hide_original) {
+  Document doc(96, 96, PixelFormat::rgba8());
+  Layer folder(doc.allocate_layer_id(), "Folder 1", LayerKind::Group);
+  const auto folder_id = folder.id();
+  const std::array<RgbColor, 3> colors{{{220, 30, 30}, {30, 200, 40}, {40, 60, 230}}};
+  for (int i = 0; i < 3; ++i) {
+    auto child = shapes ? vector_layer(doc, rectangle(8 + i * 14, 8 + i * 14, 30, 30, colors[static_cast<std::size_t>(i)]))
+                        : pixel_layer(doc, 8 + i * 14, 8 + i * 14, colors[static_cast<std::size_t>(i)]);
+    child.set_name((shapes ? "Shape " : "Layer ") + std::to_string(i + 1));
+    folder.add_child(std::move(child));
+  }
+  doc.add_layer(std::move(folder));
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(doc), QStringLiteral("Issue 389"));
+  auto& live = MainWindowTestAccess::document(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  const auto children_of = [&](LayerId id) {
+    std::vector<std::string> names;
+    const auto* group = std::as_const(live).find_layer(id);
+    CHECK(group != nullptr);
+    for (const auto& child : group->children()) { names.push_back(child.name()); }
+    return names;
+  };
+  const auto merge_down = [&](LayerId upper) {
+    click_layer_row_by_id(*list, upper);
+    CHECK((MainWindowTestAccess::selected_layer_ids(window) == std::vector<LayerId>{upper}));
+    require_action(window, "layerMergeDownAction")->trigger();
+    QApplication::processEvents();
+    std::printf("[389] merge down #%llu (status '%s')\n%s", static_cast<unsigned long long>(upper),
+                window.statusBar()->currentMessage().toUtf8().constData(),
+                dump_tree(std::as_const(live).layers()).c_str());
+  };
+
+  // Duplicate Layer on the folder: only the folder is renamed, like Photoshop's.
+  click_layer_row_by_id(*list, folder_id);
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  const auto& top = std::as_const(live).layers();
+  const auto copy_it = std::find_if(top.begin(), top.end(), [](const Layer& l) { return l.name() == "Folder 1 copy"; });
+  CHECK(copy_it != top.end());
+  const auto copy_id = copy_it->id();
+  const auto original_names = children_of(folder_id);
+  CHECK(children_of(copy_id) == original_names);
+  for (const auto& child : copy_it->children()) {
+    std::vector<LayerId> ancestors;
+    CHECK(collect_layer_ancestor_groups(top, child.id(), ancestors));
+    CHECK((ancestors == std::vector<LayerId>{copy_id}));
+  }
+
+  if (hide_original) {
+    // The reporter's panel: the original folder hidden after duplicating it.
+    auto* eye = list->itemWidget(layer_item_by_id(*list, folder_id))->findChild<QToolButton*>(
+        QStringLiteral("layerVisibilityCheck"));
+    CHECK(eye != nullptr);
+    eye->click();
+    QApplication::processEvents();
+    CHECK(!std::as_const(live).find_layer(folder_id)->visible());
+  } else {
+    merge_down(std::as_const(live).find_layer(copy_id)->children().back().id());
+    CHECK((children_of(copy_id) == std::vector<std::string>{original_names[0], original_names[1]}));
+    CHECK(children_of(folder_id) == original_names);
+  }
+  const auto* original = std::as_const(live).find_layer(folder_id);
+  const auto upper = original->children()[2].id();
+  const auto lower = original->children()[1].id();
+  const auto bottom = original->children()[0].id();
+  const auto undo_depth = MainWindowTestAccess::active_session_undo_depth(window);
+  merge_down(upper);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  CHECK((children_of(folder_id) == std::vector<std::string>{original_names[0], original_names[1]}));
+  original = std::as_const(live).find_layer(folder_id);
+  CHECK(original->visible() == !hide_original);
+  CHECK(original->children()[0].id() == bottom);
+  const auto& merged = original->children()[1];
+  CHECK(merged.visible());
+  // The merged layer holds both sources' artwork (the lower one keeps its id).
+  if (!shapes) {
+    CHECK(merged.id() == lower);
+    CHECK(merged.bounds().width > 16 && merged.bounds().height > 16);
+  } else {
+    CHECK(std::as_const(live).find_layer(upper) == nullptr || std::as_const(live).find_layer(lower) == nullptr);
+    CHECK(merged.vector_shape() != nullptr);
+  }
+  CHECK(children_of(copy_id).size() == (hide_original ? 3U : 2U));
+  if (hide_original) {
+    save_widget_artifact(shapes ? "issue389_hidden_folder_merged_shapes" : "issue389_hidden_folder_merged_pixels",
+                         *layers_dock);
+  }
+}
+
+void ui_issue389_duplicate_folder_then_merge_down_pixels() { issue389_scenario(false, false); }
+void ui_issue389_duplicate_folder_then_merge_down_shapes() { issue389_scenario(true, false); }
+void ui_issue389_merge_down_inside_hidden_folder_pixels() { issue389_scenario(false, true); }
+void ui_issue389_merge_down_inside_hidden_folder_shapes() { issue389_scenario(true, true); }
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_merge_tests() {
   return {
+      {"ui_issue389_duplicate_folder_then_merge_down_pixels", ui_issue389_duplicate_folder_then_merge_down_pixels},
+      {"ui_issue389_duplicate_folder_then_merge_down_shapes", ui_issue389_duplicate_folder_then_merge_down_shapes},
+      {"ui_issue389_merge_down_inside_hidden_folder_pixels", ui_issue389_merge_down_inside_hidden_folder_pixels},
+      {"ui_issue389_merge_down_inside_hidden_folder_shapes", ui_issue389_merge_down_inside_hidden_folder_shapes},
       {"ui_layer_selection_count_includes_collapsed_descendants", ui_layer_selection_count_includes_collapsed_descendants},
       {"ui_layer_selection_count_little_everywhere_if_available", ui_layer_selection_count_little_everywhere_if_available},
       {"ui_merge_visible_copy_bitmap_preserves_alpha_and_history", ui_merge_visible_copy_bitmap_preserves_alpha_and_history},

@@ -65,6 +65,9 @@ public:
 
 signals:
   void entry_clicked(int index);
+  // An Alt-click (Option on macOS) on a swatch: it sets the background color (GitHub
+  // issue 365). The grid shows the background cursor while Alt is held over it.
+  void entry_background_requested(int index);
   void entry_edit_requested(int index);
   void entry_name_requested(int index);
   void entry_swap_requested(int from_index, int to_index);

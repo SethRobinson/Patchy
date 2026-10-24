@@ -1255,7 +1255,7 @@ void ui_script_remove_object_heals_selection() {
 }
 
 // layer.redEye: a click corrects the red pupil it lands on and leaves a red patch outside
-// its box alone, a box with Darken Amount 100 blacks out the second patch, a click with
+// its box alone, a box with Darken Amount 100 darkens the second patch to a quarter, a click with
 // no red near it and an unknown option both throw.
 void ui_script_red_eye_corrects_pupil() {
   patchy::ui::MainWindow window;
@@ -1289,8 +1289,8 @@ void ui_script_red_eye_corrects_pupil() {
       console.log('option-refused=' + (e.message.indexOf('strength') >= 0));
     }
   )JS")));
-  CHECK(backlog_contains(window, QStringLiteral("click=100 at=20,20,20 far=200,40,40")));
-  CHECK(backlog_contains(window, QStringLiteral("box=36 at=0,0,0")));
+  CHECK(backlog_contains(window, QStringLiteral("click=100 at=25,25,25 far=200,40,40")));
+  CHECK(backlog_contains(window, QStringLiteral("box=36 at=10,10,10")));
   CHECK(backlog_contains(window, QStringLiteral("none-refused=true")));
   CHECK(backlog_contains(window, QStringLiteral("option-refused=true")));
   CHECK(!backlog_contains(window, QStringLiteral("no-throw")));

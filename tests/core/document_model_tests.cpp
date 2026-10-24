@@ -689,6 +689,38 @@ void layer_drop_request_moves_multiple_layers_into_folder() {
   CHECK(moved_folder.children()[1].id() == paint_id);
 }
 
+// GitHub issue 389: the folders a merge stays inside.
+void layer_shared_ancestor_groups_find_the_enclosing_folders() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30));
+  const auto background_id = std::as_const(document).layers()[0].id();
+  patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  const auto outer_id = outer.id();
+  patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  const auto inner_id = inner.id();
+  patchy::Layer a(document.allocate_layer_id(), "A", solid_rgb(2, 2, 40, 50, 60));
+  const auto a_id = a.id();
+  patchy::Layer b(document.allocate_layer_id(), "B", solid_rgb(2, 2, 70, 80, 90));
+  const auto b_id = b.id();
+  patchy::Layer c(document.allocate_layer_id(), "C", solid_rgb(2, 2, 1, 2, 3));
+  const auto c_id = c.id();
+  inner.add_child(std::move(a));
+  inner.add_child(std::move(b));
+  outer.add_child(std::move(inner));
+  outer.add_child(std::move(c));
+  document.add_layer(std::move(outer));
+  const auto& layers = std::as_const(document).layers();
+  using Ids = std::set<patchy::LayerId>;
+  CHECK((patchy::layer_shared_ancestor_groups(layers, {a_id, b_id}) == Ids{inner_id, outer_id}));
+  CHECK((patchy::layer_shared_ancestor_groups(layers, {b_id, c_id}) == Ids{outer_id}));
+  CHECK((patchy::layer_shared_ancestor_groups(layers, {inner_id, c_id}) == Ids{outer_id}));
+  CHECK((patchy::layer_shared_ancestor_groups(layers, {a_id}) == Ids{inner_id, outer_id}));
+  CHECK(patchy::layer_shared_ancestor_groups(layers, {a_id, background_id}).empty());
+  CHECK(patchy::layer_shared_ancestor_groups(layers, {outer_id}).empty());
+  CHECK(patchy::layer_shared_ancestor_groups(layers, {a_id, 99999}).empty());
+  CHECK(patchy::layer_shared_ancestor_groups(layers, {}).empty());
+}
+
 void layer_drop_roots_ignore_selected_descendants() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30));
@@ -1078,6 +1110,7 @@ void layer_quarter_turns_keep_the_layer_center() {
 
 std::vector<patchy::test::TestCase> document_model_tests() {
   return {
+      {"layer_shared_ancestor_groups_find_the_enclosing_folders", layer_shared_ancestor_groups_find_the_enclosing_folders},
       {"document_flips_and_half_turn_mirror_every_layer_and_channel",
        document_flips_and_half_turn_mirror_every_layer_and_channel},
       {"layer_quarter_turns_keep_the_layer_center", layer_quarter_turns_keep_the_layer_center},
