@@ -42,6 +42,14 @@ public:
   // Ctrl+C copies the hex and Ctrl+V or typing replaces it. Every picker does
   // this on show (GitHub issue 68); the field also selects all on any focus-in.
   void focus_hex_field();
+  // The Foreground Color window's Alt pick (GitHub issue 365): with a handler set, a
+  // press with Alt (Option on macOS) on the palette swatches, the custom colors, the
+  // Square field and hue strip, the Wheel or a Pick Screen Color click hands the color
+  // under the pointer to `handler` (MainWindow sets the background) instead of editing
+  // this picker's color, and Alt held over those areas shows the background cursor.
+  // The Sliders tab has no Alt pick. Set once, right after construction; no handler
+  // (the default) means Alt clicks act like plain clicks.
+  void set_background_pick_handler(std::function<void(QColor)> handler);
 
 public slots:
   void setCurrentColor(QColor color);

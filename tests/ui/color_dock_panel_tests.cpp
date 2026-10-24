@@ -25,6 +25,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QPushButton>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QWidget>
@@ -432,8 +433,8 @@ void ui_color_panel_alt_shows_background_cursor() {
   send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
   CHECK(strip->cursor().shape() == strip_shape);
 
-  // The picker window's own field, which edits one color, keeps its cursor.
-  panel->foreground_chip()->click();
+  // The Background Color window, which already edits the background, keeps its cursor.
+  panel->background_chip()->click();
   QApplication::processEvents();
   auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyColorDialog"));
   CHECK(dialog != nullptr);
@@ -508,6 +509,120 @@ void ui_palette_panel_alt_click_sets_background() {
   CHECK(!shows_background_cursor(*grid));
 }
 
+QDialog* open_color_window(patchy::ui::MainWindow& window, const char* chip_name) {
+  auto* chip = window.findChild<QAbstractButton*>(QLatin1String(chip_name));
+  CHECK(chip != nullptr);
+  if (chip == nullptr) {
+    return nullptr;
+  }
+  chip->click();
+  QApplication::processEvents();
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr && dialog->isVisible());
+  return dialog;
+}
+
+// The picker window's palette swatch `index` (24 px cells with a 5 px gap while the palette
+// has at most 64 colors).
+QPoint picker_cell(int index) { return QPoint(index * 29 + 12, 12); }
+
+void ui_color_picker_foreground_window_alt_pick_sets_background() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* dialog = open_color_window(window, "foregroundColorButton");
+  if (dialog == nullptr) {
+    return;
+  }
+  CHECK(dialog->property("patchy.colorTarget").toString() == QStringLiteral("foreground"));
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  auto* plane = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPlane"));
+  CHECK(picker != nullptr && grid != nullptr && plane != nullptr);
+  if (picker == nullptr || grid == nullptr || plane == nullptr) {
+    return;
+  }
+
+  // Plain clicks on two swatches set the foreground, as before.
+  click(*grid, picker_cell(0));
+  const auto first = canvas->primary_color();
+  click(*grid, picker_cell(1));
+  const auto second = canvas->primary_color();
+  CHECK(first.rgb() != second.rgb());
+  const auto background_before = canvas->secondary_color();
+  CHECK(background_before.rgb() != first.rgb());
+
+  // Alt-click the first swatch: the background takes it; the foreground and the window's
+  // own color stay on the second.
+  click(*grid, picker_cell(0), Qt::AltModifier);
+  CHECK(canvas->secondary_color().rgb() == first.rgb());
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  CHECK(picker->currentColor().rgb() == second.rgb());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Background color changed"));
+
+  // The Square field: an Alt-click gives the background the color a plain click there
+  // gives the foreground.
+  const QPoint spot(plane->width() * 3 / 4, plane->height() / 4);
+  click(*plane, spot, Qt::AltModifier);
+  const auto alt_picked = canvas->secondary_color();
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  CHECK(picker->currentColor().rgb() == second.rgb());
+  click(*plane, spot);
+  CHECK(canvas->primary_color().rgb() == alt_picked.rgb());
+  CHECK(canvas->secondary_color().rgb() == alt_picked.rgb());
+
+  // A custom color: Alt-click sets the background and leaves the slot unselected.
+  auto* custom = dialog->findChild<QPushButton*>(QStringLiteral("patchyCustomColorSwatch"));
+  CHECK(custom != nullptr);
+  if (custom != nullptr) {
+    const auto foreground = canvas->primary_color();
+    click(*custom, QPoint(custom->width() / 2, custom->height() / 2), Qt::AltModifier);
+    CHECK(canvas->primary_color().rgb() == foreground.rgb());
+    CHECK(picker->currentColor().rgb() == foreground.rgb());
+  }
+
+  // Alt over the swatches shows the background cursor here.
+  hover(*grid, picker_cell(2), Qt::AltModifier);
+  CHECK(shows_background_cursor(*grid));
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(grid->cursor().shape() == Qt::PointingHandCursor);
+  dialog->close();
+  QApplication::processEvents();
+}
+
+void ui_color_picker_background_window_alt_click_is_a_plain_click() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* dialog = open_color_window(window, "backgroundColorButton");
+  if (dialog == nullptr) {
+    return;
+  }
+  CHECK(dialog->property("patchy.colorTarget").toString() == QStringLiteral("background"));
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  CHECK(grid != nullptr);
+  if (grid == nullptr) {
+    return;
+  }
+  const auto foreground = canvas->primary_color();
+  click(*grid, picker_cell(1));
+  const auto plain = canvas->secondary_color();
+  // Alt-click edits the background exactly like a plain click; the foreground stays.
+  click(*grid, picker_cell(2), Qt::AltModifier);
+  const auto alt = canvas->secondary_color();
+  click(*grid, picker_cell(2));
+  CHECK(canvas->secondary_color().rgb() == alt.rgb());
+  CHECK(alt.rgb() != plain.rgb());
+  CHECK(canvas->primary_color().rgb() == foreground.rgb());
+  // No background cursor in this window.
+  hover(*grid, picker_cell(3), Qt::AltModifier);
+  CHECK(!shows_background_cursor(*grid));
+  CHECK(grid->cursor().shape() == Qt::PointingHandCursor);
+  send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  dialog->close();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> color_dock_panel_tests() {
@@ -520,5 +635,9 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
        ui_panel_layout_from_before_color_panel_keeps_its_panels},
       {"ui_color_panel_alt_shows_background_cursor", ui_color_panel_alt_shows_background_cursor},
       {"ui_palette_panel_alt_click_sets_background", ui_palette_panel_alt_click_sets_background},
+      {"ui_color_picker_foreground_window_alt_pick_sets_background",
+       ui_color_picker_foreground_window_alt_pick_sets_background},
+      {"ui_color_picker_background_window_alt_click_is_a_plain_click",
+       ui_color_picker_background_window_alt_click_is_a_plain_click},
   };
 }
