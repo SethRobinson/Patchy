@@ -1332,14 +1332,20 @@ void ui_panel_title_drag_reorders_sections() {
   CHECK(column->section_order() == before_escape);
   CHECK(column->panel_expanded(QStringLiteral("propertiesDock")));
 
-  // The tab group dragged by its tab bar to the bottom; a press there still picks a tab.
+  // The tab group dragged by its tab bar, beside the tabs, to the bottom (a drag from a tab
+  // carries that tab instead).
   auto* tabs = column->tab_bar(QStringLiteral("layersDock"));
   CHECK(tabs != nullptr);
-  const auto channels_tab = tabs->tabRect(1).center();
-  drag(tabs, channels_tab, QPoint(20, column->height() - 2), true);
+  // Midway between the last tab and the bar's end, clear of the window's resize edge.
+  const auto last_tab = tabs->tabRect(tabs->count() - 1);
+  const QPoint beside_tabs((last_tab.right() + tabs->width()) / 2, tabs->height() / 2);
+  CHECK(tabs->width() == column->section_widget(QStringLiteral("layersDock"))->width());
+  CHECK(tabs->tabAt(beside_tabs) < 0);
+  drag(tabs, beside_tabs, QPoint(20, column->height() - 2), true);
   CHECK(column->section_order().last() == QStringLiteral("layersDock"));
   CHECK(splitter->widget(splitter->count() - 1)->objectName() == QStringLiteral("panelTabGroup"));
-  CHECK(column->panel_in_front(QStringLiteral("channelsDock")));
+  CHECK(column->section_panel_ids(QStringLiteral("layersDock")).size() == 3);
+  CHECK(column->panel_in_front(QStringLiteral("layersDock")));
   check_filled("group to bottom");
 
   // move_section and set_section_order do the same without a mouse.
@@ -1686,6 +1692,32 @@ void ui_panel_drag_onto_header_merges_into_tabs() {
   QApplication::processEvents();
   CHECK(column->tab_groups() == groups_before_escape);
   CHECK(QApplication::overrideCursor() == nullptr);
+
+  // The first tab dragged straight down, below its own group: a section of its own just
+  // under the group: a drag from a tab carries that tab, whichever way it goes.
+  column->set_tab_groups({{layers, channels, paths}});
+  column->set_section_order({layers, history, properties, info, color, palette});
+  // Only the group expanded, so the separated Layers fits beside it.
+  for (const auto& id : {history, properties, info, color, palette}) {
+    column->set_panel_expanded(id, false);
+  }
+  QApplication::processEvents();
+  if (auto* bar = column->tab_bar(layers); bar != nullptr) {
+    auto* group = column->section_widget(layers);
+    const QPoint below_group(20, group->mapTo(column, QPoint(0, group->height())).y() + 2);
+    drag(bar, bar->tabRect(0).center(), below_group, false, false);
+    auto* line = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+    CHECK(line != nullptr && line->isVisible() && line->width() > line->height());
+    CHECK(ghost != nullptr && ghost->isVisible() && ghost->size() == bar->tabRect(0).size());
+    send_mouse(*bar, QEvent::MouseButtonRelease, bar->mapFromGlobal(column->mapToGlobal(below_group)),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+  CHECK(column->section_order().mid(0, 3) == (QStringList{channels, layers, history}));
+  CHECK(column->section_panel_ids(channels) == (QStringList{channels, paths}));
+  CHECK(!column->in_tab_group(layers));
+  check_filled("first tab pulled down");
 
   // set_tab_groups puts the default groups back without a mouse.
   column->set_tab_groups({{layers, channels, paths}});

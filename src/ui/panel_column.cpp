@@ -118,8 +118,9 @@ int widget_floor(const QWidget* widget) {
 
 // How far above or below its own tab bar a dragged tab still only changes places.
 constexpr int kTabBarSlack = 6;
-// The dragged title row or tab follows the pointer at this opacity.
-constexpr double kDragGhostOpacity = 0.6;
+// The dragged title row or tab follows the pointer at this opacity: faint enough to see the
+// drop line or outline through it.
+constexpr double kDragGhostOpacity = 0.35;
 
 // A page that stops being its own section drops the height limits apply_section_state set
 // on it there (a collapsed section is pinned to its title row).
@@ -329,6 +330,9 @@ void PanelColumn::build_group_widgets(Section& section) {
   // Fusion paints a palette-light base line beside the tabs (GitHub issue 123).
   tabs->setDrawBase(false);
   tabs->setExpanding(false);
+  // The bar spans the section, so the strip beside the tabs is a handle for the whole
+  // group (a drag from a tab carries only that tab).
+  tabs->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   tabs->setContextMenuPolicy(Qt::CustomContextMenu);
   // The tab bar is the group's handle too: a press still switches tabs, a drag moves.
   tabs->installEventFilter(this);
@@ -1084,7 +1088,8 @@ void PanelColumn::show_merge_frame(const Section& section) {
 }
 
 void PanelColumn::start_drag_ghost() {
-  // What the drag carries: the tab, or the section's header (tab bar and title row).
+  // What the drag carries: the tab, or the bar the section was picked up by (its title row
+  // or its tab bar), no more, so the ghost hides little of where it goes.
   auto& source = *drag_section_;
   QPixmap pixmap;
   if (drag_tab_ >= 0) {
@@ -1092,8 +1097,22 @@ void PanelColumn::start_drag_ghost() {
     pixmap = source.tabs->grab(rect);
     ghost_hotspot_ = source.tabs->mapFromGlobal(drag_press_global_) - rect.topLeft();
   } else {
-    pixmap = source.widget->grab(QRect(0, 0, source.widget->width(), collapsed_height(source)));
-    ghost_hotspot_ = source.widget->mapFromGlobal(drag_press_global_);
+    auto* handle = drag_handle_ != nullptr ? drag_handle_ : source.front()->header;
+    QRect area = handle->rect();
+    if (handle == source.tabs) {
+      // The tabs themselves, not the empty bar beside them.
+      QRect tabs_area;
+      for (int index = 0; index < source.tabs->count(); ++index) {
+        if (source.tabs->isTabVisible(index)) {
+          tabs_area = tabs_area.united(source.tabs->tabRect(index));
+        }
+      }
+      if (!tabs_area.isEmpty()) {
+        area = tabs_area;
+      }
+    }
+    pixmap = handle->grab(area);
+    ghost_hotspot_ = handle->mapFromGlobal(drag_press_global_) - area.topLeft();
   }
   auto* host = window();
   if (drag_ghost_ == nullptr || drag_ghost_->parentWidget() != host) {
@@ -1120,6 +1139,7 @@ void PanelColumn::end_section_drag(bool apply) {
   const auto drop = drop_;
   const auto was_dragging = dragging_;
   drag_section_ = nullptr;
+  drag_handle_ = nullptr;
   press_tab_ = -1;
   drag_tab_ = -1;
   drop_ = Drop{};
@@ -1516,6 +1536,7 @@ bool PanelColumn::eventFilter(QObject* watched, QEvent* event) {
       }
       if (mouse->button() == Qt::LeftButton) {
         drag_section_ = section_for_drag_handle(watched);
+        drag_handle_ = drag_section_ != nullptr ? qobject_cast<QWidget*>(watched) : nullptr;
         drag_press_global_ = mouse->globalPosition().toPoint();
         press_tab_ = drag_section_ != nullptr && drag_section_->tabs == watched
                          ? drag_section_->tabs->tabAt(mouse->position().toPoint())
@@ -1556,9 +1577,9 @@ bool PanelColumn::eventFilter(QObject* watched, QEvent* event) {
         if (delta.manhattanLength() < QApplication::startDragDistance()) {
           break;
         }
-        // Started mostly sideways from a tab, the drag carries that tab; otherwise it
-        // carries the section.
-        drag_tab_ = press_tab_ >= 0 && std::abs(delta.x()) > std::abs(delta.y()) ? press_tab_ : -1;
+        // Started on a tab, the drag carries that tab, whichever way it goes; from a title
+        // row or the bar beside the tabs it carries the section.
+        drag_tab_ = press_tab_;
         dragging_ = true;
         QApplication::setOverrideCursor(Qt::ClosedHandCursor);
         // Escape cancels, whichever widget has the keyboard.

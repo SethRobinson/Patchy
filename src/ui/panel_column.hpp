@@ -213,12 +213,14 @@ private:
   QSplitter* splitter_{nullptr};
   std::vector<std::unique_ptr<Section>> sections_;
   bool preferred_heights_pending_{true};
-  // A title-row drag: the section pressed, where, and the slot it would drop into.
+  // A title-row drag: the section pressed, the title row or tab bar pressed, where, and
+  // whether the drag has started.
   Section* drag_section_{nullptr};
+  QWidget* drag_handle_{nullptr};
   QPoint drag_press_global_;
   bool dragging_{false};
-  // On a tab bar: the tab the press landed on (-1: none). A mostly sideways drag from it
-  // drags that tab (drag_tab_) instead of the section.
+  // On a tab bar: the tab the press landed on (-1: none). A drag from it carries that tab
+  // (drag_tab_), in any direction, instead of the section.
   int press_tab_{-1};
   int drag_tab_{-1};
   Drop drop_;
