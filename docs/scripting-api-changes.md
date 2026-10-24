@@ -21,6 +21,11 @@ default Save As name, through the New Document dialog's file-name rule; throws w
 left) and `colorMode` (`"rgb"` default, or `"cmykProof"`; throws for other values and without a CMYK
 profile). Both are checked before the document is created. Permanent identifiers: the option keys and
 the `colorMode` tokens ([new-document.md](new-document.md)). Pinned by `ui_script_new_document_options`.
+2026-10-24 (additive): `layer.redEye({x, y, width?, height?, pupilSize?, darkenAmount?})`, the Red
+Eye tool ([healing.md](healing.md#red-eye)): a click at `{x, y}` or a box, Pupil Size and Darken
+Amount 1..100 (default 50), returns `{pupilPixels, x, y, width, height}`, throws when no red is found.
+Permanent identifiers: the method and key names, hotkey command id `tools.red_eye` and the settings
+keys `tools/redEyePupilSize`, `tools/redEyeDarkenAmount`. Pinned by `ui_script_red_eye_corrects_pupil`.
 
 2026-10-23 (additive): `doc.colorProfile` (the embedded RGB profile's name, `"sRGB IEC61966-2.1"`
 when untagged) and `doc.convertToProfile(profile, options?)`, Edit > Convert to Profile: `profile`

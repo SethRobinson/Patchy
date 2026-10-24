@@ -12261,6 +12261,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1, из настроек</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Красные глаза</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13994,6 +13998,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>The corners must form a convex shape</source>
         <translation>Углы должны образовывать выпуклую фигуру</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Красные глаза</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>Для инструмента «Красные глаза» нужен открытый документ</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>Инструмент «Красные глаза» недоступен при редактировании маски или канала</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>Для инструмента «Красные глаза» нужен редактируемый пиксельный слой</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>«Красные глаза»: в рамке не найдено красных пикселей</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>«Красные глаза»: рядом с местом щелчка не найдено красных пикселей</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>«Красные глаза»: красная область находится вне выделения</translation>
     </message>
 </context>
 <context>
@@ -24915,6 +24947,30 @@ Patchy может скачать обновление, заменить этот
         <source>Thumbnail Size</source>
         <translation>Размер миниатюр</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Красные глаза</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>Красные глаза: щёлкните красный зрачок или обведите глаз рамкой. Размер зрачка захватывает больше красноватого ободка, Степень затемнения задаёт, насколько тёмным станет зрачок.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>Размер зрачка:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>Чем больше значение, тем больше красноватого ободка вокруг зрачка захватывается</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>Степень затемнения:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>Насколько темнее станет исправленный зрачок</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26860,6 +26916,30 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
         <translation>Для CMYK-цветопробы нужен профиль CMYK. Выберите его в настройках.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye требует активный слой документа (сначала задайте doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye не нашёл красных пикселей.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: передайте {x, y} или {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 должно быть числом.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width и height должны быть не меньше 1.</translation>
     </message>
 </context>
 <context>

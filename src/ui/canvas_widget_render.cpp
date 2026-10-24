@@ -1083,6 +1083,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_quick_select_stroke_overlay(painter);
   draw_object_select_overlay(painter);
   draw_spot_heal_stroke_overlay(painter);
+  draw_red_eye_overlay(painter);
   draw_pen_overlay(painter);
   draw_path_edit_overlay(painter);
   draw_shape_preview(painter, exposed_rect);

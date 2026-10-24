@@ -387,7 +387,7 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(path_select_cursor());  // Ctrl: temporary Path Select (GitHub issue 312)
     return;
   }
-  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
+  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape || tool_ == CanvasTool::RedEye) {
     setCursor(Qt::CrossCursor);
     return;
   }

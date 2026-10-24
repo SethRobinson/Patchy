@@ -2135,6 +2135,10 @@ private:
   // Restart the debounce so the live tool-option sliders flush to disk once,
   // after the drag settles, instead of on every intermediate value.
   void schedule_save_tool_settings();
+  // Red Eye options-bar values: stored on the window, applied to every canvas, saved.
+  void set_red_eye_pupil_size(int percent);
+  void set_red_eye_darken_amount(int percent);
+  void sync_red_eye_controls();
   // Writes only tools/activeTool: a tool picked with no document open (no canvas for
   // save_tool_settings to read, or the startup load still pending).
   void save_active_tool_setting() const;
@@ -2691,6 +2695,10 @@ private:
   QAction* crop_overlay_show_always_action_{nullptr};
   QAction* crop_overlay_show_while_dragging_action_{nullptr};
   QPushButton* patch_remove_object_button_{nullptr};
+  QSpinBox* red_eye_pupil_spin_{nullptr};
+  QSlider* red_eye_pupil_slider_{nullptr};
+  QSpinBox* red_eye_darken_spin_{nullptr};
+  QSlider* red_eye_darken_slider_{nullptr};
   QCheckBox* object_select_sample_all_layers_check_{nullptr};
   QComboBox* object_select_model_combo_{nullptr};
   QPushButton* select_subject_button_{nullptr};
@@ -3191,6 +3199,9 @@ private:
   bool current_crop_delete_layers_{false};
   // tools/perspectiveCropShowGrid (default on): every canvas draws the grid with it.
   bool current_perspective_crop_show_grid_{true};
+  // Red Eye Pupil Size and Darken Amount (tools/redEyePupilSize, tools/redEyeDarkenAmount).
+  int current_red_eye_pupil_size_{50};
+  int current_red_eye_darken_amount_{50};
   // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
   // and tools/cropShieldOpacity; every canvas draws with these.
   CropOverlayOptions current_crop_overlay_options_;

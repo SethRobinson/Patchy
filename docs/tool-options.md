@@ -73,6 +73,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Healing | Diffusion | `healingDiffusion` | yes | yes |
 | Healing | Mode (`healingModeCombo`) | `healingMode` (token) | yes | yes |
 | Patch | Mode, Transparent | retired keys | no | no (session) |
+| Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |
 | Gradient | Method, Opacity, Reverse, gradient stops | `gradientMethod`, `gradientOpacity`, `gradientReverse`, `gradientUseCustomStops`, `gradientStops` | yes | yes |

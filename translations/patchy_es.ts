@@ -12226,6 +12226,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1, de Preferencias</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Ojos rojos</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13959,6 +13963,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>The corners must form a convex shape</source>
         <translation>Las esquinas deben formar una figura convexa</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Ojos rojos</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>Ojos rojos necesita un documento abierto</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>Ojos rojos no está disponible mientras se edita una máscara o un canal</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>Ojos rojos necesita una capa de píxeles editable</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>Ojos rojos no encontró píxeles rojos en el recuadro</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>Ojos rojos no encontró píxeles rojos cerca del clic</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>Ojos rojos: el área roja está fuera de la selección</translation>
     </message>
 </context>
 <context>
@@ -24843,6 +24875,30 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>Thumbnail Size</source>
         <translation>Tamaño de miniatura</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Ojos rojos</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>Ojos rojos: haga clic en una pupila roja o arrastre un recuadro alrededor del ojo. Tamaño de pupila abarca más del borde rojizo y Cantidad de oscurecimiento define lo oscura que queda la pupila.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>Tamaño de pupila:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>Los valores más altos abarcan más del borde rojizo alrededor de la pupila</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>Cantidad de oscurecimiento:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>Cuánto se oscurece la pupila corregida</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26787,6 +26843,30 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
         <translation>Prueba CMYK necesita un perfil CMYK. Elija uno en Preferencias.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye necesita la capa activa del documento (establezca primero doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye no encontró píxeles rojos.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: pase {x, y} o {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 debe ser un número.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: opción desconocida %1.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width y height deben ser al menos 1.</translation>
     </message>
 </context>
 <context>

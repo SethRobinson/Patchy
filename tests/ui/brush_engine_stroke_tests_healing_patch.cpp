@@ -39,6 +39,10 @@
 #include <memory>
 #include <QTimer>
 #include <QSpinBox>
+#include <QMenu>
+#include <QSlider>
+#include <QTest>
+#include <QToolButton>
 #include <QLabel>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -1715,6 +1719,130 @@ void ui_patch_options_sync_canvas_and_persist() {
   CHECK(!settings.contains(QStringLiteral("tools/patchTransparent")));
 }
 
+// Paints the active layer skin-toned with a flash-red pupil (10 x 10 at 20,20) and a second
+// red patch at 50,50, outside a click's box; returns the layer id.
+std::optional<patchy::LayerId> paint_red_eye_layer(patchy::Document& document) {
+  const auto active = document.active_layer_id();
+  auto* layer = active.has_value() ? document.find_layer(*active) : nullptr;
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+  auto& pixels = layer->pixels();
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* px = pixels.pixel(x, y);
+      const bool pupil = x >= 20 && x < 30 && y >= 20 && y < 30;
+      const bool other = x >= 50 && x < 56 && y >= 50 && y < 56;
+      px[0] = pupil || other ? 200 : 215;
+      px[1] = pupil || other ? 40 : 165;
+      px[2] = pupil || other ? 40 : 135;
+      if (pixels.format().channels >= 4) {
+        px[3] = 255;
+      }
+    }
+  }
+  return layer->id();
+}
+
+// The Red Eye tool sits in the healing flyout after Patch, shows Pupil Size and Darken
+// Amount in the options bar (spin box and slider, saved under tools/redEye*), corrects the
+// pupil under a click as one undo step, leaves a red area outside its box alone, and
+// corrects inside a drag box (Esc mid-drag writes nothing).
+void ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes() {
+  SettingsValueRestorer pupil_restorer(QStringLiteral("tools/redEyePupilSize"));
+  SettingsValueRestorer darken_restorer(QStringLiteral("tools/redEyeDarkenAmount"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/redEyePupilSize"));
+    settings.remove(QStringLiteral("tools/redEyeDarkenAmount"));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* healing_button = window.findChild<QToolButton*>(QStringLiteral("healingToolButton"));
+  CHECK(healing_button != nullptr && healing_button->menu() != nullptr);
+  auto* red_eye_action = require_action(window, "toolRedEyeAction");
+  if (healing_button == nullptr || healing_button->menu() == nullptr) {
+    return;
+  }
+  CHECK(healing_button->menu()->actions().contains(red_eye_action));
+  CHECK(red_eye_action->shortcut().isEmpty());
+  red_eye_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::RedEye);
+  CHECK(healing_button->defaultAction() == red_eye_action);
+
+  auto* pupil_spin = window.findChild<QSpinBox*>(QStringLiteral("redEyePupilSizeSpin"));
+  auto* darken_spin = window.findChild<QSpinBox*>(QStringLiteral("redEyeDarkenAmountSpin"));
+  auto* darken_slider = window.findChild<QSlider*>(QStringLiteral("redEyeDarkenAmountSlider"));
+  CHECK(pupil_spin != nullptr && darken_spin != nullptr && darken_slider != nullptr);
+  if (pupil_spin == nullptr || darken_spin == nullptr || darken_slider == nullptr) {
+    return;
+  }
+  CHECK(pupil_spin->isVisible() && darken_spin->isVisible());
+  CHECK(pupil_spin->value() == 50 && darken_spin->value() == 50);
+  CHECK(pupil_spin->minimum() == 1 && pupil_spin->maximum() == 100);
+  darken_slider->setValue(100);
+  CHECK(darken_spin->value() == 100);
+  CHECK(canvas->red_eye_darken_amount() == 100);
+  pupil_spin->setValue(60);
+  CHECK(canvas->red_eye_pupil_size() == 60);
+  QTest::qWait(400);  // the debounced settings save
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/redEyeDarkenAmount")).toInt() == 100);
+    CHECK(settings.value(QStringLiteral("tools/redEyePupilSize")).toInt() == 60);
+  }
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(!pupil_spin->isVisible());
+  red_eye_action->trigger();
+  QApplication::processEvents();
+  CHECK(pupil_spin->isVisible());
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = paint_red_eye_layer(document);
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  canvas->document_changed();
+  QApplication::processEvents();
+  const auto pixel = [&](int x, int y) {
+    const auto* layer = document.find_layer(*layer_id);
+    const auto* px = std::as_const(*layer).pixels().pixel(x, y);
+    return std::array<int, 3>{px[0], px[1], px[2]};
+  };
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto point = canvas->widget_position_for_document_point(QPoint(24, 25));
+  send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  // Darken 100 takes the neutral pupil to black; skin and the far red patch stay.
+  CHECK((pixel(25, 25) == std::array<int, 3>{0, 0, 0}));
+  CHECK((pixel(5, 5) == std::array<int, 3>{215, 165, 135}));
+  CHECK((pixel(52, 52) == std::array<int, 3>{200, 40, 40}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK((pixel(25, 25) == std::array<int, 3>{200, 40, 40}));
+
+  const auto from = canvas->widget_position_for_document_point(QPoint(46, 46));
+  const auto to = canvas->widget_position_for_document_point(QPoint(60, 60));
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+  send_key(*canvas, Qt::Key_Escape);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK((pixel(52, 52) == std::array<int, 3>{200, 40, 40}));
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK((pixel(52, 52) == std::array<int, 3>{0, 0, 0}));
+  CHECK((pixel(25, 25) == std::array<int, 3>{200, 40, 40}));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
@@ -1732,6 +1860,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_healing_mode_option_persists_and_reaches_new_documents",
        ui_healing_mode_option_persists_and_reaches_new_documents},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},
+      {"ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes",
+       ui_red_eye_tool_in_healing_flyout_corrects_click_and_undoes},
       {"ui_spot_healing_escape_cancels_without_pixel_changes",
        ui_spot_healing_escape_cancels_without_pixel_changes},
       {"ui_remove_object_heals_selection_and_cycles_sources",

@@ -1300,6 +1300,75 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   return result;
 }
 
+// The Red Eye tool through the session's canvas (the layer must be the active one): a click
+// at {x, y}, or a drag box when width and height are given too.
+QJSValue ScriptLayerObject::redEye(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (!options.isObject()) {
+    host_.throw_js_error(ScriptEngineHost::tr("redEye: pass {x, y} or {x, y, width, height}."));
+    return QJSValue();
+  }
+  std::optional<int> x;
+  std::optional<int> y;
+  std::optional<int> width;
+  std::optional<int> height;
+  int pupil_size = 50;
+  int darken_amount = 50;
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    if (!value.isNumber()) {
+      host_.throw_js_error(ScriptEngineHost::tr("redEye: %1 must be a number.").arg(key));
+      return QJSValue();
+    }
+    const auto number = static_cast<int>(std::lround(value.toNumber()));
+    if (key == QLatin1String("x")) {
+      x = number;
+    } else if (key == QLatin1String("y")) {
+      y = number;
+    } else if (key == QLatin1String("width")) {
+      width = number;
+    } else if (key == QLatin1String("height")) {
+      height = number;
+    } else if (key == QLatin1String("pupilSize")) {
+      pupil_size = std::clamp(number, 1, 100);
+    } else if (key == QLatin1String("darkenAmount")) {
+      darken_amount = std::clamp(number, 1, 100);
+    } else {
+      host_.throw_js_error(ScriptEngineHost::tr("redEye: unknown option %1.").arg(key));
+      return QJSValue();
+    }
+  }
+  if (!x.has_value() || !y.has_value() || width.has_value() != height.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("redEye: pass {x, y} or {x, y, width, height}."));
+    return QJSValue();
+  }
+  std::optional<QRect> box;
+  QPoint point(*x, *y);
+  if (width.has_value()) {
+    if (*width < 1 || *height < 1) {
+      host_.throw_js_error(ScriptEngineHost::tr("redEye: width and height must be at least 1."));
+      return QJSValue();
+    }
+    box = QRect(*x, *y, *width, *height);
+    point = box->center();
+  }
+  std::int64_t pupil_pixels = 0;
+  QRect changed;
+  if (!host_.red_eye(session_id_, layer_id_, point, box, pupil_size, darken_amount, &pupil_pixels, &changed)) {
+    return QJSValue();
+  }
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("pupilPixels"), static_cast<double>(pupil_pixels));
+  result.setProperty(QStringLiteral("x"), changed.x());
+  result.setProperty(QStringLiteral("y"), changed.y());
+  result.setProperty(QStringLiteral("width"), changed.width());
+  result.setProperty(QStringLiteral("height"), changed.height());
+  return result;
+}
+
 QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   ImageTraceOptions trace_options;
