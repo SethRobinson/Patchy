@@ -623,6 +623,10 @@ private:
   // when Alt was held at the press.
   void create_color_dock(std::vector<PanelSpec>& specs);
   void apply_color_panel_pick(QColor color, bool background);
+  // The foreground change every color control shares (GitHub issue 371): the canvas
+  // foreground, an open text session's selection, and the live shape paint, exactly what the
+  // Foreground Color window has always done.
+  void apply_foreground_color(QColor color);
   // Palette (indexed) mode plumbing. Every document-palette mutation goes through
   // these so the undo snapshot, the revision bump (app-globally unique values,
   // keying the canvas LUT cache), the indexed_palette export mirror, and the UI

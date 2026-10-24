@@ -154,6 +154,7 @@
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
@@ -11525,6 +11526,9 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
          owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
          owns(text_cancel_button_) || owns(text_character_button_) || owns(text_paragraph_button_) ||
          owns(primary_color_button_) ||
+         // The Color and Swatches panels recolor the session's selection like the Foreground
+         // Color window, so a click in them must not commit it (GitHub issue 371).
+         owns(color_dock_panel_) || owns(palette_panel_) ||
          // The Character and Paragraph panels edit the LIVE session; focus moving into them
          // must not commit.
          in_named_ancestor(QStringLiteral("textCharacterDialog")) ||

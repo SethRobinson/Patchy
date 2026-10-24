@@ -27,6 +27,10 @@ constexpr int kFieldMinimum = 72;
 
 ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QWidget* parent) : QWidget(parent) {
   setObjectName(QStringLiteral("colorPanel"));
+  // A click in the field or the strip (both NoFocus) gives the PANEL the focus rather than
+  // whatever container above it accepts click focus, so MainWindow can tell a pick here from
+  // clicking off an open text session, which commits it (GitHub issue 371).
+  setFocusPolicy(Qt::ClickFocus);
 
   auto* well = new QWidget(this);
   well->setObjectName(QStringLiteral("colorPanelWell"));

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QColor>
+#include <QDialogButtonBox>
 #include <QString>
 #include <QWidget>
 
@@ -107,8 +108,12 @@ bool apply_color_to_open_color_picker(QColor color);
 
 [[nodiscard]] QString color_button_style(QColor color);
 [[nodiscard]] QString inline_text_editor_style(QColor color, int pixel_size);
+// The live color window (picks apply as they happen). `button` is its one button: Close for the
+// Foreground and Background Color windows, OK for the Text Color window (GitHub issue 371);
+// either just closes it.
 [[nodiscard]] QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,
-                                                    std::function<void(QColor)> color_changed);
+                                                    std::function<void(QColor)> color_changed,
+                                                    QDialogButtonBox::StandardButton button = QDialogButtonBox::Close);
 // Runs the transient picker. Accepting the dialog that launched it while the
 // picker is still open keeps the picked color: its live preview showed it as
 // applied, so OK on the parent must not revert it. Closing the parent any other

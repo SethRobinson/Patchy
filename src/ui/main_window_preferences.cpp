@@ -2743,12 +2743,7 @@ void MainWindow::handle_pen_button_action(PenButtonAction action) {
       break;
     }
     case PenButtonAction::SwapColors:
-      if (canvas_ != nullptr) {
-        const auto primary = canvas_->primary_color();
-        canvas_->set_primary_color(canvas_->secondary_color());
-        canvas_->set_secondary_color(primary);
-        refresh_color_buttons();
-      }
+      swap_colors();
       break;
     case PenButtonAction::PanCanvas:
     case PenButtonAction::ZoomCanvas:

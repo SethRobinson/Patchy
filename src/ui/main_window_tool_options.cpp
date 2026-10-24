@@ -1734,24 +1734,35 @@ void MainWindow::choose_text_color() {
     color_dialog_->close();
   }
 
-  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  auto* dialog = create_patchy_color_panel(this, current_text_color(), tr("Text Color"),
-                                           [this, editor = QPointer<QTextEdit>(editor)](QColor color) {
-    if (canvas_ == nullptr) {
-      return;
-    }
-    color.setAlpha(255);
-    canvas_->set_primary_color(color);
-    if (editor != nullptr) {
-      editor->setProperty("patchy.documentTextColor", color);
-      apply_text_color_to_active_editor();
-    } else {
-      // No session when the panel opened: the selected text layers take the color (issue 31).
-      apply_text_color_to_selected_layers_debounced(color);
-    }
-    refresh_color_buttons();
-    statusBar()->showMessage(tr("Text color changed"));
-  });
+  const bool opened_in_session = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr;
+  auto* dialog = create_patchy_color_panel(
+      this, current_text_color(), tr("Text Color"),
+      [this, opened_in_session](QColor color) {
+        if (canvas_ == nullptr) {
+          return;
+        }
+        color.setAlpha(255);
+        // Each pick goes to the session open NOW and its current selection, never to the one
+        // the window was opened from: another word or another text layer selected while the
+        // window stays open takes the next pick (GitHub issue 371).
+        auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+        if (editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
+          canvas_->set_primary_color(color);
+          editor->setProperty("patchy.documentTextColor", color);
+          apply_text_color_to_active_editor();
+        } else if (opened_in_session) {
+          // The session it was opened for is over: a pick is a foreground pick.
+          apply_foreground_color(color);
+        } else {
+          // No session when the panel opened: the selected text layers take the color (issue 31).
+          canvas_->set_primary_color(color);
+          apply_text_color_to_selected_layers_debounced(color);
+        }
+        refresh_color_buttons();
+        statusBar()->showMessage(tr("Text color changed"));
+      },
+      // Live like the Foreground Color window, but this window reads OK (GitHub issue 371).
+      QDialogButtonBox::Ok);
   dialog->setProperty("patchy.colorTarget", QStringLiteral("text"));
   color_dialog_ = dialog;
   connect(dialog, &QObject::destroyed, this, [this, dialog] {
@@ -1792,9 +1803,7 @@ void MainWindow::show_color_panel(bool foreground) {
         }
         color.setAlpha(255);
         if (foreground) {
-          canvas_->set_primary_color(color);
-          apply_primary_color_to_active_text_editor(color);
-          apply_foreground_color_to_shape_paint(color);
+          apply_foreground_color(color);
           statusBar()->showMessage(tr("Foreground color changed"));
         } else {
           canvas_->set_secondary_color(color);
@@ -1822,6 +1831,22 @@ void MainWindow::show_color_panel(bool foreground) {
   dialog->activateWindow();
 }
 
+void MainWindow::apply_foreground_color(QColor color) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  color.setAlpha(255);
+  canvas_->set_primary_color(color);
+  // What landed, which palette mode snaps to the document palette: the text and the shape
+  // paint take the foreground the user sees, not the raw pick.
+  const auto foreground = canvas_->primary_color();
+  apply_primary_color_to_active_text_editor(foreground);
+  apply_foreground_color_to_shape_paint(foreground);
+}
+
+// Swap and Default Colors recolor an open text session's selection like any foreground pick,
+// but leave the shape paint alone: X and D are pressed constantly while drawing, and a
+// selected shape must not change color with them.
 void MainWindow::swap_colors() {
   if (canvas_ == nullptr) {
     return;
@@ -1829,6 +1854,7 @@ void MainWindow::swap_colors() {
   const auto primary = canvas_->primary_color();
   canvas_->set_primary_color(canvas_->secondary_color());
   canvas_->set_secondary_color(primary);
+  apply_primary_color_to_active_text_editor(canvas_->primary_color());
   refresh_color_buttons();
   statusBar()->showMessage(tr("Swapped foreground/background"));
 }
@@ -1839,6 +1865,7 @@ void MainWindow::default_colors() {
   }
   canvas_->set_primary_color(Qt::black);
   canvas_->set_secondary_color(Qt::white);
+  apply_primary_color_to_active_text_editor(canvas_->primary_color());
   refresh_color_buttons();
   statusBar()->showMessage(tr("Default colors"));
 }

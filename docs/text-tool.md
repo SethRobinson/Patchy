@@ -175,6 +175,14 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   live, so its layer apply is debounced (`apply_text_color_to_selected_layers_debounced`). A
   Palette swatch click takes the same apply (Type tool or open panel; see
   [palette-mode.md](palette-mode.md)).
+- **Color picks during a session** (issue 371, `tests/ui/text_color_targets_tests.cpp`). The Text
+  Color window (button OK, still live) finds the session open at each pick, so another word or
+  layer selected meanwhile takes it; once the session it was opened from is over, a pick is a
+  foreground pick. Foreground changes share `apply_foreground_color` (canvas foreground, the
+  session's selection, live shape paint): the Foreground Color window and the Color panel;
+  Swatches, Swap and Default Colors recolor the selection too. A click in the Color or Swatches
+  panel is exempt from the focus-loss commit (`is_text_option_widget`; the Color panel takes
+  click focus itself) and hands the keyboard back.
 - **The bar mirrors the active text layer** (`sync_text_options_from_active_layer`, from
   `refresh_options_bar` and `refresh_layer_controls`, keyed so an unchanged layer costs nothing;
   the alignment buttons read the first paragraph run). A mixed selection shows the active

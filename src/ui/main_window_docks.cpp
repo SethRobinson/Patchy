@@ -1983,9 +1983,7 @@ void MainWindow::apply_color_panel_pick(QColor color, bool background) {
   if (background) {
     canvas_->set_secondary_color(color);
   } else {
-    canvas_->set_primary_color(color);
-    apply_primary_color_to_active_text_editor(color);
-    apply_foreground_color_to_shape_paint(color);
+    apply_foreground_color(color);
   }
   // An open Foreground or Background Color window for the same color follows, blocked so
   // its own callback does not apply the color a second time.
@@ -1997,6 +1995,9 @@ void MainWindow::apply_color_panel_pick(QColor color, bool background) {
   }
   refresh_color_buttons();
   statusBar()->showMessage(background ? tr("Background color changed") : tr("Foreground color changed"));
+  // The click put the keyboard in the panel; an open text session takes it back so typing
+  // goes on in the recolored text.
+  return_keyboard_to_text_editor();
 }
 
 void MainWindow::create_palette_dock(std::vector<PanelSpec>& specs) {
@@ -2045,6 +2046,8 @@ void MainWindow::create_palette_dock(std::vector<PanelSpec>& specs) {
     refresh_color_buttons();
     refresh_palette_panel();
     statusBar()->showMessage(tr("Foreground: palette index %1 (%2)").arg(index).arg(color.name()));
+    // As with the Color panel: an open text session keeps the keyboard.
+    return_keyboard_to_text_editor();
   });
   connect(palette_panel_, &PalettePanel::entry_background_requested, this, [this](int index) {
     const auto colors = displayed_palette_colors();

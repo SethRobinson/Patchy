@@ -2254,7 +2254,8 @@ QString inline_text_editor_style(QColor color, int pixel_size) {
 }
 
 QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,
-                                      std::function<void(QColor)> color_changed) {
+                                      std::function<void(QColor)> color_changed,
+                                      QDialogButtonBox::StandardButton button) {
   auto* dialog = new QDialog(parent);
   dialog->setObjectName(QStringLiteral("patchyColorDialog"));
   dialog->setModal(false);
@@ -2273,7 +2274,7 @@ QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QStrin
     }
   });
 
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  auto* buttons = new QDialogButtonBox(button, dialog);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
   QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::close);
