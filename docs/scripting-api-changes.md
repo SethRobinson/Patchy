@@ -12,6 +12,11 @@ those of 2026-10-06 to 2026-10-09 in
 [scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md).
 Every entry below is API 1.
 
+2026-10-24 (behavioral): `layer.redEye` uses the revised Red Eye method ([red-eye.md](red-eye.md)): the
+area is grown with hysteresis and its rim and glint halo corrected by redness, and Darken Amount keeps
+a quarter of the brightness at 100 instead of going black (Darken 50 keeps about 60%). Options and
+result keys are unchanged. Pinned by `ui_script_red_eye_corrects_pupil`.
+
 2026-10-24 (additive): the Color panel (Window > Color). `patchy.ui.expandPanel`,
 `collapsePanel`, `closePanel` and `panelState` take the panel name `color` (d.ts
 `PatchyPanelName`), a permanent identifier mapped to the panel id `colorDock`. Pinned by
