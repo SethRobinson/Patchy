@@ -90,8 +90,10 @@ public:
   // Whether the duplicate sliders should hide at the current width.
   [[nodiscard]] bool wants_collapse() const;
   // MainWindow reports the collapse state it applied, and gets a callback when a
-  // resize crosses the threshold so it can re-run its visibility pass.
-  void set_collapse_applied(bool collapsed) { collapse_applied_ = collapsed; }
+  // resize or a control's size change crosses the threshold so it can re-run its
+  // visibility pass. A change of state also drops the height reservation: it was
+  // learned with the other set of sliders (GitHub issue 364).
+  void set_collapse_applied(bool collapsed);
   [[nodiscard]] bool collapse_applied() const { return collapse_applied_; }
   void set_collapse_changed_callback(std::function<void()> callback) { collapse_changed_ = std::move(callback); }
   // While MainWindow::refresh_options_bar swaps control visibility, a layout pass
@@ -100,6 +102,7 @@ public:
   void set_updating(bool updating) { updating_ = updating; }
 
 protected:
+  bool event(QEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
 
 private:

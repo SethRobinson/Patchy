@@ -1,5 +1,6 @@
 #include "ui/options_flow_layout.hpp"
 
+#include <QEvent>
 #include <QResizeEvent>
 
 #include <algorithm>
@@ -191,6 +192,25 @@ bool OptionsFlowContainer::wants_collapse() const {
     return collapse_applied_;
   }
   return flow->measure_rows(width()).collapse;
+}
+
+void OptionsFlowContainer::set_collapse_applied(bool collapsed) {
+  if (collapsed != collapse_applied_) {
+    reserved_width_ = -1;
+  }
+  collapse_applied_ = collapsed;
+}
+
+bool OptionsFlowContainer::event(QEvent* event) {
+  const bool handled = QWidget::event(event);
+  // A control changed size (a longer label after a language switch, a wider field) without
+  // the width changing: the slider decision must follow, or it stays whatever the controls
+  // measured when the bar was last refreshed (GitHub issue 364: the tip picker's name).
+  if (event->type() == QEvent::LayoutRequest && !updating_ && collapse_changed_ &&
+      wants_collapse() != collapse_applied_) {
+    collapse_changed_();
+  }
+  return handled;
 }
 
 void OptionsFlowContainer::resizeEvent(QResizeEvent* event) {
