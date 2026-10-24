@@ -3111,6 +3111,15 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   return writer.bytes();
 }
 
+bool is_native_adjustment_block_key(std::string_view key) noexcept {
+  // Keep in step with the reader's native adjustment parse in read() (every key there
+  // except the Brightness/Contrast descriptor CgEd, which the writer handles apart).
+  static constexpr std::array<std::string_view, 16> kKeys{"levl", "curv", "hue2", "nvrt", "post", "thrs",
+                                                          "brit", "blnc", "expA", "mixr", "phfl", "grdm",
+                                                          "blwh", "clrL", "selc", "vibA"};
+  return std::find(kKeys.begin(), kKeys.end(), key) != kKeys.end();
+}
+
 void DocumentIo::write_layered_rgb8_file(const Document& document, const std::filesystem::path& path,
                                          WriteOptions options) {
   const auto bytes = write_layered_rgb8(document, options);

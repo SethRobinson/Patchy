@@ -189,11 +189,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
     return true;
   }
   if (!encoded.preserve_native_color_blocks && encoded.kind == EncodedLayerKind::Adjustment &&
-      (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
-       block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
-       block.key == "expA" || block.key == "mixr" || block.key == "phfl" ||
-       block.key == "grdm" || block.key == "blwh" || block.key == "clrL" || block.key == "selc" ||
-       block.key == "vibA")) {
+      is_native_adjustment_block_key(block.key)) {
     return true;
   }
   // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or

@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace patchy {
@@ -54,6 +55,11 @@ struct LayeredSaveColorMode {
   // "QObject"-context source string for the UI to translate. Null otherwise.
   const char* rgb_reason{nullptr};
 };
+
+// The adjustment-layer blocks the reader parses into native adjustment settings (levl,
+// curv, hue2, ... vibA). One list for the writer's regenerate rule and the open report's
+// known-block check, so a newly modeled kind is never reported as unknown data.
+[[nodiscard]] bool is_native_adjustment_block_key(std::string_view key) noexcept;
 
 class DocumentIo {
 public:

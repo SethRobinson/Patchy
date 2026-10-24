@@ -765,6 +765,57 @@ void ui_compatibility_report_treats_levels_as_native_psd_adjustment() {
   const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
   CHECK(warnings.isEmpty());
 }
+// Native Photoshop adjustment blocks read back from a PSD (Curves, Invert, Color Balance,
+// Vibrance here: the reader keeps their raw blocks for the round trip) are understood
+// data, not "unknown PSD layer block(s)"; a key nothing models still is (the healing
+// test file's Curves layer drew the false warning).
+void ui_compatibility_report_treats_native_adjustment_blocks_as_known() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(90, 140, 200)));
+  const auto add_adjustment = [&document](const char* name, const patchy::AdjustmentSettings& settings) {
+    patchy::Layer layer(document.allocate_layer_id(), name, patchy::LayerKind::Adjustment);
+    layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+    patchy::configure_adjustment_layer(layer, settings);
+    document.add_layer(std::move(layer));
+  };
+  patchy::AdjustmentSettings curves;
+  curves.kind = patchy::AdjustmentKind::Curves;
+  curves.curves.rgb = {{0, 0}, {64, 40}, {192, 215}, {255, 255}};
+  add_adjustment("Curves", curves);
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  add_adjustment("Invert", invert);
+  patchy::AdjustmentSettings balance;
+  balance.kind = patchy::AdjustmentKind::ColorBalance;
+  balance.color_balance = patchy::ColorBalanceAdjustment{20, -10, 15};
+  add_adjustment("Color Balance", balance);
+  patchy::AdjustmentSettings vibrance;
+  vibrance.kind = patchy::AdjustmentKind::Vibrance;
+  add_adjustment("Vibrance", vibrance);
+  auto round_tripped = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto has_block = [&round_tripped](std::string_view key) {
+    for (const auto& layer : round_tripped.layers()) {
+      for (const auto& block : layer.unknown_psd_blocks()) {
+        if (block.key == key) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  CHECK(has_block("curv") && has_block("nvrt") && has_block("blnc"));
+  CHECK(patchy::psd::is_native_adjustment_block_key("curv"));
+  CHECK(patchy::psd::is_native_adjustment_block_key("vibA"));
+  CHECK(!patchy::psd::is_native_adjustment_block_key("zzzz"));
+  auto warnings = patchy::ui::compatibility_warnings_for_document(round_tripped);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
+  round_tripped.layers().front().unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
+  warnings = patchy::ui::compatibility_warnings_for_document(round_tripped);
+  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
+}
 // An adjustment layer read from a CMYK document runs on the inks; saving writes RGB, where
 // the same numbers mean something else, and the report says so.
 void ui_compatibility_report_warns_about_cmyk_ink_adjustments() {
@@ -3991,6 +4042,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_flags_psd_text_placeholders},
       {"ui_compatibility_report_ignores_patchy_written_psd_blocks",
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
+      {"ui_compatibility_report_treats_native_adjustment_blocks_as_known",
+       ui_compatibility_report_treats_native_adjustment_blocks_as_known},
       {"ui_compatibility_report_treats_levels_as_native_psd_adjustment",
        ui_compatibility_report_treats_levels_as_native_psd_adjustment},
       {"ui_compatibility_report_pins_native_vs_private_adjustment_kinds",

@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/dialog_utils.hpp"
 
 #include <QDialog>
@@ -31,8 +32,13 @@ QString psd_text_source_block(const Layer& layer) {
 }
 
 bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
-  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "levl" ||
-         block.key == "hue2" || block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" ||
+  // Every native adjustment block the reader models (psd::is_native_adjustment_block_key,
+  // plus the Brightness/Contrast descriptor) is understood, not unknown data.
+  if (psd::is_native_adjustment_block_key(block.key) || block.key == "CgEd") {
+    return true;
+  }
+  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" ||
+         block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" ||
          block.key == "lsdk" || block.key == "SoLd" || block.key == "SoLE" || block.key == "PlLd" ||
          block.key == "plLd" || block.key == "vmsk" || block.key == "vsms" || block.key == "vscg" ||
          block.key == "vstk" || block.key == "vogk" || block.key == "SoCo" || block.key == "GdFl" ||
