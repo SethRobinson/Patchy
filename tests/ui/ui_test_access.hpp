@@ -593,6 +593,16 @@ public:
     return window.session_is_modified(window.session());
   }
 
+  // Treats the active document as just saved, so a test can see whether a later step marks it modified.
+  static void mark_active_session_saved(MainWindow& window) {
+    window.session().saved_revision = window.session().revision;
+  }
+
+  // Preferences > Tools "Use Esc to commit text" without driving the dialog.
+  static void set_escape_commits_text(MainWindow& window, bool on) {
+    window.escape_commits_text_ = on;
+  }
+
   static bool active_session_is_smart_object_child(MainWindow& window) {
     return window.session().smart_object_link.has_value();
   }
