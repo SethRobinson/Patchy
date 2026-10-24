@@ -1,5 +1,6 @@
 #include "ui/blend_mode_ui.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/document_depth.hpp"
 #include "filters/filter_registry.hpp"
 
@@ -7,6 +8,8 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QKeyEvent>
+#include <QSignalBlocker>
+#include <QWheelEvent>
 #include <QStandardItemModel>
 #include <QObject>
 
@@ -19,20 +22,86 @@ namespace {
 
 constexpr char kBlendModeArrowKeysProperty[] = "patchy.blendModeArrowKeys";
 
+// A Paint.NET-only mode's row (GitHub issue 379): offered only while a layer uses it,
+// and never a stop when the closed combo is stepped.
+bool is_paint_dot_net_row(const QComboBox* combo, int index) {
+  const auto data = combo->itemData(index);
+  return data.isValid() && blend_mode_is_paint_dot_net_only(static_cast<BlendMode>(data.toInt()));
+}
+
+bool is_step_stop(const QComboBox* combo, int index) {
+  const auto* model = qobject_cast<const QStandardItemModel*>(combo->model());
+  const auto* item = model != nullptr ? model->item(index) : nullptr;
+  return (item == nullptr || item->isEnabled()) && !is_paint_dot_net_row(combo, index);
+}
+
+// The next row a step of `direction` (+1/-1) lands on from `from`, or `from` itself.
+int next_step_stop(const QComboBox* combo, int from, int direction) {
+  for (int index = from + direction; index >= 0 && index < combo->count(); index += direction) {
+    if (is_step_stop(combo, index)) {
+      return index;
+    }
+  }
+  return from;
+}
+
 // Qt steps a closed combo box with Up/Down only (Left/Right are keypad-navigation
 // only), while the Opacity and Fill fields beside the layer blend combo take all
-// four arrows. Left/Right are replayed as Up/Down to the same widget, so Qt's own
-// stepping (end clamping, disabled items) and the open list's highlight movement
-// apply unchanged.
+// four arrows. The closed combo is stepped here (arrows, Home/End, Page Up/Down and
+// the wheel) with Qt's rules (end clamping, disabled rows skipped) plus one more:
+// Paint.NET's modes are never a stop, so stepping can leave one but never land on one.
+// In the open list Left/Right are replayed as Up/Down for the highlight.
 class BlendModeArrowKeys final : public QObject {
 public:
-  explicit BlendModeArrowKeys(QComboBox* combo) : QObject(combo) {
+  explicit BlendModeArrowKeys(QComboBox* combo) : QObject(combo), combo_(combo) {
     combo->installEventFilter(this);
     combo->view()->installEventFilter(this);
   }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == combo_ && !combo_->isEditable()) {
+      if (event->type() == QEvent::Wheel) {
+        const auto* wheel = static_cast<QWheelEvent*>(event);
+        const auto delta = wheel->angleDelta().y();
+        if (delta != 0) {
+          step_to(next_step_stop(combo_, combo_->currentIndex(), delta > 0 ? -1 : 1));
+        }
+        return true;
+      }
+      if (event->type() == QEvent::KeyPress) {
+        const auto* key_event = static_cast<QKeyEvent*>(event);
+        // Left/Right only bare (a modified arrow keeps its own meaning); the keys Qt
+        // itself steps with also with Shift, as Qt does. Alt/Ctrl+Down opens the list.
+        const auto modifiers = key_event->modifiers() & ~Qt::KeypadModifier;
+        const bool horizontal = key_event->key() == Qt::Key_Left || key_event->key() == Qt::Key_Right;
+        if (horizontal ? modifiers == Qt::NoModifier
+                       : (modifiers & (Qt::AltModifier | Qt::ControlModifier | Qt::MetaModifier)) == 0) {
+          const auto current = combo_->currentIndex();
+          switch (key_event->key()) {
+            case Qt::Key_Up:
+            case Qt::Key_Left:
+            case Qt::Key_PageUp:
+              step_to(next_step_stop(combo_, current, -1));
+              return true;
+            case Qt::Key_Down:
+            case Qt::Key_Right:
+            case Qt::Key_PageDown:
+              step_to(next_step_stop(combo_, current, 1));
+              return true;
+            case Qt::Key_Home:
+              step_to(next_step_stop(combo_, -1, 1));
+              return true;
+            case Qt::Key_End:
+              step_to(next_step_stop(combo_, combo_->count(), -1));
+              return true;
+            default:
+              break;
+          }
+        }
+      }
+      return false;
+    }
     if (event->type() != QEvent::KeyPress) {
       return false;
     }
@@ -50,6 +119,18 @@ protected:
     QCoreApplication::sendEvent(watched, &replacement);
     return true;
   }
+
+private:
+  // What Qt's own stepping emits: the index change, then activated.
+  void step_to(int index) {
+    if (index < 0 || index >= combo_->count() || index == combo_->currentIndex()) {
+      return;
+    }
+    combo_->setCurrentIndex(index);
+    emit combo_->activated(index);
+  }
+
+  QComboBox* combo_;
 };
 
 }  // namespace
@@ -141,8 +222,9 @@ constexpr std::array kBlendModes = {
       BlendMode::Hue,        BlendMode::Saturation,  BlendMode::Color,      BlendMode::Luminosity,
 };
 
-// Paint.NET's modes (GitHub issue 379), after Photoshop's list in layer and folder menus
-// only: layer effects, recipes and brush modes have no file form for them.
+// Paint.NET's modes (GitHub issue 379): no menu lists them. A layer or folder combo shows
+// one, after Photoshop's list, only while the layer it edits uses it
+// (set_paint_dot_net_blend_modes_offered), so nobody picks a mode a PSD cannot keep.
 constexpr std::array kPaintDotNetBlendModes = {
     BlendMode::Negation, BlendMode::Reflect, BlendMode::Glow, BlendMode::Xor,
 };
@@ -170,12 +252,29 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
     }
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
   }
-  if (menu == BlendModeMenu::Layer || menu == BlendModeMenu::Folder) {
-    for (const auto mode : kPaintDotNetBlendModes) {
+  install_blend_mode_arrow_keys(combo);
+}
+
+void set_paint_dot_net_blend_modes_offered(QComboBox* combo, const std::vector<BlendMode>& in_use) {
+  if (combo == nullptr) {
+    return;
+  }
+  // The caller sets the current row afterwards; the removals here must not reach a
+  // blend-change handler as a user choice.
+  const QSignalBlocker blocker(combo);
+  for (const auto mode : kPaintDotNetBlendModes) {
+    const bool wanted = std::find(in_use.begin(), in_use.end(), mode) != in_use.end();
+    const auto index = combo->findData(static_cast<int>(mode));
+    if (!wanted && index >= 0) {
+      combo->removeItem(index);
+    }
+  }
+  for (const auto mode : kPaintDotNetBlendModes) {
+    const bool wanted = std::find(in_use.begin(), in_use.end(), mode) != in_use.end();
+    if (wanted && combo->findData(static_cast<int>(mode)) < 0) {
       combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
     }
   }
-  install_blend_mode_arrow_keys(combo);
 }
 
 void set_blend_mode_pass_through_offered(QComboBox* combo, bool offered) {

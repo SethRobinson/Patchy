@@ -33,7 +33,7 @@ A block several layers point at is decoded once and shared (copy-on-write). A bl
 
 ## Import mapping
 
-- Layers bottom first, each a document-sized RGBA8 pixel layer with its name (UTF-8 from the stream), visibility, opacity (byte / 255) and blend mode. The top layer is active.
+- Layers bottom first, each a document-sized RGBA8 pixel layer with its name (UTF-8 from the stream), visibility, opacity (byte / 255) and blend mode. The top layer is active. Reflect, Glow, Negation and Xor import as Patchy's own modes, which the blend lists show only on a layer that uses one ([blend-modes.md](blend-modes.md#paintnet-modes)).
 - The Background: Paint.NET flags the bottom layer `isBackground` but lets it hold transparency, and the flag can sit on a layer that was moved up (font.pdn). Only a bottom, fully opaque, Normal, full-opacity flagged layer becomes Patchy's Background ([background-layer.md](background-layer.md)): RGB, position and transparency locked. Any other flagged layer stays an ordinary layer.
 - Resolution: XResolution/YResolution with ResolutionUnit 2 (inch) or 3 (cm, converted to PPI and shown as px/cm); no tags means Paint.NET's 96 PPI.
 - File Info ([file-info.md](file-info.md)): `extract_file_info` recognizes "PDN" and `extract_pdn` rebuilds the EXIF entries into one TIFF stream through `metadata::write_tiff` (GPS tags 0..31 into the GPS IFD, the 0x829A..0xA4FF camera range into the Exif IFD except IFD0's IPTC, ICC and Windows XP tags). `$xmp.packet<N>` becomes the XMP packet; `$user.Palette` shows as "Palette, N colors"; other entries show as observed items under "Paint.NET". None of those is written back as Paint.NET metadata.

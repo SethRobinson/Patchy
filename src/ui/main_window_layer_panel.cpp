@@ -4286,6 +4286,7 @@ void MainWindow::refresh_layer_controls() {
     }
     if (blend_combo_ != nullptr) {
       set_blend_mode_pass_through_offered(blend_combo_, false);
+      set_paint_dot_net_blend_modes_offered(blend_combo_, {});
       blend_combo_->setCurrentIndex(0);
     }
     set_layer_lock_control_state(lock_transparent_pixels_button_, false, false, tr("Lock transparent pixels"));
@@ -4390,6 +4391,20 @@ void MainWindow::refresh_layer_controls() {
         }
       }
     }
+    // Paint.NET's modes show only while a selected layer uses one (GitHub issue 379);
+    // an open list's preview keeps the modes the layers had when it opened.
+    std::vector<BlendMode> in_use{blend_mode};
+    for (const auto id : selected_or_active_layer_ids()) {
+      if (const auto* selected = doc.find_layer(id); selected != nullptr) {
+        in_use.push_back(selected->blend_mode());
+      }
+    }
+    if (layer_blend_preview_.has_value()) {
+      for (const auto& [id, original] : layer_blend_preview_->originals) {
+        in_use.push_back(original);
+      }
+    }
+    set_paint_dot_net_blend_modes_offered(blend_combo_, in_use);
     const auto blend_value = static_cast<int>(blend_mode);
     const auto index = blend_combo_->findData(blend_value);
     blend_combo_->setCurrentIndex(index >= 0 ? index : 0);

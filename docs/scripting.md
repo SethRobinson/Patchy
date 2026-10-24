@@ -231,7 +231,7 @@ script is resolved.
   read 0 and `moveTo` offsets its contents. Pinned by `ui_script_move_*`; Photoshop
   check: `scripts\dev\photoshop-text-move-check.ps1`.
 - **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: append-only,
-  aligned with the BlendMode enum, never renamed.
+  in BlendMode order, never renamed; Paint.NET's four: [blend-modes.md](blend-modes.md#paintnet-modes).
 - **`app.apiVersion` is 1.** Bump only for breaking changes. Record additions and
   behavioral changes in [scripting-api-changes.md](scripting-api-changes.md).
   The change log merges with git's `union` driver (`.gitattributes`), so parallel branches

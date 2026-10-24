@@ -3295,20 +3295,48 @@ void ui_pdn_files_open_with_layers_and_by_content() {
   CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 3U);
   check_document();
 
-  // Only layer and folder menus list Paint.NET's modes.
-  QComboBox layer_menu;
-  QComboBox effect_menu;
-  QComboBox filter_menu;
-  patchy::ui::add_blend_mode_items(&layer_menu, patchy::ui::BlendModeMenu::Layer);
-  patchy::ui::add_blend_mode_items(&effect_menu, patchy::ui::BlendModeMenu::Effect);
-  patchy::ui::add_blend_mode_items(&filter_menu, patchy::ui::BlendModeMenu::Filter);
-  for (const auto mode : {patchy::BlendMode::Reflect, patchy::BlendMode::Glow, patchy::BlendMode::Negation,
-                          patchy::BlendMode::Xor}) {
-    CHECK(layer_menu.findData(static_cast<int>(mode)) >= 0);
-    CHECK(effect_menu.findData(static_cast<int>(mode)) < 0);
-    CHECK(filter_menu.findData(static_cast<int>(mode)) < 0);
+  // No menu lists Paint.NET's modes; the Layers panel shows one only while a selected
+  // layer uses it, so nobody picks a mode a PSD cannot keep.
+  const std::array paint_dot_net_modes{patchy::BlendMode::Reflect, patchy::BlendMode::Glow, patchy::BlendMode::Negation,
+                                       patchy::BlendMode::Xor};
+  for (const auto menu : {patchy::ui::BlendModeMenu::Layer, patchy::ui::BlendModeMenu::Folder,
+                          patchy::ui::BlendModeMenu::Effect, patchy::ui::BlendModeMenu::Filter}) {
+    QComboBox combo;
+    patchy::ui::add_blend_mode_items(&combo, menu);
+    for (const auto mode : paint_dot_net_modes) {
+      CHECK(combo.findData(static_cast<int>(mode)) < 0);
+    }
   }
-  CHECK(layer_menu.count() == effect_menu.count() + 4);
+  CHECK(blend_combo->findData(static_cast<int>(patchy::BlendMode::Xor)) == blend_combo->count() - 1);
+  CHECK(blend_combo->findData(static_cast<int>(patchy::BlendMode::Negation)) < 0);
+  {
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto background_id = document.layers()[0].id();
+    const auto xor_id = document.layers()[1].id();
+    // A normal layer: no Paint.NET row.
+    patchy::ui::MainWindowTestAccess::select_layers(window, {background_id}, background_id);
+    QApplication::processEvents();
+    CHECK(blend_combo->findData(static_cast<int>(patchy::BlendMode::Xor)) < 0);
+    // Both selected, the Normal one active: the Xor row shows for the other.
+    patchy::ui::MainWindowTestAccess::select_layers(window, {background_id, xor_id}, background_id);
+    QApplication::processEvents();
+    CHECK(blend_combo->findData(static_cast<int>(patchy::BlendMode::Xor)) >= 0);
+    CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+    // Switching the Xor layer to Normal removes the row; undo brings it back.
+    patchy::ui::MainWindowTestAccess::select_layers(window, {xor_id}, xor_id);
+    QApplication::processEvents();
+    CHECK(blend_combo->currentText() == QStringLiteral("Xor"));
+    blend_combo->setCurrentIndex(blend_combo->findData(static_cast<int>(patchy::BlendMode::Normal)));
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).find_layer(xor_id)->blend_mode() ==
+          patchy::BlendMode::Normal);
+    CHECK(blend_combo->findData(static_cast<int>(patchy::BlendMode::Xor)) < 0);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).find_layer(xor_id)->blend_mode() ==
+          patchy::BlendMode::Xor);
+    CHECK(blend_combo->currentText() == QStringLiteral("Xor"));
+  }
 
   // A PSD save writes them as Normal and says so.
   const auto psd_path = QDir(dir).filePath(QStringLiteral("saved.psd"));

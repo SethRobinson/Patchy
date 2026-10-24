@@ -1234,6 +1234,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* blend = new QComboBox(blending_group);
   blend->setObjectName(QStringLiteral("layerStyleBlendModeCombo"));
   add_blend_mode_items(blend, layer.kind() == LayerKind::Group ? BlendModeMenu::Folder : BlendModeMenu::Layer);
+  // A Paint.NET mode the layer already uses stays choosable while the dialog is open.
+  set_paint_dot_net_blend_modes_offered(blend, {layer.blend_mode()});
   enable_blend_mode_items_for_depth(blend, document_depth);
   blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(layer.blend_mode()))));
   blending_form->addRow(QObject::tr("Blend Mode"), blend);

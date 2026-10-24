@@ -7863,6 +7863,43 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   CHECK(opacity_spin->value() == 100);
 }
 
+// Stepping a closed blend combo (arrows, Home/End, the wheel) never lands on one of
+// Paint.NET's modes (GitHub issue 379), even while one is offered for the layer that
+// uses it; stepping away from one works.
+void ui_blend_mode_combos_step_past_paint_dot_net_modes() {
+  QComboBox combo;
+  patchy::ui::add_blend_mode_items(&combo, patchy::ui::BlendModeMenu::Layer);
+  patchy::ui::set_paint_dot_net_blend_modes_offered(&combo, {patchy::BlendMode::Xor, patchy::BlendMode::Negation});
+  const auto luminosity = combo.findData(static_cast<int>(patchy::BlendMode::Luminosity));
+  const auto negation = combo.findData(static_cast<int>(patchy::BlendMode::Negation));
+  const auto xor_row = combo.findData(static_cast<int>(patchy::BlendMode::Xor));
+  CHECK(negation == luminosity + 1 && xor_row == luminosity + 2 && xor_row == combo.count() - 1);
+  int activated = 0;
+  QObject::connect(&combo, &QComboBox::activated, [&](int) { ++activated; });
+  combo.setCurrentIndex(luminosity);
+  for (const auto key : {Qt::Key_Down, Qt::Key_Right, Qt::Key_PageDown, Qt::Key_End}) {
+    QTest::keyClick(&combo, key);
+    CHECK(combo.currentIndex() == luminosity);
+  }
+  QWheelEvent down(QPointF(5, 5), combo.mapToGlobal(QPointF(5, 5)), QPoint(), QPoint(0, -120), Qt::NoButton,
+                   Qt::NoModifier, Qt::NoScrollPhase, false);
+  QCoreApplication::sendEvent(&combo, &down);
+  CHECK(combo.currentIndex() == luminosity);
+  CHECK(activated == 0);
+  // From an offered Paint.NET row, Up leaves it for Photoshop's list.
+  combo.setCurrentIndex(xor_row);
+  QTest::keyClick(&combo, Qt::Key_Up);
+  CHECK(combo.currentIndex() == luminosity);
+  CHECK(activated == 1);
+  QTest::keyClick(&combo, Qt::Key_Home);
+  CHECK(combo.currentIndex() == 0);
+  // The offer follows the layer: nothing in use, nothing shown.
+  patchy::ui::set_paint_dot_net_blend_modes_offered(&combo, {patchy::BlendMode::Multiply});
+  CHECK(combo.findData(static_cast<int>(patchy::BlendMode::Xor)) < 0);
+  CHECK(combo.findData(static_cast<int>(patchy::BlendMode::Negation)) < 0);
+  CHECK(combo.count() == luminosity + 1);
+}
+
 // Every blend-mode combo steps with Left/Right like Up/Down, closed and with
 // the list open, as the Opacity and Fill fields beside it do.
 void ui_blend_mode_combos_step_with_left_and_right_arrows() {
@@ -9154,6 +9191,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",
        ui_layer_opacity_control_defers_slow_rendering_and_undoes_once},
       {"ui_blend_mode_combos_step_with_left_and_right_arrows", ui_blend_mode_combos_step_with_left_and_right_arrows},
+      {"ui_blend_mode_combos_step_past_paint_dot_net_modes", ui_blend_mode_combos_step_past_paint_dot_net_modes},
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",

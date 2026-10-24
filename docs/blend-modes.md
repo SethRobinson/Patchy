@@ -326,7 +326,7 @@ Reflect, Glow, Negation and Xor (GitHub issue 379) exist for Paint.NET import ([
 
 Where they appear and what files keep them:
 
-- Layer and folder blend menus list them after Photoshop's modes (`kPaintDotNetBlendModes`). Layer-effect menus (`BlendModeMenu::Effect`), recipes and Smart Filters (`recipe_blend_mode_supported`) and the brush Mode menu leave them out: none of those has a file form for them.
+- No blend menu lists them, so nobody picks a mode a PSD cannot keep. A layer or folder combo (the Layers panel, Layer Style's Blending Options) shows one, after Photoshop's modes, only while a layer it edits uses it (`set_paint_dot_net_blend_modes_offered`; in the Layers panel, any selected layer). Switching the layer to another mode removes the row; undo brings it back. Stepping a closed combo (arrows, Home/End, Page Up/Down, the wheel; `BlendModeArrowKeys`) never lands on them, though it leaves one. Layer-effect menus (`BlendModeMenu::Effect`), recipes and Smart Filters (`recipe_blend_mode_supported`), the brush Mode menu and New Layer never show them. Pinned by `ui_pdn_files_open_with_layers_and_by_content` and `ui_blend_mode_combos_step_past_paint_dot_net_modes`.
 - They are 8 and 16-bit only (`blend_mode_supported_at_depth` refuses them at 32 bits).
 - PSD (layer key and lfx2 stringID), layered TIFF and Aseprite saves write Normal. `layers_use_paint_dot_net_blend_modes` adds the save notice; document recovery's PSB snapshots carry Normal too.
 - Script ids `reflect`, `glow`, `negation`, `xor` append to `kBlendModeIds`.
