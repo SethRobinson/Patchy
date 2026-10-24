@@ -24632,6 +24632,14 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
         <translation>サンプリングする画像から調整レイヤーを除外し、補正するレイヤーの上の調整が二重にかからないようにします</translation>
     </message>
+    <message>
+        <source>Replace</source>
+        <translation>置き換え</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>修復モード: 置き換えはサンプリングしたソースのテクスチャをそのまま保ちます。描画モードは修復した色を下のピクセルと合成します</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

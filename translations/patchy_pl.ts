@@ -24776,6 +24776,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
         <translation>Pomiń warstwy korekcyjne w próbkowanym obrazie, aby korekta nad retuszowaną warstwą nie została zastosowana dwa razy</translation>
     </message>
+    <message>
+        <source>Replace</source>
+        <translation>Zastąp</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Tryb korygowania: Zastąp zachowuje teksturę źródła w postaci próbki; tryby mieszania łączą skorygowany kolor z pikselami pod spodem</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

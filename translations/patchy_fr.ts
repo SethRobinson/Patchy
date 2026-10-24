@@ -24702,7 +24702,15 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     </message>
     <message>
         <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
-        <translation>Exclure les calques de réglage de l'image échantillonnée, pour qu'un réglage au-dessus du calque retouché ne soit pas appliqué deux fois</translation>
+        <translation>Exclure les calques de réglage de l&apos;image échantillonnée, pour qu&apos;un réglage au-dessus du calque retouché ne soit pas appliqué deux fois</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>Remplacer</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Mode de correction : Remplacer conserve la texture source telle qu&apos;échantillonnée ; les modes de fusion combinent la couleur corrigée avec les pixels situés dessous</translation>
     </message>
 </context>
 <context>

@@ -138,6 +138,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
     session->canvas->set_retouch_sample_layers(canvas_->retouch_sample_layers());
     session->canvas->set_retouch_ignore_adjustments(canvas_->retouch_ignore_adjustments());
+    session->canvas->set_healing_mode(canvas_->healing_mode());
     session->canvas->set_crop_ratio(canvas_->crop_ratio_width(), canvas_->crop_ratio_height());
     session->canvas->set_patch_tool_mode(canvas_->patch_tool_mode());
     session->canvas->set_patch_tool_transparent(canvas_->patch_tool_transparent());
@@ -178,6 +179,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   if (retouch_ignore_adjustments_check_ != nullptr) {
     session->canvas->set_retouch_ignore_adjustments(retouch_ignore_adjustments_check_->isChecked());
+  }
+  if (healing_mode_combo_ != nullptr) {
+    session->canvas->set_healing_mode(static_cast<HealingMode>(healing_mode_combo_->currentData().toInt()));
   }
   session->canvas->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
   session->canvas->set_crop_overlay_options(current_crop_overlay_options_);

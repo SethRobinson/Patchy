@@ -2703,6 +2703,7 @@ private:
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QComboBox* retouch_sample_layers_combo_{nullptr};
+  QComboBox* healing_mode_combo_{nullptr};
   QCheckBox* retouch_ignore_adjustments_check_{nullptr};
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};

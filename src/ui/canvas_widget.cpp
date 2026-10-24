@@ -907,6 +907,14 @@ int CanvasWidget::healing_diffusion() const noexcept {
   return healing_diffusion_;
 }
 
+void CanvasWidget::set_healing_mode(HealingMode mode) noexcept {
+  healing_mode_ = mode;
+}
+
+CanvasWidget::HealingMode CanvasWidget::healing_mode() const noexcept {
+  return healing_mode_;
+}
+
 void CanvasWidget::set_retouch_sample_layers(SampleLayers mode) noexcept {
   switch (mode) {
     case SampleLayers::AllLayersNoAdjustments:

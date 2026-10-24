@@ -24776,6 +24776,14 @@ Patchy может скачать обновление, заменить этот
         <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
         <translation>Не включать корректирующие слои в образец, чтобы коррекция над ретушируемым слоем не применялась дважды</translation>
     </message>
+    <message>
+        <source>Replace</source>
+        <translation>Замена</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Режим восстановления: «Замена» сохраняет текстуру источника как есть; режимы наложения смешивают восстановленный цвет с пикселями под ним</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

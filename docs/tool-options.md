@@ -71,6 +71,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Clone, Healing, Spot Healing, Patch | Sample (`retouchSampleLayersCombo`: Current Layer, Current & Below, All Layers) | `retouchSampleLayers` (token; the older bool `retouchSampleAllLayers` is still written and maps on first read) | yes | yes |
 | Clone, Healing, Spot Healing, Patch | Ignore Adjustment Layers (`retouchIgnoreAdjustmentsCheck`) | `retouchIgnoreAdjustments` | yes | yes |
 | Healing | Diffusion | `healingDiffusion` | yes | yes |
+| Healing | Mode (`healingModeCombo`) | `healingMode` (token) | yes | yes |
 | Patch | Mode, Transparent | retired keys | no | no (session) |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |

@@ -2089,6 +2089,9 @@ void MainWindow::load_tool_settings() {
   }
   canvas_->set_retouch_ignore_adjustments(
       settings.value(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments()).toBool());
+  canvas_->set_healing_mode(
+      healing_mode_from_token(settings.value(QStringLiteral("tools/healingMode")).toString().toStdString())
+          .value_or(HealingMode::Normal));
   current_crop_ratio_w_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_ratio_h_ =
@@ -2432,6 +2435,11 @@ void MainWindow::sync_retouch_sample_controls_from_canvas() {
         0, retouch_sample_layers_combo_->findData(
                QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())))));
   }
+  if (healing_mode_combo_ != nullptr) {
+    const QSignalBlocker blocker(healing_mode_combo_);
+    healing_mode_combo_->setCurrentIndex(
+        std::max(0, healing_mode_combo_->findData(static_cast<int>(canvas_->healing_mode()))));
+  }
   if (retouch_ignore_adjustments_check_ != nullptr) {
     const QSignalBlocker blocker(retouch_ignore_adjustments_check_);
     retouch_ignore_adjustments_check_->setChecked(canvas_->retouch_ignore_adjustments());
@@ -2532,6 +2540,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"),
                     canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
   settings.setValue(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments());
+  settings.setValue(QStringLiteral("tools/healingMode"),
+                    QString::fromLatin1(healing_mode_token(canvas_->healing_mode())));
   // The remembered ratio, not the canvas's: Size mode runs the canvas unconstrained.
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);

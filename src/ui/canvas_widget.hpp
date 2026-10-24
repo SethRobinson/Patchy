@@ -127,6 +127,7 @@ public:
   // region is healed with the dragged-TO pixels. Destination: a copy of the
   // region is dragged to a new spot and healed in there.
   using PatchToolMode = patchy::ui::PatchToolMode;
+  using HealingMode = patchy::ui::HealingMode;
 
   // The shape a Rectangular or Elliptical Marquee drag-out committed, kept so
   // its edges and corners can be dragged afterwards (the selection is then
@@ -396,6 +397,8 @@ public:
   [[nodiscard]] bool pattern_stamp_aligned() const noexcept;
   void set_healing_diffusion(int diffusion) noexcept;
   [[nodiscard]] int healing_diffusion() const noexcept;
+  void set_healing_mode(HealingMode mode) noexcept;
+  [[nodiscard]] HealingMode healing_mode() const noexcept;
   // Clone, Healing, Spot Healing and Patch share one Sample choice (GitHub issue 382):
   // Current Layer, Current & Below or All Layers (the No Adjustments values are not
   // retouch choices and read as their base choice).
@@ -3430,6 +3433,7 @@ private:
   bool pattern_stamp_aligned_{true};
   std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
+  HealingMode healing_mode_{HealingMode::Normal};
   // Shared by Clone, Healing, Spot Healing, and Patch (GitHub issue 382): All
   // Layers is the historical default.
   SampleLayers retouch_sample_layers_{SampleLayers::AllLayers};

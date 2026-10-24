@@ -24632,6 +24632,14 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
         <translation>从取样图像中排除调整图层，使修饰图层上方的调整不会被应用两次</translation>
     </message>
+    <message>
+        <source>Replace</source>
+        <translation>替换</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>修复模式：替换保留取样时的源纹理；混合模式将修复后的颜色与下方像素混合</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

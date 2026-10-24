@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 namespace patchy::ui {
 
@@ -218,6 +219,51 @@ enum class PatchToolMode {
   Source,
   Destination
 };
+
+// The Healing Brush's Mode (GitHub issue 381; docs/healing.md). Normal is the classic
+// heal; Replace writes the source texture as sampled, without the tone transfer (Clone's
+// write, keeping grain); the rest blend the healed color into the layer with that layer
+// blend mode. Values index kHealingModeTokens; append only.
+enum class HealingMode : std::uint8_t { Normal, Replace, Multiply, Screen, Darken, Lighten, Color, Luminosity };
+
+// Settings tokens (`tools/healingMode`); permanent identifiers.
+inline constexpr std::array<std::string_view, 8> kHealingModeTokens{
+    "normal", "replace", "multiply", "screen", "darken", "lighten", "color", "luminosity"};
+
+[[nodiscard]] constexpr std::string_view healing_mode_token(HealingMode mode) noexcept {
+  return kHealingModeTokens[static_cast<std::size_t>(mode)];
+}
+
+[[nodiscard]] constexpr std::optional<HealingMode> healing_mode_from_token(std::string_view token) noexcept {
+  for (std::size_t index = 0; index < kHealingModeTokens.size(); ++index) {
+    if (kHealingModeTokens[index] == token) {
+      return static_cast<HealingMode>(index);
+    }
+  }
+  return std::nullopt;
+}
+
+// The layer blend mode a blending Healing mode applies; Normal for Normal and Replace.
+[[nodiscard]] constexpr BlendMode healing_mode_blend(HealingMode mode) noexcept {
+  switch (mode) {
+    case HealingMode::Multiply:
+      return BlendMode::Multiply;
+    case HealingMode::Screen:
+      return BlendMode::Screen;
+    case HealingMode::Darken:
+      return BlendMode::Darken;
+    case HealingMode::Lighten:
+      return BlendMode::Lighten;
+    case HealingMode::Color:
+      return BlendMode::Color;
+    case HealingMode::Luminosity:
+      return BlendMode::Luminosity;
+    case HealingMode::Normal:
+    case HealingMode::Replace:
+      break;
+  }
+  return BlendMode::Normal;
+}
 
 struct MarqueeShape {
   QRect rect;             // document space, deliberately not clipped to the canvas

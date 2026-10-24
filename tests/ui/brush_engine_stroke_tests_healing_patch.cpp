@@ -19,9 +19,13 @@
 // byte-exact on synthetic documents whose uniform surroundings make the
 // frequency-separation math collapse to known values.
 #include "core/adjustment_layer.hpp"
+#include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -264,6 +268,119 @@ void ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample() {
   canvas.set_retouch_ignore_adjustments(true);
   canvas.set_retouch_sample_layers(patchy::SampleLayers::CurrentLayer);
   CHECK(canvas.retouch_effective_sample_layers() == patchy::SampleLayers::CurrentLayer);
+}
+
+// The Healing Brush's Mode (GitHub issue 381) on a two-tone fixture: the source detail
+// (230,100,90) sits on (200,60,40) and the strokes land on (80,120,160), so the classic
+// heal is D + detail - A = (110,160,210). Replace writes the source as sampled; each
+// blend mode writes that healed color blended over the destination with the layer mode.
+void ui_healing_brush_modes_blend_the_healed_color() {
+  using patchy::ui::HealingMode;
+  const auto make_document = [] {
+    patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(80, 120, 160, 255));
+    fill_pixel_rect(pixels, QRect(0, 0, 24, 16), QColor(200, 60, 40));
+    auto* detail = pixels.pixel(4, 8);
+    detail[0] = 230;
+    detail[1] = 100;
+    detail[2] = 90;
+    document.add_pixel_layer("Photo", std::move(pixels));
+    return document;
+  };
+  const std::array<std::uint8_t, 3> destination{80, 120, 160};
+  const std::array<std::uint8_t, 3> healed{110, 160, 210};
+  struct Case {
+    HealingMode mode;
+    std::array<std::uint8_t, 3> expected;
+  };
+  const std::array<Case, 8> cases{{
+      {HealingMode::Normal, healed},
+      {HealingMode::Replace, {230, 100, 90}},
+      {HealingMode::Multiply, patchy::blend_rgb(healed, destination, patchy::BlendMode::Multiply)},
+      {HealingMode::Screen, patchy::blend_rgb(healed, destination, patchy::BlendMode::Screen)},
+      {HealingMode::Darken, {80, 120, 160}},
+      {HealingMode::Lighten, healed},
+      {HealingMode::Color, patchy::blend_rgb(healed, destination, patchy::BlendMode::Color)},
+      {HealingMode::Luminosity, patchy::blend_rgb(healed, destination, patchy::BlendMode::Luminosity)},
+  }};
+  CHECK(patchy::ui::healing_mode_from_token("luminosity") == HealingMode::Luminosity);
+  CHECK(patchy::ui::healing_mode_token(HealingMode::Replace) == "replace");
+  CHECK(!patchy::ui::healing_mode_from_token("overlay").has_value());
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    patchy::set_deep_editing_override(true);
+    auto document = make_document();
+    if (depth != patchy::BitDepth::UInt8) {
+      patchy::convert_document_depth(document, depth);
+    }
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(192, 64);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::Healing);
+    canvas.set_brush_size(1);
+    canvas.set_brush_opacity(100);
+    canvas.set_brush_softness(0);
+    canvas.set_healing_diffusion(5);
+    canvas.set_clone_aligned(false);
+    canvas.show();
+    QApplication::processEvents();
+    const auto source = canvas.widget_position_for_document_point(QPoint(4, 8));
+    send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    int x = 30;
+    for (const auto& [mode, expected] : cases) {
+      canvas.set_healing_mode(mode);
+      CHECK(canvas.healing_mode() == mode);
+      const auto point = canvas.widget_position_for_document_point(QPoint(x, 8));
+      send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      const auto actual = patchy::ui::qimage_from_document(document, true).pixelColor(x, 8);
+      const QColor wanted(expected[0], expected[1], expected[2]);
+      if (!color_close(actual, wanted, depth == patchy::BitDepth::UInt8 ? 1 : 2)) {
+        std::fprintf(stderr, "  depth %d mode %d: %s, expected %s\n", static_cast<int>(depth), static_cast<int>(mode),
+                     qPrintable(actual.name()), qPrintable(wanted.name()));
+      }
+      CHECK(color_close(actual, wanted, depth == patchy::BitDepth::UInt8 ? 1 : 2));
+      x += 2;
+    }
+    patchy::set_deep_editing_override(std::nullopt);
+  }
+}
+
+// The Healing Brush's Mode combo (GitHub issue 381): shown for the Healing Brush only,
+// eight entries, reaching the canvas, the saved settings and every new document.
+void ui_healing_mode_option_persists_and_reaches_new_documents() {
+  SettingsValueRestorer mode_restorer(QStringLiteral("tools/healingMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/healingMode"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("healingModeCombo"));
+  CHECK(combo != nullptr);
+  if (combo == nullptr) {
+    return;
+  }
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  CHECK(!combo->isVisible());
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(combo->isVisible());
+  CHECK(combo->count() == 8);
+  CHECK(combo->itemText(0) == QStringLiteral("Normal"));
+  CHECK(combo->itemText(1) == QStringLiteral("Replace"));
+  CHECK(combo->itemText(7) == QStringLiteral("Luminosity"));
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->healing_mode() == patchy::ui::HealingMode::Normal);
+  combo->setCurrentIndex(combo->findData(static_cast<int>(patchy::ui::HealingMode::Luminosity)));
+  QApplication::processEvents();
+  CHECK(canvas->healing_mode() == patchy::ui::HealingMode::Luminosity);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/healingMode")).toString() ==
+        QStringLiteral("luminosity"));
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  CHECK(require_canvas(window)->healing_mode() == patchy::ui::HealingMode::Luminosity);
+  combo->setCurrentIndex(0);
+  QApplication::processEvents();
 }
 
 // The pre-382 Sample All Layers bool still decides the first launch after the update:
@@ -1410,6 +1527,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_retouch_sample_layers_migrates_legacy_setting", ui_retouch_sample_layers_migrates_legacy_setting},
       {"ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample",
        ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample},
+      {"ui_healing_brush_modes_blend_the_healed_color", ui_healing_brush_modes_blend_the_healed_color},
+      {"ui_healing_mode_option_persists_and_reaches_new_documents",
+       ui_healing_mode_option_persists_and_reaches_new_documents},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},
       {"ui_spot_healing_escape_cancels_without_pixel_changes",
        ui_spot_healing_escape_cancels_without_pixel_changes},

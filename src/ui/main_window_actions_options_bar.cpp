@@ -2033,6 +2033,45 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       retranslate_paint_mode_items(brush_mode_combo);
     }
   });
+  // The Healing Brush's Mode (GitHub issue 381). Item data is the HealingMode value.
+  add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Healing});
+  healing_mode_combo_ = new QComboBox(toolbar);
+  healing_mode_combo_->setObjectName(QStringLiteral("healingModeCombo"));
+  const auto healing_mode_text = [](HealingMode mode) {
+    return mode == HealingMode::Replace ? QCoreApplication::translate(kMainWindowTranslationContext, "Replace")
+                                        : blend_mode_name(healing_mode_blend(mode));
+  };
+  static_cast<void>(QT_TR_NOOP("Replace"));
+  for (const auto mode : {HealingMode::Normal, HealingMode::Replace, HealingMode::Multiply, HealingMode::Screen,
+                          HealingMode::Darken, HealingMode::Lighten, HealingMode::Color, HealingMode::Luminosity}) {
+    healing_mode_combo_->addItem(healing_mode_text(mode), static_cast<int>(mode));
+  }
+  healing_mode_combo_->setCurrentIndex(
+      std::max(0, healing_mode_combo_->findData(static_cast<int>(canvas_defaults->healing_mode()))));
+  bind_tooltip(healing_mode_combo_,
+               QT_TR_NOOP("Healing mode: Replace keeps the source texture as sampled; the blend modes combine the "
+                          "healed color with the pixels under it"));
+  add_option_widget(healing_mode_combo_, {CanvasTool::Healing});
+  connect(healing_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || healing_mode_combo_ == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_healing_mode(static_cast<HealingMode>(healing_mode_combo_->itemData(index).toInt()));
+    save_tool_settings();
+  });
+  {
+    QPointer<QComboBox> healing_combo(healing_mode_combo_);
+    register_retranslation([healing_combo, healing_mode_text] {
+      if (healing_combo == nullptr) {
+        return;
+      }
+      const QSignalBlocker blocker(healing_combo);
+      for (int index = 0; index < healing_combo->count(); ++index) {
+        healing_combo->setItemText(index,
+                                   healing_mode_text(static_cast<HealingMode>(healing_combo->itemData(index).toInt())));
+      }
+    });
+  }
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Opacity:"),
       {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,

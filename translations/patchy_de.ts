@@ -24704,6 +24704,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
         <translation>Einstellungsebenen aus dem aufgenommenen Bild auslassen, damit eine Einstellung über der retuschierten Ebene nicht doppelt angewendet wird</translation>
     </message>
+    <message>
+        <source>Replace</source>
+        <translation>Ersetzen</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Reparaturmodus: Ersetzen übernimmt die Quellstruktur wie aufgenommen; die Füllmethoden verrechnen die reparierte Farbe mit den Pixeln darunter</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

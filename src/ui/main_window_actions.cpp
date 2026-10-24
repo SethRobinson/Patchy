@@ -333,6 +333,11 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
   set_checked(move_auto_select_check_, canvas_->auto_select_layer());
   set_checked(move_show_transform_controls_check_, canvas_->show_transform_controls());
   set_checked(clone_aligned_check_, canvas_->clone_aligned());
+  if (healing_mode_combo_ != nullptr) {
+    const QSignalBlocker blocker(healing_mode_combo_);
+    healing_mode_combo_->setCurrentIndex(
+        std::max(0, healing_mode_combo_->findData(static_cast<int>(canvas_->healing_mode()))));
+  }
   sync_retouch_sample_controls_from_canvas();
   set_checked(mixer_sample_all_layers_check_, canvas_->mixer_sample_all_layers());
   set_checked(patch_transparent_check_, canvas_->patch_tool_transparent());
