@@ -10,6 +10,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -114,6 +116,44 @@ int widget_floor(const QWidget* widget) {
   return widget->minimumHeight() > 0 ? widget->minimumHeight() : widget->minimumSizeHint().height();
 }
 
+// How far above or below its own tab bar a dragged tab still only changes places.
+constexpr int kTabBarSlack = 6;
+// The dragged title row or tab follows the pointer at this opacity.
+constexpr double kDragGhostOpacity = 0.6;
+
+// A page that stops being its own section drops the height limits apply_section_state set
+// on it there (a collapsed section is pinned to its title row).
+void clear_section_limits(QWidget& widget) {
+  widget.setMinimumHeight(0);
+  widget.setMaximumHeight(QWIDGETSIZE_MAX);
+}
+
+// The translucent copy of what a drag carries. A child of the window, never a window of
+// its own, and transparent to the mouse.
+class PanelDragGhost final : public QWidget {
+public:
+  explicit PanelDragGhost(QWidget* parent) : QWidget(parent) {
+    setObjectName(QStringLiteral("panelDragGhost"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+  }
+
+  void set_pixmap(QPixmap pixmap) {
+    pixmap_ = std::move(pixmap);
+    resize(pixmap_.deviceIndependentSize().toSize());
+    update();
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    painter.setOpacity(kDragGhostOpacity);
+    painter.drawPixmap(0, 0, pixmap_);
+  }
+
+private:
+  QPixmap pixmap_;
+};
+
 // Whether moving tab `from` to just before `slot` leaves the shown tabs as they are:
 // the slot is beside the tab, or only closed (hidden) tabs lie between them.
 bool tab_move_changes_nothing(const QTabBar& tabs, int from, int slot) {
@@ -145,8 +185,8 @@ struct PanelColumn::Section {
   QStackedWidget* stack{nullptr};
   std::vector<std::unique_ptr<Page>> pages;
   bool expanded{true};
-  // The first section added (the Layers group): it takes the column's spare height,
-  // wherever it has been moved.
+  // The section holding the first panel added (Layers): it takes the column's spare
+  // height, wherever it has been moved and whatever group it is in.
   bool fills{false};
   // How far lower_floors has lowered the expanded floor.
   int floor_reduction{0};
@@ -182,7 +222,9 @@ PanelColumn::PanelColumn(QWidget* parent) : QWidget(parent) {
 PanelColumn::~PanelColumn() {
   if (dragging_) {
     QApplication::restoreOverrideCursor();  // closed mid-drag
+    QApplication::instance()->removeEventFilter(this);
   }
+  delete drag_ghost_.data();  // a child of the window, which may outlive the column
 }
 
 PanelColumn::Page* PanelColumn::build_page(Section& section, const PanelSpec& spec) {
@@ -239,16 +281,17 @@ PanelColumn::Page* PanelColumn::build_page(Section& section, const PanelSpec& sp
 }
 
 void PanelColumn::add_panel(const PanelSpec& spec, bool initially_expanded) {
+  if (fill_panel_id_.isEmpty()) {
+    fill_panel_id_ = spec.id;
+  }
   auto section = std::make_unique<Section>();
   section->expanded = initially_expanded;
-  section->fills = sections_.empty();
   auto* page = build_page(*section, spec);
   section->widget = page->widget;
   splitter_->addWidget(section->widget);
-  // The first section takes the column's spare height as the window grows.
-  splitter_->setStretchFactor(splitter_->count() - 1, sections_.empty() ? 1 : 0);
-  apply_section_state(*section);
   sections_.push_back(std::move(section));
+  update_fill_section();
+  apply_section_state(*sections_.back());
 }
 
 void PanelColumn::add_tab_group(const QString& group_name, const std::vector<PanelSpec>& tabs,
@@ -256,51 +299,65 @@ void PanelColumn::add_tab_group(const QString& group_name, const std::vector<Pan
   if (tabs.empty()) {
     return;
   }
+  if (fill_panel_id_.isEmpty()) {
+    fill_panel_id_ = tabs.front().id;
+  }
+  group_name_ = group_name;
   auto section = std::make_unique<Section>();
   section->expanded = initially_expanded;
-  section->fills = sections_.empty();
-  section->widget = new QWidget();
-  section->widget->setObjectName(group_name);
-  auto* layout = new QVBoxLayout(section->widget);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(0);
-  section->tabs = new QTabBar(section->widget);
-  section->tabs->setObjectName(group_name + QStringLiteral("TabBar"));
-  // Fusion paints a palette-light base line beside the tabs (GitHub issue 123).
-  section->tabs->setDrawBase(false);
-  section->tabs->setExpanding(false);
-  section->tabs->setContextMenuPolicy(Qt::CustomContextMenu);
-  // The tab bar is the group's handle too: a press still switches tabs, a drag moves.
-  section->tabs->installEventFilter(this);
-  section->stack = new QStackedWidget(section->widget);
-  layout->addWidget(section->tabs);
-  layout->addWidget(section->stack, 1);
+  build_group_widgets(*section);
   for (const auto& spec : tabs) {
     auto* page = build_page(*section, spec);
     section->stack->addWidget(page->widget);
     section->tabs->addTab(spec.title);
   }
-  auto* raw = section.get();
-  connect(section->tabs, &QTabBar::currentChanged, this, [raw](int index) {
-    if (index >= 0 && index < raw->stack->count()) {
-      raw->stack->setCurrentIndex(index);
+  splitter_->addWidget(section->widget);
+  sections_.push_back(std::move(section));
+  update_fill_section();
+  apply_section_state(*sections_.back());
+}
+
+void PanelColumn::build_group_widgets(Section& section) {
+  section.widget = new QWidget();
+  section.widget->setObjectName(group_name_);
+  auto* layout = new QVBoxLayout(section.widget);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  auto* tabs = new QTabBar(section.widget);
+  section.tabs = tabs;
+  tabs->setObjectName(group_name_ + QStringLiteral("TabBar"));
+  // Fusion paints a palette-light base line beside the tabs (GitHub issue 123).
+  tabs->setDrawBase(false);
+  tabs->setExpanding(false);
+  tabs->setContextMenuPolicy(Qt::CustomContextMenu);
+  // The tab bar is the group's handle too: a press still switches tabs, a drag moves.
+  tabs->installEventFilter(this);
+  section.stack = new QStackedWidget(section.widget);
+  layout->addWidget(tabs);
+  layout->addWidget(section.stack, 1);
+  // The group is looked up by its bar, never captured: groups form and dissolve as
+  // panels move.
+  connect(tabs, &QTabBar::currentChanged, this, [this, tabs](int index) {
+    auto* group = section_for_drag_handle(tabs);
+    if (group != nullptr && index >= 0 && index < group->stack->count()) {
+      group->stack->setCurrentIndex(index);
     }
   });
-  connect(section->tabs, &QWidget::customContextMenuRequested, this, [this, raw](const QPoint& position) {
-    auto index = raw->tabs->tabAt(position);
-    if (index < 0) {
-      index = raw->tabs->currentIndex();
-    }
-    if (index < 0 || index >= static_cast<int>(raw->pages.size())) {
+  connect(tabs, &QWidget::customContextMenuRequested, this, [this, tabs](const QPoint& position) {
+    const auto* group = section_for_drag_handle(tabs);
+    if (group == nullptr) {
       return;
     }
-    emit header_context_menu_requested(raw->pages[static_cast<std::size_t>(index)]->spec.id,
-                                       raw->tabs->mapToGlobal(position), true);
+    auto index = tabs->tabAt(position);
+    if (index < 0) {
+      index = tabs->currentIndex();
+    }
+    if (index < 0 || index >= static_cast<int>(group->pages.size())) {
+      return;
+    }
+    emit header_context_menu_requested(group->pages[static_cast<std::size_t>(index)]->spec.id,
+                                       tabs->mapToGlobal(position), true);
   });
-  splitter_->addWidget(section->widget);
-  splitter_->setStretchFactor(splitter_->count() - 1, sections_.empty() ? 1 : 0);
-  apply_section_state(*section);
-  sections_.push_back(std::move(section));
 }
 
 PanelColumn::Page* PanelColumn::page(const QString& id) const {
@@ -834,43 +891,137 @@ PanelColumn::Page* PanelColumn::page_for_header(const QObject* header) const {
   return nullptr;
 }
 
-int PanelColumn::drop_slot_at(const QPoint& column_position) const {
-  // Above a section's middle drops above it; below every middle drops at the bottom.
+PanelColumn::Drop PanelColumn::drop_at(const QPoint& column_position) const {
+  Drop drop;
+  auto* source = drag_section_;
+  if (source == nullptr) {
+    return drop;
+  }
+  if (drag_tab_ >= 0) {
+    // Along its own bar, or just above or below it, a tab only changes places.
+    const auto* tabs = source->tabs;
+    const QRect bar(tabs->mapTo(this, QPoint(0, 0)), tabs->size());
+    if (bar.adjusted(0, -kTabBarSlack, 0, kTabBarSlack).contains(column_position)) {
+      const auto slot = tab_drop_slot_at(*source, tabs->mapFrom(this, column_position));
+      if (!tab_move_changes_nothing(*tabs, drag_tab_, slot)) {
+        drop.kind = Drop::Kind::TabOrder;
+        drop.slot = slot;
+      }
+      return drop;
+    }
+  }
+  // A section's header (its tab bar and title row) takes the panel in, but for a thin band
+  // at its top and bottom edges, which drops between sections. Below the header a drop
+  // lands above the section's middle or below it.
+  auto slot = static_cast<int>(sections_.size());
+  Section* target = nullptr;
+  int tab_slot = -1;
   for (int index = 0; index < static_cast<int>(sections_.size()); ++index) {
-    const auto* widget = sections_[static_cast<std::size_t>(index)]->widget;
-    if (widget->isHidden()) {
+    auto* section = sections_[static_cast<std::size_t>(index)].get();
+    if (section->widget->isHidden()) {
       continue;
     }
-    const QRect rect(widget->mapTo(this, QPoint(0, 0)), widget->size());
-    if (column_position.y() < rect.center().y()) {
+    const QRect rect(section->widget->mapTo(this, QPoint(0, 0)), section->widget->size());
+    const auto y = column_position.y();
+    if (y < rect.top()) {
+      slot = index;  // on the divider above it
+      break;
+    }
+    if (y > rect.bottom()) {
+      continue;
+    }
+    const auto header = collapsed_height(*section);
+    const auto edge = std::clamp(header / 4, 3, 8);
+    if (y < rect.top() + edge) {
+      slot = index;
+    } else if (y < rect.top() + header - edge) {
+      target = section;
+      if (section->tabs != nullptr) {
+        const QRect bar(section->tabs->mapTo(this, QPoint(0, 0)), section->tabs->size());
+        if (bar.contains(column_position)) {
+          tab_slot = tab_drop_slot_at(*section, section->tabs->mapFrom(this, column_position));
+        }
+      }
+    } else if (!section->expanded) {
+      slot = index + 1;
+    } else {
+      slot = y < rect.center().y() ? index : index + 1;
+    }
+    break;
+  }
+  if (target != nullptr) {
+    if (target != source) {  // onto its own header: nothing
+      drop.kind = Drop::Kind::Merge;
+      drop.target = target;
+      drop.tab_slot = tab_slot;
+    }
+    return drop;
+  }
+  const auto from = section_index(source);
+  if (drag_tab_ < 0 && (slot == from || slot == from + 1)) {
+    return drop;  // a section dropped where it is
+  }
+  drop.kind = Drop::Kind::Slot;
+  drop.slot = slot;
+  return drop;
+}
+
+int PanelColumn::tab_drop_slot_at(const Section& section, const QPoint& bar_position) const {
+  // Before the first shown tab whose middle lies past the pointer; past every middle: the end.
+  const auto* tabs = section.tabs;
+  const bool right_to_left = tabs->isRightToLeft();
+  for (int index = 0; index < tabs->count(); ++index) {
+    if (!tabs->isTabVisible(index)) {
+      continue;
+    }
+    const auto middle = tabs->tabRect(index).center().x();
+    if (right_to_left ? bar_position.x() > middle : bar_position.x() < middle) {
       return index;
     }
   }
-  return static_cast<int>(sections_.size());
+  return tabs->count();
 }
 
-void PanelColumn::ensure_drop_indicator() {
-  if (drop_indicator_ != nullptr) {
-    return;
+void PanelColumn::show_drop(const Drop& drop) {
+  if (drop_indicator_ == nullptr) {
+    drop_indicator_ = new QWidget(this);
+    drop_indicator_->setObjectName(QStringLiteral("panelDropIndicator"));
+    drop_indicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    drop_indicator_->setAttribute(Qt::WA_StyledBackground, true);
+    // The Layers list's insertion line.
+    set_themed_style(*drop_indicator_, QStringLiteral(
+        "QWidget#panelDropIndicator { background: @drop_indicator_bg; "
+        "border: 1px solid @drop_indicator_border; border-radius: 2px; }"));
+    // Outlines the header a dropped panel joins.
+    merge_indicator_ = new QWidget(this);
+    merge_indicator_->setObjectName(QStringLiteral("panelMergeIndicator"));
+    merge_indicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    merge_indicator_->setAttribute(Qt::WA_StyledBackground, true);
+    set_themed_style(*merge_indicator_, QStringLiteral(
+        "QWidget#panelMergeIndicator { background: transparent; "
+        "border: 2px solid @drop_indicator_bg; border-radius: 3px; }"));
   }
-  drop_indicator_ = new QWidget(this);
-  drop_indicator_->setObjectName(QStringLiteral("panelDropIndicator"));
-  drop_indicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
-  drop_indicator_->setAttribute(Qt::WA_StyledBackground, true);
-  // The Layers list's insertion line.
-  set_themed_style(*drop_indicator_, QStringLiteral(
-      "QWidget#panelDropIndicator { background: @drop_indicator_bg; "
-      "border: 1px solid @drop_indicator_border; border-radius: 2px; }"));
+  drop_indicator_->hide();
+  merge_indicator_->hide();
+  switch (drop.kind) {
+    case Drop::Kind::Slot:
+      show_slot_line(drop.slot);
+      break;
+    case Drop::Kind::TabOrder:
+      show_tab_line(*drag_section_, drop.slot);
+      break;
+    case Drop::Kind::Merge:
+      show_merge_frame(*drop.target);
+      if (drop.tab_slot >= 0) {
+        show_tab_line(*drop.target, drop.tab_slot);
+      }
+      break;
+    case Drop::Kind::None:
+      break;  // dropping here changes nothing
+  }
 }
 
-void PanelColumn::show_drop_indicator(int slot) {
-  drop_slot_ = slot;
-  ensure_drop_indicator();
-  const auto from = section_index(drag_section_);
-  if (slot == from || slot == from + 1) {
-    drop_indicator_->hide();  // dropping here changes nothing
-    return;
-  }
+void PanelColumn::show_slot_line(int slot) {
   constexpr int kThickness = 4;
   int y = 0;
   bool above_a_section = false;
@@ -899,30 +1050,8 @@ void PanelColumn::show_drop_indicator(int slot) {
   drop_indicator_->raise();
 }
 
-int PanelColumn::tab_drop_slot_at(const Section& section, const QPoint& bar_position) const {
-  // Before the first shown tab whose middle lies past the pointer; past every middle: the end.
+void PanelColumn::show_tab_line(const Section& section, int slot) {
   const auto* tabs = section.tabs;
-  const bool right_to_left = tabs->isRightToLeft();
-  for (int index = 0; index < tabs->count(); ++index) {
-    if (!tabs->isTabVisible(index)) {
-      continue;
-    }
-    const auto middle = tabs->tabRect(index).center().x();
-    if (right_to_left ? bar_position.x() > middle : bar_position.x() < middle) {
-      return index;
-    }
-  }
-  return tabs->count();
-}
-
-void PanelColumn::show_tab_drop_indicator(const Section& section, int slot) {
-  tab_drop_slot_ = slot;
-  ensure_drop_indicator();
-  const auto* tabs = section.tabs;
-  if (tab_move_changes_nothing(*tabs, drag_tab_, slot)) {
-    drop_indicator_->hide();  // dropping here changes nothing
-    return;
-  }
   const bool right_to_left = tabs->isRightToLeft();
   // The leading edge of the tab it would land before, or the trailing edge of the last
   // shown tab.
@@ -947,38 +1076,107 @@ void PanelColumn::show_tab_drop_indicator(const Section& section, int slot) {
   drop_indicator_->raise();
 }
 
+void PanelColumn::show_merge_frame(const Section& section) {
+  const auto origin = section.widget->mapTo(this, QPoint(0, 0));
+  merge_indicator_->setGeometry(origin.x(), origin.y(), section.widget->width(), collapsed_height(section));
+  merge_indicator_->show();
+  merge_indicator_->raise();
+}
+
+void PanelColumn::start_drag_ghost() {
+  // What the drag carries: the tab, or the section's header (tab bar and title row).
+  auto& source = *drag_section_;
+  QPixmap pixmap;
+  if (drag_tab_ >= 0) {
+    const auto rect = source.tabs->tabRect(drag_tab_);
+    pixmap = source.tabs->grab(rect);
+    ghost_hotspot_ = source.tabs->mapFromGlobal(drag_press_global_) - rect.topLeft();
+  } else {
+    pixmap = source.widget->grab(QRect(0, 0, source.widget->width(), collapsed_height(source)));
+    ghost_hotspot_ = source.widget->mapFromGlobal(drag_press_global_);
+  }
+  auto* host = window();
+  if (drag_ghost_ == nullptr || drag_ghost_->parentWidget() != host) {
+    delete drag_ghost_.data();
+    drag_ghost_ = new PanelDragGhost(host);
+  }
+  static_cast<PanelDragGhost*>(drag_ghost_.data())->set_pixmap(std::move(pixmap));
+  ghost_hotspot_.setX(std::clamp(ghost_hotspot_.x(), 0, std::max(0, drag_ghost_->width() - 1)));
+  ghost_hotspot_.setY(std::clamp(ghost_hotspot_.y(), 0, std::max(0, drag_ghost_->height() - 1)));
+  drag_ghost_->show();
+}
+
+void PanelColumn::move_drag_ghost(const QPoint& global_position) {
+  if (drag_ghost_ == nullptr) {
+    return;
+  }
+  drag_ghost_->move(drag_ghost_->parentWidget()->mapFromGlobal(global_position) - ghost_hotspot_);
+  drag_ghost_->raise();
+}
+
 void PanelColumn::end_section_drag(bool apply) {
   auto* section = drag_section_;
-  const auto slot = drop_slot_;
   const auto tab = drag_tab_;
-  const auto tab_slot = tab_drop_slot_;
+  const auto drop = drop_;
   const auto was_dragging = dragging_;
   drag_section_ = nullptr;
-  drop_slot_ = -1;
   press_tab_ = -1;
   drag_tab_ = -1;
-  tab_drop_slot_ = -1;
+  drop_ = Drop{};
   dragging_ = false;
-  if (drop_indicator_ != nullptr) {
-    drop_indicator_->hide();
+  for (auto* indicator : {drop_indicator_, merge_indicator_, drag_ghost_.data()}) {
+    if (indicator != nullptr) {
+      indicator->hide();
+    }
   }
   if (!was_dragging) {
     return;
   }
   QApplication::restoreOverrideCursor();
   QApplication::instance()->removeEventFilter(this);
-  if (!apply || section == nullptr) {
-    return;
+  if (apply && section != nullptr) {
+    apply_drop(*section, tab, drop);
   }
-  if (tab >= 0) {
-    // A drop that showed no line moves nothing, past closed tabs included.
-    if (tab_slot >= 0 && !tab_move_changes_nothing(*section->tabs, tab, tab_slot) &&
-        move_tab_index(*section, tab, tab_slot)) {
-      emit tab_order_changed();
-    }
-  } else if (slot >= 0) {
-    move_section_index(section_index(section), slot);
+}
+
+void PanelColumn::apply_drop(Section& source, int tab, const Drop& drop) {
+  const auto dragged = tab >= 0 ? source.pages[static_cast<std::size_t>(tab)]->spec.id : source.front()->spec.id;
+  switch (drop.kind) {
+    case Drop::Kind::TabOrder:
+      if (move_tab_index(source, tab, drop.slot)) {
+        emit tab_groups_changed();
+      }
+      return;
+    case Drop::Kind::Slot:
+      if (tab < 0) {
+        move_section_index(section_index(&source), drop.slot);
+        return;
+      }
+      break;
+    case Drop::Kind::Merge:
+      break;
+    case Drop::Kind::None:
+      return;
   }
+  // Regrouping reparents panels and can delete a tab bar, and the drop arrives inside the
+  // dragged header's or tab bar's own event: do it once that event is done.
+  const auto kind = drop.kind;
+  const auto slot = drop.slot;
+  const auto target = kind == Drop::Kind::Merge ? drop.target->pages.front()->spec.id : QString();
+  const auto tab_slot = drop.tab_slot;
+  const bool whole_section = tab < 0;
+  QMetaObject::invokeMethod(
+      this,
+      [this, kind, dragged, target, slot, tab_slot, whole_section] {
+        if (kind == Drop::Kind::Slot) {
+          separate_panel(dragged, slot);
+        } else if (whole_section) {
+          merge_section(dragged, target, tab_slot);
+        } else {
+          merge_panel(dragged, target, tab_slot);
+        }
+      },
+      Qt::QueuedConnection);
 }
 
 QList<QStringList> PanelColumn::tab_groups() const {
@@ -1007,21 +1205,25 @@ void PanelColumn::set_tab_order(const QStringList& ids) {
   if (section == nullptr) {
     return;
   }
+  if (order_tabs(*section, ids)) {
+    emit tab_groups_changed();
+  }
+}
+
+bool PanelColumn::order_tabs(Section& section, const QStringList& ids) {
   // Each named tab of the group in turn to the next place; the rest follow.
   bool changed = false;
   int place = 0;
   for (const auto& id : ids) {
-    for (int index = place; index < static_cast<int>(section->pages.size()); ++index) {
-      if (section->pages[static_cast<std::size_t>(index)]->spec.id == id) {
-        changed = move_tab_index(*section, index, place) || changed;
+    for (int index = place; index < static_cast<int>(section.pages.size()); ++index) {
+      if (section.pages[static_cast<std::size_t>(index)]->spec.id == id) {
+        changed = move_tab_index(section, index, place) || changed;
         ++place;
         break;
       }
     }
   }
-  if (changed) {
-    emit tab_order_changed();
-  }
+  return changed;
 }
 
 void PanelColumn::move_tab(const QString& id, int slot) {
@@ -1032,7 +1234,7 @@ void PanelColumn::move_tab(const QString& id, int slot) {
   for (std::size_t index = 0; index < section->pages.size(); ++index) {
     if (section->pages[index]->spec.id == id) {
       if (move_tab_index(*section, static_cast<int>(index), slot)) {
-        emit tab_order_changed();
+        emit tab_groups_changed();
       }
       return;
     }
@@ -1064,6 +1266,244 @@ bool PanelColumn::move_tab_index(Section& section, int from, int slot) {
     focus->setFocus(Qt::OtherFocusReason);  // taking the page out of the stack hid it
   }
   return true;
+}
+
+void PanelColumn::set_tab_groups(const QList<QStringList>& groups) {
+  // The groups asked for: known panels, each in one group only, two or more per group.
+  QList<QStringList> wanted;
+  QStringList taken;
+  for (const auto& group : groups) {
+    QStringList ids;
+    for (const auto& id : group) {
+      if (has_panel(id) && !taken.contains(id)) {
+        ids << id;
+        taken << id;
+      }
+    }
+    if (ids.size() >= 2) {
+      wanted << ids;
+    }
+  }
+  bool changed = false;
+  std::vector<bool> formed(static_cast<std::size_t>(wanted.size()), false);
+  // A group that already holds one wanted group's panels stays and only orders its tabs.
+  // Every other group comes apart in place, each tab a section of its own, in tab order.
+  for (int index = 0; index < static_cast<int>(sections_.size()); ++index) {
+    auto& section = *sections_[static_cast<std::size_t>(index)];
+    if (section.tabs == nullptr) {
+      continue;
+    }
+    QStringList members;
+    for (const auto& member : section.pages) {
+      members << member->spec.id;
+    }
+    auto sorted_members = members;
+    sorted_members.sort();
+    int match = -1;
+    for (int candidate = 0; candidate < wanted.size(); ++candidate) {
+      auto sorted_wanted = wanted[candidate];
+      sorted_wanted.sort();
+      if (!formed[static_cast<std::size_t>(candidate)] && sorted_wanted == sorted_members) {
+        match = candidate;
+        break;
+      }
+    }
+    if (match >= 0) {
+      formed[static_cast<std::size_t>(match)] = true;
+      changed = order_tabs(section, wanted[match]) || changed;
+      continue;
+    }
+    const bool expanded = section.expanded;
+    while (section.tabs != nullptr) {  // the last tab dissolves the group into a section
+      insert_section(detach_page(section.pages.back()->spec.id), index + 1, expanded);
+    }
+    changed = true;
+  }
+  for (int group = 0; group < wanted.size(); ++group) {
+    if (formed[static_cast<std::size_t>(group)]) {
+      continue;
+    }
+    const auto& ids = wanted[group];
+    auto* target = section_of(ids.front());
+    for (int member = 1; member < ids.size(); ++member) {
+      insert_page(*target, detach_page(ids[member]), -1);
+    }
+    bring_to_front(ids.front());
+    changed = true;
+  }
+  if (changed) {
+    finish_regroup(*sections_.front());
+  }
+}
+
+void PanelColumn::merge_panel(const QString& id, const QString& target_id, int tab_slot) {
+  const auto* source = section_of(id);
+  auto* target = section_of(target_id);
+  if (source == nullptr || target == nullptr || source == target) {
+    return;
+  }
+  insert_page(*target, detach_page(id), tab_slot);
+  finish_regroup(*target);
+}
+
+void PanelColumn::merge_section(const QString& id, const QString& target_id, int tab_slot) {
+  const auto* source = section_of(id);
+  auto* target = section_of(target_id);
+  if (source == nullptr || target == nullptr || source == target) {
+    return;
+  }
+  const auto front = source->front()->spec.id;
+  auto slot = tab_slot;
+  for (const auto& member : section_panel_ids(id)) {
+    insert_page(*target, detach_page(member), slot);
+    if (slot >= 0) {
+      ++slot;
+    }
+  }
+  bring_to_front(front);
+  finish_regroup(*target);
+}
+
+void PanelColumn::separate_panel(const QString& id, int slot) {
+  const auto* source = section_of(id);
+  if (source == nullptr) {
+    return;
+  }
+  if (source->tabs == nullptr) {
+    move_section(id, slot);
+    return;
+  }
+  // The group keeps at least one tab, so it stays a section and the slots stand.
+  const bool expanded = source->expanded;
+  auto& section = insert_section(detach_page(id), slot, expanded);
+  apply_section_state(section);
+  if (expanded && section.widget->isVisibleTo(this)) {
+    grant_preferred_height(section);
+  }
+  finish_regroup(section);
+}
+
+void PanelColumn::make_group(Section& section) {
+  if (section.tabs != nullptr) {
+    return;
+  }
+  // The section's page goes into a new group in the same splitter slot, at the same height.
+  auto* page_widget = section.widget;
+  const auto index = splitter_->indexOf(page_widget);
+  build_group_widgets(section);
+  splitter_->replaceWidget(index, section.widget);
+  clear_section_limits(*page_widget);
+  const auto& page = *section.pages.front();
+  section.stack->addWidget(page_widget);
+  section.tabs->addTab(page.label->text());
+  page_widget->show();
+}
+
+void PanelColumn::dissolve_group(Section& section) {
+  if (section.tabs == nullptr || section.pages.size() != 1) {
+    return;
+  }
+  // A group of one is a plain section again: its page takes the group's splitter slot.
+  auto* container = section.widget;
+  auto* tabs = section.tabs;
+  auto* page_widget = section.pages.front()->widget;
+  section.stack->removeWidget(page_widget);
+  section.widget = page_widget;
+  section.tabs = nullptr;
+  section.stack = nullptr;
+  splitter_->replaceWidget(splitter_->indexOf(container), page_widget);
+  tabs->disconnect(this);
+  tabs->removeEventFilter(this);
+  container->hide();
+  container->deleteLater();
+  page_widget->setVisible(section.any_open());
+}
+
+std::unique_ptr<PanelColumn::Page> PanelColumn::detach_page(const QString& id) {
+  auto* section = section_of(id);
+  if (section == nullptr) {
+    return {};
+  }
+  if (section->tabs == nullptr) {
+    // A section of its own goes with its panel.
+    const auto index = static_cast<std::size_t>(section_index(section));
+    auto owned = std::move(sections_[index]);
+    sections_.erase(sections_.begin() + static_cast<std::ptrdiff_t>(index));
+    auto page = std::move(owned->pages.front());
+    page->widget->hide();
+    page->widget->setParent(nullptr);
+    clear_section_limits(*page->widget);
+    return page;
+  }
+  const auto found = std::find_if(section->pages.begin(), section->pages.end(),
+                                  [&id](const auto& member) { return member->spec.id == id; });
+  const auto index = static_cast<int>(found - section->pages.begin());
+  auto page = std::move(*found);
+  section->pages.erase(found);
+  // The stack first: the bar's currentChanged then names the index the stack shows.
+  section->stack->removeWidget(page->widget);
+  section->tabs->removeTab(index);
+  page->widget->hide();
+  page->widget->setParent(nullptr);
+  if (section->pages.size() == 1) {
+    dissolve_group(*section);
+  } else {
+    update_section_visibility(*section);
+  }
+  return page;
+}
+
+void PanelColumn::insert_page(Section& target, std::unique_ptr<Page> page, int tab_slot) {
+  if (page == nullptr) {
+    return;
+  }
+  make_group(target);
+  const auto count = static_cast<int>(target.pages.size());
+  const auto slot = tab_slot < 0 ? count : std::min(tab_slot, count);
+  auto* raw = page.get();
+  target.pages.insert(target.pages.begin() + slot, std::move(page));
+  target.stack->insertWidget(slot, raw->widget);
+  target.tabs->insertTab(slot, raw->label->text());
+  target.tabs->setTabVisible(slot, raw->open);
+  if (raw->open) {
+    target.tabs->setCurrentIndex(slot);  // a panel joins in front
+  }
+  target.stack->setCurrentIndex(target.tabs->currentIndex());
+  update_section_visibility(target);
+}
+
+PanelColumn::Section& PanelColumn::insert_section(std::unique_ptr<Page> page, int slot, bool expanded) {
+  auto section = std::make_unique<Section>();
+  section->expanded = expanded;
+  section->widget = page->widget;
+  section->pages.push_back(std::move(page));
+  slot = std::clamp(slot, 0, static_cast<int>(sections_.size()));
+  splitter_->insertWidget(slot, section->widget);
+  auto& raw = *section;
+  sections_.insert(sections_.begin() + slot, std::move(section));
+  raw.widget->setVisible(raw.any_open());
+  return raw;
+}
+
+void PanelColumn::update_fill_section() {
+  for (int index = 0; index < static_cast<int>(sections_.size()); ++index) {
+    auto& section = *sections_[static_cast<std::size_t>(index)];
+    section.fills = std::any_of(section.pages.begin(), section.pages.end(),
+                                [this](const auto& member) { return member->spec.id == fill_panel_id_; });
+    splitter_->setStretchFactor(index, section.fills ? 1 : 0);
+  }
+}
+
+void PanelColumn::finish_regroup(const Section& changed) {
+  expanded_by_click_ = nullptr;  // may name a section that went
+  update_fill_section();
+  for (const auto& section : sections_) {
+    apply_section_state(*section);
+    update_section_visibility(*section);
+  }
+  settle_sizes(changed);
+  emit tab_groups_changed();
+  emit section_order_changed();
 }
 
 bool PanelColumn::eventFilter(QObject* watched, QEvent* event) {
@@ -1116,20 +1556,18 @@ bool PanelColumn::eventFilter(QObject* watched, QEvent* event) {
         if (delta.manhattanLength() < QApplication::startDragDistance()) {
           break;
         }
-        // Started mostly sideways from a tab, the drag moves that tab within its bar;
-        // otherwise it moves the section.
+        // Started mostly sideways from a tab, the drag carries that tab; otherwise it
+        // carries the section.
         drag_tab_ = press_tab_ >= 0 && std::abs(delta.x()) > std::abs(delta.y()) ? press_tab_ : -1;
         dragging_ = true;
         QApplication::setOverrideCursor(Qt::ClosedHandCursor);
         // Escape cancels, whichever widget has the keyboard.
         QApplication::instance()->installEventFilter(this);
+        start_drag_ghost();
       }
-      if (drag_tab_ >= 0) {
-        const auto& section = *drag_section_;
-        show_tab_drop_indicator(section, tab_drop_slot_at(section, section.tabs->mapFromGlobal(global)));
-      } else {
-        show_drop_indicator(drop_slot_at(mapFromGlobal(global)));
-      }
+      move_drag_ghost(global);
+      drop_ = drop_at(mapFromGlobal(global));
+      show_drop(drop_);
       return true;
     }
     case QEvent::MouseButtonRelease: {

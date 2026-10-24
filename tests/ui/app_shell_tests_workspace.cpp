@@ -1373,7 +1373,7 @@ void ui_panel_tab_drag_reorders_tabs() {
   }
   CHECK(column->section_panel_ids(layers) == (QStringList{layers, channels, paths}));
   int changes = 0;
-  QObject::connect(column, &patchy::ui::PanelColumn::tab_order_changed, column, [&changes] { ++changes; });
+  QObject::connect(column, &patchy::ui::PanelColumn::tab_groups_changed, column, [&changes] { ++changes; });
   const auto top_level_count = QApplication::topLevelWidgets().size();
   // The tabs, the stack and the pages keep one index per panel.
   const auto check_in_step = [&](const QStringList& expected, const char* context) {
@@ -1490,6 +1490,216 @@ void ui_panel_tab_drag_reorders_tabs() {
   // Tab texts follow a language rebind by panel, not by the old index.
   column->refresh_tab_titles();
   check_in_step({layers, channels, paths}, "titles refreshed");
+}
+
+// Dropping a panel's title row on another panel's title row or tab bar makes them one tab
+// group; a tab dragged out between sections is a section of its own again; a group dragged
+// onto a panel brings all its tabs. A translucent copy of the dragged header follows the
+// pointer inside the window, and nothing floats.
+void ui_panel_drag_onto_header_merges_into_tabs() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (column == nullptr) {
+    return;
+  }
+  auto* splitter = column->splitter();
+  const auto layers = QStringLiteral("layersDock");
+  const auto channels = QStringLiteral("channelsDock");
+  const auto paths = QStringLiteral("pathsDock");
+  const auto history = QStringLiteral("historyDock");
+  const auto properties = QStringLiteral("propertiesDock");
+  const auto info = QStringLiteral("infoDock");
+  const auto color = QStringLiteral("colorDock");
+  const auto palette = QStringLiteral("paletteDock");
+  const auto visible_windows = [] {
+    int count = 0;
+    for (const auto* widget : QApplication::topLevelWidgets()) {
+      count += widget->isVisible() ? 1 : 0;
+    }
+    return count;
+  };
+  const auto windows_before = visible_windows();
+  const auto check_filled = [&](const char* context) {
+    int expected_top = 0;
+    int last_bottom = -1;
+    for (int index = 0; index < splitter->count(); ++index) {
+      auto* section = splitter->widget(index);
+      if (section->isHidden()) {
+        continue;
+      }
+      if (section->y() != expected_top) {
+        std::printf("%s: section %s at y %d, expected %d\n", context, qPrintable(section->objectName()), section->y(),
+                    expected_top);
+      }
+      CHECK(section->y() == expected_top);
+      expected_top = section->geometry().bottom() + 1 + splitter->handleWidth();
+      last_bottom = section->geometry().bottom();
+    }
+    CHECK(last_bottom == splitter->height() - 1);
+  };
+  // Presses `handle` at `from`, crosses the drag distance (sideways or down), moves to the
+  // column point `to`, and releases unless told not to.
+  const auto drag = [&](QWidget* handle, QPoint from, QPoint column_to, bool sideways, bool release) {
+    const int distance = QApplication::startDragDistance() + 2;
+    send_mouse(*handle, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*handle, QEvent::MouseMove, from + (sideways ? QPoint(distance, 0) : QPoint(0, distance)), Qt::NoButton,
+               Qt::LeftButton);
+    const auto to = handle->mapFromGlobal(column->mapToGlobal(column_to));
+    send_mouse(*handle, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    if (release) {
+      send_mouse(*handle, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      QApplication::processEvents();
+    }
+  };
+  const auto header_middle = [&](const QString& id) {
+    auto* header = column->title_label(id)->parentWidget();
+    return header->mapTo(column, header->rect().center());
+  };
+  const auto label_point = [&](const QString& id) { return QPoint(30, column->title_label(id)->height() / 2); };
+  const auto section_count = splitter->count();
+
+  // Color's title row onto Palette's: the merge frame outlines Palette's header and the
+  // ghost of Color's title row sits under the pointer.
+  const auto onto_palette = header_middle(palette);
+  drag(column->title_label(color), label_point(color), onto_palette, false, false);
+  auto* frame = column->findChild<QWidget*>(QStringLiteral("panelMergeIndicator"));
+  auto* ghost = window.findChild<QWidget*>(QStringLiteral("panelDragGhost"));
+  CHECK(frame != nullptr && frame->isVisible() && frame->geometry().contains(onto_palette));
+  CHECK(ghost != nullptr && ghost->isVisible() && !ghost->isWindow() && ghost->parentWidget() == &window);
+  if (ghost != nullptr) {
+    const auto pointer = column->mapTo(&window, onto_palette);
+    if (!ghost->geometry().contains(pointer)) {
+      std::printf("ghost at %d,%d %dx%d, pointer at %d,%d\n", ghost->x(), ghost->y(), ghost->width(), ghost->height(),
+                  pointer.x(), pointer.y());
+    }
+    CHECK(ghost->geometry().contains(pointer));
+    CHECK(ghost->height() == column->title_label(color)->parentWidget()->height());
+    CHECK(ghost->testAttribute(Qt::WA_TransparentForMouseEvents));
+  }
+  CHECK(visible_windows() == windows_before);
+  save_widget_artifact("ui_panel_drag_onto_header_merges_into_tabs_ghost", window);
+  send_mouse(*column->title_label(color),
+             QEvent::MouseButtonRelease, column->title_label(color)->mapFromGlobal(column->mapToGlobal(onto_palette)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(frame == nullptr || !frame->isVisible());
+  CHECK(ghost == nullptr || !ghost->isVisible());
+  CHECK(column->section_panel_ids(palette) == (QStringList{palette, color}));
+  CHECK(column->panel_in_front(color));
+  CHECK(!column->panel_expanded(color));  // Palette's section was collapsed
+  CHECK(splitter->count() == section_count - 1);
+  auto* palette_tabs = column->tab_bar(palette);
+  CHECK(palette_tabs != nullptr && palette_tabs->objectName() == QStringLiteral("panelTabGroupTabBar"));
+  if (palette_tabs != nullptr) {
+    CHECK(palette_tabs->tabText(0) == column->title_label(palette)->text());
+    CHECK(palette_tabs->tabText(1) == column->title_label(color)->text());
+  }
+  CHECK(column->section_widget(palette)->objectName() == QStringLiteral("panelTabGroup"));
+  CHECK(column->tab_groups() == (QList<QStringList>{{layers, channels, paths}, {palette, color}}));
+  CHECK(visible_windows() == windows_before);
+  check_filled("color onto palette");
+  // The new group expands as one, Color's page in front.
+  column->set_panel_expanded(palette, true);
+  QApplication::processEvents();
+  CHECK(column->panel_expanded(color));
+  auto* palette_stack = column->section_widget(palette)->findChild<QStackedWidget*>();
+  CHECK(palette_stack != nullptr && palette_stack->currentWidget() == column->panel_page(color));
+  CHECK(column->panel_page(color)->isVisible());
+  check_filled("palette group expanded");
+  // The joined page fills the group's stack: it drops the limits its collapsed section had.
+  CHECK(column->panel_page(color)->height() == palette_stack->height());
+  CHECK(column->title_label(color)->parentWidget()->height() == column->title_label(palette)->parentWidget()->height());
+  save_widget_artifact("ui_panel_drag_onto_header_merges_into_tabs_group", *column);
+
+  // Color's tab dragged sideways, then out onto the divider above Properties: a section of
+  // its own there, expanded like the group it left, and Palette is a plain section again.
+  if (palette_tabs != nullptr) {
+    auto* properties_section = column->section_widget(properties);
+    const QPoint above_properties(20, properties_section->mapTo(column, QPoint(0, 0)).y() - 2);
+    drag(palette_tabs, palette_tabs->tabRect(1).center(), above_properties, true, false);
+    auto* line = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+    CHECK(line != nullptr && line->isVisible() && line->width() > line->height());
+    CHECK(ghost != nullptr && ghost->isVisible() && ghost->size() == palette_tabs->tabRect(1).size());
+    send_mouse(*palette_tabs, QEvent::MouseButtonRelease,
+               palette_tabs->mapFromGlobal(column->mapToGlobal(above_properties)), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+  const auto order = column->section_order();
+  CHECK(order.indexOf(color) >= 0 && order.indexOf(color) == order.indexOf(properties) - 1);
+  CHECK(!column->in_tab_group(color) && !column->in_tab_group(palette));
+  CHECK(column->tab_bar(palette) == nullptr);
+  CHECK(column->section_widget(color)->objectName() == color);
+  CHECK(column->section_widget(palette)->objectName() == palette);
+  CHECK(column->panel_expanded(color) && column->panel_expanded(palette));
+  CHECK(column->panel_visible(color) && column->section_widget(color)->isVisible());
+  CHECK(splitter->count() == section_count);
+  check_filled("color separated");
+
+  // History onto the Layers group's tab bar, just before Channels: it joins there, in front,
+  // and the group still takes the spare height.
+  auto* layer_tabs = column->tab_bar(layers);
+  CHECK(layer_tabs != nullptr);
+  if (layer_tabs != nullptr) {
+    const auto before_channels = layer_tabs->mapTo(
+        column, QPoint(layer_tabs->tabRect(1).left() + 2, layer_tabs->tabRect(1).center().y()));
+    drag(column->title_label(history), label_point(history), before_channels, false, false);
+    auto* line = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+    CHECK(frame != nullptr && frame->isVisible());
+    CHECK(line != nullptr && line->isVisible() && line->height() == layer_tabs->height());
+    send_mouse(*column->title_label(history), QEvent::MouseButtonRelease,
+               column->title_label(history)->mapFromGlobal(column->mapToGlobal(before_channels)), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+  CHECK(column->section_panel_ids(layers) == (QStringList{layers, history, channels, paths}));
+  CHECK(column->panel_in_front(history));
+  CHECK(column->panel_expanded(history));
+  CHECK(column->section_widget(layers)->sizePolicy().verticalStretch() == 1);
+  check_filled("history into layers");
+
+  // A group dragged by its title row onto a panel brings every tab, its front one in front.
+  column->merge_panel(color, palette);
+  QApplication::processEvents();
+  column->bring_to_front(palette);
+  drag(column->title_label(palette), label_point(palette), header_middle(info), false, true);
+  CHECK(column->section_panel_ids(info) == (QStringList{info, palette, color}));
+  CHECK(column->panel_in_front(palette));
+  check_filled("group onto info");
+
+  // Escape cancels a merge drag.
+  const auto groups_before_escape = column->tab_groups();
+  drag(column->title_label(properties), label_point(properties), header_middle(info), false, false);
+  CHECK(frame != nullptr && frame->isVisible());
+  QTest::keyClick(&window, Qt::Key_Escape);
+  CHECK(frame == nullptr || !frame->isVisible());
+  CHECK(ghost == nullptr || !ghost->isVisible());
+  send_mouse(*column->title_label(properties), QEvent::MouseButtonRelease, label_point(properties), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(column->tab_groups() == groups_before_escape);
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  // set_tab_groups puts the default groups back without a mouse.
+  column->set_tab_groups({{layers, channels, paths}});
+  QApplication::processEvents();
+  QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  CHECK(column->tab_groups() == (QList<QStringList>{{layers, channels, paths}}));
+  for (const auto& id : {history, info, palette, color}) {
+    CHECK(!column->in_tab_group(id));
+    CHECK(column->section_widget(id)->objectName() == id);
+  }
+  CHECK(splitter->count() == section_count);
+  CHECK(window.findChildren<QTabBar*>(QStringLiteral("panelTabGroupTabBar")).size() == 1);
+  CHECK(visible_windows() == windows_before);
+  check_filled("default groups");
 }
 
 // GitHub issue 335: a click on a collapsed panel's title row expands it, a double click
@@ -1725,7 +1935,8 @@ void ui_panel_layout_returns_in_the_next_window() {
   const QStringList keys = {QStringLiteral("window/panelLayoutVersion"), QStringLiteral("window/hiddenPanels"),
                             QStringLiteral("window/collapsedPanels"), QStringLiteral("window/frontPanel"),
                             QStringLiteral("window/panelColumnWidth"), QStringLiteral("window/panelSplitterState"),
-                            QStringLiteral("window/panelOrder"), QStringLiteral("window/panelGroups")};
+                            QStringLiteral("window/panelOrder"), QStringLiteral("window/panelGroups"),
+                            QStringLiteral("window/frontPanels")};
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
   for (const auto& key : keys) {
     restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
@@ -1738,6 +1949,8 @@ void ui_panel_layout_returns_in_the_next_window() {
     settings.sync();
   }
   CHECK(!patchy::ui::MainWindowTestAccess::panel_layout_persists());
+  const auto color = QStringLiteral("colorDock");
+  const auto palette = QStringLiteral("paletteDock");
   const auto layers = QStringLiteral("layersDock");
   const QStringList default_tabs = {layers, QStringLiteral("channelsDock"), QStringLiteral("pathsDock")};
   const QStringList moved_tabs = {QStringLiteral("pathsDock"), layers, QStringLiteral("channelsDock")};
@@ -1757,6 +1970,8 @@ void ui_panel_layout_returns_in_the_next_window() {
     column->move_section(QStringLiteral("infoDock"), 0);
     column->move_tab(QStringLiteral("pathsDock"), 0);
     CHECK(column->section_panel_ids(layers) == moved_tabs);
+    column->merge_panel(color, palette);
+    column->bring_to_front(palette);
     QApplication::processEvents();
     picked_width = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window) + 40;
     patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, picked_width);
@@ -1771,7 +1986,9 @@ void ui_panel_layout_returns_in_the_next_window() {
     const auto settings = patchy::ui::app_settings();
     CHECK(settings.value(QStringLiteral("window/panelLayoutVersion")).toInt() == 4);
     CHECK(settings.value(QStringLiteral("window/panelGroups")).toStringList() ==
-          QStringList{moved_tabs.join(QLatin1Char(','))});
+          (QStringList{moved_tabs.join(QLatin1Char(',')), QStringLiteral("paletteDock,colorDock")}));
+    CHECK(settings.value(QStringLiteral("window/frontPanels")).toStringList() ==
+          (QStringList{QStringLiteral("channelsDock"), palette}));
   }
   {
     // Read before the first show, as the constructor does on a desktop.
@@ -1804,6 +2021,9 @@ void ui_panel_layout_returns_in_the_next_window() {
       }
       CHECK(stack->currentWidget() == column->panel_page(QStringLiteral("channelsDock")));
     }
+    CHECK(column->section_panel_ids(color) == (QStringList{palette, color}));
+    CHECK(column->panel_in_front(palette));
+    CHECK(column->section_order().last() == palette);
   }
   {
     // A version 3 record (from before the tab order was kept) keeps its choices with the
@@ -1818,6 +2038,7 @@ void ui_panel_layout_returns_in_the_next_window() {
     CHECK(!column->panel_visible(history));
     CHECK(column->section_order().first() == QStringLiteral("infoDock"));
     CHECK(column->section_panel_ids(layers) == default_tabs);
+    CHECK(!column->in_tab_group(color));
     CHECK(column->panel_in_front(QStringLiteral("channelsDock")));
   }
   {
@@ -1835,6 +2056,7 @@ void ui_panel_layout_returns_in_the_next_window() {
     CHECK(patchy::ui::MainWindowTestAccess::right_dock_width_follows_content(window));
     CHECK(column->section_order().first() == QStringLiteral("layersDock"));
     CHECK(column->section_panel_ids(layers) == default_tabs);
+    CHECK(!column->in_tab_group(color));
   }
 }
 
@@ -1868,6 +2090,8 @@ void ui_reset_panels_restores_first_launch_layout() {
   column->move_tab(QStringLiteral("layersDock"), 3);
   CHECK(column->section_panel_ids(QStringLiteral("layersDock")) ==
         (QStringList{QStringLiteral("channelsDock"), QStringLiteral("pathsDock"), QStringLiteral("layersDock")}));
+  column->merge_panel(QStringLiteral("colorDock"), QStringLiteral("infoDock"));
+  column->separate_panel(QStringLiteral("pathsDock"), 0);
   patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(
       window, patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window) + 60);
   QApplication::processEvents();
@@ -1886,6 +2110,7 @@ void ui_reset_panels_restores_first_launch_layout() {
   const QStringList tab_order = {QStringLiteral("layersDock"), QStringLiteral("channelsDock"),
                                  QStringLiteral("pathsDock")};
   CHECK(column->section_panel_ids(QStringLiteral("layersDock")) == tab_order);
+  CHECK(column->tab_groups() == QList<QStringList>{tab_order});
   if (auto* tabs = column->tab_bar(QStringLiteral("layersDock")); tabs != nullptr) {
     auto* stack = column->section_widget(QStringLiteral("layersDock"))->findChild<QStackedWidget*>();
     for (int index = 0; index < tab_order.size(); ++index) {
@@ -3919,6 +4144,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_all_collapsed_stack_at_top", ui_panel_all_collapsed_stack_at_top},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},
       {"ui_panel_tab_drag_reorders_tabs", ui_panel_tab_drag_reorders_tabs},
+      {"ui_panel_drag_onto_header_merges_into_tabs", ui_panel_drag_onto_header_merges_into_tabs},
       {"ui_panel_title_click_expands_and_double_click_collapses",
        ui_panel_title_click_expands_and_double_click_collapses},
       {"ui_panel_header_right_click_opens_panel_menu", ui_panel_header_right_click_opens_panel_menu},

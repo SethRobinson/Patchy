@@ -851,8 +851,8 @@ namespace {
 // renames or regroups panels bumps it, and an older record is then ignored rather than
 // half applied, unless read_panel_layout knows how to carry it forward.
 constexpr int kPanelLayoutVersion = 4;
-// Version 3 is version 4 without the tab order (window/panelGroups): read_panel_layout keeps
-// it with the default tab order.
+// Version 3 is version 4 without the tab groups (window/panelGroups, window/frontPanels):
+// read_panel_layout keeps it with the default groups and tab order.
 constexpr int kPanelLayoutVersionBeforeTabOrder = 3;
 // Version 2 is version 3 without the Color panel (GitHub issue 365): read_panel_layout
 // keeps such a layout and adds the panel collapsed, just above Palette.
@@ -863,10 +863,13 @@ QString panel_layout_version_key() { return QStringLiteral("window/panelLayoutVe
 QString hidden_panels_key() { return QStringLiteral("window/hiddenPanels"); }
 QString collapsed_panels_key() { return QStringLiteral("window/collapsedPanels"); }
 QString front_panel_key() { return QStringLiteral("window/frontPanel"); }
+// Version 4: every tab group's front panel (frontPanel keeps the first group's).
+QString front_panels_key() { return QStringLiteral("window/frontPanels"); }
 QString panel_column_width_key() { return QStringLiteral("window/panelColumnWidth"); }
 QString panel_heights_key() { return QStringLiteral("window/panelSplitterState"); }
 QString panel_order_key() { return QStringLiteral("window/panelOrder"); }
-// One entry per tab group: its panel ids in tab order, joined by commas.
+// Version 4: one entry per tab group, its panel ids in tab order joined by commas. Panels
+// in no entry have sections of their own.
 QString panel_groups_key() { return QStringLiteral("window/panelGroups"); }
 
 // The two toolbars, by object name, with the area each starts in.
@@ -929,12 +932,12 @@ void MainWindow::write_panel_layout() {
   }
   auto settings = app_settings();
   QStringList hidden;
-  QString front;
+  QStringList fronts;
   for (const auto& id : panel_column_->panel_ids()) {
     if (!panel_column_->panel_visible(id)) {
       hidden << id;
-    } else if (front.isEmpty() && panel_column_->in_tab_group(id) && panel_column_->panel_in_front(id)) {
-      front = id;
+    } else if (panel_column_->in_tab_group(id) && panel_column_->panel_in_front(id)) {
+      fronts << id;
     }
   }
   for (const auto& toolbar : kDefaultToolbars) {
@@ -945,7 +948,8 @@ void MainWindow::write_panel_layout() {
   settings.setValue(panel_layout_version_key(), kPanelLayoutVersion);
   settings.setValue(hidden_panels_key(), hidden);
   settings.setValue(collapsed_panels_key(), collapsed_panel_names());
-  settings.setValue(front_panel_key(), front);
+  settings.setValue(front_panel_key(), fronts.value(0));
+  settings.setValue(front_panels_key(), fronts);
   settings.setValue(panel_order_key(), panel_column_->section_order());
   QStringList groups;
   for (const auto& group : panel_column_->tab_groups()) {
@@ -975,11 +979,13 @@ void MainWindow::read_panel_layout() {
   }
   const auto color_panel = QString::fromLatin1(kColorPanel);
   const bool add_color_panel = version == kPanelLayoutVersionBeforeColor && panel_column_->has_panel(color_panel);
-  // The tab order first; older records keep the default one.
-  if (version == kPanelLayoutVersion) {
+  // The tab groups first; older records keep the default groups and tab order.
+  if (version == kPanelLayoutVersion && settings.contains(panel_groups_key())) {
+    QList<QStringList> groups;
     for (const auto& group : settings.value(panel_groups_key()).toStringList()) {
-      panel_column_->set_tab_order(group.split(QLatin1Char(','), Qt::SkipEmptyParts));
+      groups << group.split(QLatin1Char(','), Qt::SkipEmptyParts);
     }
+    panel_column_->set_tab_groups(groups);
   }
   auto collapsed = settings.value(collapsed_panels_key()).toStringList();
   if (add_color_panel) {
@@ -992,8 +998,14 @@ void MainWindow::read_panel_layout() {
       panel_column_->set_panel_visible(id, false);
     }
   }
-  if (const auto front = settings.value(front_panel_key()).toString(); panel_column_->has_panel(front)) {
-    panel_column_->bring_to_front(front);
+  auto fronts = settings.value(front_panels_key()).toStringList();
+  if (fronts.isEmpty()) {
+    fronts << settings.value(front_panel_key()).toString();
+  }
+  for (const auto& front : fronts) {
+    if (panel_column_->has_panel(front)) {
+      panel_column_->bring_to_front(front);
+    }
   }
   for (const auto& toolbar : kDefaultToolbars) {
     if (auto* bar = findChild<QToolBar*>(QLatin1String(toolbar.name));
@@ -1034,16 +1046,14 @@ void MainWindow::reset_panels() {
   if (panel_column_ == nullptr) {
     return;
   }
-  // Every panel open in the first-launch section and tab order, collapse states and
-  // heights, Layers in front. Nothing is re-parented, so the window keeps its size and place.
+  // Every panel open in the first-launch groups, section and tab order, collapse states
+  // and heights, Layers in front. The window keeps its size and place.
   // Floors a short screen lowered stay lowered: putting them back would ask for more
   // height than the window has and grow it past the screen.
   for (const auto& id : panel_column_->panel_ids()) {
     panel_column_->set_panel_visible(id, true);
   }
-  for (const auto& group : default_tab_groups_) {
-    panel_column_->set_tab_order(group);
-  }
+  panel_column_->set_tab_groups(default_tab_groups_);
   panel_column_->set_section_order(default_panel_order_);
   apply_collapsed_panels(default_collapsed_panels_);
   panel_column_->bring_to_front(QString::fromLatin1(kFirstPanel));
@@ -1976,6 +1986,7 @@ void MainWindow::create_docks() {
   };
   connect(panel_column_, &PanelColumn::panel_expanded_changed, this, column_changed);
   connect(panel_column_, &PanelColumn::panel_visibility_changed, this, column_changed);
+  connect(panel_column_, &PanelColumn::tab_groups_changed, this, column_changed);
   panel_column_->installEventFilter(this);
 
   // Beside the document tabs: the tabs take every width change, the column keeps its
