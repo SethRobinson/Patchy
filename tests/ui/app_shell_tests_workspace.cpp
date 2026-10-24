@@ -1710,6 +1710,32 @@ void ui_panel_drag_onto_header_merges_into_tabs() {
   CHECK(column->panel_in_front(palette));
   check_filled("group onto info");
 
+  // Dropped off the column (over the canvas), a tab or a section goes back where it was:
+  // no line or outline shows there, and the release changes nothing.
+  {
+    const auto groups_before = column->tab_groups();
+    const auto order_before = column->section_order();
+    const QPoint on_canvas(-200, column->height() / 2);
+    auto* info_tabs = column->tab_bar(info);
+    CHECK(info_tabs != nullptr);
+    if (info_tabs != nullptr) {
+      drag(info_tabs, info_tabs->tabRect(1).center(), on_canvas, true, false);
+      auto* line = column->findChild<QWidget*>(QStringLiteral("panelDropIndicator"));
+      CHECK(line == nullptr || !line->isVisible());
+      CHECK(frame == nullptr || !frame->isVisible());
+      CHECK(ghost != nullptr && ghost->isVisible());
+      send_mouse(*info_tabs, QEvent::MouseButtonRelease, info_tabs->mapFromGlobal(column->mapToGlobal(on_canvas)),
+                 Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      QApplication::processEvents();
+    }
+    drag(column->title_label(history), label_point(history), on_canvas, false, true);
+    CHECK(column->tab_groups() == groups_before);
+    CHECK(column->section_order() == order_before);
+    CHECK(ghost == nullptr || !ghost->isVisible());
+    CHECK(QApplication::overrideCursor() == nullptr);
+  }
+
   // Escape cancels a merge drag.
   const auto groups_before_escape = column->tab_groups();
   drag(column->title_label(properties), label_point(properties), header_middle(info), false, false);
