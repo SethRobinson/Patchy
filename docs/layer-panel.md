@@ -19,12 +19,11 @@ Thumbnail size (#386): the Thumbnail Size submenu ending both layer context menu
 ## Rebuilds and absent rows
 
 `MainWindow::refresh_layer_list` (main_window_layer_panel.cpp) rebuilds in
-passes: configure every `QListWidgetItem` while still parentless, insert ALL
-items, then attach the row widgets. The order is load-bearing: a `setData`/`setToolTip`
-on an inserted item emits `dataChanged` and layout work, and each `setItemWidget`
-persistent editor index makes every LATER insert pay an update walk (interleaving
-goes quadratic). Never mutate an inserted
-item mid-rebuild and never attach a row widget before the last item is in.
+passes: configure every `QListWidgetItem` while parentless, insert ALL items, then
+attach row widgets. The order is load-bearing: `setData`/`setToolTip` on an inserted
+item emits `dataChanged` and layout work, and each `setItemWidget` editor index makes
+every LATER insert pay an update walk (interleaving goes quadratic). Never mutate an
+inserted item mid-rebuild or attach a row widget before the last item is in.
 Profiling: [performance.md](performance.md) (`layerpanel`, `manylayers`).
 
 New sessions build rows once. Their row-attachment callback pumps paints/timers
@@ -43,7 +42,7 @@ During guarded automation, script-originated rebuilds call `refresh_layer_list(t
 
 Canvas-driven selection must not rebuild rows that already exist. `reveal_layer_in_layer_list` (Move-tool auto-select, `active_layer_changed_callback`) and `select_layers_in_layer_list` (rectangle and modifier selection) call `refresh_layer_list` only when a collapsed ancestor has to open, the name filter has to clear, or a target has no row; otherwise they select the existing row (`layer_row_item`) and let the ordinary selection handler run. Pinned by `ui_move_auto_select_click_keeps_existing_layer_rows` (a click on a child of a collapsed folder still rebuilds and reveals it). Both scroll through `scroll_layer_row_into_view`: a row already wholly on screen keeps the scroll position, an off-screen row is centered, and the badge buttons pass `clicked_in_panel` so a partly visible row under the pointer stays put too (#266, `ui_layer_smart_object_badge_click_keeps_panel_scroll`).
 
-Row masks: `LayerListWidget::update_row_viewport_masks` (on scroll, resize, scroll-range and value changes, and focus changes) masks the rows under the raised scroll bars. The scroll-bar rects are mapped through global coordinates because the bars live in QAbstractScrollArea's own container widgets, siblings of the viewport, not ancestors of the rows. Only rows intersecting the viewport are touched; rows scrolled in later get their mask from that scroll's pass. Pinned by `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
+Row masks: `LayerListWidget::update_row_viewport_masks` (on scroll, resize, scroll-range and value changes, and focus changes) masks the rows under the raised scroll bars. Scroll-bar rects map through global coordinates: the bars live in QAbstractScrollArea's container widgets, siblings of the viewport, not ancestors of the rows. Only rows intersecting the viewport are touched; rows scrolled in later get their mask from that scroll's pass. Pinned by `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
 
 The layer list may omit rows entirely: collapsed folders and the Layers panel name filter (`layerNameFilterEdit`) both rebuild without rows for excluded layers. Never assume every document layer has a row, and never introduce a "row exists but hidden" state; absent rows are the single not-shown state all consumers are hardened for. While the name filter is active, `LayerListWidget::set_drag_blocked` refuses drag reordering because a reorder would silently move filtered-out layers; each refused attempt reports through `show_status_error` and leftover held-button moves are swallowed so the base view cannot start a drag-selection sweep.
 
@@ -75,16 +74,15 @@ Range selection normalizes selected ancestors with one const tree traversal
 (`root_drop_layer_ids`), keeping the requested order and rejecting missing ids.
 Thumbnail target styles repolish only when their active state changes. Slow selection
 updates show the delayed **Selecting layers...** canvas message. The selection handler
-and single-layer reveal path put the selected layer count on the status bar for
-canvas clicks, rectangle and panel selection, one const traversal that
-touches neither selection nor history: a selected folder counts itself and every
+and single-layer reveal path show the selected layer count on the status bar (canvas
+clicks, rectangle, panel), one const traversal touching neither selection nor history: a selected folder counts itself and every
 descendant (nested folders and hidden, locked, collapsed, or filtered-out layers
 included), a selected parent and child never count a layer twice, and expanding a
 folder cannot change it (`ui_layer_selection_count`).
 
 ## New Layer dialog
 
-Layer > New > New Layer... (`layerNewWithDialogAction`, id `layer.new_with_dialog`, Ctrl+Shift+N; #275) runs `request_new_layer_settings` (`src/ui/new_layer_dialog.cpp`): Name, Color (the color-label actions' names and swatches), Mode, Opacity, and Use Previous Layer to Create Clipping Mask, enabled only when the new layer would have a clip base (`effective_clip_base`). `add_layer(settings)` applies them in one undo step. New Layer (`layer.new`, no default key since #275: Photoshop's Ctrl+Alt+Shift+N stays Open from Clipboard's) and the footer button still add a layer at once. Tests: `ui_new_layer_dialog_*`.
+Layer > New > New Layer... (`layerNewWithDialogAction`, id `layer.new_with_dialog`, Ctrl+Shift+N; #275) runs `request_new_layer_settings` (`src/ui/new_layer_dialog.cpp`): Name, Color (the color-label actions' names and swatches), Mode, Opacity, and Use Previous Layer to Create Clipping Mask, enabled only when the new layer would have a clip base (`effective_clip_base`). `add_layer(settings)` applies them in one undo step. New Layer (`layer.new`, no default key since #275; Ctrl+Alt+Shift+N stays Open from Clipboard's) and the footer button add a layer at once. Tests: `ui_new_layer_dialog_*`.
 
 ## New adjustment layers
 
@@ -124,7 +122,7 @@ The visibility eye (`layerVisibilityCheck`) does not toggle through its QToolBut
 
 ## Effect rows
 
-A layer with any effect instance, hidden ones included, lists them under its row like Smart Filters (#256): a "Layer Styles" header (`layerEffectsRow`) with a disclosure arrow (`layerEffectsDisclosureButton`) and the master eye (`layerEffectsVisibilityButton`, `LayerStyle::effects_visible`), then, while open, one `layerEffectEntryRow` per instance in the dialog's category order (`layer_effect_rows`, main_window_shared.cpp) with its eye (the instance's `enabled`), name and Edit pencil (`layerEffectEditButton`); a row double-click does the same without turning it on (`edit_layer_effect`). The Smart Filters header leads with its own arrow (`layerSmartFiltersDisclosureButton`, #361). Effects start closed (`DocumentSession::expanded_layer_effects`; an effect added by the dialog or Paste Layer Style opens them, `reveal_layer_effects`), Smart Filters open (`collapsed_smart_filters`; an added filter opens them in `commit_smart_filter_stack_edit`). A toggle is not an edit. Both states save the folder way: `collect_initial_layer_fx_disclosure` seeds them from `patchy.layer_fx_expanded`, `document_for_write` writes them back; PSD has one bit per layer for both lists ([ps-compat.md](ps-compat.md)), so a layer reopens with both open when either was. Master eye off: effect eyes keep their state, draw dimmed (`layerEffectEyeDimmed`) and still toggle. Right-click: `layerEffectContextMenu` (Edit, Hide/Show, Delete via `delete_layer_effect`; routed by `show_layer_context_menu`). Each change is one undo step through `apply_layer_effect_row_edit`, which drops the preserved lfx2 bytes; a locked layer shows the rows read-only. Effect and Smart Filter rows are indented by the arrow's drawn width (18 px plus its QSS border) and the row spacing (`kNestedEyeIndent`), so every nested eye shares the headers' eye column and every nested name starts under "Layer Styles" (#349; `ui_layer_effect_rows_align_under_the_layer_styles_eye`). Rows are 26 px; the item height is the main row's (44 at Medium) plus `26 * (1 + open Smart Filter rows + 1 + open effect rows)`. Hidden instances keep the fx badge and survive a PSD save (the `present` rule in [layer-effects-render.md](layer-effects-render.md)). Tests: tests/ui/layer_effect_rows_tests.cpp, `psd_layer_style_hidden_effects_round_trip`, `psd_layer_fx_expanded_flag_round_trips`.
+A layer with any effect instance, hidden ones included, lists them under its row like Smart Filters (#256): a "Layer Styles" header (`layerEffectsRow`) with a disclosure arrow (`layerEffectsDisclosureButton`) and the master eye (`layerEffectsVisibilityButton`, `LayerStyle::effects_visible`), then, while open, one `layerEffectEntryRow` per instance in the dialog's category order (`layer_effect_rows`, main_window_shared.cpp) with its eye (the instance's `enabled`), name and Edit pencil (`layerEffectEditButton`); a row double-click does the same without turning it on (`edit_layer_effect`). The Smart Filters header leads with its own arrow (`layerSmartFiltersDisclosureButton`, #361). Effects start closed (`DocumentSession::expanded_layer_effects`; an effect added by the dialog or Paste Layer Style opens them, `reveal_layer_effects`), Smart Filters open (`collapsed_smart_filters`; an added filter opens them in `commit_smart_filter_stack_edit`). A toggle is not an edit. Both states save the folder way: `collect_initial_layer_fx_disclosure` seeds them from `patchy.layer_fx_expanded`, `document_for_write` writes them back; PSD has one bit per layer for both lists ([ps-compat.md](ps-compat.md)), so a layer reopens with both open when either was. Master eye off: effect eyes keep their state, draw dimmed (`layerEffectEyeDimmed`) and still toggle. Right-click: `layerEffectContextMenu` (Edit, Hide/Show, Delete via `delete_layer_effect`; routed by `show_layer_context_menu`). Each change is one undo step through `apply_layer_effect_row_edit`, which drops the preserved lfx2 bytes; a locked layer shows the rows read-only. Effect and Smart Filter rows are indented by the arrow's drawn width (18 px plus its QSS border) and the row spacing (`kNestedEyeIndent`), so every nested eye shares the headers' eye column and every nested name starts under "Layer Styles" (#349; `ui_layer_effect_rows_align_under_the_layer_styles_eye`). Each Smart Filter and effect header or open row adds 26 px to the item height. Hidden instances keep the fx badge and survive a PSD save (the `present` rule in [layer-effects-render.md](layer-effects-render.md)). Tests: tests/ui/layer_effect_rows_tests.cpp, `psd_layer_style_hidden_effects_round_trip`, `psd_layer_fx_expanded_flag_round_trips`.
 
 ## Add Layer Mask and Layer Styles buttons
 
