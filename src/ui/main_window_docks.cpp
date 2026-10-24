@@ -1316,13 +1316,18 @@ void MainWindow::create_docks() {
   // narrower column (GitHub issue 199). No extra side insets: the panel margin
   // alone places the row.
   auto* blend_opacity_row = new WrappingControlRowLayout(6);
-  blend_combo_ = new QComboBox(layers_panel);
+  auto* blend_combo = new PopupAwareComboBox(layers_panel);
+  blend_combo_ = blend_combo;
   add_blend_mode_items(blend_combo_);
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   blend_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
   bind_tooltip(blend_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Blend mode"));
   blend_opacity_row->addWidget(blend_combo_);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
+  // The open list previews the highlighted mode on the canvas (GitHub issue 367).
+  blend_combo->popup_shown = [this] { begin_layer_blend_preview(); };
+  blend_combo->popup_hidden = [this] { end_layer_blend_preview(); };
+  connect(blend_combo_, &QComboBox::highlighted, this, [this](int index) { preview_layer_blend(index); });
   register_document_widget(blend_combo_);
 
   opacity_spin_ = new QSpinBox(layers_panel);

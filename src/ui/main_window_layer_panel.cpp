@@ -4267,6 +4267,10 @@ void MainWindow::refresh_layer_controls() {
     finish_pending_layer_opacity_edit();
     finish_pending_layer_fill_opacity_edit();
     finish_pending_layer_blend_edit();
+    // Another document or layer while the blend list is open: put the modes back.
+    if (layer_blend_preview_.has_value() && !layer_blend_preview_matches_active()) {
+      cancel_layer_blend_preview();
+    }
   }
   updating_layer_controls_ = true;
   const auto reset = [this] {
@@ -4377,7 +4381,16 @@ void MainWindow::refresh_layer_controls() {
     // Pass Through is a folder's own mode (GitHub issue 235), offered only for one.
     set_blend_mode_pass_through_offered(blend_combo_, layer->kind() == LayerKind::Group);
     enable_blend_mode_items_for_depth(blend_combo_, std::as_const(document()).color_state().bit_depth);
-    const auto blend_value = static_cast<int>(layer->blend_mode());
+    // An open list's preview shows on the layer; the combo keeps the layer's own mode.
+    auto blend_mode = layer->blend_mode();
+    if (layer_blend_preview_.has_value()) {
+      for (const auto& [id, original] : layer_blend_preview_->originals) {
+        if (id == layer->id()) {
+          blend_mode = original;
+        }
+      }
+    }
+    const auto blend_value = static_cast<int>(blend_mode);
     const auto index = blend_combo_->findData(blend_value);
     blend_combo_->setCurrentIndex(index >= 0 ? index : 0);
   }

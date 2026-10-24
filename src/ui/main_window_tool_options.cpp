@@ -20,6 +20,7 @@
 #include "support/startup_trace.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/script_api.hpp"
+#include <QAbstractItemView>
 #include <QActionGroup>
 #include <QComboBox>
 #include <QStatusBar>
@@ -1393,6 +1394,128 @@ void MainWindow::finish_pending_layer_blend_edit() {
   }
   pending_layer_blend_ids_.clear();
   pending_layer_blend_edit_active_ = false;
+}
+
+// While the Layers panel's blend list is open, the highlighted mode shows on the canvas
+// (GitHub issue 367). Only the layers' modes change: no history entry and no session
+// revision, so the document is not marked modified. Closing the list puts every mode
+// back before Qt reports a chosen item, whose currentIndexChanged then commits through
+// set_active_layer_blend as one ordinary history entry.
+void MainWindow::begin_layer_blend_preview() {
+  end_layer_blend_preview();
+  if (updating_layer_controls_ || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    return;
+  }
+  const auto& doc = std::as_const(document());
+  LayerBlendPreview preview;
+  preview.session_id = session().session_id;
+  for (const auto id : ids) {
+    if (const auto* layer = doc.find_layer(id); layer != nullptr) {
+      preview.originals.emplace_back(id, layer->blend_mode());
+    }
+  }
+  preview.selection = std::move(ids);
+  layer_blend_preview_ = std::move(preview);
+}
+
+void MainWindow::preview_layer_blend(int index) {
+  if (!layer_blend_preview_.has_value() || updating_layer_controls_ || index < 0 || blend_combo_ == nullptr) {
+    return;
+  }
+  const auto* model = blend_combo_->model();
+  if (!(model->flags(model->index(index, blend_combo_->modelColumn())) & Qt::ItemIsEnabled)) {
+    return;
+  }
+  // Coalesced: a sweep across the list renders only the mode it rests on.
+  layer_blend_preview_->pending_mode = static_cast<BlendMode>(blend_combo_->itemData(index).toInt());
+  if (layer_blend_preview_timer_ != nullptr) {
+    layer_blend_preview_timer_->start();
+  } else {
+    apply_pending_layer_blend_preview();
+  }
+}
+
+void MainWindow::apply_pending_layer_blend_preview() {
+  if (!layer_blend_preview_.has_value() || !layer_blend_preview_->pending_mode.has_value()) {
+    return;
+  }
+  const auto mode = *layer_blend_preview_->pending_mode;
+  layer_blend_preview_->pending_mode.reset();
+  auto* owner = sessions_.find_by_id(layer_blend_preview_->session_id);
+  if (owner == nullptr || owner != active_session()) {
+    return;
+  }
+  bool changed = false;
+  for (const auto& [id, original] : layer_blend_preview_->originals) {
+    const auto* layer = std::as_const(owner->document).find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    // Only folders pass through, as in set_active_layer_blend.
+    const auto target = mode == BlendMode::PassThrough && layer->kind() != LayerKind::Group ? original : mode;
+    if (layer->blend_mode() == target) {
+      continue;
+    }
+    owner->document.find_layer(id)->set_blend_mode(target);
+    changed = true;
+  }
+  // The async path keeps the list responsive on large documents and renders only the
+  // newest mode when hovers outrun the compositor.
+  if (changed && owner->canvas != nullptr) {
+    owner->canvas->document_changed_async_preview();
+  }
+}
+
+void MainWindow::end_layer_blend_preview() {
+  if (layer_blend_preview_timer_ != nullptr) {
+    layer_blend_preview_timer_->stop();
+  }
+  if (!layer_blend_preview_.has_value()) {
+    return;
+  }
+  const auto preview = std::move(*layer_blend_preview_);
+  layer_blend_preview_.reset();
+  auto* owner = sessions_.find_by_id(preview.session_id);
+  if (owner == nullptr) {
+    return;
+  }
+  // The restored modes carry new revisions: a cache keyed on the old ones may hold
+  // the previewed render, so nothing is wound back.
+  Rect affected;
+  bool changed = false;
+  for (const auto& [id, original] : preview.originals) {
+    const auto* layer = std::as_const(owner->document).find_layer(id);
+    if (layer == nullptr || layer->blend_mode() == original) {
+      continue;
+    }
+    owner->document.find_layer(id)->set_blend_mode(original);
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    changed = true;
+  }
+  if (changed && owner->canvas != nullptr) {
+    owner->canvas->document_changed(to_qrect(affected));
+  }
+}
+
+void MainWindow::cancel_layer_blend_preview() {
+  if (!layer_blend_preview_.has_value()) {
+    return;
+  }
+  if (blend_combo_ != nullptr && blend_combo_->view()->isVisible()) {
+    blend_combo_->hidePopup();
+  }
+  end_layer_blend_preview();
+}
+
+bool MainWindow::layer_blend_preview_matches_active() const {
+  const auto* active = active_session();
+  return layer_blend_preview_.has_value() && active != nullptr &&
+         active->session_id == layer_blend_preview_->session_id &&
+         selected_or_active_layer_ids() == layer_blend_preview_->selection;
 }
 
 void MainWindow::set_active_layer_visible(bool visible) {

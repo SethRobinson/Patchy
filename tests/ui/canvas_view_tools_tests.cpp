@@ -7769,6 +7769,180 @@ void ui_layer_blend_mode_steps_coalesce_into_one_undo_entry() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
 }
 
+namespace blend_preview {
+
+struct PreviewDocument {
+  patchy::LayerId lower_id{};
+  patchy::LayerId upper_id{};
+};
+
+// A white Background under two overlapping blue layers; the upper one is active.
+PreviewDocument add_preview_document(patchy::ui::MainWindow& window) {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  PreviewDocument ids;
+  patchy::Layer lower(document.allocate_layer_id(), "Lower",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  lower.set_bounds(patchy::Rect{70, 40, 40, 40});
+  ids.lower_id = lower.id();
+  document.add_layer(std::move(lower));
+  patchy::Layer upper(document.allocate_layer_id(), "Upper",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  upper.set_bounds(patchy::Rect{10, 10, 40, 40});
+  ids.upper_id = upper.id();
+  document.add_layer(std::move(upper));
+  document.set_active_layer(ids.upper_id);
+  window.add_document_session(std::move(document), QStringLiteral("Blend Preview"));
+  return ids;
+}
+
+QColor composite_pixel(patchy::ui::MainWindow& window, int x, int y) {
+  return patchy::ui::qimage_from_document(std::as_const(patchy::ui::MainWindowTestAccess::document(window)), false)
+      .pixelColor(x, y);
+}
+
+patchy::BlendMode mode_of(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  return layer != nullptr ? layer->blend_mode() : patchy::BlendMode::Normal;
+}
+
+// Moves the open list's highlight the way the pointer or an arrow key does, then lets
+// the coalescing timer render it.
+void highlight_mode(QComboBox& combo, patchy::BlendMode mode) {
+  const auto index = combo.findData(static_cast<int>(mode));
+  CHECK(index >= 0);
+  combo.view()->setCurrentIndex(combo.model()->index(index, combo.modelColumn()));
+  QElapsedTimer settle;
+  settle.start();
+  while (settle.elapsed() < 150) {
+    QApplication::processEvents(QEventLoop::AllEvents, 10);
+  }
+}
+
+// A key in the open list as a real press arrives: the shortcut override first (Qt's
+// list chooses on Return there), then the press while the list is still open.
+void press_in_open_list(QComboBox& combo, int key) {
+  QKeyEvent shortcut(QEvent::ShortcutOverride, key, Qt::NoModifier);
+  shortcut.ignore();
+  QApplication::sendEvent(combo.view(), &shortcut);
+  if (combo.view()->isVisible()) {
+    send_key(*combo.view(), key);
+  }
+  QApplication::processEvents();
+}
+
+}  // namespace blend_preview
+
+// GitHub issue 367: the open blend list previews the highlighted mode on every selected
+// layer with no history entry, and closing it without a choice (or switching layers
+// while it is open) puts the original modes and pixels back.
+void ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  using blend_preview::composite_pixel;
+  using blend_preview::mode_of;
+  patchy::ui::MainWindow window;
+  const auto ids = blend_preview::add_preview_document(window);
+  show_window(window);
+  QApplication::processEvents();
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  Access::select_layers(window, {ids.lower_id, ids.upper_id}, ids.upper_id);
+  QApplication::processEvents();
+
+  const auto upper_before = composite_pixel(window, 20, 20);
+  const auto lower_before = composite_pixel(window, 80, 50);
+  CHECK(upper_before == QColor(30, 150, 220));
+  const auto depth_before = Access::active_session_undo_depth(window);
+  CHECK(!Access::active_session_is_modified(window));
+
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Difference);
+  // Difference against white inverts both layers on the canvas.
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Difference);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Difference);
+  CHECK(composite_pixel(window, 20, 20) == QColor(225, 105, 35));
+  CHECK(composite_pixel(window, 80, 50) == QColor(225, 105, 35));
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(!Access::active_session_is_modified(window));
+  // The window with the open list drawn where it sits on screen. A plain grab: the
+  // theme check flags Qt's private popup container (QComboBoxPrivateContainer), whose
+  // own background the themed list covers.
+  QApplication::processEvents(QEventLoop::AllEvents, 100);
+  auto shot = window.grab().toImage();
+  auto* popup = blend_combo->view()->window();
+  const auto popup_shot = popup->grab().toImage();
+  if (!shot.isNull() && !popup_shot.isNull()) {
+    QPainter painter(&shot);
+    // Both grabs carry the device pixel ratio, so the painter works in logical pixels.
+    painter.drawImage(QPointF(popup->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0))), popup_shot);
+    painter.end();
+    save_image_artifact("ui_layer_blend_list_preview", shot);
+  }
+
+  // Esc closes the list without a choice.
+  blend_preview::press_in_open_list(*blend_combo, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!blend_combo->view()->isVisible());
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Normal);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Normal);
+  CHECK(composite_pixel(window, 20, 20) == upper_before);
+  CHECK(composite_pixel(window, 80, 50) == lower_before);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(!Access::active_session_is_modified(window));
+
+  // A layer switch while the list is open also reverts and closes it.
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Screen);
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Screen);
+  Access::select_layers(window, {ids.lower_id}, ids.lower_id);
+  QApplication::processEvents();
+  CHECK(!blend_combo->view()->isVisible());
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Normal);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Normal);
+  CHECK(composite_pixel(window, 20, 20) == upper_before);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(!Access::active_session_is_modified(window));
+}
+
+// Choosing a highlighted mode commits it as exactly one history entry, which undoes to
+// the mode the layer had before the list opened.
+void ui_layer_blend_list_choice_after_preview_is_one_undo_entry() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  using blend_preview::mode_of;
+  patchy::ui::MainWindow window;
+  const auto ids = blend_preview::add_preview_document(window);
+  show_window(window);
+  QApplication::processEvents();
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  const auto depth_before = Access::active_session_undo_depth(window);
+
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Screen);
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Difference);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  blend_preview::press_in_open_list(*blend_combo, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!blend_combo->view()->isVisible());
+  CHECK(blend_combo->currentText() == QStringLiteral("Difference"));
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Difference);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Normal);
+  CHECK(blend_preview::composite_pixel(window, 20, 20) == QColor(225, 105, 35));
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  CHECK(Access::active_session_is_modified(window));
+
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Normal);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+}
+
 namespace blend_rows {
 
 struct FolderDocument {
@@ -8780,6 +8954,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_blend_mode_combos_step_with_left_and_right_arrows", ui_blend_mode_combos_step_with_left_and_right_arrows},
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
+      {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",
+       ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close},
+      {"ui_layer_blend_list_choice_after_preview_is_one_undo_entry",
+       ui_layer_blend_list_choice_after_preview_is_one_undo_entry},
       {"ui_layer_folder_blend_mode_offers_pass_through", ui_layer_folder_blend_mode_offers_pass_through},
       {"ui_layer_row_shows_blend_mode_change_at_once", ui_layer_row_shows_blend_mode_change_at_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",

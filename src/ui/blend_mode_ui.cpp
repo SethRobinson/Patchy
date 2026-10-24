@@ -241,4 +241,34 @@ void enable_blend_mode_items_for_depth(QComboBox* combo, BitDepth depth) {
   }
 }
 
+void PopupAwareComboBox::showPopup() {
+  if (popup_shown) {
+    popup_shown();
+  }
+  // The list's window exists once view() is called; watching its Hide catches closes
+  // that bypass hidePopup.
+  if (auto* popup = view()->window(); popup != nullptr && popup != watched_popup_ && popup != window()) {
+    if (watched_popup_ != nullptr) {
+      watched_popup_->removeEventFilter(this);
+    }
+    popup->installEventFilter(this);
+    watched_popup_ = popup;
+  }
+  QComboBox::showPopup();
+}
+
+void PopupAwareComboBox::hidePopup() {
+  QComboBox::hidePopup();
+  if (popup_hidden) {
+    popup_hidden();
+  }
+}
+
+bool PopupAwareComboBox::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == watched_popup_ && event->type() == QEvent::Hide && popup_hidden) {
+    popup_hidden();
+  }
+  return QComboBox::eventFilter(watched, event);
+}
+
 }  // namespace patchy::ui
