@@ -49,7 +49,8 @@ Patchy then updates with `flatpak update` or through your software center, and s
 from your application menu or with `flatpak run com.rtsoft.patchy`.
 
 This needs the `flatpak` tool. If needed, install it first with
-`sudo apt install flatpak`.
+`sudo apt install flatpak` on Ubuntu/Debian, `sudo dnf install flatpak` on Febora, or
+`sudo zypper install flatpak` on OpenSUSE.
 
 If you already use flatpak system-wide, you can use `--system` in place of `--user`.
 Patchy then reuses the runtime extensions you already have (graphics drivers, codecs)
