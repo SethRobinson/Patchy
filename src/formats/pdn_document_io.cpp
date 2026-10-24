@@ -56,8 +56,16 @@ public:
   using std::runtime_error::runtime_error;
 };
 
+// A well-formed file past the size limits below: its own notice, not "damaged".
+class SizeLimitError : public ImportError {
+public:
+  using ImportError::ImportError;
+};
+
 constexpr std::int32_t kMaxSide = 300000;            // the PSB cap every importer shares
-constexpr std::uint64_t kMaxLayerPixels = 1ULL << 28U;
+// 2^30 pixels per layer (32768 x 32768; Paint.NET itself allows 65535 x 65535). The
+// corpus has 25600 x 14400 files (368 megapixels), past the 2^28 PSB cap other importers use.
+constexpr std::uint64_t kMaxLayerPixels = 1ULL << 30U;
 constexpr std::size_t kMaxLayers = 4096;
 constexpr std::uint64_t kMaxTotalPixelBytes = 8ULL << 30U;
 // Deflate expands at most about 1032:1; a stream claiming more is not deflate.
@@ -410,9 +418,12 @@ struct GraphDocument {
   GraphDocument document;
   const auto width = graph.member_integer(*root, "width");
   const auto height = graph.member_integer(*root, "height");
-  if (!width || !height || *width <= 0 || *height <= 0 || *width > kMaxSide || *height > kMaxSide ||
-      static_cast<std::uint64_t>(*width) * static_cast<std::uint64_t>(*height) > kMaxLayerPixels) {
+  if (!width || !height || *width <= 0 || *height <= 0) {
     throw ImportError("the document size is invalid");
+  }
+  if (*width > kMaxSide || *height > kMaxSide ||
+      static_cast<std::uint64_t>(*width) * static_cast<std::uint64_t>(*height) > kMaxLayerPixels) {
+    throw SizeLimitError("the document is larger than the per-layer pixel limit");
   }
   document.width = static_cast<std::int32_t>(*width);
   document.height = static_cast<std::int32_t>(*height);
@@ -514,7 +525,7 @@ struct BlockData {
     block.length = static_cast<std::uint64_t>(length);
     total += block.length;
     if (total > kMaxTotalPixelBytes) {
-      throw ImportError("the layers are too large");
+      throw SizeLimitError("the layers are larger than the total pixel limit");
     }
     if (!deferred) {
       // Inline data: the first byte array member that covers the block.
@@ -1088,6 +1099,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     trace(error.what());
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This Paint.NET file is damaged and could not be opened."));
   }
+  if (!header.has_value() && bytes.size() >= 4 && bytes[0] == 'P' && bytes[1] == 'D' && bytes[2] == 'N' &&
+      bytes[3] == '3') {
+    // The magic and nothing else (a cut-off file, or a signature sample).
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This Paint.NET file is damaged and could not be opened."));
+  }
   if (!header.has_value() && (bytes.size() < 2 || bytes[0] != 0x1F || bytes[1] != 0x8B)) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Not a Paint.NET document"));
   }
@@ -1113,14 +1129,24 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     }
   } catch (const std::exception& error) {
     trace(std::string("layer import failed: ") + error.what());
+    const bool too_large = dynamic_cast<const SizeLimitError*>(&error) != nullptr;
     if (!header.has_value()) {
+      if (too_large) {
+        throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This Paint.NET image is too large for Patchy to open."));
+      }
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This Paint.NET file is damaged and could not be opened."));
     }
     document = read_thumbnail(*header);
     pending.clear();
-    pending.emplace_back(PATCHY_TRANSLATE_NOOP(
-        "QObject",
-        "The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image."));
+    if (too_large) {
+      pending.emplace_back(PATCHY_TRANSLATE_NOOP(
+          "QObject", "This Paint.NET image is too large for Patchy to open its layers, so it opened as its small "
+                     "embedded preview image."));
+    } else {
+      pending.emplace_back(PATCHY_TRANSLATE_NOOP(
+          "QObject",
+          "The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image."));
+    }
   }
   if (notices != nullptr) {
     for (auto& notice : pending) {

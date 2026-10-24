@@ -12239,6 +12239,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Paint.NET Image</source>
         <translation>Paint.NET 图像</translation>
     </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open.</source>
+        <translation>此 Paint.NET 图像太大，Patchy 无法打开。</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation>此 Paint.NET 图像太大，Patchy 无法打开其图层，因此打开了其嵌入的小预览图像。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

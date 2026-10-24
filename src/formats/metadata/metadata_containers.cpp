@@ -1425,7 +1425,9 @@ void extract_raf(Span data, Builder& builder) {
 // ------------------------------------------------------------------------ BMP
 
 // Paint.NET keeps EXIF as one "$exif.tag<N>" user-metadata entry per tag (GitHub issue
-// 379, docs/pdn-format.md); they become one TIFF stream again. Other entries are shown.
+// 379, docs/pdn-format.md); they become one TIFF stream again. "$xmp.packet<N>" holds the
+// XMP packet of an image Paint.NET opened, "$user.Palette" its palette (ARGB values); the
+// rest are shown.
 void extract_pdn(Span data, Builder& builder) {
   if (const auto header = pdn::read_header(data)) {
     builder.segment("PDN3 header", 0, header->payload_offset);
@@ -1436,10 +1438,20 @@ void extract_pdn(Span data, Builder& builder) {
     builder.set_exif(Span(exif.data(), exif.size()));
   }
   for (const auto& [key, value] : items) {
-    if (!key.starts_with("$exif.")) {
-      builder.observe("Paint.NET", key, value.size() > 200 ? value.substr(0, 200) + "..." : value, value.size(),
-                      MetadataPrivacy::None);
+    if (key.starts_with("$exif.")) {
+      continue;
     }
+    if (key.starts_with("$xmp.packet") && !value.empty()) {
+      builder.set_xmp(Span(reinterpret_cast<const std::uint8_t*>(value.data()), value.size()));
+      continue;
+    }
+    if (key == "$user.Palette") {
+      const auto colors = value.empty() ? 0 : 1 + std::count(value.begin(), value.end(), ',');
+      builder.observe("Paint.NET", "Palette", std::to_string(colors) + " colors", value.size(), MetadataPrivacy::None);
+      continue;
+    }
+    builder.observe("Paint.NET", key, value.size() > 200 ? value.substr(0, 200) + "..." : value, value.size(),
+                    MetadataPrivacy::None);
   }
 }
 
