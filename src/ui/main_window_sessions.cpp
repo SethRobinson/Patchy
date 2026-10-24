@@ -136,7 +136,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_magnetic_lasso_edge_contrast(canvas_->magnetic_lasso_edge_contrast());
     session->canvas->set_magnetic_lasso_frequency(canvas_->magnetic_lasso_frequency());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
-    session->canvas->set_retouch_sample_all_layers(canvas_->retouch_sample_all_layers());
+    session->canvas->set_retouch_sample_layers(canvas_->retouch_sample_layers());
+    session->canvas->set_retouch_ignore_adjustments(canvas_->retouch_ignore_adjustments());
+    session->canvas->set_healing_mode(canvas_->healing_mode());
     session->canvas->set_crop_ratio(canvas_->crop_ratio_width(), canvas_->crop_ratio_height());
     session->canvas->set_patch_tool_mode(canvas_->patch_tool_mode());
     session->canvas->set_patch_tool_transparent(canvas_->patch_tool_transparent());
@@ -171,12 +173,21 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (clone_aligned_check_ != nullptr) {
     session->canvas->set_clone_aligned(clone_aligned_check_->isChecked());
   }
-  if (retouch_sample_all_layers_check_ != nullptr) {
-    session->canvas->set_retouch_sample_all_layers(retouch_sample_all_layers_check_->isChecked());
+  if (retouch_sample_layers_combo_ != nullptr) {
+    session->canvas->set_retouch_sample_layers(
+        sample_layers_from_settings(retouch_sample_layers_combo_->currentData().toString().toStdString(), std::nullopt));
+  }
+  if (retouch_ignore_adjustments_check_ != nullptr) {
+    session->canvas->set_retouch_ignore_adjustments(retouch_ignore_adjustments_check_->isChecked());
+  }
+  if (healing_mode_combo_ != nullptr) {
+    session->canvas->set_healing_mode(static_cast<HealingMode>(healing_mode_combo_->currentData().toInt()));
   }
   session->canvas->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
   session->canvas->set_crop_overlay_options(current_crop_overlay_options_);
   session->canvas->set_perspective_crop_show_grid(current_perspective_crop_show_grid_);
+  session->canvas->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  session->canvas->set_red_eye_darken_amount(current_red_eye_darken_amount_);
   session->canvas->set_crop_keep_proportions(crop_size_link_active());
   session->canvas->set_crop_overlay(static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_),
                                     current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
@@ -446,6 +457,8 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   canvas_->set_crop_overlay(static_cast<CanvasWidget::CropOverlay>(current_crop_overlay_),
                             current_crop_overlay_orientation_, current_crop_overlay_while_dragging_);
   canvas_->set_perspective_crop_show_grid(current_perspective_crop_show_grid_);
+  canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
   canvas_->set_fill_shapes(current_fill_shapes_);

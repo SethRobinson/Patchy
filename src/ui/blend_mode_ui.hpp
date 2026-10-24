@@ -4,11 +4,11 @@
 #include "core/paint_mode.hpp"
 #include "core/pixel_buffer.hpp"
 
+#include <QComboBox>
 #include <QString>
 
 #include <cstdint>
-
-class QComboBox;
+#include <functional>
 
 namespace patchy::ui {
 
@@ -38,5 +38,25 @@ void retranslate_paint_mode_items(QComboBox* combo);
 // Disables the layer blend modes a document of `depth` cannot use (32-bit documents,
 // blend_mode_supported_at_depth) and re-enables the rest; Qt's stepping skips them.
 void enable_blend_mode_items_for_depth(QComboBox* combo, BitDepth depth);
+
+// A combo box that reports its list opening and closing (the Layers panel's live blend
+// preview, GitHub issue 367). popup_shown runs before the list appears, so the highlight
+// Qt sets on opening already finds the handler ready. popup_hidden runs once the list is
+// gone, before a chosen item's currentIndexChanged; it also runs when the list closes
+// without hidePopup (the window losing focus), and may run twice for one close.
+class PopupAwareComboBox final : public QComboBox {
+public:
+  using QComboBox::QComboBox;
+  std::function<void()> popup_shown;
+  std::function<void()> popup_hidden;
+  void showPopup() override;
+  void hidePopup() override;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+  QObject* watched_popup_{nullptr};
+};
 
 }  // namespace patchy::ui

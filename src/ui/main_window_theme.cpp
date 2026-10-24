@@ -118,18 +118,34 @@ QString photoshop_style_template() {
       min-width: 18px;
       min-height: 16px;
     }
+    /* The tip picker reads as a field with a dropdown chevron, like the Artboard bar's
+       preset picker; BrushTipPicker::paintEvent draws the thumbnail, name and chevron. */
     QToolButton#brushTipPicker {
-      padding: 2px;
-      min-height: 20px;
-      max-height: 20px;
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
+      border-radius: 0;
+      padding: 0;
+      min-height: 24px;
+      max-height: 24px;
+    }
+    QToolButton#brushTipPicker:hover {
+      border-color: @button_hover_border;
+    }
+    QToolButton#brushTipPicker:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
     }
     QToolButton#brushDynamicsButton {
       padding: 2px 6px;
       min-height: 20px;
       max-height: 20px;
     }
+    /* min-width: the generic QToolButton rule's 26 px content minimum made the gear
+       button 37 px wide for a 16 px glyph (GitHub issue 364 needed the room). */
     QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"] {
       padding: 2px 3px;
+      min-width: 16px;
       min-height: 20px;
       max-height: 20px;
     }
@@ -390,14 +406,14 @@ QString photoshop_style_template() {
       border-color: @accent_border_bright;
     }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
-    QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#paletteDockTitle {
+    QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#colorDockTitle, QWidget#paletteDockTitle {
       background: @panel_title_bg;
       border-top: 1px solid @panel_title_bevel_top;
       border-bottom: 1px solid @panel_title_border_bottom;
     }
     QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
     QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel, QWidget#pathsDockTitle QLabel,
-    QWidget#paletteDockTitle QLabel {
+    QWidget#colorDockTitle QLabel, QWidget#paletteDockTitle QLabel {
       color: @text_bright;
       font-weight: 600;
     }

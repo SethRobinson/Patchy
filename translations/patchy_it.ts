@@ -12127,6 +12127,109 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB è integrato in Patchy. Gli altri profili sono i profili RGB installati su questo computer; usa Scegli file del profilo... per uno non elencato.</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>Impossibile codificare un fotogramma del PNG animato.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>Il PNG animato richiede almeno un fotogramma.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>Il documento non ha livelli visibili di primo livello da esportare come PNG animato.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>Fotogramma o durata del PNG animato non validi.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>Impossibile aprire il file PNG in scrittura</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>Impossibile scrivere il file PNG</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>Opzioni PNG animato</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>Salvati</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>Senza titolo-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>Il titolo della scheda del documento e il nome file proposto da Salva con nome</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Prova CMYK</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>La tela mostra il profilo CMYK impostato nelle Preferenze. Il salvataggio in JPEG, TIFF o PDF scrive CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>Prova CMYK richiede un profilo CMYK. Scegline uno nelle Preferenze.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>Nome</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>Modalità colore</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>Profilo colore</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Salva predefinito...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>Salva queste impostazioni come predefinito nel gruppo Salvati</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>Prova CMYK mantiene i pixel in RGB e li mostra attraverso questo profilo. Modificalo nelle Preferenze.</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy modifica e mostra i documenti RGB in sRGB.</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>Premi Canc o fai clic con il pulsante destro sulla scheda per eliminare questo predefinito.</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>Salva predefinito</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Elimina predefinito</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1, dalle Preferenze</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Occhi rossi</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13861,6 +13964,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The corners must form a convex shape</source>
         <translation>Gli angoli devono formare una figura convessa</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Occhi rossi</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>Occhi rossi richiede un documento aperto</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>Occhi rossi non è disponibile durante la modifica di una maschera o di un canale</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>Occhi rossi richiede un livello di pixel modificabile</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>Occhi rossi non ha trovato pixel rossi nel riquadro</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>Occhi rossi non ha trovato pixel rossi vicino al clic</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>Occhi rossi: l&apos;area rossa è fuori dalla selezione</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13919,6 +14050,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%-clic carica come selezione le aree senza inchiostro di questa lastra.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ColorDockPanel</name>
+    <message>
+        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Fai clic o trascina per impostare il colore di primo piano. %ALT%+clic o %ALT%+trascina per impostare il colore di sfondo.</translation>
     </message>
 </context>
 <context>
@@ -24688,6 +24826,86 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>Convert to Color Profile</source>
         <translation>Converti in profilo colore</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Quali livelli legge lo strumento: il livello attivo, questo e i livelli sottostanti (correggere su un livello vuoto sopra l&apos;immagine) o l&apos;immagine unita</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>livello attivo e sottostanti</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Ignora livelli di regolazione</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Escludi i livelli di regolazione dall&apos;immagine campionata, così una regolazione sopra il livello ritoccato non viene applicata due volte</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>Sostituisci</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Metodo di correzione: Sostituisci mantiene la trama di origine come campionata; i metodi di fusione combinano il colore corretto con i pixel sottostanti</translation>
+    </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>Livelli come &amp;PNG animato...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>Esporta PNG animato</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>Aggiungi un livello vuoto sopra lo sfondo nei nuovi documenti</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>Se disattivata, File &gt; Nuovo crea solo il livello di sfondo, selezionato. I documenti con tavole da disegno e quelli dagli appunti non cambiano.</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>Piccola</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Media</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Grande</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Dimensione miniature</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Occhi rossi</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>Occhi rossi: fai clic su una pupilla rossa o trascina un riquadro intorno all&apos;occhio. Dimensione pupilla include più del bordo rossastro, Quantità di scurimento stabilisce quanto diventa scura la pupilla.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>Dimensione pupilla:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>Valori più alti includono più del bordo rossastro intorno alla pupilla</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>Quantità di scurimento:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>Quanto diventa più scura la pupilla corretta</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26608,6 +26826,54 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Il profilo non può essere usato per questa conversione.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng richiede un percorso di uscita .png o .apng.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>Le opzioni di exportAnimatedPng devono essere un oggetto.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: opzione %1 non valida.</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>Il nome di newDocument deve contenere un carattere utilizzabile in un nome file.</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>colorMode di newDocument deve essere &quot;rgb&quot; o &quot;cmykProof&quot;.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>Prova CMYK richiede un profilo CMYK. Scegline uno nelle Preferenze.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye richiede il livello attivo del documento (imposta prima doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye non ha trovato pixel rossi.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: passa {x, y} oppure {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 deve essere un numero.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: opzione sconosciuta %1.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width e height devono essere almeno 1.</translation>
     </message>
 </context>
 <context>

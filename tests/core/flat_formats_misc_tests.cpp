@@ -1,5 +1,6 @@
 #include "formats/heif_document_io.hpp"
 #include "formats/animation_timing.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
@@ -1533,6 +1534,87 @@ void webp_animation_lossless_timing_loops_and_limits() {
   CHECK(!encoder.finish().empty());
 }
 
+// GitHub issue 366: the APNG writer's chunk stream. Pixels round-trip through the reader
+// in ui_apng_export_round_trips_through_the_apng_reader.
+void apng_encoder_writes_frame_chunks_in_sequence() {
+  const auto crc32 = [](const std::uint8_t* data, std::size_t size) {
+    std::uint32_t crc = 0xffffffffU;
+    for (std::size_t i = 0; i < size; ++i) {
+      crc ^= data[i];
+      for (int k = 0; k < 8; ++k) crc = (crc & 1U) != 0 ? 0xedb88320U ^ (crc >> 1) : crc >> 1;
+    }
+    return crc ^ 0xffffffffU;
+  };
+  const auto be32 = [](const std::uint8_t* p) {
+    return (std::uint32_t{p[0]} << 24) | (std::uint32_t{p[1]} << 16) | (std::uint32_t{p[2]} << 8) | p[3];
+  };
+  const auto be16 = [](const std::uint8_t* p) { return static_cast<std::uint32_t>((p[0] << 8) | p[1]); };
+  patchy::PixelBuffer first(8, 6, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < 6; ++y) for (int x = 0; x < 8; ++x) {
+    auto* px = first.pixel(x, y);
+    px[0] = static_cast<std::uint8_t>(x * 30); px[1] = static_cast<std::uint8_t>(y * 40); px[2] = 90; px[3] = 200;
+  }
+  auto second = first;
+  second.pixel(2, 1)[0] = 1;  // the changed rectangle is (2,1)-(5,3)
+  second.pixel(5, 3)[3] = 0;
+  const auto encode = [&] {
+    patchy::apng::AnimationEncoder encoder(8, 6, 2, 11811, 11811);
+    encoder.add(first, 33);
+    encoder.add(second, 70000);
+    encoder.add(second, 100);  // identical to the frame before
+    return encoder.finish();
+  };
+  const auto bytes = encode();
+  CHECK(bytes == encode());  // deterministic
+  CHECK(bytes.size() > 8);
+  const std::array<std::uint8_t, 8> signature{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+  CHECK(std::equal(signature.begin(), signature.end(), bytes.begin()));
+  struct Chunk { std::string type; const std::uint8_t* data; std::uint32_t size; };
+  std::vector<Chunk> chunks;
+  std::size_t at = 8;
+  while (at + 12 <= bytes.size()) {
+    const auto size = be32(bytes.data() + at);
+    CHECK(at + 12 + size <= bytes.size());
+    CHECK(crc32(bytes.data() + at + 4, size + 4) == be32(bytes.data() + at + 8 + size));
+    chunks.push_back({std::string(reinterpret_cast<const char*>(bytes.data() + at + 4), 4), bytes.data() + at + 8, size});
+    at += 12 + size;
+  }
+  CHECK(at == bytes.size());
+  std::vector<std::string> types;
+  for (const auto& chunk : chunks) types.push_back(chunk.type);
+  CHECK((types == std::vector<std::string>{"IHDR", "pHYs", "acTL", "fcTL", "IDAT", "fcTL", "fdAT", "fcTL", "fdAT",
+                                           "IEND"}));
+  CHECK(be32(chunks[0].data) == 8 && be32(chunks[0].data + 4) == 6);
+  CHECK(chunks[0].data[8] == 8 && chunks[0].data[9] == 6);  // 8-bit RGBA
+  CHECK(be32(chunks[1].data) == 11811 && chunks[1].data[8] == 1);
+  CHECK(be32(chunks[2].data) == 3 && be32(chunks[2].data + 4) == 2);
+  // fcTL: sequence, width, height, x, y, delay num/den, dispose, blend; fdAT starts with
+  // the next sequence number.
+  const auto check_fctl = [&](const Chunk& chunk, std::uint32_t sequence, std::uint32_t w, std::uint32_t h,
+                              std::uint32_t x, std::uint32_t y, std::uint32_t num, std::uint32_t den) {
+    CHECK(chunk.size == 26);
+    CHECK(be32(chunk.data) == sequence);
+    CHECK(be32(chunk.data + 4) == w && be32(chunk.data + 8) == h);
+    CHECK(be32(chunk.data + 12) == x && be32(chunk.data + 16) == y);
+    CHECK(be16(chunk.data + 20) == num && be16(chunk.data + 22) == den);
+    CHECK(chunk.data[24] == 0 && chunk.data[25] == 0);
+  };
+  check_fctl(chunks[3], 0, 8, 6, 0, 0, 33, 1000);
+  check_fctl(chunks[5], 1, 4, 3, 2, 1, 7000, 100);
+  CHECK(be32(chunks[6].data) == 2);
+  check_fctl(chunks[7], 3, 1, 1, 0, 0, 100, 1000);
+  CHECK(be32(chunks[8].data) == 4);
+
+  bool threw = false;
+  try { patchy::apng::AnimationEncoder empty(8, 6, 0); (void)empty.finish(); }
+  catch (const std::exception&) { threw = true; }
+  CHECK(threw);
+  threw = false;
+  try { patchy::apng::AnimationEncoder wrong_size(8, 6, 0); wrong_size.add(patchy::PixelBuffer(4, 4, patchy::PixelFormat::rgba8()), 0); }
+  catch (const std::exception&) { threw = true; }
+  CHECK(threw);
+}
+
 void webp_animation_millisecond_tokens_preserve_gif_rounding() {
   using patchy::animation::parse_layer_name_delay_ms;
   CHECK(parse_layer_name_delay_ms("Frame 1 0.033s") == 33u);
@@ -2164,6 +2246,7 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"tga_reads_real_world_samples", tga_reads_real_world_samples},
       {"gif_lzw_round_trips_through_reference_decoder", gif_lzw_round_trips_through_reference_decoder},
       {"webp_animation_lossless_timing_loops_and_limits", webp_animation_lossless_timing_loops_and_limits},
+      {"apng_encoder_writes_frame_chunks_in_sequence", apng_encoder_writes_frame_chunks_in_sequence},
       {"webp_animation_millisecond_tokens_preserve_gif_rounding", webp_animation_millisecond_tokens_preserve_gif_rounding},
       {"gif_encoder_bytes_are_stable", gif_encoder_bytes_are_stable},
       {"gif_document_write_quantizes_and_round_trips", gif_document_write_quantizes_and_round_trips},

@@ -1426,7 +1426,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
 }  // namespace
 
 void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
-                                double resolution_ppi) {
+                                double resolution_ppi, QString title) {
   Document new_document(width, height, PixelFormat::rgb8());
   if (std::isfinite(resolution_ppi) && resolution_ppi > 0.0) {
     new_document.print_settings().horizontal_ppi = std::clamp(resolution_ppi, 1.0, 9999.0);
@@ -1442,17 +1442,25 @@ void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor 
   if (background_format == PixelFormat::rgb8()) {
     set_layer_locks_transparent_pixels(background_layer, true);
   }
-  new_document.add_pixel_layer(tr("Paint Layer").toStdString(), make_solid_pixels(new_document.width(), new_document.height(), QColor(0, 0, 0, 0),
-                                                             PixelFormat::rgba8()));
-  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1),
-                       QString(), std::move(history_label));
+  // Preferences can leave a new document as the Background alone, selected (GitHub issue 363).
+  if (app_settings().value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool()) {
+    new_document.add_pixel_layer(tr("Paint Layer").toStdString(),
+                                 make_solid_pixels(new_document.width(), new_document.height(), QColor(0, 0, 0, 0),
+                                                   PixelFormat::rgba8()));
+  } else {
+    new_document.set_active_layer(background_layer.id());
+  }
+  if (title.isEmpty()) {
+    title = tr("Untitled-%1").arg(sessions_.size() + 1);
+  }
+  add_document_session(std::move(new_document), std::move(title), QString(), std::move(history_label));
   refresh_layer_list();
   refresh_layer_controls();
   update_undo_redo_actions();
   statusBar()->showMessage(tr("Created %1 x %2 document").arg(width).arg(height));
 }
 
-void MainWindow::create_clipboard_document(const QImage& image, QString history_label) {
+void MainWindow::create_clipboard_document(const QImage& image, QString history_label, QString title) {
   if (image.isNull()) {
     show_status_error(tr("Clipboard does not contain an image"));
     return;
@@ -1464,8 +1472,10 @@ void MainWindow::create_clipboard_document(const QImage& image, QString history_
   new_document.print_settings().horizontal_ppi = kUntaggedImportPpi;
   new_document.print_settings().vertical_ppi = kUntaggedImportPpi;
   new_document.add_pixel_layer(tr("Clipboard Image").toStdString(), std::move(pixels));
-  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1),
-                       QString(), std::move(history_label));
+  if (title.isEmpty()) {
+    title = tr("Untitled-%1").arg(sessions_.size() + 1);
+  }
+  add_document_session(std::move(new_document), std::move(title), QString(), std::move(history_label));
   // The pasted pixels have no backing file: closing must warn about unsaved changes.
   mark_session_modified(session());
   fit_new_document_view(canvas_);
@@ -1480,16 +1490,16 @@ void MainWindow::create_new_document() {
     show_preview_dialog_edit_lock_message();
     return;
   }
-  const auto settings = request_new_document_settings(this);
+  const auto settings = request_new_document_settings(this, tr("Untitled-%1").arg(sessions_.size() + 1));
   if (!settings.has_value()) {
     return;
   }
   if (settings->from_clipboard) {
-    create_clipboard_document(settings->clipboard_image, tr("New document"));
+    create_clipboard_document(settings->clipboard_image, tr("New document"), settings->name);
     return;
   }
   reset_document(settings->width, settings->height, settings->background, tr("New document"),
-                 settings->resolution_ppi);
+                 settings->resolution_ppi, settings->name);
   if (settings->artboards && has_active_document()) {
     // The canvas becomes "Artboard 1" with the chosen background and an empty layer to
     // paint on, in place of the Background layer (Photoshop's Artboards document).
@@ -1528,6 +1538,12 @@ void MainWindow::create_new_document() {
     refresh_layer_list();
     refresh_document_info();
     refresh_bit_depth_actions();
+  }
+  if (settings->cmyk_proof && has_active_document()) {
+    // Image > Mode > CMYK Proof's own switch (GitHub issue 360; docs/cmyk.md).
+    if (const auto refusal = set_session_cmyk_proof(session(), true); !refusal.isEmpty()) {
+      show_status_error(refusal);
+    }
   }
   // Only the dialog path fits: reset_document is also the startup path, where the
   // canvas only has its pre-layout default size and a fit would stick a bogus zoom.

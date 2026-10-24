@@ -44,6 +44,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/smart_filter_table_ui.hpp"
@@ -495,8 +496,7 @@ void draw_thumbnail_disabled_cross(QPainter& painter, QSize tile) {
 }
 
 QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int document_height,
-                             const std::optional<Rect>& crop = std::nullopt) {
-  constexpr int kSize = 28;
+                             const std::optional<Rect>& crop = std::nullopt, int tile_size = 28) {
   const auto& mask = *layer.mask();
   const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
   // `mask.bounds` is document space and the mask reads `default_color` outside
@@ -505,7 +505,7 @@ QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int documen
       document_width, document_height, mask.bounds,
       has_pixels ? QSize(mask.pixels.width(), mask.pixels.height()) : layer_preview_source_size(layer),
       crop);
-  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
+  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), tile_size);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
   if (has_pixels) {
@@ -540,11 +540,10 @@ QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int documen
 // zoomed mode) because the coverage cache is addressed in document space.
 QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_width,
                                     int document_height,
-                                    const std::optional<Rect>& crop = std::nullopt) {
-  constexpr int kSize = 28;
+                                    const std::optional<Rect>& crop = std::nullopt, int tile_size = 28) {
   const auto preview = thumbnail_preview_space(document_width, document_height, mask.cache_bounds,
                                                QSize(document_width, document_height), crop);
-  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
+  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), tile_size);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(Qt::black);
   if (!mask.cache.empty() && mask.cache.format() == PixelFormat::gray8() && document_width > 0 &&
@@ -1218,10 +1217,15 @@ void draw_missing_font_thumbnail_badge(QPainter& painter, int size, const QColor
 
 // Folder, text, and adjustment layers return early with a square glyph: those
 // are icons, not document previews, so neither the document rect nor the
-// zoomed-mode crop applies.
+// zoomed-mode crop applies. Glyphs are drawn in 28 px coordinates (kGlyph) and
+// scaled to the tile, so a Large tile is drawn at its size, not upscaled
+// (the Layers panel thumbnail size, GitHub issue 386).
 QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int document_height,
-                                const std::optional<Rect>& crop = std::nullopt, bool font_badge = true) {
-  constexpr int kSize = 28;
+                                const std::optional<Rect>& crop = std::nullopt, bool font_badge = true,
+                                int tile_size = 28) {
+  constexpr int kGlyph = 28;
+  const int kSize = std::max(1, tile_size);
+  const double glyph_scale = static_cast<double>(kSize) / kGlyph;
   if (layer.kind() == LayerKind::Group && layer.artboard().has_value()) {
     // An artboard: a page in its own background color (a checker when Transparent)
     // under a name tab, like the canvas shows it.
@@ -1229,6 +1233,7 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
+    painter.scale(glyph_scale, glyph_scale);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(0, 0, 0, 90));
     painter.drawRect(QRectF(5.7, 9.0, 19.0, 15.0));
@@ -1258,6 +1263,7 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
+    painter.scale(glyph_scale, glyph_scale);
 
     QPainterPath shadow;
     shadow.moveTo(4.6, 23.2);
@@ -1340,7 +1346,7 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     text_color = readable_text_thumbnail_color(text_color, background);
     auto font = painter.font();
     font.setBold(true);
-    font.setPixelSize(20);
+    font.setPixelSize(std::max(6, (20 * kSize + kGlyph / 2) / kGlyph));
     painter.setFont(font);
     // Center the glyph by its actual rendered ink: font metrics can disagree with the
     // rasterizer's hinting by a pixel or two, which reads as off-center in a 28px tile.
@@ -1372,7 +1378,8 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     painter.setPen(text_color);
     painter.drawText(baseline, glyph);
     if (font_badge && !missing_text_families_for_layer(layer).isEmpty()) {
-      draw_missing_font_thumbnail_badge(painter, kSize, background);
+      painter.scale(glyph_scale, glyph_scale);
+      draw_missing_font_thumbnail_badge(painter, kGlyph, background);
     }
     return pixmap;
   }
@@ -1382,8 +1389,11 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     pixmap.fill(QColor(35, 41, 50));
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
-    draw_adjustment_thumbnail_frame(painter, kSize, QColor(120, 126, 136));
+    painter.save();
+    painter.scale(glyph_scale, glyph_scale);
+    draw_adjustment_thumbnail_frame(painter, kGlyph, QColor(120, 126, 136));
     draw_placeholder_adjustment_thumbnail_symbol(painter, placeholder);
+    painter.restore();
     painter.setBrush(Qt::NoBrush);
     painter.setRenderHint(QPainter::Antialiasing, false);
     painter.setPen(QPen(theme().layer_thumbnail_border, 1));
@@ -1397,7 +1407,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     painter.setRenderHint(QPainter::Antialiasing);
     const auto settings = adjustment_settings_from_layer(layer);
     const auto accent = adjustment_thumbnail_accent(layer);
-    draw_adjustment_thumbnail_frame(painter, kSize, accent);
+    painter.save();
+    painter.scale(glyph_scale, glyph_scale);
+    draw_adjustment_thumbnail_frame(painter, kGlyph, accent);
     if (!settings.has_value()) {
       draw_generic_adjustment_thumbnail_symbol(painter, accent);
     } else {
@@ -1452,6 +1464,7 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
           break;
       }
     }
+    painter.restore();
     painter.setBrush(Qt::NoBrush);
     // Crisp frame: see the text-thumbnail comment about AA rect strokes.
     painter.setRenderHint(QPainter::Antialiasing, false);
@@ -1468,9 +1481,11 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
                                                layer_preview_source_size(layer), crop);
   const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
+  // 7 px squares on the Medium tile, scaled with it.
+  const int checker = std::max(3, (7 * kSize + kGlyph / 2) / kGlyph);
   for (int y = 0; y < tile.height(); ++y) {
     for (int x = 0; x < tile.width(); ++x) {
-      const bool dark = ((x / 7) + (y / 7)) % 2 == 0;
+      const bool dark = ((x / checker) + (y / checker)) % 2 == 0;
       image.setPixelColor(x, y, dark ? QColor(204, 204, 204) : QColor(255, 255, 255));
     }
   }
@@ -1595,7 +1610,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                bool effects_expanded = false,
                                std::function<void(LayerId)> toggle_effects_expanded = {},
                                bool smart_filters_expanded = true,
-                               std::function<void(LayerId)> toggle_smart_filters_expanded = {}) {
+                               std::function<void(LayerId)> toggle_smart_filters_expanded = {},
+                               LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -1616,7 +1632,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
   auto* main_row = new QWidget(row);
   main_row->setObjectName(QStringLiteral("layerMainRow"));
-  main_row->setFixedHeight(44);
+  main_row->setFixedHeight(layer_main_row_height(thumbnail_size));
   main_row->setAutoFillBackground(false);
   if (list_parent != nullptr) {
     main_row->installEventFilter(list_parent);
@@ -1718,32 +1734,40 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     layout->addSpacing(kLayerFolderDisclosureWidth);
   }
 
-  auto* thumbnail = new QLabel(row);
-  thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
-  thumbnail->setFixedSize(30, 30);
-  // Center the 28px pixmap: QLabel's default left alignment piles the slack
-  // (and the active-border clipping) onto the right/bottom edges.
-  thumbnail->setAlignment(Qt::AlignCenter);
-  thumbnail->setPixmap(content_thumbnail
-                           ? content_thumbnail(layer)
-                           : layer_content_thumbnail(layer, document_size.width(), document_size.height(),
-                                                     thumbnail_crop));
-  thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
-                         QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
-  thumbnail->setToolTip(layer_content_thumbnail_tooltip(layer));
-  thumbnail->setProperty("layerTargetActive", content_target_active);
-  // Thumbnails stay enabled even when the layer is hidden: a disabled QLabel
-  // repaints its pixmap through the style's grayscale disabled-icon filter,
-  // and Photoshop keeps hidden-layer thumbnails full color (the eye already
-  // conveys visibility). Same for the mask and vector-mask previews below.
-  if (list_parent != nullptr) {
-    thumbnail->installEventFilter(list_parent);
+  // The thumbnail size setting (GitHub issue 386): None builds no content tile at all, so
+  // nothing renders one; the mask tiles stay at the Small size there.
+  const auto content_tile = layer_thumbnail_tile_size(thumbnail_size);
+  const auto mask_tile = layer_mask_thumbnail_tile_size(thumbnail_size);
+  QLabel* thumbnail = nullptr;
+  if (content_tile > 0) {
+    thumbnail = new QLabel(row);
+    thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
+    thumbnail->setFixedSize(content_tile + 2, content_tile + 2);
+    // Center the pixmap: QLabel's default left alignment piles the slack
+    // (and the active-border clipping) onto the right/bottom edges.
+    thumbnail->setAlignment(Qt::AlignCenter);
+    thumbnail->setPixmap(content_thumbnail
+                             ? content_thumbnail(layer)
+                             : layer_content_thumbnail(layer, document_size.width(), document_size.height(),
+                                                       thumbnail_crop, true, content_tile));
+    thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
+                           QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
+    thumbnail->setToolTip(layer_content_thumbnail_tooltip(layer));
+    thumbnail->setProperty("layerTargetActive", content_target_active);
+    // Thumbnails stay enabled even when the layer is hidden: a disabled QLabel
+    // repaints its pixmap through the style's grayscale disabled-icon filter,
+    // and Photoshop keeps hidden-layer thumbnails full color (the eye already
+    // conveys visibility). Same for the mask and vector-mask previews below.
+    if (list_parent != nullptr) {
+      thumbnail->installEventFilter(list_parent);
+    }
+    layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
   }
-  layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
 
   if (layer.mask().has_value()) {
     // An adjustment placeholder keeps its "what is this" tooltip: it has no pixels to edit.
-    if (layer.kind() == LayerKind::Pixel && !layer_is_text(layer) && adjustment_placeholder_kind(layer).empty()) {
+    if (thumbnail != nullptr && layer.kind() == LayerKind::Pixel && !layer_is_text(layer) &&
+        adjustment_placeholder_kind(layer).empty()) {
       thumbnail->setToolTip(QObject::tr("Layer pixels. Click to edit them instead of the mask."));
     }
     auto* link = new QToolButton(row);
@@ -1776,12 +1800,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
     auto* mask_preview = new QLabel(row);
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
-    mask_preview->setFixedSize(30, 30);
+    mask_preview->setFixedSize(mask_tile + 2, mask_tile + 2);
     mask_preview->setAlignment(Qt::AlignCenter);
     mask_preview->setPixmap(mask_thumbnail
                                 ? mask_thumbnail(layer)
                                 : layer_mask_thumbnail(layer, document_size.width(), document_size.height(),
-                                                       thumbnail_crop));
+                                                       thumbnail_crop, mask_tile));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     mask_preview->setToolTip(resolve_modifier_names(
@@ -1797,10 +1821,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (layer.vector_mask() != nullptr) {
     auto* vector_mask_preview = new QLabel(row);
     vector_mask_preview->setObjectName(QStringLiteral("layerVectorMaskThumbnail"));
-    vector_mask_preview->setFixedSize(30, 30);
+    vector_mask_preview->setFixedSize(mask_tile + 2, mask_tile + 2);
     vector_mask_preview->setAlignment(Qt::AlignCenter);
     vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
-        *layer.vector_mask(), document_size.width(), document_size.height(), thumbnail_crop));
+        *layer.vector_mask(), document_size.width(), document_size.height(), thumbnail_crop, mask_tile));
     vector_mask_preview->setToolTip(resolve_modifier_names(
         QObject::tr("Vector mask. Click to edit its path with the pen and path tools, %CTRL%-click to "
                     "load it as a selection, %ALT%-click to view it, Shift-click to disable it.")));
@@ -3874,7 +3898,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
       const auto effects_expanded = session().expanded_layer_effects.contains(it->id());
       const auto effect_row_count =
           effect_count > 0 ? 1 + (effects_expanded ? static_cast<int>(effect_count) : 0) : 0;
-      item->setSizeHint(QSize(0, 44 + 26 * (smart_filter_row_count + effect_row_count)));
+      item->setSizeHint(QSize(0, layer_main_row_height(layer_thumbnail_size_) +
+                                     26 * (smart_filter_row_count + effect_row_count)));
       item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
       if (active.has_value() && *active == it->id()) {
         auto font = item->font();
@@ -4033,7 +4058,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                       session().expanded_layer_effects.contains(layer.id()),
                                       [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); },
                                       !session().collapsed_smart_filters.contains(layer.id()),
-                                      [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); });
+                                      [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); },
+                                      layer_thumbnail_size_);
     widget_ms += phase_ms(widget_started);
     if (session_layer == layer.id() && layer_is_text(layer)) {
       // The content tile above came without the badge; the tooltip has to agree.
@@ -4117,7 +4143,8 @@ QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer, int docum
   const bool font_badge = !layer_is_text(layer) || live_text_session_layer_id() != layer.id();
   if (entry.content.isNull() || entry.content_render_revision != revision || entry.content_font_badge != font_badge) {
     entry.content = layer_content_thumbnail(layer, document_width, document_height,
-                                            layer_thumbnail_crop(layer), font_badge);
+                                            layer_thumbnail_crop(layer), font_badge,
+                                            layer_thumbnail_tile_size(layer_thumbnail_size_));
     entry.content_render_revision = revision;
     entry.content_font_badge = font_badge;
   }
@@ -4136,7 +4163,8 @@ QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer, int document
   const auto revision = layer.render_revision();
   if (entry.mask.isNull() || entry.mask_render_revision != revision) {
     entry.mask = layer_mask_thumbnail(layer, document_width, document_height,
-                                      layer_thumbnail_crop(layer));
+                                      layer_thumbnail_crop(layer),
+                                      layer_mask_thumbnail_tile_size(layer_thumbnail_size_));
     entry.mask_render_revision = revision;
   }
   return entry.mask;
@@ -4239,6 +4267,10 @@ void MainWindow::refresh_layer_controls() {
     finish_pending_layer_opacity_edit();
     finish_pending_layer_fill_opacity_edit();
     finish_pending_layer_blend_edit();
+    // Another document or layer while the blend list is open: put the modes back.
+    if (layer_blend_preview_.has_value() && !layer_blend_preview_matches_active()) {
+      cancel_layer_blend_preview();
+    }
   }
   updating_layer_controls_ = true;
   const auto reset = [this] {
@@ -4349,7 +4381,16 @@ void MainWindow::refresh_layer_controls() {
     // Pass Through is a folder's own mode (GitHub issue 235), offered only for one.
     set_blend_mode_pass_through_offered(blend_combo_, layer->kind() == LayerKind::Group);
     enable_blend_mode_items_for_depth(blend_combo_, std::as_const(document()).color_state().bit_depth);
-    const auto blend_value = static_cast<int>(layer->blend_mode());
+    // An open list's preview shows on the layer; the combo keeps the layer's own mode.
+    auto blend_mode = layer->blend_mode();
+    if (layer_blend_preview_.has_value()) {
+      for (const auto& [id, original] : layer_blend_preview_->originals) {
+        if (id == layer->id()) {
+          blend_mode = original;
+        }
+      }
+    }
+    const auto blend_value = static_cast<int>(blend_mode);
     const auto index = blend_combo_->findData(blend_value);
     blend_combo_->setCurrentIndex(index >= 0 ? index : 0);
   }
@@ -4782,16 +4823,16 @@ void MainWindow::refresh_document_info() {
         }
       }
       if (current_tool_ == CanvasTool::Clone || current_tool_ == CanvasTool::Healing) {
-        lines << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+        lines << retouch_sample_info_text();
       }
     } else if (current_tool_ == CanvasTool::SpotHealing) {
       lines << tr("Size: %1 px").arg(canvas_->brush_size())
             << tr("Softness: %1%").arg(canvas_->brush_softness())
-            << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+            << retouch_sample_info_text();
     } else if (current_tool_ == CanvasTool::PatchTool) {
       lines << (canvas_->patch_tool_mode() == CanvasWidget::PatchToolMode::Destination ? tr("Destination")
                                                                                        : tr("Source"))
-            << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+            << retouch_sample_info_text();
       if (canvas_->patch_tool_transparent()) {
         lines << tr("Transparent");
       }

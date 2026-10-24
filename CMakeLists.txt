@@ -188,6 +188,7 @@ add_library(patchy_core
   src/core/smart_filter_gallery.cpp
   src/core/smart_object.cpp
   src/core/spot_heal.cpp
+  src/core/red_eye.cpp
   src/core/exemplar_inpaint.cpp
   src/core/stroke_stabilizer.cpp
   src/core/style_contour.cpp
@@ -564,6 +565,7 @@ endif()
 
 add_library(patchy_formats
   src/formats/animation_timing.cpp
+  src/formats/apng_writer.cpp
   src/formats/webp_animation_io.cpp
   src/formats/af_document_io.cpp
   src/formats/af_container.cpp
@@ -1160,6 +1162,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_selection_engines.cpp
       src/ui/canvas_widget_object_select.cpp
       src/ui/canvas_widget_spot_healing.cpp
+      src/ui/canvas_widget_red_eye.cpp
       src/ui/canvas_widget_transform.cpp
       src/ui/canvas_widget_vector_tools.cpp
       src/ui/canvas_widget_view.cpp
@@ -1169,6 +1172,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/default_brush_tips.hpp
       src/ui/default_brush_tips.cpp
       src/ui/color_panel.cpp
+      src/ui/background_pick_cursor.hpp
+      src/ui/background_pick_cursor.cpp
+      src/ui/color_dock_panel.hpp
+      src/ui/color_dock_panel.cpp
+      src/ui/color_field_widgets.hpp
+      src/ui/color_field_widgets.cpp
       src/ui/compatibility_report.cpp
       src/ui/coalesced_preview_emitter.hpp
       src/ui/curved_slider.hpp
@@ -2131,6 +2140,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/photo_divide_tests.cpp
     tests/core/pixel_depth_tests.cpp
     tests/core/pixel_tools_tests.cpp
+    tests/core/red_eye_tests.cpp
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_deep_io_tests.cpp
     tests/core/psd_cmyk_proof_tests.cpp
@@ -2319,9 +2329,11 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gmic_tests.cpp
       tests/ui/history_panel_tests.cpp
+      tests/ui/color_dock_panel_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
       tests/ui/rgb_profile_tests.cpp
+      tests/ui/new_document_options_tests.cpp
       tests/ui/watermark_tests.cpp
       tests/ui/watermark_preferences_tests.cpp
       tests/ui/save_metadata_tests.cpp

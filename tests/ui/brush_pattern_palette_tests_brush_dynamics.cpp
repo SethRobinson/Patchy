@@ -18,6 +18,7 @@
 #include <QListWidget>
 #include <QJsonDocument>
 #include <QSizeGrip>
+#include <QSlider>
 #include <QIODevice>
 #include <QPainter>
 #include <QPixmap>
@@ -289,6 +290,137 @@ void ui_brush_tip_picker_keeps_options_bar_height() {
   CHECK(options_bar->height() == common_height);
   CHECK(dynamics_button->isVisible());
   CHECK(dynamics_button->height() <= preset_combo->height());
+  clear_brush_tip_test_state();
+}
+
+// GitHub issue 364: the Tip picker took its width from the tip's name, so a long name
+// (Brick Road) wrapped the Brush row onto a second line, and whether the Size slider
+// showed depended on the tip current when the bar was first measured: starting on the
+// Brush tool with a long tip hid it (and still kept two rows), switching to the Brush
+// tool and then picking the tip kept it and wrapped. The picker now has one width for
+// every tip, so both orders give the same one-row bar.
+void ui_brush_tip_picker_keeps_a_fixed_width() {
+  clear_brush_tip_test_state();
+  SettingsValueRestorer saved_active_tool(QStringLiteral("tools/activeTool"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/activeTool"));
+    settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 0);  // seed Brick Road
+    settings.sync();
+  }
+  const auto settle = [] {
+    QApplication::processEvents();
+    process_events_for(30);
+  };
+  struct BarState {
+    int height = 0;
+    int lines = 0;
+    bool slider = false;
+    int picker_width = 0;
+  };
+  const auto bar_state = [](patchy::ui::MainWindow& window) {
+    BarState state;
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    CHECK(options_bar != nullptr && options != nullptr && slider != nullptr && picker != nullptr);
+    if (options_bar == nullptr || options == nullptr || slider == nullptr || picker == nullptr) {
+      return state;
+    }
+    std::vector<int> tops;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      const int top = child->geometry().top();
+      if (child->isVisible() &&
+          std::none_of(tops.begin(), tops.end(), [top](int other) { return std::abs(other - top) < 8; })) {
+        tops.push_back(top);
+      }
+    }
+    state.height = options_bar->height();
+    state.lines = static_cast<int>(tops.size());
+    state.slider = slider->isVisible();
+    state.picker_width = picker->width();
+    std::printf("  bar %d px, %d line(s), size slider %s, tip picker %d px\n", state.height, state.lines,
+                state.slider ? "shown" : "hidden", state.picker_width);
+    return state;
+  };
+
+  QString brick_road_id;
+  BarState switched;
+  {
+    patchy::ui::MainWindow window;
+    window.resize(1366, 738);
+    show_window(window);
+    window.resize(1366, 738);
+    settle();
+    auto& library = window.brush_tip_library();
+    for (const auto& entry : library.entries()) {
+      if (entry.name == QStringLiteral("Brick Road")) {
+        brick_road_id = entry.id;
+      }
+    }
+    CHECK(!brick_road_id.isEmpty());
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    CHECK(picker != nullptr && options_bar != nullptr);
+    if (brick_road_id.isEmpty() || picker == nullptr || options_bar == nullptr) {
+      clear_brush_tip_test_state();
+      return;
+    }
+    require_action(window, "toolMoveAction")->trigger();
+    settle();
+    require_action(window, "toolBrushAction")->trigger();
+    settle();
+    const auto round = bar_state(window);
+    CHECK(round.lines == 1);
+    save_widget_artifact("ui_brush_options_bar_round_tip", *options_bar);
+
+    window.set_active_brush_tip(brick_road_id, true);
+    settle();
+    switched = bar_state(window);
+    save_widget_artifact("ui_brush_options_bar_switched_then_brick_road", *options_bar);
+    CHECK(switched.picker_width == round.picker_width);
+    CHECK(switched.lines == 1);
+    CHECK(switched.height == round.height);
+    CHECK(switched.slider == round.slider);
+    CHECK(picker->toolTip().contains(QStringLiteral("Brick Road")));
+
+    // A name far wider than the control is elided, not grown into.
+    const auto long_id = library.add_tip(QStringLiteral("An Unusually Long Imported Brush Tip Name"),
+                                         make_bar_tip_image(), 0.5);
+    window.set_active_brush_tip(long_id, true);
+    settle();
+    const auto long_name = bar_state(window);
+    CHECK(long_name.picker_width == round.picker_width);
+    CHECK(long_name.lines == 1);
+    CHECK(picker->toolTip().contains(QStringLiteral("An Unusually Long Imported Brush Tip Name")));
+
+    window.set_active_brush_tip(brick_road_id, true);
+    process_events_for(400);  // the debounced tool-settings save records the tip
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString() == brick_road_id);
+  }
+  {
+    // The next launch starts on the Brush tool with Brick Road: the same bar.
+    patchy::ui::MainWindow window;
+    window.resize(1366, 738);
+    show_window(window);
+    window.resize(1366, 738);
+    settle();
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    CHECK(picker != nullptr && options_bar != nullptr);
+    if (picker != nullptr && options_bar != nullptr) {
+      CHECK(picker->current_tip_id() == brick_road_id);
+      const auto started = bar_state(window);
+      save_widget_artifact("ui_brush_options_bar_started_on_brick_road", *options_bar);
+      CHECK(started.picker_width == switched.picker_width);
+      CHECK(started.lines == 1);
+      CHECK(started.height == switched.height);
+      CHECK(started.slider == switched.slider);
+      // At 1366 px the Brush row keeps its Size slider.
+      CHECK(started.slider);
+    }
+  }
   clear_brush_tip_test_state();
 }
 
@@ -1463,6 +1595,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_tip_picker_popup_offers_define_from_selection",
        ui_brush_tip_picker_popup_offers_define_from_selection},
       {"ui_brush_tip_picker_keeps_options_bar_height", ui_brush_tip_picker_keeps_options_bar_height},
+      {"ui_brush_tip_picker_keeps_a_fixed_width", ui_brush_tip_picker_keeps_a_fixed_width},
       {"ui_default_brush_tips_carry_curated_dynamics", ui_default_brush_tips_carry_curated_dynamics},
       {"ui_brush_tip_manager_edits_dynamics", ui_brush_tip_manager_edits_dynamics},
       {"ui_brush_tip_picker_popup_resizes_and_persists", ui_brush_tip_picker_popup_resizes_and_persists},

@@ -48,8 +48,9 @@ flatpak install --user https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
 Patchy then updates with `flatpak update` or through your software center, and starts
 from your application menu or with `flatpak run com.rtsoft.patchy`.
 
-This needs the `flatpak` tool. If needed, install it first with
-`sudo apt install flatpak`.
+This needs the `flatpak` tool. Fedora and openSUSE desktops usually have it already. If
+needed, install it first with `sudo apt install flatpak` (Ubuntu, Debian),
+`sudo dnf install flatpak` (Fedora) or `sudo zypper install flatpak` (openSUSE).
 
 If you already use flatpak system-wide, you can use `--system` in place of `--user`.
 Patchy then reuses the runtime extensions you already have (graphics drivers, codecs)
@@ -83,7 +84,7 @@ chmod +x PatchyLinux.AppImage
 executable from your file manager (Properties > Permissions, "Allow executing file as
 program") and double-click it.
 
-The AppImage does not need `libfuse2`, but it does need FUSE 3, which most desktops
+The AppImage needs the FUSE 3 tools and libraries (not `libfuse2`), which most desktops
 already have. If it says it cannot mount itself, install it:
 
 | Distro | Command |
@@ -141,7 +142,7 @@ See it in action.  Click an image for the full-size capture.
 | Workflow | What you get |
 | --- | --- |
 | **Layered Photoshop files** | PSD and PSB, editable text, groups, masks, clipping, blend modes, and layer styles. |
-| **Pixel art and game assets** | Paint in a fixed palette while keeping layers, text, and effects editable. Use retro or custom palettes, named colors, and indexed PNG/BMP export, alongside seamless tiling, sprite sheets, image sequences, DDS textures, and animated GIF/WebP. |
+| **Pixel art and game assets** | Paint in a fixed palette while keeping layers, text, and effects editable. Use retro or custom palettes, named colors, and indexed PNG/BMP export, alongside seamless tiling, sprite sheets, image sequences, DDS textures, and animated GIF/WebP/PNG. |
 | **Affinity documents** | Import .af, .afphoto, .afdesign, and .afpub files with editable text, vectors, masks, supported adjustments, and layer effects, then continue editing or save as PSD. [Support and limitations](docs/features.md#affinity-import). |
 | **PDF documents** | Import pages as editable text, vectors, and images on desktop; export single or multi-page PDFs with editable or flattened content. |
 | **Non-destructive editing** | Adjustment layers, embedded and linked Smart Objects, editable Smart Filters, and shared filter masks. |

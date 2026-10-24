@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -29,6 +30,10 @@ class MainWindowTestAccess {
 public:
   static Document& document(MainWindow& window) {
     return window.document();
+  }
+
+  static std::vector<LayerId> selected_layer_ids(const MainWindow& window) {
+    return window.selected_layer_ids();
   }
 
   // The High Quality Object Selection model offer (main_window_ai_selection.cpp).
@@ -591,6 +596,16 @@ public:
 
   static bool active_session_is_modified(MainWindow& window) {
     return window.session_is_modified(window.session());
+  }
+
+  // Treats the active document as just saved, so a test can see whether a later step marks it modified.
+  static void mark_active_session_saved(MainWindow& window) {
+    window.session().saved_revision = window.session().revision;
+  }
+
+  // Preferences > Tools "Use Esc to commit text" without driving the dialog.
+  static void set_escape_commits_text(MainWindow& window, bool on) {
+    window.escape_commits_text_ = on;
   }
 
   static bool active_session_is_smart_object_child(MainWindow& window) {

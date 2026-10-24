@@ -255,7 +255,7 @@ interface PatchySmartObjectState {
 /** An artboard's background: "color" paints `color`. */
 type PatchyArtboardBackground = "white" | "black" | "transparent" | "color";
 /** The right column's panels, by permanent name (patchy.ui.expandPanel and friends). */
-type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette";
+type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette" | "color";
 
 /** An artboard's rect (document pixels) and background, as layer.artboard reads it. */
 interface PatchyArtboard {
@@ -531,6 +531,21 @@ interface PatchyLayer {
     toneMatch?: number;
     feather?: number;
   }): { method: "contentAware" | "nearestEdge"; patches: number; source: number; sourceCount: number; attempt: number };
+  /**
+   * The Red Eye tool: {x, y} clicks there (document pixels), {x, y, width, height} drags a box.
+   * The connected red area at or nearest the point is desaturated and darkened; a selection
+   * limits the change. pupilSize and darkenAmount are 1..100 (default 50). The layer must be
+   * the active layer. Returns the pupil's pixel count and the changed bounds; throws when no
+   * red pixel is found.
+   */
+  redEye(options: {
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    pupilSize?: number;
+    darkenAmount?: number;
+  }): { pupilPixels: number; x: number; y: number; width: number; height: number };
   /**
    * A copy of the layer's pixels (empty layers report width/height 0). Layers
    * that store opaque 8-bit RGB (photos opened from JPEG and similar) are
@@ -1182,6 +1197,14 @@ interface PatchyDocument {
   exportAnimatedWebp(path: string, options?: {
     frameDelayMs?: number; loopCount?: number; quality?: number; lossless?: boolean;
   }): boolean;
+  /** Exports visible top-level layers, top first, as an animated PNG (APNG, 8-bit RGBA,
+   * lossless). Groups become one frame. Trailing seconds tokens ("blink 0.033s") override
+   * frameDelayMs. Preserves the document path and modified state. loopCount is total plays
+   * (0 = forever), defaults to the imported or last exported count, otherwise 0; frameDelayMs
+   * defaults to 100. Integers: frameDelayMs 0..16777215, loopCount 0..65535. Unknown/invalid
+   * options, paths not ending in .png or .apng and export failures throw. saveAs/exportAs with
+   * .png continue to write a single flattened image. */
+  exportAnimatedPng(path: string, options?: { frameDelayMs?: number; loopCount?: number }): boolean;
   /** Closes without prompting (the script decided). */
   close(): void;
   /** Makes this the active document tab. */
@@ -1204,7 +1227,13 @@ interface PatchyApp {
   undoEnabled: boolean;
   /** Opens a file; throws on failure. RAW opens read the photo's .rawprefs sidecar or use defaults, without writing settings. Unattended PDF opens use default import settings. */
   open(path: string): PatchyDocument;
-  newDocument(width: number, height: number): PatchyDocument;
+  /**
+   * Creates a document with a white Background layer. `name` is the tab title and the
+   * default Save As name (characters a file name cannot hold are dropped); `colorMode`
+   * "cmykProof" starts it in Image > Mode > CMYK Proof and throws without a CMYK profile
+   * in Preferences. Default: "Untitled", "rgb".
+   */
+  newDocument(width: number, height: number, options?: { name?: string; colorMode?: "rgb" | "cmykProof" }): PatchyDocument;
   /** Message box; logs to the console instead in unattended CLI runs. */
   alert(text: string): void;
   /**

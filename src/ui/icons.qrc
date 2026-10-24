@@ -100,6 +100,7 @@
     <file alias="tool-healing.svg">icons/tool-healing.svg</file>
     <file alias="tool-spot-healing.svg">icons/tool-spot-healing.svg</file>
     <file alias="tool-patch.svg">icons/tool-patch.svg</file>
+    <file alias="tool-red-eye.svg">icons/tool-red-eye.svg</file>
     <file alias="tool-crop.svg">icons/tool-crop.svg</file>
     <file alias="tool-perspective-crop.svg">icons/tool-perspective-crop.svg</file>
     <file alias="tool-artboard.svg">icons/tool-artboard.svg</file>

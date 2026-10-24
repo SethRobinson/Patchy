@@ -115,6 +115,7 @@ copyright flag.
     descriptive tags and new Exif/GPS IFDs, re-encoded to the file's byte order. An IRB
     already there (a layered TIFF's, [tiff.md](tiff.md)) keeps its other resources.
   - WebP: libwebpmux chunks, also for animated WebP.
+  - Animated PNG: the PNG rules, after the writer's IHDR (before acTL).
   - GIF: Comment and XMP extensions after the global color table (the header becomes
     GIF89a), also for animated GIF.
   - JPEG XL: no injection; the writer gets EXIF and XMP from `save_metadata_for` and emits

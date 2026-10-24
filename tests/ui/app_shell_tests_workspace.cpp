@@ -988,7 +988,8 @@ void ui_window_menu_lists_panels_and_toolbars() {
       CHECK(action->isChecked());
     }
   }
-  CHECK(entry_texts == QStringList({QStringLiteral("Channels"), QStringLiteral("History"), QStringLiteral("Info"),
+  CHECK(entry_texts == QStringList({QStringLiteral("Channels"), QStringLiteral("Color"), QStringLiteral("History"),
+                                    QStringLiteral("Info"),
                                     QStringLiteral("Layers"), QStringLiteral("Options"), QStringLiteral("Palette"),
                                     QStringLiteral("Paths"), QStringLiteral("Properties"),
                                     QStringLiteral("Tool Palette")}));
@@ -1129,7 +1130,7 @@ void ui_panel_collapse_and_close_leave_no_gap() {
   };
   check_filled(QStringLiteral("start"));
   for (const auto& id : {QStringLiteral("propertiesDock"), QStringLiteral("historyDock"),
-                         QStringLiteral("infoDock"), QStringLiteral("paletteDock")}) {
+                         QStringLiteral("infoDock"), QStringLiteral("colorDock"), QStringLiteral("paletteDock")}) {
     auto* toggle = column->collapse_button(id);
     CHECK(toggle != nullptr);
     if (toggle == nullptr) {
@@ -1170,7 +1171,7 @@ void ui_panel_title_drag_reorders_sections() {
   auto* splitter = column->splitter();
   const QStringList defaults = {QStringLiteral("layersDock"), QStringLiteral("historyDock"),
                                 QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                                QStringLiteral("paletteDock")};
+                                QStringLiteral("colorDock"), QStringLiteral("paletteDock")};
   CHECK(column->section_order() == defaults);
   const auto check_filled = [&](const char* context) {
     int expected_top = 0;
@@ -1232,7 +1233,7 @@ void ui_panel_title_drag_reorders_sections() {
   CHECK(!indicator->isVisible());
   CHECK(column->section_order() == (QStringList{QStringLiteral("infoDock"), QStringLiteral("layersDock"),
                                                 QStringLiteral("historyDock"), QStringLiteral("propertiesDock"),
-                                                QStringLiteral("paletteDock")}));
+                                                QStringLiteral("colorDock"), QStringLiteral("paletteDock")}));
   CHECK(splitter->widget(0)->objectName() == QStringLiteral("infoDock"));
   CHECK(column->section_widget(QStringLiteral("infoDock"))->height() == info_height);
   check_filled("info to top");
@@ -1589,7 +1590,7 @@ void ui_reset_panels_restores_first_launch_layout() {
   auto* splitter = column->splitter();
   const QStringList order = {QStringLiteral("panelTabGroup"), QStringLiteral("historyDock"),
                              QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                             QStringLiteral("paletteDock")};
+                             QStringLiteral("colorDock"), QStringLiteral("paletteDock")};
   for (int index = 0; index < splitter->count(); ++index) {
     CHECK(splitter->widget(index)->objectName() == order.value(index));
     CHECK(splitter->widget(index)->isVisible());

@@ -3,6 +3,10 @@
 `layer.merge_down` (Ctrl+E, Layer > Merge Down and the layer context menu) merges
 selected layers, or the active layer with its lower sibling. A selected group
 includes its contents. Ancestor selections include descendants only once.
+A hidden folder that holds the whole merge (`layer_shared_ancestor_groups`) does
+not hide its members: Merge Down inside a hidden folder merges, as Photoshop 2026
+does (COM probe, #389). Hidden items and hidden folders below the shared ones still
+count as hidden. Tests: `ui_issue389_*`.
 
 Selections containing vectors use `src/ui/layer_merge.{hpp,cpp}`. Shapes that
 produce one vector output merge immediately; groups and mixed selections open

@@ -3791,19 +3791,6 @@ void collect_layer_render_order(const std::vector<Layer>& layers, std::vector<La
   }
 }
 
-bool layer_is_effectively_visible(const std::vector<Layer>& layers, LayerId id, bool ancestor_visible = true) {
-  for (const auto& layer : layers) {
-    const auto visible = ancestor_visible && layer.visible();
-    if (layer.id() == id) {
-      return visible;
-    }
-    if (layer.kind() == LayerKind::Group && layer_is_effectively_visible(layer.children(), id, visible)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, QColor color,
                                 const QString& rich_text_runs, const QString& paragraph_runs, int text_width,
                                 int text_height) {
@@ -4391,6 +4378,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   layer_blend_idle_timer_->setSingleShot(true);
   layer_blend_idle_timer_->setInterval(kLayerBlendIdleFinishDelayMs);
   connect(layer_blend_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_blend_edit(); });
+  layer_blend_preview_timer_ = new QTimer(this);
+  layer_blend_preview_timer_->setSingleShot(true);
+  layer_blend_preview_timer_->setInterval(kLayerOpacityApplyDelayMs);
+  connect(layer_blend_preview_timer_, &QTimer::timeout, this, [this] { apply_pending_layer_blend_preview(); });
   tool_settings_save_timer_ = new QTimer(this);
   tool_settings_save_timer_->setSingleShot(true);
   tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
@@ -6014,6 +6005,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       pending_layer_thumbnail_refresh_ = true;
       return;
     }
+    if (layer_blend_preview_.has_value()) {
+      return;  // a hovered blend mode; the rows refresh when the list closes
+    }
     if (pending_layer_thumbnail_refresh_ || reason == CanvasWidget::DocumentChangeReason::BrushStrokeFinished) {
       pending_layer_thumbnail_refresh_ = false;
     }
@@ -7321,11 +7315,6 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     pixels = convert_pixel_buffer_depth(pixels, document().color_state().bit_depth, SampleKind::Color);
   }
   std::optional<LayerId> committed_layer_id = layer_id;
-  // A multi-layer hidden-session pass (apply_text_character_edit) snapshots once for all
-  // of its commits.
-  if (!text_commit_snapshot_suppressed_) {
-    push_undo_snapshot(tr("Type"));
-  }
   const auto name = text_layer_auto_name(settings.text);
   // A PSD-frame session rendered a document-space frame around raw-unit runs; persist the box
   // dims back in the runs' raw engine space so the stored runs + box + transform stay one
@@ -7347,52 +7336,79 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       qtransform_has_non_translation_linear_part(*text_transform)) {
     stored_box_width = std::max(1, static_cast<int>(std::ceil(rendered.local_rect.width())));
   }
+  const auto commit_into_layer = [&](Layer& layer, PixelBuffer committed_pixels) {
+    // Follow the text content only for auto-derived names; a name the user (or the source PSD)
+    // chose stays put.  No "Text: " prefix -- the layer list already shows a type badge.
+    if (text_layer_name_is_auto(layer)) {
+      layer.set_name(name.toStdString());
+    }
+    layer.set_pixels(std::move(committed_pixels));
+    layer.set_bounds(committed_bounds);
+    layer.set_visible(restore_existing_visibility);
+    store_patchy_text_metadata(layer, settings, text_color, rich_text_runs, paragraph_runs, stored_box_width,
+                               boxed_text ? stored_box_height : local_text_height);
+    store_text_layout_metrics(layer, rendered.metrics);
+    if (settings.photoshop_layout) {
+      // Imported layers keep their marker through store (it never clears the key); a native
+      // layer that opted in via the Character panel's leading controls persists it here.
+      layer.metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
+    }
+    if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
+      layer.metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
+    } else {
+      layer.metadata().erase(kLayerMetadataTextLineAwareBoxPreview);
+    }
+    if (boxed_text) {
+      layer.metadata()[kLayerMetadataTextTransform] =
+          serialize_layer_affine_transform(committed_text_transform(document_point, text_affine_transform));
+    } else if (text_affine_transform.has_value()) {
+      layer.metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
+    } else if (!settings.vertical) {
+      // Horizontal point text always records its pen: the raster may start left of or above
+      // it (glyph ink overhanging the line start or top, grow_point_text_rect_to_glyph_ink),
+      // so the layer corner no longer identifies the text origin for the next session or the
+      // PSD writer. Vertical point text keeps recovering its anchor from the raster.
+      layer.metadata()[kLayerMetadataTextTransform] =
+          serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
+    }
+    if (committed_warp_used.has_value()) {
+      layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*committed_warp_used);
+      // The warp render mapped text-local space through this transform; store exactly it
+      // (overriding the boxed branch's floored write above) so later re-renders and the
+      // next session entry's probe agree with the raster to the sub-pixel.
+      layer.metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+          LayerAffineTransform{committed_warp_transform.m11(), committed_warp_transform.m12(),
+                               committed_warp_transform.m21(), committed_warp_transform.m22(),
+                               committed_warp_transform.dx(), committed_warp_transform.dy()});
+    }
+  };
+  // A commit that would leave an existing layer exactly as it was (a session applied with
+  // nothing changed) adds no History step and leaves the document unmodified (GitHub issue
+  // 387). The commit runs on a copy first and the result is compared with the layer.
+  if (layer_id.has_value() && !text_commit_snapshot_suppressed_) {
+    if (const auto* current = std::as_const(document()).find_layer(*layer_id); current != nullptr) {
+      Layer candidate = *current;
+      commit_into_layer(candidate, pixels);
+      const auto& committed = std::as_const(candidate);
+      if (committed.name() == current->name() && committed.bounds() == current->bounds() &&
+          committed.visible() == current->visible() && committed.metadata() == current->metadata() &&
+          pixel_buffers_equal(committed.pixels(), current->pixels())) {
+        canvas_->document_changed_effect_bounds(pre_commit_dirty.united(to_qrect(layer_render_bounds(*current))));
+        refresh_layer_list();
+        refresh_layer_controls();
+        refresh_text_color_button();
+        return;
+      }
+    }
+  }
+  // A multi-layer hidden-session pass (apply_text_character_edit) snapshots once for all
+  // of its commits.
+  if (!text_commit_snapshot_suppressed_) {
+    push_undo_snapshot(tr("Type"));
+  }
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
-      // Follow the text content only for auto-derived names; a name the user (or the source PSD)
-      // chose stays put.  No "Text: " prefix -- the layer list already shows a type badge.
-      if (text_layer_name_is_auto(*layer)) {
-        layer->set_name(name.toStdString());
-      }
-      layer->set_pixels(std::move(pixels));
-      layer->set_bounds(committed_bounds);
-      layer->set_visible(restore_existing_visibility);
-      store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, stored_box_width,
-                                 boxed_text ? stored_box_height : local_text_height);
-      store_text_layout_metrics(*layer, rendered.metrics);
-      if (settings.photoshop_layout) {
-        // Imported layers keep their marker through store (it never clears the key); a native
-        // layer that opted in via the Character panel's leading controls persists it here.
-        layer->metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
-      }
-      if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
-        layer->metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
-      } else {
-        layer->metadata().erase(kLayerMetadataTextLineAwareBoxPreview);
-      }
-      if (boxed_text) {
-        layer->metadata()[kLayerMetadataTextTransform] =
-            serialize_layer_affine_transform(committed_text_transform(document_point, text_affine_transform));
-      } else if (text_affine_transform.has_value()) {
-        layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
-      } else if (!settings.vertical) {
-        // Horizontal point text always records its pen: the raster may start left of or above
-        // it (glyph ink overhanging the line start or top, grow_point_text_rect_to_glyph_ink),
-        // so the layer corner no longer identifies the text origin for the next session or the
-        // PSD writer. Vertical point text keeps recovering its anchor from the raster.
-        layer->metadata()[kLayerMetadataTextTransform] =
-            serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
-      }
-      if (committed_warp_used.has_value()) {
-        layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*committed_warp_used);
-        // The warp render mapped text-local space through this transform; store exactly it
-        // (overriding the boxed branch's floored write above) so later re-renders and the
-        // next session entry's probe agree with the raster to the sub-pixel.
-        layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
-            LayerAffineTransform{committed_warp_transform.m11(), committed_warp_transform.m12(),
-                                 committed_warp_transform.m21(), committed_warp_transform.m22(),
-                                 committed_warp_transform.dx(), committed_warp_transform.dy()});
-      }
+      commit_into_layer(*layer, std::move(pixels));
     }
   } else {
     // Reuse the provisional's id when one was just removed: the row the user has watched since
@@ -9737,13 +9753,26 @@ void MainWindow::merge_down() {
   const auto merge_depth = std::as_const(doc).color_state().bit_depth;
   merge_document.color_state().bit_depth = merge_depth;
   LayerId target_id = 0;
+  // A hidden folder that holds the whole merge hides its result too, so only the items' own
+  // visibility and that of folders below the shared ones count (Photoshop; GitHub issue 389).
+  const auto shared_groups = layer_shared_ancestor_groups(std::as_const(doc).layers(), merge_list);
+  const auto draws_in_merge = [&doc, &shared_groups](LayerId id) {
+    std::vector<LayerId> ancestors;
+    (void)collect_layer_ancestor_groups(std::as_const(doc).layers(), id, ancestors);
+    const auto* layer = std::as_const(doc).find_layer(id);
+    return layer != nullptr && layer->visible() &&
+        std::all_of(ancestors.begin(), ancestors.end(), [&](LayerId ancestor) {
+          const auto* group = std::as_const(doc).find_layer(ancestor);
+          return shared_groups.contains(ancestor) || (group != nullptr && group->visible());
+        });
+  };
   for (const auto id : merge_list) {
     const auto* layer = std::as_const(doc).find_layer(id);
     if (layer == nullptr) {
       show_status_error(tr("Select a layer to merge down"));
       return;
     }
-    if (!layer_is_effectively_visible(std::as_const(doc).layers(), id)) {
+    if (!draws_in_merge(id)) {
       continue;
     }
     std::optional<Layer> renderable;

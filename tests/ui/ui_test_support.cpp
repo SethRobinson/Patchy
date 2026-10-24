@@ -1824,6 +1824,11 @@ void accept_new_document_dialog(int width_value, int height_value) {
           artboards != nullptr) {
         artboards->setChecked(false);
       }
+      // RGB, whatever color mode an earlier create left on the Last Used card (GitHub issue 360).
+      if (auto* color_mode = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentColorModeCombo"));
+          color_mode != nullptr) {
+        color_mode->setCurrentIndex(0);
+      }
       widget->grab().save(QStringLiteral("test-artifacts/ui_new_document_dialog.png"));
       dialog->accept();
       return;

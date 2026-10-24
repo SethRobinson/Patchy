@@ -859,6 +859,50 @@ void ui_crop_options_bar_groups_its_controls() {
   CHECK(problems.empty());
 }
 
+// The retouch bars (GitHub issues 381, 382, 383): Clone, Healing, Spot Healing and Patch
+// show the Sample combo with Ignore Adjustment Layers beside it, the Healing Brush its
+// Mode combo, each on one row at 1366 px. The Healing bar is the issue shot.
+void ui_retouch_options_bars_show_sample_and_mode() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1366, 738);
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options_bar != nullptr && options != nullptr);
+  if (options_bar == nullptr || options == nullptr) {
+    return;
+  }
+  const auto index_of = [](const std::vector<QString>& tokens, const QString& token) {
+    const auto found = std::find(tokens.begin(), tokens.end(), token);
+    return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+  };
+  for (const char* action : {"toolCloneAction", "toolHealingBrushAction", "toolSpotHealingAction", "toolPatchAction"}) {
+    require_action(window, action)->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    const auto tokens = options_row_tokens(*options);
+    std::printf("  %s:", action);
+    for (const auto& token : tokens) {
+      std::printf(" %s", qPrintable(token));
+    }
+    std::printf("\n");
+    const auto combo = index_of(tokens, QStringLiteral("retouchSampleLayersCombo"));
+    CHECK(combo > 0);
+    CHECK(index_of(tokens, QStringLiteral("retouchIgnoreAdjustmentsCheck")) == combo + 1);
+    CHECK(index_of(tokens, QStringLiteral("retouchSampleAllLayersCheck")) < 0);
+    const bool healing = std::string_view(action) == "toolHealingBrushAction";
+    CHECK((index_of(tokens, QStringLiteral("healingModeCombo")) >= 0) == healing);
+    const auto [right, lines] = options_row_extent(*options);
+    if (lines != 1) {
+      std::fprintf(stderr, "  %s takes %d rows (row %d px)\n", action, lines, right);
+    }
+    CHECK(lines == 1);
+    if (healing) {
+      save_widget_artifact("issue_381_383_healing_options_bar", *options_bar);
+    }
+  }
+}
+
 // GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
 // then a separator and the Sample Size and Sample fields, and the Show Sample Ring checkbox
 // (GitHub issue 320) after another separator, on one row at 1366 px.
@@ -3990,7 +4034,7 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   auto* healing_button = window.findChild<QToolButton*>(QStringLiteral("healingToolButton"));
   CHECK(healing_button != nullptr);
   CHECK(healing_button->menu() != nullptr);
-  CHECK(healing_button->menu()->actions().size() == 5);
+  CHECK(healing_button->menu()->actions().size() == 6);
   CHECK(healing_button->defaultAction() == require_action(window, "toolHealingBrushAction"));
   require_action(window, "toolSpotHealingAction")->trigger();
   QApplication::processEvents();
@@ -4000,6 +4044,10 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
   CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
+  require_action(window, "toolRedEyeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::RedEye);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolRedEyeAction"));
 
   auto* pen_button = window.findChild<QToolButton*>(QStringLiteral("penToolButton"));
   CHECK(pen_button != nullptr);
@@ -4050,6 +4098,10 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
   CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
+  QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::RedEye);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolRedEyeAction"));
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Healing);
@@ -4391,12 +4443,256 @@ void ui_tool_flyout_right_click_opens_only_the_flyout() {
     CHECK(close_other_menus() == 0);
   }
 
+  // A plain tool button swallows it too (GitHub issue 388); the toolbar menu still opens
+  // from the palette itself.
   auto* hand_button = palette->widgetForAction(require_action(window, "toolHandAction"));
   CHECK(hand_button != nullptr);
   send_context_menu(*hand_button, hand_button->rect().center());
   process_events_for(20);
+  CHECK(close_other_menus() == 0);
+  send_context_menu(*palette, QPoint(1, 1));
+  process_events_for(20);
   CHECK(close_other_menus() == 1);
   CHECK(flyout_shows == 1);
+}
+
+// GitHub issue 368: a left hold, a right-click and a double-click on a flyout button select
+// the tool it shows as the flyout opens, so Escape leaves that tool active; a pick in the
+// flyout still selects that member and becomes the button's face. The already-active tool
+// is not triggered again (a hold on it, the double-click's second press). Each flyout is
+// opened from Brush; the menus block in exec(), so a queued timer records the open menu and
+// answers it with Escape or Return.
+void check_flyout_ways_in_select_the_shown_tool(patchy::ui::MainWindow& window) {
+  auto* brush = require_action(window, "toolBrushAction");
+  auto* marquee_button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+  auto* lasso_button = window.findChild<QToolButton*>(QStringLiteral("lassoToolButton"));
+  auto* wand_button = window.findChild<QToolButton*>(QStringLiteral("wandToolButton"));
+  CHECK(marquee_button != nullptr && lasso_button != nullptr && wand_button != nullptr);
+  if (marquee_button == nullptr || lasso_button == nullptr || wand_button == nullptr) {
+    return;
+  }
+  auto* marquee = require_action(window, "toolMarqueeAction");
+  auto* lasso = require_action(window, "toolLassoAction");
+  auto* polygonal = require_action(window, "toolPolygonalLassoAction");
+  auto* wand = require_action(window, "toolMagicWandAction");
+  CHECK(marquee_button->defaultAction() == marquee);
+  CHECK(lasso_button->defaultAction() == lasso);
+  CHECK(wand_button->defaultAction() == wand);
+
+  int shows = 0;
+  bool shown_tool_active = false;
+  QAction* pick = nullptr;
+  QList<QMetaObject::Connection> connections;
+  for (auto* button : {marquee_button, lasso_button, wand_button}) {
+    auto* menu = button->menu();
+    CHECK(menu != nullptr);
+    connections.append(QObject::connect(menu, &QMenu::aboutToShow, menu, [&, button, menu] {
+      QTimer::singleShot(0, menu, [&, button, menu] {
+        if (!menu->isVisible()) {
+          return;
+        }
+        ++shows;
+        shown_tool_active = button->defaultAction()->isChecked();
+        if (pick != nullptr) {
+          menu->setActiveAction(pick);
+          QTest::keyClick(menu, Qt::Key_Return);
+        } else {
+          QTest::keyClick(menu, Qt::Key_Escape);
+        }
+        if (menu->isVisible()) {  // never leave exec() blocked if the key went astray
+          menu->close();
+        }
+      });
+    }));
+  }
+  int marquee_triggers = 0;
+  int wand_triggers = 0;
+  connections.append(QObject::connect(marquee, &QAction::triggered, marquee, [&] { ++marquee_triggers; }));
+  connections.append(QObject::connect(wand, &QAction::triggered, wand, [&] { ++wand_triggers; }));
+  const auto start_on_brush = [&] {
+    brush->trigger();
+    QApplication::processEvents();
+    CHECK(brush->isChecked());
+    shows = 0;
+    shown_tool_active = false;
+    pick = nullptr;
+  };
+  const int delay =
+      marquee_button->style()->styleHint(QStyle::SH_ToolButton_PopupDelay, nullptr, marquee_button);
+  const auto hold = [&](QToolButton& button) {
+    const QPoint center = button.rect().center();
+    send_mouse(button, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    process_events_until([&] { return shows > 0; }, delay + 1000);
+    send_mouse(button, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    process_events_for(20);
+  };
+  // The right press opens the flyout; the ContextMenu event Qt sends after it stays at the
+  // button (GitHub issue 356), so no other menu opens.
+  const auto right_click = [&](QToolButton& button) {
+    const QPoint center = button.rect().center();
+    send_mouse(button, QEvent::MouseButtonPress, center, Qt::RightButton, Qt::RightButton);
+    send_mouse(button, QEvent::MouseButtonRelease, center, Qt::RightButton, Qt::NoButton);
+    QContextMenuEvent context(QContextMenuEvent::Mouse, center, button.mapToGlobal(center));
+    QApplication::sendEvent(&button, &context);
+    process_events_for(20);
+    int other_menus = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->isVisible()) {
+        ++other_menus;
+        menu->close();
+      }
+    }
+    CHECK(other_menus == 0);
+  };
+
+  // Hold, then Escape: Marquee is active while the flyout is open and stays active.
+  start_on_brush();
+  hold(*marquee_button);
+  CHECK(shows == 1);
+  CHECK(shown_tool_active);
+  CHECK(!marquee_button->menu()->isVisible());
+  CHECK(marquee->isChecked());
+  CHECK(marquee_triggers == 1);
+  CHECK(marquee_button->defaultAction() == marquee);
+  // A hold on the active tool opens the flyout without selecting it again.
+  shows = 0;
+  hold(*marquee_button);
+  CHECK(shows == 1);
+  CHECK(marquee->isChecked());
+  CHECK(marquee_triggers == 1);
+
+  // Right-click, then Escape: Lasso.
+  start_on_brush();
+  right_click(*lasso_button);
+  CHECK(shows == 1);
+  CHECK(shown_tool_active);
+  CHECK(lasso->isChecked());
+  CHECK(lasso_button->defaultAction() == lasso);
+  // Right-click, then pick Polygonal Lasso: it is selected and becomes the button's face.
+  start_on_brush();
+  pick = polygonal;
+  right_click(*lasso_button);
+  CHECK(shows == 1);
+  CHECK(polygonal->isChecked());
+  CHECK(lasso_button->defaultAction() == polygonal);
+
+  // Double-click, then Escape: the first click selects Magic Wand, the second press only
+  // opens the flyout.
+  start_on_brush();
+  wand_triggers = 0;
+  send_double_click(*wand_button, wand_button->rect().center());
+  process_events_for(20);
+  CHECK(shows == 1);
+  CHECK(shown_tool_active);
+  CHECK(wand->isChecked());
+  CHECK(wand_triggers == 1);
+
+  for (const auto& connection : connections) {
+    QObject::disconnect(connection);
+  }
+}
+
+void ui_tool_flyout_hold_and_right_click_select_the_shown_tool() {
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    check_flyout_ways_in_select_the_shown_tool(window);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
+  }
+  // The home screen: tool buttons are enabled with no document open (local-008).
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  check_flyout_ways_in_select_the_shown_tool(window);
+}
+
+// GitHub issue 388: a right-click on a tool button without a flyout selects its tool, as a
+// left click does, and opens no menu (the ContextMenu event comes with the release on
+// Windows, with the press on macOS and X11). The toolbar menu still opens from the empty
+// part of the palette: a separator stands in for it, and the event bubbles from there.
+void ui_tool_button_right_click_selects_plain_tool() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(palette != nullptr);
+  if (palette == nullptr) {
+    return;
+  }
+  const auto close_visible_menus = [] {
+    int visible = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->isVisible()) {
+        ++visible;
+        menu->close();
+      }
+    }
+    process_events_for(20);
+    return visible;
+  };
+  const auto send_context_menu = [](QWidget& target, QPoint position) {
+    QContextMenuEvent context(QContextMenuEvent::Mouse, position, target.mapToGlobal(position));
+    QApplication::sendEvent(&target, &context);
+  };
+  const auto right_click = [&](QWidget& button, bool context_on_press) {
+    const QPoint center = button.rect().center();
+    send_mouse(button, QEvent::MouseButtonPress, center, Qt::RightButton, Qt::RightButton);
+    if (context_on_press) {
+      send_context_menu(button, center);
+    }
+    send_mouse(button, QEvent::MouseButtonRelease, center, Qt::RightButton, Qt::NoButton);
+    if (!context_on_press) {
+      send_context_menu(button, center);
+    }
+    process_events_for(20);
+  };
+  auto* brush = require_action(window, "toolBrushAction");
+  struct PlainTool {
+    const char* action_name;
+    patchy::ui::CanvasTool tool;
+  };
+  const PlainTool plain_tools[] = {{"toolEraserAction", patchy::ui::CanvasTool::Eraser},
+                                   {"toolHandAction", patchy::ui::CanvasTool::Pan},
+                                   {"toolZoomAction", patchy::ui::CanvasTool::Zoom}};
+  for (const auto& plain : plain_tools) {
+    auto* action = require_action(window, plain.action_name);
+    auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action));
+    CHECK(button != nullptr);
+    if (button == nullptr) {
+      continue;
+    }
+    CHECK(button->menu() == nullptr);
+    for (const bool context_on_press : {false, true}) {
+      brush->trigger();
+      QApplication::processEvents();
+      CHECK(brush->isChecked());
+      right_click(*button, context_on_press);
+      CHECK(action->isChecked());
+      CHECK(canvas->tool() == plain.tool);
+      CHECK(close_visible_menus() == 0);
+    }
+    // A right-click on the active tool keeps it.
+    right_click(*button, false);
+    CHECK(action->isChecked());
+    CHECK(close_visible_menus() == 0);
+  }
+
+  QWidget* separator = nullptr;
+  for (auto* action : palette->actions()) {
+    if (action->isSeparator()) {
+      separator = palette->widgetForAction(action);
+      break;
+    }
+  }
+  CHECK(separator != nullptr);
+  if (separator != nullptr) {
+    send_context_menu(*separator, separator->rect().center());
+    process_events_for(20);
+    CHECK(close_visible_menus() == 1);
+  }
 }
 
 // Where a flyout row's icon box starts (GitHub issue 284). The current tool's marker (issue
@@ -5143,6 +5439,103 @@ void ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans() {
   CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
 }
 
+// GitHub issue 390: the Crop tool icon leaves a larger clear square between its crop marks
+// (philipzae's mockup) and its art still spans 29 of 32 units (issue 338). The artifacts are
+// the issue shots: the palette around the Crop button and its open flyout, in both schemes
+// at 100% and 200%, plus the icon at 32 px.
+void ui_tool_palette_crop_icon_has_large_center() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Light, patchy::ui::ColorSchemePreference::Dark}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("cropToolButton"));
+    CHECK(button != nullptr && button->menu() != nullptr);
+    if (button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    auto* action = require_action(window, "toolCropAction");
+    const QImage icon = action->icon().pixmap(QSize(32, 32), 1.0).toImage().convertToFormat(QImage::Format_ARGB32);
+    const std::string suffix = light ? "_light" : "_dark";
+    ensure_artifact_dir();
+    CHECK(icon.save(QString::fromStdString("test-artifacts/issue_390_crop_icon_32" + suffix + ".png")));
+    // The palette around the Crop button, then the open flyout over the window, each at 100%
+    // and 200%: QWidget::render into an image of that pixel ratio draws the icons at it.
+    const QPoint button_origin = button->mapTo(&window, QPoint(0, 0));
+    const auto render_region = [&window](const QRect& region, qreal ratio, QWidget* popup, QPoint popup_position) {
+      QImage image(region.size() * ratio, QImage::Format_ARGB32_Premultiplied);
+      image.setDevicePixelRatio(ratio);
+      image.fill(Qt::transparent);
+      window.render(&image, QPoint(), QRegion(region));
+      if (popup != nullptr) {
+        QPainter painter(&image);
+        popup->render(&painter, popup_position - region.topLeft());
+      }
+      return image;
+    };
+    for (const qreal ratio : {1.0, 2.0}) {
+      const std::string scale = ratio > 1.5 ? "_200" : "_100";
+      const QRect around = QRect(button_origin, button->size()).adjusted(-8, -60, 8, 60).intersected(window.rect());
+      CHECK(render_region(around, ratio, nullptr, QPoint())
+                .save(QString::fromStdString("test-artifacts/issue_390_crop_palette" + suffix + scale + ".png")));
+    }
+    auto* menu = button->menu();
+    QTimer::singleShot(0, [&] {
+      const QPoint popup_position = menu->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0));
+      const QRect crop = QRect(button_origin, button->size())
+                             .united(QRect(popup_position, menu->size()))
+                             .adjusted(-8, -14, 14, 14)
+                             .intersected(window.rect());
+      for (const qreal ratio : {1.0, 2.0}) {
+        const std::string scale = ratio > 1.5 ? "_200" : "_100";
+        CHECK(render_region(crop, ratio, menu, popup_position)
+                  .save(QString::fromStdString("test-artifacts/issue_390_crop_flyout" + suffix + scale + ".png")));
+      }
+      menu->close();
+    });
+    button->showMenu();
+    QApplication::processEvents();
+    CHECK(!menu->isVisible());
+    if (!light) {
+      // Ink extent: the longer side at 29 of 32 units.
+      int left = icon.width();
+      int right = -1;
+      int top = icon.height();
+      int bottom = -1;
+      for (int y = 0; y < icon.height(); ++y) {
+        for (int x = 0; x < icon.width(); ++x) {
+          if (qAlpha(icon.pixel(x, y)) > 28) {
+            left = std::min(left, x);
+            right = std::max(right, x);
+            top = std::min(top, y);
+            bottom = std::max(bottom, y);
+          }
+        }
+      }
+      const int extent = std::max(right - left + 1, bottom - top + 1);
+      // The clear center on the middle row: the run between the two frame strokes, with the
+      // accent diagonal (the blue ink) counted as clear.
+      const auto frame_ink = [&icon](int x, int y) {
+        const QColor color = QColor::fromRgba(icon.pixel(x, y));
+        return color.alpha() > 128 && color.blue() <= color.red() + 40;
+      };
+      int clear_left = 16;
+      while (clear_left > 0 && !frame_ink(clear_left - 1, 16)) {
+        --clear_left;
+      }
+      int clear_right = 16;
+      while (clear_right < 31 && !frame_ink(clear_right + 1, 16)) {
+        ++clear_right;
+      }
+      const int clear = clear_right - clear_left + 1;
+      std::printf("  crop icon ink extent %d px, clear center %d px (x %d..%d)\n", extent, clear, clear_left,
+                  clear_right);
+      CHECK(extent >= 28 && extent <= 30);
+      CHECK(clear >= 13);
+    }
+  }
+}
+
 void ui_tool_palette_icons_render_sheet() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -5169,6 +5562,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolHealingBrushAction", "Healing Brush"},
       {"toolSpotHealingAction", "Spot Healing"},
       {"toolPatchAction", "Patch"},
+      {"toolRedEyeAction", "Red Eye"},
       {"toolSmudgeAction", "Smudge"},
       {"toolMixerBrushAction", "Mixer Brush"},
       {"toolDodgeAction", "Dodge"},
@@ -7573,6 +7967,180 @@ void ui_layer_blend_mode_steps_coalesce_into_one_undo_entry() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
 }
 
+namespace blend_preview {
+
+struct PreviewDocument {
+  patchy::LayerId lower_id{};
+  patchy::LayerId upper_id{};
+};
+
+// A white Background under two overlapping blue layers; the upper one is active.
+PreviewDocument add_preview_document(patchy::ui::MainWindow& window) {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  PreviewDocument ids;
+  patchy::Layer lower(document.allocate_layer_id(), "Lower",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  lower.set_bounds(patchy::Rect{70, 40, 40, 40});
+  ids.lower_id = lower.id();
+  document.add_layer(std::move(lower));
+  patchy::Layer upper(document.allocate_layer_id(), "Upper",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  upper.set_bounds(patchy::Rect{10, 10, 40, 40});
+  ids.upper_id = upper.id();
+  document.add_layer(std::move(upper));
+  document.set_active_layer(ids.upper_id);
+  window.add_document_session(std::move(document), QStringLiteral("Blend Preview"));
+  return ids;
+}
+
+QColor composite_pixel(patchy::ui::MainWindow& window, int x, int y) {
+  return patchy::ui::qimage_from_document(std::as_const(patchy::ui::MainWindowTestAccess::document(window)), false)
+      .pixelColor(x, y);
+}
+
+patchy::BlendMode mode_of(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  return layer != nullptr ? layer->blend_mode() : patchy::BlendMode::Normal;
+}
+
+// Moves the open list's highlight the way the pointer or an arrow key does, then lets
+// the coalescing timer render it.
+void highlight_mode(QComboBox& combo, patchy::BlendMode mode) {
+  const auto index = combo.findData(static_cast<int>(mode));
+  CHECK(index >= 0);
+  combo.view()->setCurrentIndex(combo.model()->index(index, combo.modelColumn()));
+  QElapsedTimer settle;
+  settle.start();
+  while (settle.elapsed() < 150) {
+    QApplication::processEvents(QEventLoop::AllEvents, 10);
+  }
+}
+
+// A key in the open list as a real press arrives: the shortcut override first (Qt's
+// list chooses on Return there), then the press while the list is still open.
+void press_in_open_list(QComboBox& combo, int key) {
+  QKeyEvent shortcut(QEvent::ShortcutOverride, key, Qt::NoModifier);
+  shortcut.ignore();
+  QApplication::sendEvent(combo.view(), &shortcut);
+  if (combo.view()->isVisible()) {
+    send_key(*combo.view(), key);
+  }
+  QApplication::processEvents();
+}
+
+}  // namespace blend_preview
+
+// GitHub issue 367: the open blend list previews the highlighted mode on every selected
+// layer with no history entry, and closing it without a choice (or switching layers
+// while it is open) puts the original modes and pixels back.
+void ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  using blend_preview::composite_pixel;
+  using blend_preview::mode_of;
+  patchy::ui::MainWindow window;
+  const auto ids = blend_preview::add_preview_document(window);
+  show_window(window);
+  QApplication::processEvents();
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  Access::select_layers(window, {ids.lower_id, ids.upper_id}, ids.upper_id);
+  QApplication::processEvents();
+
+  const auto upper_before = composite_pixel(window, 20, 20);
+  const auto lower_before = composite_pixel(window, 80, 50);
+  CHECK(upper_before == QColor(30, 150, 220));
+  const auto depth_before = Access::active_session_undo_depth(window);
+  CHECK(!Access::active_session_is_modified(window));
+
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Difference);
+  // Difference against white inverts both layers on the canvas.
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Difference);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Difference);
+  CHECK(composite_pixel(window, 20, 20) == QColor(225, 105, 35));
+  CHECK(composite_pixel(window, 80, 50) == QColor(225, 105, 35));
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(!Access::active_session_is_modified(window));
+  // The window with the open list drawn where it sits on screen. A plain grab: the
+  // theme check flags Qt's private popup container (QComboBoxPrivateContainer), whose
+  // own background the themed list covers.
+  QApplication::processEvents(QEventLoop::AllEvents, 100);
+  auto shot = window.grab().toImage();
+  auto* popup = blend_combo->view()->window();
+  const auto popup_shot = popup->grab().toImage();
+  if (!shot.isNull() && !popup_shot.isNull()) {
+    QPainter painter(&shot);
+    // Both grabs carry the device pixel ratio, so the painter works in logical pixels.
+    painter.drawImage(QPointF(popup->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0))), popup_shot);
+    painter.end();
+    save_image_artifact("ui_layer_blend_list_preview", shot);
+  }
+
+  // Esc closes the list without a choice.
+  blend_preview::press_in_open_list(*blend_combo, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!blend_combo->view()->isVisible());
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Normal);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Normal);
+  CHECK(composite_pixel(window, 20, 20) == upper_before);
+  CHECK(composite_pixel(window, 80, 50) == lower_before);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(!Access::active_session_is_modified(window));
+
+  // A layer switch while the list is open also reverts and closes it.
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Screen);
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Screen);
+  Access::select_layers(window, {ids.lower_id}, ids.lower_id);
+  QApplication::processEvents();
+  CHECK(!blend_combo->view()->isVisible());
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Normal);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Normal);
+  CHECK(composite_pixel(window, 20, 20) == upper_before);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(!Access::active_session_is_modified(window));
+}
+
+// Choosing a highlighted mode commits it as exactly one history entry, which undoes to
+// the mode the layer had before the list opened.
+void ui_layer_blend_list_choice_after_preview_is_one_undo_entry() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  using blend_preview::mode_of;
+  patchy::ui::MainWindow window;
+  const auto ids = blend_preview::add_preview_document(window);
+  show_window(window);
+  QApplication::processEvents();
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  const auto depth_before = Access::active_session_undo_depth(window);
+
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Screen);
+  blend_preview::highlight_mode(*blend_combo, patchy::BlendMode::Difference);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  blend_preview::press_in_open_list(*blend_combo, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!blend_combo->view()->isVisible());
+  CHECK(blend_combo->currentText() == QStringLiteral("Difference"));
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Difference);
+  CHECK(mode_of(window, ids.lower_id) == patchy::BlendMode::Normal);
+  CHECK(blend_preview::composite_pixel(window, 20, 20) == QColor(225, 105, 35));
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  CHECK(Access::active_session_is_modified(window));
+
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(mode_of(window, ids.upper_id) == patchy::BlendMode::Normal);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+}
+
 namespace blend_rows {
 
 struct FolderDocument {
@@ -7959,7 +8527,7 @@ void ui_right_dock_panels_expand_within_window_height() {
   QApplication::processEvents();
 
   for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
-                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+                           "infoDockCollapseButton", "colorDockCollapseButton", "paletteDockCollapseButton"}) {
     auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
     CHECK(toggle != nullptr);
     toggle->setChecked(true);
@@ -7980,7 +8548,7 @@ void ui_right_dock_panels_expand_within_window_height() {
   CHECK(palette_scroll->verticalScrollBar()->maximum() > 0);
 
   int docks_height = 0;
-  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "paletteDock"}) {
+  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "colorDock", "paletteDock"}) {
     const auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(name));
     CHECK(dock != nullptr);
     CHECK(dock->height() <= window.height());
@@ -8045,7 +8613,8 @@ void ui_right_dock_floors_fit_the_screen_height() {
   // panel's four lines, the Properties scroll area) can exceed such a short
   // screen; then the window grows only to that irreducible minimum, never
   // because of a floor the fit could have lowered.
-  for (const auto* name : {"infoDockCollapseButton", "historyDockCollapseButton", "paletteDockCollapseButton"}) {
+  for (const auto* name : {"infoDockCollapseButton", "historyDockCollapseButton", "colorDockCollapseButton",
+                           "paletteDockCollapseButton"}) {
     auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
     CHECK(toggle != nullptr);
     if (toggle == nullptr) {
@@ -8057,7 +8626,7 @@ void ui_right_dock_floors_fit_the_screen_height() {
     CHECK(window.height() <= std::max(budget, window.minimumSizeHint().height()));
     CHECK(layers_dock->minimumHeight() <= 300);
   }
-  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "paletteDock"}) {
+  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "colorDock", "paletteDock"}) {
     const auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(name));
     CHECK(dock != nullptr);
     if (dock != nullptr) {
@@ -8085,10 +8654,10 @@ void ui_right_dock_floors_fit_the_screen_height() {
 void ui_collapsed_right_docks_have_uniform_title_height() {
   patchy::ui::MainWindow window;
   show_window(window);
-  // History/Properties/Info/Palette all start collapsed: each section is exactly its
+  // History/Properties/Info/Color/Palette all start collapsed: each section is exactly its
   // title row (min == max), with no dead band under the header, at the column width.
   int first_height = -1;
-  for (const auto* prefix : {"history", "properties", "info", "palette"}) {
+  for (const auto* prefix : {"history", "properties", "info", "color", "palette"}) {
     auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QLatin1String(prefix) + QStringLiteral("Dock"));
     auto* title = window.findChild<QWidget*>(QLatin1String(prefix) + QStringLiteral("DockTitle"));
     CHECK(dock != nullptr && title != nullptr);
@@ -8158,7 +8727,7 @@ void ui_short_panel_scroll_bar_drags_by_handle() {
   require_action(window, "layerNewAction")->trigger();
   QApplication::processEvents();
   for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
-                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+                           "infoDockCollapseButton", "colorDockCollapseButton", "paletteDockCollapseButton"}) {
     auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
     CHECK(toggle != nullptr);
     toggle->setChecked(true);
@@ -8527,9 +9096,13 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tools_work_with_no_document_open", ui_tools_work_with_no_document_open},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_only_the_flyout", ui_tool_flyout_right_click_opens_only_the_flyout},
+      {"ui_tool_flyout_hold_and_right_click_select_the_shown_tool",
+       ui_tool_flyout_hold_and_right_click_select_the_shown_tool},
+      {"ui_tool_button_right_click_selects_plain_tool", ui_tool_button_right_click_selects_plain_tool},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
        ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_flyout_marks_the_tool_its_button_shows", ui_tool_flyout_marks_the_tool_its_button_shows},
+      {"ui_tool_palette_crop_icon_has_large_center", ui_tool_palette_crop_icon_has_large_center},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_toolbar_spin_boxes_select_all_on_focus", ui_toolbar_spin_boxes_select_all_on_focus},
@@ -8554,6 +9127,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
       {"ui_options_menu_buttons_show_the_gear", ui_options_menu_buttons_show_the_gear},
       {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
+      {"ui_retouch_options_bars_show_sample_and_mode", ui_retouch_options_bars_show_sample_and_mode},
       {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
@@ -8581,6 +9155,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_blend_mode_combos_step_with_left_and_right_arrows", ui_blend_mode_combos_step_with_left_and_right_arrows},
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
+      {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",
+       ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close},
+      {"ui_layer_blend_list_choice_after_preview_is_one_undo_entry",
+       ui_layer_blend_list_choice_after_preview_is_one_undo_entry},
       {"ui_layer_folder_blend_mode_offers_pass_through", ui_layer_folder_blend_mode_offers_pass_through},
       {"ui_layer_row_shows_blend_mode_change_at_once", ui_layer_row_shows_blend_mode_change_at_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",

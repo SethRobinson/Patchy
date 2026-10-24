@@ -2,6 +2,7 @@
 
 #include "formats/animation_timing.hpp"
 #include "formats/webp_animation_io.hpp"
+#include "formats/apng_writer.hpp"
 #include "color/color_management.hpp"
 #include "ui/tiff_jpeg_reader.hpp"
 #include "ui/apng_reader.hpp"
@@ -3458,6 +3459,142 @@ void ui_animated_png_skips_separate_default_image_and_rejects_bad_sequences() {
   CHECK(document.layers().size() == 1);
 }
 
+// GitHub issue 366: File > Export > Layers as Animated PNG writes the visible top-level
+// layers as APNG frames, top layer first, that Patchy's own reader decodes exactly, at a
+// Unicode path. Frame 1 is the default image, so a plain PNG reader shows it.
+void ui_apng_export_round_trips_through_the_apng_reader() {
+  patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 150.0;
+  document.print_settings().vertical_ppi = 150.0;
+  const auto layer_pixels = [](int kind) {
+    patchy::PixelBuffer pixels(10, 6, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 6; ++y) for (std::int32_t x = 0; x < 10; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(kind == 0 ? 200 : x * 20);
+      px[1] = static_cast<std::uint8_t>(kind == 1 ? 180 : y * 30);
+      px[2] = static_cast<std::uint8_t>(kind == 2 ? 220 : 10);
+      px[3] = kind == 2 && x >= 5 ? 0 : 255;  // the top layer is half transparent
+    }
+    return pixels;
+  };
+  document.add_pixel_layer("bottom 70s", layer_pixels(0));
+  document.add_pixel_layer("middle", layer_pixels(1));
+  document.add_pixel_layer("top 0.033s", layer_pixels(2));
+  document.add_pixel_layer("hidden", layer_pixels(1));
+  document.layers().back().set_visible(false);
+  std::vector<patchy::PixelBuffer> expected{layer_pixels(2), layer_pixels(1), layer_pixels(0)};
+
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto stem = patchy::test::kUnicodePathStems[1];
+  const auto path = directory.path() + QLatin1Char('/') +
+      QString::fromUtf8(reinterpret_cast<const char*>(stem.data()), static_cast<qsizetype>(stem.size())) +
+      QStringLiteral(".png");
+  patchy::ui::ImageSaveOptions options;
+  options.apng_animate = true;
+  options.apng_loop_count = 2;
+  options.animation_frame_delay_ms = 50;
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options);
+
+  QFile file(path);
+  CHECK(file.open(QIODevice::ReadOnly));
+  const auto data = file.readAll();
+  file.close();
+  // Kept for checks with other decoders (browsers, Pillow).
+  ensure_artifact_dir();
+  QFile::remove(QStringLiteral("test-artifacts/apng-export.png"));
+  CHECK(QFile::copy(path, QStringLiteral("test-artifacts/apng-export.png")));
+  CHECK(patchy::apng::is_animated_png(bytes_of(data)));
+  const auto animation = patchy::apng::read_animated_png(bytes_of(data));
+  CHECK(animation.width == 10 && animation.height == 6);
+  CHECK(animation.play_count == 2);
+  CHECK(animation.frames.size() == 3);
+  const std::array<std::uint32_t, 3> delays{33, 50, 70000};
+  for (std::size_t frame = 0; frame < 3; ++frame) {
+    CHECK(animation.frames[frame].delay_ms == delays[frame]);
+    const auto image = animation.frames[frame].image.convertToFormat(QImage::Format_RGBA8888);
+    for (int y = 0; y < 6; ++y) for (int x = 0; x < 10; ++x) {
+      const auto* got = image.constScanLine(y) + x * 4;
+      const auto* want = expected[frame].pixel(x, y);
+      CHECK(got[3] == want[3]);
+      if (want[3] != 0) CHECK(std::equal(got, got + 3, want));
+    }
+  }
+  QImage still(path);
+  CHECK(still.width() == 10);
+  CHECK(still.convertToFormat(QImage::Format_RGBA8888).pixelColor(0, 0) == QColor(0, 0, 220));
+  CHECK(still.dotsPerMeterX() == 5906);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  const auto& reopened = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(reopened.layers().size() == 3);
+  CHECK(reopened.layers().back().name() == "Frame 1 0.033s");
+  CHECK(reopened.metadata().values.at(patchy::apng::kLoopCountMetadata) == "2");
+
+  // A failed export leaves the existing file alone.
+  options.apng_loop_count = 65536;
+  bool threw = false;
+  try { patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options); }
+  catch (const std::exception&) { threw = true; }
+  CHECK(threw);
+  CHECK(file.open(QIODevice::ReadOnly));
+  CHECK(file.readAll() == data);
+}
+
+// The Animated PNG options dialog behind File > Export > Layers as Animated PNG: frame
+// delay and play count, plus the shared Export section. Save As .png shows no dialog.
+void ui_apng_export_dialog_options() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(window.findChild<QAction*>(QStringLiteral("fileExportAnimatedPngAction")) != nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("fileExportAnimatedPngAction"))->menuRole() == QAction::NoRole);
+  patchy::ui::ImageSaveOptions seed;
+  seed.apng_animate = true;
+  seed.apng_loop_count = 4;
+  std::exception_ptr failure;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("apngSaveOptionsDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("apngFrameDelaySpin"));
+      auto* forever_check = dialog->findChild<QCheckBox*>(QStringLiteral("apngForeverCheck"));
+      auto* plays = dialog->findChild<QSpinBox*>(QStringLiteral("apngPlayCountSpin"));
+      CHECK(delay && forever_check && plays);
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("apngAnimationExplanationLabel")) != nullptr);
+      CHECK(dialog->findChild<QWidget*>(QStringLiteral("exportMetadataCombo")) != nullptr);
+      CHECK(!forever_check->isChecked());
+      CHECK(plays->value() == 4);
+      CHECK(no_clipped_labels(*dialog));
+      patchy::test::ui::save_widget_artifact("apng-export-options", *dialog);
+      delay->setValue(0.25);
+      plays->setValue(7);
+      forever_check->setChecked(true);
+      CHECK(!plays->isEnabled());
+      dialog->accept();
+    } catch (...) {
+      failure = std::current_exception();
+      if (dialog) dialog->reject();
+    }
+  });
+  const auto chosen = patchy::ui::prompt_image_save_options(&window, QStringLiteral("png"), seed, true, QSize(10, 6));
+  if (failure) std::rethrow_exception(failure);
+  CHECK(chosen.has_value());
+  CHECK(chosen->apng_animate);
+  CHECK(chosen->apng_loop_count == 0);
+  CHECK(chosen->animation_frame_delay_ms == 250);
+  // A plain PNG save has no options dialog and stays flat.
+  const auto plain = patchy::ui::prompt_image_save_options(&window, QStringLiteral("png"), {}, false);
+  CHECK(plain.has_value());
+  CHECK(!plain->apng_animate);
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
 void ui_jpeg_compressed_tiff_opens_through_the_jpeg_decoder() {
   ensure_artifact_dir();
   QImage source(24, 16, QImage::Format_RGB32);
@@ -3604,6 +3741,8 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_animated_png_composites_offsets_dispose_and_blend", ui_animated_png_composites_offsets_dispose_and_blend},
       {"ui_animated_png_skips_separate_default_image_and_rejects_bad_sequences",
        ui_animated_png_skips_separate_default_image_and_rejects_bad_sequences},
+      {"ui_apng_export_round_trips_through_the_apng_reader", ui_apng_export_round_trips_through_the_apng_reader},
+      {"ui_apng_export_dialog_options", ui_apng_export_dialog_options},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
       {"ui_flat_alpha_round_trips_as_editable_mask", ui_flat_alpha_round_trips_as_editable_mask},

@@ -1,6 +1,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
 #include "ui/animation_preview_window.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 // The JS scripting engine host (docs/scripting.md): per-run QJSEngine lifecycle,
 // the bootstrap prelude (console/timers/include/patchy namespace), the watchdog,
@@ -1046,7 +1047,7 @@ std::int64_t ScriptEngineHost::open_document_file(const QString& path) {
   return 0;
 }
 
-std::int64_t ScriptEngineHost::create_document(int width, int height) {
+std::int64_t ScriptEngineHost::create_document(int width, int height, const QString& title) {
   pump_progress_indicator();
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     return 0;
@@ -1056,7 +1057,7 @@ std::int64_t ScriptEngineHost::create_document(int width, int height) {
   background.clear(255);
   auto& layer = document.add_pixel_layer("Background", std::move(background));
   document.set_active_layer(layer.id());
-  window_.add_document_session(std::move(document), tr("Untitled"));
+  window_.add_document_session(std::move(document), title.isEmpty() ? tr("Untitled") : title);
   return active_session_id();
 }
 
@@ -1175,6 +1176,31 @@ bool ScriptEngineHost::export_session_animated_webp(std::int64_t session_id, con
     return false;
   }
   session->document.metadata().values[webp::kLoopCountMetadata] = std::to_string(options.webp_loop_count);
+  window_.add_recent_file(path);
+  offer_browser_download_for_saved_file(path);
+  return true;
+}
+
+bool ScriptEngineHost::export_session_animated_png(std::int64_t session_id, const QString& path,
+                                                  const ImageSaveOptions& options, QString* error) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    *error = tr("One of the documents is no longer open.");
+    return false;
+  }
+  window_.activate_document_session(*session);
+  window_.finish_active_text_editor();
+  if (window_.animation_preview_window_ != nullptr) {
+    window_.animation_preview_window_->stop_playback_for(&session->document);
+  }
+  try {
+    write_animated_png_file(std::as_const(session->document), path, options);
+  } catch (const std::exception& exception) {
+    *error = translate_data_text(exception.what());
+    return false;
+  }
+  session->document.metadata().values[apng::kLoopCountMetadata] = std::to_string(options.apng_loop_count);
   window_.add_recent_file(path);
   offer_browser_download_for_saved_file(path);
   return true;
@@ -1906,6 +1932,47 @@ bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, Layer
     *attempt_used = result.attempt;
   }
   note_pixels_changed(session_id, canvas->selected_document_rect().value_or(QRect()));
+  return true;
+}
+
+bool ScriptEngineHost::red_eye(std::int64_t session_id, LayerId layer_id, QPoint point, std::optional<QRect> box,
+                               int pupil_size, int darken_amount, std::int64_t* pupil_pixels, QRect* changed) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  if (session->document.find_layer(layer_id) == nullptr) {
+    throw_js_error(tr("The layer no longer exists."));
+    return false;
+  }
+  const auto active_id = std::as_const(session->document).active_layer_id();
+  if (!active_id.has_value() || *active_id != layer_id) {
+    throw_js_error(tr("redEye needs the document's active layer (set doc.activeLayer first)."));
+    return false;
+  }
+  auto* canvas = session->canvas;
+  if (!prepare_mutation(session_id)) {
+    return false;
+  }
+  session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  const auto result = canvas->apply_red_eye_at(point, box, pupil_size, darken_amount, /*record_history=*/false);
+  if (result.pupil_pixels <= 0) {
+    throw_js_error(result.error.isEmpty() ? tr("redEye found no red pixels.") : result.error);
+    return false;
+  }
+  if (pupil_pixels != nullptr) {
+    *pupil_pixels = result.pupil_pixels;
+  }
+  if (changed != nullptr) {
+    *changed = result.changed;
+  }
+  note_pixels_changed(session_id, result.changed);
   return true;
 }
 
@@ -3687,7 +3754,7 @@ struct ScriptSidePanel {
 constexpr ScriptSidePanel kScriptSidePanels[] = {
     {"layers", "layersDock"},   {"channels", "channelsDock"},     {"paths", "pathsDock"},
     {"history", "historyDock"}, {"properties", "propertiesDock"}, {"info", "infoDock"},
-    {"palette", "paletteDock"},
+    {"palette", "paletteDock"}, {"color", "colorDock"},
 };
 
 }  // namespace

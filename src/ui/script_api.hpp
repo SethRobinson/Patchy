@@ -169,6 +169,7 @@ public:
   // document's active layer. Options {method, attempt}; returns {method,
   // patches, source, sourceCount}.
   Q_INVOKABLE QJSValue removeObject(const QJSValue& options = QJSValue());
+  Q_INVOKABLE QJSValue redEye(const QJSValue& options = QJSValue());
   // Layer > Layer Mask > Remove Background (script_ai_selection.cpp).
   Q_INVOKABLE void removeBackground(const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue getPixels();
@@ -353,6 +354,7 @@ public:
   Q_INVOKABLE bool saveAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE bool exportAnimatedPng(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE void close();
   Q_INVOKABLE void activate();
   // Artboards (script_artboards.cpp).
@@ -393,7 +395,7 @@ public:
 
   Q_INVOKABLE QJSValue open(const QString& path);
   Q_INVOKABLE QJSValue getDocument(const QString& id);
-  Q_INVOKABLE QJSValue newDocument(int width, int height);
+  Q_INVOKABLE QJSValue newDocument(int width, int height, const QJSValue& options = QJSValue());
   Q_INVOKABLE void alert(const QString& text);
   Q_INVOKABLE QJSValue prompt(const QString& text, const QString& defaultValue = QString());
   // Modal folder/file pickers; empty string when cancelled or unattended (CLI).

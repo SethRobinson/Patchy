@@ -15,6 +15,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
@@ -1440,6 +1441,175 @@ void ui_layer_thumbnails_preview_the_whole_document() {
   QApplication::processEvents();
   CHECK(thumbnail_pixmap(QStringLiteral("Square"), QStringLiteral("layerContentThumbnail")).size() ==
         QSize(28, 28));
+}
+
+// GitHub issue 386: the layer context menus' Thumbnail Size submenu (None, Small, Medium,
+// Large) resizes every row's content and mask tiles and the row height, redraws folder and
+// adjustment glyphs at the new size, and is remembered for the next window.
+void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
+  SettingsValueRestorer restore_size{QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey)};
+  SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QLatin1String(patchy::ui::kLayerThumbnailSizeSettingsKey));
+    settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), false);
+    settings.sync();
+  }
+  const auto make_document = [] {
+    patchy::Document document(96, 96, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer sky(96, 96, patchy::PixelFormat::rgba8());
+    for (int y = 0; y < 96; ++y) {
+      for (int x = 0; x < 96; ++x) {
+        auto* px = sky.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(60 + y);
+        px[1] = static_cast<std::uint8_t>(110 + x);
+        px[2] = 230;
+        px[3] = 255;
+      }
+    }
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Sky", std::move(sky)));
+    patchy::Layer sun(document.allocate_layer_id(), "Sun",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(250, 200, 40)));
+    sun.set_bounds(patchy::Rect{48, 8, 40, 40});
+    patchy::PixelBuffer sun_mask(40, 40, patchy::PixelFormat::gray8());
+    for (int y = 0; y < 40; ++y) {
+      for (int x = 0; x < 40; ++x) {
+        const auto dx = x - 20;
+        const auto dy = y - 20;
+        *sun_mask.pixel(x, y) = dx * dx + dy * dy <= 18 * 18 ? 255 : 0;
+      }
+    }
+    sun.set_mask(patchy::LayerMask{patchy::Rect{48, 8, 40, 40}, std::move(sun_mask), 0, false});
+    document.add_layer(std::move(sun));
+    patchy::Layer folder(document.allocate_layer_id(), "Hills", patchy::LayerKind::Group);
+    patchy::Layer hill(document.allocate_layer_id(), "Hill",
+                       solid_pixels(96, 30, patchy::PixelFormat::rgba8(), QColor(60, 150, 70)));
+    hill.set_bounds(patchy::Rect{0, 66, 96, 30});
+    folder.add_child(std::move(hill));
+    document.add_layer(std::move(folder));
+    patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::Levels;
+    settings.levels = patchy::LevelsAdjustment{20, 230, 110};
+    patchy::configure_adjustment_layer(levels, settings);
+    document.add_layer(std::move(levels));
+    return document;
+  };
+
+  struct Expected {
+    const char* action;
+    const char* token;
+    int tile;
+    int mask_tile;
+    int row_height;
+    const char* artifact;
+  };
+  const std::array<Expected, 4> sizes{{
+      {"layerThumbnailSizeLargeAction", "large", 48, 48, 60, "issue386_layers_large"},
+      {"layerThumbnailSizeSmallAction", "small", 20, 20, 36, "issue386_layers_small"},
+      {"layerThumbnailSizeNoneAction", "none", 0, 20, 36, "issue386_layers_none"},
+      {"layerThumbnailSizeMediumAction", "medium", 28, 28, 44, "issue386_layers_medium"},
+  }};
+
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.add_document_session(make_document(), QStringLiteral("Thumbnail Sizes"));
+    QApplication::processEvents();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+    CHECK(layer_list != nullptr && layers_dock != nullptr);
+    const auto row_widget = [layer_list](const char* name) {
+      auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(name)));
+      CHECK(row != nullptr);
+      return row;
+    };
+    const auto pixmap_size = [&](const char* layer_name, const char* label_name) {
+      auto* label = row_widget(layer_name)->findChild<QLabel*>(QString::fromLatin1(label_name));
+      return label != nullptr ? label->pixmap(Qt::ReturnByValue).size() : QSize();
+    };
+
+    // Medium is the default and is today's 28 px tile in a 44 px row.
+    CHECK(pixmap_size("Sky", "layerContentThumbnail") == QSize(28, 28));
+    CHECK(require_layer_item(*layer_list, QStringLiteral("Sky"))->sizeHint().height() == 44);
+    save_widget_artifact("issue386_layers_default", *layers_dock);
+
+    // The row menu ends with the submenu, Medium checked.
+    QStringList size_entries;
+    bool medium_checked = false;
+    QTimer::singleShot(0, [&] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* menu = qobject_cast<QMenu*>(widget);
+        if (menu == nullptr || !menu->isVisible() || menu->objectName() != QStringLiteral("layerContextMenu")) {
+          continue;
+        }
+        if (auto* size_menu = menu->findChild<QMenu*>(QStringLiteral("layerThumbnailSizeMenu"));
+            size_menu != nullptr && menu->actions().back() == size_menu->menuAction()) {
+          for (auto* action : size_menu->actions()) {
+            size_entries << action->text().remove(QLatin1Char('&'));
+            if (action->objectName() == QStringLiteral("layerThumbnailSizeMediumAction")) {
+              medium_checked = action->isChecked();
+            }
+          }
+        }
+        menu->close();
+        return;
+      }
+    });
+    const auto point = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Sun"))).center();
+    QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, layer_list->viewport()->mapToGlobal(point));
+    QApplication::sendEvent(layer_list->viewport(), &context_event);
+    QApplication::processEvents();
+    CHECK(size_entries == (QStringList{QStringLiteral("None"), QStringLiteral("Small"), QStringLiteral("Medium"),
+                                       QStringLiteral("Large")}));
+    CHECK(medium_checked);
+
+    for (const auto& expected : sizes) {
+      auto* action = require_action(window, expected.action);
+      action->trigger();
+      QApplication::processEvents();
+      CHECK(action->isChecked());
+      CHECK(patchy::ui::app_settings()
+                .value(QLatin1String(patchy::ui::kLayerThumbnailSizeSettingsKey))
+                .toString() == QLatin1String(expected.token));
+      auto* sky_content = row_widget("Sky")->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+      if (expected.tile == 0) {
+        CHECK(sky_content == nullptr);
+        CHECK(row_widget("Hills")->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")) == nullptr);
+      } else {
+        CHECK(sky_content != nullptr && sky_content->size() == QSize(expected.tile + 2, expected.tile + 2));
+        // Square document: every tile is square. Glyphs are redrawn at the size, not scaled.
+        CHECK(pixmap_size("Sky", "layerContentThumbnail") == QSize(expected.tile, expected.tile));
+        CHECK(pixmap_size("Sun", "layerContentThumbnail") == QSize(expected.tile, expected.tile));
+        CHECK(pixmap_size("Hills", "layerContentThumbnail") == QSize(expected.tile, expected.tile));
+        CHECK(pixmap_size("Levels", "layerContentThumbnail") == QSize(expected.tile, expected.tile));
+      }
+      CHECK(pixmap_size("Sun", "layerMaskThumbnail") == QSize(expected.mask_tile, expected.mask_tile));
+      for (const auto* name : {"Sky", "Sun", "Hills", "Levels"}) {
+        auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+        CHECK(item->sizeHint().height() == expected.row_height);
+        auto* main_row = row_widget(name)->findChild<QWidget*>(QStringLiteral("layerMainRow"));
+        CHECK(main_row != nullptr && main_row->height() == expected.row_height);
+        CHECK(layer_list->visualItemRect(item).height() == expected.row_height);
+      }
+      save_widget_artifact(expected.artifact, *layers_dock);
+    }
+    require_action(window, "layerThumbnailSizeLargeAction")->trigger();
+    QApplication::processEvents();
+  }
+
+  // A new window starts at the saved size.
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  reopened.add_document_session(make_document(), QStringLiteral("Thumbnail Sizes Again"));
+  QApplication::processEvents();
+  auto* layer_list = reopened.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(require_action(reopened, "layerThumbnailSizeLargeAction")->isChecked());
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Sky")));
+  auto* content = row != nullptr ? row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")) : nullptr;
+  CHECK(content != nullptr && content->pixmap(Qt::ReturnByValue).size() == QSize(48, 48));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Sky"))->sizeHint().height() == 60);
 }
 
 void ui_layer_thumbnails_zoom_to_content_preference() {
@@ -5101,6 +5271,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
       {"ui_layer_panel_mixed_folder_visual_cleanup", ui_layer_panel_mixed_folder_visual_cleanup},
       {"ui_layer_thumbnails_preview_the_whole_document", ui_layer_thumbnails_preview_the_whole_document},
+      {"ui_layer_thumbnail_size_menu_resizes_rows_and_persists",
+       ui_layer_thumbnail_size_menu_resizes_rows_and_persists},
       {"ui_layer_thumbnails_zoom_to_content_preference", ui_layer_thumbnails_zoom_to_content_preference},
       {"ui_layer_drag_drops_child_above_parent_folder", ui_layer_drag_drops_child_above_parent_folder},
       {"ui_layer_drag_multiselect_drops_children_above_parent_folder",

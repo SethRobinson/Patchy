@@ -6,6 +6,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/ai_control_paths.hpp"
 #include "ui/ai_setup_dialog.hpp"
+#include "ui/apng_reader.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
@@ -1266,6 +1267,63 @@ void ui_script_webp_animation_export_preserves_document_and_validates_options() 
   CHECK(still.imageCount() == 1);
 }
 
+// GitHub issue 366: doc.exportAnimatedPng mirrors exportAnimatedWebp.
+void ui_script_apng_animation_export_preserves_document_and_validates_options() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto stem = patchy::test::kUnicodePathStems[2];
+  const auto base = directory.path() + QLatin1Char('/') +
+      QString::fromUtf8(reinterpret_cast<const char*>(stem.data()), static_cast<qsizetype>(stem.size()));
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("apng-export");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(16, 12);
+    d.activeLayer.name = 'Bottom'; d.activeLayer.fill('#ff0000');
+    var top = d.addLayer('Top 0.033s'); top.fill('#00ff00');
+    var hidden = d.addLayer('Hidden'); hidden.fill('#0000ff'); hidden.visible = false;
+    var oldPath = d.path, oldModified = d.modified;
+    var p = patchy.args.base;
+    if (!d.exportAnimatedPng(p+'.png', {loopCount:3, frameDelayMs:40})) throw Error('export');
+    if (d.path !== oldPath || d.modified !== oldModified) throw Error('source changed');
+    var size = patchy.io.fileSize(p+'.png');
+    var invalid = [{frameDelayMs:16777216},{frameDelayMs:NaN},{frameDelayMs:1.5},{loopCount:65536},
+      {loopCount:-1},{quality:50},{typo:1},null,[]];
+    invalid.forEach(function(o) {
+      var threw=false;
+      try { d.exportAnimatedPng(p+'.png',o); } catch(e) { threw=true; }
+      if(!threw) throw Error('accepted invalid options');
+    });
+    if (patchy.io.fileSize(p+'.png') !== size) throw Error('failed export changed destination');
+    var threw=false;
+    try { d.exportAnimatedPng(p+'.webp'); } catch(e) { threw=true; }
+    if(!threw) throw Error('accepted wrong extension');
+    if (!d.exportAnimatedPng(p+'-inherited.apng', {frameDelayMs:40})) throw Error('inherited export');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << '\n';
+  CHECK(!host.last_run_had_error());
+  for (const auto& suffix : {QStringLiteral(".png"), QStringLiteral("-inherited.apng")}) {
+    QFile file(base + suffix);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const auto data = file.readAll();
+    const auto animation = patchy::apng::read_animated_png(
+        {reinterpret_cast<const std::uint8_t*>(data.constData()), static_cast<std::size_t>(data.size())});
+    CHECK(animation.play_count == 3);
+    CHECK(animation.frames.size() == 2);
+    CHECK(animation.frames[0].delay_ms == 33);
+    CHECK(animation.frames[0].image.pixelColor(0, 0) == QColor(Qt::green));
+    CHECK(animation.frames[1].delay_ms == 40);
+    CHECK(animation.frames[1].image.pixelColor(0, 0) == QColor(Qt::red));
+  }
+}
+
 void ui_script_io_round_trips_unicode_path() {
   // The patchy.io probes plus saveAs/open on a Unicode, special-character path. The
   // directory comes in through --script-arg style args; the file name is built in the
@@ -1536,6 +1594,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_script_ui_expand_panel_in_cli_capture", ui_script_ui_expand_panel_in_cli_capture},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
       {"ui_script_webp_animation_export_preserves_document_and_validates_options", ui_script_webp_animation_export_preserves_document_and_validates_options},
+      {"ui_script_apng_animation_export_preserves_document_and_validates_options", ui_script_apng_animation_export_preserves_document_and_validates_options},
       {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},
       {"ui_script_io_write_text_file_replaces_atomically_and_throws", ui_script_io_write_text_file_replaces_atomically_and_throws},
       {"ui_script_editor_save_failure_keeps_file_and_modified_flag", ui_script_editor_save_failure_keeps_file_and_modified_flag},

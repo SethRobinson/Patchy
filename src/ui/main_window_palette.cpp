@@ -18,6 +18,7 @@
 #include <QToolButton>
 #include "ui/canvas_widget.hpp"
 #include "formats/jxl_document_io.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 
 #include "core/document_depth.hpp"
@@ -543,6 +544,11 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
       const auto count = QString::fromStdString(found->second).toInt(&valid);
       if (valid && count >= 0 && count <= 65535) options.jxl_loop_count = count;
     }
+    if (const auto found = values.find(apng::kLoopCountMetadata); found != values.end()) {
+      bool valid = false;
+      const auto count = QString::fromStdString(found->second).toInt(&valid);
+      if (valid && count >= 0 && count <= 65535) options.apng_loop_count = count;
+    }
   }
   if (has_active_document() && document().palette_editing().has_value() &&
       !document().palette_editing()->palette.colors.empty()) {
@@ -631,6 +637,9 @@ void MainWindow::persist_image_save_defaults(const ImageSaveOptions& options) {
   }
   if (has_active_document() && options.jxl_animate) {
     document().metadata().values[jxl::kLoopCountMetadata] = std::to_string(options.jxl_loop_count);
+  }
+  if (has_active_document() && options.apng_animate) {
+    document().metadata().values[apng::kLoopCountMetadata] = std::to_string(options.apng_loop_count);
   }
   if (has_active_document() && document().palette_editing().has_value()) {
     // The indexed BMP choices were driven by this document's palette; keep the

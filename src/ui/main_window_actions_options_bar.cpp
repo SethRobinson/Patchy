@@ -1986,10 +1986,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
   brush_size_slider->setProperty(kOptionsBarCollapsibleProperty, true);
   bind_curved_slider(*brush_size_slider, *brush_size);
-  // 130 (was 150): the Brush row must keep one Options-bar line at ordinary
-  // window widths now that it also carries the Smoothing spin and gear
-  // (ui_brush_tip_picker_keeps_options_bar_height).
-  brush_size_slider->setFixedWidth(124);
+  // 84 (was 124, 150 before that): the Brush row must keep one Options-bar line,
+  // slider included, at 1366 px with the fixed-width Tip picker and the separator
+  // after Opacity (GitHub issue 364; ui_brush_tip_picker_keeps_a_fixed_width).
+  brush_size_slider->setFixedWidth(84);
   register_retranslation([brush_size_slider] {
     brush_size_slider->setToolTip(resolve_modifier_names(MainWindow::tr("Brush size: press [ or ], or %ALT%+Right-drag on the canvas")));
   });
@@ -2033,6 +2033,45 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       retranslate_paint_mode_items(brush_mode_combo);
     }
   });
+  // The Healing Brush's Mode (GitHub issue 381). Item data is the HealingMode value.
+  add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Healing});
+  healing_mode_combo_ = new QComboBox(toolbar);
+  healing_mode_combo_->setObjectName(QStringLiteral("healingModeCombo"));
+  const auto healing_mode_text = [](HealingMode mode) {
+    return mode == HealingMode::Replace ? QCoreApplication::translate(kMainWindowTranslationContext, "Replace")
+                                        : blend_mode_name(healing_mode_blend(mode));
+  };
+  static_cast<void>(QT_TR_NOOP("Replace"));
+  for (const auto mode : {HealingMode::Normal, HealingMode::Replace, HealingMode::Multiply, HealingMode::Screen,
+                          HealingMode::Darken, HealingMode::Lighten, HealingMode::Color, HealingMode::Luminosity}) {
+    healing_mode_combo_->addItem(healing_mode_text(mode), static_cast<int>(mode));
+  }
+  healing_mode_combo_->setCurrentIndex(
+      std::max(0, healing_mode_combo_->findData(static_cast<int>(canvas_defaults->healing_mode()))));
+  bind_tooltip(healing_mode_combo_,
+               QT_TR_NOOP("Healing mode: Replace keeps the source texture as sampled; the blend modes combine the "
+                          "healed color with the pixels under it"));
+  add_option_widget(healing_mode_combo_, {CanvasTool::Healing});
+  connect(healing_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || healing_mode_combo_ == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_healing_mode(static_cast<HealingMode>(healing_mode_combo_->itemData(index).toInt()));
+    save_tool_settings();
+  });
+  {
+    QPointer<QComboBox> healing_combo(healing_mode_combo_);
+    register_retranslation([healing_combo, healing_mode_text] {
+      if (healing_combo == nullptr) {
+        return;
+      }
+      const QSignalBlocker blocker(healing_combo);
+      for (int index = 0; index < healing_combo->count(); ++index) {
+        healing_combo->setItemText(index,
+                                   healing_mode_text(static_cast<HealingMode>(healing_combo->itemData(index).toInt())));
+      }
+    });
+  }
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Opacity:"),
       {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
@@ -2051,6 +2090,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Opacity and Soft have no inline slider (Flow and Smooth never did): the field's
   // popup slider, a drag on its label or inside the field, and the number keys set them.
   bind_tooltip(brush_opacity, QT_TR_NOOP("Brush opacity: press number keys (5 = 50%, 0 = 100%)"));
+  // Mode and Opacity | the tip's own settings (GitHub issue 364). Pixels mode only on the
+  // shape tools, like the controls on either side.
+  {
+    auto* separator = make_option_separator();
+    register_option_action(separator, {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone,
+                                       CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser,
+                                       CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+    vector_pixel_only_option_widgets_.push_back(separator);
+  }
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Soft:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
@@ -2301,7 +2349,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   mixer_sample_all_layers_check_->setObjectName(QStringLiteral("mixerSampleAllLayersCheck"));
   mixer_sample_all_layers_check_->setChecked(canvas_defaults->mixer_sample_all_layers());
   bind_tooltip(mixer_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
-  add_option_separator({CanvasTool::MixerBrush});
+  // No separator before the checkbox: the Mixer row has no room for it at 1366 px next to
+  // the fixed-width Tip picker (docs/options-bar.md rule 9; GitHub issue 364).
   add_option_widget(mixer_sample_all_layers_check_, {CanvasTool::MixerBrush});
   connect(mixer_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
@@ -2672,19 +2721,68 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  retouch_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
-  retouch_sample_all_layers_check_->setObjectName(QStringLiteral("retouchSampleAllLayersCheck"));
-  retouch_sample_all_layers_check_->setChecked(canvas_defaults->retouch_sample_all_layers());
-  bind_tooltip(retouch_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
-  add_option_separator({CanvasTool::SpotHealing});
-  add_option_widget(retouch_sample_all_layers_check_,
-                    {CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
-  connect(retouch_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+  // Sample (GitHub issue 382): which layers the retouch tools read. Item data is the
+  // settings token; the texts are the Pick tool's Sample texts.
+  const std::initializer_list<CanvasTool> retouch_tools{CanvasTool::Clone, CanvasTool::Healing,
+                                                        CanvasTool::SpotHealing, CanvasTool::PatchTool};
+  add_option_separator({CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+  add_option_label(QT_TR_NOOP("Sample:"), retouch_tools);
+  retouch_sample_layers_combo_ = new QComboBox(toolbar);
+  retouch_sample_layers_combo_->setObjectName(QStringLiteral("retouchSampleLayersCombo"));
+  const auto retouch_sample_text = [](SampleLayers mode) {
+    static constexpr std::array<const char*, 3> kRetouchSampleTexts{
+        QT_TR_NOOP("Current Layer"), QT_TR_NOOP("Current & Below"), QT_TR_NOOP("All Layers")};
+    return QCoreApplication::translate(kMainWindowTranslationContext,
+                                       kRetouchSampleTexts[static_cast<std::size_t>(mode)]);
+  };
+  for (const auto mode : {SampleLayers::CurrentLayer, SampleLayers::CurrentAndBelow, SampleLayers::AllLayers}) {
+    retouch_sample_layers_combo_->addItem(retouch_sample_text(mode), QString::fromLatin1(sample_layers_token(mode)));
+  }
+  retouch_sample_layers_combo_->setCurrentIndex(std::max(
+      0, retouch_sample_layers_combo_->findData(
+             QString::fromLatin1(sample_layers_token(canvas_defaults->retouch_sample_layers())))));
+  bind_tooltip(retouch_sample_layers_combo_,
+               QT_TR_NOOP("Which layers the tool reads: the active layer, it and the layers below (heal on an "
+                          "empty layer above the image), or the merged image"));
+  add_option_widget(retouch_sample_layers_combo_, retouch_tools);
+  connect(retouch_sample_layers_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || retouch_sample_layers_combo_ == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_retouch_sample_layers(sample_layers_from_settings(
+        retouch_sample_layers_combo_->itemData(index).toString().toStdString(), std::nullopt));
+    sync_retouch_sample_controls_from_canvas();
+    save_tool_settings();
+  });
+  // Ignore Adjustment Layers (GitHub issue 383): only the composite choices read it.
+  retouch_ignore_adjustments_check_ = new CheckGlyphBox(tr("Ignore Adjustment Layers"), toolbar);
+  retouch_ignore_adjustments_check_->setObjectName(QStringLiteral("retouchIgnoreAdjustmentsCheck"));
+  retouch_ignore_adjustments_check_->setChecked(canvas_defaults->retouch_ignore_adjustments());
+  retouch_ignore_adjustments_check_->setEnabled(canvas_defaults->retouch_sample_layers() !=
+                                                SampleLayers::CurrentLayer);
+  bind_tooltip(retouch_ignore_adjustments_check_,
+               QT_TR_NOOP("Leave adjustment layers out of the sampled image, so an adjustment above the "
+                          "retouched layer is not applied twice"));
+  add_option_widget(retouch_ignore_adjustments_check_, retouch_tools);
+  connect(retouch_ignore_adjustments_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
-      canvas_->set_retouch_sample_all_layers(checked);
+      canvas_->set_retouch_ignore_adjustments(checked);
       save_tool_settings();
     }
   });
+  {
+    QPointer<QComboBox> retouch_combo(retouch_sample_layers_combo_);
+    register_retranslation([retouch_combo, retouch_sample_text] {
+      if (retouch_combo == nullptr) {
+        return;
+      }
+      const QSignalBlocker blocker(retouch_combo);
+      for (int index = 0; index < retouch_combo->count(); ++index) {
+        const auto token = retouch_combo->itemData(index).toString().toStdString();
+        retouch_combo->setItemText(index, retouch_sample_text(sample_layers_from_settings(token, std::nullopt)));
+      }
+    });
+  }
 
   add_option_separator({CanvasTool::PatchTool});
   // Patch tool: Remove Object heals the drawn selection automatically, the
@@ -2701,6 +2799,43 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       remove_object_action_->trigger();
     }
   });
+
+  // Red Eye (canvas_widget_red_eye.cpp): Pupil Size and Darken Amount, a spin box and a
+  // slider each like the Fill tool's Opacity.
+  const auto add_red_eye_percent = [&](const char* label, const char* spin_name, const char* slider_name,
+                                       const char* tooltip, int value, QSpinBox*& spin_out, QSlider*& slider_out,
+                                       void (MainWindow::*apply)(int)) {
+    add_option_label(label, {CanvasTool::RedEye});
+    auto* spin = new QSpinBox(toolbar);
+    spin->setObjectName(QString::fromLatin1(spin_name));
+    spin->setRange(1, 100);
+    spin->setValue(value);
+    spin->setSuffix(percent_suffix());
+    configure_toolbar_spinbox(spin, 52);
+    bind_tooltip(spin, tooltip);
+    add_option_widget(spin, {CanvasTool::RedEye});
+    auto* slider = new QSlider(Qt::Horizontal, toolbar);
+    slider->setObjectName(QString::fromLatin1(slider_name));
+    slider->setProperty(kOptionsBarCollapsibleProperty, true);
+    slider->setRange(1, 100);
+    slider->setValue(value);
+    slider->setFixedWidth(110);
+    bind_tooltip(slider, tooltip);
+    add_option_widget(slider, {CanvasTool::RedEye});
+    connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
+    connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+    connect(spin, &QSpinBox::valueChanged, this, apply);
+    spin_out = spin;
+    slider_out = slider;
+  };
+  add_red_eye_percent(QT_TR_NOOP("Pupil Size:"), "redEyePupilSizeSpin", "redEyePupilSizeSlider",
+                      QT_TR_NOOP("Higher values take in more of the reddish rim around the pupil"),
+                      current_red_eye_pupil_size_, red_eye_pupil_spin_, red_eye_pupil_slider_,
+                      &MainWindow::set_red_eye_pupil_size);
+  add_option_separator({CanvasTool::RedEye});
+  add_red_eye_percent(QT_TR_NOOP("Darken Amount:"), "redEyeDarkenAmountSpin", "redEyeDarkenAmountSlider",
+                      QT_TR_NOOP("How much darker the corrected pupil gets"), current_red_eye_darken_amount_,
+                      red_eye_darken_spin_, red_eye_darken_slider_, &MainWindow::set_red_eye_darken_amount);
 
   add_option_separator({CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge, CanvasTool::BlurBrush,
                         CanvasTool::SharpenBrush});

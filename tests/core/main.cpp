@@ -204,6 +204,7 @@ int main(int argc, char** argv) {
            trustmark_tests,
            tiff_layers_tests,
            hdr_display_tests,
+           red_eye_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

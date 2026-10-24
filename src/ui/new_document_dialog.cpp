@@ -8,6 +8,8 @@
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 
+#include "color/color_management.hpp"
+#include "color/rgb_profiles.hpp"
 #include "ui/app_settings.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/color_panel.hpp"
@@ -27,8 +29,10 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QAction>
 #include <QDoubleSpinBox>
 #include <QFontMetrics>
+#include <QInputDialog>
 #include <QGridLayout>
 #include <QIcon>
 #include <QJsonArray>
@@ -39,6 +43,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
@@ -47,6 +52,7 @@
 #include <QRegularExpression>
 #include <QShortcut>
 #include <QSignalBlocker>
+#include <QStandardItemModel>
 #include <QStyle>
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
@@ -93,12 +99,13 @@ constexpr int kMaxRecentDocuments = 8;
 
 // The template groups, in chip order (GitHub issue 222). Organized by what people make
 // rather than after another editor's list; every group holds at most 12 templates, so
-// it fits the five-column, three-row card grid without a scroll bar.
-enum class PresetCategory { Screen, Mobile, Social, Web, Print, Photo, Icons };
+// it fits the five-column, three-row card grid without a scroll bar. Saved holds the
+// user's own presets (GitHub issue 374); its chip shows only while there are some.
+enum class PresetCategory { Screen, Mobile, Social, Web, Print, Photo, Icons, Saved };
 
 constexpr std::array kPresetCategories = {PresetCategory::Screen, PresetCategory::Mobile, PresetCategory::Social,
                                           PresetCategory::Web,    PresetCategory::Print,  PresetCategory::Photo,
-                                          PresetCategory::Icons};
+                                          PresetCategory::Icons,  PresetCategory::Saved};
 
 QString preset_category_name(PresetCategory category) {
   switch (category) {
@@ -116,6 +123,8 @@ QString preset_category_name(PresetCategory category) {
       return QObject::tr("Photo", "new document template group");
     case PresetCategory::Icons:
       return QObject::tr("Icons & Games", "new document template group");
+    case PresetCategory::Saved:
+      return QObject::tr("Saved", "new document template group of the user's own presets");
   }
   return {};
 }
@@ -136,6 +145,8 @@ QString preset_category_chip_name(PresetCategory category) {
       return QStringLiteral("newDocumentPhotoChip");
     case PresetCategory::Icons:
       return QStringLiteral("newDocumentIconsChip");
+    case PresetCategory::Saved:
+      return QStringLiteral("newDocumentSavedChip");
   }
   return {};
 }
@@ -157,6 +168,8 @@ QString preset_category_token(PresetCategory category) {
       return QStringLiteral("photo");
     case PresetCategory::Icons:
       return QStringLiteral("icons");
+    case PresetCategory::Saved:
+      return QStringLiteral("saved");
   }
   return {};
 }
@@ -178,6 +191,116 @@ struct NewDocumentPreset {
   bool clipboard{false};
   bool tablet{false};  // a Mobile template for a tablet: the Artboard picker's Tablet group
 };
+
+// One document's settings: what a Recent card or a saved preset restores.
+struct RecentDocumentSettings {
+  QSize size;
+  double ppi{kScreenPpi};
+  MeasurementUnit unit{MeasurementUnit::Pixels};
+  int resolution_unit_index{0};
+  QColor background{Qt::white};
+  int bits{8};
+  bool artboards{false};
+  bool cmyk_proof{false};
+
+  // The same document whatever units the fields show: what Save Preset compares.
+  [[nodiscard]] bool same_document(const RecentDocumentSettings& other) const {
+    return size == other.size && std::abs(ppi - other.ppi) < 1e-6 && background.rgba() == other.background.rgba() &&
+           bits == other.bits && artboards == other.artboards && cmyk_proof == other.cmyk_proof;
+  }
+  bool operator==(const RecentDocumentSettings& other) const {
+    return same_document(other) && unit == other.unit && resolution_unit_index == other.resolution_unit_index;
+  }
+};
+
+// The colorMode tokens of newDocument/recent and newDocument/userPresets - never rename. A
+// missing key reads as RGB, so entries written before GitHub issue 360 load unchanged.
+constexpr QLatin1StringView kColorModeRgbToken("rgb");
+constexpr QLatin1StringView kColorModeCmykProofToken("cmykProof");
+
+// One entry of newDocument/recent or newDocument/userPresets: {w, h, ppi, unit (a
+// measurement_unit_settings_token), resolutionUnit, background (#AARRGGBB), bits,
+// artboards, colorMode}. Nullopt for an entry without a usable size.
+std::optional<RecentDocumentSettings> document_settings_from_json(const QJsonObject& entry) {
+  const auto width = entry.value(QStringLiteral("w")).toInt();
+  const auto height = entry.value(QStringLiteral("h")).toInt();
+  if (width < 1 || height < 1) {
+    return std::nullopt;
+  }
+  RecentDocumentSettings recent;
+  recent.size = QSize(std::clamp(width, 1, 30000), std::clamp(height, 1, 30000));
+  recent.ppi = std::clamp(entry.value(QStringLiteral("ppi")).toDouble(kScreenPpi), 0.01, 9999.0);
+  recent.unit =
+      measurement_unit_from_settings_token(entry.value(QStringLiteral("unit")).toString(), MeasurementUnit::Pixels);
+  if (recent.unit != MeasurementUnit::Pixels && recent.unit != MeasurementUnit::Inches &&
+      recent.unit != MeasurementUnit::Centimeters && recent.unit != MeasurementUnit::Millimeters) {
+    recent.unit = MeasurementUnit::Pixels;
+  }
+  recent.resolution_unit_index = std::clamp(entry.value(QStringLiteral("resolutionUnit")).toInt(), 0, 1);
+  if (const QColor background(entry.value(QStringLiteral("background")).toString()); background.isValid()) {
+    recent.background = background;
+  }
+  recent.bits = entry.value(QStringLiteral("bits")).toInt(8);
+  recent.artboards = entry.value(QStringLiteral("artboards")).toBool();
+  recent.cmyk_proof = entry.value(QStringLiteral("colorMode")).toString() == kColorModeCmykProofToken;
+  return recent;
+}
+
+QJsonObject document_settings_to_json(const RecentDocumentSettings& recent) {
+  QJsonObject entry;
+  entry.insert(QStringLiteral("w"), recent.size.width());
+  entry.insert(QStringLiteral("h"), recent.size.height());
+  entry.insert(QStringLiteral("ppi"), recent.ppi);
+  entry.insert(QStringLiteral("unit"), measurement_unit_settings_token(recent.unit));
+  entry.insert(QStringLiteral("resolutionUnit"), recent.resolution_unit_index);
+  entry.insert(QStringLiteral("background"), recent.background.name(QColor::HexArgb));
+  entry.insert(QStringLiteral("bits"), recent.bits);
+  entry.insert(QStringLiteral("artboards"), recent.artboards);
+  entry.insert(QStringLiteral("colorMode"),
+               QString(recent.cmyk_proof ? kColorModeCmykProofToken : kColorModeRgbToken));
+  return entry;
+}
+
+// A preset made with Save Preset (GitHub issue 374).
+struct UserPreset {
+  QString id;  // "user-N", persisted; a new preset takes one above every existing N
+  QString name;
+  RecentDocumentSettings settings;
+};
+
+bool is_user_preset_id(const QString& id) { return id.startsWith(QStringLiteral("user-")); }
+
+// newDocument/userPresets (permanent): a JSON array, oldest first, of the recent-entry
+// fields plus `id` and `name`.
+std::vector<UserPreset> load_user_presets() {
+  std::vector<UserPreset> presets;
+  const auto array =
+      QJsonDocument::fromJson(app_settings().value(QStringLiteral("newDocument/userPresets")).toString().toUtf8())
+          .array();
+  for (const auto& value : array) {
+    const auto entry = value.toObject();
+    const auto id = entry.value(QStringLiteral("id")).toString();
+    const auto name = entry.value(QStringLiteral("name")).toString().trimmed();
+    auto settings = document_settings_from_json(entry);
+    if (!is_user_preset_id(id) || name.isEmpty() || !settings.has_value()) {
+      continue;
+    }
+    presets.push_back({id, name, *settings});
+  }
+  return presets;
+}
+
+void store_user_presets(const std::vector<UserPreset>& presets) {
+  QJsonArray array;
+  for (const auto& preset : presets) {
+    auto entry = document_settings_to_json(preset.settings);
+    entry.insert(QStringLiteral("id"), preset.id);
+    entry.insert(QStringLiteral("name"), preset.name);
+    array.append(entry);
+  }
+  app_settings().setValue(QStringLiteral("newDocument/userPresets"),
+                          QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+}
 
 // Sizes come from the published specs: display and video standards, the device makers'
 // native screen resolutions, each platform's own upload guidance, the IAB ad units, ISO
@@ -293,6 +416,13 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
           {QStringLiteral("art-texture-4096"), QObject::tr("Texture 4K"), QSize(4096, 4096), kScreenPpi},
           {QStringLiteral("game-store-header"), QObject::tr("Game Store Header"), QSize(920, 430), kScreenPpi},
       };
+    case PresetCategory::Saved: {
+      std::vector<NewDocumentPreset> presets;
+      for (const auto& preset : load_user_presets()) {
+        presets.push_back({preset.id, preset.name, preset.settings.size, preset.settings.ppi});
+      }
+      return presets;
+    }
   }
   return {};
 }
@@ -319,6 +449,9 @@ bool size_preset_matches_search(const QString& name, const QString& group, QSize
 std::vector<ArtboardSizePreset> artboard_size_presets() {
   std::vector<ArtboardSizePreset> presets;
   for (const auto category : kPresetCategories) {
+    if (category == PresetCategory::Saved) {
+      continue;  // document presets, not artboard sizes
+    }
     for (const auto& preset : presets_for_category(category)) {
       if (preset.clipboard) {
         continue;
@@ -348,27 +481,8 @@ PresetCategory category_of_preset_id(const QString& id) {
   return PresetCategory::Screen;
 }
 
-// One created document's settings, which a Recent card restores: what the Last Used card
-// restored before the row existed.
-struct RecentDocumentSettings {
-  QSize size;
-  double ppi{kScreenPpi};
-  MeasurementUnit unit{MeasurementUnit::Pixels};
-  int resolution_unit_index{0};
-  QColor background{Qt::white};
-  int bits{8};
-  bool artboards{false};
-
-  bool operator==(const RecentDocumentSettings& other) const {
-    return size == other.size && std::abs(ppi - other.ppi) < 1e-6 && unit == other.unit &&
-           resolution_unit_index == other.resolution_unit_index &&
-           background.rgba() == other.background.rgba() && bits == other.bits && artboards == other.artboards;
-  }
-};
-
-// newDocument/recent (permanent): a JSON array, newest first, of {w, h, ppi, unit (a
-// measurement_unit_settings_token), resolutionUnit, background (#AARRGGBB), bits,
-// artboards}. Before the key exists, the old Last Used keys seed one entry.
+// newDocument/recent (permanent): a JSON array, newest first, of document_settings_to_json
+// entries. Before the key exists, the old Last Used keys seed one entry.
 std::vector<RecentDocumentSettings> load_recent_documents(MeasurementUnit seed_unit, int seed_resolution_unit,
                                                           bool seed_artboards) {
   std::vector<RecentDocumentSettings> recents;
@@ -377,29 +491,12 @@ std::vector<RecentDocumentSettings> load_recent_documents(MeasurementUnit seed_u
     const auto array = QJsonDocument::fromJson(settings.value(QStringLiteral("newDocument/recent")).toString().toUtf8())
                            .array();
     for (const auto& value : array) {
-      const auto entry = value.toObject();
-      const auto width = entry.value(QStringLiteral("w")).toInt();
-      const auto height = entry.value(QStringLiteral("h")).toInt();
-      if (width < 1 || height < 1) {
+      const auto recent = document_settings_from_json(value.toObject());
+      if (!recent.has_value()) {
         continue;
       }
-      RecentDocumentSettings recent;
-      recent.size = QSize(std::clamp(width, 1, 30000), std::clamp(height, 1, 30000));
-      recent.ppi = std::clamp(entry.value(QStringLiteral("ppi")).toDouble(kScreenPpi), 0.01, 9999.0);
-      recent.unit = measurement_unit_from_settings_token(entry.value(QStringLiteral("unit")).toString(),
-                                                         MeasurementUnit::Pixels);
-      if (recent.unit != MeasurementUnit::Pixels && recent.unit != MeasurementUnit::Inches &&
-          recent.unit != MeasurementUnit::Centimeters && recent.unit != MeasurementUnit::Millimeters) {
-        recent.unit = MeasurementUnit::Pixels;
-      }
-      recent.resolution_unit_index = std::clamp(entry.value(QStringLiteral("resolutionUnit")).toInt(), 0, 1);
-      if (const QColor background(entry.value(QStringLiteral("background")).toString()); background.isValid()) {
-        recent.background = background;
-      }
-      recent.bits = entry.value(QStringLiteral("bits")).toInt(8);
-      recent.artboards = entry.value(QStringLiteral("artboards")).toBool();
-      if (std::find(recents.begin(), recents.end(), recent) == recents.end()) {
-        recents.push_back(recent);
+      if (std::find(recents.begin(), recents.end(), *recent) == recents.end()) {
+        recents.push_back(*recent);
       }
       if (static_cast<int>(recents.size()) == kMaxRecentDocuments) {
         break;
@@ -434,16 +531,7 @@ void store_recent_documents(const std::vector<RecentDocumentSettings>& recents) 
     if (array.size() == kMaxRecentDocuments) {
       break;
     }
-    QJsonObject entry;
-    entry.insert(QStringLiteral("w"), recent.size.width());
-    entry.insert(QStringLiteral("h"), recent.size.height());
-    entry.insert(QStringLiteral("ppi"), recent.ppi);
-    entry.insert(QStringLiteral("unit"), measurement_unit_settings_token(recent.unit));
-    entry.insert(QStringLiteral("resolutionUnit"), recent.resolution_unit_index);
-    entry.insert(QStringLiteral("background"), recent.background.name(QColor::HexArgb));
-    entry.insert(QStringLiteral("bits"), recent.bits);
-    entry.insert(QStringLiteral("artboards"), recent.artboards);
-    array.append(entry);
+    array.append(document_settings_to_json(recent));
   }
   app_settings().setValue(QStringLiteral("newDocument/recent"),
                           QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
@@ -481,6 +569,22 @@ class ResizeWatcher final : public QObject {
  private:
   std::function<void()> on_resize_;
 };
+
+// The characters a file name cannot hold on Windows, the strictest file system.
+bool is_file_name_illegal(QChar character) {
+  return character.unicode() < 0x20 || QStringLiteral("\\/:*?\"<>|").contains(character);
+}
+
+QString without_illegal_file_name_characters(const QString& text) {
+  QString cleaned;
+  cleaned.reserve(text.size());
+  for (const auto character : text) {
+    if (!is_file_name_illegal(character)) {
+      cleaned.append(character);
+    }
+  }
+  return cleaned;
+}
 
 bool preset_matches_search(const NewDocumentPreset& preset, PresetCategory category, const QString& text) {
   return size_preset_matches_search(preset.name, preset_category_name(category), preset.size, text);
@@ -589,7 +693,8 @@ ThemedQss new_document_dialog_style() {
     QDialog#patchyNewDocumentDialog QLabel#newDocumentGroupLabel {
       color: @nd_section_text;
     }
-    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit {
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit,
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentNameEdit {
       background: @panel_card_bg;
       border: 1px solid @nd_field_border;
       border-radius: 3px;
@@ -597,7 +702,8 @@ ThemedQss new_document_dialog_style() {
       min-height: 22px;
       padding: 0 6px;
     }
-    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit:focus {
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit:focus,
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentNameEdit:focus {
       border-color: @primary_border;
     }
     QDialog#patchyNewDocumentDialog QWidget#newDocumentChipRow {
@@ -681,6 +787,10 @@ ThemedQss new_document_dialog_style() {
       background: @neutral_button_hover_bg;
       border-color: @neutral_button_hover_border;
     }
+    QDialog#patchyNewDocumentDialog QPushButton:disabled {
+      color: @nd_field_disabled_text;
+      border-color: @nd_field_disabled_border;
+    }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentCreateButton {
       background: @primary_bg;
       border: 1px solid @primary_border;
@@ -726,13 +836,21 @@ ThemedQss new_document_dialog_style() {
 
 }  // namespace
 
+QString sanitized_new_document_name(const QString& name) {
+  auto cleaned = without_illegal_file_name_characters(name).trimmed();
+  while (!cleaned.isEmpty() && (cleaned.back() == QLatin1Char('.') || cleaned.back() == QLatin1Char(' '))) {
+    cleaned.chop(1);
+  }
+  return cleaned;
+}
+
 bool clipboard_offers_image() {
   const auto* clipboard = QApplication::clipboard();
   const auto* mime = clipboard != nullptr ? clipboard->mimeData() : nullptr;
   return mime != nullptr && mime->hasImage();
 }
 
-std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
+std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent, const QString& default_name) {
   auto clipboard_image = clipboard_offers_image() ? QApplication::clipboard()->image() : QImage();
 
   QDialog dialog(parent);
@@ -908,25 +1026,62 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   background_swatch->setCursor(Qt::PointingHandCursor);
   background_swatch->setFocusPolicy(Qt::StrongFocus);
 
+  // The document's name (GitHub issue 374): the tab title and the default Save As name.
+  // Characters a file name cannot hold are dropped as they are typed.
+  const auto fallback_name = default_name.isEmpty() ? QObject::tr("Untitled-1") : default_name;
+  auto* name = new QLineEdit(fallback_name, &dialog);
+  name->setObjectName(QStringLiteral("newDocumentNameEdit"));
+  name->setToolTip(QObject::tr("The document's tab title and the file name Save As suggests"));
+  name->setFixedWidth(kFieldWidth + 8 + kUnitWidth);
+
+  // RGB Color or CMYK Proof (GitHub issue 360), the two modes Image > Mode can start from.
+  // CMYK Proof needs a CMYK profile in Preferences, so it is greyed under the formula.
+  auto* color_mode = new QComboBox(&dialog);
+  color_mode->setObjectName(QStringLiteral("newDocumentColorModeCombo"));
+  color_mode->addItem(QObject::tr("RGB Color"), QString(kColorModeRgbToken));
+  color_mode->addItem(QObject::tr("CMYK Proof"), QString(kColorModeCmykProofToken));
+  const auto cmyk_space = working_cmyk_space();
+  const bool cmyk_proof_available = cmyk_space->has_profile();
+  if (auto* model = qobject_cast<QStandardItemModel*>(color_mode->model()); model != nullptr) {
+    if (auto* proof_item = model->item(1); proof_item != nullptr) {
+      proof_item->setEnabled(cmyk_proof_available);
+      proof_item->setToolTip(cmyk_proof_available
+                                 ? QObject::tr("The canvas shows the CMYK profile set in Preferences. Saving as "
+                                               "JPEG, TIFF or PDF writes CMYK.")
+                                 : QObject::tr("CMYK Proof needs a CMYK profile. Choose one in Preferences."));
+    }
+  }
+  // The profile the document's colors mean: sRGB for RGB (Patchy edits and shows RGB as
+  // sRGB; docs/rgb-profiles.md), the Preferences CMYK profile for CMYK Proof.
+  auto* color_profile = new QLabel(&dialog);
+  color_profile->setObjectName(QStringLiteral("newDocumentColorProfileLabel"));
+  color_profile->setTextFormat(Qt::PlainText);
+  color_profile->setWordWrap(true);
+  color_profile->setFixedWidth(kFieldWidth + 8 + kUnitWidth);
+
   const auto add_row_label = [&dialog, grid](const QString& text, int row) {
     grid->addWidget(new QLabel(text, &dialog), row, 0, Qt::AlignRight | Qt::AlignVCenter);
   };
-  add_row_label(QObject::tr("Width"), 0);
-  grid->addWidget(width, 0, 1);
-  grid->addWidget(unit, 0, 2, Qt::AlignLeft);
-  add_row_label(QObject::tr("Height"), 1);
-  grid->addWidget(height, 1, 1);
-  grid->addWidget(swap_dimensions, 1, 2, Qt::AlignLeft);
-  add_row_label(QObject::tr("Resolution"), 2);
-  grid->addWidget(resolution, 2, 1);
-  grid->addWidget(resolution_unit, 2, 2, Qt::AlignLeft);
-  add_row_label(QObject::tr("Background"), 3);
+  add_row_label(QObject::tr("Name", "new document name field"), 0);
+  grid->addWidget(name, 0, 1, 1, 2);
+  add_row_label(QObject::tr("Width"), 1);
+  grid->addWidget(width, 1, 1);
+  grid->addWidget(unit, 1, 2, Qt::AlignLeft);
+  add_row_label(QObject::tr("Height"), 2);
+  grid->addWidget(height, 2, 1);
+  grid->addWidget(swap_dimensions, 2, 2, Qt::AlignLeft);
+  add_row_label(QObject::tr("Resolution"), 3);
+  grid->addWidget(resolution, 3, 1);
+  grid->addWidget(resolution_unit, 3, 2, Qt::AlignLeft);
+  add_row_label(QObject::tr("Background"), 4);
   auto* background_row = new QHBoxLayout();
   background_row->setContentsMargins(0, 0, 0, 0);
   background_row->setSpacing(8);
   background_row->addWidget(background, 1);
   background_row->addWidget(background_swatch, 0);
-  grid->addLayout(background_row, 3, 1, 1, 2);
+  grid->addLayout(background_row, 4, 1, 1, 2);
+  add_row_label(QObject::tr("Color Mode"), 5);
+  grid->addWidget(color_mode, 5, 1, 1, 2);
   // Bits per channel, while deep editing is on (docs/high-bit-depth.md).
   auto* bit_depth = new QComboBox(&dialog);
   bit_depth->setObjectName(QStringLiteral("newDocumentBitDepthCombo"));
@@ -936,8 +1091,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     bit_depth->addItem(QObject::tr("32 Bits/Channel"), 32);
   }
   if (deep_editing_enabled()) {
-    add_row_label(QObject::tr("Bit Depth"), 4);
-    grid->addWidget(bit_depth, 4, 1, 1, 2);
+    add_row_label(QObject::tr("Bit Depth"), 6);
+    grid->addWidget(bit_depth, 6, 1, 1, 2);
     // 8 bits, as in Photoshop's presets; only the Last Used card brings back another depth.
     bit_depth->setCurrentIndex(0);
   } else {
@@ -947,7 +1102,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   artboards->setObjectName(QStringLiteral("newDocumentArtboardsCheck"));
   artboards->setToolTip(QObject::tr("Start the document as an artboard the size of the canvas"));
   artboards->setChecked(app_settings().value(QStringLiteral("newDocument/artboards"), false).toBool());
-  grid->addWidget(artboards, 5, 1, 1, 2);
+  add_row_label(QObject::tr("Color Profile"), 7);
+  grid->addWidget(color_profile, 7, 1, 1, 2);
+  grid->addWidget(artboards, 8, 1, 1, 2);
 
   auto* summary = new QLabel(&dialog);
   summary->setObjectName(QStringLiteral("newDocumentSummaryLabel"));
@@ -960,6 +1117,13 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   auto* buttons_row = new QHBoxLayout();
   buttons_row->setSpacing(8);
+  // Saves the settings as a card in the Saved group (GitHub issue 374); enabled only while
+  // no template or saved preset already holds them.
+  auto* save_preset = new QPushButton(QObject::tr("Save Preset..."), &dialog);
+  save_preset->setObjectName(QStringLiteral("newDocumentSavePresetButton"));
+  save_preset->setToolTip(QObject::tr("Save these settings as a preset in the Saved group"));
+  save_preset->setAutoDefault(false);
+  buttons_row->addWidget(save_preset);
   buttons_row->addStretch(1);
   auto* create = new QPushButton(QObject::tr("Create"), &dialog);
   create->setObjectName(QStringLiteral("newDocumentCreateButton"));
@@ -984,8 +1148,59 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   // The documents created here, newest first, which the Recent cards restore; empty
   // until a document has been created from the dialog.
   std::vector<RecentDocumentSettings> recents;
+  std::vector<UserPreset> user_presets = load_user_presets();
 
   const auto current_unit = [unit] { return static_cast<MeasurementUnit>(unit->currentData().toInt()); };
+  const auto cmyk_proof_chosen = [color_mode] {
+    return color_mode->currentData().toString() == kColorModeCmykProofToken;
+  };
+  const auto current_document_settings = [&state, &background_color, current_unit, cmyk_proof_chosen, resolution_unit,
+                                          bit_depth, artboards] {
+    RecentDocumentSettings current;
+    current.size = QSize(state.pixel_width, state.pixel_height);
+    current.ppi = state.ppi;
+    current.unit = current_unit();
+    current.resolution_unit_index = resolution_unit->currentIndex();
+    current.background = background_color;
+    current.bits = deep_editing_enabled() ? bit_depth->currentData().toInt() : 8;
+    current.artboards = artboards->isChecked();
+    current.cmyk_proof = cmyk_proof_chosen();
+    return current;
+  };
+  // A template holds its size and resolution with the plain settings (white, 8 bits, RGB,
+  // no artboards); a saved preset holds everything.
+  const auto refresh_save_preset = [&current_preset_id, &user_presets, current_document_settings, save_preset] {
+    const auto current = current_document_settings();
+    bool held = current_preset_id == kClipboardPresetId;
+    for (const auto category : kPresetCategories) {
+      if (held || category == PresetCategory::Saved) {
+        continue;
+      }
+      for (const auto& preset : presets_for_category(category)) {
+        RecentDocumentSettings plain;
+        plain.size = preset.size;
+        plain.ppi = preset.ppi;
+        if (plain.same_document(current)) {
+          held = true;
+          break;
+        }
+      }
+    }
+    held = held || std::any_of(user_presets.begin(), user_presets.end(),
+                               [&current](const UserPreset& preset) { return preset.settings.same_document(current); });
+    save_preset->setEnabled(!held);
+  };
+  const auto refresh_color_profile = [color_profile, cmyk_proof_chosen, cmyk_space] {
+    if (cmyk_proof_chosen()) {
+      color_profile->setText(QObject::tr("%1, from Preferences", "new document color profile: the CMYK working profile")
+                                 .arg(QString::fromStdString(cmyk_space->profile_description())));
+      color_profile->setToolTip(QObject::tr("CMYK Proof keeps the pixels in RGB and shows them through this "
+                                            "profile. Change it in Preferences."));
+    } else {
+      color_profile->setText(QString::fromLatin1(kSrgbProfileName));
+      color_profile->setToolTip(QObject::tr("Patchy edits and shows RGB documents in sRGB."));
+    }
+  };
   const auto refresh_dimension_spins = [&state, current_unit, width, height] {
     const auto dimension_unit = current_unit();
     for (auto* spin : {width, height}) {
@@ -1015,7 +1230,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     }
     return QObject::tr("%1K").arg(bytes / 1024.0, 0, 'f', 1);
   };
-  const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes, bit_depth] {
+  const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes, bit_depth,
+                               refresh_save_preset] {
     // Bullet built from its code point: the sources build without /utf-8, so a raw
     // non-ASCII character in a literal would depend on the system codepage.
     const QString separator = QStringLiteral("  ") + QChar(0x2022) + QStringLiteral("  ");
@@ -1039,10 +1255,11 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
                                    .arg(state.pixel_height / state.ppi, 0, 'f', 2)
                                    .arg(QString::number(state.ppi, 'g', 6));
     summary->setText(current_preset_name + QChar('\n') + dimensions_line + QChar('\n') + physical_line);
+    refresh_save_preset();
   };
 
   const auto set_fields_enabled = [width, height, unit, resolution, resolution_unit, background,
-                                   background_swatch, swap_dimensions](bool enabled) {
+                                   background_swatch, swap_dimensions, color_mode](bool enabled) {
     width->setEnabled(enabled);
     height->setEnabled(enabled);
     unit->setEnabled(enabled);
@@ -1051,6 +1268,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     background->setEnabled(enabled);
     background_swatch->setEnabled(enabled);
     swap_dimensions->setEnabled(enabled);
+    color_mode->setEnabled(enabled);  // a Clipboard document opens in RGB
   };
 
   const auto update_swatch = [background_swatch, &background_color] {
@@ -1115,6 +1333,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
                              .arg(preset.size.width())
                              .arg(preset.size.height())
                              .arg(QString::number(preset.ppi)));
+      }
+      if (is_user_preset_id(preset.id)) {
+        item->setToolTip(item->toolTip() + QChar('\n') +
+                         QObject::tr("Press Delete or right-click the card to delete this preset."));
       }
       if (preset.id == current_preset_id) {
         preset_list->setCurrentItem(item);
@@ -1219,10 +1441,20 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     if (const auto preset_ppi = item->data(kPresetPpiRole).toDouble(); preset_ppi > 0.0) {
       state.ppi = preset_ppi;
     }
+    const RecentDocumentSettings* restored = nullptr;
     if (const auto recent_index = item->data(kPresetRecentIndexRole);
         recent_index.isValid() && recent_index.toInt() >= 0 && recent_index.toInt() < static_cast<int>(recents.size())) {
-      // A Recent card restores everything that create accepted, not just the size.
-      const auto& recent = recents[static_cast<std::size_t>(recent_index.toInt())];
+      restored = &recents[static_cast<std::size_t>(recent_index.toInt())];
+    } else if (is_user_preset_id(current_preset_id)) {
+      const auto found = std::find_if(user_presets.begin(), user_presets.end(),
+                                      [&current_preset_id](const UserPreset& preset) { return preset.id == current_preset_id; });
+      if (found != user_presets.end()) {
+        restored = &found->settings;
+      }
+    }
+    if (restored != nullptr) {
+      // A Recent card or a saved preset restores every setting, not just the size.
+      const auto& recent = *restored;
       {
         const QSignalBlocker blocker(unit);
         unit->setCurrentIndex(std::max(0, unit->findData(static_cast<int>(recent.unit))));
@@ -1238,6 +1470,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
         bit_depth->setCurrentIndex(index);
       }
       artboards->setChecked(recent.artboards);
+      color_mode->setCurrentIndex(recent.cmyk_proof && cmyk_proof_available ? 1 : 0);
     }
     refresh_dimension_spins();
     refresh_resolution_spin();
@@ -1268,6 +1501,13 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     populate_recent_row();
   });
   const auto searching = [search] { return !search->text().trimmed().isEmpty(); };
+  auto* saved_chip = chip_group->button(static_cast<int>(PresetCategory::Saved));
+  const auto refresh_saved_chip = [saved_chip, &user_presets] {
+    if (saved_chip != nullptr) {
+      saved_chip->setVisible(!user_presets.empty());
+    }
+  };
+  refresh_saved_chip();
   QObject::connect(chip_group, &QButtonGroup::idToggled, &dialog, [&](int id, bool checked) {
     if (!checked) {
       return;
@@ -1386,7 +1626,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   });
 
   const auto choose_background_color = [&dialog, &background_color, update_swatch,
-                                        select_background_index_for] {
+                                        select_background_index_for, refresh_save_preset] {
     // Patchy's own picker (palettes, names, hex), previewed live on the swatch. It picks
     // opaque colors; a transparent canvas is the combo's own "Transparent" entry.
     const auto original = background_color;
@@ -1398,6 +1638,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     background_color = selected.value_or(original);
     select_background_index_for(background_color);
     update_swatch();
+    refresh_save_preset();
   };
   // activated covers re-picking "Other..." while it is already current; the fixed
   // colors go through currentIndexChanged so programmatic changes (tests) match
@@ -1411,10 +1652,113 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     if (index > 0) {
       background_color = background->itemData(index).value<QColor>();
       update_swatch();
+      refresh_save_preset();
+    }
+  });
+  QObject::connect(artboards, &QCheckBox::toggled, &dialog, [&](bool) { refresh_save_preset(); });
+  QObject::connect(color_mode, &QComboBox::currentIndexChanged, &dialog, [&](int) {
+    refresh_color_profile();
+    refresh_save_preset();
+  });
+
+  // Save Preset: a name, then the card joins the Saved group, selected.
+  QObject::connect(save_preset, &QPushButton::clicked, &dialog, [&] {
+    QInputDialog prompt(&dialog);
+    prompt.setObjectName(QStringLiteral("newDocumentSavePresetDialog"));
+    prompt.setWindowTitle(QObject::tr("Save Preset"));
+    prompt.setLabelText(QObject::tr("Preset name:"));
+    prompt.setInputMode(QInputDialog::TextInput);
+    prompt.setTextValue(QObject::tr("%1 x %2 px").arg(state.pixel_width).arg(state.pixel_height));
+    if (exec_dialog(prompt) != QDialog::Accepted) {
+      return;
+    }
+    const auto preset_name = prompt.textValue().simplified();
+    if (preset_name.isEmpty()) {
+      return;
+    }
+    int next = 1;
+    for (const auto& preset : user_presets) {
+      bool numbered = false;
+      const auto number = preset.id.mid(5).toInt(&numbered);
+      if (numbered) {
+        next = std::max(next, number + 1);
+      }
+    }
+    user_presets.push_back({QStringLiteral("user-%1").arg(next), preset_name, current_document_settings()});
+    store_user_presets(user_presets);
+    current_preset_id = user_presets.back().id;
+    current_preset_name = preset_name;
+    clear_list_selection(recent_list);
+    refresh_saved_chip();
+    if (saved_chip != nullptr && !saved_chip->isChecked()) {
+      saved_chip->setChecked(true);  // leaves a search and fills the grid, the new card selected
+    } else {
+      populate_list(PresetCategory::Saved);
+    }
+    set_fields_enabled(true);
+    update_summary();
+  });
+  // Deleting a saved preset: Delete on its card, or its context menu. Templates stay.
+  const auto delete_user_preset = [&](const QString& id) {
+    const bool was_current = current_preset_id == id;
+    std::erase_if(user_presets, [&id](const UserPreset& preset) { return preset.id == id; });
+    store_user_presets(user_presets);
+    refresh_saved_chip();
+    if (user_presets.empty() && !searching() && browsing_category == static_cast<int>(PresetCategory::Saved)) {
+      if (auto* screen_chip = chip_group->button(static_cast<int>(PresetCategory::Screen)); screen_chip != nullptr) {
+        screen_chip->setChecked(true);
+      }
+    } else if (searching()) {
+      populate_search(search->text());
+      if (auto* item = preset_list->currentItem();
+          item != nullptr && item->data(kPresetIdRole).toString() != current_preset_id) {
+        clear_list_selection(preset_list);
+      }
+    } else {
+      populate_list(static_cast<PresetCategory>(browsing_category));
+    }
+    if (was_current) {
+      mark_custom();
+    } else {
+      update_summary();
+    }
+  };
+  // Delete or Backspace on the grid deletes the current card when it is a saved preset.
+  auto* delete_current_preset = new QAction(QObject::tr("Delete Preset"), preset_list);
+  delete_current_preset->setObjectName(QStringLiteral("newDocumentDeleteCurrentPresetAction"));
+  delete_current_preset->setShortcuts({QKeySequence(Qt::Key_Delete), QKeySequence(Qt::Key_Backspace)});
+  delete_current_preset->setShortcutContext(Qt::WidgetShortcut);
+  preset_list->addAction(delete_current_preset);
+  QObject::connect(delete_current_preset, &QAction::triggered, &dialog, [&] {
+    if (auto* item = preset_list->currentItem();
+        item != nullptr && is_user_preset_id(item->data(kPresetIdRole).toString())) {
+      delete_user_preset(item->data(kPresetIdRole).toString());
+    }
+  });
+  preset_list->setContextMenuPolicy(Qt::CustomContextMenu);
+  QObject::connect(preset_list, &QWidget::customContextMenuRequested, &dialog, [&](const QPoint& position) {
+    auto* item = preset_list->itemAt(position);
+    if (item == nullptr || !is_user_preset_id(item->data(kPresetIdRole).toString())) {
+      return;
+    }
+    const auto id = item->data(kPresetIdRole).toString();
+    QMenu menu(&dialog);
+    auto* remove = menu.addAction(QObject::tr("Delete Preset"));
+    remove->setObjectName(QStringLiteral("newDocumentDeletePresetAction"));
+    if (menu.exec(preset_list->viewport()->mapToGlobal(position)) == remove) {
+      delete_user_preset(id);
     }
   });
   QObject::connect(background_swatch, &QPushButton::clicked, &dialog, choose_background_color);
 
+  QObject::connect(name, &QLineEdit::textEdited, &dialog, [name](const QString& text) {
+    const auto cleaned = without_illegal_file_name_characters(text);
+    if (cleaned != text) {
+      const auto cursor = name->cursorPosition() - static_cast<int>(text.size() - cleaned.size());
+      name->setText(cleaned);
+      name->setCursorPosition(std::clamp(cursor, 0, static_cast<int>(cleaned.size())));
+    }
+  });
   QObject::connect(create, &QPushButton::clicked, &dialog, &QDialog::accept);
   QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
   // Double-clicking a preset card creates the document straight away: the first
@@ -1462,12 +1806,16 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   // The group picked last opens again; before any pick (or with an unknown token), the
   // group of the card the dialog selects.
-  const auto remembered_category =
+  auto remembered_category =
       preset_category_from_token(app_settings().value(QStringLiteral("newDocument/lastCategory")).toString());
+  if (remembered_category == PresetCategory::Saved && user_presets.empty()) {
+    remembered_category.reset();
+  }
   const auto opening_category = remembered_category.value_or(category_of_preset_id(current_preset_id));
   if (auto* chip = chip_group->button(static_cast<int>(opening_category)); chip != nullptr) {
     chip->setChecked(true);
   }
+  refresh_color_profile();
   populate_recent_row();
   if (auto* item = recent_list->currentItem(); item != nullptr) {
     apply_preset_item(item);
@@ -1495,6 +1843,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   }
   const bool clipboard_selected = current_preset_id == kClipboardPresetId;
   const auto chosen_bits = deep_editing_enabled() ? bit_depth->currentData().toInt() : 8;
+  const bool chosen_cmyk_proof = !clipboard_selected && cmyk_proof_chosen() && cmyk_proof_available;
   {
     // Every create becomes the next Last Used. A clipboard create contributes only its
     // size and resolution (never the image). lastPresetId is no longer read here; older
@@ -1531,6 +1880,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       created.background = background_color;
       created.bits = chosen_bits;
       created.artboards = artboards->isChecked();
+      created.cmyk_proof = chosen_cmyk_proof;
     }
     created.size = QSize(state.pixel_width, state.pixel_height);
     created.ppi = state.ppi;
@@ -1538,16 +1888,23 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     recents.insert(recents.begin(), created);
     store_recent_documents(recents);
   }
-  return NewDocumentSettings{state.pixel_width,
-                             state.pixel_height,
-                             state.ppi,
-                             background_color,
-                             chosen_bits == 32   ? BitDepth::Float32
-                             : chosen_bits == 16 ? BitDepth::UInt16
-                                                 : BitDepth::UInt8,
-                             clipboard_selected,
-                             clipboard_selected ? QApplication::clipboard()->image() : QImage(),
-                             !clipboard_selected && artboards->isChecked()};
+  NewDocumentSettings result;
+  result.width = state.pixel_width;
+  result.height = state.pixel_height;
+  result.resolution_ppi = state.ppi;
+  result.background = background_color;
+  result.bit_depth = chosen_bits == 32   ? BitDepth::Float32
+                     : chosen_bits == 16 ? BitDepth::UInt16
+                                         : BitDepth::UInt8;
+  result.from_clipboard = clipboard_selected;
+  result.clipboard_image = clipboard_selected ? QApplication::clipboard()->image() : QImage();
+  result.artboards = !clipboard_selected && artboards->isChecked();
+  result.cmyk_proof = chosen_cmyk_proof;
+  result.name = sanitized_new_document_name(name->text());
+  if (result.name.isEmpty()) {
+    result.name = fallback_name;
+  }
+  return result;
 }
 
 }  // namespace patchy::ui

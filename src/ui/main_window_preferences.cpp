@@ -925,6 +925,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   convert_rgb_profiles_check->setChecked(
       settings.value(QStringLiteral("imports/convertRgbProfilesToSrgb"), true).toBool());
   application_form->addRow(convert_rgb_profiles_check);
+  // GitHub issue 363: File > New can leave the document as the Background alone.
+  auto* new_document_layer_check =
+      new QCheckBox(tr("Add an empty layer above the Background in new documents"), application_group);
+  new_document_layer_check->setObjectName(QStringLiteral("preferencesNewDocumentEmptyLayerCheck"));
+  new_document_layer_check->setToolTip(
+      tr("When disabled, File > New creates only the Background layer, selected. Artboard documents and "
+         "documents from the clipboard are unchanged."));
+  new_document_layer_check->setChecked(settings.value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool());
+  application_form->addRow(new_document_layer_check);
   auto* missing_fonts_check =
       new QCheckBox(tr("Show the Missing Fonts dialog when opening a document with missing fonts"), application_group);
   missing_fonts_check->setObjectName(QStringLiteral("preferencesShowMissingFontsDialogCheck"));
@@ -2192,6 +2201,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/convertRgbProfilesToSrgb"), convert_rgb_profiles_check->isChecked());
+    settings.setValue(QStringLiteral("newDocument/addEmptyLayer"), new_document_layer_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
@@ -2849,6 +2859,8 @@ void MainWindow::load_view_settings() {
   zoom_layer_thumbnails_to_content_ =
       settings.value(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom_layer_thumbnails_to_content_)
           .toBool();
+  layer_thumbnail_size_ = layer_thumbnail_size_from_token(
+      settings.value(QLatin1String(kLayerThumbnailSizeSettingsKey)).toString());
   const bool migrate_legacy_guide_default =
       !settings.value(QStringLiteral("view/guideColorDefaultMigrated"), false).toBool();
   if (!view_grid_color_.isValid()) {
@@ -2924,6 +2936,7 @@ void MainWindow::save_view_settings() const {
     settings.remove(QStringLiteral("view/canvasBackdropColor"));
   }
   settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom_layer_thumbnails_to_content_);
+  settings.setValue(QLatin1String(kLayerThumbnailSizeSettingsKey), layer_thumbnail_size_token(layer_thumbnail_size_));
   settings.setValue(QStringLiteral("view/guideColorDefaultMigrated"), true);
 }
 

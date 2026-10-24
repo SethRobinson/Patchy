@@ -12162,6 +12162,109 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB встроен в Patchy. Остальные профили являются профилями RGB, установленными на этом компьютере; для профиля, которого нет в списке, используйте «Выбрать файл профиля...».</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>Не удалось закодировать кадр анимированного PNG.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>Для анимированного PNG нужен хотя бы один кадр.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>В документе нет видимых слоёв верхнего уровня для экспорта в анимированный PNG.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>Неверный кадр или длительность анимированного PNG.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>Не удалось открыть файл PNG для записи</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>Не удалось записать файл PNG</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>Параметры анимированного PNG</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>Сохранённые</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>Без названия-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>Заголовок вкладки документа и имя файла, которое предложит «Сохранить как»</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK-цветопроба</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>Холст показывается через профиль CMYK из настроек. Сохранение в JPEG, TIFF или PDF записывает CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>Для CMYK-цветопробы нужен профиль CMYK. Выберите его в настройках.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>Имя</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>Цветовой режим</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>Цветовой профиль</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Сохранить предустановку...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>Сохранить эти параметры как предустановку в группе «Сохранённые»</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>CMYK-цветопроба хранит пиксели в RGB и показывает их через этот профиль. Его можно изменить в настройках.</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy редактирует и показывает документы RGB в sRGB.</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>Нажмите Delete или щёлкните карточку правой кнопкой, чтобы удалить эту предустановку.</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>Сохранить предустановку</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Удалить предустановку</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1, из настроек</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Красные глаза</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13896,6 +13999,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The corners must form a convex shape</source>
         <translation>Углы должны образовывать выпуклую фигуру</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Красные глаза</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>Для инструмента «Красные глаза» нужен открытый документ</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>Инструмент «Красные глаза» недоступен при редактировании маски или канала</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>Для инструмента «Красные глаза» нужен редактируемый пиксельный слой</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>«Красные глаза»: в рамке не найдено красных пикселей</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>«Красные глаза»: рядом с местом щелчка не найдено красных пикселей</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>«Красные глаза»: красная область находится вне выделения</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13954,6 +14085,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%-щелчок загружает как выделение области без краски на этой форме.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ColorDockPanel</name>
+    <message>
+        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните с %ALT% или перетащите с %ALT%, чтобы задать цвет фона.</translation>
     </message>
 </context>
 <context>
@@ -24760,6 +24898,86 @@ Patchy может скачать обновление, заменить этот
         <source>Convert to Color Profile</source>
         <translation>Преобразовать в цветовой профиль</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>Какие слои читает инструмент: активный слой, его и слои под ним (восстановление на пустом слое над изображением) или объединённое изображение</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>активный слой и ниже</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>Игнорировать корректирующие слои</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>Не включать корректирующие слои в образец, чтобы коррекция над ретушируемым слоем не применялась дважды</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>Замена</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>Режим восстановления: «Замена» сохраняет текстуру источника как есть; режимы наложения смешивают восстановленный цвет с пикселями под ним</translation>
+    </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>Слои как анимированный &amp;PNG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>Экспорт анимированного PNG</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>Добавлять пустой слой над фоном в новых документах</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>Если выключено, Файл &gt; Новый создаёт только фоновый слой и выделяет его. Документы с монтажными областями и из буфера обмена не меняются.</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>Мелкий</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Средний</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Крупный</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Размер миниатюр</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>Красные глаза</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>Красные глаза: щёлкните красный зрачок или обведите глаз рамкой. Размер зрачка захватывает больше красноватого ободка, Степень затемнения задаёт, насколько тёмным станет зрачок.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>Размер зрачка:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>Чем больше значение, тем больше красноватого ободка вокруг зрачка захватывается</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>Степень затемнения:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>Насколько темнее станет исправленный зрачок</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26681,6 +26899,54 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Этот профиль нельзя использовать для такого преобразования.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng требует путь вывода с расширением .png или .apng.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>Параметры exportAnimatedPng должны быть объектом.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: неверный параметр %1.</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>Имя newDocument должно содержать символ, допустимый в имени файла.</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>colorMode в newDocument должен быть &quot;rgb&quot; или &quot;cmykProof&quot;.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>Для CMYK-цветопробы нужен профиль CMYK. Выберите его в настройках.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye требует активный слой документа (сначала задайте doc.activeLayer).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye не нашёл красных пикселей.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: передайте {x, y} или {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 должно быть числом.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width и height должны быть не меньше 1.</translation>
     </message>
 </context>
 <context>

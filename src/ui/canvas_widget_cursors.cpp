@@ -41,6 +41,30 @@ constexpr int kMagicWandCursorHotspotX = 6;
 constexpr int kMagicWandCursorHotspotY = 6;
 constexpr int kMaxBrushCursorExtent = kMaxBrushSize + 5;
 
+// The Clone/Healing source cursor while Alt is held (GitHub issue 380): the canvas
+// source marker's ring and crosshair, dark halo under light ink, so the cursor reads as
+// "set the source here". Tool cursors are exempt from the theme roles.
+QCursor build_retouch_source_cursor() {
+  constexpr int kSize = 25;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPointF center(12.5, 12.5);
+  constexpr double kRadius = 6.0;
+  for (const auto& pen : {QPen(QColor(20, 23, 28, 220), 3.0), QPen(QColor(245, 248, 252), 1.4)}) {
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(center, kRadius, kRadius);
+    painter.drawLine(QPointF(center.x() - kRadius - 4.0, center.y()), QPointF(center.x() - 2.0, center.y()));
+    painter.drawLine(QPointF(center.x() + 2.0, center.y()), QPointF(center.x() + kRadius + 4.0, center.y()));
+    painter.drawLine(QPointF(center.x(), center.y() - kRadius - 4.0), QPointF(center.x(), center.y() - 2.0));
+    painter.drawLine(QPointF(center.x(), center.y() + 2.0), QPointF(center.x(), center.y() + kRadius + 4.0));
+  }
+  painter.end();
+  return QCursor(pixmap, 12, 12);
+}
+
 // A thin, antialiased black crosshair with a white halo, matching the default
 // cross cursor. Used for every combine mode so toggling a modifier never
 // recolours or shifts it (Replace just omits the badge).
@@ -363,7 +387,7 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(path_select_cursor());  // Ctrl: temporary Path Select (GitHub issue 312)
     return;
   }
-  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
+  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape || tool_ == CanvasTool::RedEye) {
     setCursor(Qt::CrossCursor);
     return;
   }
@@ -416,6 +440,25 @@ void CanvasWidget::update_tool_cursor() {
   if (alt_held && tool_uses_alt_left_for_color_pick(tool_)) {
     setCursor(eyedropper_cursor());
     return;
+  }
+  if (retouch_source_tool_active() && !painting_) {
+    // Clone and Healing (GitHub issue 380): the temporary Move under Ctrl, the source
+    // cursor under Alt, and the not-allowed cursor where a press would be refused.
+    const auto modifiers = retouch_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
+    if (moving_layer_ || move_drag_pending_ ||
+        ((modifiers & Qt::ControlModifier) != 0 && (modifiers & Qt::AltModifier) == 0)) {
+      setCursor(Qt::SizeAllCursor);
+      return;
+    }
+    if ((modifiers & Qt::AltModifier) != 0) {
+      static const QCursor source_cursor = build_retouch_source_cursor();
+      setCursor(source_cursor);
+      return;
+    }
+    if (retouch_press_would_refuse()) {
+      setCursor(Qt::ForbiddenCursor);
+      return;
+    }
   }
   // Over a marquee resize handle the resize cursor wins whatever modifier is
   // held (Alt there mirrors, it does not subtract), so a Shift/Alt press while

@@ -74,3 +74,4 @@ std::vector<patchy::test::TestCase> invisible_watermark_tests();
 std::vector<patchy::test::TestCase> trustmark_tests();
 std::vector<patchy::test::TestCase> tiff_layers_tests();
 std::vector<patchy::test::TestCase> hdr_display_tests();
+std::vector<patchy::test::TestCase> red_eye_tests();

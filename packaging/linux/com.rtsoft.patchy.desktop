@@ -29,6 +29,6 @@ Exec=patchy %F
 Icon=com.rtsoft.patchy
 Terminal=false
 Categories=Graphics;RasterGraphics;2DGraphics;
-MimeType=image/vnd.adobe.photoshop;image/png;image/jpeg;image/bmp;image/gif;image/tiff;image/webp;image/jxl;
+MimeType=image/vnd.adobe.photoshop;image/png;image/jpeg;image/bmp;image/gif;image/tiff;image/webp;image/jxl;image/jp2;image/jpx;image/x-jp2-codestream;image/avif;image/heif;image/svg+xml;image/svg+xml-compressed;image/x-portable-anymap;image/x-portable-bitmap;image/x-portable-graymap;image/x-portable-pixmap;image/vnd.microsoft.icon;image/x-win-bitmap;image/x-tga;image/vnd.zbrush.pcx;image/x-ilbm;image/x-dds;image/x-exr;image/vnd.radiance;image/x-adobe-dng;image/x-canon-cr2;image/x-canon-cr3;image/x-canon-crw;image/x-nikon-nef;image/x-nikon-nrw;image/x-sony-arw;image/x-sony-sr2;image/x-sony-srf;image/x-olympus-orf;image/x-fuji-raf;image/x-panasonic-rw2;image/x-pentax-pef;image/x-minolta-mrw;image/x-kodak-kdc;image/x-kodak-dcr;image/x-sigma-x3f;
 StartupWMClass=patchy
 SingleMainWindow=true

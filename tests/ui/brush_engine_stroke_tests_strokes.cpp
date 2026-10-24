@@ -2366,7 +2366,8 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Clone);
-  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  // No source yet: a press would be refused, and the cursor says so (GitHub issue 380).
+  CHECK(canvas->cursor().shape() == Qt::ForbiddenCursor);
   canvas->set_brush_softness(100);
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   CHECK(clone_aligned != nullptr);
@@ -2376,6 +2377,8 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   const auto source = canvas->widget_position_for_document_point(QPoint(70, 72));
   send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
   send_mouse(*canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, source, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
 
   const auto target = canvas->widget_position_for_document_point(QPoint(170, 102));
   drag(*canvas, target, target + QPoint(2, 0));

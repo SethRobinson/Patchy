@@ -155,6 +155,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Spot Healing");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch");
+    case CanvasTool::RedEye:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye");
     case CanvasTool::Crop:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop");
     case CanvasTool::PerspectiveCrop:
@@ -249,6 +251,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.spot_healing");
     case CanvasTool::PatchTool:
       return QStringLiteral("tools.patch");
+    case CanvasTool::RedEye:
+      return QStringLiteral("tools.red_eye");
     case CanvasTool::Crop:
       return QStringLiteral("tools.crop");
     case CanvasTool::PerspectiveCrop:
@@ -343,6 +347,9 @@ const char* tool_activation_hint_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Artboard: drag on empty space to add an artboard, drag one or its name to move "
              "it with its content (%ALT% copies it), drag a handle to resize it, click + to add one beside it, "
              "double-click a name to rename it. Arrows nudge.");
+    case CanvasTool::RedEye:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye: click a red pupil, or drag a box around the eye. "
+             "Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch: draw around the area to fix, then drag the selection to a clean source area, or press Enter to remove the object automatically");
     // The selection tools name their Shift / Alt combinations (GitHub issue 192); the
@@ -413,17 +420,23 @@ private:
   std::function<void()> callback_;
 };
 
-class ToolFlyoutEventFilter final : public QObject {
+// Right press on a tool palette button: a flyout button opens its flyout, a plain tool
+// button selects its tool (GitHub issue 388). A flyout button also opens on a left
+// double-click; plain buttons pass no double-click callback and keep Qt's handling.
+class ToolButtonPressFilter final : public QObject {
 public:
-  ToolFlyoutEventFilter(std::function<void()> open_menu, QObject* parent)
-      : QObject(parent), open_menu_(std::move(open_menu)) {}
+  ToolButtonPressFilter(std::function<void()> on_right_press, std::function<void()> on_left_double_click,
+                        QObject* parent)
+      : QObject(parent),
+        on_right_press_(std::move(on_right_press)),
+        on_left_double_click_(std::move(on_left_double_click)) {}
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    // The right press already opened the flyout. Qt follows it with a separate
-    // ContextMenu event (on release on Windows, on press on macOS and X11) that
-    // would otherwise bubble up to the main window and open the toolbar menu on
-    // top of the flyout (GitHub issue 356), so the button swallows it.
+    // The right press already acted. Qt follows it with a separate ContextMenu
+    // event (on release on Windows, on press on macOS and X11) that would
+    // otherwise bubble up to the main window and open the toolbar menu (on top
+    // of the flyout, GitHub issue 356), so the button swallows it.
     if (event->type() == QEvent::ContextMenu) {
       event->accept();
       return true;
@@ -431,16 +444,15 @@ protected:
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
       auto* mouse_event = static_cast<QMouseEvent*>(event);
       if (mouse_event->button() == Qt::RightButton && event->type() == QEvent::MouseButtonPress) {
-        if (open_menu_) {
-          open_menu_();
+        if (on_right_press_) {
+          on_right_press_();
         }
         mouse_event->accept();
         return true;
       }
-      if (mouse_event->button() == Qt::LeftButton && event->type() == QEvent::MouseButtonDblClick) {
-        if (open_menu_) {
-          open_menu_();
-        }
+      if (on_left_double_click_ && mouse_event->button() == Qt::LeftButton &&
+          event->type() == QEvent::MouseButtonDblClick) {
+        on_left_double_click_();
         mouse_event->accept();
         return true;
       }
@@ -449,7 +461,8 @@ protected:
   }
 
 private:
-  std::function<void()> open_menu_;
+  std::function<void()> on_right_press_;
+  std::function<void()> on_left_double_click_;
 };
 
 // Flyout row layout (GitHub issue 284). Qt draws a menu icon at the item's left edge plus
@@ -958,6 +971,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::PatchTool:
       name = "tool-patch";
       break;
+    case CanvasTool::RedEye:
+      name = "tool-red-eye";
+      break;
     case CanvasTool::Crop:
       name = "tool-crop";
       break;
@@ -1052,13 +1068,23 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // of the pair still selects the default tool, as in Photoshop. The filter sees
     // events before Qt's disabled check, so a disabled button (a preview dialog's edit
     // lock) stays shut here as it does for the left press.
-    button->installEventFilter(new ToolFlyoutEventFilter(
-        [button] {
-          if (button->isEnabled()) {
-            button->showMenu();
-          }
-        },
-        button));
+    const auto open_flyout = [button] {
+      if (button->isEnabled()) {
+        button->showMenu();
+      }
+    };
+    button->installEventFilter(new ToolButtonPressFilter(open_flyout, open_flyout, button));
+    // Every way in (the hold timer, a double-click, a right-click) also selects the tool
+    // the button shows as the flyout opens, so dismissing it leaves that tool active
+    // (GitHub issue 368); a pick in the flyout then selects that member as usual. The
+    // already-active tool is left alone, so the first click of a double-click is the only
+    // selection that pair makes.
+    QObject::connect(menu, &QMenu::aboutToShow, button, [button] {
+      auto* shown = button->defaultAction();
+      if (button->isEnabled() && shown != nullptr && shown->isEnabled() && !shown->isChecked()) {
+        shown->trigger();
+      }
+    });
     new ToolFlyoutMenuPlacement(button, menu);
     new ToolFlyoutCurrentMarker(button, menu);
     menu->setStyleSheet(tool_flyout_menu_style(palette->iconSize().width()));
@@ -1204,10 +1230,12 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                                                         QKeySequence());
   auto* patch_action =
       create_flyout_tool_action(healing_menu, tr("Patch"), CanvasTool::PatchTool, QKeySequence());
+  auto* red_eye_action =
+      create_flyout_tool_action(healing_menu, tr("Red Eye"), CanvasTool::RedEye, QKeySequence());
   auto* healing_tool_button = new QToolButton(tool_palette);
   healing_tool_button->setObjectName(QStringLiteral("healingToolButton"));
   configure_tool_flyout(tool_palette, healing_menu, healing_tool_button, healing_action,
-                        {healing_action, spot_healing_action, patch_action},
+                        {healing_action, spot_healing_action, patch_action, red_eye_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Healing Tools"),
                         "toolCycleHealingAction", "tools.cycle.healing", QKeySequence(Qt::SHIFT | Qt::Key_J));
 
@@ -1435,6 +1463,18 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
   group->addAction(action);
   register_tool_action(action);
+  // A right-click selects the tool like a left click and opens no toolbar menu, as a
+  // right-click on a flyout button does (GitHub issue 388). The filter sees events
+  // before Qt's disabled check, so a disabled button stays inert.
+  if (auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action)); button != nullptr) {
+    button->installEventFilter(new ToolButtonPressFilter(
+        [button, action] {
+          if (button->isEnabled() && action->isEnabled()) {
+            action->trigger();
+          }
+        },
+        {}, button));
+  }
   return action;
 }
 

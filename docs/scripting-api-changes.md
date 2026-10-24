@@ -6,9 +6,38 @@ entries are a permanent record. Entries through 2026-09-30 (the July 2026 API, M
 attachment, palettes, vector automation, brushes, Slow mode and Pause, text direction,
 Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md),
-and those of 2026-10-01 to 2026-10-05 in
-[scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
+those of 2026-10-01 to 2026-10-05 in
+[scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md), and
+those of 2026-10-06 to 2026-10-09 in
+[scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md).
 Every entry below is API 1.
+
+2026-10-24 (behavioral): `layer.redEye` uses the revised Red Eye method ([red-eye.md](red-eye.md)): the
+area is grown with hysteresis and its rim and glint halo corrected by redness, and Darken Amount keeps
+a quarter of the brightness at 100 instead of going black (Darken 50 keeps about 60%). Options and
+result keys are unchanged. Pinned by `ui_script_red_eye_corrects_pupil`.
+
+2026-10-24 (additive): the Color panel (Window > Color). `patchy.ui.expandPanel`,
+`collapsePanel`, `closePanel` and `panelState` take the panel name `color` (d.ts
+`PatchyPanelName`), a permanent identifier mapped to the panel id `colorDock`. Pinned by
+`ui_color_panel_window_menu_and_script_name`.
+
+2026-10-24 (additive): `doc.exportAnimatedPng(path, options?)` writes the visible top-level layers
+as an animated PNG (APNG), like `exportAnimatedWebp`: options `frameDelayMs` and `loopCount`, a
+`.png` or `.apng` path, document path and modified state unchanged. The loop count is kept in
+document metadata `apng.loop_count` (also set when an animated PNG opens). Permanent identifiers:
+the method and option names, the metadata key and command id `file.export_animated_png`. Pinned by
+`ui_script_apng_animation_export_preserves_document_and_validates_options`.
+2026-10-24 (additive): `app.newDocument(width, height, options?)` takes `name` (the tab title and
+default Save As name, through the New Document dialog's file-name rule; throws when nothing usable is
+left) and `colorMode` (`"rgb"` default, or `"cmykProof"`; throws for other values and without a CMYK
+profile). Both are checked before the document is created. Permanent identifiers: the option keys and
+the `colorMode` tokens ([new-document.md](new-document.md)). Pinned by `ui_script_new_document_options`.
+2026-10-24 (additive): `layer.redEye({x, y, width?, height?, pupilSize?, darkenAmount?})`, the Red
+Eye tool ([healing.md](healing.md#red-eye)): a click at `{x, y}` or a box, Pupil Size and Darken
+Amount 1..100 (default 50), returns `{pupilPixels, x, y, width, height}`, throws when no red is found.
+Permanent identifiers: the method and key names, hotkey command id `tools.red_eye` and the settings
+keys `tools/redEyePupilSize`, `tools/redEyeDarkenAmount`. Pinned by `ui_script_red_eye_corrects_pupil`.
 
 2026-10-23 (additive): `doc.colorProfile` (the embedded RGB profile's name, `"sRGB IEC61966-2.1"`
 when untagged) and `doc.convertToProfile(profile, options?)`, Edit > Convert to Profile: `profile`
@@ -299,72 +328,3 @@ Manager's Save and Save As take the same path and keep the editor modified on fa
 8-bit-only format (BMP, TGA, DDS, GIF, PCX, ICO/CUR, IFF, RTTEX, JXR, SVG, Aseprite, or any
 export transform) writes an 8-bit copy instead of returning false; the document keeps its
 depth. Pinned by `ui_script_deep_documents_save_to_8_bit_formats`.
-
-2026-10-09 (additive): `patchy.scripts` (`PatchyScripts` in patchy.d.ts): `userFolder`,
-`bundledFolder`, `list()` / `rescan()` (every script with its effective `hotkey`,
-`defaultHotkey` and `commandId`), `install(relativePath, source, {hotkey})` (writes below the
-user folder, rescans, binds the Preferences override), `setHotkey` / `getHotkey`. The File >
-Scripts entries gain the Script Manager's right-click menu. Pinned by
-`ui_script_library_installs_and_binds_hotkey` and `ui_scripts_menu_context_menu_offers_script_actions`.
-
-2026-10-09 (additive): `doc.saveAs(path, options?)` and `doc.exportAs(path, options?)`
-take the format's save options (`PatchySaveOptions` in patchy.d.ts: JPEG/WebP/JXR/RTTEX
-`quality`, WebP/JXR/PDF `lossless`, DDS `compression` and `mipmaps`, ICO/CUR `sizes`,
-`resample` and `hotspot`, BMP `encoding`, `paletteMode` and `palettePath`, RTTEX `encoding`,
-`powerOfTwo`, `forceSquare`, `forceAlpha` and `compress`, the exportPdf keys, GIF `animate` and
-`frameDelayMs`). Unspecified keys follow the user's Save Options defaults; an unknown key, a
-wrong type, an out-of-range value, or a key for another extension throws before anything is
-written. A scripted save no longer rewrites the user's persisted saveOptions defaults, and
-scripted saves skip the saved-channels and Aseprite fill-opacity prompts (the script decided).
-Pinned by `ui_script_save_as_options_write_dds_and_jpeg` and `ui_script_save_as_options_are_strict`.
-
-2026-10-09 (behavioral correction): `doc.exportAs` is a copy export. It used to be
-identical to `saveAs`, so a flat document exported as .dds became the .dds session; now the
-document's path, title and modified state never change, whatever the format. Scripts that
-relied on exportAs retargeting the document should call saveAs.
-
-2026-10-09 (additive): per-script hotkeys. A `// @hotkey Ctrl+Alt+D` header line is a
-script's default shortcut; Preferences > Hotkeys lists scripts under "Scripts" and its
-override wins. The command id is `script.` plus the percent-encoded relative path
-(`script.Utilities%2Fquick-export-dds.js`), listed by `app.commandIds()`; `app.runCommand`
-refuses those ids because one script runs at a time. New bundled example
-`Utilities/quick-export-dds.js`. See [scripting.md](scripting.md) "Script hotkeys".
-
-2026-10-09 (additive): `addTextLayer(text, {area})` creates area text from one
-closed `PatchyVectorPath` in document coordinates. `area` and `box` are mutually
-exclusive. `layer.textArea` reads a detached boundary snapshot or `null`; assigning
-a boundary reflows through the text session, and assigning `null` converts it to
-box text. Source shapes remain independent. See [area-text.md](area-text.md).
-
-2026-10-09 (behavioral): 16 and 32-bit editing is on by default (`PATCHY_DEEP_EDITING=0`
-turns it off). A 16 or 32-bit file opened with `app.open` keeps its depth (`doc.bitDepth`
-reports it; with the gate off it still decodes to 8 bits) and `doc.convertBitDepth` works
-without opting in; `app.newDocument` stays 8-bit. `layer.applyPlugin` runs on 16-bit layers
-through an 8-bit copy whose change folds back at depth, and still throws for a 32-bit
-layer. On a 32-bit document the `layer.blendMode` setter throws for the modes Photoshop
-refuses at 32 bits (Color Burn, Linear Burn, Screen, Color Dodge, Overlay, the Light modes,
-Hard Mix, Exclusion), and `convertBitDepth(32)` sets layers in those modes to Normal. The
-web build throws for `convertBitDepth(32)`. See [high-bit-depth.md](high-bit-depth.md);
-pinned by `ui_script_bit_depth_and_deep_filters`.
-
-2026-10-09 (additive): `doc.bitDepth` (8, 16 or 32) and `doc.convertBitDepth(bits)`
-(Image > Mode's conversion; throws for other values, while 16 and 32-bit editing is off,
-or on an Indexed document). On 16 and 32-bit documents `getPixels` and `setPixels` stay
-RGBA8 and convert at the boundary, `fill` and `fillRect` write at the document's depth,
-and `applyFilter` runs at depth, throwing for a filter a 32-bit document does not offer.
-See [high-bit-depth.md](high-bit-depth.md); pinned by `ui_script_bit_depth_and_deep_filters`.
-
-2026-10-07 (additive plus behavioral correction): `doc.resizeImage(width, height, {method})`
-takes a resampling method id: `"automatic"` (default), `"nearest"`, `"bilinear"`, `"bicubic"`,
-`"bicubicSmoother"`, `"bicubicSharper"`; an unknown id throws. A resize without a method is
-Automatic (Bicubic Sharper for a reduction, Bicubic Smoother for an enlargement) instead of
-the old fixed bilinear, 16-bit and float documents are filtered instead of nearest-sampled,
-reductions average their footprint, and alpha interpolates premultiplied. The Image Size
-dialog now honors its method combo and remembers the choice. See
-[resampling.md](resampling.md); pinned by `ui_script_resize_image_method_option` and the
-`resample_*` core tests.
-
-2026-10-06 (behavioral): `ui.zoom` reads and writes the view zoom in percent, where
-100 is one document pixel per device pixel (the status-box number). On a HiDPI or scaled
-display the value therefore differs from the logical widget scale by the device pixel
-ratio; at ratio 1 nothing changes. Matches Photoshop's 100% (GitHub issue 75).

@@ -12111,6 +12111,109 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13845,6 +13948,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>The corners must form a convex shape</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13902,6 +14033,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ColorDockPanel</name>
+    <message>
+        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24615,6 +24753,86 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Convert to Color Profile</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26534,6 +26752,54 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>The profile cannot be used for this conversion.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

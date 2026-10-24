@@ -159,6 +159,7 @@
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/animation_preview_window.hpp"
 #include "formats/animation_timing.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 #include "ui/apng_reader.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -1357,6 +1358,8 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
               imported.has_value()) {
             opened = std::move(*imported);
             apply_imported_image_density(opened, bytes, first_frame);
+            // Layers as Animated PNG offers the file's own play count again.
+            opened.metadata().values[apng::kLoopCountMetadata] = std::to_string(animation.play_count);
             import_notices.push_back(QObject::tr("Animated PNG: imported %1 frames as layers").arg(frame_count));
             return;
           }
@@ -4130,6 +4133,53 @@ void MainWindow::export_animated_webp() {
   try {
     std::vector<std::string> writer_notices;
     write_flat_image_file(document(), path, QStringLiteral("webp"), *options, &writer_notices);
+    persist_image_save_defaults(*options);
+    offer_browser_download_for_saved_file(path);
+    remember_save_directory_for_path(path);
+    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
+    if (options->export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(path, /*is_file*/ true);
+    }
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+  }
+}
+
+void MainWindow::export_animated_png() {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  finish_active_text_editor();
+  if (animation_preview_window_ != nullptr) animation_preview_window_->stop_playback_for(&document());
+  // One frame per visible top-level layer, top to bottom; the options dialog restates
+  // the rules (hidden layers skipped, "0.25s" name tokens override the default delay).
+  if (!has_visible_top_level_layer(std::as_const(document()))) {
+    show_information_message(this, tr("Export Animated PNG"), tr("There are no visible layers to export."),
+                             QStringLiteral("animatedPngNoLayersMessageBox"));
+    return;
+  }
+  QString selected_filter;
+  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
+  const auto initial_path = file_dialog_initial_path(QString(), base_name + QStringLiteral(".png"));
+  auto path = get_save_file_name(this, tr("Export Animated PNG"), initial_path,
+                                 save_file_filter_for_path(initial_path), &selected_filter,
+                                 QStringLiteral("animatedPngExportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  path = path_with_default_extension(path, selected_filter);
+  auto defaults = image_save_defaults_for_document();
+  defaults.apng_animate = true;
+  auto options = prompt_image_save_options(this, QStringLiteral("png"), defaults, true,
+      QSize(std::as_const(document()).width(), std::as_const(document()).height()));
+  if (!options.has_value()) {
+    return;
+  }
+  try {
+    std::vector<std::string> writer_notices;
+    write_flat_image_file(document(), path, QStringLiteral("png"), *options, &writer_notices);
     persist_image_save_defaults(*options);
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);

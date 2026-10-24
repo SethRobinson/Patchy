@@ -33,7 +33,9 @@
 #include "ui/hotkey_registry.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
+#include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/tool_palette_footer.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
@@ -146,6 +148,9 @@ constexpr int kHistoryDockExpandedMinimumHeight = 90;
 constexpr int kHistoryDockPreferredHeight = 190;
 constexpr int kPropertiesDockMaximumHeight = 230;
 constexpr int kPaletteDockPreferredHeight = 320;
+// The Color panel stays compact: a short field reads fine and leaves the height to Layers.
+constexpr int kColorDockPreferredHeight = 170;
+constexpr int kColorDockMaximumHeight = 280;
 
 // The Layers panel rows that wrap instead of clipping (GitHub issues 96 and 199).
 // Each reports two widths: minimumSize() is the narrowest width it fits whole,
@@ -712,6 +717,7 @@ void MainWindow::install_window_panel_entries() {
       {"propertiesDock", "windowPanelPropertiesAction",
        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Properties")},
       {"infoDock", "windowPanelInfoAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info")},
+      {"colorDock", "windowPanelColorAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color")},
       {"paletteDock", "windowPanelPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette")},
   };
   for (const auto& panel : kPanels) {
@@ -824,8 +830,13 @@ namespace {
 // The saved panel layout (docs/right-docks.md, "Saved panel layout"). Every key is a
 // compatibility contract. The version guards what the values mean: a release that adds,
 // renames or regroups panels bumps it, and an older record is then ignored rather than
-// half applied.
-constexpr int kPanelLayoutVersion = 2;
+// half applied, unless read_panel_layout knows how to carry it forward.
+constexpr int kPanelLayoutVersion = 3;
+// Version 2 is version 3 without the Color panel (GitHub issue 365): read_panel_layout
+// keeps such a layout and adds the panel collapsed, just above Palette.
+constexpr int kPanelLayoutVersionBeforeColor = 2;
+constexpr char kColorPanel[] = "colorDock";
+constexpr char kPanelBelowColor[] = "paletteDock";
 QString panel_layout_version_key() { return QStringLiteral("window/panelLayoutVersion"); }
 QString hidden_panels_key() { return QStringLiteral("window/hiddenPanels"); }
 QString collapsed_panels_key() { return QStringLiteral("window/collapsedPanels"); }
@@ -928,10 +939,17 @@ void MainWindow::restore_panel_layout() {
 
 void MainWindow::read_panel_layout() {
   const auto settings = app_settings();
-  if (panel_column_ == nullptr || settings.value(panel_layout_version_key(), 0).toInt() != kPanelLayoutVersion) {
+  const auto version = settings.value(panel_layout_version_key(), 0).toInt();
+  if (panel_column_ == nullptr || (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeColor)) {
     return;
   }
-  apply_collapsed_panels(settings.value(collapsed_panels_key()).toStringList());
+  const auto color_panel = QString::fromLatin1(kColorPanel);
+  const bool add_color_panel = version == kPanelLayoutVersionBeforeColor && panel_column_->has_panel(color_panel);
+  auto collapsed = settings.value(collapsed_panels_key()).toStringList();
+  if (add_color_panel) {
+    collapsed << color_panel;
+  }
+  apply_collapsed_panels(collapsed);
   const auto hidden = settings.value(hidden_panels_key()).toStringList();
   for (const auto& id : panel_column_->panel_ids()) {
     if (hidden.contains(id)) {
@@ -949,10 +967,26 @@ void MainWindow::read_panel_layout() {
   }
   // The order first: the heights state is by position. A record without one (saved
   // before panels could move) keeps the default order.
-  if (const auto order = settings.value(panel_order_key()).toStringList(); !order.isEmpty()) {
+  auto order = settings.value(panel_order_key()).toStringList();
+  if (add_color_panel) {
+    // The old heights cover the old sections only: restore them with the Color panel
+    // last (set_section_order appends sections the list leaves out), then move it
+    // into place. Its height travels with it, and as a collapsed section it is its
+    // title row whatever the record said.
+    if (order.isEmpty()) {
+      order = default_panel_order_;
+    }
+    order.removeAll(color_panel);
+  }
+  if (!order.isEmpty()) {
     panel_column_->set_section_order(order);
   }
   panel_column_->restore_heights(settings.value(panel_heights_key()).toByteArray());
+  if (add_color_panel) {
+    const auto sections = panel_column_->section_order();
+    const auto below = sections.indexOf(QString::fromLatin1(kPanelBelowColor));
+    panel_column_->move_section(color_panel, below >= 0 ? below : sections.size());
+  }
   // A picked width; without one the column keeps following the content-fit width. The
   // window's own size is restored first, so the clamp sees the real width.
   if (const auto width = settings.value(panel_column_width_key(), 0).toInt(); width > 0) {
@@ -1296,6 +1330,7 @@ void MainWindow::create_docks() {
   });
   connect(layer_list_, &QListWidget::customContextMenuRequested, this,
           [this](const QPoint& position) { show_layer_context_menu(position); });
+  add_layer_thumbnail_size_menu(nullptr);
   connect(layer_list_->model(), &QAbstractItemModel::rowsMoved, this, [this] {
     if (updating_layer_list_) {
       return;
@@ -1315,13 +1350,18 @@ void MainWindow::create_docks() {
   // narrower column (GitHub issue 199). No extra side insets: the panel margin
   // alone places the row.
   auto* blend_opacity_row = new WrappingControlRowLayout(6);
-  blend_combo_ = new QComboBox(layers_panel);
+  auto* blend_combo = new PopupAwareComboBox(layers_panel);
+  blend_combo_ = blend_combo;
   add_blend_mode_items(blend_combo_);
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   blend_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
   bind_tooltip(blend_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Blend mode"));
   blend_opacity_row->addWidget(blend_combo_);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
+  // The open list previews the highlighted mode on the canvas (GitHub issue 367).
+  blend_combo->popup_shown = [this] { begin_layer_blend_preview(); };
+  blend_combo->popup_hidden = [this] { end_layer_blend_preview(); };
+  connect(blend_combo_, &QComboBox::highlighted, this, [this](int index) { preview_layer_blend(index); });
   register_document_widget(blend_combo_);
 
   opacity_spin_ = new QSpinBox(layers_panel);
@@ -1857,10 +1897,11 @@ void MainWindow::create_docks() {
                                   .title = tr("Info"),
                                   .content = info_panel});
 
+  create_color_dock(panel_specs);
   create_palette_dock(panel_specs);
 
   // The column: the tab group first (it takes the spare height), then the rest in
-  // order. History, Properties, Info and Palette start collapsed.
+  // order. History, Properties, Info, Color and Palette start collapsed.
   panel_column_ = new PanelColumn(workspace_splitter_);
   panel_column_->setMinimumWidth(kRightDockFloorWidth);
   panel_column_->add_tab_group(QStringLiteral("panelTabGroup"), tab_specs, true);
@@ -1875,6 +1916,7 @@ void MainWindow::create_docks() {
       {"historyDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "History")},
       {"propertiesDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Properties")},
       {"infoDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info")},
+      {"colorDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color")},
       {"paletteDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette")},
   };
   for (const auto& [id, title] : kPanelTitles) {
@@ -1910,6 +1952,51 @@ void MainWindow::create_docks() {
   // Re-measure once the first event-loop pass has shown and styled the column: only
   // then can the real chrome be read.
   QTimer::singleShot(0, this, [this] { update_right_dock_minimum_width(); });
+}
+
+void MainWindow::create_color_dock(std::vector<PanelSpec>& specs) {
+  // The pair's glyphs trigger the same Swap Colors and Default Colors actions as the
+  // tool palette's (build_tool_palette made them).
+  color_dock_panel_ = new ColorDockPanel(findChild<QAction*>(QStringLiteral("colorSwapAction")),
+                                         findChild<QAction*>(QStringLiteral("colorDefaultAction")), this);
+  connect(color_dock_panel_, &ColorDockPanel::color_picked, this,
+          [this](QColor color, bool background) { apply_color_panel_pick(color, background); });
+  connect(color_dock_panel_->foreground_chip(), &QPushButton::clicked, this, [this] { choose_primary_color(); });
+  connect(color_dock_panel_->background_chip(), &QPushButton::clicked, this, [this] { choose_secondary_color(); });
+  register_document_widget(color_dock_panel_);
+  color_dock_panel_->set_colors(foreground_color_, background_color_);
+  specs.push_back(PanelSpec{.id = QStringLiteral("colorDock"),
+                            .object_prefix = QStringLiteral("color"),
+                            .title = tr("Color"),
+                            .content = color_dock_panel_,
+                            .expanded_maximum_height = kColorDockMaximumHeight,
+                            .preferred_height = kColorDockPreferredHeight});
+}
+
+void MainWindow::apply_color_panel_pick(QColor color, bool background) {
+  // The panel outlives sessions: after Close All there is no canvas.
+  if (canvas_ == nullptr) {
+    return;
+  }
+  color.setAlpha(255);
+  const auto target = background ? QStringLiteral("background") : QStringLiteral("foreground");
+  if (background) {
+    canvas_->set_secondary_color(color);
+  } else {
+    canvas_->set_primary_color(color);
+    apply_primary_color_to_active_text_editor(color);
+    apply_foreground_color_to_shape_paint(color);
+  }
+  // An open Foreground or Background Color window for the same color follows, blocked so
+  // its own callback does not apply the color a second time.
+  if (color_dialog_ != nullptr && color_dialog_->property("patchy.colorTarget").toString() == target) {
+    if (auto* picker = color_dialog_->findChild<PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"))) {
+      const QSignalBlocker blocker(picker);
+      picker->setCurrentColor(background ? canvas_->secondary_color() : canvas_->primary_color());
+    }
+  }
+  refresh_color_buttons();
+  statusBar()->showMessage(background ? tr("Background color changed") : tr("Foreground color changed"));
 }
 
 void MainWindow::create_palette_dock(std::vector<PanelSpec>& specs) {
@@ -1958,6 +2045,16 @@ void MainWindow::create_palette_dock(std::vector<PanelSpec>& specs) {
     refresh_color_buttons();
     refresh_palette_panel();
     statusBar()->showMessage(tr("Foreground: palette index %1 (%2)").arg(index).arg(color.name()));
+  });
+  connect(palette_panel_, &PalettePanel::entry_background_requested, this, [this](int index) {
+    const auto colors = displayed_palette_colors();
+    if (canvas_ == nullptr || index < 0 || index >= static_cast<int>(colors.size())) {
+      return;
+    }
+    const auto& entry = colors[static_cast<std::size_t>(index)];
+    // The same path as the Color panel's Alt pick: the canvas background, an open
+    // Background Color window, the color well.
+    apply_color_panel_pick(QColor(entry.red, entry.green, entry.blue), true);
   });
   connect(palette_panel_, &PalettePanel::entry_edit_requested, this, [this](int index) { edit_palette_entry(index); });
   connect(palette_panel_, &PalettePanel::entry_name_requested, this, [this](int index) { rename_palette_entry(index); });

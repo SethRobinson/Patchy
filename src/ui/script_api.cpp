@@ -22,6 +22,7 @@
 #include "formats/metadata/metadata_edit.hpp"
 #include "formats/metadata/metadata_view.hpp"
 #include "formats/animation_timing.hpp"
+#include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
 
 #include "ui/pdf_export.hpp"
@@ -46,6 +47,7 @@
 #include "ui/display_hdr_info.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/document_recovery.hpp"
 #include "ui/legacy_plugin_folder.hpp"
@@ -1295,6 +1297,75 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   result.setProperty(QStringLiteral("source"), source);
   result.setProperty(QStringLiteral("sourceCount"), source_count);
   result.setProperty(QStringLiteral("attempt"), attempt_used);
+  return result;
+}
+
+// The Red Eye tool through the session's canvas (the layer must be the active one): a click
+// at {x, y}, or a drag box when width and height are given too.
+QJSValue ScriptLayerObject::redEye(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (!options.isObject()) {
+    host_.throw_js_error(ScriptEngineHost::tr("redEye: pass {x, y} or {x, y, width, height}."));
+    return QJSValue();
+  }
+  std::optional<int> x;
+  std::optional<int> y;
+  std::optional<int> width;
+  std::optional<int> height;
+  int pupil_size = 50;
+  int darken_amount = 50;
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    if (!value.isNumber()) {
+      host_.throw_js_error(ScriptEngineHost::tr("redEye: %1 must be a number.").arg(key));
+      return QJSValue();
+    }
+    const auto number = static_cast<int>(std::lround(value.toNumber()));
+    if (key == QLatin1String("x")) {
+      x = number;
+    } else if (key == QLatin1String("y")) {
+      y = number;
+    } else if (key == QLatin1String("width")) {
+      width = number;
+    } else if (key == QLatin1String("height")) {
+      height = number;
+    } else if (key == QLatin1String("pupilSize")) {
+      pupil_size = std::clamp(number, 1, 100);
+    } else if (key == QLatin1String("darkenAmount")) {
+      darken_amount = std::clamp(number, 1, 100);
+    } else {
+      host_.throw_js_error(ScriptEngineHost::tr("redEye: unknown option %1.").arg(key));
+      return QJSValue();
+    }
+  }
+  if (!x.has_value() || !y.has_value() || width.has_value() != height.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("redEye: pass {x, y} or {x, y, width, height}."));
+    return QJSValue();
+  }
+  std::optional<QRect> box;
+  QPoint point(*x, *y);
+  if (width.has_value()) {
+    if (*width < 1 || *height < 1) {
+      host_.throw_js_error(ScriptEngineHost::tr("redEye: width and height must be at least 1."));
+      return QJSValue();
+    }
+    box = QRect(*x, *y, *width, *height);
+    point = box->center();
+  }
+  std::int64_t pupil_pixels = 0;
+  QRect changed;
+  if (!host_.red_eye(session_id_, layer_id_, point, box, pupil_size, darken_amount, &pupil_pixels, &changed)) {
+    return QJSValue();
+  }
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("pupilPixels"), static_cast<double>(pupil_pixels));
+  result.setProperty(QStringLiteral("x"), changed.x());
+  result.setProperty(QStringLiteral("y"), changed.y());
+  result.setProperty(QStringLiteral("width"), changed.width());
+  result.setProperty(QStringLiteral("height"), changed.height());
   return result;
 }
 
@@ -3321,6 +3392,56 @@ bool ScriptDocumentObject::exportAnimatedWebp(const QString& path, const QJSValu
   return true;
 }
 
+bool ScriptDocumentObject::exportAnimatedPng(const QString& path, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) return false;
+  const auto suffix = QFileInfo(path).suffix();
+  if (path.trimmed().isEmpty() || (suffix.compare(QStringLiteral("png"), Qt::CaseInsensitive) != 0 &&
+                                   suffix.compare(QStringLiteral("apng"), Qt::CaseInsensitive) != 0)) {
+    host_.throw_js_error(ScriptEngineHost::tr("exportAnimatedPng needs a .png or .apng output path."));
+    return false;
+  }
+  ImageSaveOptions output;
+  output.apng_animate = true;
+  const auto& values = document->metadata().values;
+  if (const auto found = values.find(apng::kLoopCountMetadata); found != values.end()) {
+    output.apng_loop_count = std::clamp(QString::fromStdString(found->second).toInt(), 0, 65535);
+  }
+  if (!options.isUndefined() && (!options.isObject() || options.isArray() || options.isNull())) {
+    host_.throw_js_error(ScriptEngineHost::tr("exportAnimatedPng options must be an object."));
+    return false;
+  }
+  if (options.isObject()) {
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      const auto key = it.name();
+      const auto value = it.value();
+      int* target = nullptr;
+      int limit = 0;
+      if (key == QStringLiteral("loopCount")) { target = &output.apng_loop_count; limit = 65535; }
+      if (key == QStringLiteral("frameDelayMs")) {
+        target = &output.animation_frame_delay_ms;
+        limit = static_cast<int>(animation::kMaxFrameDelayMs);
+      }
+      const auto number = value.toNumber();
+      if (target == nullptr || !value.isNumber() || !std::isfinite(number) ||
+          number < 0 || number > limit || number != std::floor(number)) {
+        host_.throw_js_error(ScriptEngineHost::tr("exportAnimatedPng: invalid option %1.").arg(key));
+        return false;
+      }
+      *target = static_cast<int>(number);
+    }
+  }
+  QString error;
+  if (!host_.export_session_animated_png(session_id_, path, output, &error)) {
+    host_.throw_js_error(error);
+    return false;
+  }
+  return true;
+}
+
 void ScriptDocumentObject::close() {
   const ScriptApiCall api_call(host_);
   if (read_document() == nullptr) {
@@ -3383,13 +3504,44 @@ QJSValue ScriptAppObject::open(const QString& path) {
   return make_document_value(host_, id);
 }
 
-QJSValue ScriptAppObject::newDocument(int width, int height) {
+QJSValue ScriptAppObject::newDocument(int width, int height, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
-  const auto id = host_.create_document(width, height);
+  // The New Document dialog's Name and Color Mode (GitHub issues 360 and 374); both checked
+  // before anything is created.
+  QString name;
+  bool cmyk_proof = false;
+  if (options.isObject()) {
+    if (const auto value = options.property(QStringLiteral("name")); !value.isUndefined() && !value.isNull()) {
+      name = sanitized_new_document_name(value.toString());
+      if (name.isEmpty()) {
+        host_.throw_js_error(ScriptEngineHost::tr("newDocument name must hold a character a file name can use."));
+        return QJSValue();
+      }
+    }
+    if (const auto value = options.property(QStringLiteral("colorMode")); !value.isUndefined() && !value.isNull()) {
+      const auto mode = value.toString();
+      if (mode != QStringLiteral("rgb") && mode != QStringLiteral("cmykProof")) {
+        host_.throw_js_error(ScriptEngineHost::tr("newDocument colorMode must be \"rgb\" or \"cmykProof\"."));
+        return QJSValue();
+      }
+      cmyk_proof = mode == QStringLiteral("cmykProof");
+      if (cmyk_proof && !working_cmyk_space()->has_profile()) {
+        host_.throw_js_error(ScriptEngineHost::tr("CMYK Proof needs a CMYK profile. Choose one in Preferences."));
+        return QJSValue();
+      }
+    }
+  }
+  const auto id = host_.create_document(width, height, name);
   if (id == 0) {
     host_.throw_js_error(
         ScriptEngineHost::tr("newDocument needs a size between 1 and 30000."));
     return QJSValue();
+  }
+  if (cmyk_proof) {
+    if (const auto refusal = host_.set_session_cmyk_proof(id, true); !refusal.isEmpty()) {
+      host_.throw_js_error(refusal);
+      return QJSValue();
+    }
   }
   return make_document_value(host_, id);
 }

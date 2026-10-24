@@ -143,8 +143,7 @@ Font lookup, style matching, fallback coverage and system-font registration live
 
 ## The style picker (faces bold + italic cannot name)
 
-A family's faces are an arbitrary list; bold and italic name only four of them. The options
-bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop (no B/I buttons).
+The options bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop (no B/I buttons).
 `PsdTextStyleRun::style` / runs v5 column 12 persist a face the flags cannot express;
 `render_text_font_for_display_family` takes it as its last argument, applying `setStyleName`
 when the family offers it and falling back to the flags otherwise (a stray style must
@@ -174,7 +173,7 @@ not render nothing).
   only the database knows (Light, Semibold, Black), orders the four standard faces first, and
   caches per family with `fontDatabaseChanged` invalidation. A family that is not installed still
   offers the four standard faces so the toggles never synthesize on top of a substituted face.
-- New text seeds from the picker's selection (`add_text_at`).
+- New text seeds from the picker (`add_text_at`).
 - On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
   compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
   instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup

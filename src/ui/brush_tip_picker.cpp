@@ -3,6 +3,8 @@
 #include "ui/app_settings.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QCloseEvent>
 #include <QComboBox>
@@ -11,11 +13,14 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QListWidget>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadialGradient>
 #include <QScreen>
 #include <QSizeGrip>
+#include <QStyleOptionToolButton>
+#include <QStylePainter>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -25,6 +30,15 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kThumbnailExtent = 48;
+
+// The closed picker's face: the tip thumbnail, the name and a chevron, like the
+// Artboard bar's preset picker.
+constexpr int kFaceIconExtent = 16;
+constexpr int kFaceInset = 3;
+constexpr int kFaceTextGap = 4;
+constexpr int kChevronSize = 10;
+constexpr int kChevronMargin = 5;
+constexpr int kChevronRoom = kChevronSize + kChevronMargin + 3;
 
 const QString kPopupSizeSettingsKey = QStringLiteral("ui/brushTipPickerPopupSize");
 
@@ -105,8 +119,7 @@ BrushTipPicker::BrushTipPicker(BrushTipLibrary& library, QWidget* parent)
   setObjectName(QStringLiteral("brushTipPicker"));
   setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
   setPopupMode(QToolButton::InstantPopup);
-  setIconSize(QSize(20, 20));
-  setMinimumWidth(150);
+  setIconSize(QSize(kFaceIconExtent, kFaceIconExtent));
   popup_clock_.start();
   update_button_face();
   connect(this, &QToolButton::clicked, this, &BrushTipPicker::show_popup);
@@ -137,10 +150,48 @@ void BrushTipPicker::refresh() {
   update_button_face();
 }
 
+// The width comes from the size hints, not setFixedWidth: polishing applies the stylesheet's
+// QToolButton minimum over a fixed width, and the button then followed its text (issue 364).
+// It depends on the font only, never on the current tip.
+QSize BrushTipPicker::sizeHint() const {
+  const QFontMetrics metrics(font());
+  // About twelve average characters of name: "Brick Road" fits whole (issue 364's example).
+  const int width = std::clamp(kFaceInset + kFaceIconExtent + kFaceTextGap + kChevronRoom + metrics.averageCharWidth() * 12,
+                               105, 150);
+  return {width, QToolButton::sizeHint().height()};
+}
+
+QSize BrushTipPicker::minimumSizeHint() const {
+  return sizeHint();
+}
+
+// Reads like the bar's other fields whatever the base style does with a tool button's label:
+// the field surface (the brushTipPicker QSS rule), the thumbnail, the elided name and a chevron
+// pinned at the right.
+void BrushTipPicker::paintEvent(QPaintEvent* event) {
+  Q_UNUSED(event);
+  QStylePainter painter(this);
+  QStyleOptionToolButton option;
+  option.initFrom(this);
+  option.subControls = QStyle::SC_ToolButton;
+  option.toolButtonStyle = Qt::ToolButtonTextOnly;
+  painter.drawComplexControl(QStyle::CC_ToolButton, option);
+  const QRect icon_rect(kFaceInset, (height() - kFaceIconExtent) / 2, kFaceIconExtent, kFaceIconExtent);
+  icon().paint(&painter, icon_rect, Qt::AlignCenter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+  const auto& colors = theme();
+  const QRect text_rect = rect().adjusted(icon_rect.right() + 1 + kFaceTextGap, 0, -kChevronRoom, 0);
+  painter.setPen(isEnabled() ? colors.text_primary : colors.field_text_disabled);
+  painter.drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft,
+                   fontMetrics().elidedText(text(), Qt::ElideRight, text_rect.width()));
+  const QRect chevron(width() - kChevronSize - kChevronMargin, (height() - kChevronSize) / 2, kChevronSize, kChevronSize);
+  themed_svg_icon(QStringLiteral("chevron-down"))
+      .paint(&painter, chevron, Qt::AlignCenter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+}
+
 void BrushTipPicker::update_button_face() {
   if (!working_preview_.isNull()) {
     setIcon(QIcon(working_preview_));
-    setText(QFontMetrics(font()).elidedText(working_name_, Qt::ElideRight, 96));
+    setText(working_name_);
     setToolTip(tr("Brush tip: %1").arg(working_name_));
     return;
   }
@@ -154,11 +205,11 @@ void BrushTipPicker::update_button_face() {
   if (entry == nullptr) {
     setIcon(QIcon(round_tip_thumbnail(kThumbnailExtent)));
     setText(round_tip_display_name());
+    setToolTip(tr("Brush tip: %1").arg(round_tip_display_name()));
     return;
   }
   setIcon(QIcon(brush_tip_thumbnail_with_badge(*entry)));
-  QFontMetrics metrics(font());
-  setText(metrics.elidedText(entry->name, Qt::ElideRight, 96));
+  setText(entry->name);
   auto tooltip = tr("Brush tip: %1 (%2×%3)").arg(entry->name).arg(entry->size.width()).arg(entry->size.height());
   if (brush_tip_entry_has_dynamics(*entry)) {
     tooltip += tr(" • dynamics");

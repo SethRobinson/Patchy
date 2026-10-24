@@ -68,9 +68,12 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Mixer Brush | Wet, Load, Mix, Flow, Sample All Layers | `mixerWet`, `mixerLoad`, `mixerMix`, `mixerFlow`, `mixerSampleAllLayers` | yes | yes |
 | Pattern Stamp | Pattern (by pattern id), Aligned | `patternStampPatternId`, `patternStampAligned` | yes | yes |
 | Clone | Aligned | `cloneAligned` | yes | yes |
-| Clone, Healing, Spot Healing | Sample All Layers (`retouchSampleAllLayersCheck`) | `retouchSampleAllLayers` | yes | yes |
+| Clone, Healing, Spot Healing, Patch | Sample (`retouchSampleLayersCombo`: Current Layer, Current & Below, All Layers) | `retouchSampleLayers` (token; the older bool `retouchSampleAllLayers` is still written and maps on first read) | yes | yes |
+| Clone, Healing, Spot Healing, Patch | Ignore Adjustment Layers (`retouchIgnoreAdjustmentsCheck`) | `retouchIgnoreAdjustments` | yes | yes |
 | Healing | Diffusion | `healingDiffusion` | yes | yes |
+| Healing | Mode (`healingModeCombo`) | `healingMode` (token) | yes | yes |
 | Patch | Mode, Transparent | retired keys | no | no (session) |
+| Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |
 | Gradient | Method, Opacity, Reverse, gradient stops | `gradientMethod`, `gradientOpacity`, `gradientReverse`, `gradientUseCustomStops`, `gradientStops` | yes | yes |

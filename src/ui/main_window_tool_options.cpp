@@ -20,6 +20,7 @@
 #include "support/startup_trace.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/script_api.hpp"
+#include <QAbstractItemView>
 #include <QActionGroup>
 #include <QComboBox>
 #include <QStatusBar>
@@ -52,6 +53,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
@@ -1395,6 +1397,128 @@ void MainWindow::finish_pending_layer_blend_edit() {
   pending_layer_blend_edit_active_ = false;
 }
 
+// While the Layers panel's blend list is open, the highlighted mode shows on the canvas
+// (GitHub issue 367). Only the layers' modes change: no history entry and no session
+// revision, so the document is not marked modified. Closing the list puts every mode
+// back before Qt reports a chosen item, whose currentIndexChanged then commits through
+// set_active_layer_blend as one ordinary history entry.
+void MainWindow::begin_layer_blend_preview() {
+  end_layer_blend_preview();
+  if (updating_layer_controls_ || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    return;
+  }
+  const auto& doc = std::as_const(document());
+  LayerBlendPreview preview;
+  preview.session_id = session().session_id;
+  for (const auto id : ids) {
+    if (const auto* layer = doc.find_layer(id); layer != nullptr) {
+      preview.originals.emplace_back(id, layer->blend_mode());
+    }
+  }
+  preview.selection = std::move(ids);
+  layer_blend_preview_ = std::move(preview);
+}
+
+void MainWindow::preview_layer_blend(int index) {
+  if (!layer_blend_preview_.has_value() || updating_layer_controls_ || index < 0 || blend_combo_ == nullptr) {
+    return;
+  }
+  const auto* model = blend_combo_->model();
+  if (!(model->flags(model->index(index, blend_combo_->modelColumn())) & Qt::ItemIsEnabled)) {
+    return;
+  }
+  // Coalesced: a sweep across the list renders only the mode it rests on.
+  layer_blend_preview_->pending_mode = static_cast<BlendMode>(blend_combo_->itemData(index).toInt());
+  if (layer_blend_preview_timer_ != nullptr) {
+    layer_blend_preview_timer_->start();
+  } else {
+    apply_pending_layer_blend_preview();
+  }
+}
+
+void MainWindow::apply_pending_layer_blend_preview() {
+  if (!layer_blend_preview_.has_value() || !layer_blend_preview_->pending_mode.has_value()) {
+    return;
+  }
+  const auto mode = *layer_blend_preview_->pending_mode;
+  layer_blend_preview_->pending_mode.reset();
+  auto* owner = sessions_.find_by_id(layer_blend_preview_->session_id);
+  if (owner == nullptr || owner != active_session()) {
+    return;
+  }
+  bool changed = false;
+  for (const auto& [id, original] : layer_blend_preview_->originals) {
+    const auto* layer = std::as_const(owner->document).find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    // Only folders pass through, as in set_active_layer_blend.
+    const auto target = mode == BlendMode::PassThrough && layer->kind() != LayerKind::Group ? original : mode;
+    if (layer->blend_mode() == target) {
+      continue;
+    }
+    owner->document.find_layer(id)->set_blend_mode(target);
+    changed = true;
+  }
+  // The async path keeps the list responsive on large documents and renders only the
+  // newest mode when hovers outrun the compositor.
+  if (changed && owner->canvas != nullptr) {
+    owner->canvas->document_changed_async_preview();
+  }
+}
+
+void MainWindow::end_layer_blend_preview() {
+  if (layer_blend_preview_timer_ != nullptr) {
+    layer_blend_preview_timer_->stop();
+  }
+  if (!layer_blend_preview_.has_value()) {
+    return;
+  }
+  const auto preview = std::move(*layer_blend_preview_);
+  layer_blend_preview_.reset();
+  auto* owner = sessions_.find_by_id(preview.session_id);
+  if (owner == nullptr) {
+    return;
+  }
+  // The restored modes carry new revisions: a cache keyed on the old ones may hold
+  // the previewed render, so nothing is wound back.
+  Rect affected;
+  bool changed = false;
+  for (const auto& [id, original] : preview.originals) {
+    const auto* layer = std::as_const(owner->document).find_layer(id);
+    if (layer == nullptr || layer->blend_mode() == original) {
+      continue;
+    }
+    owner->document.find_layer(id)->set_blend_mode(original);
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    changed = true;
+  }
+  if (changed && owner->canvas != nullptr) {
+    owner->canvas->document_changed(to_qrect(affected));
+  }
+}
+
+void MainWindow::cancel_layer_blend_preview() {
+  if (!layer_blend_preview_.has_value()) {
+    return;
+  }
+  if (blend_combo_ != nullptr && blend_combo_->view()->isVisible()) {
+    blend_combo_->hidePopup();
+  }
+  end_layer_blend_preview();
+}
+
+bool MainWindow::layer_blend_preview_matches_active() const {
+  const auto* active = active_session();
+  return layer_blend_preview_.has_value() && active != nullptr &&
+         active->session_id == layer_blend_preview_->session_id &&
+         selected_or_active_layer_ids() == layer_blend_preview_->selection;
+}
+
 void MainWindow::set_active_layer_visible(bool visible) {
   if (updating_layer_controls_) {
     return;
@@ -1679,6 +1803,14 @@ void MainWindow::show_color_panel(bool foreground) {
         refresh_color_buttons();
       });
   dialog->setProperty("patchy.colorTarget", color_target);
+  // The Foreground Color window's Alt pick sets the background, as the docked Color
+  // panel's does (GitHub issue 365). The Background Color window has none: it already
+  // edits the background, and Alt there keeps acting like a plain click.
+  if (foreground) {
+    if (auto* picker = dialog->findChild<PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"))) {
+      picker->set_background_pick_handler([this](QColor color) { apply_color_panel_pick(color, true); });
+    }
+  }
   color_dialog_ = dialog;
   connect(dialog, &QObject::destroyed, this, [this, dialog] {
     if (color_dialog_ == dialog) {
@@ -1733,6 +1865,13 @@ void MainWindow::refresh_color_buttons() {
     secondary_color_button_->setText(tr("BG"));
     secondary_color_button_->setToolTip(named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
     secondary_color_button_->set_color(secondary_color);
+  }
+  if (color_dock_panel_ != nullptr) {
+    color_dock_panel_->set_colors(primary_color, secondary_color);
+    color_dock_panel_->foreground_chip()->setToolTip(
+        named_tooltip(tr("Foreground color %1").arg(primary_color.name(QColor::HexRgb).toUpper()), primary_color));
+    color_dock_panel_->background_chip()->setToolTip(
+        named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
   }
   refresh_text_color_button();
   refresh_gradient_controls_from_canvas();
@@ -2074,8 +2213,24 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
-  canvas_->set_retouch_sample_all_layers(
-      settings.value(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers()).toBool());
+  {
+    // The retouch Sample choice (GitHub issue 382); before it, a bool that still maps on
+    // first read (true All Layers, false Current Layer).
+    std::optional<std::string> token;
+    if (settings.contains(QStringLiteral("tools/retouchSampleLayers"))) {
+      token = settings.value(QStringLiteral("tools/retouchSampleLayers")).toString().toStdString();
+    }
+    std::optional<bool> legacy_sample_all_layers;
+    if (settings.contains(QStringLiteral("tools/retouchSampleAllLayers"))) {
+      legacy_sample_all_layers = settings.value(QStringLiteral("tools/retouchSampleAllLayers")).toBool();
+    }
+    canvas_->set_retouch_sample_layers(sample_layers_from_settings(token, legacy_sample_all_layers));
+  }
+  canvas_->set_retouch_ignore_adjustments(
+      settings.value(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments()).toBool());
+  canvas_->set_healing_mode(
+      healing_mode_from_token(settings.value(QStringLiteral("tools/healingMode")).toString().toStdString())
+          .value_or(HealingMode::Normal));
   current_crop_ratio_w_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_ratio_h_ =
@@ -2087,6 +2242,11 @@ void MainWindow::load_tool_settings() {
   }
   current_crop_delete_pixels_ = settings.value(QStringLiteral("tools/cropDeletePixels"), true).toBool();
   current_crop_delete_layers_ = settings.value(QStringLiteral("tools/cropDeleteLayers"), false).toBool();
+  current_red_eye_pupil_size_ = stored_int(settings, "tools/redEyePupilSize", 50, 1, 100);
+  current_red_eye_darken_amount_ = stored_int(settings, "tools/redEyeDarkenAmount", 50, 1, 100);
+  canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
+  sync_red_eye_controls();
   current_perspective_crop_show_grid_ = stored_bool(settings, "tools/perspectiveCropShowGrid", true);
   if (perspective_crop_grid_check_ != nullptr) {
     const QSignalBlocker blocker(perspective_crop_grid_check_);
@@ -2397,6 +2557,39 @@ void MainWindow::load_tool_settings() {
   }
 }
 
+void MainWindow::set_red_eye_pupil_size(int percent) {
+  current_red_eye_pupil_size_ = std::clamp(percent, 1, 100);
+  if (canvas_ != nullptr) {
+    canvas_->set_red_eye_pupil_size(current_red_eye_pupil_size_);
+  }
+  sync_red_eye_controls();
+  schedule_save_tool_settings();
+}
+
+void MainWindow::set_red_eye_darken_amount(int percent) {
+  current_red_eye_darken_amount_ = std::clamp(percent, 1, 100);
+  if (canvas_ != nullptr) {
+    canvas_->set_red_eye_darken_amount(current_red_eye_darken_amount_);
+  }
+  sync_red_eye_controls();
+  schedule_save_tool_settings();
+}
+
+void MainWindow::sync_red_eye_controls() {
+  for (const auto& [spin, slider, value] :
+       {std::tuple{red_eye_pupil_spin_, red_eye_pupil_slider_, current_red_eye_pupil_size_},
+        std::tuple{red_eye_darken_spin_, red_eye_darken_slider_, current_red_eye_darken_amount_}}) {
+    if (spin != nullptr && spin->value() != value) {
+      const QSignalBlocker blocker(spin);
+      spin->setValue(value);
+    }
+    if (slider != nullptr && slider->value() != value) {
+      const QSignalBlocker blocker(slider);
+      slider->setValue(value);
+    }
+  }
+}
+
 void MainWindow::schedule_save_tool_settings() {
   if (tool_settings_save_timer_ != nullptr) {
     tool_settings_save_timer_->start();
@@ -2407,6 +2600,45 @@ void MainWindow::schedule_save_tool_settings() {
 
 void MainWindow::save_active_tool_setting() const {
   app_settings().setValue(QLatin1String(kActiveToolSettingsKey), tool_hotkey_id(current_tool_));
+}
+
+void MainWindow::sync_retouch_sample_controls_from_canvas() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (retouch_sample_layers_combo_ != nullptr) {
+    const QSignalBlocker blocker(retouch_sample_layers_combo_);
+    retouch_sample_layers_combo_->setCurrentIndex(std::max(
+        0, retouch_sample_layers_combo_->findData(
+               QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())))));
+  }
+  if (healing_mode_combo_ != nullptr) {
+    const QSignalBlocker blocker(healing_mode_combo_);
+    healing_mode_combo_->setCurrentIndex(
+        std::max(0, healing_mode_combo_->findData(static_cast<int>(canvas_->healing_mode()))));
+  }
+  if (retouch_ignore_adjustments_check_ != nullptr) {
+    const QSignalBlocker blocker(retouch_ignore_adjustments_check_);
+    retouch_ignore_adjustments_check_->setChecked(canvas_->retouch_ignore_adjustments());
+    retouch_ignore_adjustments_check_->setEnabled(canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
+  }
+}
+
+QString MainWindow::retouch_sample_info_text() const {
+  if (canvas_ == nullptr) {
+    return {};
+  }
+  switch (canvas_->retouch_sample_layers()) {
+    case SampleLayers::CurrentLayer:
+      return tr("active layer");
+    case SampleLayers::CurrentAndBelow:
+    case SampleLayers::CurrentAndBelowNoAdjustments:
+      return tr("active layer and below");
+    case SampleLayers::AllLayers:
+    case SampleLayers::AllLayersNoAdjustments:
+      break;
+  }
+  return tr("sample all layers");
 }
 
 void MainWindow::save_tool_settings() const {
@@ -2479,7 +2711,14 @@ void MainWindow::save_tool_settings() const {
   // must not leak them into later windows.
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
-  settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/retouchSampleLayers"),
+                    QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())));
+  // Older builds read only the bool: Current & Below reads there as All Layers.
+  settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"),
+                    canvas_->retouch_sample_layers() != SampleLayers::CurrentLayer);
+  settings.setValue(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments());
+  settings.setValue(QStringLiteral("tools/healingMode"),
+                    QString::fromLatin1(healing_mode_token(canvas_->healing_mode())));
   // The remembered ratio, not the canvas's: Size mode runs the canvas unconstrained.
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);
@@ -2487,6 +2726,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropDeletePixels"), current_crop_delete_pixels_);
   settings.setValue(QStringLiteral("tools/cropDeleteLayers"), current_crop_delete_layers_);
   settings.setValue(QStringLiteral("tools/perspectiveCropShowGrid"), current_perspective_crop_show_grid_);
+  settings.setValue(QStringLiteral("tools/redEyePupilSize"), current_red_eye_pupil_size_);
+  settings.setValue(QStringLiteral("tools/redEyeDarkenAmount"), current_red_eye_darken_amount_);
   if (crop_overlay_combo_ != nullptr && current_crop_overlay_ >= 0 &&
       current_crop_overlay_ < crop_overlay_combo_->count()) {
     settings.setValue(QStringLiteral("tools/cropOverlay"), crop_overlay_combo_->itemData(current_crop_overlay_));
@@ -3345,10 +3586,7 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
   }
-  if (retouch_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
-    QSignalBlocker blocker(retouch_sample_all_layers_check_);
-    retouch_sample_all_layers_check_->setChecked(canvas_->retouch_sample_all_layers());
-  }
+  sync_retouch_sample_controls_from_canvas();
   if (mixer_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(mixer_sample_all_layers_check_);
     mixer_sample_all_layers_check_->setChecked(canvas_->mixer_sample_all_layers());

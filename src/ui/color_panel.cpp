@@ -1,8 +1,10 @@
 #include "ui/color_panel.hpp"
+#include "ui/color_field_widgets.hpp"
 
 #include "core/palette_presets.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_pick_cursor.hpp"
 #include "ui/palette_panel.hpp"
 
 #include "ui/dialog_utils.hpp"
@@ -73,8 +75,6 @@ namespace {
 
 // Wide enough for the footer's three field blocks (HSV, RGB, CMYK) beside the preview.
 constexpr QSize kColorDialogSize{640, 450};
-constexpr int kColorPlaneSize = 188;
-constexpr int kHueSliderWidth = 16;
 constexpr int kColorWheelSize = 188;
 constexpr int kColorWheelMinSize = 150;
 constexpr int kColorWheelRing = 20;
@@ -113,8 +113,6 @@ enum class ColorChangeNotification {
 // generic getter/setter on the picker so a single slider class covers all six.
 enum class ColorChannel { Red, Green, Blue, Hue, Saturation, Value };
 
-class ColorPlaneWidget;
-class HueSliderWidget;
 class ColorWheelWidget;
 class ColorChannelSlider;
 class PickerPaletteGrid;
@@ -174,46 +172,6 @@ int channel_from_percent(int percent) {
 
 int bounded_channel(int value) {
   return std::clamp(value, 0, 255);
-}
-
-int rounded_scaled_channel(int position, int maximum_position, int maximum_value) {
-  if (maximum_position <= 0) {
-    return 0;
-  }
-  return std::clamp(static_cast<int>(std::lround(static_cast<double>(position) * maximum_value / maximum_position)), 0,
-                    maximum_value);
-}
-
-// Renders the saturation (x) / value (y) gradient for a fixed hue into an image,
-// shared by the square-mode plane and the colour wheel's inner square.
-QImage render_saturation_value_image(int hue, QSize size) {
-  if (size.isEmpty()) {
-    return {};
-  }
-  QImage image(size, QImage::Format_RGB32);
-  const auto max_x = std::max(1, size.width() - 1);
-  const auto max_y = std::max(1, size.height() - 1);
-  for (int y = 0; y < size.height(); ++y) {
-    auto* scanline = reinterpret_cast<QRgb*>(image.scanLine(y));
-    const int value = 255 - rounded_scaled_channel(y, max_y, 255);
-    for (int x = 0; x < size.width(); ++x) {
-      const int saturation = rounded_scaled_channel(x, max_x, 255);
-      scanline[x] = QColor::fromHsv(hue, saturation, value).rgb();
-    }
-  }
-  return image;
-}
-
-// A two-tone crosshair (dark halo + light core) so the marker stays visible over
-// any colour underneath. Used by the SV plane and the wheel's inner square.
-void draw_crosshair_marker(QPainter& painter, QPointF center) {
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(QColor(10, 10, 10), 3.0));
-  painter.drawLine(center + QPointF(-8.0, 0.0), center + QPointF(8.0, 0.0));
-  painter.drawLine(center + QPointF(0.0, -8.0), center + QPointF(0.0, 8.0));
-  painter.setPen(QPen(QColor(245, 245, 245), 1.0));
-  painter.drawLine(center + QPointF(-8.0, 0.0), center + QPointF(8.0, 0.0));
-  painter.drawLine(center + QPointF(0.0, -8.0), center + QPointF(0.0, 8.0));
 }
 
 std::vector<QColor> basic_colors() {
@@ -344,22 +302,32 @@ void justify_swatch_grid(QGridLayout* grid, int columns) {
 
 }  // namespace
 
-class PatchyColorPickerPrivate {
+class PatchyColorPickerPrivate final : public HsvFieldSource {
 public:
   explicit PatchyColorPickerPrivate(PatchyColorPicker& owner) : owner_(owner) {}
-  ~PatchyColorPickerPrivate();
+  ~PatchyColorPickerPrivate() override;
 
   void build_ui();
   void set_color(QColor color, ColorChangeNotification notification);
   void apply_hsv_color(ColorChangeNotification notification);
-  void set_saturation_value_from_point(QPoint point, QSize size);
-  void set_hue_from_point(QPoint point, QSize size);
+  void set_saturation_value_from_point(QPoint point, QSize size) override;
+  void set_hue_from_point(QPoint point, QSize size) override;
   void set_hue(int hue);
   void set_channel(ColorChannel channel, int value);
   void select_custom_color(int index);
   void set_selected_custom_color();
   void start_screen_pick();
-  void finish_screen_pick(QPoint global_position, bool sample);
+  void finish_screen_pick(QPoint global_position, bool sample, bool background = false);
+  // The Alt pick (PatchyColorPicker::set_background_pick_handler).
+  void set_background_pick_handler(std::function<void(QColor)> handler);
+  [[nodiscard]] bool alt_picks_background(Qt::KeyboardModifiers modifiers) const {
+    return background_pick_handler_ && (modifiers & Qt::AltModifier) != 0;
+  }
+  void pick_background(QColor color);
+  void begin_field_pick(Qt::KeyboardModifiers modifiers) override {
+    field_picks_background_ = alt_picks_background(modifiers);
+  }
+  void end_field_pick() override { field_picks_background_ = false; }
   // Reacts to a MainWindow palette push: refreshes the "Current palette" swatches
   // and switches the dropdown to them when palette mode just turned on.
   void document_palette_changed(bool palette_mode_turned_on);
@@ -385,9 +353,9 @@ public:
   void refresh_gamut_warning();
 
   [[nodiscard]] QColor current_color() const { return color_; }
-  [[nodiscard]] int hue() const { return hue_; }
-  [[nodiscard]] int saturation() const { return saturation_; }
-  [[nodiscard]] int value() const { return value_; }
+  [[nodiscard]] int hue() const override { return hue_; }
+  [[nodiscard]] int saturation() const override { return saturation_; }
+  [[nodiscard]] int value() const override { return value_; }
   [[nodiscard]] int channel_value(ColorChannel channel) const;
   [[nodiscard]] int channel_maximum(ColorChannel channel) const { return channel == ColorChannel::Hue ? 359 : 255; }
 
@@ -399,7 +367,7 @@ private:
   void save_custom_colors() const;
   void refresh_custom_swatch(int index);
   void refresh_custom_controls();
-  void sample_screen_color(QPoint global_position);
+  void sample_screen_color(QPoint global_position, bool background);
   void set_html_color();
   void set_cmyk_channel(std::size_t index, int percent);
   void populate_palette_combo();
@@ -457,6 +425,9 @@ private:
   std::array<QPushButton*, kCustomColorCount> custom_buttons_{};
   std::array<QColor, kCustomColorCount> custom_colors_{};
   QPointer<ScreenColorOverlay> overlay_;
+  std::function<void(QColor)> background_pick_handler_;
+  // Set by an Alt press on the field, hue strip or wheel, for that press's whole drag.
+  bool field_picks_background_{false};
 };
 
 namespace {
@@ -530,8 +501,13 @@ protected:
   void mousePressEvent(QMouseEvent* event) override {
     const auto index = index_at(event->position().toPoint());
     if (event->button() == Qt::LeftButton && index >= 0) {
-      picker_.set_color(colors_[static_cast<std::size_t>(index)], ColorChangeNotification::Yes);
-      set_selected(index);  // paste (and future edits) target the clicked cell
+      if (picker_.alt_picks_background(event->modifiers())) {
+        // The background takes the swatch; this picker's color and selection stay.
+        picker_.pick_background(colors_[static_cast<std::size_t>(index)]);
+      } else {
+        picker_.set_color(colors_[static_cast<std::size_t>(index)], ColorChangeNotification::Yes);
+        set_selected(index);  // paste (and future edits) target the clicked cell
+      }
       press_position_ = event->position().toPoint();
       pressed_index_ = index;
       event->accept();
@@ -686,6 +662,13 @@ protected:
   void mousePressEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton) {
       press_position_ = event->position().toPoint();
+      if (picker_.alt_picks_background(event->modifiers())) {
+        // Not a button press: no clicked(), so the slot is neither selected nor
+        // made this picker's color. A drag from here still carries the color out.
+        picker_.pick_background(picker_.custom_color(slot_));
+        event->accept();
+        return;
+      }
     }
     QPushButton::mousePressEvent(event);
   }
@@ -766,117 +749,6 @@ private:
   QPoint press_position_;
 };
 
-class ColorPlaneWidget final : public QWidget {
-public:
-  explicit ColorPlaneWidget(PatchyColorPickerPrivate& picker, QWidget* parent) : QWidget(parent), picker_(picker) {
-    setObjectName(QStringLiteral("patchyColorPlane"));
-    setCursor(Qt::CrossCursor);
-    setMinimumSize(kColorPlaneSize, kColorPlaneSize);
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    setFocusPolicy(Qt::ClickFocus);  // Edit > Copy/Paste route to the picker
-  }
-
-  [[nodiscard]] QSize sizeHint() const override { return QSize(kColorPlaneSize, kColorPlaneSize); }
-
-protected:
-  void paintEvent(QPaintEvent* event) override {
-    Q_UNUSED(event);
-    const auto paint_size = size();
-    if (paint_size.isEmpty()) {
-      return;
-    }
-
-    const auto max_x = std::max(1, paint_size.width() - 1);
-    const auto max_y = std::max(1, paint_size.height() - 1);
-
-    QPainter painter(this);
-    painter.drawImage(QPoint(0, 0), render_saturation_value_image(picker_.hue(), paint_size));
-    painter.setPen(QPen(QColor(26, 26, 26), 1));
-    painter.drawRect(rect().adjusted(0, 0, -1, -1));
-
-    const double cursor_x = static_cast<double>(picker_.saturation()) / 255.0 * max_x;
-    const double cursor_y = static_cast<double>(255 - picker_.value()) / 255.0 * max_y;
-    draw_crosshair_marker(painter, QPointF(cursor_x, cursor_y));
-  }
-
-  void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      picker_.set_saturation_value_from_point(event->position().toPoint(), size());
-      event->accept();
-      return;
-    }
-    QWidget::mousePressEvent(event);
-  }
-
-  void mouseMoveEvent(QMouseEvent* event) override {
-    if ((event->buttons() & Qt::LeftButton) != 0) {
-      picker_.set_saturation_value_from_point(event->position().toPoint(), size());
-      event->accept();
-      return;
-    }
-    QWidget::mouseMoveEvent(event);
-  }
-
-private:
-  PatchyColorPickerPrivate& picker_;
-};
-
-class HueSliderWidget final : public QWidget {
-public:
-  explicit HueSliderWidget(PatchyColorPickerPrivate& picker, QWidget* parent) : QWidget(parent), picker_(picker) {
-    setObjectName(QStringLiteral("patchyHueSlider"));
-    setCursor(Qt::PointingHandCursor);
-    setMinimumSize(kHueSliderWidth, kColorPlaneSize);
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    setFocusPolicy(Qt::ClickFocus);
-  }
-
-  [[nodiscard]] QSize sizeHint() const override { return QSize(kHueSliderWidth, kColorPlaneSize); }
-
-protected:
-  void paintEvent(QPaintEvent* event) override {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    const auto max_y = std::max(1, height() - 1);
-    for (int y = 0; y < height(); ++y) {
-      const int hue = rounded_scaled_channel(y, max_y, 359);
-      painter.setPen(QColor::fromHsv(hue, 255, 255));
-      painter.drawLine(0, y, width() - 1, y);
-    }
-
-    painter.setPen(QPen(QColor(26, 26, 26), 1));
-    painter.drawRect(rect().adjusted(0, 0, -1, -1));
-
-    const int marker_y = rounded_scaled_channel(picker_.hue(), 359, max_y);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(0, 0, 0), 3.0));
-    painter.drawLine(QPointF(0.0, marker_y), QPointF(width() - 1.0, marker_y));
-    painter.setPen(QPen(QColor(245, 245, 245), 1.0));
-    painter.drawLine(QPointF(0.0, marker_y), QPointF(width() - 1.0, marker_y));
-  }
-
-  void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      picker_.set_hue_from_point(event->position().toPoint(), size());
-      event->accept();
-      return;
-    }
-    QWidget::mousePressEvent(event);
-  }
-
-  void mouseMoveEvent(QMouseEvent* event) override {
-    if ((event->buttons() & Qt::LeftButton) != 0) {
-      picker_.set_hue_from_point(event->position().toPoint(), size());
-      event->accept();
-      return;
-    }
-    QWidget::mouseMoveEvent(event);
-  }
-
-private:
-  PatchyColorPickerPrivate& picker_;
-};
-
 // "Wheel" tab: an outer hue ring (drag = hue) wrapping an inner saturation/value
 // square (drag = sat/val) for the current hue. Shares the picker's HSV state with
 // every other view, so dragging here updates the square tab, the sliders, and the
@@ -947,6 +819,7 @@ protected:
   void mousePressEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton) {
       active_ = hit_test(event->position().toPoint());
+      picker_.begin_field_pick(event->modifiers());
       apply(event->position().toPoint());
       event->accept();
       return;
@@ -964,6 +837,9 @@ protected:
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      picker_.end_field_pick();
+    }
     active_ = Region::None;
     QWidget::mouseReleaseEvent(event);
   }
@@ -1162,7 +1038,8 @@ protected:
   }
 
   void mousePressEvent(QMouseEvent* event) override {
-    picker_.finish_screen_pick(event->globalPosition().toPoint(), event->button() == Qt::LeftButton);
+    picker_.finish_screen_pick(event->globalPosition().toPoint(), event->button() == Qt::LeftButton,
+                               picker_.alt_picks_background(event->modifiers()));
     event->accept();
   }
 
@@ -1171,7 +1048,8 @@ protected:
       // A pen tap arrives as a tablet press; the tip and an unidentified button
       // both mean "sample this pixel".
       const bool sample = event->button() == Qt::LeftButton || event->button() == Qt::NoButton;
-      picker_.finish_screen_pick(event->globalPosition().toPoint(), sample);
+      picker_.finish_screen_pick(event->globalPosition().toPoint(), sample,
+                                 picker_.alt_picks_background(event->modifiers()));
     }
     event->accept();
   }
@@ -1634,19 +1512,31 @@ void PatchyColorPickerPrivate::set_saturation_value_from_point(QPoint point, QSi
   const auto max_y = std::max(1, size.height() - 1);
   const int x = std::clamp(point.x(), 0, max_x);
   const int y = std::clamp(point.y(), 0, max_y);
-  saturation_ = x <= 2 ? 0 : (x >= max_x - 2 ? 255 : rounded_scaled_channel(x, max_x, 255));
-  value_ = y <= 2 ? 255 : (y >= max_y - 2 ? 0 : 255 - rounded_scaled_channel(y, max_y, 255));
+  const int saturation = x <= 2 ? 0 : (x >= max_x - 2 ? 255 : rounded_scaled_channel(x, max_x, 255));
+  const int value = y <= 2 ? 255 : (y >= max_y - 2 ? 0 : 255 - rounded_scaled_channel(y, max_y, 255));
+  if (field_picks_background_) {
+    // An Alt pick: the background takes the color under the pointer, this picker's
+    // color stays (the docked Color panel does the same).
+    pick_background(QColor::fromHsv(std::clamp(hue_, 0, 359), saturation, value));
+    return;
+  }
+  saturation_ = saturation;
+  value_ = value;
   apply_hsv_color(ColorChangeNotification::Yes);
 }
 
 void PatchyColorPickerPrivate::set_hue_from_point(QPoint point, QSize size) {
   const auto max_y = std::max(1, size.height() - 1);
   const int y = std::clamp(point.y(), 0, max_y);
-  hue_ = rounded_scaled_channel(y, max_y, 359);
-  apply_hsv_color(ColorChangeNotification::Yes);
+  set_hue(rounded_scaled_channel(y, max_y, 359));
 }
 
 void PatchyColorPickerPrivate::set_hue(int hue) {
+  if (field_picks_background_) {
+    // An Alt pick on the hue strip or the wheel's ring: that hue at full strength.
+    pick_background(QColor::fromHsv(std::clamp(hue, 0, 359), 255, 255));
+    return;
+  }
   hue_ = std::clamp(hue, 0, 359);
   apply_hsv_color(ColorChangeNotification::Yes);
 }
@@ -2217,7 +2107,7 @@ void PatchyColorPickerPrivate::start_screen_pick() {
   overlay->grabKeyboard();
 }
 
-void PatchyColorPickerPrivate::finish_screen_pick(QPoint global_position, bool sample) {
+void PatchyColorPickerPrivate::finish_screen_pick(QPoint global_position, bool sample, bool background) {
   auto* overlay = overlay_.data();
   if (overlay == nullptr) {
     return;
@@ -2232,13 +2122,45 @@ void PatchyColorPickerPrivate::finish_screen_pick(QPoint global_position, bool s
     // Defer the grab one event-loop turn so the just-hidden overlay is gone from
     // the composited screen, yielding an untinted sample. owner_ is the context
     // object, so the callback is dropped if the picker is destroyed first.
-    QTimer::singleShot(0, &owner_, [this, global_position] { sample_screen_color(global_position); });
+    QTimer::singleShot(0, &owner_,
+                       [this, global_position, background] { sample_screen_color(global_position, background); });
   }
 }
 
-void PatchyColorPickerPrivate::sample_screen_color(QPoint global_position) {
+void PatchyColorPickerPrivate::sample_screen_color(QPoint global_position, bool background) {
   if (const auto picked = screen_color_at_global_position(global_position); picked.has_value()) {
-    set_color(*picked, ColorChangeNotification::Yes);
+    if (background) {
+      pick_background(*picked);
+    } else {
+      set_color(*picked, ColorChangeNotification::Yes);
+    }
+  }
+}
+
+void PatchyColorPickerPrivate::set_background_pick_handler(std::function<void(QColor)> handler) {
+  const bool first = !background_pick_handler_ && handler;
+  background_pick_handler_ = std::move(handler);
+  if (!first) {
+    return;
+  }
+  // Alt held over a surface that picks shows the background cursor (the docked Color
+  // panel's mechanism). The Sliders tab is left out: a slider moves one channel.
+  for (QWidget* widget : {static_cast<QWidget*>(palette_grid_), static_cast<QWidget*>(color_plane_),
+                          static_cast<QWidget*>(hue_slider_), static_cast<QWidget*>(wheel_)}) {
+    if (widget != nullptr) {
+      new BackgroundPickCursor(widget);
+    }
+  }
+  for (auto* button : custom_buttons_) {
+    if (button != nullptr) {
+      new BackgroundPickCursor(button);
+    }
+  }
+}
+
+void PatchyColorPickerPrivate::pick_background(QColor color) {
+  if (background_pick_handler_ && color.isValid()) {
+    background_pick_handler_(normalized_rgb_color(color));
   }
 }
 
@@ -2269,6 +2191,10 @@ void PatchyColorPicker::setCurrentColor(QColor color) {
 
 void PatchyColorPicker::focus_hex_field() {
   impl_->focus_html_edit();
+}
+
+void PatchyColorPicker::set_background_pick_handler(std::function<void(QColor)> handler) {
+  impl_->set_background_pick_handler(std::move(handler));
 }
 
 void PatchyColorPicker::showEvent(QShowEvent* event) {

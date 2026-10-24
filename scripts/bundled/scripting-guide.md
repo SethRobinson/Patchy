@@ -327,7 +327,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `app.activeDocument` | The active document, or `undefined` when none is open. |
 | `app.documents` | Every open document. |
 | `app.open(path)` | Opens a file and returns its document; throws on failure. RAW opens read the photo's `.rawprefs` sidecar or use current defaults, without writing settings. Unattended PDF opens use default settings. |
-| `app.newDocument(width, height)` | Creates a new document. |
+| `app.newDocument(width, height, options?)` | Creates a new document with a white Background. Options: `name` (the tab title and default Save As name; characters a file name cannot hold are dropped) and `colorMode` (`"rgb"`, the default, or `"cmykProof"`, Image > Mode > CMYK Proof, which needs a CMYK profile in Preferences). |
 | `app.alert(text)` | Message box (logs to the console in command-line runs). |
 | `app.prompt(text, defaultValue)` | Text input; `null` when cancelled, the default in command-line runs. |
 | `app.chooseFolder(title)` | Folder picker; `""` when cancelled or unattended. |
@@ -375,6 +375,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.saveAs(path, options?)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). The document then points at that file; a layered document saved to a flat format keeps its own path (save-a-copy). `options` sets the format's save options with no dialog (below); without it the save uses your Save Options defaults. WebP stays a single flattened image. |
 | `doc.exportAs(path, options?)` | Writes a copy with the same formats and options as `saveAs` and leaves the document alone: path, title and modified state never change. |
 | `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. Leaves the document path and modified state unchanged. |
+| `doc.exportAnimatedPng(path, options?)` | The same frames as an animated PNG (APNG). Options `frameDelayMs` and `loopCount`, as for WebP. |
 | `doc.close()` | Closes without prompting. |
 | `doc.activate()` | Makes this the active tab. |
 
@@ -441,6 +442,15 @@ Delays are integer milliseconds (0 through 16777215), play counts are integers
 lossless. Invalid options, an output extension other than `.webp`, or an export failure
 throw an error. Hidden layers are skipped. Identical consecutive frames can be combined
 by the encoder. Loop counts are retained for the open document, not in PSD or recovery files.
+
+`doc.exportAnimatedPng(path, options?)` writes the same frames as an animated PNG
+(APNG: lossless 8-bit RGBA, frame 1 doubles as the still image for viewers without
+animation support). It takes `frameDelayMs` and `loopCount` with the same ranges and
+defaults; the path must end in `.png` or `.apng`. Every layer stays one frame.
+
+```js
+app.activeDocument.exportAnimatedPng("animation.png", { frameDelayMs: 100, loopCount: 0 });
+```
 
 ### Palettes and indexed PNG
 
@@ -529,6 +539,7 @@ preview. PNG export may reserve one extra palette entry for transparency.
 | `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle (sides up to 30000). RGB8 photos and RGBA8 layers are supported. A transparent color like `"#00000000"` clears. |
 | `layer.applyFilter(id, params)` | Runs a filter, e.g. `layer.applyFilter("patchy.filters.gaussian_blur", { radius: 8 })`. With a selection only the selected pixels change, soft edges blended by coverage, as with the Filter menu. |
 | `layer.removeBackground()` | Layer > Layer Mask > Remove Background: Select Subject on the merged document, set as this layer's mask (an existing mask is multiplied). Pixel, adjustment, or group layers; the selection is unchanged. |
+| `layer.redEye({x, y, width?, height?, pupilSize?, darkenAmount?})` | The Red Eye tool: `{x, y}` clicks there (document pixels), adding `width` and `height` drags a box instead. The connected red area at or nearest the point is desaturated and darkened by a fixed color rule (no eye detection); a selection limits the change. `pupilSize` and `darkenAmount` are 1..100, default 50. The layer must be the active layer. Returns `{pupilPixels, x, y, width, height}` (the changed bounds); throws when no red pixel is found. |
 | `layer.removeObject(options?)` | Edit > Remove Object without its dialog: fills the document selection from its surroundings. `method` is `"contentAware"` (default: the deterministic exemplar fill, an exhaustive best-patch search nearby, no AI; falls back to nearest edge when nothing clean is in reach) or `"nearestEdge"` (the selection form of Spot Healing; calling it again on the same selection tries the next source, `{ attempt: n }` picks one, 0-based, wrapping). For content-aware, `attempt` is the variation (0 = best match, each n > 0 a different reproducible fill, the dialog's Reroll), `toneMatch` (0..100, default 0) scales the tone match after the fill (0 = raw fill), and `feather` (px, default 0) softens the fill's edge outward. The layer must be the active layer and a selection must exist. Returns `{method, patches, source, sourceCount, attempt}`. |
 | `layer.getPixels()` / `layer.setPixels(imageData)` | Raw RGBA8 pixel access. `getPixels` returns `{x, y, width, height, data}` with an `ArrayBuffer` of `width * height * 4` bytes; `setPixels` replaces the layer's pixels with such a block. |
 | `layer.traceToShapes(options)` | Trace Image to Shapes: turns the pixel layer into a group of solid shape layers, one per color, and returns the group (the source layer is hidden). Options: `mode` (`"color"`, `"grayscale"`, `"blackAndWhite"`), `colors` (2..256), `threshold`, `paths`, `corners`, `noise`, `smoothing` (denoise blur px), `mergeColors` (merge traced colors within this per-channel difference, 0 = off), `maxAnchors` (anchor budget, 0 = unlimited), `method` (`"abutting"` or `"overlapping"`), `snapCurvesToLines`, `ignoreWhite`, `paletteFromLayer` (with a selection: colors from the whole layer when true, the default; `false` picks colors only from the selected pixels). With a selection active only the selected area is traced. Example: `layer.traceToShapes({ mode: "blackAndWhite", ignoreWhite: true })`. |
@@ -585,7 +596,7 @@ doc.exportArtboards("out", {format: "png"});
 | `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
 | `patchy.ui.captureWindow(path)` | Saves a PNG screenshot without raising or focusing the window. Waits up to 60 seconds for enabled Dynamic Vector Preview to settle; returns false on timeout or write failure. |
 | `patchy.ui.setStatusMessage(text)` | Shows a message in the status bar. Handy for progress readouts in long batches. |
-| `patchy.ui.expandPanel(name)` | Opens a panel of the right column like its Window menu entry: reopens it if closed, brings its tab to the front, and expands it. Names: `"layers"`, `"channels"`, `"paths"`, `"history"`, `"properties"`, `"info"`, `"palette"` (exact and lowercase; anything else throws). Layers, Channels and Paths share one tab group, so they expand together. Use it before `captureWindow` to show, say, the Properties panel. |
+| `patchy.ui.expandPanel(name)` | Opens a panel of the right column like its Window menu entry: reopens it if closed, brings its tab to the front, and expands it. Names: `"layers"`, `"channels"`, `"paths"`, `"history"`, `"properties"`, `"info"`, `"palette"`, `"color"` (exact and lowercase; anything else throws). Layers, Channels and Paths share one tab group, so they expand together. Use it before `captureWindow` to show, say, the Properties panel. |
 | `patchy.ui.collapsePanel(name)` / `patchy.ui.closePanel(name)` | Collapse the panel to its title row, or close it. Same names. |
 | `patchy.ui.panelState(name)` | `{open, front, expanded}` for the panel: whether it is open (a tab behind another counts), its group's front tab, and expanded. |
 | `patchy.ui.proofColors`, `patchy.ui.gamutWarning` | View > Proof Colors and View > Gamut Warning (read/write booleans). They change how every canvas is displayed, through the working CMYK profile: a soft proof of the print, and flat gray over colors the profile cannot reproduce. Pixels, previews, saves and exports are unchanged, so only window captures see them. `app.colorInCmykGamut(color)` answers the gamut question for one color. |

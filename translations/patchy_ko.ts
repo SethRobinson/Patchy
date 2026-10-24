@@ -12092,6 +12092,109 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB는 Patchy에 내장되어 있습니다. 다른 프로파일은 이 컴퓨터에 설치된 RGB 프로파일입니다. 목록에 없는 프로파일은 &apos;프로파일 파일 선택...&apos;을 사용하세요.</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>애니메이션 PNG 프레임을 인코딩할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>애니메이션 PNG에는 프레임이 하나 이상 필요합니다.</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>문서에 애니메이션 PNG로 내보낼 표시된 최상위 레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>애니메이션 PNG의 프레임 또는 시간이 잘못되었습니다.</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>PNG 파일을 쓰기용으로 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>PNG 파일을 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>애니메이션 PNG 옵션</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>저장됨</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>제목없음-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>문서 탭 제목이자 다른 이름으로 저장에서 제안하는 파일 이름</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 교정</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>캔버스는 환경설정에서 지정한 CMYK 프로파일로 표시됩니다. JPEG, TIFF 또는 PDF로 저장하면 CMYK로 기록합니다.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 교정에는 CMYK 프로파일이 필요합니다. 환경설정에서 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>이름</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>색상 모드</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>색상 프로파일</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>사전 설정 저장...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>이 설정을 저장됨 그룹의 사전 설정으로 저장</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>CMYK 교정은 픽셀을 RGB로 유지하고 이 프로파일을 통해 표시합니다. 환경설정에서 변경하십시오.</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy는 RGB 문서를 sRGB로 편집하고 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>Delete 키를 누르거나 카드를 마우스 오른쪽 버튼으로 클릭하여 이 사전 설정을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>사전 설정 저장</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1 (환경설정)</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>적목 현상 제거</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13826,6 +13929,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The corners must form a convex shape</source>
         <translation>모서리는 볼록한 모양을 이루어야 합니다</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>적목 현상 제거</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>적목 현상 제거에는 열린 문서가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>마스크나 채널을 편집하는 동안에는 적목 현상 제거를 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>적목 현상 제거에는 편집 가능한 픽셀 레이어가 필요합니다</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>적목 현상 제거: 상자 안에서 빨간 픽셀을 찾지 못했습니다</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>적목 현상 제거: 클릭한 곳 근처에서 빨간 픽셀을 찾지 못했습니다</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>적목 현상 제거: 빨간 영역이 선택 영역 밖에 있습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13884,6 +14015,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%-클릭하면 이 판에 잉크가 없는 영역을 선택 영역으로 불러옵니다.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ColorDockPanel</name>
+    <message>
+        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>클릭하거나 드래그하여 전경색을 설정합니다. %ALT%-클릭하거나 %ALT%-드래그하여 배경색을 설정합니다.</translation>
     </message>
 </context>
 <context>
@@ -24616,6 +24754,86 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Convert to Color Profile</source>
         <translation>색상 프로파일로 변환</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>도구가 읽는 레이어: 활성 레이어, 활성 레이어와 그 아래 레이어(이미지 위의 빈 레이어에서 복구) 또는 병합된 이미지</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>활성 레이어 및 아래</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>조정 레이어 무시</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>샘플링한 이미지에서 조정 레이어를 제외하여 수정 중인 레이어 위의 조정이 두 번 적용되지 않게 합니다</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>대체</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>복구 모드: 대체는 샘플링한 소스 질감을 그대로 유지하고, 혼합 모드는 복구된 색상을 아래 픽셀과 합성합니다</translation>
+    </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>레이어를 애니메이션 &amp;PNG로...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>애니메이션 PNG 내보내기</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>새 문서에서 배경 위에 빈 레이어 추가</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>사용하지 않으면 파일 &gt; 새로 만들기가 배경 레이어만 만들고 선택합니다. 대지 문서와 클립보드 문서는 그대로입니다.</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>작게</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>중간</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>크게</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>축소판 크기</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>적목 현상 제거</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>적목 현상 제거: 빨간 눈동자를 클릭하거나 눈 주위로 상자를 드래그하세요. 눈동자 크기를 높이면 붉은 테두리까지 포함되고, 어둡게 할 양은 눈동자가 얼마나 어두워질지 정합니다.</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>눈동자 크기:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>값이 클수록 눈동자 주위의 붉은 테두리가 더 많이 포함됩니다</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>어둡게 할 양:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>보정한 눈동자를 얼마나 어둡게 할지</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26753,54 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng에는 .png 또는 .apng 출력 경로가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>exportAnimatedPng 옵션은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: 잘못된 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>newDocument name에는 파일 이름에 쓸 수 있는 문자가 하나 이상 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>newDocument colorMode는 &quot;rgb&quot; 또는 &quot;cmykProof&quot;여야 합니다.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 교정에는 CMYK 프로파일이 필요합니다. 환경설정에서 선택하세요.</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye에는 문서의 활성 레이어가 필요합니다(먼저 doc.activeLayer를 설정하세요).</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye: 빨간 픽셀을 찾지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: {x, y} 또는 {x, y, width, height}를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1은(는) 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: 알 수 없는 옵션 %1입니다.</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width와 height는 1 이상이어야 합니다.</translation>
     </message>
 </context>
 <context>

@@ -22,6 +22,7 @@
 #include "ui/image_save_options.hpp"
 #include "ui/watermark_settings.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
 #include "ui/script_stroke.hpp"
 #include "ui/stress_test.hpp"
@@ -173,6 +174,7 @@ struct OrphanedRecoveryFolder;
 class CustomShapeLibrary;
 class AnimationPreviewWindow;
 class PalettePanel;
+class ColorDockPanel;
 class PathsPanel;
 class StartPanel;
 class PatternLibrary;
@@ -617,6 +619,10 @@ private:
   // Window > Reset Panels: the first-launch layout, column width included.
   void reset_panels();
   void create_palette_dock(std::vector<PanelSpec>& specs);
+  // The Color panel (GitHub issue 365): a pick sets the foreground, or the background
+  // when Alt was held at the press.
+  void create_color_dock(std::vector<PanelSpec>& specs);
+  void apply_color_panel_pick(QColor color, bool background);
   // Palette (indexed) mode plumbing. Every document-palette mutation goes through
   // these so the undo snapshot, the revision bump (app-globally unique values,
   // keying the canvas LUT cache), the indexed_palette export mirror, and the UI
@@ -779,9 +785,11 @@ private:
   [[nodiscard]] bool has_active_document() const noexcept;
   // 72 PPI default matches the New Document screen presets and kUntaggedImportPpi;
   // print presets pass their own 300.
+  // An empty `title` is "Untitled-N". The empty layer above the Background follows the
+  // newDocument/addEmptyLayer preference (GitHub issue 363; default on).
   void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
-                      double resolution_ppi = 72.0);
-  void create_clipboard_document(const QImage& image, QString history_label);
+                      double resolution_ppi = 72.0, QString title = {});
+  void create_clipboard_document(const QImage& image, QString history_label, QString title = {});
   void create_new_document();
   void resize_image_dialog();
   // File > File Info and File > Strip All Metadata (docs/file-info.md). With
@@ -996,6 +1004,7 @@ private:
   void export_image_sequence();
   void export_animated_gif();
   void export_animated_webp();
+  void export_animated_png();
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
   void toggle_animation_preview_window();
   bool accept_open_file_drag(QDropEvent* event);
@@ -1873,6 +1882,10 @@ private:
   // The Background's shorter row menu (GitHub issue 274) and the eye's color menu (issue 276).
   void show_background_context_menu(QPoint global_position);
   void show_layer_eye_color_menu(QPoint global_position);
+  // Layers panel thumbnail size (GitHub issue 386): the Thumbnail Size submenu at the end of the
+  // layer context menus, its radio actions, and the setter that saves and rebuilds the rows.
+  void add_layer_thumbnail_size_menu(QMenu* menu);
+  void set_layer_thumbnail_size(LayerThumbnailSize size);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.
@@ -1979,6 +1992,13 @@ private:
   void reset_pending_layer_fill_opacity_edit();
   void set_active_layer_blend(int index);
   void finish_pending_layer_blend_edit();
+  // Live blend preview while the panel's blend list is open (GitHub issue 367).
+  void begin_layer_blend_preview();
+  void preview_layer_blend(int index);
+  void apply_pending_layer_blend_preview();
+  void end_layer_blend_preview();
+  void cancel_layer_blend_preview();
+  [[nodiscard]] bool layer_blend_preview_matches_active() const;
   void set_active_layer_visible(bool visible);
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
   void set_active_layer_lock_flag(LayerLockFlags flag, bool locked);
@@ -2120,6 +2140,10 @@ private:
   // Restart the debounce so the live tool-option sliders flush to disk once,
   // after the drag settles, instead of on every intermediate value.
   void schedule_save_tool_settings();
+  // Red Eye options-bar values: stored on the window, applied to every canvas, saved.
+  void set_red_eye_pupil_size(int percent);
+  void set_red_eye_darken_amount(int percent);
+  void sync_red_eye_controls();
   // Writes only tools/activeTool: a tool picked with no document open (no canvas for
   // save_tool_settings to read, or the startup load still pending).
   void save_active_tool_setting() const;
@@ -2441,6 +2465,10 @@ private:
   // Re-reads the options-bar controls create_actions initialized from the startup
   // defaults donor; runs after the deferred load_tool_settings.
   void sync_tool_option_controls_from_canvas();
+  // The retouch tools' Sample controls (GitHub issue 382) from the active canvas.
+  void sync_retouch_sample_controls_from_canvas();
+  // The Sample choice for the document info lines ("active layer", ...).
+  [[nodiscard]] QString retouch_sample_info_text() const;
   // Derives the crop ratio preset combo's row from the canvas ratio values
   // (None / a preset / Original Ratio / Custom) without firing its handler.
   void sync_crop_ratio_preset_combo();
@@ -2577,6 +2605,7 @@ private:
   QTimer* layer_fill_opacity_apply_timer_{nullptr};
   QTimer* layer_fill_opacity_idle_timer_{nullptr};
   QTimer* layer_blend_idle_timer_{nullptr};
+  QTimer* layer_blend_preview_timer_{nullptr};
   QTimer* tool_settings_save_timer_{nullptr};
   QComboBox* blend_combo_{nullptr};
   QCheckBox* visible_check_{nullptr};
@@ -2671,6 +2700,10 @@ private:
   QAction* crop_overlay_show_always_action_{nullptr};
   QAction* crop_overlay_show_while_dragging_action_{nullptr};
   QPushButton* patch_remove_object_button_{nullptr};
+  QSpinBox* red_eye_pupil_spin_{nullptr};
+  QSlider* red_eye_pupil_slider_{nullptr};
+  QSpinBox* red_eye_darken_spin_{nullptr};
+  QSlider* red_eye_darken_slider_{nullptr};
   QCheckBox* object_select_sample_all_layers_check_{nullptr};
   QComboBox* object_select_model_combo_{nullptr};
   QPushButton* select_subject_button_{nullptr};
@@ -2698,7 +2731,9 @@ private:
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
-  QCheckBox* retouch_sample_all_layers_check_{nullptr};
+  QComboBox* retouch_sample_layers_combo_{nullptr};
+  QComboBox* healing_mode_combo_{nullptr};
+  QCheckBox* retouch_ignore_adjustments_check_{nullptr};
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
   QComboBox* mixer_combination_combo_{nullptr};
@@ -2944,6 +2979,7 @@ private:
   QToolButton* mask_edit_mode_chip_{nullptr};
   // Palette (indexed) mode UI: dock panel, status chip, advisory compliance scan.
   PalettePanel* palette_panel_{nullptr};
+  ColorDockPanel* color_dock_panel_{nullptr};
   // The right-hand panel column (panel_column.hpp) and the splitter that puts it
   // beside the document tabs; the splitter is the central widget.
   PanelColumn* panel_column_{nullptr};
@@ -3084,6 +3120,15 @@ private:
   std::vector<LayerId> pending_layer_opacity_ids_;
   std::vector<LayerId> pending_layer_fill_opacity_ids_;
   std::vector<LayerId> pending_layer_blend_ids_;
+  // The open blend list's preview: the session and selection it started on and each
+  // layer's own mode, which closing the list puts back (GitHub issue 367).
+  struct LayerBlendPreview {
+    std::int64_t session_id{0};
+    std::vector<LayerId> selection;
+    std::vector<std::pair<LayerId, BlendMode>> originals;
+    std::optional<BlendMode> pending_mode;
+  };
+  std::optional<LayerBlendPreview> layer_blend_preview_;
   // Displayed recent lists: the stored lists minus the entries the last
   // background existence check found missing. Loading never stats the disk
   // (a cold or unreachable volume would stall startup and the File menu).
@@ -3160,6 +3205,9 @@ private:
   bool current_crop_delete_layers_{false};
   // tools/perspectiveCropShowGrid (default on): every canvas draws the grid with it.
   bool current_perspective_crop_show_grid_{true};
+  // Red Eye Pupil Size and Darken Amount (tools/redEyePupilSize, tools/redEyeDarkenAmount).
+  int current_red_eye_pupil_size_{50};
+  int current_red_eye_darken_amount_{50};
   // tools/cropShowCroppedArea, tools/cropShieldEnabled, tools/cropShieldColor
   // and tools/cropShieldOpacity; every canvas draws with these.
   CropOverlayOptions current_crop_overlay_options_;
@@ -3299,6 +3347,9 @@ private:
   // "Use ESC key to commit text", GitHub issue 173). Persisted identifier.
   bool escape_commits_text_{false};
   bool zoom_layer_thumbnails_to_content_{true};
+  // view/layerThumbnailSize (kLayerThumbnailSizeSettingsKey). Persisted identifier.
+  LayerThumbnailSize layer_thumbnail_size_{kDefaultLayerThumbnailSize};
+  std::array<QAction*, 4> layer_thumbnail_size_actions_{};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   std::vector<QWidget*> warp_option_actions_;

@@ -12092,6 +12092,109 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB 內建於 Patchy。其他描述檔是此電腦上安裝的 RGB 描述檔；未列出的描述檔請使用「選擇描述檔檔案...」。</translation>
     </message>
+    <message>
+        <source>Could not encode animated PNG frame.</source>
+        <translation>無法編碼動畫 PNG 影格。</translation>
+    </message>
+    <message>
+        <source>Animated PNG needs at least one frame.</source>
+        <translation>動畫 PNG 至少需要一個影格。</translation>
+    </message>
+    <message>
+        <source>The document has no visible top-level layers to export as an animated PNG.</source>
+        <translation>文件沒有可匯出為動畫 PNG 的可見頂層圖層。</translation>
+    </message>
+    <message>
+        <source>Invalid animated PNG frame or duration.</source>
+        <translation>動畫 PNG 的影格或時長無效。</translation>
+    </message>
+    <message>
+        <source>Could not open PNG file for writing</source>
+        <translation>無法開啟 PNG 檔案以寫入</translation>
+    </message>
+    <message>
+        <source>Could not write PNG file</source>
+        <translation>無法寫入 PNG 檔案</translation>
+    </message>
+    <message>
+        <source>Animated PNG Options</source>
+        <translation>動畫 PNG 選項</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>已儲存</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>未命名-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>文件的分頁標題，也是「另存新檔」建議的檔名</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 校樣</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>畫布依偏好設定中的 CMYK 描述檔顯示。儲存為 JPEG、TIFF 或 PDF 時寫入 CMYK。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 校樣需要 CMYK 描述檔。請在偏好設定中選擇。</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>名稱</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>色彩模式</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>色彩描述檔</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>儲存預設集...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>將這些設定儲存為「已儲存」群組中的預設集</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>CMYK 校樣將像素保留為 RGB，並透過此描述檔顯示。可在偏好設定中變更。</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy 以 sRGB 編輯和顯示 RGB 文件。</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>按 Delete 鍵或在卡片上按右鍵可刪除此預設集。</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>儲存預設集</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>刪除預設集</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1 (偏好設定)</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>紅眼</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13826,6 +13929,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The corners must form a convex shape</source>
         <translation>四個角必須構成凸形</translation>
     </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>紅眼</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an open document</source>
+        <translation>紅眼工具需要一個已開啟的文件</translation>
+    </message>
+    <message>
+        <source>Red Eye is unavailable while editing a mask or channel</source>
+        <translation>編輯遮色片或色版時無法使用紅眼工具</translation>
+    </message>
+    <message>
+        <source>Red Eye needs an editable pixel layer</source>
+        <translation>紅眼工具需要可編輯的像素圖層</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels in the box</source>
+        <translation>紅眼工具未在框內找到紅色像素</translation>
+    </message>
+    <message>
+        <source>Red Eye found no red pixels near the click</source>
+        <translation>紅眼工具未在按一下的位置附近找到紅色像素</translation>
+    </message>
+    <message>
+        <source>Red Eye: the red area is outside the selection</source>
+        <translation>紅眼: 紅色區域在選取範圍之外</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13884,6 +14015,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+按一下可將此印版無油墨的區域載入為選取範圍。</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ColorDockPanel</name>
+    <message>
+        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>按一下或拖曳可設定前景色。按住 %ALT% 按一下或按住 %ALT% 拖曳可設定背景色。</translation>
     </message>
 </context>
 <context>
@@ -24616,6 +24754,86 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Convert to Color Profile</source>
         <translation>轉換為色彩描述檔</translation>
     </message>
+    <message>
+        <source>Which layers the tool reads: the active layer, it and the layers below (heal on an empty layer above the image), or the merged image</source>
+        <translation>工具讀取的圖層：作用中圖層、作用中圖層及其下方圖層（在影像上方的空白圖層上修復）或合併後的影像</translation>
+    </message>
+    <message>
+        <source>active layer and below</source>
+        <translation>作用中圖層及下方</translation>
+    </message>
+    <message>
+        <source>Ignore Adjustment Layers</source>
+        <translation>忽略調整圖層</translation>
+    </message>
+    <message>
+        <source>Leave adjustment layers out of the sampled image, so an adjustment above the retouched layer is not applied twice</source>
+        <translation>從取樣影像中排除調整圖層，使修飾圖層上方的調整不會套用兩次</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>取代</translation>
+    </message>
+    <message>
+        <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
+        <translation>修復模式：取代會保留取樣時的來源紋理；混合模式會將修復後的顏色與下方像素混合</translation>
+    </message>
+    <message>
+        <source>Layers as Animated &amp;PNG...</source>
+        <translation>圖層匯出為動畫 &amp;PNG...</translation>
+    </message>
+    <message>
+        <source>Export Animated PNG</source>
+        <translation>匯出動畫 PNG</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>在新文件中於背景上方新增空白圖層</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>停用時，「檔案 &gt; 新增」只建立背景圖層並將其選取。工作區域文件和來自剪貼簿的文件不受影響。</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>縮圖大小</translation>
+    </message>
+    <message>
+        <source>Red Eye</source>
+        <translation>紅眼</translation>
+    </message>
+    <message>
+        <source>Red Eye: click a red pupil, or drag a box around the eye. Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.</source>
+        <translation>紅眼: 按一下紅色瞳孔，或在眼睛周圍拖出一個框。瞳孔大小越大，包含的偏紅邊緣越多；變暗量決定瞳孔變得多暗。</translation>
+    </message>
+    <message>
+        <source>Pupil Size:</source>
+        <translation>瞳孔大小:</translation>
+    </message>
+    <message>
+        <source>Higher values take in more of the reddish rim around the pupil</source>
+        <translation>值越大，包含的瞳孔周圍偏紅邊緣越多</translation>
+    </message>
+    <message>
+        <source>Darken Amount:</source>
+        <translation>變暗量:</translation>
+    </message>
+    <message>
+        <source>How much darker the corrected pupil gets</source>
+        <translation>校正後的瞳孔變暗多少</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26753,54 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>此描述檔無法用於這次轉換。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng needs a .png or .apng output path.</source>
+        <translation>exportAnimatedPng 需要 .png 或 .apng 輸出路徑。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng options must be an object.</source>
+        <translation>exportAnimatedPng 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>exportAnimatedPng: invalid option %1.</source>
+        <translation>exportAnimatedPng: 選項 %1 無效。</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>newDocument 的 name 必須包含可用於檔名的字元。</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>newDocument 的 colorMode 必須為 &quot;rgb&quot; 或 &quot;cmykProof&quot;。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 校樣需要 CMYK 描述檔。請在偏好設定中選擇。</translation>
+    </message>
+    <message>
+        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <translation>redEye 需要文件的作用中圖層（請先設定 doc.activeLayer）。</translation>
+    </message>
+    <message>
+        <source>redEye found no red pixels.</source>
+        <translation>redEye 未找到紅色像素。</translation>
+    </message>
+    <message>
+        <source>redEye: pass {x, y} or {x, y, width, height}.</source>
+        <translation>redEye: 請傳入 {x, y} 或 {x, y, width, height}。</translation>
+    </message>
+    <message>
+        <source>redEye: %1 must be a number.</source>
+        <translation>redEye: %1 必須是數字。</translation>
+    </message>
+    <message>
+        <source>redEye: unknown option %1.</source>
+        <translation>redEye: 未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>redEye: width and height must be at least 1.</source>
+        <translation>redEye: width 和 height 必須至少為 1。</translation>
     </message>
 </context>
 <context>
