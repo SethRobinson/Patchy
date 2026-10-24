@@ -402,6 +402,7 @@ int main(int argc, char* argv[]) {
            text_transform_commit_tests,
            text_vertical_rtl_tests,
            text_area_tests,
+           text_canvas_session_tests,
            flat_image_format_tests,
            smart_filter_tests,
            smart_object_tests,
