@@ -170,11 +170,17 @@ struct LayerEffectRow {
 // Erases that instance from its kind's list; false when `index` is past it.
 bool remove_layer_effect_instance(LayerStyle& style, LayerStyleEffect effect, std::size_t index);
 
-// Text sizes are shown in points but rendered in document pixels through the
-// document's print PPI (default 300 when unset).
+// Text sizes are shown in points but rendered in whole document pixels through the
+// document's print PPI (default 300 when unset). Every point value within half a pixel
+// names the same size, so text_pixels_to_points answers the one with the fewest decimals
+// (closest to the exact value among those): 50 pt typed at 96 ppi is 67 px and shows as
+// 50, not 50.25 (GitHub issue 371). text_points_to_pixels of the answer is always `pixels`.
 [[nodiscard]] double text_size_ppi(const Document& document) noexcept;
 [[nodiscard]] double text_pixels_to_points(int pixels, const Document& document) noexcept;
 [[nodiscard]] int text_points_to_pixels(double points, const Document& document) noexcept;
+// What a points field showing `shown_points` should show for `pixels`: the shown value when it
+// already names that size (the user's own 12.5 stays 12.5), else text_pixels_to_points.
+[[nodiscard]] double text_points_for_display(double shown_points, int pixels, const Document& document) noexcept;
 
 // Doubles ampersands so a display name shows literally as QAction text.
 [[nodiscard]] QString escape_qaction_ampersands(QString text);

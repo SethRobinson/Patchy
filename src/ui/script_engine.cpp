@@ -2648,7 +2648,7 @@ std::vector<ScriptEngineHost::TextRunInfo> ScriptEngineHost::text_layer_runs(std
   };
   const auto text = value(kLayerMetadataText);
   // The run columns: start, length, size, bold, italic, color, family, then the optional
-  // Photoshop-layout columns, with the recorded face at column 12 (docs/text-tool.md).
+  // Photoshop-layout columns, with the recorded face at column 12 (docs/font-resolution.md).
   for (const auto& raw_line : value(kLayerMetadataTextRuns).split(QLatin1Char('\n'))) {
     const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
     if (fields.size() < 7) {

@@ -2280,6 +2280,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_transform_commit_tests_flip.cpp
       tests/ui/text_vertical_rtl_tests.cpp
       tests/ui/text_area_tests.cpp
+      tests/ui/text_canvas_session_tests.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp

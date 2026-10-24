@@ -533,10 +533,23 @@ bool layer_patchy_text_transform_overrides_psd_source(const Layer& layer) {
   return false;
 }
 
+// The PSD-frame session edits the frame as an axis-aligned document rect (psd_text_frame_rect is
+// the transformed frame's bounding box), so it only holds a scale. A rotated or sheared frame
+// edits through its transform like any other transformed text: on the frame path the session
+// showed it unrotated and the commit stored the bounding box corner as the rotated origin
+// (GitHub issue 373).
 bool layer_should_edit_with_psd_text_frame(const Layer& layer, bool boxed_text) {
-  return boxed_text && !layer_patchy_text_transform_overrides_psd_source(layer) &&
-         layer.metadata().contains(kLayerMetadataPsdTextTransform) &&
-         layer.metadata().contains(kLayerMetadataPsdTextBoxBounds);
+  if (!boxed_text || layer_patchy_text_transform_overrides_psd_source(layer) ||
+      !layer.metadata().contains(kLayerMetadataPsdTextBoxBounds)) {
+    return false;
+  }
+  const auto found = layer.metadata().find(kLayerMetadataPsdTextTransform);
+  if (found == layer.metadata().end()) {
+    return false;
+  }
+  const auto transform = parse_layer_affine_transform(found->second);
+  constexpr double kEpsilon = 0.000001;
+  return !transform.has_value() || (std::abs((*transform)[1]) <= kEpsilon && std::abs((*transform)[2]) <= kEpsilon);
 }
 
 bool layer_requires_text_editor_preview(const Layer& layer) {
@@ -573,6 +586,22 @@ bool mark_text_editor_finished(QTextEdit* editor) {
 
 
 
+
+// The text box outline of an edit session, flat or transformed (GitHub issues 385 and 371): a
+// light line under accent dashes, a dark-plus-light pair like the marching ants, so one of
+// the two shows over any text or image under the box (a single blue line vanished over
+// matching ink). Canvas overlay colors, outside the theme palette (docs/ui-conventions.md).
+void draw_text_box_outline(QPainter& painter, const QPainterPath& outline) {
+  painter.save();
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(245, 248, 252, 235), 1.0));
+  painter.drawPath(outline);
+  QPen dashes(QColor(20, 92, 200), 1.0, Qt::CustomDashLine, Qt::FlatCap);
+  dashes.setDashPattern({4.0, 3.0});
+  painter.setPen(dashes);
+  painter.drawPath(outline);
+  painter.restore();
+}
 
 class InlineTextEdit final : public QTextEdit {
 public:
@@ -687,6 +716,21 @@ protected:
     cursor.insertText(source->text(), currentCharFormat());
     setTextCursor(cursor);
     ensureCursorVisible();
+  }
+
+  // The frame paint (QAbstractScrollArea routes it to QFrame::paintEvent, not to the viewport
+  // paintEvent below) draws the box outline in the editor's transparent 1 px border, where the
+  // style sheet's dashed border never showed (GitHub issue 385). A transformed session draws
+  // the same outline through the transform on its overlay instead.
+  bool event(QEvent* event) override {
+    const bool handled = QTextEdit::event(event);
+    if (event->type() == QEvent::Paint && !property(kTextEditorTransformedOverlayProperty).toBool()) {
+      QPainter painter(this);
+      QPainterPath outline;
+      outline.addRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+      draw_text_box_outline(painter, outline);
+    }
+    return handled;
   }
 
   void paintEvent(QPaintEvent* event) override {
@@ -1678,10 +1722,8 @@ private:
       return;
     }
 
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(QColor(99, 168, 255), 1.0, Qt::DashLine));
+    QPainterPath outline;
     if (const auto area = text_editor_area(*editor_)) {
-      QPainterPath outline;
       const auto& anchors = area->subpaths.front().anchors;
       const auto map = [&](double x, double y) {
         const double sx = resize_preview_document_size_.has_value()
@@ -1697,10 +1739,11 @@ private:
         outline.cubicTo(map(a.out_x, a.out_y), map(b.in_x, b.in_y), map(b.anchor_x, b.anchor_y));
       }
       outline.closeSubpath();
-      painter.drawPath(outline);
     } else {
-      painter.drawPolygon(map_editor_rect_to_overlay(rect));
+      outline.addPolygon(map_editor_rect_to_overlay(rect));
+      outline.closeSubpath();
     }
+    draw_text_box_outline(painter, outline);
 
     painter.setPen(QPen(QColor(35, 38, 44), 1.0));
     painter.setBrush(QColor(245, 248, 252));
@@ -6310,7 +6353,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         // Blocked like the family combo: an unblocked write fires the size slot, which with no
         // live editor yet would start a layer edit from inside this session's setup.
         QSignalBlocker blocker(text_size_spin_);
-        text_size_spin_->setValue(text_pixels_to_points(
+        text_size_spin_->setValue(text_points_for_display(
+            text_size_spin_->value(),
             std::max(1, static_cast<int>(std::lround(document_text_size * text_size_display_scale))), document()));
       }
       // The first run's face, so the picker opens on what the layer actually uses rather than
@@ -7224,11 +7268,12 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001;
     const bool has_local_offset = text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
     // Point text whose glyph ink overhangs the origin renders into a buffer that starts left of
-    // or above it (grow_point_text_rect_to_glyph_ink); the resample below maps that buffer, so
-    // it needs the offset folded in. The crisp path re-renders the plan through the transform
-    // and derives its bounds from the plan's own rect, so it must get the plain transform.
-    const bool point_local_offset =
-        (settings.area || !boxed_text) && !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+    // or above it (grow_point_text_rect_to_glyph_ink), and so does Photoshop-layout box text,
+    // whose first line box starts above the frame top (first baseline at the typographic
+    // ascender, GitHub issue 373); the resample below maps that buffer, so it needs the offset
+    // folded in. The crisp path re-renders the plan through the transform and derives its
+    // bounds from the plan's own rect, so it must get the plain transform.
+    const bool point_local_offset = !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
     if (has_local_offset || point_local_offset) {
       transform_for_pixels = qtransform_from_affine(
           affine_with_local_translation(affine_from_qtransform(*text_transform), rendered.local_rect.topLeft()));
@@ -9886,9 +9931,11 @@ void MainWindow::sync_text_options_from_active_editor() {
     QSignalBlocker blocker(text_size_spin_);
     const auto display_size = std::max(
         1, static_cast<int>(std::lround(document_text_size * text_editor_size_display_scale(*editor))));
+    // A size the user just typed (50) stays as typed while it names the same pixel size, rather
+    // than turning into the pixel size's exact points (50.26 at 95.99 ppi, GitHub issue 371).
     text_size_spin_->setValue(
-        std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
-                   text_size_spin_->maximum()));
+        std::clamp(text_points_for_display(text_size_spin_->value(), display_size, document()),
+                   text_size_spin_->minimum(), text_size_spin_->maximum()));
   }
 
   // A run with no recorded face still lands on the style its bold/italic flags describe.
@@ -9994,8 +10041,8 @@ void MainWindow::sync_text_options_from_active_layer() {
     QSignalBlocker blocker(text_size_spin_);
     const auto display_size =
         std::max(1, static_cast<int>(std::lround(document_text_size * size_display_scale)));
-    text_size_spin_->setValue(std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
-                                         text_size_spin_->maximum()));
+    text_size_spin_->setValue(std::clamp(text_points_for_display(text_size_spin_->value(), display_size, document()),
+                                         text_size_spin_->minimum(), text_size_spin_->maximum()));
   }
   refresh_text_style_combo(family, style, text_bold, text_italic);
   set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
@@ -10631,6 +10678,17 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
+  if (canvas_->processing_render_wait_active()) {
+    // A canvas render is compositing this document on a worker thread, and its wait pumps
+    // timers: swapping the preview layer's pixels and bounds now races that read (an access
+    // violation in layer_alpha_mask on a styled layer). Preview once the wait is over.
+    QTimer::singleShot(kTextEditorPreviewDelayMs, editor, [this, editor = QPointer<QTextEdit>(editor)] {
+      if (editor != nullptr) {
+        update_text_editor_preview(editor);
+      }
+    });
+    return;
+  }
   if (editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, true);
     editor->setProperty("patchy.textPreviewPending", false);
@@ -10770,8 +10828,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       const bool has_local_offset = text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
       // Same split as commit_text_editor: an overhanging point-text buffer is resampled with its
       // offset folded in, while the crisp re-render takes the plain transform.
-      const bool point_local_offset =
-          (settings.area || !boxed_text) && !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+      const bool point_local_offset = !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
       auto transform_for_pixels = *transform;
       if (has_local_offset || point_local_offset) {
         transform_for_pixels = qtransform_from_affine(

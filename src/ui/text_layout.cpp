@@ -1066,11 +1066,13 @@ QRectF TextLineGeometry::caret_rect(int position) const {
     const auto relative = std::clamp(position - entry.block_position, entry.line.textStart(),
                                      entry.line.textStart() + entry.line.textLength());
     const auto x = entry.line.cursorToX(relative);
+    // The glyphs draw with their baseline at the line top + ascent; the font's line gap, which
+    // QTextLine::height() counts once leading is included, lies below the descent. Centering
+    // the caret in that height dropped it by half the gap (GitHub issue 384: about 7 px on
+    // Myriad Pro at 67 px, whose gap is 0.2 em).
     const auto glyph_height = std::max<qreal>(
         1.0, std::ceil(std::max<qreal>(1.0, entry.line.ascent()) + std::max<qreal>(0.0, entry.line.descent())));
-    const auto top_padding = std::max<qreal>(0.0, (entry.line.height() - glyph_height) / 2.0);
-    return QRectF(entry.block_origin.x() + x, entry.block_origin.y() + entry.line.y() + top_padding, 1.0,
-                  glyph_height);
+    return QRectF(entry.block_origin.x() + x, entry.block_origin.y() + entry.line.y(), 1.0, glyph_height);
   }
   return {};
 }

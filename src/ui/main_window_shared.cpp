@@ -482,7 +482,32 @@ double text_size_ppi(const Document& document) noexcept {
 }
 
 double text_pixels_to_points(int pixels, const Document& document) noexcept {
-  return std::max(0.01, static_cast<double>(std::max(1, pixels)) * 72.0 / text_size_ppi(document));
+  pixels = std::max(1, pixels);
+  const double exact = std::max(0.01, static_cast<double>(pixels) * 72.0 / text_size_ppi(document));
+  // Whole points, then tenths, then hundredths (the size field's precision): the nearest step
+  // values on each side of the exact size are the only candidates, since the points naming
+  // `pixels` form one interval around it.
+  for (const double step : {1.0, 0.1, 0.01}) {
+    std::optional<double> best;
+    for (const double candidate : {std::floor(exact / step) * step, std::ceil(exact / step) * step}) {
+      const double rounded = std::round(candidate / step) * step;
+      if (rounded >= 0.01 && text_points_to_pixels(rounded, document) == pixels &&
+          (!best.has_value() || std::abs(rounded - exact) < std::abs(*best - exact))) {
+        best = rounded;
+      }
+    }
+    if (best.has_value()) {
+      return *best;
+    }
+  }
+  return exact;
+}
+
+double text_points_for_display(double shown_points, int pixels, const Document& document) noexcept {
+  if (std::isfinite(shown_points) && shown_points > 0.0 && text_points_to_pixels(shown_points, document) == pixels) {
+    return shown_points;
+  }
+  return text_pixels_to_points(pixels, document);
 }
 
 int text_points_to_pixels(double points, const Document& document) noexcept {

@@ -104,6 +104,9 @@ back BEFORE `remove_text_editor_preview`, in commit and cancel.
 - **A no-op commit adds no step** (issue 387): an existing layer's commit runs on a copy first; a result equal to the layer skips `push_undo_snapshot` (`ui_text_commit_unchanged_adds_no_history_step`).
 - **Commit invalidation must cover old ∪ preview ∪ new.** The restore/remove teardown pair invalidates its regions BEFORE the layer mutates, so `commit_text_editor` captures the old layer and preview render bounds up front and unions them into the post-mutation `document_changed_effect_bounds`, or the old render stays baked in the canvas cache outside the new bounds (routine on warped layers). `hide_text_editor_source_layer` likewise returns the vacated rect without invalidating; callers must consume it.
 - **Warped text layers get a warp-aware session**: entry resolves a Move-corrected unwarped transform and gates off every raster-derived anchor. See Warp Text in [warp.md](warp.md).
+- **The PSD-frame session holds only a scale.** It edits the transformed frame's bounding box as a document rect, so `layer_should_edit_with_psd_text_frame` refuses a rotated or sheared frame, which edits through its transform on the overlay like any transformed text (GitHub issue 373: the box came back unrotated, then rotated at the bounding box corner; `ui_rotated_psd_box_text_edit_keeps_transform`). The transformed resample folds the render buffer's offset in for box text too: a Photoshop-layout box's first line box starts above the frame top.
+- **A preview never runs inside a canvas processing wait** (`processing_render_wait_active`): the worker composites the live document while the wait pumps timers, so `update_text_editor_preview` re-arms instead of swapping the preview layer under it (an access violation in `layer_alpha_mask`, `ui_duke_psd_text_runs_survive_reedit`).
+- **The box outline** is `draw_text_box_outline`, a light line under accent dashes that reads over any ink (issues 385 and 371). The flat editor paints it in its transparent 1 px style-sheet border from `InlineTextEdit::event` (the frame paint, which the viewport `paintEvent` never sees); the overlay draws it through the transform.
 - Commit keys (`MainWindow::eventFilter`): Ctrl/Cmd+Return and the bare keypad Enter (`Key_Enter` + `KeypadModifier`, also Mac fn+Return); plain Return is a line break, Escape cancels (GitHub issue 71, `ui_text_keypad_enter_commits_and_return_breaks_line`); Preferences > Tools "Use Esc to commit text" (`input/escapeCommitsText`, default off) makes it commit (issue 173, `ui_text_escape_commits_preference`).
 - Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. The canvas event filter must leave that flag alone during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's undo-snapshot wait ([wasm.md](wasm.md); `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
 - Focus moving to nowhere (`focusChanged(editor, nullptr)`, an app switch) parks the session (issue 330): reactivation refocuses the editor; focus landing elsewhere first commits (`ui_text_session_survives_app_switch`).
@@ -146,46 +149,9 @@ straddling line mid-glyph; Affinity and Photoshop draw it whole). The metadata p
 buffer origin and width at the frame's and grows only the bottom: pixels-only callers place
 the buffer at the frame corner.
 
-## The style picker, and what bold + italic cannot say
+## The style picker
 
-The options
-bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop (no B/I buttons).
-`PsdTextStyleRun::style` / runs v5 column 12 persist a face the flags cannot express;
-`render_text_font_for_display_family` takes it as its last argument, applying `setStyleName`
-when the family offers it and falling back to the flags otherwise (a stray style must
-not render nothing).
-
-- **A style is recorded only when the flags cannot express it.** The DirectWrite resolver and the
-  picker both drop Regular/Bold/Italic/Bold Italic/Oblique variants
-  (`text_style_is_flag_expressible` mirrors the reader's list), so ordinary imports and picks
-  stay on runs v1-v4 and the byte-stability canaries do not move. The picker derives those four
-  rows from `bold`/`italic` and previews each row in its own face (per-item `Qt::FontRole`).
-- **A face name's flags union the database's answer; the database never vetoes the name.**
-  (`text_style_flags_for_style`): `QFontDatabase::bold` calls only weight >= 700 bold;
-  Bookman Old Style declares Bold at 600, which collapsed a "Bold Italic" pick to plain italic;
-  the database still adds axes for localized face names.
-- **Ctrl+B / Ctrl+I toggle the face axis during a session** (`toggle_text_bold_face` /
-  `toggle_text_italic_face`): the real face when `family_offers_face_axis` says the family ships
-  one, FAUX bold/italic otherwise (Ctrl+I on Century Gothic, which has no italic, slants). The axis state folds the faux flag in, so a second press always turns the
-  axis off, and the toggle clears any recorded exotic style (Ctrl+B on a Black run selects the
-  Bold face, as Photoshop does). `family_offers_face_axis` is asked ONE AXIS AT A TIME and
-  `real_face_style_name` masks the flags the same way, so bold + italic on Century Gothic renders
-  the real Bold face plus a synthetic slant.
-- **Never ask `QFontDatabase::styles()` with an unresolved display family.** A face-baked name
-  ("ITC Lubalin Graph Demi") lists its faces only under the SPLIT base family; the unsplit name
-  answers nothing, which emptied the picker and diverted Ctrl+B/Ctrl+I to faux.
-  `available_text_family_styles` resolves through `text_style_query_family`, probes the four flag
-  combinations with `QRawFont` (forcing Qt's lazy per-family population), re-queries for faces
-  only the database knows (Light, Semibold, Black), orders the four standard faces first, and
-  caches per family with `fontDatabaseChanged` invalidation. A family that is not installed still
-  offers the four standard faces so the toggles never synthesize on top of a substituted face.
-- New text seeds from the picker (`add_text_at`).
-- On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
-  compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
-  instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup
-  byte-identical; a split whose remainder names no real face exports verbatim like any unknown
-  family.
-- `textStyleCombo` needs the `is_text_option_widget` exemption or focusing it auto-commits.
+The face control (`textStyleCombo`), recorded styles and Ctrl+B/Ctrl+I: [font-resolution.md](font-resolution.md#the-style-picker-faces-bold--italic-cannot-name).
 
 **Options-bar changes with NO selection apply to the whole type object**, as in Photoshop:
 `merge_text_char_format` selects the whole document for a bare caret instead of falling through
@@ -214,7 +180,7 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   the alignment buttons read the first paragraph run). A mixed selection shows the active
   layer's values, the color button keeps the primary color, and a pixel layer leaves the bar
   alone (it seeds the next new layer). Sizes travel through the session's zoomed editor, so a
-  size typed at a very low zoom can round; the bar shows what landed.
+  size typed at a very low zoom can round; the bar shows what landed. Sizes are whole document pixels: the bar shows the fewest-decimal points naming them (`text_pixels_to_points`: 67 px at 96 ppi shows 50, not 50.25) and keeps a typed value that names the same pixels (`text_points_for_display`; issue 371, `ui_text_size_*`).
 - Tests: `ui_text_options_bar_size_applies_to_selected_layers_without_session`,
   `ui_text_options_bar_family_and_style_apply_to_selected_layers_without_session`,
   `ui_text_options_bar_follows_active_text_layer`,
