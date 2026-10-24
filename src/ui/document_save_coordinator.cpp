@@ -7,6 +7,7 @@
 #include "core/vector_shape.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/layered_blend_support.hpp"
 #include "formats/metadata/metadata_edit.hpp"
 #include "formats/ora_document_io.hpp"
 #include "psd/psd_document_io.hpp"
@@ -169,6 +170,29 @@ ImageSaveOptions DocumentSaveCoordinator::effective_options(
   return effective;
 }
 
+namespace {
+
+// Layers in blend modes the layered format lacks: rebuilt to keep the look when the save
+// asked for it, otherwise written as Normal by the writer. Either way the save says so.
+void settle_unsupported_blend_modes(Document& snapshot, LayeredSaveFormat format, bool bake,
+                                    std::vector<std::string>& notices) {
+  if (find_unsupported_blend_modes(snapshot, format).empty()) {
+    return;
+  }
+  if (bake) {
+    (void)bake_unsupported_blend_modes(snapshot, format);
+    notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
+                                           "Layers in blend modes this format cannot store were rebuilt as Normal "
+                                           "layers that keep the look."));
+  } else {
+    notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
+                                           "Layers in blend modes this format cannot store were saved as Normal, "
+                                           "so the saved image looks different."));
+  }
+}
+
+}  // namespace
+
 std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     std::int64_t session_id, const QString& path, const QString& extension,
     const ImageSaveOptions& effective_image_options, bool quiet, bool export_copy, bool discards_layers,
@@ -192,10 +216,13 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     }
     // The writer reads a copy-on-write snapshot on a worker, so the window keeps painting
     // the Saving dialog through the composite (recovery writes the same way).
-    const Document snapshot = std::as_const(*target).document_for_write();
+    Document snapshot = std::as_const(*target).document_for_write();
     const bool psb = extension == QStringLiteral("psb");
     const auto cmyk_proof = effective_image_options.psd_cmyk_proof ? working_cmyk_space() : nullptr;
-    host_.run_write(path, /*on_worker*/ true, !quiet, [&snapshot, &path, psb, &cmyk_proof](SaveProgress& progress) {
+    const bool bake = effective_image_options.bake_unsupported_blend_modes;
+    host_.run_write(path, /*on_worker*/ true, !quiet,
+                    [&snapshot, &path, psb, &cmyk_proof, bake, &writer_notices](SaveProgress& progress) {
+      settle_unsupported_blend_modes(snapshot, LayeredSaveFormat::Photoshop, bake, writer_notices);
       psd::WriteOptions options{psb};
       options.cmyk_proof = cmyk_proof;
       options.progress = [&progress](int done, int total, const std::string& label) {
@@ -203,21 +230,13 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
       };
       psd::DocumentIo::write_layered_rgb8_file(snapshot, to_filesystem_path(path), options);
     });
-    if (layers_use_paint_dot_net_blend_modes(snapshot.layers())) {
-      writer_notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
-                          "Layers using Paint.NET's Reflect, Glow, Negation or Xor blend modes were saved as "
-                          "Normal; this format has no such modes."));
-    }
   } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
     // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
-    const Document written = std::as_const(*target).document_for_write();
+    Document written = std::as_const(*target).document_for_write();
+    settle_unsupported_blend_modes(written, LayeredSaveFormat::Aseprite,
+                                   effective_image_options.bake_unsupported_blend_modes, writer_notices);
     std::optional<Document> narrowed;
     aseprite::DocumentIo::write_file(document_for_8bit_writer(written, narrowed), to_filesystem_path(path));
-    if (layers_use_paint_dot_net_blend_modes(written.layers())) {
-      writer_notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
-                          "Layers using Paint.NET's Reflect, Glow, Negation or Xor blend modes were saved as "
-                          "Normal; this format has no such modes."));
-    }
   } else if (extension == QStringLiteral("ora")) {
     // Layered OpenRaster save from a copy-on-write snapshot on a worker; the writer bakes
     // what ORA cannot hold (the save warned first) and reports it.
@@ -237,26 +256,29 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     // format and PDF writes a copy-on-write snapshot on a worker (a one-page PDF of a grid
     // of scanned pages took 10 s on this thread); PDF reports its pages.
     const Document snapshot = std::as_const(target->document);
+    // A layered TIFF carries Photoshop layer records; a flat one is the composite.
+    const bool layered_tiff = is_tiff_extension(extension) && effective_image_options.tiff_layers.value_or(false);
     host_.run_write(path, /*on_worker*/ true, !quiet,
-                    [&snapshot, &path, &extension, &effective_image_options, &writer_notices,
-                     &watermark](SaveProgress& progress) {
+                    [&snapshot, &path, &extension, &effective_image_options, &writer_notices, &watermark,
+                     layered_tiff](SaveProgress& progress) {
                       const ScopedSaveProgress scope(progress);
+                      std::optional<Document> settled;
+                      if (layered_tiff && !find_unsupported_blend_modes(snapshot, LayeredSaveFormat::Photoshop).empty()) {
+                        settled = snapshot;
+                        settle_unsupported_blend_modes(*settled, LayeredSaveFormat::Photoshop,
+                                                       effective_image_options.bake_unsupported_blend_modes,
+                                                       writer_notices);
+                      }
+                      const Document& source = settled.has_value() ? *settled : snapshot;
                       std::optional<Document> marked;
                       if (watermark.has_value()) {
                         marked = watermarked_save_document(
-                            snapshot, *watermark, image_format_preserves_alpha(extension.toStdString()),
+                            source, *watermark, image_format_preserves_alpha(extension.toStdString()),
                             &writer_notices);
                       }
-                      write_flat_image_file(marked.has_value() ? *marked : snapshot, path, extension,
+                      write_flat_image_file(marked.has_value() ? *marked : source, path, extension,
                                             effective_image_options, &writer_notices);
                     });
-    // A layered TIFF carries Photoshop layer records; a flat one is the composite.
-    if (is_tiff_extension(extension) && effective_image_options.tiff_layers.value_or(false) &&
-        layers_use_paint_dot_net_blend_modes(snapshot.layers())) {
-      writer_notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
-                          "Layers using Paint.NET's Reflect, Glow, Negation or Xor blend modes were saved as "
-                          "Normal; this format has no such modes."));
-    }
   }
   host_.offer_download(path);
   target = host_.find_session(session_id);

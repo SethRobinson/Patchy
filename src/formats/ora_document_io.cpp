@@ -73,7 +73,7 @@ struct CompositeOp {
 };
 
 // The spec's blending functions with source-over, svg:plus as Linear Dodge (Add), and the
-// names Krita writes for modes the spec does not list (seen in files Krita 5 wrote).
+// names Krita and Drawpile write for modes the spec does not list (seen in their files).
 constexpr std::array kReadOps = {
     CompositeOp{"svg:src-over", BlendMode::Normal},
     CompositeOp{"svg:multiply", BlendMode::Multiply},
@@ -105,6 +105,9 @@ constexpr std::array kReadOps = {
     CompositeOp{"krita:dissolve", BlendMode::Dissolve},
     CompositeOp{"krita:darker color", BlendMode::DarkerColor},
     CompositeOp{"krita:lighter color", BlendMode::LighterColor},
+    // Drawpile's own extension names (seen in its test recordings).
+    CompositeOp{"svg:-dp-divide", BlendMode::Divide},
+    CompositeOp{"svg:-dp-minus", BlendMode::Subtract},
 };
 
 [[nodiscard]] std::optional<BlendMode> blend_mode_from_op(std::string_view op) {
@@ -481,13 +484,13 @@ private:
   std::uint64_t extracted_{0};
 };
 
-// Decodes PNG (or JPEG) bytes as RGBA at their own depth; nullopt with a reason when the
-// bytes are not an image stb_image reads. Throws past the size caps.
-[[nodiscard]] std::optional<DecodedImage> decode_image(std::span<const std::uint8_t> bytes, std::uint64_t& pixel_budget,
-                                                       std::string& reason) {
+// Checks PNG (or JPEG) bytes before any decoding: false with a reason when the bytes are
+// not an image stb_image reads; throws past the size caps; takes the image's pixels from the
+// budget. Runs in file order, so the caps and the budget never depend on thread timing.
+[[nodiscard]] bool check_image(std::span<const std::uint8_t> bytes, std::uint64_t& pixel_budget, std::string& reason) {
   if (bytes.empty() || bytes.size() > kMaxEntryBytes) {
     reason = "empty";
-    return std::nullopt;
+    return false;
   }
   const auto* data = bytes.data();
   const auto length = static_cast<int>(bytes.size());
@@ -512,12 +515,30 @@ private:
   int components = 0;
   if (stbi_info_from_memory(data, length, &width, &height, &components) == 0 || width <= 0 || height <= 0) {
     reason = "not a readable PNG";
-    return std::nullopt;
+    return false;
   }
   const auto pixels = static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height);
   if (width > kMaxSide || height > kMaxSide || pixels > kMaxImagePixels || pixels > pixel_budget) {
     throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is too large to open"));
   }
+  pixel_budget -= pixels;
+  return true;
+}
+
+// Decodes bytes check_image accepted, as RGBA at their own depth; nullopt with a reason when
+// stb_image fails on the data. Thread-safe: layers decode in parallel.
+[[nodiscard]] std::optional<DecodedImage> decode_checked_image(std::span<const std::uint8_t> bytes,
+                                                               std::string& reason) {
+  const auto* data = bytes.data();
+  const auto length = static_cast<int>(bytes.size());
+  int width = 0;
+  int height = 0;
+  int components = 0;
+  if (stbi_info_from_memory(data, length, &width, &height, &components) == 0 || width <= 0 || height <= 0) {
+    reason = "not a readable PNG";
+    return std::nullopt;
+  }
+  const auto pixels = static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height);
   DecodedImage image;
   image.width = width;
   image.height = height;
@@ -540,8 +561,15 @@ private:
     image.rgba8.assign(decoded, decoded + count);
     stbi_image_free(decoded);
   }
-  pixel_budget -= pixels;
   return image;
+}
+
+[[nodiscard]] std::optional<DecodedImage> decode_image(std::span<const std::uint8_t> bytes, std::uint64_t& pixel_budget,
+                                                       std::string& reason) {
+  if (!check_image(bytes, pixel_budget, reason)) {
+    return std::nullopt;
+  }
+  return decode_checked_image(bytes, reason);
 }
 
 [[nodiscard]] PixelBuffer image_to_buffer(const DecodedImage& image, BitDepth depth) {
@@ -577,6 +605,8 @@ struct Node {
   bool selected{false};
   LayerLockFlags locks{kLayerLockNone};
   std::optional<DecodedImage> image;
+  std::vector<std::uint8_t> encoded;  // the checked layer file, until the parallel decode
+  std::string src;
   std::vector<Node> children;  // uppermost first, as in the file
 };
 
@@ -666,11 +696,11 @@ void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, Rea
     add_unique(state.missing_files, node.name + " (" + src + ")");
   } else {
     std::string reason;
-    node.image = decode_image(*bytes, state.pixel_budget, reason);
-    if (!node.image.has_value()) {
+    if (check_image(*bytes, state.pixel_budget, reason)) {
+      node.encoded = std::move(*bytes);  // decoded with the others once the tree is read
+      node.src = src;
+    } else {
       add_unique(state.unreadable_files, node.name + " (" + src + ": " + reason + ")");
-    } else if (node.image->sixteen) {
-      state.any_sixteen = true;
     }
   }
   out.push_back(std::move(node));
@@ -730,6 +760,53 @@ void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& st
     if (base + 1 != out.size()) {
       add_unique(state.approximated_ops, out[i].name + " (svg:src-atop)");
       out[i].clipped = false;
+    }
+  }
+}
+
+void collect_encoded(std::vector<Node>& nodes, std::vector<Node*>& out) {
+  for (auto& node : nodes) {
+    if (!node.encoded.empty()) {
+      out.push_back(&node);
+    }
+    collect_encoded(node.children, out);
+  }
+}
+
+// Decodes every checked layer file, spread over workers for files with several layers
+// (stb_image keeps no shared state between decodes). Notes and the depth are gathered in
+// file order afterwards, so the result never depends on thread timing.
+void decode_layer_images(std::vector<Node>& nodes, ReadState& state) {
+  std::vector<Node*> pending;
+  collect_encoded(nodes, pending);
+  std::vector<std::string> reasons(pending.size());
+  std::atomic<std::size_t> next{0};
+  const auto decode_some = [&] {
+    for (auto index = next.fetch_add(1); index < pending.size(); index = next.fetch_add(1)) {
+      pending[index]->image = decode_checked_image(pending[index]->encoded, reasons[index]);
+      std::vector<std::uint8_t>().swap(pending[index]->encoded);
+    }
+  };
+  const int workers = max_blocking_fanout_workers(
+      static_cast<int>(std::min<std::size_t>(pending.size(), static_cast<std::size_t>(hardware_worker_threads()))));
+  if (workers < 2) {
+    decode_some();
+  } else {
+    std::vector<std::future<void>> futures;
+    for (int worker = 1; worker < workers; ++worker) {
+      futures.push_back(std::async(std::launch::async, decode_some));
+    }
+    decode_some();
+    for (auto& future : futures) {
+      future.get();
+    }
+  }
+  for (std::size_t i = 0; i < pending.size(); ++i) {
+    const auto* node = pending[i];
+    if (!node->image.has_value()) {
+      add_unique(state.unreadable_files, node->name + " (" + node->src + ": " + reasons[i] + ")");
+    } else if (node->image->sixteen) {
+      state.any_sixteen = true;
     }
   }
 }
@@ -1312,6 +1389,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   ReadState state(zip);
   std::vector<Node> nodes;
   read_stack(*root_stack, nodes, state, 0, 0, 0);
+  decode_layer_images(nodes, state);
 
   const auto depth = state.any_sixteen && deep_editing_enabled() ? BitDepth::UInt16 : BitDepth::UInt8;
   Document document(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
@@ -1419,7 +1497,7 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document, std::vecto
   };
   const int wanted = total_pixels >= (1ULL << 21)
                          ? static_cast<int>(std::min<std::size_t>(sources.size(),
-                                                                  static_cast<std::size_t>(std::min(hardware_worker_threads(), 8))))
+                                                                  static_cast<std::size_t>(hardware_worker_threads())))
                          : 1;
   const int workers = max_blocking_fanout_workers(wanted);
   if (workers < 2) {

@@ -12232,10 +12232,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>使用 Paint.NET 混合模式（反射、光暈、反相、Xor）的圖層已儲存為「正常」；此格式沒有這些模式。</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Paint.NET 影像</translation>
     </message>
@@ -12282,6 +12278,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>此 Paint.NET 影像太大，Patchy 無法開啟其圖層，因此開啟了其內嵌的小型預覽影像。</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>此格式無法儲存其混合模式的圖層已重建為保持外觀的正常圖層。</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>此格式無法儲存其混合模式的圖層已存為正常，因此儲存的影像看起來不同。</translation>
     </message>
 </context>
 <context>
@@ -24973,6 +24977,40 @@ Changed: %1.</source>
         <translation>OpenRaster 會保留圖層、群組、不透明度和混合模式，但此文件中的部分內容無法依原樣儲存。要繼續儲存，並將這些內容烘焙到圖層像素中或將其省略嗎？若要讓所有內容保持可編輯，請同時儲存一份 Photoshop 文件 (.psd)。
 
 變更：%1。</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>不支援的混合模式</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>%1 檔案無法儲存以下混合模式：%2（%n 個圖層）。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>圖層：%1。
+
+保持外觀：這些圖層各自存為一個正常圖層，顯示其混合模式原本顯示的效果，因此儲存的影像看起來相同。其像素隨後包含其下方的內容，包含此類圖層的資料夾或剪裁群組會存為一個圖層。
+
+存為正常：圖層保留自己的像素，但切換為正常，因此儲存的影像看起來不同。
+
+無論哪種方式，開啟的文件都保留其混合模式。</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>保持外觀</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>存為正常</translation>
     </message>
 </context>
 <context>

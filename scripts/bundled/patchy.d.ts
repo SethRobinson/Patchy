@@ -764,6 +764,12 @@ interface PatchySaveOptions {
    *  colorMode "cmyk" default to false. A TIFF with layers is RGB, so true with colorMode
    *  "cmyk" throws. */
   layers?: boolean;
+  /** .psd, .psb, layered .tif/.tiff, .aseprite/.ase: layers whose blend mode the format
+   *  cannot store (Paint.NET's Reflect, Glow, Negation and Xor everywhere; more in
+   *  Aseprite). "normal" (the default) writes them as Normal, so the saved image can look
+   *  different; "bake" rebuilds each as a Normal layer that keeps the look. The document
+   *  itself is not changed. */
+  unsupportedBlendModes?: "normal" | "bake";
 }
 
 /** File > File Info fields (doc.fileInfo, doc.setFileInfo). Strings are empty and arrays
@@ -923,6 +929,9 @@ interface PatchyDocument {
   readonly name: string;
   /** File path, empty for unsaved documents. */
   readonly path: string;
+  /** The notes the file's reader left when it opened (what it dropped or approximated, the
+   *  import notes the status bar shows), in the app's language; empty for new documents. */
+  readonly importNotes: string[];
   /** Pixels per inch. */
   readonly resolution: number;
   /** File > File Info fields. Change them with setFileInfo. */

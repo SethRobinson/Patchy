@@ -12232,10 +12232,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>Paint.NET 혼합 모드(반사, 광선, 부정, Xor)를 사용하는 레이어는 표준으로 저장되었습니다. 이 형식에는 해당 모드가 없습니다.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Paint.NET 이미지</translation>
     </message>
@@ -12282,6 +12278,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>이 Paint.NET 이미지는 너무 커서 Patchy에서 레이어를 열 수 없어 포함된 작은 미리 보기 이미지로 열었습니다.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>이 형식에 저장할 수 없는 혼합 모드의 레이어는 모양을 유지하는 표준 레이어로 다시 만들어졌습니다.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>이 형식에 저장할 수 없는 혼합 모드의 레이어는 표준으로 저장되어, 저장된 이미지가 다르게 보입니다.</translation>
     </message>
 </context>
 <context>
@@ -24973,6 +24977,40 @@ Changed: %1.</source>
         <translation>OpenRaster는 레이어, 그룹, 불투명도와 혼합 모드를 유지하지만, 이 문서의 일부 콘텐츠는 그대로 저장할 수 없습니다. 해당 콘텐츠를 레이어 픽셀에 병합하거나 제외하고 계속 저장하시겠습니까? 모든 항목을 편집 가능한 상태로 유지하려면 Photoshop 문서(.psd)도 저장하십시오.
 
 변경 사항: %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>지원되지 않는 혼합 모드</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>%1 파일에는 다음 혼합 모드를 저장할 수 없습니다: %2 (레이어 %n개).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>레이어: %1.
+
+모양 유지: 이 레이어들은 각각 혼합 모드가 보여 주던 결과를 그대로 보여 주는 표준 레이어로 저장되므로, 저장된 이미지가 똑같이 보입니다. 그러면 픽셀에 아래에 있던 내용이 포함되며, 이런 레이어가 들어 있는 폴더나 클리핑 그룹은 하나의 레이어로 저장됩니다.
+
+표준으로 저장: 레이어는 자신의 픽셀을 유지하지만 표준으로 바뀌므로, 저장된 이미지가 다르게 보입니다.
+
+어느 쪽이든 열려 있는 문서의 혼합 모드는 그대로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>모양 유지</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>표준으로 저장</translation>
     </message>
 </context>
 <context>

@@ -12267,10 +12267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>Les calques utilisant les modes de fusion Paint.NET Refléter, Lueur, Négation ou Xor ont été enregistrés en Normal ; ce format n&apos;a pas ces modes.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Image Paint.NET</translation>
     </message>
@@ -12317,6 +12313,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>Cette image Paint.NET est trop grande pour que Patchy ouvre ses calques ; c&apos;est sa petite image d&apos;aperçu intégrée qui a été ouverte.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>Les calques dont ce format ne peut pas enregistrer le mode de fusion ont été refaits en calques Normal qui gardent l&apos;aspect.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>Les calques dont ce format ne peut pas enregistrer le mode de fusion ont été enregistrés en Normal, donc l&apos;image enregistrée a un autre aspect.</translation>
     </message>
 </context>
 <context>
@@ -25045,6 +25049,41 @@ Changed: %1.</source>
         <translation>OpenRaster conserve les calques, les groupes, l&apos;opacité et les modes de fusion, mais une partie du contenu de ce document ne peut pas être stockée telle quelle. Continuer l&apos;enregistrement en l&apos;intégrant aux pixels des calques ou en l&apos;omettant ? Pour que tout reste modifiable, enregistrez aussi un document Photoshop (.psd).
 
 Modifié : %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>Modes de fusion non pris en charge</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>Les fichiers %1 ne peuvent pas enregistrer ces modes de fusion : %2 (%n calque).</numerusform>
+            <numerusform>Les fichiers %1 ne peuvent pas enregistrer ces modes de fusion : %2 (%n calques).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>Calques : %1.
+
+Garder l&apos;aspect : chacun de ces calques est enregistré comme un calque Normal qui montre ce que montrait son mode de fusion, donc l&apos;image enregistrée a le même aspect. Ses pixels contiennent alors ce qui se trouvait dessous, et un dossier ou un groupe d&apos;écrêtage qui en contient un est enregistré comme un seul calque.
+
+Enregistrer en Normal : les calques gardent leurs propres pixels mais passent en Normal, donc l&apos;image enregistrée a un autre aspect.
+
+Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>Garder l&apos;aspect</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>Enregistrer en Normal</translation>
     </message>
 </context>
 <context>

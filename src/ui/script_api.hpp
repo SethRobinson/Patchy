@@ -242,6 +242,7 @@ class ScriptDocumentObject : public QObject {
   Q_PROPERTY(int height READ height)
   Q_PROPERTY(QString name READ name)
   Q_PROPERTY(QString path READ path)
+  Q_PROPERTY(QJSValue importNotes READ import_notes)
   Q_PROPERTY(double resolution READ resolution)
   Q_PROPERTY(int bitDepth READ bit_depth)
   Q_PROPERTY(QString colorProfile READ color_profile)
@@ -275,6 +276,7 @@ public:
   [[nodiscard]] int height() const;
   [[nodiscard]] QString name() const;
   [[nodiscard]] QString path() const;
+  [[nodiscard]] QJSValue import_notes() const;
   [[nodiscard]] double resolution() const;
   [[nodiscard]] int bit_depth() const;
   [[nodiscard]] QString color_profile() const;

@@ -328,8 +328,25 @@ Where they appear and what files keep them:
 
 - No blend menu lists them, so nobody picks a mode a PSD cannot keep. A layer or folder combo (the Layers panel, Layer Style's Blending Options) shows one, after Photoshop's modes, only while a layer it edits uses it (`set_paint_dot_net_blend_modes_offered`; in the Layers panel, any selected layer). Switching the layer to another mode removes the row; undo brings it back. Stepping a closed combo (arrows, Home/End, Page Up/Down, the wheel; `BlendModeArrowKeys`) never lands on them, though it leaves one. Layer-effect menus (`BlendModeMenu::Effect`), recipes and Smart Filters (`recipe_blend_mode_supported`), the brush Mode menu and New Layer never show them. Pinned by `ui_pdn_files_open_with_layers_and_by_content` and `ui_blend_mode_combos_step_past_paint_dot_net_modes`.
 - They are 8 and 16-bit only (`blend_mode_supported_at_depth` refuses them at 32 bits).
-- PSD (layer key and lfx2 stringID), layered TIFF and Aseprite saves write Normal. `layers_use_paint_dot_net_blend_modes` adds the save notice; document recovery's PSB snapshots carry Normal too.
+- PSD (layer key and lfx2 stringID), layered TIFF and Aseprite cannot store them: see [Layered saves](#layered-saves). Document recovery's PSB snapshots carry Normal.
 - Script ids `reflect`, `glow`, `negation`, `xor` append to `kBlendModeIds`.
 - The Affinity importer keeps its probe-scored remaps (Negation -> Exclusion, Reflect -> Overlay, Glow -> Linear Light): an Affinity file should stay PSD-savable, and no Affinity render pins those modes to Paint.NET's kernels.
 
 Paint.NET's Multiply, Screen and Overlay round where the Photoshop-calibrated kernels floor, and its Color Burn/Dodge floor where they round, so those imports differ by at most one level, apart from Burn's and Dodge's corners ([pdn-format.md](pdn-format.md#blend-calibration)); the kernels stay Photoshop's.
+
+## Layered saves
+
+`src/formats/layered_blend_support.{hpp,cpp}` (Qt-free) knows which modes each layered save format stores (`layered_format_stores_blend_mode`):
+
+- Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
+- Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
+
+`find_unsupported_blend_modes` lists the modes and the layers (hidden ones too). When it finds any, an interactive save to one of those formats asks first (`unsupportedBlendModesMessageBox`, MainWindow::save_document_to_path): Keep the Look (default) bakes, Save as Normal writes the layers as Normal (the writers' old behaviour), Cancel writes nothing. Scripts never see the prompt: saveAs option `unsupportedBlendModes` is `"normal"` (default) or `"bake"`. The answer travels as `ImageSaveOptions::bake_unsupported_blend_modes`, never persisted; `DocumentSaveCoordinator::write_prepared` applies it to the save snapshot only and adds a notice either way. OpenRaster keeps its own baking ([ora.md](ora.md)).
+
+The bake (`bake_unsupported_blend_modes`), per unit: render the composite below the unit (B) and with it (R) in the context it composites in, then write a Normal, 100% pixel layer N with N over B = R. Where B is opaque N is R, opaque wherever the unit changed a pixel; under partial cover N's alpha and colour solve the source-over equation (alpha quantized up to 1/255); pixels the unit left alone stay transparent, so the layers below still show and stay editable there.
+
+- A unit is one layer, a clipping run that holds an affected layer (base and clipped layers merge), or a whole folder whose own mode is affected. A Pass Through folder with opacity, a mask or a style that holds affected content also bakes whole.
+- Context: a Pass Through folder, or a Normal one at full opacity with no mask, style or Blend If, continues its parent's composite (source-over is associative); other folders isolate, so their children render in a document of that folder's children alone.
+- Hidden layers only switch to Normal. A unit that changes no pixel keeps its layers and switches to Normal.
+- Deep documents bake through the 8-bit composite, converted back to the document's depth.
+- Trade-off (told in the prompt): a baked layer holds what was below it wherever it changed it, so later edits below do not show through there, and a merged unit loses its separate layers. The saved composite matches Patchy's within one level; a contrast mode above a baked layer can double that (two levels under Overlay). Pinned by `layered_blend_bake_round_trips_through_psd` and `ui_save_asks_about_unsupported_blend_modes`.

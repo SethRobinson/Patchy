@@ -3920,9 +3920,21 @@ void ui_pdn_files_open_with_layers_and_by_content() {
     CHECK(blend_combo->currentText() == QStringLiteral("Xor"));
   }
 
-  // A PSD save writes them as Normal and says so.
+  // A PSD save asks (docs/blend-modes.md, "Layered saves"); Save as Normal writes them as
+  // Normal and says so.
   const auto psd_path = QDir(dir).filePath(QStringLiteral("saved.psd"));
+  bool asked = false;
+  QTimer::singleShot(0, [&asked] {
+    if (auto* box = qobject_cast<QMessageBox*>(
+            patchy::test::ui::find_top_level_dialog(QStringLiteral("unsupportedBlendModesMessageBox")))) {
+      if (auto* normal = box->findChild<QAbstractButton*>(QStringLiteral("unsupportedBlendModesNormalButton"))) {
+        asked = true;
+        normal->click();
+      }
+    }
+  });
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  CHECK(asked);
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("saved as Normal")));
   QFile saved(psd_path);
   CHECK(saved.open(QIODevice::ReadOnly));

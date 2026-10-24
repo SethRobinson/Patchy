@@ -321,12 +321,11 @@ the Hotkeys panel is built. `rebuild_scripts_menu` re-adds the actions in scan o
 start from `MainWindow::image_save_defaults_for_document()`, overlay the object through
 `apply_script_image_save_options` (src/ui/script_save_options.cpp), and call
 `save_document_to_path` with `SaveToPathPolicy{flatten_confirmed, scripted, export_copy}`.
-The parser is strict (unknown key, wrong type, out of range, or a key for another extension
+The parser is strict (an unknown, mistyped, out-of-range or other-extension key
 throws before anything is written) and reuses the persisted tokens from
 `image_save_option_keys.hpp`, shared with the dialogs and settings. No options object =
 the old path (defaults or the session's remembered options). `scripted` skips the
-saved-channels and Aseprite fill-opacity prompts and never persists the user's defaults or
-save directory; `export_copy` (exportAs) takes the save-a-copy branch for every format, so
+saved-channels, Aseprite fill-opacity and blend-mode prompts and never persists the user's defaults or save directory; `export_copy` (exportAs) takes the save-a-copy branch for every format, so
 the session's path, title and modified state stay untouched. Pinned by
 `ui_script_save_as_options_write_dds_and_jpeg` and `ui_script_save_as_options_are_strict`.
 

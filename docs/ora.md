@@ -35,7 +35,8 @@ Refused before allocation: a canvas or layer side over 300000, an image over 2^3
 entries, an entry claiming more than deflate can expand to (1032:1) or a stored entry whose sizes
 differ, encrypted entries, groups nested past 64. A layer `src` with `..`, a leading `/`, a
 backslash or a colon is never looked up; that layer opens empty with a notice, as do a missing or
-undecodable file. Bad XML, a truncated zip and damaged entries throw plain errors.
+undecodable file. Layer files are extracted and size-checked in file order, then decoded in parallel
+(one worker per hardware thread); notes and the depth are gathered in file order afterwards. Bad XML, a truncated zip and damaged entries throw plain errors.
 
 ## stack.xml model
 
@@ -87,7 +88,8 @@ merged image, rendered pass-through, then differs from every spec reader).
 | `svg:src-atop` | clipped onto the layer below when that layer is the bottom of its stack (then it equals Photoshop clipping); otherwise unclipped with a notice |
 | `svg:dst-in`, `dst-out`, `dst-atop` | Normal with a notice |
 | `krita:soft_light` (Krita's Photoshop soft light), `krita:exclusion`, `linear_burn`, `linear_dodge`, `vivid_light`, `linear light` (with a space), `pin_light`, `hard_mix_photoshop`, `subtract`, `divide`, `dissolve` | the matching mode (names seen in Krita 5.3's own files) |
-| anything else | Normal, with a notice naming layer and op |
+| `svg:-dp-divide`, `svg:-dp-minus` | Divide, Subtract (Drawpile's names, seen in its test recordings) |
+| anything else | Normal, with a notice naming layer and op (MyPaint 2's `mypaint:spectral-wgm` pigment mode included: no equivalent) |
 
 Writes use the spec name where one exists (Linear Dodge as `svg:plus`), Krita's name for Exclusion,
 Linear Burn, Vivid, Linear and Pin Light, Hard Mix, Subtract, Divide, Dissolve, Darker Color and
@@ -135,8 +137,8 @@ open as sRGB, as before.
   interactive save, naming up to six items; scripted and unattended saves skip it, as they skip the
   Aseprite Fill Opacity prompt. The written notices go to the status bar.
 - The merged image is `flatten_document_rgba8` or `Compositor::flatten_rgba_deep` of the written
-  document. Layer PNGs, the merged image and the thumbnail encode in parallel (up to 8 workers, from
-  2^21 total pixels) through `ora::detail::encode_png`: RGBA, the per-row filter with the smallest
+  document. Layer PNGs, the merged image and the thumbnail encode in parallel (one worker per
+  hardware thread, from 2^21 total pixels) through `ora::detail::encode_png`: RGBA, the per-row filter with the smallest
   sum of absolute signed bytes, miniz level 6, 1 MiB IDAT chunks. Workers only read their buffers
   through const access (the copy-on-write rule in AGENTS.md).
 - Determinism: fixed entry order and dates, layer files numbered in document order, classic-locale
@@ -178,6 +180,37 @@ first run on October 24, 2026; the script holds the table.
   for the last four): those modes allow means up to 38 and worst pixels up to 150. Krita's mode names open as Normal in GIMP: reported, not failed.
 - The apps' files in Patchy against each app's export: Krita mean 0.00, worst 1 for every fixture;
   GIMP mean 0.45, worst 63 (the same linear-light edges).
+
+## Corpus
+
+`scripts/dev/ora/corpus_check.py CORPUS_DIR` (numpy and Pillow; through `run-throttled.bat`) opens
+every .ora headless in Patchy (`--headless --run-script`, reading `doc.importNotes`), compares the
+composite with the file's `mergedimage.png` and with Krita's and GIMP's exports, saves and reopens it
+(tree and pixels must match exactly), and has both apps open and re-save Patchy's file. It writes
+`corpus.csv` and `summary.md` under `build/ora-corpus-report/`. `make_corpus_files.py` adds GIMP and
+Krita files (a 4000x3000 canvas with 48 layers on and off the canvas, 9 nested groups alternating
+pass-through, odd and non-ASCII names, partial-opacity modes). The corpus itself
+(`local-test-fixtures/ora-corpus/`, sources and licences in its README.txt) is not committed.
+
+The October 25, 2026 sweep: 62 files (MyPaint's and Drawpile's test files, about 20 from public
+GitHub art and library repositories, two CC0 MyPaint paintings from OpenGameArt, an npm sample, the
+GIMP and Krita fixtures). All open, and every save and reopen is identical. Patchy's render matches
+the file's merged image or Krita's export on 60; the two others are Krita's quirk below. Found and
+fixed: Drawpile's `-dp-` mode names opened as Normal, and large files decoded their layers one at a
+time (a 3600x3600 file with 21 layers now opens in 0.9 s instead of 3.2 s; its save takes about 4 s
+for 1.1 GB of layer pixels). MyPaint and Pinta have no scripted save, so writing files with them would
+need desktop control; their output here comes only from files found online.
+
+Known differences that are the other app's:
+
+- GIMP's merged image follows GIMP, not its own stack.xml: its extra modes saved as `svg:src-over`,
+  its pass-through groups saved as isolated, and linear-light blending.
+- GIMP renames repeated layer names (" #1", " #2") when it re-saves.
+- Krita, when a 16-bit layer PNG has no ICC profile (files saved by an older GIMP carry only gAMA), asks
+  for a profile per layer and then renders the samples differently (mean difference 39 to 53);
+  GIMP and Patchy read them as sRGB. Its command-line export waits on that question.
+- Krita reads Drawpile's `-dp-` names as Normal (Patchy's re-save writes Krita's names instead).
+- Krita's import of a GIMP PSD turns group end markers into "</Layer group>" layers.
 
 ## Tests
 
