@@ -1275,6 +1275,12 @@ void ui_clone_outline_overlay_tracks_large_brushes() {
   show_window(window);
   auto* canvas = require_canvas(window);
   require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  // Without a source the not-allowed cursor shows (GitHub issue 380): Alt-click one first.
+  const QPoint source(canvas->width() / 2, canvas->height() / 2);
+  send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, source, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
 
   // Large Clone footprint: the same crosshair + canvas-overlay outline as the
   // Brush (the unbounded pixmap cursor was rejected by browsers on wasm).

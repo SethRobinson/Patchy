@@ -2953,7 +2953,14 @@ void ui_max_brush_uses_overlay_cursor() {
 
   // Every retouch tool with the round footprint cursor switches to the overlay
   // crosshair at large sizes too (browsers reject the giant pixmap cursor in
-  // the wasm build) and returns to a pixmap cursor when small.
+  // the wasm build) and returns to a pixmap cursor when small. Clone and Healing show
+  // the not-allowed cursor until a source is set (GitHub issue 380), so Alt-click one.
+  canvas.set_tool(patchy::ui::CanvasTool::Clone);
+  const auto source = canvas.widget_position_for_document_point(QPoint(32, 32));
+  send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseMove, source, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
   const patchy::ui::CanvasTool footprint_tools[] = {
       patchy::ui::CanvasTool::Clone,        patchy::ui::CanvasTool::Healing,
       patchy::ui::CanvasTool::SpotHealing,  patchy::ui::CanvasTool::Smudge,

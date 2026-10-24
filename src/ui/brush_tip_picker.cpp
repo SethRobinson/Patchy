@@ -156,8 +156,10 @@ void BrushTipPicker::refresh() {
 QSize BrushTipPicker::sizeHint() const {
   const QFontMetrics metrics(font());
   // About twelve average characters of name: "Brick Road" fits whole (issue 364's example).
+  // The 115 px cap keeps the Mixer Brush row on one line at 1366 px with Linux's wider
+  // default font, where twelve characters came to 125 px.
   const int width = std::clamp(kFaceInset + kFaceIconExtent + kFaceTextGap + kChevronRoom + metrics.averageCharWidth() * 12,
-                               105, 150);
+                               105, 115);
   return {width, QToolButton::sizeHint().height()};
 }
 
