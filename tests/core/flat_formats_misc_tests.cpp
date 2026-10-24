@@ -1654,6 +1654,17 @@ void sniff_openable_image_format_names_what_patchy_opens() {
   // Formats Patchy cannot open, unrecognized bytes, text and an empty file: nothing.
   CHECK(extension_of(of("qoif....")) == "(none)");
   CHECK(extension_of(of("PK\x03\x04 zip")) == "(none)");
+  // A zip whose first entry is OpenRaster's stored mimetype opens as .ora (docs/ora.md).
+  {
+    Bytes ora(30, 0);
+    ora[0] = 'P';
+    ora[1] = 'K';
+    ora[2] = 3;
+    ora[3] = 4;
+    const std::string_view tail = "mimetypeimage/openraster";
+    ora.insert(ora.end(), tail.begin(), tail.end());
+    CHECK(extension_of(ora) == "ora");
+  }
   CHECK(extension_of(Bytes{0x01, 0x02, 0x03, 0x04, 0x05, 0x00, 0xfe, 0xfd}) == "(none)");
   CHECK(extension_of(of("just some text")) == "(none)");
   CHECK(extension_of(Bytes{}) == "(none)");

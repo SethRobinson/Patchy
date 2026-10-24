@@ -50,6 +50,21 @@ ColorSchemePreference color_scheme_preference_from_token(const QString& token) {
   return ColorSchemePreference::FollowSystem;
 }
 
+ColorScheme resolve_reported_color_scheme(Qt::ColorScheme reported, bool desktop_linux_build,
+                                          const QString& platform_name) {
+  switch (reported) {
+    case Qt::ColorScheme::Light:
+      return ColorScheme::Light;
+    case Qt::ColorScheme::Dark:
+      return ColorScheme::Dark;
+    case Qt::ColorScheme::Unknown:
+      break;
+  }
+  const bool desktop_session = platform_name == QStringLiteral("xcb") ||
+                               platform_name.startsWith(QStringLiteral("wayland"));
+  return desktop_linux_build && desktop_session ? ColorScheme::Light : ColorScheme::Dark;
+}
+
 ThemeManager& ThemeManager::instance() {
   static ThemeManager manager;
   return manager;
@@ -74,10 +89,13 @@ ThemeManager::ThemeManager() {
 ColorScheme ThemeManager::system_scheme() const {
   const auto reported =
       system_scheme_override_.value_or(QGuiApplication::styleHints()->colorScheme());
-  // Unknown is what the offscreen platform reports, and what any platform
-  // without a color-scheme notion reports. Dark is Patchy's historical look, so
-  // that is the safe resolution.
-  return reported == Qt::ColorScheme::Light ? ColorScheme::Light : ColorScheme::Dark;
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+  constexpr bool desktop_linux_build = true;
+#else
+  constexpr bool desktop_linux_build = false;
+#endif
+  return resolve_reported_color_scheme(reported, desktop_linux_build,
+                                       QGuiApplication::platformName());
 }
 
 ColorScheme ThemeManager::resolved_scheme() const {

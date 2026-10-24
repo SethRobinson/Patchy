@@ -12230,6 +12230,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>Occhi rossi</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>Questo file Paint.NET è danneggiato e non è stato possibile aprirlo.</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Non è un documento Paint.NET</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>Alcuni pixel di livello di questo file Paint.NET sono danneggiati o mancanti; quelle aree sono state aperte trasparenti.</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>Alcuni pixel di livello di questo file Paint.NET non hanno superato il checksum e potrebbero essere danneggiati.</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>Un livello di questo file Paint.NET usa un metodo di fusione che Patchy non ha; è stato aperto come Normale.</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>Non è stato possibile leggere i livelli di questo file Paint.NET, quindi è stata aperta la sua piccola anteprima incorporata.</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>Riflesso</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>Negazione</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>I livelli con i metodi di fusione di Paint.NET Riflesso, Bagliore, Negazione o Xor sono stati salvati come Normale; questo formato non ha questi metodi.</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Immagine Paint.NET</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
+        <translation>Il file OpenRaster è danneggiato: la sua directory zip manca o è troncata</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is too large to open</source>
+        <translation>Il file OpenRaster è troppo grande per essere aperto</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Il file OpenRaster usa funzioni zip che Patchy non può leggere (crittografia o una compressione sconosciuta)</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: an entry cannot be unpacked</source>
+        <translation>Il file OpenRaster è danneggiato: impossibile decomprimere una voce</translation>
+    </message>
+    <message>
+        <source>The OpenRaster layer list (stack.xml) is damaged or not valid XML</source>
+        <translation>L&apos;elenco dei livelli OpenRaster (stack.xml) è danneggiato o non è XML valido</translation>
+    </message>
+    <message>
+        <source>This file is not an OpenRaster image</source>
+        <translation>Questo file non è un&apos;immagine OpenRaster</translation>
+    </message>
+    <message>
+        <source>Cannot save an empty document as OpenRaster</source>
+        <translation>Impossibile salvare un documento vuoto come OpenRaster</translation>
+    </message>
+    <message>
+        <source>Could not write the OpenRaster file</source>
+        <translation>Impossibile scrivere il file OpenRaster</translation>
+    </message>
+    <message>
+        <source>OpenRaster Image</source>
+        <translation>Immagine OpenRaster</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open.</source>
+        <translation>Questa immagine Paint.NET è troppo grande perché Patchy possa aprirla.</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation>Questa immagine Paint.NET è troppo grande perché Patchy ne apra i livelli, quindi è stata aperta la sua piccola anteprima incorporata.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24905,6 +24993,58 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>How much darker the corrected pupil gets</source>
         <translation>Quanto diventa più scura la pupilla corretta</translation>
+    </message>
+    <message>
+        <source>shape layer &quot;%1&quot;</source>
+        <translation>livello forma &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
+        <translation>il metodo di fusione di &quot;%1&quot; (lo legge solo Krita)</translation>
+    </message>
+    <message>
+        <source>the layer style of &quot;%1&quot;</source>
+        <translation>lo stile livello di &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blending options of &quot;%1&quot;</source>
+        <translation>le opzioni di fusione di &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>32-bit channels (saved at 16 bits)</source>
+        <translation>canali a 32 bit (salvati a 16 bit)</translation>
+    </message>
+    <message>
+        <source>the color mode (saved as RGB)</source>
+        <translation>il metodo colore (salvato come RGB)</translation>
+    </message>
+    <message>
+        <source>the palette (saved as RGB colors)</source>
+        <translation>la palette (salvata come colori RGB)</translation>
+    </message>
+    <message>
+        <source>guides</source>
+        <translation>guide</translation>
+    </message>
+    <message>
+        <source>paths</source>
+        <translation>tracciati</translation>
+    </message>
+    <message>
+        <source>artboards (saved as groups)</source>
+        <translation>tavole da disegno (salvate come gruppi)</translation>
+    </message>
+    <message>
+        <source>Some Content Will Be Baked</source>
+        <translation>Parte del contenuto verrà incorporata</translation>
+    </message>
+    <message>
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+
+Changed: %1.</source>
+        <translation>OpenRaster conserva livelli, gruppi, opacità e metodi di fusione, ma parte del contenuto di questo documento non può essere memorizzata così com&apos;è. Continuare il salvataggio incorporandola nei pixel dei livelli o tralasciandola? Per mantenere tutto modificabile, salva anche un documento Photoshop (.psd).
+
+Modifiche: %1.</translation>
     </message>
 </context>
 <context>

@@ -331,6 +331,13 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
       return {'d', 'k', 'C', 'l'};
     case BlendMode::LighterColor:
       return {'l', 'g', 'C', 'l'};
+    // Paint.NET's modes have no Photoshop key; saves write Normal and tell the user
+    // (document_uses_non_photoshop_blend_modes).
+    case BlendMode::Reflect:
+    case BlendMode::Glow:
+    case BlendMode::Negation:
+    case BlendMode::Xor:
+      return {'n', 'o', 'r', 'm'};
   }
   return {'n', 'o', 'r', 'm'};
 }

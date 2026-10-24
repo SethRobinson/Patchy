@@ -12195,6 +12195,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>적목 현상 제거</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>이 Paint.NET 파일은 손상되어 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Paint.NET 문서가 아닙니다</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>이 Paint.NET 파일의 일부 레이어 픽셀이 손상되었거나 없어서 해당 영역을 투명하게 열었습니다.</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>이 Paint.NET 파일의 일부 레이어 픽셀이 체크섬 검사를 통과하지 못해 손상되었을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>이 Paint.NET 파일의 레이어가 Patchy에 없는 혼합 모드를 사용하여 표준으로 열었습니다.</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>이 Paint.NET 파일의 레이어를 읽을 수 없어 포함된 작은 미리 보기 이미지로 열었습니다.</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>반사</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>부정</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>Paint.NET 혼합 모드(반사, 광선, 부정, Xor)를 사용하는 레이어는 표준으로 저장되었습니다. 이 형식에는 해당 모드가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 이미지</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
+        <translation>OpenRaster 파일이 손상되었습니다: zip 디렉터리가 없거나 잘려 있습니다</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is too large to open</source>
+        <translation>OpenRaster 파일이 너무 커서 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>OpenRaster 파일이 Patchy가 읽을 수 없는 zip 기능(암호화 또는 알 수 없는 압축)을 사용합니다</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: an entry cannot be unpacked</source>
+        <translation>OpenRaster 파일이 손상되었습니다: 항목의 압축을 풀 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The OpenRaster layer list (stack.xml) is damaged or not valid XML</source>
+        <translation>OpenRaster 레이어 목록(stack.xml)이 손상되었거나 올바른 XML이 아닙니다</translation>
+    </message>
+    <message>
+        <source>This file is not an OpenRaster image</source>
+        <translation>이 파일은 OpenRaster 이미지가 아닙니다</translation>
+    </message>
+    <message>
+        <source>Cannot save an empty document as OpenRaster</source>
+        <translation>빈 문서는 OpenRaster로 저장할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write the OpenRaster file</source>
+        <translation>OpenRaster 파일을 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>OpenRaster Image</source>
+        <translation>OpenRaster 이미지</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open.</source>
+        <translation>이 Paint.NET 이미지는 너무 커서 Patchy에서 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation>이 Paint.NET 이미지는 너무 커서 Patchy에서 레이어를 열 수 없어 포함된 작은 미리 보기 이미지로 열었습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24833,6 +24921,58 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>How much darker the corrected pupil gets</source>
         <translation>보정한 눈동자를 얼마나 어둡게 할지</translation>
+    </message>
+    <message>
+        <source>shape layer &quot;%1&quot;</source>
+        <translation>모양 레이어 &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
+        <translation>&quot;%1&quot;의 혼합 모드(Krita만 읽음)</translation>
+    </message>
+    <message>
+        <source>the layer style of &quot;%1&quot;</source>
+        <translation>&quot;%1&quot;의 레이어 스타일</translation>
+    </message>
+    <message>
+        <source>the blending options of &quot;%1&quot;</source>
+        <translation>&quot;%1&quot;의 혼합 옵션</translation>
+    </message>
+    <message>
+        <source>32-bit channels (saved at 16 bits)</source>
+        <translation>32비트 채널(16비트로 저장)</translation>
+    </message>
+    <message>
+        <source>the color mode (saved as RGB)</source>
+        <translation>색상 모드(RGB로 저장)</translation>
+    </message>
+    <message>
+        <source>the palette (saved as RGB colors)</source>
+        <translation>팔레트(RGB 색상으로 저장)</translation>
+    </message>
+    <message>
+        <source>guides</source>
+        <translation>안내선</translation>
+    </message>
+    <message>
+        <source>paths</source>
+        <translation>패스</translation>
+    </message>
+    <message>
+        <source>artboards (saved as groups)</source>
+        <translation>대지(그룹으로 저장)</translation>
+    </message>
+    <message>
+        <source>Some Content Will Be Baked</source>
+        <translation>일부 콘텐츠가 병합됩니다</translation>
+    </message>
+    <message>
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+
+Changed: %1.</source>
+        <translation>OpenRaster는 레이어, 그룹, 불투명도와 혼합 모드를 유지하지만, 이 문서의 일부 콘텐츠는 그대로 저장할 수 없습니다. 해당 콘텐츠를 레이어 픽셀에 병합하거나 제외하고 계속 저장하시겠습니까? 모든 항목을 편집 가능한 상태로 유지하려면 Photoshop 문서(.psd)도 저장하십시오.
+
+변경 사항: %1.</translation>
     </message>
 </context>
 <context>

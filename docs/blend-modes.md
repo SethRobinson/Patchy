@@ -314,3 +314,22 @@ other unrepresentable modes. Pinned by
 `compositor_dissolve_compounds_fill_and_opacity`,
 `compositor_dissolve_dithers_layer_effects` and the UI suite's
 `ui_dissolve_clipped_render_matches_full_render`.
+
+## Paint.NET modes
+
+Reflect, Glow, Negation and Xor (GitHub issue 379) exist for Paint.NET import ([pdn-format.md](pdn-format.md)). They are bit-exact against Paint.NET's own flattened exports (4.21 via pypdn's renders, 5.1.12 via `test-fixtures/pdn/blend-modes.pdn`), with `s` the layer and `d` the backdrop:
+
+- Reflect: 255 when `s` is 255, else min(255, floor(d*d / (255 - s))).
+- Glow: Reflect with the operands swapped (255 when `d` is 255).
+- Negation: 255 - |255 - s - d|.
+- Xor: `s ^ d` per byte; the 16/32-bit kernel rounds to bytes first.
+
+Where they appear and what files keep them:
+
+- No blend menu lists them, so nobody picks a mode a PSD cannot keep. A layer or folder combo (the Layers panel, Layer Style's Blending Options) shows one, after Photoshop's modes, only while a layer it edits uses it (`set_paint_dot_net_blend_modes_offered`; in the Layers panel, any selected layer). Switching the layer to another mode removes the row; undo brings it back. Stepping a closed combo (arrows, Home/End, Page Up/Down, the wheel; `BlendModeArrowKeys`) never lands on them, though it leaves one. Layer-effect menus (`BlendModeMenu::Effect`), recipes and Smart Filters (`recipe_blend_mode_supported`), the brush Mode menu and New Layer never show them. Pinned by `ui_pdn_files_open_with_layers_and_by_content` and `ui_blend_mode_combos_step_past_paint_dot_net_modes`.
+- They are 8 and 16-bit only (`blend_mode_supported_at_depth` refuses them at 32 bits).
+- PSD (layer key and lfx2 stringID), layered TIFF and Aseprite saves write Normal. `layers_use_paint_dot_net_blend_modes` adds the save notice; document recovery's PSB snapshots carry Normal too.
+- Script ids `reflect`, `glow`, `negation`, `xor` append to `kBlendModeIds`.
+- The Affinity importer keeps its probe-scored remaps (Negation -> Exclusion, Reflect -> Overlay, Glow -> Linear Light): an Affinity file should stay PSD-savable, and no Affinity render pins those modes to Paint.NET's kernels.
+
+Paint.NET's Multiply, Screen and Overlay round where the Photoshop-calibrated kernels floor, and its Color Burn/Dodge floor where they round, so those imports differ by at most one level, apart from Burn's and Dodge's corners ([pdn-format.md](pdn-format.md#blend-calibration)); the kernels stay Photoshop's.

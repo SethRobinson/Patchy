@@ -97,10 +97,15 @@ struct Detected {
   if (bytes_at(bytes, 0, "\x01\xda")) return Detected{"SGI", "", "sgi"};
   if (bytes_at(bytes, 0, "RIFF") && bytes_at(bytes, 8, "ACON")) return Detected{"animated cursor", "", "ani"};
   if (bytes_at(bytes, 0, "8BPS")) return Detected{"Photoshop", "psd", "psd"};
+  if (bytes_at(bytes, 0, "PDN3")) return Detected{"Paint.NET", "pdn", "pdn"};
   if (bytes_at(bytes, 0, "%PDF")) return Detected{"PDF", "pdf", "pdf"};
   if (bytes_at(bytes, 0, "DDS ")) return Detected{"DDS", "dds", "dds"};
   if (bytes_at(bytes, 0, "gimp xcf")) return Detected{"GIMP XCF", "", "xcf"};
   if (bytes_at(bytes, 0, "BM") && bytes.size() >= 14) return Detected{"BMP", "bmp", "bmp"};
+  // OpenRaster: a zip whose first entry is the stored "mimetype" (docs/ora.md).
+  if (bytes_at(bytes, 0, "PK\x03\x04") && bytes_at(bytes, 30, "mimetypeimage/openraster")) {
+    return Detected{"OpenRaster", "ora", "ora"};
+  }
   if (bytes_at(bytes, 0, "PK\x03\x04")) return Detected{"ZIP archive", "", "zip"};
   if (bytes_at(bytes, 0, "Rar!")) return Detected{"RAR archive", "", "rar"};
   if (bytes_at(bytes, 0, "7z\xbc\xaf")) return Detected{"7-Zip archive", "", "7z"};

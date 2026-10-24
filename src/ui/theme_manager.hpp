@@ -30,6 +30,17 @@ enum class ColorSchemePreference { FollowSystem, Dark, Light };
 [[nodiscard]] QString color_scheme_preference_to_token(ColorSchemePreference preference);
 [[nodiscard]] ColorSchemePreference color_scheme_preference_from_token(const QString& token);
 
+// What "follow system" resolves to for the scheme the platform reports. An
+// explicit Light or Dark report always wins. Unknown (no desktop color scheme)
+// resolves to Light on a desktop Linux session (`xcb` or `wayland*` platform),
+// the light look a bare desktop or test X server expects (#334), and to Dark,
+// Patchy's historical look, everywhere else, offscreen included.
+// `desktop_linux_build` is true only in a Linux build that is not Android; the
+// caller passes the compile-time answer so every platform can test the mapping.
+[[nodiscard]] ColorScheme resolve_reported_color_scheme(Qt::ColorScheme reported,
+                                                        bool desktop_linux_build,
+                                                        const QString& platform_name);
+
 class ThemeManager : public QObject {
   Q_OBJECT
 

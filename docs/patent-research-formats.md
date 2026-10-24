@@ -85,3 +85,16 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
   - *Gain maps* (ISO 21496-1, Apple's HEIC gain map, Ultra HDR JPEG, libavif's gain-map code):
     not applied anywhere; adding them needs its own review first.
   - Binding rule in [legal-constraints.md](legal-constraints.md).
+- **OpenRaster (.ora) read 2026-10-24** (GitHub issue 375), an engineering read, before the code.
+  - *Format*: an open spec ([openraster.org](https://www.openraster.org)) for exchanging layered
+    images between painting programs. It is a zip of PNG layers (or other image files) with an
+    XML layer tree, a merged image and a thumbnail. Zip's deflate and PNG are already in Patchy (miniz, stb_image), and no
+    patent claim, licence term or assertion tied to the format was found.
+  - *Source*: GIMP, Krita and MyPaint, the main writers, are GPL; libkra (linked in the issue) was
+    neither used nor read. Patchy's reader and writer come only from the spec pages
+    and from files those apps and Patchy write, inspected as data; none of their source was read.
+    The apps run only as command-line tools for fixtures and interchange checks, nothing of them is
+    linked or shipped, and the format and app names are used only to name the format and where
+    files come from (no app logos or icons).
+  - *Not covered*: Krita's .kra and GIMP's .xcf. Each needs its own read before any work.
+  - Binding rule in [legal-constraints.md](legal-constraints.md).

@@ -1284,6 +1284,10 @@ std::string_view blend_mode_descriptor_value(BlendMode mode) {
       return "lighterColor";
     case BlendMode::PassThrough:
     case BlendMode::Normal:
+    case BlendMode::Reflect:
+    case BlendMode::Glow:
+    case BlendMode::Negation:
+    case BlendMode::Xor:
       return "normal";
   }
   return "normal";

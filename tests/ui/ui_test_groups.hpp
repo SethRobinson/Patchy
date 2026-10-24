@@ -67,6 +67,7 @@ std::vector<patchy::test::TestCase> vector_commands_tests();
 std::vector<patchy::test::TestCase> layer_merge_tests();
 std::vector<patchy::test::TestCase> vector_scripting_tests();
 std::vector<patchy::test::TestCase> svg_ui_tests();
+std::vector<patchy::test::TestCase> ora_ui_tests();
 std::vector<patchy::test::TestCase> image_trace_ui_tests();
 std::vector<patchy::test::TestCase> scripting_tests();
 std::vector<patchy::test::TestCase> script_move_tests();

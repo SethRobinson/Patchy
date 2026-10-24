@@ -54,6 +54,12 @@ struct FilterRecipe {
   switch (mode) {
     case BlendMode::PassThrough:
     case BlendMode::Dissolve:
+    // Paint.NET's modes: a recipe step's blend is written into Smart Filter
+    // descriptors, which have no value for them.
+    case BlendMode::Reflect:
+    case BlendMode::Glow:
+    case BlendMode::Negation:
+    case BlendMode::Xor:
       return false;
     case BlendMode::Normal:
     case BlendMode::Multiply:

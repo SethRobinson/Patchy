@@ -941,11 +941,11 @@ function Get-PatchyDefaultInstallRoot {
 # src/formats/raw_document_io.cpp. PDF is left out on purpose.
 $PatchyOpenWithExtensions = @(
     "psd", "psb", "png", "apng", "jpg", "jpeg", "bmp", "tif", "tiff", "webp", "gif",
-    "aseprite", "ase", "tga", "ico", "cur", "pcx", "lbm", "iff", "bbm", "pbm", "pgm", "ppm", "pnm",
+    "aseprite", "ase", "ora", "tga", "ico", "cur", "pcx", "lbm", "iff", "bbm", "pbm", "pgm", "ppm", "pnm",
     "svg", "svgz",
     "heic", "heif", "hif", "jxr", "wdp", "hdp", "jxl", "rttex", "dds",
     "hdr", "rgbe", "exr", "jp2", "j2k", "j2c", "jpc", "jpx", "jpf", "avif", "avifs",
-    "af", "afphoto", "afdesign", "afpub",
+    "af", "afphoto", "afdesign", "afpub", "pdn",
     "dng", "cr2", "cr3", "crw", "nef", "nrw", "arw", "sr2", "srf", "orf", "raf", "rw2",
     "pef", "srw", "mrw", "3fr", "fff", "iiq", "erf", "kdc", "dcr", "mos", "rwl", "x3f"
 )

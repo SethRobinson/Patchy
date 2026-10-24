@@ -182,6 +182,20 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
     // loops) degrading to Normal instead of falling through.
     case BlendMode::Dissolve:
       return src;
+    // Paint.NET's modes (GitHub issue 379), bit-exact on its flattened exports: the
+    // quotients FLOOR, and the saturating corner returns 255 before dividing.
+    case BlendMode::Reflect:
+      return src == 255 ? 255
+                        : static_cast<std::uint8_t>(std::min(
+                              255, (static_cast<int>(dst) * static_cast<int>(dst)) / (255 - static_cast<int>(src))));
+    case BlendMode::Glow:
+      return dst == 255 ? 255
+                        : static_cast<std::uint8_t>(std::min(
+                              255, (static_cast<int>(src) * static_cast<int>(src)) / (255 - static_cast<int>(dst))));
+    case BlendMode::Negation:
+      return static_cast<std::uint8_t>(255 - std::abs(255 - static_cast<int>(src) - static_cast<int>(dst)));
+    case BlendMode::Xor:
+      return static_cast<std::uint8_t>(src ^ dst);
   }
   return src;
 }
@@ -678,6 +692,18 @@ float dissolve_coverage(std::int32_t x, std::int32_t y, float alpha, DissolveFie
   const auto probability =
       static_cast<std::uint32_t>(std::lround(alpha * static_cast<float>(kScale)));
   return probability > threshold ? 1.0F : 0.0F;
+}
+
+bool blend_mode_is_paint_dot_net_only(BlendMode mode) noexcept {
+  return mode == BlendMode::Reflect || mode == BlendMode::Glow || mode == BlendMode::Negation ||
+         mode == BlendMode::Xor;
+}
+
+bool layers_use_paint_dot_net_blend_modes(const std::vector<Layer>& layers) noexcept {
+  return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) {
+    return blend_mode_is_paint_dot_net_only(layer.blend_mode()) ||
+           layers_use_paint_dot_net_blend_modes(layer.children());
+  });
 }
 
 bool blend_mode_has_special_fill(BlendMode mode) noexcept {

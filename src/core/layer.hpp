@@ -108,7 +108,15 @@ enum class BlendMode {
   // deterministic per-document-pixel threshold, so its math lives in
   // dissolve_coverage (core/blend_math.hpp) and is applied by the compositor,
   // not by blend_rgb. See docs/blend-modes.md.
-  Dissolve
+  Dissolve,
+  // October 2026 additions for Paint.NET import (GitHub issue 379): Paint.NET's own
+  // modes, calibrated bit-exact on its flattened exports (blend_math.cpp). Photoshop
+  // and Aseprite have no such modes, so their saves write Normal with a notice
+  // (docs/blend-modes.md, "Paint.NET modes").
+  Reflect,
+  Glow,
+  Negation,
+  Xor
 };
 
 enum class LayerKind {

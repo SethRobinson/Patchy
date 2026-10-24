@@ -12195,6 +12195,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>红眼</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>此 Paint.NET 文件已损坏，无法打开。</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>不是 Paint.NET 文档</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>此 Paint.NET 文件中的部分图层像素已损坏或缺失，这些区域以透明方式打开。</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>此 Paint.NET 文件中的部分图层像素未通过校验和检查，可能已损坏。</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>此 Paint.NET 文件中的一个图层使用了 Patchy 没有的混合模式，已按“正常”打开。</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>无法读取此 Paint.NET 文件的图层，因此打开了其嵌入的小预览图像。</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>反射</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>反相</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>使用 Paint.NET 混合模式（反射、发光、反相、Xor）的图层已保存为“正常”；此格式没有这些模式。</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 图像</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
+        <translation>OpenRaster 文件已损坏：其 zip 目录缺失或被截断</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is too large to open</source>
+        <translation>OpenRaster 文件太大，无法打开</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>OpenRaster 文件使用了 Patchy 无法读取的 zip 功能（加密或未知的压缩方式）</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: an entry cannot be unpacked</source>
+        <translation>OpenRaster 文件已损坏：无法解压某个条目</translation>
+    </message>
+    <message>
+        <source>The OpenRaster layer list (stack.xml) is damaged or not valid XML</source>
+        <translation>OpenRaster 图层列表 (stack.xml) 已损坏或不是有效的 XML</translation>
+    </message>
+    <message>
+        <source>This file is not an OpenRaster image</source>
+        <translation>此文件不是 OpenRaster 图像</translation>
+    </message>
+    <message>
+        <source>Cannot save an empty document as OpenRaster</source>
+        <translation>无法将空文档存储为 OpenRaster</translation>
+    </message>
+    <message>
+        <source>Could not write the OpenRaster file</source>
+        <translation>无法写入 OpenRaster 文件</translation>
+    </message>
+    <message>
+        <source>OpenRaster Image</source>
+        <translation>OpenRaster 图像</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open.</source>
+        <translation>此 Paint.NET 图像太大，Patchy 无法打开。</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation>此 Paint.NET 图像太大，Patchy 无法打开其图层，因此打开了其嵌入的小预览图像。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24833,6 +24921,58 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>How much darker the corrected pupil gets</source>
         <translation>校正后的瞳孔变暗多少</translation>
+    </message>
+    <message>
+        <source>shape layer &quot;%1&quot;</source>
+        <translation>形状图层 &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
+        <translation>&quot;%1&quot; 的混合模式（仅 Krita 可读取）</translation>
+    </message>
+    <message>
+        <source>the layer style of &quot;%1&quot;</source>
+        <translation>&quot;%1&quot; 的图层样式</translation>
+    </message>
+    <message>
+        <source>the blending options of &quot;%1&quot;</source>
+        <translation>&quot;%1&quot; 的混合选项</translation>
+    </message>
+    <message>
+        <source>32-bit channels (saved at 16 bits)</source>
+        <translation>32 位通道（以 16 位存储）</translation>
+    </message>
+    <message>
+        <source>the color mode (saved as RGB)</source>
+        <translation>颜色模式（以 RGB 存储）</translation>
+    </message>
+    <message>
+        <source>the palette (saved as RGB colors)</source>
+        <translation>调色板（以 RGB 颜色存储）</translation>
+    </message>
+    <message>
+        <source>guides</source>
+        <translation>参考线</translation>
+    </message>
+    <message>
+        <source>paths</source>
+        <translation>路径</translation>
+    </message>
+    <message>
+        <source>artboards (saved as groups)</source>
+        <translation>画板（存储为组）</translation>
+    </message>
+    <message>
+        <source>Some Content Will Be Baked</source>
+        <translation>部分内容将被烘焙</translation>
+    </message>
+    <message>
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+
+Changed: %1.</source>
+        <translation>OpenRaster 会保留图层、组、不透明度和混合模式，但此文档中的部分内容无法按原样存储。是否继续存储，并将这些内容烘焙到图层像素中或将其省略？要让所有内容保持可编辑，请同时存储一份 Photoshop 文档 (.psd)。
+
+更改：%1。</translation>
     </message>
 </context>
 <context>

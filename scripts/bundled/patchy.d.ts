@@ -41,7 +41,9 @@
 // "soft-light", "difference", "linear-burn", "pin-light", "saturation",
 // "luminosity", "exclusion", "hue", "color", "linear-dodge", "subtract",
 // "divide", "vivid-light", "linear-light", "hard-mix", "darker-color",
-// "lighter-color".
+// "lighter-color", and the Paint.NET-compatibility modes "reflect", "glow", "negation"
+// and "xor" (for .pdn files: 8 and 16-bit documents only, not offered in Patchy's blend
+// menus, and a PSD save writes them as "normal").
 // Brush Mode ids (stroke `mode`): every blend mode id except "pass-through", plus
 // "behind" (paints only into transparent pixels) and "clear" (removes alpha).
 
@@ -1177,7 +1179,9 @@ interface PatchyDocument {
   }): PatchyRect | null;
   /** Saves to the path; the format follows the extension (.psd, .png, ...). The document
    * then points at that file (a layered document saved to a flat format keeps its own
-   * path and stays modified, Photoshop's save-a-copy rule). `options` sets the format's
+   * path and stays modified, Photoshop's save-a-copy rule). .ora (OpenRaster) keeps the layer
+   * tree like .psd: what it cannot hold (text, effects, masks, adjustment layers) is baked into
+   * layer pixels, with no prompt for a scripted save. `options` sets the format's
    * save options explicitly, with no dialog (see PatchySaveOptions); without it the save
    * uses your Save Options defaults. A scripted save never changes those defaults.
    * PSD embeds attached palette colors/names/settings as optional Patchy metadata and retains normal RGB

@@ -1387,6 +1387,15 @@ void MainWindow::set_active_layer_blend(int index) {
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   canvas_->document_changed(to_qrect(affected));
+  // A Paint.NET mode no selected layer uses any more leaves the list (GitHub issue 379).
+  // Its rows sit after Photoshop's, so the rows the run steps through keep their places.
+  std::vector<BlendMode> in_use;
+  for (const auto id : selected_or_active_layer_ids()) {
+    if (const auto* layer = std::as_const(doc).find_layer(id); layer != nullptr) {
+      in_use.push_back(layer->blend_mode());
+    }
+  }
+  set_paint_dot_net_blend_modes_offered(blend_combo_, in_use);
 }
 
 void MainWindow::finish_pending_layer_blend_edit() {

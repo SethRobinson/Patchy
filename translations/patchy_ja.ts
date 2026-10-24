@@ -12195,6 +12195,94 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye</source>
         <translation>赤目修正</translation>
     </message>
+    <message>
+        <source>This Paint.NET file is damaged and could not be opened.</source>
+        <translation>この Paint.NET ファイルは破損しているため開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Not a Paint.NET document</source>
+        <translation>Paint.NET ドキュメントではありません</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file are damaged or missing; those areas opened transparent.</source>
+        <translation>この Paint.NET ファイルの一部のレイヤーピクセルが破損しているか欠けているため、その部分は透明で開きました。</translation>
+    </message>
+    <message>
+        <source>Some layer pixels in this Paint.NET file failed their checksum and may be damaged.</source>
+        <translation>この Paint.NET ファイルの一部のレイヤーピクセルがチェックサムに一致せず、破損している可能性があります。</translation>
+    </message>
+    <message>
+        <source>A layer in this Paint.NET file uses a blend mode Patchy does not have; it opened as Normal.</source>
+        <translation>この Paint.NET ファイルのレイヤーは Patchy にない描画モードを使っているため、「通常」で開きました。</translation>
+    </message>
+    <message>
+        <source>The layers in this Paint.NET file could not be read, so it opened as its small embedded preview image.</source>
+        <translation>この Paint.NET ファイルのレイヤーを読み込めなかったため、埋め込まれた小さなプレビュー画像を開きました。</translation>
+    </message>
+    <message>
+        <source>Reflect</source>
+        <translation>反射</translation>
+    </message>
+    <message>
+        <source>Negation</source>
+        <translation>ネゲーション</translation>
+    </message>
+    <message>
+        <source>Xor</source>
+        <translation>Xor</translation>
+    </message>
+    <message>
+        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
+        <translation>Paint.NET の描画モード（反射、グロー、ネゲーション、Xor）を使うレイヤーは「通常」として保存されました。この形式にはこれらのモードがありません。</translation>
+    </message>
+    <message>
+        <source>Paint.NET Image</source>
+        <translation>Paint.NET 画像</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: its zip directory is missing or cut short</source>
+        <translation>OpenRaster ファイルが破損しています: zip のディレクトリがないか途中で切れています</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is too large to open</source>
+        <translation>OpenRaster ファイルが大きすぎて開けません</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>OpenRaster ファイルは Patchy が読み込めない zip の機能 (暗号化または不明な圧縮) を使用しています</translation>
+    </message>
+    <message>
+        <source>The OpenRaster file is damaged: an entry cannot be unpacked</source>
+        <translation>OpenRaster ファイルが破損しています: エントリを展開できません</translation>
+    </message>
+    <message>
+        <source>The OpenRaster layer list (stack.xml) is damaged or not valid XML</source>
+        <translation>OpenRaster のレイヤーリスト (stack.xml) が破損しているか、有効な XML ではありません</translation>
+    </message>
+    <message>
+        <source>This file is not an OpenRaster image</source>
+        <translation>このファイルは OpenRaster 画像ではありません</translation>
+    </message>
+    <message>
+        <source>Cannot save an empty document as OpenRaster</source>
+        <translation>空のドキュメントは OpenRaster として保存できません</translation>
+    </message>
+    <message>
+        <source>Could not write the OpenRaster file</source>
+        <translation>OpenRaster ファイルを書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>OpenRaster Image</source>
+        <translation>OpenRaster 画像</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open.</source>
+        <translation>この Paint.NET 画像は大きすぎるため Patchy では開けません。</translation>
+    </message>
+    <message>
+        <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation>この Paint.NET 画像は大きすぎて Patchy ではレイヤーを開けないため、埋め込まれた小さなプレビュー画像を開きました。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24833,6 +24921,58 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>How much darker the corrected pupil gets</source>
         <translation>補正した瞳孔をどれだけ暗くするか</translation>
+    </message>
+    <message>
+        <source>shape layer &quot;%1&quot;</source>
+        <translation>シェイプレイヤー &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
+        <translation>&quot;%1&quot; の描画モード (Krita のみが読み込みます)</translation>
+    </message>
+    <message>
+        <source>the layer style of &quot;%1&quot;</source>
+        <translation>&quot;%1&quot; のレイヤースタイル</translation>
+    </message>
+    <message>
+        <source>the blending options of &quot;%1&quot;</source>
+        <translation>&quot;%1&quot; の描画オプション</translation>
+    </message>
+    <message>
+        <source>32-bit channels (saved at 16 bits)</source>
+        <translation>32 bit チャンネル (16 bit で保存)</translation>
+    </message>
+    <message>
+        <source>the color mode (saved as RGB)</source>
+        <translation>カラーモード (RGB で保存)</translation>
+    </message>
+    <message>
+        <source>the palette (saved as RGB colors)</source>
+        <translation>パレット (RGB カラーで保存)</translation>
+    </message>
+    <message>
+        <source>guides</source>
+        <translation>ガイド</translation>
+    </message>
+    <message>
+        <source>paths</source>
+        <translation>パス</translation>
+    </message>
+    <message>
+        <source>artboards (saved as groups)</source>
+        <translation>アートボード (グループとして保存)</translation>
+    </message>
+    <message>
+        <source>Some Content Will Be Baked</source>
+        <translation>一部の内容が焼き込まれます</translation>
+    </message>
+    <message>
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+
+Changed: %1.</source>
+        <translation>OpenRaster はレイヤー、グループ、不透明度、描画モードを保持しますが、このドキュメントの一部の内容はそのままでは保存できません。それらをレイヤーのピクセルに焼き込むか省いて保存を続けますか？すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) も保存してください。
+
+変更: %1。</translation>
     </message>
 </context>
 <context>

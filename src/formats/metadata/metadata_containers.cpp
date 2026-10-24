@@ -8,6 +8,7 @@
 #include "formats/miniz/miniz.h"
 #include "formats/pdf_crypt.hpp"
 #include "formats/pdf_file.hpp"
+#include "formats/pdn_document_io.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1423,6 +1424,37 @@ void extract_raf(Span data, Builder& builder) {
 
 // ------------------------------------------------------------------------ BMP
 
+// Paint.NET keeps EXIF as one "$exif.tag<N>" user-metadata entry per tag (GitHub issue
+// 379, docs/pdn-format.md); they become one TIFF stream again. "$xmp.packet<N>" holds the
+// XMP packet of an image Paint.NET opened, "$user.Palette" its palette (ARGB values); the
+// rest are shown.
+void extract_pdn(Span data, Builder& builder) {
+  if (const auto header = pdn::read_header(data)) {
+    builder.segment("PDN3 header", 0, header->payload_offset);
+  }
+  const auto items = pdn::read_user_metadata(data);
+  const auto exif = pdn::exif_from_user_metadata(items);
+  if (!exif.empty()) {
+    builder.set_exif(Span(exif.data(), exif.size()));
+  }
+  for (const auto& [key, value] : items) {
+    if (key.starts_with("$exif.")) {
+      continue;
+    }
+    if (key.starts_with("$xmp.packet") && !value.empty()) {
+      builder.set_xmp(Span(reinterpret_cast<const std::uint8_t*>(value.data()), value.size()));
+      continue;
+    }
+    if (key == "$user.Palette") {
+      const auto colors = value.empty() ? 0 : 1 + std::count(value.begin(), value.end(), ',');
+      builder.observe("Paint.NET", "Palette", std::to_string(colors) + " colors", value.size(), MetadataPrivacy::None);
+      continue;
+    }
+    builder.observe("Paint.NET", key, value.size() > 200 ? value.substr(0, 200) + "..." : value, value.size(),
+                    MetadataPrivacy::None);
+  }
+}
+
 void extract_bmp(Span data, Builder& builder) {
   if (data.size() < 18) {
     return;
@@ -1685,6 +1717,9 @@ std::string sniff_metadata_format(std::span<const std::uint8_t> bytes) {
   if (starts_with(bytes, "8BPS")) {
     return "PSD";
   }
+  if (pdn::sniff(bytes)) {
+    return "PDN";
+  }
   if (jxl::sniff(bytes)) {
     return "JXL";
   }
@@ -1754,6 +1789,8 @@ DocumentFileInfo extract_file_info(std::span<const std::uint8_t> bytes) {
       extract_pdf(bytes, builder);
     } else if (format == "SVG") {
       extract_svg(bytes, builder);
+    } else if (format == "PDN") {
+      extract_pdn(bytes, builder);
     }
   } catch (const std::exception&) {
     // Damaged input: keep whatever was read before the failure.

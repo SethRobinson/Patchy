@@ -45,6 +45,7 @@
 #include "core/smart_object.hpp"
 #include "core/layer_tree.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/ora_document_io.hpp"
 #include "formats/exr_document_io.hpp"
 #include "formats/hdr_document_io.hpp"
 #include "formats/jp2_document_io.hpp"
@@ -370,6 +371,77 @@ QString svg_baked_content_summary(const std::vector<svg::BakedContent>& baked) {
   return summary;
 }
 
+// The OpenRaster save warning names what bakes or drops, like the SVG one: one translated
+// phrase per item, the first few joined, the rest counted.
+QString ora_lost_content_summary(const std::vector<ora::Loss>& losses) {
+  constexpr std::size_t kNamedItems = 6;
+  QStringList phrases;
+  for (const auto& loss : losses) {
+    if (phrases.size() >= static_cast<qsizetype>(kNamedItems)) {
+      break;
+    }
+    const auto name = QString::fromStdString(loss.layer_name);
+    switch (loss.kind) {
+      case ora::LossKind::TextLayer:
+        phrases << MainWindow::tr("text layer \"%1\"").arg(name);
+        break;
+      case ora::LossKind::ShapeLayer:
+        phrases << MainWindow::tr("shape layer \"%1\"").arg(name);
+        break;
+      case ora::LossKind::SmartObjectLayer:
+        phrases << MainWindow::tr("smart object \"%1\"").arg(name);
+        break;
+      case ora::LossKind::AdjustmentLayer:
+        phrases << MainWindow::tr("adjustment layer \"%1\" and the layers below it").arg(name);
+        break;
+      case ora::LossKind::BlendModeMerged:
+        phrases << MainWindow::tr("the blend mode of \"%1\" and the layers below it").arg(name);
+        break;
+      case ora::LossKind::BlendModeKrita:
+        phrases << MainWindow::tr("the blend mode of \"%1\" (only Krita reads it)").arg(name);
+        break;
+      case ora::LossKind::LayerStyle:
+        phrases << MainWindow::tr("the layer style of \"%1\"").arg(name);
+        break;
+      case ora::LossKind::LayerMask:
+        phrases << MainWindow::tr("the layer mask on \"%1\"").arg(name);
+        break;
+      case ora::LossKind::ClippingGroup:
+        phrases << MainWindow::tr("clipping mask group \"%1\"").arg(name);
+        break;
+      case ora::LossKind::BlendingOptions:
+        phrases << MainWindow::tr("the blending options of \"%1\"").arg(name);
+        break;
+      case ora::LossKind::Group:
+        phrases << MainWindow::tr("group \"%1\" (its styles or masks)").arg(name);
+        break;
+      case ora::LossKind::Depth32:
+        phrases << MainWindow::tr("32-bit channels (saved at 16 bits)");
+        break;
+      case ora::LossKind::ColorMode:
+        phrases << MainWindow::tr("the color mode (saved as RGB)");
+        break;
+      case ora::LossKind::PaletteMode:
+        phrases << MainWindow::tr("the palette (saved as RGB colors)");
+        break;
+      case ora::LossKind::Guides:
+        phrases << MainWindow::tr("guides");
+        break;
+      case ora::LossKind::Paths:
+        phrases << MainWindow::tr("paths");
+        break;
+      case ora::LossKind::Artboards:
+        phrases << MainWindow::tr("artboards (saved as groups)");
+        break;
+    }
+  }
+  auto summary = phrases.join(QStringLiteral(", "));
+  if (losses.size() > kNamedItems) {
+    summary = MainWindow::tr("%1 and %n more", nullptr, static_cast<int>(losses.size() - kNamedItems)).arg(summary);
+  }
+  return summary;
+}
+
 bool layers_have_nondefault_fill_opacity(const std::vector<Layer>& layers) {
   for (const auto& layer : layers) {
     if (layer.kind() != LayerKind::Group && std::abs(layer.fill_opacity() - 1.0F) > 0.0001F) {
@@ -457,6 +529,13 @@ const QList<FileFormatEntry>& file_format_entries() {
        {QStringLiteral("aseprite")},
        true,
        false},
+      // OpenRaster keeps the layer tree (the layered writer in DocumentSaveCoordinator, not
+      // write_flat_image_file), so it is a Save As format only (docs/ora.md).
+      {QT_TRANSLATE_NOOP("QObject", "OpenRaster Image"),
+       {QStringLiteral("ora")},
+       {QStringLiteral("ora")},
+       true,
+       false},
       {QT_TRANSLATE_NOOP("QObject", "Targa Image"),
        {QStringLiteral("tga")},
        {QStringLiteral("tga")},
@@ -531,6 +610,8 @@ const QList<FileFormatEntry>& file_format_entries() {
                     {},
                     false,
                     false});
+    // Paint.NET documents open read-only too (docs/pdn-format.md).
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "Paint.NET Image"), {QStringLiteral("pdn")}, {}, false, false});
     // HEIF/HEIC is decode-only like camera raw (platform codecs never encode for us and
     // Patchy must not ship an HEVC encoder), so its entry is read-only too. Where no
     // decoder exists at all (an AppImage on a machine without libheif) the row is left out
@@ -1611,12 +1692,19 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     import_notices.push_back(
         QObject::tr("The 32-bit image was converted to 16 bits per channel: the web version edits up to 16."));
   }
-  if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension)) {
+  if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension) &&
+      extension != QStringLiteral("ora")) {
     promote_flat_alpha_to_layer_mask(opened);
   }
   capture_file_info(opened, path, pixels_in_source_space, orientation_applied);
   convert_opened_rgb_profile(opened, import_notices, cmyk_source);
-  if (const auto default_layer_id = default_non_group_layer_id(opened.layers()); default_layer_id.has_value()) {
+  // OpenRaster records the selected layer; it stays selected unless it is a group.
+  const auto* file_selected = extension == QStringLiteral("ora") && opened.active_layer_id().has_value()
+                                  ? std::as_const(opened).find_layer(*opened.active_layer_id())
+                                  : nullptr;
+  if (file_selected != nullptr && file_selected->kind() != LayerKind::Group) {
+    opened.set_active_layer(file_selected->id());
+  } else if (const auto default_layer_id = default_non_group_layer_id(opened.layers()); default_layer_id.has_value()) {
     opened.set_active_layer(*default_layer_id);
   } else {
     opened.clear_active_layer();
@@ -4825,6 +4913,23 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
         QStringLiteral("discardFillOpacityMessageBox"));
     if (answer != QMessageBox::Save) {
       return false;
+    }
+  }
+  if (!quiet && extension == QStringLiteral("ora")) {
+    // OpenRaster keeps the layer tree, so Save stays on the .ora file; what it cannot hold
+    // bakes into pixels or drops, and the user hears what before the write (docs/ora.md).
+    const auto losses = ora::DocumentIo::lost_content(std::as_const(document()));
+    if (!losses.empty()) {
+      const auto answer = show_warning_message(
+          this, tr("Some Content Will Be Baked"),
+          tr("OpenRaster keeps layers, groups, opacity and blend modes, but some of this document's content "
+             "cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep "
+             "everything editable, also save a Photoshop document (.psd).\n\nChanged: %1.")
+              .arg(ora_lost_content_summary(losses)),
+          QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel, QStringLiteral("oraLostContentMessageBox"));
+      if (answer != QMessageBox::Save) {
+        return false;
+      }
     }
   }
   if (!has_active_document() || session().session_id != saving_session_id) {

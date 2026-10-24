@@ -50,6 +50,19 @@
 			</array>
 		</dict>
 		<dict>
+			<!-- OpenRaster has no system type identifier, so it is claimed by extension. -->
+			<key>CFBundleTypeName</key>
+			<string>OpenRaster Image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>ora</string>
+			</array>
+		</dict>
+		<dict>
 			<!-- Viewer, not Editor: HEIF is decode-only (Save routes to Save As .psd). -->
 			<key>CFBundleTypeName</key>
 			<string>HEIF Image</string>

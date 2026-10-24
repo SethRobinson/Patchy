@@ -96,6 +96,19 @@ float blend_channel_unit(float s, float d, BlendMode mode, bool linear) noexcept
       return std::clamp(d + 2.0F * s - 1.0F, 0.0F, 1.0F);
     case BlendMode::HardMix:
       return vivid_light(s, d) > 0.5F ? 1.0F : 0.0F;
+    // Paint.NET's modes (blend_math.cpp has the calibrated byte kernels).
+    case BlendMode::Reflect:
+      return s >= 1.0F ? 1.0F : std::min(1.0F, d * d / (1.0F - s));
+    case BlendMode::Glow:
+      return d >= 1.0F ? 1.0F : std::min(1.0F, s * s / (1.0F - d));
+    case BlendMode::Negation:
+      return 1.0F - std::abs(1.0F - s - d);
+    case BlendMode::Xor: {
+      // A bitwise mode: defined on bytes, so it works on the nearest byte values.
+      const auto a = static_cast<unsigned>(std::lround(s * 255.0F));
+      const auto b = static_cast<unsigned>(std::lround(d * 255.0F));
+      return static_cast<float>(a ^ b) / 255.0F;
+    }
     default:
       return s;
   }
