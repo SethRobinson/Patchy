@@ -12251,10 +12251,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12300,6 +12296,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24969,6 +24973,35 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
 
 Changed: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

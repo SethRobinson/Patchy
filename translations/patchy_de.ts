@@ -12267,10 +12267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>Ebenen mit den Paint.NET-Füllmethoden Reflektieren, Leuchten, Negation oder Xor wurden als Normal gespeichert; dieses Format kennt diese Methoden nicht.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Paint.NET-Bild</translation>
     </message>
@@ -12317,6 +12313,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>Dieses Paint.NET-Bild ist zu groß, als dass Patchy seine Ebenen öffnen könnte, daher wurde sein kleines eingebettetes Vorschaubild geöffnet.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>Ebenen mit Füllmethoden, die dieses Format nicht speichern kann, wurden als normale Ebenen neu aufgebaut, die das Aussehen erhalten.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>Ebenen mit Füllmethoden, die dieses Format nicht speichern kann, wurden als Normal gespeichert, daher sieht das gespeicherte Bild anders aus.</translation>
     </message>
 </context>
 <context>
@@ -25045,6 +25049,41 @@ Changed: %1.</source>
         <translation>OpenRaster speichert Ebenen, Gruppen, Deckkraft und Füllmethoden, aber einige Inhalte dieses Dokuments lassen sich nicht unverändert speichern. Weiter speichern und sie in die Ebenenpixel einrechnen oder weglassen? Damit alles bearbeitbar bleibt, speichern Sie zusätzlich ein Photoshop-Dokument (.psd).
 
 Geändert: %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>Füllmethoden nicht unterstützt</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>%1-Dateien können diese Füllmethoden nicht speichern: %2 (%n Ebene).</numerusform>
+            <numerusform>%1-Dateien können diese Füllmethoden nicht speichern: %2 (%n Ebenen).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>Ebenen: %1.
+
+Aussehen erhalten: Jede dieser Ebenen wird als Ebene mit der Füllmethode Normal gespeichert, die zeigt, was ihre Füllmethode gezeigt hat, sodass das gespeicherte Bild gleich aussieht. Ihre Pixel enthalten dann, was darunter lag, und eine Gruppe oder Schnittmaske, die eine solche Ebene enthält, wird als eine Ebene gespeichert.
+
+Als Normal speichern: Die Ebenen behalten ihre eigenen Pixel, wechseln aber zu Normal, daher sieht das gespeicherte Bild anders aus.
+
+Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>Aussehen erhalten</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>Als Normal speichern</translation>
     </message>
 </context>
 <context>

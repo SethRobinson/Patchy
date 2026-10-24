@@ -72,4 +72,4 @@ Paint.NET's own flattened exports are the reference: pypdn's FlattenBlendTest re
 ## Open items
 
 - Paint.NET 6.0 plans a new format with a published specification; it would get its own reader beside this one.
-- Saves cannot keep Reflect, Glow, Negation or Xor in PSD, layered TIFF or Aseprite files (Normal plus a notice), and document recovery's PSB snapshots write them as Normal too.
+- PSD, PSB, layered TIFF and Aseprite files cannot keep Reflect, Glow, Negation or Xor: the save asks whether to keep the look (bake) or save those layers as Normal ([blend-modes.md](blend-modes.md#layered-saves)). Document recovery's PSB snapshots write them as Normal.

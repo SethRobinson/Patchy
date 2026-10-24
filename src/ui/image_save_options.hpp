@@ -106,6 +106,11 @@ struct ImageSaveOptions {
   // writes CMYK whenever the layers allow it (psd::DocumentIo::layered_save_color_mode).
   // Set from the document's mode by MainWindow::save_document_to_path.
   bool psd_cmyk_proof{false};
+  // PSD, PSB, layered TIFF and Aseprite: layers in blend modes the format cannot store are
+  // rebuilt as Normal layers that keep the look (bake_unsupported_blend_modes) instead of
+  // only switching to Normal. Set per save by the Save prompt or a script's
+  // unsupportedBlendModes: "bake"; never persisted (docs/blend-modes.md, "Layered saves").
+  bool bake_unsupported_blend_modes{false};
   // UI-only: MainWindow reveals the written file afterwards; the writers ignore it.
   bool export_reveal_in_file_explorer{false};
   // WebP: 0-100 through QImageWriter::setQuality (75 is Qt's own default, so an unset

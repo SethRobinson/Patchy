@@ -12267,10 +12267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Xor</translation>
     </message>
     <message>
-        <source>Layers using Paint.NET&apos;s Reflect, Glow, Negation or Xor blend modes were saved as Normal; this format has no such modes.</source>
-        <translation>I livelli con i metodi di fusione di Paint.NET Riflesso, Bagliore, Negazione o Xor sono stati salvati come Normale; questo formato non ha questi metodi.</translation>
-    </message>
-    <message>
         <source>Paint.NET Image</source>
         <translation>Immagine Paint.NET</translation>
     </message>
@@ -12317,6 +12313,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This Paint.NET image is too large for Patchy to open its layers, so it opened as its small embedded preview image.</source>
         <translation>Questa immagine Paint.NET è troppo grande perché Patchy ne apra i livelli, quindi è stata aperta la sua piccola anteprima incorporata.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were rebuilt as Normal layers that keep the look.</source>
+        <translation>I livelli con metodi di fusione che questo formato non può salvare sono stati ricostruiti come livelli Normale che mantengono l&apos;aspetto.</translation>
+    </message>
+    <message>
+        <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
+        <translation>I livelli con metodi di fusione che questo formato non può salvare sono stati salvati come Normale, quindi l&apos;immagine salvata appare diversa.</translation>
     </message>
 </context>
 <context>
@@ -25045,6 +25049,41 @@ Changed: %1.</source>
         <translation>OpenRaster conserva livelli, gruppi, opacità e metodi di fusione, ma parte del contenuto di questo documento non può essere memorizzata così com&apos;è. Continuare il salvataggio incorporandola nei pixel dei livelli o tralasciandola? Per mantenere tutto modificabile, salva anche un documento Photoshop (.psd).
 
 Modifiche: %1.</translation>
+    </message>
+    <message>
+        <source>Blend Modes Not Supported</source>
+        <translation>Metodi di fusione non supportati</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <translation>
+            <numerusform>I file %1 non possono salvare questi metodi di fusione: %2 (%n livello).</numerusform>
+            <numerusform>I file %1 non possono salvare questi metodi di fusione: %2 (%n livelli).</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Layers: %1.
+
+Keep the look: each of these layers is saved as a Normal layer that shows what its blend mode showed, so the saved image looks the same. Its pixels then include what was below it, and a folder or clipping group that holds one is saved as one layer.
+
+Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image looks different.
+
+The open document keeps its blend modes either way.</source>
+        <translation>Livelli: %1.
+
+Mantieni l&apos;aspetto: ognuno di questi livelli viene salvato come livello Normale che mostra ciò che mostrava il suo metodo di fusione, quindi l&apos;immagine salvata appare uguale. I suoi pixel includono allora ciò che c&apos;era sotto, e una cartella o un gruppo di ritaglio che ne contiene uno viene salvato come un solo livello.
+
+Salva come Normale: i livelli mantengono i propri pixel ma passano a Normale, quindi l&apos;immagine salvata appare diversa.
+
+Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</translation>
+    </message>
+    <message>
+        <source>Keep the Look</source>
+        <translation>Mantieni l&apos;aspetto</translation>
+    </message>
+    <message>
+        <source>Save as Normal</source>
+        <translation>Salva come Normale</translation>
     </message>
 </context>
 <context>

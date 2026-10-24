@@ -16,6 +16,7 @@
 #include "core/pixel_buffer.hpp"
 #include "formats/format_registry.hpp"
 #include "filters/filter_registry.hpp"
+#include "ui/blend_mode_ui.hpp"
 #include "ui/document_order_list.hpp"
 #include "ui/main_window.hpp"
 #include "ui/save_metadata_settings.hpp"
@@ -45,6 +46,7 @@
 #include "core/smart_object.hpp"
 #include "core/layer_tree.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/layered_blend_support.hpp"
 #include "formats/ora_document_io.hpp"
 #include "formats/exr_document_io.hpp"
 #include "formats/hdr_document_io.hpp"
@@ -369,6 +371,73 @@ QString svg_baked_content_summary(const std::vector<svg::BakedContent>& baked) {
     summary = MainWindow::tr("%1 and %n more", nullptr, static_cast<int>(baked.size() - kNamedItems)).arg(summary);
   }
   return summary;
+}
+
+// The layered formats whose layer records lack some blend modes: PSD and PSB, a TIFF saved
+// with layers (the same records), and Aseprite. OpenRaster settles its own losses.
+std::optional<LayeredSaveFormat> layered_save_format_for(const QString& extension, bool tiff_layers) {
+  if (is_photoshop_document_extension(extension) || (tiff_layers && is_tiff_extension(extension))) {
+    return LayeredSaveFormat::Photoshop;
+  }
+  if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
+    return LayeredSaveFormat::Aseprite;
+  }
+  return std::nullopt;
+}
+
+// Asks how to save layers in blend modes the format lacks: true keeps the look (bake),
+// false switches them to Normal, nullopt cancels the save (docs/blend-modes.md,
+// "Layered saves").
+std::optional<bool> ask_unsupported_blend_modes(QWidget* parent, const QString& extension,
+                                                const UnsupportedBlendModes& unsupported) {
+  constexpr qsizetype kNamedLayers = 8;
+  QStringList modes;
+  for (const auto mode : unsupported.modes) {
+    modes << blend_mode_name(mode);
+  }
+  QStringList layers;
+  for (const auto& name : unsupported.layer_names) {
+    layers << QStringLiteral("\"%1\"").arg(QString::fromStdString(name));
+  }
+  const auto count = static_cast<int>(layers.size());
+  QString named = layers.mid(0, kNamedLayers).join(QStringLiteral(", "));
+  if (layers.size() > kNamedLayers) {
+    named = MainWindow::tr("%1 and %n more", nullptr, static_cast<int>(layers.size() - kNamedLayers)).arg(named);
+  }
+  QMessageBox box(parent);
+  box.setObjectName(QStringLiteral("unsupportedBlendModesMessageBox"));
+  box.setIcon(QMessageBox::Warning);
+  box.setWindowTitle(MainWindow::tr("Blend Modes Not Supported"));
+  box.setText(MainWindow::tr("%1 files can't store these blend modes: %2 (%n layer(s)).", nullptr, count)
+                  .arg(extension.toUpper(), modes.join(QStringLiteral(", "))));
+  box.setInformativeText(
+      MainWindow::tr("Layers: %1.\n\n"
+                     "Keep the look: each of these layers is saved as a Normal layer that shows what its blend "
+                     "mode showed, so the saved image looks the same. Its pixels then include what was below it, "
+                     "and a folder or clipping group that holds one is saved as one layer.\n\n"
+                     "Save as Normal: the layers keep their own pixels but switch to Normal, so the saved image "
+                     "looks different.\n\n"
+                     "The open document keeps its blend modes either way.")
+          .arg(named));
+  if (layers.size() > kNamedLayers) {
+    box.setDetailedText(layers.join(QLatin1Char('\n')));
+  }
+  auto* keep_button = box.addButton(MainWindow::tr("Keep the Look"), QMessageBox::AcceptRole);
+  keep_button->setObjectName(QStringLiteral("unsupportedBlendModesKeepButton"));
+  auto* normal_button = box.addButton(MainWindow::tr("Save as Normal"), QMessageBox::DestructiveRole);
+  normal_button->setObjectName(QStringLiteral("unsupportedBlendModesNormalButton"));
+  box.addButton(QMessageBox::Cancel);
+  box.setDefaultButton(keep_button);
+  box.setEscapeButton(QMessageBox::Cancel);
+  exec_dialog(box);
+  const auto* clicked = box.clickedButton();
+  if (clicked == keep_button) {
+    return true;
+  }
+  if (clicked == normal_button) {
+    return false;
+  }
+  return std::nullopt;
 }
 
 // The OpenRaster save warning names what bakes or drops, like the SVG one: one translated
@@ -4932,11 +5001,27 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       }
     }
   }
+  // Layered formats that lack some of the document's blend modes ask whether to keep the
+  // look or save those layers as Normal; scripts choose with saveAs({unsupportedBlendModes}).
+  std::optional<bool> bake_blend_modes;
+  if (const auto layered = layered_save_format_for(extension, tiff_layers.value_or(false));
+      !quiet && layered.has_value()) {
+    const auto unsupported = find_unsupported_blend_modes(std::as_const(document()), *layered);
+    if (!unsupported.empty()) {
+      bake_blend_modes = ask_unsupported_blend_modes(this, extension, unsupported);
+      if (!bake_blend_modes.has_value()) {
+        return false;
+      }
+    }
+  }
   if (!has_active_document() || session().session_id != saving_session_id) {
     return false;
   }
   auto effective_image_options = DocumentSaveCoordinator::effective_options(
       session(), path, extension, image_options, image_save_defaults_for_document());
+  // Remembered save options must not carry an earlier save's answer into this one.
+  effective_image_options.bake_unsupported_blend_modes = bake_blend_modes.value_or(
+      image_options.has_value() && image_options->bake_unsupported_blend_modes);
   if (pdf_editable_layers.has_value()) {
     effective_image_options.pdf_editable_layers = *pdf_editable_layers;
   }
