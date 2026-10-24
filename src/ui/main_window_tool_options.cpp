@@ -1803,6 +1803,14 @@ void MainWindow::show_color_panel(bool foreground) {
         refresh_color_buttons();
       });
   dialog->setProperty("patchy.colorTarget", color_target);
+  // The Foreground Color window's Alt pick sets the background, as the docked Color
+  // panel's does (GitHub issue 365). The Background Color window has none: it already
+  // edits the background, and Alt there keeps acting like a plain click.
+  if (foreground) {
+    if (auto* picker = dialog->findChild<PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"))) {
+      picker->set_background_pick_handler([this](QColor color) { apply_color_panel_pick(color, true); });
+    }
+  }
   color_dialog_ = dialog;
   connect(dialog, &QObject::destroyed, this, [this, dialog] {
     if (color_dialog_ == dialog) {
