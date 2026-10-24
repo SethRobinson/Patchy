@@ -1444,6 +1444,131 @@ std::vector<Loss> DocumentIo::lost_content(const Document& document) {
 
 namespace detail {
 
+namespace {
+
+void icc_u16(std::vector<std::uint8_t>& out, std::uint32_t value) {
+  out.push_back(static_cast<std::uint8_t>(value >> 8));
+  out.push_back(static_cast<std::uint8_t>(value));
+}
+
+void icc_tag_type(std::vector<std::uint8_t>& out, const char (&type)[5]) {
+  out.insert(out.end(), type, type + 4);
+  append_be32(out, 0);  // reserved
+}
+
+// s15Fixed16Number from a value given in 1/65536 units, so the profile holds exact,
+// toolchain-independent integers.
+void icc_s15(std::vector<std::uint8_t>& out, std::int32_t units) {
+  append_be32(out, static_cast<std::uint32_t>(units));
+}
+
+std::vector<std::uint8_t> icc_xyz(std::int32_t x, std::int32_t y, std::int32_t z) {
+  std::vector<std::uint8_t> out;
+  icc_tag_type(out, "XYZ ");
+  icc_s15(out, x);
+  icc_s15(out, y);
+  icc_s15(out, z);
+  return out;
+}
+
+std::vector<std::uint8_t> icc_text(std::string_view ascii) {
+  std::vector<std::uint8_t> out;
+  icc_tag_type(out, "mluc");
+  append_be32(out, 1);   // one record
+  append_be32(out, 12);  // record size
+  out.insert(out.end(), {'e', 'n', 'U', 'S'});
+  append_be32(out, static_cast<std::uint32_t>(ascii.size() * 2));
+  append_be32(out, 28);  // string offset from the tag start
+  for (const char ch : ascii) {
+    icc_u16(out, static_cast<unsigned char>(ch));  // UTF-16BE
+  }
+  return out;
+}
+
+}  // namespace
+
+const std::vector<std::uint8_t>& srgb_icc_profile() {
+  static const std::vector<std::uint8_t> profile = [] {
+    // Values in 1/65536 units: D50 white, the Bradford D65-to-D50 matrix and the D50-adapted
+    // sRGB colorants as ICC profiles publish them; the sRGB curve as parametric type 3,
+    // Y = (aX + b)^g above d, cX below (g 2.4, a 1/1.055, b 0.055/1.055, c 1/12.92,
+    // d 0.04045).
+    std::vector<std::uint8_t> trc;
+    icc_tag_type(trc, "para");
+    icc_u16(trc, 3);
+    icc_u16(trc, 0);
+    for (const std::int32_t value : {157286, 62119, 3417, 5072, 2651}) {
+      icc_s15(trc, value);
+    }
+    std::vector<std::uint8_t> chad;
+    icc_tag_type(chad, "sf32");
+    for (const std::int32_t value : {68674, 1502, -3291, 1939, 64912, -1119, -606, 988, 49262}) {
+      icc_s15(chad, value);
+    }
+    struct Tag {
+      const char* signature;
+      std::vector<std::uint8_t> body;
+    };
+    const std::vector<Tag> tags = {
+        {"desc", icc_text("sRGB")},
+        {"cprt", icc_text("No copyright, use freely")},
+        {"wtpt", icc_xyz(63190, 65536, 54061)},
+        {"chad", chad},
+        {"rXYZ", icc_xyz(28578, 14581, 912)},
+        {"gXYZ", icc_xyz(25241, 46981, 6362)},
+        {"bXYZ", icc_xyz(9376, 3972, 46799)},
+        {"rTRC", trc},
+    };
+    constexpr std::size_t kSharedCurves = 2;  // gTRC and bTRC point at rTRC's data
+    const std::size_t count = tags.size() + kSharedCurves;
+    const std::size_t data_start = 128 + 4 + 12 * count;
+    std::vector<std::uint8_t> data;
+    std::vector<std::uint8_t> table;
+    std::uint32_t curve_offset = 0;
+    std::uint32_t curve_size = 0;
+    for (const auto& tag : tags) {
+      const auto offset = static_cast<std::uint32_t>(data_start + data.size());
+      const auto size = static_cast<std::uint32_t>(tag.body.size());
+      table.insert(table.end(), tag.signature, tag.signature + 4);
+      append_be32(table, offset);
+      append_be32(table, size);
+      data.insert(data.end(), tag.body.begin(), tag.body.end());
+      while (data.size() % 4 != 0) {
+        data.push_back(0);
+      }
+      if (std::string_view(tag.signature) == "rTRC") {
+        curve_offset = offset;
+        curve_size = size;
+      }
+    }
+    for (const char* signature : {"gTRC", "bTRC"}) {
+      table.insert(table.end(), signature, signature + 4);
+      append_be32(table, curve_offset);
+      append_be32(table, curve_size);
+    }
+    std::vector<std::uint8_t> out;
+    append_be32(out, static_cast<std::uint32_t>(data_start + data.size()));
+    append_be32(out, 0);           // preferred CMM: none
+    append_be32(out, 0x04300000);  // version 4.3
+    out.insert(out.end(), {'m', 'n', 't', 'r', 'R', 'G', 'B', ' ', 'X', 'Y', 'Z', ' '});
+    for (const std::uint32_t field : {2026U, 1U, 1U, 0U, 0U, 0U}) {  // fixed creation date
+      icc_u16(out, field);
+    }
+    out.insert(out.end(), {'a', 'c', 's', 'p'});
+    out.resize(64, 0);    // platform, flags, manufacturer, model, attributes
+    append_be32(out, 0);  // perceptual intent
+    icc_s15(out, 63190);  // D50 illuminant
+    icc_s15(out, 65536);
+    icc_s15(out, 54061);
+    out.resize(128, 0);  // creator, profile ID (none) and reserved
+    append_be32(out, static_cast<std::uint32_t>(count));
+    out.insert(out.end(), table.begin(), table.end());
+    out.insert(out.end(), data.begin(), data.end());
+    return out;
+  }();
+  return profile;
+}
+
 std::vector<std::uint8_t> encode_png(const PixelBuffer& pixels) {
   const auto format = pixels.format();
   if (pixels.width() <= 0 || pixels.height() <= 0 || format.bit_depth == BitDepth::Float32 || format.channels < 1 ||
@@ -1510,6 +1635,19 @@ std::vector<std::uint8_t> encode_png(const PixelBuffer& pixels) {
   header.push_back(0);
   header.push_back(0);
   append_png_chunk(png, "IHDR", header);
+  // The sRGB profile, so readers that want one for deep PNGs (Krita) do not ask.
+  static const std::vector<std::uint8_t> iccp = [] {
+    const auto& profile = srgb_icc_profile();
+    std::vector<std::uint8_t> chunk = {'s', 'R', 'G', 'B', 0, 0};  // name, NUL, zlib method
+    mz_ulong size = mz_compressBound(static_cast<mz_ulong>(profile.size()));
+    std::vector<std::uint8_t> packed(size);
+    if (mz_compress2(packed.data(), &size, profile.data(), static_cast<mz_ulong>(profile.size()), 9) != MZ_OK) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not write the OpenRaster file"));
+    }
+    chunk.insert(chunk.end(), packed.begin(), packed.begin() + static_cast<std::ptrdiff_t>(size));
+    return chunk;
+  }();
+  append_png_chunk(png, "iCCP", iccp);
   // IDAT in chunks of at most 1 MiB, as most encoders write.
   constexpr std::size_t kIdatChunk = 1U << 20;
   for (std::size_t at = 0; at < compressed.size(); at += kIdatChunk) {

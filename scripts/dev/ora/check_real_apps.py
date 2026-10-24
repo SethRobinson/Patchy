@@ -59,10 +59,9 @@ EXPECTED = {
     ("krita", "krita:dissolve"): "dissolve's random pattern is the app's own",
     ("gimp", "krita:"): "GIMP opens Krita's mode names as Normal",
 }
-# Whole files known to differ: (app, file) -> reason.
-EXPECTED_FILES = {
-    ("krita", "patchy-structure-16.ora"): "Krita 5.3 hangs opening 16-bit layer PNGs",
-}
+# Whole files known to differ: (app, file) -> reason. Patchy's 16-bit files are checked in
+# Krita too: since every PNG carries an sRGB ICC profile, Krita opens them without asking.
+EXPECTED_FILES = {}
 
 
 def tolerance(app, op):

@@ -10,6 +10,7 @@
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
+#include "formats/miniz/miniz.h"
 #include "formats/ora_document_io.hpp"
 #include "formats/stb/stb_image.h"
 #include "psd/psd_document_io.hpp"
@@ -292,7 +293,7 @@ void ora_writer_bytes_are_stable() {
   document.add_layer(std::move(group));
   document.add_layer(pixel_layer(document, "Top", Rect{-3, 12, 16, 10}, 3));
   const auto bytes = ora::DocumentIo::write(document);
-  constexpr std::uint64_t kExpected = 0x180039ab7d3ef735ULL;
+  constexpr std::uint64_t kExpected = 0x5129ed6953c0385eULL;
   const auto hash = patchy::test::fnv1a_hash_bytes(bytes);
   if (hash != kExpected) {
     std::cout << "  ora writer hash: 0x" << std::hex << hash << std::dec << " size " << bytes.size() << "\n";
@@ -341,6 +342,39 @@ void ora_writes_the_spec_layout() {
   };
   CHECK(find("Thumbnails/thumbnail.png") == std::make_optional(std::make_pair(256, 43)));
   CHECK(find("mergedimage.png") == std::make_optional(std::make_pair(600, 100)));
+}
+
+// Every PNG the writer makes carries the sRGB ICC profile in an iCCP chunk right after
+// IHDR: Krita asks for a profile per layer (and its command-line export hangs) on 16-bit
+// PNGs without one (docs/ora.md, "Colour profile").
+void ora_pngs_carry_an_srgb_profile() {
+  const auto& profile = ora::detail::srgb_icc_profile();
+  CHECK(profile.size() >= 128U && profile.size() % 4U == 0U);
+  const auto be32 = [](const std::uint8_t* at) {
+    return (static_cast<std::uint32_t>(at[0]) << 24) | (static_cast<std::uint32_t>(at[1]) << 16) |
+           (static_cast<std::uint32_t>(at[2]) << 8) | at[3];
+  };
+  CHECK(be32(profile.data()) == profile.size());
+  CHECK(std::string(profile.begin() + 36, profile.begin() + 40) == "acsp");
+  CHECK(std::string(profile.begin() + 12, profile.begin() + 24) == "mntrRGB XYZ ");
+  for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16}) {
+    const auto png = ora::detail::encode_png(pattern(5, 3, 1, depth));
+    CHECK(std::string(png.begin() + 37, png.begin() + 41) == "iCCP");
+    const auto length = be32(png.data() + 33);
+    CHECK(std::string(png.begin() + 41, png.begin() + 47) == std::string("sRGB\0\0", 6));
+    std::vector<std::uint8_t> unpacked(profile.size() + 16);
+    mz_ulong unpacked_size = static_cast<mz_ulong>(unpacked.size());
+    CHECK(mz_uncompress(unpacked.data(), &unpacked_size, png.data() + 47, static_cast<mz_ulong>(length - 6)) == MZ_OK);
+    unpacked.resize(unpacked_size);
+    CHECK(unpacked == profile);
+    // The CRC covers the type and the data.
+    const auto crc = mz_crc32(MZ_CRC32_INIT, png.data() + 37, length + 4);
+    CHECK(be32(png.data() + 41 + length) == crc);
+    // And Patchy's reader still decodes it, at its depth.
+    const auto read = ora::DocumentIo::read(archive(R"(<image w="5" h="3"><stack><layer src="data/a.png"/></stack></image>)",
+                                                    {{"data/a.png", png, false}}));
+    CHECK(read.layers().front().pixels().width() == 5);
+  }
 }
 
 void ora_unicode_path_round_trips() {
@@ -786,6 +820,7 @@ std::vector<patchy::test::TestCase> ora_tests() {
       {"ora_rewrite_is_byte_identical", ora_rewrite_is_byte_identical},
       {"ora_writer_bytes_are_stable", ora_writer_bytes_are_stable},
       {"ora_writes_the_spec_layout", ora_writes_the_spec_layout},
+      {"ora_pngs_carry_an_srgb_profile", ora_pngs_carry_an_srgb_profile},
       {"ora_unicode_path_round_trips", ora_unicode_path_round_trips},
       {"ora_reader_refuses_hostile_and_broken_files", ora_reader_refuses_hostile_and_broken_files},
       {"ora_reader_opens_damaged_layers_empty_with_notices", ora_reader_opens_damaged_layers_empty_with_notices},

@@ -85,7 +85,15 @@ struct ZipEntry {
 
 // The writer's PNG encoder: RGBA at 8 or 16 bits (the buffer's depth; 32-bit buffers are
 // refused), adaptive filtering, fixed deflate level. Gray and RGB buffers expand to RGBA.
+// Every PNG carries srgb_icc_profile() in an iCCP chunk right after IHDR (docs/ora.md).
 [[nodiscard]] std::vector<std::uint8_t> encode_png(const PixelBuffer& pixels);
+
+// A compact ICC v4 sRGB display profile built from the published sRGB primaries, D50
+// white point, Bradford adaptation and the sRGB transfer curve (a parametric curve), with
+// fixed header fields so the bytes never change. Krita asks for a profile, once per layer
+// (and its command-line export waits forever), when a 16-bit PNG has no ICC profile; an
+// sRGB chunk alone does not stop it.
+[[nodiscard]] const std::vector<std::uint8_t>& srgb_icc_profile();
 
 }  // namespace detail
 

@@ -83,9 +83,20 @@ with them as those modes (the interchange check below). GIMP writes its own extr
 Any 16-bit layer PNG makes a 16-bit document (8-bit PNGs widen exactly) while deep editing is on;
 with it off the file opens at 8 bits with a notice. 8-bit documents write 8-bit PNGs, 16-bit write
 16-bit layer PNGs and a 16-bit merged image; 32-bit documents convert to 16 (`convert_document_depth`)
-and say so. GIMP 3.2 and Krita 5.3 both write 8-bit PNGs only. GIMP opens 16-bit layers (at 8 bits); Krita
-5.3's command-line export hangs (no visible window, no output) on any .ora with a 16-bit layer PNG,
-Patchy's or hand-made; whether its desktop app opens them was not checked.
+and say so. GIMP 3.2 and Krita 5.3 both write 8-bit PNGs only: Krita re-saves Patchy's 16-bit file
+at 8 bits without asking, and GIMP opens any .ora at 8-bit precision.
+
+### Colour profile
+
+Every PNG the writer makes (layers, merged image, thumbnail, at both depths) carries an sRGB ICC
+profile in an iCCP chunk right after IHDR (`ora::detail::srgb_icc_profile`). Krita 5.3 asks which
+profile to use, once per layer, when it opens a 16-bit PNG with no profile, and its command-line
+export waits on that question forever. An sRGB chunk, with or without gAMA and cHRM, does not stop
+it; an iCCP profile does. The profile is Patchy's own, built from the published sRGB numbers: ICC
+v4 display class, D50 white, the Bradford D65-to-D50 `chad` matrix, the D50-adapted sRGB colorants
+and the sRGB curve as parametric curve type 3 (no third-party profile file), with fixed header
+fields so the bytes never change. The reader ignores these chunks, so PNGs with or without them
+open as sRGB, as before.
 
 ## Writing
 
@@ -141,8 +152,8 @@ first run on October 24, 2026; the script holds the table.
   128 (a pixel whose two colors have nearly equal luminosity picks the other one; means 0.15 and
   0.25), Hard Mix a worst of 255 (pixels exactly on its threshold flip), and Dissolve is reported
   only (each app draws its own random pattern).
-- Krita and 16 bits: its command-line export hangs on Patchy's 16-bit files, as on any 16-bit
-  .ora; reported, not failed.
+- Krita and 16 bits: Patchy's 16-bit file renders within 1 level (mean 0.23), now that its PNGs
+  carry the sRGB profile; before that, Krita's export hung on it.
 - GIMP, by default: mean 6, worst 130. GIMP 3 composites layers in linear light, so every partly
   covered pixel differs, even at Normal (measured mean 4.5, worst 63 at soft edges). Addition,
   hue, saturation, color and luminosity differ more (linear light plus GIMP's own color models
