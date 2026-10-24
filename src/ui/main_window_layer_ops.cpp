@@ -3761,6 +3761,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   apply_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value() &&
                                 active_layer->kind() == LayerKind::Pixel);
 
+  add_layer_thumbnail_size_menu(&menu);
   hide_menu_action_icons(&menu);
   auto* chosen = menu.exec(layer_list_->viewport()->mapToGlobal(position));
   if (chosen == nullptr) {
@@ -3868,6 +3869,62 @@ void MainWindow::show_layer_eye_color_menu(QPoint global_position) {
   menu.exec(global_position);
 }
 
+void MainWindow::add_layer_thumbnail_size_menu(QMenu* menu) {
+  if (layer_thumbnail_size_actions_.front() == nullptr) {
+    struct SizeEntry {
+      const char* text;
+      const char* object_name;
+    };
+    // Indexed by LayerThumbnailSize.
+    const std::array<SizeEntry, 4> entries{{
+        {QT_TR_NOOP("None"), "layerThumbnailSizeNoneAction"},
+        {QT_TR_NOOP("Small"), "layerThumbnailSizeSmallAction"},
+        {QT_TR_NOOP("Medium"), "layerThumbnailSizeMediumAction"},
+        {QT_TR_NOOP("Large"), "layerThumbnailSizeLargeAction"},
+    }};
+    auto* group = new QActionGroup(this);
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+      auto* action = new QAction(tr(entries[index].text), this);
+      action->setObjectName(QLatin1String(entries[index].object_name));
+      action->setCheckable(true);
+      action->setMenuRole(QAction::NoRole);
+      bind_action_text(action, entries[index].text);
+      group->addAction(action);
+      const auto size = static_cast<LayerThumbnailSize>(index);
+      connect(action, &QAction::triggered, this, [this, size] { set_layer_thumbnail_size(size); });
+      layer_thumbnail_size_actions_[index] = action;
+    }
+  }
+  layer_thumbnail_size_actions_[static_cast<std::size_t>(layer_thumbnail_size_)]->setChecked(true);
+  if (menu == nullptr) {
+    return;
+  }
+  menu->addSeparator();
+  auto* size_menu = menu->addMenu(tr("Thumbnail Size"));
+  size_menu->setObjectName(QStringLiteral("layerThumbnailSizeMenu"));
+  size_menu->menuAction()->setMenuRole(QAction::NoRole);
+  for (auto* action : layer_thumbnail_size_actions_) {
+    size_menu->addAction(action);
+  }
+}
+
+void MainWindow::set_layer_thumbnail_size(LayerThumbnailSize size) {
+  add_layer_thumbnail_size_menu(nullptr);
+  if (size == layer_thumbnail_size_) {
+    return;
+  }
+  layer_thumbnail_size_ = size;
+  layer_thumbnail_size_actions_[static_cast<std::size_t>(size)]->setChecked(true);
+  auto settings = app_settings();
+  settings.setValue(QLatin1String(kLayerThumbnailSizeSettingsKey), layer_thumbnail_size_token(size));
+  // The tile size is a shape input the revision-keyed cache does not track (the
+  // zoom-to-content preference precedent): drop the pixmaps and rebuild the rows.
+  layer_thumbnail_cache_.clear();
+  if (has_active_document()) {
+    refresh_layer_list();
+  }
+}
+
 void MainWindow::show_background_context_menu(QPoint global_position) {
   // Photoshop's shorter menu for its Background (GitHub issue 274): no layer styles, masks,
   // locks or stacking commands apply to it. Delete and the Merge Visible pair need another layer.
@@ -3898,6 +3955,7 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
   if (image_flatten_action_ != nullptr) {
     menu.addAction(image_flatten_action_);
   }
+  add_layer_thumbnail_size_menu(&menu);
   hide_menu_action_icons(&menu);
   auto* chosen = menu.exec(global_position);
   if (chosen == from_background_action) {

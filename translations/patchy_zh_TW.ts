@@ -24640,6 +24640,22 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>修復模式：取代會保留取樣時的來源紋理；混合模式會將修復後的顏色與下方像素混合</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>縮圖大小</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

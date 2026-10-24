@@ -24784,6 +24784,22 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>Tryb korygowania: Zastąp zachowuje teksturę źródła w postaci próbki; tryby mieszania łączą skorygowany kolor z pikselami pod spodem</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>Mały</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Średni</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Duży</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Rozmiar miniatur</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

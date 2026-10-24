@@ -24784,6 +24784,22 @@ Patchy может скачать обновление, заменить этот
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>Режим восстановления: «Замена» сохраняет текстуру источника как есть; режимы наложения смешивают восстановленный цвет с пикселями под ним</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>Мелкий</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Средний</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Крупный</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Размер миниатюр</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -24640,6 +24640,22 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>修復モード: 置き換えはサンプリングしたソースのテクスチャをそのまま保ちます。描画モードは修復した色を下のピクセルと合成します</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>サムネイルのサイズ</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

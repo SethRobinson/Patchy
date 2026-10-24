@@ -24712,6 +24712,22 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>Healing mode: Replace keeps the source texture as sampled; the blend modes combine the healed color with the pixels under it</source>
         <translation>Metodo di correzione: Sostituisci mantiene la trama di origine come campionata; i metodi di fusione combinano il colore corretto con i pixel sottostanti</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>Piccola</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Media</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Grande</translation>
+    </message>
+    <message>
+        <source>Thumbnail Size</source>
+        <translation>Dimensione miniature</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
