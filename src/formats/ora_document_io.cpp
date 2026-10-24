@@ -575,6 +575,8 @@ struct Node {
 };
 
 struct ReadState {
+  explicit ReadState(ZipReader& reader) : zip(reader) {}
+
   ZipReader& zip;
   std::uint64_t pixel_budget{kMaxTotalPixels};
   std::vector<std::string> unknown_ops;
@@ -1281,7 +1283,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster layer list (stack.xml) is damaged or not valid XML"));
   }
 
-  ReadState state{zip};
+  ReadState state(zip);
   std::vector<Node> nodes;
   read_stack(*root_stack, nodes, state, 0, 0, 0);
 
