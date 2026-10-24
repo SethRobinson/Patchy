@@ -327,7 +327,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `app.activeDocument` | The active document, or `undefined` when none is open. |
 | `app.documents` | Every open document. |
 | `app.open(path)` | Opens a file and returns its document; throws on failure. RAW opens read the photo's `.rawprefs` sidecar or use current defaults, without writing settings. Unattended PDF opens use default settings. |
-| `app.newDocument(width, height)` | Creates a new document. |
+| `app.newDocument(width, height, options?)` | Creates a new document with a white Background. Options: `name` (the tab title and default Save As name; characters a file name cannot hold are dropped) and `colorMode` (`"rgb"`, the default, or `"cmykProof"`, Image > Mode > CMYK Proof, which needs a CMYK profile in Preferences). |
 | `app.alert(text)` | Message box (logs to the console in command-line runs). |
 | `app.prompt(text, defaultValue)` | Text input; `null` when cancelled, the default in command-line runs. |
 | `app.chooseFolder(title)` | Folder picker; `""` when cancelled or unattended. |

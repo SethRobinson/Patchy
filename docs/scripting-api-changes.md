@@ -10,6 +10,12 @@ and those of 2026-10-01 to 2026-10-05 in
 [scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md).
 Every entry below is API 1.
 
+2026-10-24 (additive): `app.newDocument(width, height, options?)` takes `name` (the tab title and
+default Save As name, through the New Document dialog's file-name rule; throws when nothing usable is
+left) and `colorMode` (`"rgb"` default, or `"cmykProof"`; throws for other values and without a CMYK
+profile). Both are checked before the document is created. Permanent identifiers: the option keys and
+the `colorMode` tokens ([new-document.md](new-document.md)). Pinned by `ui_script_new_document_options`.
+
 2026-10-23 (additive): `doc.colorProfile` (the embedded RGB profile's name, `"sRGB IEC61966-2.1"`
 when untagged) and `doc.convertToProfile(profile, options?)`, Edit > Convert to Profile: `profile`
 is `"sRGB"` or an RGB profile file path, options `intent` (the rendering intent tokens of

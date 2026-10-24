@@ -12092,6 +12092,77 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB 内置于 Patchy。其他配置文件是此计算机上安装的 RGB 配置文件；未列出的配置文件请使用“选择配置文件...”。</translation>
     </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>已保存</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>未标题-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>文档的标签页标题，也是“存储为”建议的文件名</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 校样</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>画布按首选项中设置的 CMYK 配置文件显示。存储为 JPEG、TIFF 或 PDF 时写入 CMYK。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 校样需要 CMYK 配置文件。请在首选项中选择。</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>颜色模式</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>颜色配置文件</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>存储预设...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>将这些设置存储为“已保存”组中的预设</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>CMYK 校样将像素保留为 RGB，并通过此配置文件显示。可在首选项中更改。</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy 以 sRGB 编辑和显示 RGB 文档。</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>按 Delete 键或右键单击卡片可删除此预设。</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>存储预设</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>删除预设</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1 (首选项)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24616,6 +24687,14 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Convert to Color Profile</source>
         <translation>转换为颜色配置文件</translation>
     </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>在新文档中于背景上方添加空图层</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>停用时，“文件 &gt; 新建”只创建背景图层并将其选中。画板文档和来自剪贴板的文档不受影响。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26614,18 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>该配置文件不能用于此转换。</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>newDocument 的 name 必须包含可用于文件名的字符。</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>newDocument 的 colorMode 必须为 &quot;rgb&quot; 或 &quot;cmykProof&quot;。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 校样需要 CMYK 配置文件。请在首选项中选择。</translation>
     </message>
 </context>
 <context>

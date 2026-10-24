@@ -1046,7 +1046,7 @@ std::int64_t ScriptEngineHost::open_document_file(const QString& path) {
   return 0;
 }
 
-std::int64_t ScriptEngineHost::create_document(int width, int height) {
+std::int64_t ScriptEngineHost::create_document(int width, int height, const QString& title) {
   pump_progress_indicator();
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     return 0;
@@ -1056,7 +1056,7 @@ std::int64_t ScriptEngineHost::create_document(int width, int height) {
   background.clear(255);
   auto& layer = document.add_pixel_layer("Background", std::move(background));
   document.set_active_layer(layer.id());
-  window_.add_document_session(std::move(document), tr("Untitled"));
+  window_.add_document_session(std::move(document), title.isEmpty() ? tr("Untitled") : title);
   return active_session_id();
 }
 

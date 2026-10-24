@@ -35,7 +35,18 @@ struct NewDocumentSettings {
   // Photoshop's Artboards checkbox: the document starts as one artboard the size of the
   // canvas, its background the chosen one (docs/artboards.md).
   bool artboards{false};
+  // Image > Mode > CMYK Proof from the start (GitHub issue 360; docs/cmyk.md). The Color
+  // Mode list offers it only while Preferences names a CMYK profile.
+  bool cmyk_proof{false};
+  // The Name field (GitHub issue 374): the tab title and the default Save As name, already
+  // through sanitized_new_document_name; never empty.
+  QString name;
 };
+
+// The Name field's rule: drops the characters a file name cannot hold on Windows (the
+// strictest file system: \ / : * ? " < > | and control codes) and the trailing dots and
+// spaces it rejects. Unicode letters stay. Empty when nothing usable is left.
+[[nodiscard]] QString sanitized_new_document_name(const QString& name);
 
 // Shows the New Document dialog (category chips + clickable preset card grid on the
 // left, the width/height/resolution/background details pane on the right) and
@@ -45,15 +56,20 @@ struct NewDocumentSettings {
 // that restores them; a Clipboard create remembers only its size and PPI. Before the
 // first create there is no Last Used card and Default is selected. A clipboard image
 // never preselects the Clipboard card. On a first run the W/H unit follows the ruler
-// unit preference (`view/rulerUnits`).
-[[nodiscard]] std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent);
+// unit preference (`view/rulerUnits`). The Name field starts as `default_name`
+// ("Untitled-N"; "Untitled-1" when empty), which the result also falls back to; it is
+// never remembered. Saved presets (Save Preset, `newDocument/userPresets`) fill a Saved
+// group; docs/new-document.md.
+[[nodiscard]] std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent,
+                                                                               const QString& default_name = {});
 
 // Whether the system clipboard offers image data: the New Document dialog's Clipboard card
 // and File > Open from Clipboard (GitHub issue 218) are enabled only then. It reads the
 // clipboard's format list, never the image, so it costs no transfer or decode.
 [[nodiscard]] bool clipboard_offers_image();
 
-// The New Document size presets an artboard can take (every template but Clipboard), for
+// The New Document size presets an artboard can take (every built-in template; not Clipboard
+// or the user's saved presets), for
 // the Artboard tool and the New Artboard dialog, in the dialog's group order.
 struct ArtboardSizePreset {
   QString id;  // the New Document preset id (persisted there; never renamed)

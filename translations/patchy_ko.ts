@@ -12092,6 +12092,77 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB는 Patchy에 내장되어 있습니다. 다른 프로파일은 이 컴퓨터에 설치된 RGB 프로파일입니다. 목록에 없는 프로파일은 &apos;프로파일 파일 선택...&apos;을 사용하세요.</translation>
     </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>저장됨</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>제목없음-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>문서 탭 제목이자 다른 이름으로 저장에서 제안하는 파일 이름</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 교정</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>캔버스는 환경설정에서 지정한 CMYK 프로파일로 표시됩니다. JPEG, TIFF 또는 PDF로 저장하면 CMYK로 기록합니다.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 교정에는 CMYK 프로파일이 필요합니다. 환경설정에서 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>이름</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>색상 모드</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>색상 프로파일</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>사전 설정 저장...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>이 설정을 저장됨 그룹의 사전 설정으로 저장</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>CMYK 교정은 픽셀을 RGB로 유지하고 이 프로파일을 통해 표시합니다. 환경설정에서 변경하십시오.</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy는 RGB 문서를 sRGB로 편집하고 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>Delete 키를 누르거나 카드를 마우스 오른쪽 버튼으로 클릭하여 이 사전 설정을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>사전 설정 저장</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1 (환경설정)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24616,6 +24687,14 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Convert to Color Profile</source>
         <translation>색상 프로파일로 변환</translation>
     </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>새 문서에서 배경 위에 빈 레이어 추가</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>사용하지 않으면 파일 &gt; 새로 만들기가 배경 레이어만 만들고 선택합니다. 대지 문서와 클립보드 문서는 그대로입니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26535,6 +26614,18 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>이 프로파일은 이 변환에 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>newDocument name에는 파일 이름에 쓸 수 있는 문자가 하나 이상 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>newDocument colorMode는 &quot;rgb&quot; 또는 &quot;cmykProof&quot;여야 합니다.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK 교정에는 CMYK 프로파일이 필요합니다. 환경설정에서 선택하세요.</translation>
     </message>
 </context>
 <context>

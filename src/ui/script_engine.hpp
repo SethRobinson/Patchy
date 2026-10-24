@@ -188,7 +188,8 @@ public:
   // Empty on success, else why CMYK Proof was refused.
   [[nodiscard]] QString set_session_cmyk_proof(std::int64_t session_id, bool enabled);
   std::int64_t open_document_file(const QString& path);  // 0 on failure
-  std::int64_t create_document(int width, int height);
+  // An empty `title` is "Untitled".
+  std::int64_t create_document(int width, int height, const QString& title = {});
   // doc.saveAs / doc.exportAs. `options` set = the script's explicit choices overlaid on
   // the per-document defaults (see save_options_for_session); nullopt keeps today's
   // defaults-or-remembered path. export_copy writes a copy without retargeting the session.

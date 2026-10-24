@@ -12127,6 +12127,77 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB est intégré à Patchy. Les autres profils sont les profils RVB installés sur cet ordinateur ; utilisez Choisir un fichier de profil... pour un profil absent de la liste.</translation>
     </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>Enregistrés</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>Sans titre-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>Le titre de l&apos;onglet du document et le nom de fichier proposé par Enregistrer sous</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Épreuve CMJN</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>Le canevas affiche le profil CMJN défini dans les Préférences. Enregistrer en JPEG, TIFF ou PDF écrit du CMJN.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>Épreuve CMJN nécessite un profil CMJN. Choisissez-en un dans les Préférences.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>Nom</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>Mode colorimétrique</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>Profil colorimétrique</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Enregistrer le paramètre prédéfini...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>Enregistrer ces réglages comme paramètre prédéfini dans le groupe Enregistrés</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>L&apos;épreuve CMJN garde les pixels en RVB et les affiche à travers ce profil. Modifiez-le dans les Préférences.</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy modifie et affiche les documents RVB en sRGB.</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>Appuyez sur Suppr ou cliquez avec le bouton droit sur la carte pour supprimer ce paramètre prédéfini.</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>Enregistrer le paramètre prédéfini</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Supprimer le paramètre prédéfini</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1, des Préférences</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24688,6 +24759,14 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Convert to Color Profile</source>
         <translation>Convertir en profil colorimétrique</translation>
     </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>Ajouter un calque vide au-dessus de l&apos;arrière-plan dans les nouveaux documents</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>Si cette option est désactivée, Fichier &gt; Nouveau crée uniquement le calque d&apos;arrière-plan, sélectionné. Les documents à plans de travail et ceux du presse-papiers ne changent pas.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26608,6 +26687,18 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Le profil ne peut pas servir à cette conversion.</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>Le nom de newDocument doit contenir un caractère utilisable dans un nom de fichier.</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>colorMode de newDocument doit valoir &quot;rgb&quot; ou &quot;cmykProof&quot;.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>Épreuve CMJN nécessite un profil CMJN. Choisissez-en un dans les Préférences.</translation>
     </message>
 </context>
 <context>

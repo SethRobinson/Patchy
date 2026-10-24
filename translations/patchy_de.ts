@@ -12127,6 +12127,77 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>sRGB is built into Patchy. The other profiles are the RGB profiles installed on this computer; use Choose Profile File... for one that is not listed.</source>
         <translation>sRGB ist in Patchy integriert. Die anderen Profile sind die auf diesem Computer installierten RGB-Profile; ein nicht aufgeführtes Profil wählen Sie mit „Profildatei wählen...“.</translation>
     </message>
+    <message>
+        <source>Saved</source>
+        <comment>new document template group of the user&apos;s own presets</comment>
+        <translation>Gespeichert</translation>
+    </message>
+    <message>
+        <source>Untitled-1</source>
+        <translation>Unbenannt-1</translation>
+    </message>
+    <message>
+        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <translation>Der Titel des Dokument-Tabs und der Dateiname, den „Speichern unter“ vorschlägt</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK-Proof</translation>
+    </message>
+    <message>
+        <source>The canvas shows the CMYK profile set in Preferences. Saving as JPEG, TIFF or PDF writes CMYK.</source>
+        <translation>Die Arbeitsfläche zeigt das in den Voreinstellungen festgelegte CMYK-Profil. Speichern als JPEG, TIFF oder PDF schreibt CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK-Proof benötigt ein CMYK-Profil. Wählen Sie eines in den Voreinstellungen.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>new document name field</comment>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>Color Mode</source>
+        <translation>Farbmodus</translation>
+    </message>
+    <message>
+        <source>Color Profile</source>
+        <translation>Farbprofil</translation>
+    </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Vorgabe speichern...</translation>
+    </message>
+    <message>
+        <source>Save these settings as a preset in the Saved group</source>
+        <translation>Diese Einstellungen als Vorgabe in der Gruppe „Gespeichert“ sichern</translation>
+    </message>
+    <message>
+        <source>CMYK Proof keeps the pixels in RGB and shows them through this profile. Change it in Preferences.</source>
+        <translation>CMYK-Proof behält die Pixel in RGB und zeigt sie durch dieses Profil. Ändern Sie es in den Voreinstellungen.</translation>
+    </message>
+    <message>
+        <source>Patchy edits and shows RGB documents in sRGB.</source>
+        <translation>Patchy bearbeitet und zeigt RGB-Dokumente in sRGB.</translation>
+    </message>
+    <message>
+        <source>Press Delete or right-click the card to delete this preset.</source>
+        <translation>Drücken Sie Entf oder klicken Sie mit der rechten Maustaste auf die Karte, um diese Vorgabe zu löschen.</translation>
+    </message>
+    <message>
+        <source>Save Preset</source>
+        <translation>Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Vorgabe löschen</translation>
+    </message>
+    <message>
+        <source>%1, from Preferences</source>
+        <comment>new document color profile: the CMYK working profile</comment>
+        <translation>%1, aus den Voreinstellungen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -24688,6 +24759,14 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Convert to Color Profile</source>
         <translation>In Farbprofil umwandeln</translation>
     </message>
+    <message>
+        <source>Add an empty layer above the Background in new documents</source>
+        <translation>In neuen Dokumenten eine leere Ebene über dem Hintergrund anlegen</translation>
+    </message>
+    <message>
+        <source>When disabled, File &gt; New creates only the Background layer, selected. Artboard documents and documents from the clipboard are unchanged.</source>
+        <translation>Wenn deaktiviert, erstellt Datei &gt; Neu nur die Hintergrundebene, ausgewählt. Dokumente mit Zeichenflächen und aus der Zwischenablage bleiben unverändert.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -26608,6 +26687,18 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>The profile cannot be used for this conversion.</source>
         <translation>Das Profil kann für diese Umwandlung nicht verwendet werden.</translation>
+    </message>
+    <message>
+        <source>newDocument name must hold a character a file name can use.</source>
+        <translation>Der newDocument-Name muss ein Zeichen enthalten, das ein Dateiname verwenden kann.</translation>
+    </message>
+    <message>
+        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
+        <translation>newDocument colorMode muss &quot;rgb&quot; oder &quot;cmykProof&quot; sein.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
+        <translation>CMYK-Proof benötigt ein CMYK-Profil. Wählen Sie eines in den Voreinstellungen.</translation>
     </message>
 </context>
 <context>

@@ -248,7 +248,9 @@ other format and throws when the working space has no profile:
 
 Image > Mode > CMYK Proof (`imageModeCmykProofAction`, command id `image.mode_cmyk_proof`,
 exclusive with RGB Color and Indexed) is `DocumentSession::cmyk_proof`: per document,
-session-only, never written to a file, not an undo step.
+session-only, never written to a file, not an undo step. New Document's Color Mode list and
+`app.newDocument`'s `colorMode: "cmykProof"` start a document in it through the same
+`set_session_cmyk_proof` ([new-document.md](new-document.md)).
 
 - **View.** `refresh_proof_display` gives a CMYK Proof canvas `document_proof_transform_`,
   which always simulates colors (with the gamut warning when View > Gamut Warning is on;

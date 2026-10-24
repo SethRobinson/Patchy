@@ -2321,6 +2321,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
       tests/ui/rgb_profile_tests.cpp
+      tests/ui/new_document_options_tests.cpp
       tests/ui/watermark_tests.cpp
       tests/ui/watermark_preferences_tests.cpp
       tests/ui/save_metadata_tests.cpp
