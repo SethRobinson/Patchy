@@ -342,8 +342,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // 4 px between controls (was 5): every long row must fit one line at 1366 px (GitHub issue 91).
   auto* options_flow = new FlowLayout(options_content, 4, 4);
   // Side padding so the first control does not butt against the window edge.
-  options_flow->setContentsMargins(6, 3, 0, 3);
-  // Controls sit on the middle of the strip, the same gap above and below (GitHub issue 409).
+  // 4 px above and below: one 26 px row fills the 34 px strip exactly, so it sits evenly,
+  // and a wrapped bar has 4 px above, between and below its rows (GitHub issue 409).
+  options_flow->setContentsMargins(6, 4, 0, 4);
+  // Controls sit on their row's middle; rows keep their place from the top.
   options_flow->set_center_rows(true);
   options_content->setLayout(options_flow);
   toolbar->addWidget(options_content);
