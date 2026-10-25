@@ -19,6 +19,7 @@
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_types.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
@@ -2675,6 +2676,7 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
 
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("canvasPathContextMenu"));
+  install_disabled_reason_tooltips(menu);  // why a host command is greyed out
   const auto add_edit_action = [this, &menu, hit](const QString& text, const char* object_name,
                                                   bool enabled, PenHoverAction action) {
     auto* menu_action = menu.addAction(text);

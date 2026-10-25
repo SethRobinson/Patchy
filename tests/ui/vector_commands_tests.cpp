@@ -37,6 +37,7 @@
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QSpinBox>
 #include <QStringList>
 #include <QTimer>
@@ -229,6 +230,102 @@ void ui_simplify_path_cancel_restores_original() {
   require_action(window, "pathSimplifyAction")->trigger();
   QApplication::processEvents();
   CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Select a path or shape layer")));
+}
+
+// GitHub issue 396: Simplify Path from the path tools' canvas menu edits the
+// clicked shape layer's own path, previews live and Cancel restores it; on a
+// path with nothing to remove, the readout says so and OK adds no undo entry.
+void ui_simplify_path_from_canvas_menu_previews_and_explains_no_change() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  replace_with_dense_circle(window, *canvas, layer_id, QPointF(200.0, 160.0), 60.0);
+  const auto original = std::as_const(document).find_layer(layer_id)->vector_shape()->path;
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  QApplication::processEvents();
+
+  bool drove = false;
+  QStringList failures;
+  const auto drive_preview = [&] {
+    drive_simplify_dialog(failures, drove, [&](QDialog& dialog) {
+      auto* tolerance = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("simplifyPathToleranceSpin"));
+      auto* label = dialog.findChild<QLabel*>(QStringLiteral("simplifyPathAnchorsLabel"));
+      if (tolerance == nullptr || label == nullptr) {
+        failures << QStringLiteral("dialog controls missing");
+        dialog.reject();
+        return;
+      }
+      tolerance->setValue(2.0);
+      QApplication::processEvents();
+      if (anchor_count(document, layer_id) >= 64) {
+        failures << QStringLiteral("preview did not reach the clicked shape layer");
+      }
+      if (label->text().contains(QLatin1Char('\n'))) {
+        failures << QStringLiteral("hint shown although points were removed: ") + label->text();
+      }
+      save_stacked_artifact("issue_396_simplify_preview", {canvas->grab().toImage(), dialog.grab().toImage()});
+      dialog.reject();
+    });
+  };
+  // The menu is exec'd: once it is up, arm the dialog driver and pick Simplify
+  // (its dialog runs inside the menu's loop, as a pick from a real click does).
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("canvasPathContextMenu")) {
+        for (auto* action : menu->actions()) {
+          if (action->objectName() == QStringLiteral("pathSimplifyAction")) {
+            drive_preview();
+            action->trigger();
+            menu->close();
+            return;
+          }
+        }
+        menu->close();
+      }
+    }
+    failures << QStringLiteral("canvas path menu without Simplify Path");
+  });
+  const auto widget_point = canvas->widget_position_for_document_point(QPoint(260, 160));
+  CHECK(canvas->show_path_context_menu(QPointF(widget_point), canvas->mapToGlobal(widget_point)));
+  QApplication::processEvents();
+  CHECK(drove);
+  report_failures(failures);
+  CHECK(std::as_const(document).find_layer(layer_id)->vector_shape()->path == original);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+
+  // A four-corner rectangle has nothing to remove at any tolerance.
+  const auto rect_id = make_rect_shape_layer(window, *canvas, QPoint(350, 250), QPoint(450, 330));
+  CHECK(anchor_count(document, rect_id) == 4);
+  const auto rect_undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  drove = false;
+  drive_simplify_dialog(failures, drove, [&](QDialog& dialog) {
+    auto* tolerance = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("simplifyPathToleranceSpin"));
+    auto* label = dialog.findChild<QLabel*>(QStringLiteral("simplifyPathAnchorsLabel"));
+    if (tolerance == nullptr || label == nullptr) {
+      failures << QStringLiteral("dialog controls missing");
+      dialog.reject();
+      return;
+    }
+    tolerance->setValue(0.1);
+    QApplication::processEvents();
+    if (label->text() != QStringLiteral("Anchors: 4 -> 4\nThis path has no points to remove.")) {
+      failures << QStringLiteral("readout: ") + label->text();
+    }
+    save_widget_artifact("issue_396_simplify_no_change", dialog);
+    dialog.accept();
+  });
+  require_action(window, "pathSimplifyAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  report_failures(failures);
+  CHECK(anchor_count(document, rect_id) == 4);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == rect_undo_before);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("This path has no points to remove."));
 }
 
 void ui_combine_shapes_subtracts_front_and_undoes() {
@@ -460,6 +557,8 @@ std::vector<patchy::test::TestCase> vector_commands_tests() {
       {"ui_simplify_path_dialog_previews_commits_and_undoes",
        ui_simplify_path_dialog_previews_commits_and_undoes},
       {"ui_simplify_path_cancel_restores_original", ui_simplify_path_cancel_restores_original},
+      {"ui_simplify_path_from_canvas_menu_previews_and_explains_no_change",
+       ui_simplify_path_from_canvas_menu_previews_and_explains_no_change},
       {"ui_combine_shapes_subtracts_front_and_undoes", ui_combine_shapes_subtracts_front_and_undoes},
       {"ui_merge_down_keeps_shape_layers_vector", ui_merge_down_keeps_shape_layers_vector},
       {"ui_script_simplify_path_reports_anchor_counts", ui_script_simplify_path_reports_anchor_counts},

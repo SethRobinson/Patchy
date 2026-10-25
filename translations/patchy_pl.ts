@@ -25582,6 +25582,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Show Black Channel</source>
         <translation>Pokaż kanał czarny</translation>
     </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>Zwiększ tolerancję, aby usunąć punkty.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>Ta ścieżka nie ma punktów do usunięcia.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

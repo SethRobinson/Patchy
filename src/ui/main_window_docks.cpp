@@ -1817,6 +1817,7 @@ void MainWindow::create_docks() {
     handle_paths_panel_target(static_cast<int>(kind), id);
   });
   paths_panel_->set_deselect_callback([this] { handle_paths_panel_deselect(); });
+  paths_panel_->set_command_refusals_provider([this] { return paths_panel_command_refusals(); });
   paths_panel_->set_rename_callback(
       [this](DocumentPathId id, QString name) { rename_document_path(id, name); });
   paths_panel_->set_save_work_path_callback([this] { save_work_path_as_named(); });

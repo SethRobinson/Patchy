@@ -25509,6 +25509,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Show Black Channel</source>
         <translation>Afficher la couche noire</translation>
     </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>Augmentez la tolérance pour supprimer des points.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>Ce tracé n&apos;a aucun point à supprimer.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

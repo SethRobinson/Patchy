@@ -177,6 +177,7 @@ class AnimationPreviewWindow;
 class PalettePanel;
 class ColorDockPanel;
 class PathsPanel;
+struct PathCommandRefusals;
 class StartPanel;
 class PatternLibrary;
 struct StartupLibraryPreloads;
@@ -1739,6 +1740,11 @@ private:
   // the row of the path the path tools edit, so the menu's path commands
   // (which act on the panel's row) apply to the path under the pointer.
   void target_canvas_path_in_paths_panel();
+  // Why each Paths panel row command would refuse now, in the commands' own
+  // status wording.
+  [[nodiscard]] PathCommandRefusals paths_panel_command_refusals() const;
+  // Why Fill Path and Stroke Path cannot paint into the active layer, or empty.
+  [[nodiscard]] QString path_paint_target_refusal() const;
   void rename_document_path(patchy::DocumentPathId id, const QString& name);
   [[nodiscard]] QString unique_saved_path_name();
   void save_work_path_as_named();

@@ -2448,6 +2448,64 @@ void ui_path_context_menu_offers_paths_panel_commands() {
   CHECK(canvas->path_edit_has_selection());
 }
 
+// GitHub issue 396 follow-up: a command that would only refuse is greyed out,
+// with its refusal as the disabled reason the menu's tooltip shows. On a shape
+// layer, Fill Path and Stroke Path have no pixel layer to paint into, and its
+// transient path row cannot be duplicated or deleted.
+void ui_path_menu_greys_out_commands_that_would_refuse() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto reason = [](QAction* action) { return action->property("patchy.disabledReason").toString(); };
+  with_path_context_menu([&](QMenu& menu) {
+    for (const auto* name : {"pathFillAction", "pathStrokeAction"}) {
+      auto* action = require_menu_action(menu, name);
+      CHECK(!action->isEnabled());
+      CHECK(reason(action) == QStringLiteral("Select an editable pixel layer first"));
+    }
+    CHECK(require_menu_action(menu, "pathMakeSelectionAction")->isEnabled());
+    CHECK(require_menu_action(menu, "pathSimplifyAction")->isEnabled());
+    CHECK(!require_menu_action(menu, "pathDuplicateAction")->isEnabled());
+    CHECK(reason(require_menu_action(menu, "pathDeleteAction")) ==
+          QStringLiteral("Select a saved path or the work path to delete"));
+    save_window_popup_artifact("issue_396_shape_layer_menu", window, *canvas, menu);
+  });
+  open_path_menu_at(*canvas, QPoint(200, 100));
+
+  // Locked pixels on the Background: the reason follows the lock, refreshed
+  // when the menu opens.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  std::optional<patchy::LayerId> background_id;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.name() == "Background") {
+      background_id = layer.id();
+    }
+  }
+  CHECK(background_id.has_value());
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path: a work path to fill
+  shape_drag(*canvas, QPoint(350, 250), QPoint(450, 330));
+  document.set_active_layer(*background_id);
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  auto* fill = window.findChild<QAction*>(QStringLiteral("pathFillAction"));
+  CHECK(fill != nullptr && fill->isEnabled() && reason(fill).isEmpty());
+  document.find_layer(*background_id)->set_lock_flags(patchy::kLayerLockImagePixels);
+  with_path_context_menu([&](QMenu& menu) {
+    auto* action = require_menu_action(menu, "pathFillAction");
+    CHECK(!action->isEnabled());
+    CHECK(reason(action) == QStringLiteral("Layer pixels are locked."));
+  });
+  open_path_menu_at(*canvas, QPoint(400, 250));
+}
+
 // Pen Ctrl latch (Seth on GitHub issue 248): a point selected with Ctrl+click keeps
 // its handle knobs on screen after the mouse button comes up, Ctrl still held, and
 // after Ctrl comes up too, as long as it stays selected, so the user can see where
@@ -2835,6 +2893,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_pen_deletes_ctrl_selected_anchors_with_delete_key},
       {"ui_path_context_menu_edits_anchors", ui_path_context_menu_edits_anchors},
       {"ui_path_context_menu_offers_paths_panel_commands", ui_path_context_menu_offers_paths_panel_commands},
+      {"ui_path_menu_greys_out_commands_that_would_refuse", ui_path_menu_greys_out_commands_that_would_refuse},
       {"ui_anchor_tools_share_pen_flyout_and_edit_points",
        ui_anchor_tools_share_pen_flyout_and_edit_points},
       {"ui_shape_layer_activation_drops_stale_path_target",

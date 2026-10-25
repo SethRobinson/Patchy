@@ -25428,6 +25428,14 @@ The open document keeps its blend modes either way.</source>
         <source>Show Black Channel</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
