@@ -339,6 +339,7 @@ bool LayerListWidget::handle_visibility_eye_press(QWidget* eye_button, const QMo
   visibility_sweep_min_x_ = button_top_left.x() - kSweepColumnSlack;
   visibility_sweep_max_x_ = button_top_left.x() + eye_button->width() + kSweepColumnSlack;
   visibility_sweep_last_viewport_pos_ = viewport_pos;
+  visibility_sweep_pointer_ = viewport_pos;
   visibility_swept_ids_ = {id};
   // A group toggle replaces every row, destroying the pressed eye and Qt's
   // implicit mouse grab with it. Keep delivery on the persistent viewport for
@@ -363,11 +364,26 @@ bool LayerListWidget::handle_visibility_sweep_move(QPoint viewport_position, con
     end_visibility_sweep();
     return false;
   }
-  const auto span_top = std::min(visibility_sweep_last_viewport_pos_.y(), viewport_position.y());
-  const auto span_bottom = std::max(visibility_sweep_last_viewport_pos_.y(), viewport_position.y());
-  visibility_sweep_last_viewport_pos_ = viewport_position;
-  if (viewport_position.x() < visibility_sweep_min_x_ || viewport_position.x() > visibility_sweep_max_x_) {
-    return true;
+  visibility_sweep_pointer_ = viewport_position;
+  update_visibility_sweep_auto_scroll();
+  sweep_visibility_to(viewport_position);
+  return true;
+}
+
+void LayerListWidget::sweep_visibility_to(QPoint viewport_position) {
+  // Only rows on screen can be crossed: a pointer past the list's edge sweeps to
+  // the edge, and the autoscroll brings the next rows under it (#407).
+  const auto y = std::clamp(viewport_position.y(), 0, std::max(0, viewport()->height() - 1));
+  const auto span_top = std::min(visibility_sweep_last_viewport_pos_.y(), y);
+  const auto span_bottom = std::max(visibility_sweep_last_viewport_pos_.y(), y);
+  visibility_sweep_last_viewport_pos_ = QPoint(viewport_position.x(), y);
+  // Past the top or bottom edge, still over the list's width, the column test is
+  // off: the pointer drifts sideways while it holds the list scrolling.
+  const bool past_edge = y != viewport_position.y() && viewport_position.x() >= 0 &&
+                         viewport_position.x() < viewport()->width();
+  if (!past_edge &&
+      (viewport_position.x() < visibility_sweep_min_x_ || viewport_position.x() > visibility_sweep_max_x_)) {
+    return;
   }
   for (int i = 0; i < count(); ++i) {
     auto* candidate = item(i);
@@ -398,7 +414,35 @@ bool LayerListWidget::handle_visibility_sweep_move(QPoint viewport_position, con
       }
     });
   }
-  return true;
+}
+
+void LayerListWidget::update_visibility_sweep_auto_scroll() {
+  auto* scroll_bar = verticalScrollBar();
+  if (scroll_bar == nullptr || scroll_bar->maximum() <= scroll_bar->minimum()) {
+    stop_auto_scroll();
+    return;
+  }
+  // Only at or past the edge: an eye in the first or last visible row must not
+  // start scrolling the moment the press moves.
+  constexpr int kSweepAutoScrollMargin = 4;
+  const auto x = visibility_sweep_pointer_.x();
+  const auto y = visibility_sweep_pointer_.y();
+  const bool over_list_width = x >= 0 && x < viewport()->width();
+  int direction = 0;
+  if (over_list_width && y < kSweepAutoScrollMargin && scroll_bar->value() > scroll_bar->minimum()) {
+    direction = -1;
+  } else if (over_list_width && y >= viewport()->height() - kSweepAutoScrollMargin &&
+             scroll_bar->value() < scroll_bar->maximum()) {
+    direction = 1;
+  }
+  if (direction == 0) {
+    stop_auto_scroll();
+    return;
+  }
+  auto_scroll_direction_ = direction;
+  if (!auto_scroll_timer_.isActive()) {
+    auto_scroll_timer_.start(90, this);
+  }
 }
 
 void LayerListWidget::end_visibility_sweep() {
@@ -408,7 +452,11 @@ void LayerListWidget::end_visibility_sweep() {
   visibility_sweep_min_x_ = 0;
   visibility_sweep_max_x_ = 0;
   visibility_sweep_last_viewport_pos_ = QPoint();
+  visibility_sweep_pointer_ = QPoint();
   visibility_swept_ids_.clear();
+  if (was_active) {
+    stop_auto_scroll();
+  }
   if (was_active && QWidget::mouseGrabber() == viewport()) {
     viewport()->releaseMouse();
   }
@@ -1723,11 +1771,20 @@ void LayerListWidget::apply_auto_scroll_step() {
     return;
   }
   const auto before = scroll_bar->value();
+  const auto first_row_top_before = count() > 0 ? visualItemRect(item(0)).top() : 0;
   const auto step = std::max(1, scroll_bar->singleStep());
   scroll_bar->setValue(std::clamp(before + auto_scroll_direction_ * step, scroll_bar->minimum(),
                                   scroll_bar->maximum()));
   if (scroll_bar->value() == before) {
     stop_auto_scroll();
+    return;
+  }
+  if (visibility_sweep_active_) {
+    // The rows moved under a still pointer: carry the last swept point with its
+    // content, then sweep to the pointer so every row scrolled past is crossed.
+    const auto first_row_top_after = count() > 0 ? visualItemRect(item(0)).top() : 0;
+    visibility_sweep_last_viewport_pos_.ry() += first_row_top_after - first_row_top_before;
+    sweep_visibility_to(visibility_sweep_pointer_);
     return;
   }
   update_drop_preview(last_drag_viewport_position_);

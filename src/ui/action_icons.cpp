@@ -206,14 +206,15 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
     painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);
     painter.drawLine(QPointF(13.0, 16.0), QPointF(19.0, 16.0));
   } else if (text == QStringLiteral("clip")) {
-    // Clipping mask: a bent arrow dropping onto the base layer's top edge.
-    QPainterPath arrow(QPointF(20.0, 6.5));
-    arrow.lineTo(20.0, 13.0);
-    arrow.quadTo(QPointF(20.0, 17.5), QPointF(15.5, 17.5));
-    arrow.lineTo(10.5, 17.5);
+    // Clipping mask: a bent arrow turning down onto the base layer's top edge,
+    // pointing at the layer below that the row clips to (#397).
+    QPainterPath arrow(QPointF(9.0, 8.5));
+    arrow.lineTo(15.5, 8.5);
+    arrow.quadTo(QPointF(20.0, 8.5), QPointF(20.0, 13.0));
+    arrow.lineTo(20.0, 20.5);
     painter.drawPath(arrow);
-    painter.drawLine(QPointF(10.5, 17.5), QPointF(14.0, 14.0));
-    painter.drawLine(QPointF(10.5, 17.5), QPointF(14.0, 21.0));
+    painter.drawLine(QPointF(20.0, 20.5), QPointF(16.5, 17.0));
+    painter.drawLine(QPointF(20.0, 20.5), QPointF(23.5, 17.0));
     painter.drawLine(QPointF(7.0, 24.5), QPointF(25.0, 24.5));
   } else if (text == QStringLiteral("default")) {
     painter.setBrush(Qt::black);
