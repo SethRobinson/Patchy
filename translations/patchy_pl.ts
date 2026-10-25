@@ -12605,6 +12605,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Obraz GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 kolumny</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 kolumny</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 kolumny</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Siatka 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Siatka 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Siatka 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 kolumn, odstęp 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25425,6 +25453,26 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Pokazuj powiadomienie Informacji o pliku o danych, których możesz nie chcieć udostępniać</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Odstęp:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Margines górny:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Dolny:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Margines lewy:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Prawy:</translation>
     </message>
 </context>
 <context>

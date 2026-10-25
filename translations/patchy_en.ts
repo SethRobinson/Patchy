@@ -12554,6 +12554,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>GIMP Image</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25270,6 +25298,26 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

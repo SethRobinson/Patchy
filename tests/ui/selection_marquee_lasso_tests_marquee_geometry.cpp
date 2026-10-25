@@ -2480,6 +2480,182 @@ void ui_pen_preferences_spin_buttons_visible_and_increment_on_right() {
   CHECK(saw_preferences);
 }
 
+// New Guide Layout (GitHub issue 403): every field shows its -/+ buttons in both
+// schemes, the presets fill the fields, and gutters and margins place the guides.
+void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
+  const QStringList keys{QStringLiteral("view/rulerUnits"),
+                         QStringLiteral("view/guideLayoutColumns"),
+                         QStringLiteral("view/guideLayoutRows"),
+                         QStringLiteral("view/guideLayoutColumnGutter"),
+                         QStringLiteral("view/guideLayoutRowGutter"),
+                         QStringLiteral("view/guideLayoutMarginTop"),
+                         QStringLiteral("view/guideLayoutMarginLeft"),
+                         QStringLiteral("view/guideLayoutMarginBottom"),
+                         QStringLiteral("view/guideLayoutMarginRight"),
+                         QStringLiteral("view/guideLayoutClearExisting")};
+  std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
+  {
+    auto settings = patchy::ui::app_settings();
+    for (const auto& key : keys) {
+      restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
+      if (key != QStringLiteral("view/rulerUnits")) {
+        settings.remove(key);
+      }
+    }
+  }
+  ColorSchemeRestorer restore_scheme;
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::create_document(window, 600, 300);
+  patchy::ui::MainWindowTestAccess::set_ruler_unit(window, patchy::ui::MeasurementUnit::Pixels);
+  (void)require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 600 && document.height() == 300);
+
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    bool saw_dialog = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      (void)capture_widget_artifact("ui_new_guide_layout_dialog_" + scheme, *dialog);
+      const auto spins = dialog->findChildren<QAbstractSpinBox*>();
+      CHECK(spins.size() >= 2);
+      for (auto* spin : spins) {
+        QStyleOptionSpinBox option;
+        option.initFrom(spin);
+        option.subControls = QStyle::SC_All;
+        const auto up_rect =
+            spin->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, spin);
+        const auto down_rect =
+            spin->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxDown, spin);
+        CHECK(spin->buttonSymbols() != QAbstractSpinBox::NoButtons);
+        CHECK(up_rect.width() >= 20 && up_rect.height() >= 20);
+        CHECK(down_rect.right() < up_rect.left());
+      }
+      saw_dialog = true;
+      dialog->reject();
+    });
+    require_action(window, "viewNewGuideLayoutAction")->trigger();
+    QApplication::processEvents();
+    CHECK(saw_dialog);
+  }
+  CHECK(document.guides().empty());
+
+  const auto positions = [&](patchy::GuideOrientation orientation) {
+    std::vector<double> out;
+    for (const auto& guide : document.guides()) {
+      if (guide.orientation == orientation) {
+        out.push_back(static_cast<double>(guide.position_32) / 32.0);
+      }
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+  };
+  const auto guides_match = [](const std::vector<double>& actual, const std::vector<double>& expected) {
+    if (actual.size() != expected.size()) {
+      return false;
+    }
+    for (std::size_t index = 0; index < actual.size(); ++index) {
+      if (std::abs(actual[index] - expected[index]) > 1.0 / 32.0) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // The 3 x 3 preset fills the fields.
+  bool saw_preset = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newGuideLayoutPresetCombo"));
+    auto* columns = dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutColumnsSpin"));
+    auto* rows = dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutRowsSpin"));
+    CHECK(preset != nullptr && columns != nullptr && rows != nullptr);
+    if (preset == nullptr || columns == nullptr || rows == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // The 2 x 2 default matches its preset.
+    CHECK(preset->currentData().toString() == QStringLiteral("guideLayout.2x2"));
+    const auto three = preset->findData(QStringLiteral("guideLayout.3x3"));
+    CHECK(three > 0);
+    CHECK(preset->findData(QStringLiteral("guideLayout.12columnsGutter")) > 0);
+    preset->setCurrentIndex(three);
+    CHECK(columns->value() == 3);
+    CHECK(rows->value() == 3);
+    saw_preset = true;
+    dialog->accept();
+  });
+  require_action(window, "viewNewGuideLayoutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_preset);
+  CHECK(guides_match(positions(patchy::GuideOrientation::Vertical), {200.0, 400.0}));
+  CHECK(guides_match(positions(patchy::GuideOrientation::Horizontal), {100.0, 200.0}));
+
+  // Reopened, the dialog remembers the layout; editing a field turns the preset to Custom.
+  bool saw_custom = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newGuideLayoutPresetCombo"));
+    auto* columns = dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutColumnsSpin"));
+    auto* column_gutter = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutColumnGutterSpin"));
+    auto* left = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutMarginLeftSpin"));
+    auto* right = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutMarginRightSpin"));
+    auto* top = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutMarginTopSpin"));
+    auto* bottom = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutMarginBottomSpin"));
+    auto* row_gutter = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutRowGutterSpin"));
+    auto* clear = dialog->findChild<QCheckBox*>(QStringLiteral("newGuideLayoutClearExistingCheck"));
+    CHECK(preset != nullptr && columns != nullptr && column_gutter != nullptr && left != nullptr &&
+          right != nullptr && top != nullptr && bottom != nullptr && row_gutter != nullptr && clear != nullptr);
+    if (preset == nullptr || columns == nullptr || column_gutter == nullptr || left == nullptr ||
+        right == nullptr || top == nullptr || bottom == nullptr || row_gutter == nullptr || clear == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(preset->currentData().toString() == QStringLiteral("guideLayout.3x3"));
+    CHECK(columns->value() == 3);
+    column_gutter->setValue(20.0);
+    CHECK(preset->currentData().toString().isEmpty());  // Custom
+    left->setValue(30.0);
+    right->setValue(30.0);
+    top->setValue(10.0);
+    bottom->setValue(0.0);
+    row_gutter->setValue(0.0);
+    clear->setChecked(true);
+    QApplication::processEvents();
+    save_widget_artifact("ui_new_guide_layout_dialog_custom", *dialog);
+    saw_custom = true;
+    dialog->accept();
+  });
+  require_action(window, "viewNewGuideLayoutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_custom);
+  // Columns: content 30..570, three cells of (540 - 40) / 3 px with 20 px gutters.
+  CHECK(guides_match(positions(patchy::GuideOrientation::Vertical),
+             {30.0, 30.0 + 500.0 / 3.0, 50.0 + 500.0 / 3.0, 50.0 + 1000.0 / 3.0, 70.0 + 1000.0 / 3.0, 570.0}));
+  // Rows: a 10 px top margin, then three cells over the remaining 290 px.
+  CHECK(guides_match(positions(patchy::GuideOrientation::Horizontal), {10.0, 10.0 + 290.0 / 3.0, 10.0 + 580.0 / 3.0}));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("view/guideLayoutColumnGutter")).toDouble() == 20.0);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("view/guideLayoutClearExisting")).toBool());
+  save_widget_artifact("ui_new_guide_layout_canvas", window);
+}
+
 }  // namespace
 
 // A typed physical unit in a pixel-only field (Feather, the Rectangle tool's
@@ -2576,5 +2752,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
       {"ui_pen_preferences_persist_and_apply", ui_pen_preferences_persist_and_apply},
       {"ui_pen_preferences_spin_buttons_visible_and_increment_on_right",
        ui_pen_preferences_spin_buttons_visible_and_increment_on_right},
+      {"ui_new_guide_layout_dialog_presets_gutters_and_margins",
+       ui_new_guide_layout_dialog_presets_gutters_and_margins},
   };
 }

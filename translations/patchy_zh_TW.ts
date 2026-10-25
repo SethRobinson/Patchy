@@ -12535,6 +12535,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>GIMP 影像</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 欄</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 欄</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 欄</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>2 x 2 格線</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>3 x 3 格線</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>4 x 4 格線</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 欄，間距 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25279,6 +25307,26 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>顯示檔案資訊中關於您可能不想分享之資訊的提示</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>間距:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>上邊界:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>下:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>左邊界:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>右:</translation>
     </message>
 </context>
 <context>

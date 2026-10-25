@@ -12570,6 +12570,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>GIMP-Bild</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 Spalten</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 Spalten</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 Spalten</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Raster 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Raster 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Raster 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 Spalten, 20 px Abstand</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25352,6 +25380,26 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Den Hinweis der Dateiinformationen zu Angaben anzeigen, die Sie vielleicht nicht teilen möchten</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Abstand:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Rand oben:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Unten:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Rand links:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Rechts:</translation>
     </message>
 </context>
 <context>

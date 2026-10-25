@@ -12570,6 +12570,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Imagen de GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 columnas</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 columnas</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 columnas</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Cuadrícula 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Cuadrícula 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Cuadrícula 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 columnas, medianil de 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25352,6 +25380,26 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostrar el aviso de Información de archivo sobre datos que quizá no quiera compartir</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Medianil:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Margen superior:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Inferior:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Margen izquierdo:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Derecho:</translation>
     </message>
 </context>
 <context>

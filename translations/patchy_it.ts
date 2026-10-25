@@ -12570,6 +12570,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Immagine GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 colonne</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 colonne</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 colonne</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Griglia 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Griglia 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Griglia 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 colonne, spaziatura 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25352,6 +25380,26 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostra l&apos;avviso di Informazioni file sui dati che potresti non voler condividere</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Spaziatura:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Margine superiore:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Inferiore:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Margine sinistro:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Destro:</translation>
     </message>
 </context>
 <context>
