@@ -14309,10 +14309,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>選取即可用灰階檢視。勾選可顯示彩色覆蓋。</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>按住 %CTRL% 並按一下,可將這個色版載入為選取範圍。</translation>
     </message>
@@ -14363,6 +14359,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+按一下可將此印版無油墨的區域載入為選取範圍。</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>選取即可用灰階檢視。按一下眼睛可顯示彩色覆蓋。</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>以彩色覆蓋顯示或隱藏此色版</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>顯示所有顏色色版</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>顯示或隱藏此色版。至少有一個色版保持可見。</translation>
     </message>
 </context>
 <context>
@@ -25279,6 +25291,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>顯示檔案資訊中關於您可能不想分享之資訊的提示</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>正在顯示色版：%1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>正在檢視色版：%1 (按一下即可結束)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>按一下即可重新顯示所有顏色色版。</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>顯示複合色版</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>顯示紅色或青色色版</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>顯示綠色或洋紅色版</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>顯示藍色或黃色色版</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>顯示黑色色版</translation>
     </message>
 </context>
 <context>

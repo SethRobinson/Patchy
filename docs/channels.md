@@ -13,6 +13,19 @@ Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask
 - Composite, Red, Green, and Blue rows are derived views of the rendered document. They are not stored channels and are read-only.
 - While the active canvas simulates the print (View > Proof Colors, or the document is in Image > Mode > CMYK Proof), Cyan, Magenta, Yellow and Black rows follow Blue: the ink plates of the working CMYK separation, read-only like the components ([cmyk.md](cmyk.md)). `CanvasWidget::is_component_preview` covers all seven views; every read-only gate uses it. Row lookups go by `RowKind`, never by position.
 
+## Channel visibility
+
+The Channels panel's eyes choose which color channels the canvas shows (GitHub issue 412). `ChannelView` (`core/channel_view.hpp`, Qt-free, tested by `channel_view_eyes_follow_the_composite_rules`) holds the rules; each `CanvasWidget` keeps its own view, so it is per document. It is a view only: it never changes pixels, pushes no undo step, marks nothing modified and is never saved.
+
+- Groups: Color (Red, Green, Blue) and Ink (the proof plates, only while they are listed). One group shows at a time; all of a group showing is the composite, all four plates included.
+- Every eye is on while the composite shows. Hiding a channel turns the Composite eye off. The last visible channel's eye does nothing. The Composite eye, the Composite row (also when already selected) and Ctrl+2 turn every channel on and target the composite.
+- Clicking a row (or Ctrl+3 to Ctrl+5: Red, Green, Blue; in a CMYK Proof document with plates listed, Ctrl+3 to Ctrl+6: Cyan, Magenta, Yellow, Black) shows that channel alone and targets it. Command ids `channel.view_composite`, `channel.view_first` to `channel.view_fourth`; the actions sit on the main window, so they work with any panel tab in front.
+- One channel left showing becomes the target. With two or more showing, the target stays when still shown, a composite target included (Color only: painting goes on into every channel with one hidden from view); otherwise it moves to the first visible channel. Component and plate targets stay read-only.
+- Display: one channel uses the existing grayscale component or plate view. Two colors draw the frame, then multiply the exposed document rect by the shown channels' color (`CompositionMode_Multiply`), so the cost follows screen pixels and every render path (stroke patches, drag previews) is covered; transparent areas tint the checkerboard. Two or three plates multiply each visible ink alone on paper (`plate_ink_colors_`, 256 levels per plate per working space), as New Layer from Channel Color stacks them.
+- Other targets: a layer, a layer mask or a saved channel overlay keeps a two-color view (`channel_view_for_target`); anything else resets to the composite. A saved alpha or spot channel shown alone in grayscale shows every color eye off; clicking a color eye then shows that channel alone. Saved channels' eyes are their overlay switch (what was the overlay checkbox). Quick Mask has no eye.
+- The status-bar chip names the visible channels ("Viewing channels: Red, Green") and returns to the composite when clicked.
+- Grayscale, CMYK and other non-RGB files open as RGB (features.md), so they show the Red, Green and Blue rows; a real single-channel document has no eyes to toggle.
+
 ## PSD and PSB layout
 
 The wire layout (final image-data plane order, the negative-layer-count merged-transparency marking, image-resource alignment for 1006/1045/1053/1007/1077, the 56-channel cap, and the byte-stable no-channel path) lives in the saved-channels section of [file-formats.md](file-formats.md). Model-side rule: the merged-transparency plane is never added to `Document::channels()`.
@@ -39,6 +52,7 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 - Brush/Eraser, Fill/Clear, Gradient, Line, Rectangle/Ellipse, and Invert share the grayscale edit path. Content-only operations stay disabled while a document channel is active.
 - Channel-only edits mark the document modified and participate in normal COW undo snapshots, but they do not invalidate the layer compositor. Only the dirty overlay and revision-keyed thumbnail are refreshed.
 - Nothing scans a full channel during repaint. Full-size grayscale and overlay images are built only when their target or revision changes.
+- The Composite, component and plate rows show real thumbnails (`MainWindow::refresh_derived_channel_thumbnails`): each thumbnail pixel averages 3x3 samples of the canvas's current composite over white, so the cost is fixed whatever the document size, and 16/32-bit documents read the already display-encoded composite. They are cached on the composite's `cacheKey` and the working space; a 120 ms timer retries while the canvas recomposites (document changes and finished strokes schedule it).
 - Ctrl-clicking a layer or layer-mask thumbnail keeps its exact soft alpha. Marching ants follow the 50% boundary, while saving the selection copies mask rows or hard-region spans directly instead of probing a complex region once per canvas pixel.
 - Save and Save As warn before a non-PSD/PSB format discards saved channels. Export is always an explicitly flattened operation and does not warn.
 

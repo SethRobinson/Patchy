@@ -14344,10 +14344,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>Auswählen für eine Graustufenansicht. Aktivieren, um eine farbige Überlagerung anzuzeigen.</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>%CTRL%+Klicken lädt diesen Kanal als Auswahl.</translation>
     </message>
@@ -14398,6 +14394,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%-Klick lädt die Bereiche ohne Farbe auf dieser Platte als Auswahl.</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>Auswählen für eine Graustufenansicht. Auf das Auge klicken, um eine farbige Überlagerung anzuzeigen.</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>Diesen Kanal als farbige Überlagerung ein- oder ausblenden</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>Alle Farbkanäle anzeigen</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>Diesen Kanal ein- oder ausblenden. Mindestens ein Kanal bleibt sichtbar.</translation>
     </message>
 </context>
 <context>
@@ -25352,6 +25364,42 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Den Hinweis der Dateiinformationen zu Angaben anzeigen, die Sie vielleicht nicht teilen möchten</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>Kanäle werden angezeigt: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>Kanäle werden angezeigt: %1 (zum Beenden klicken)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>Klicken Sie, um wieder alle Farbkanäle anzuzeigen.</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>Kompositkanal anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>Rot- oder Cyan-Kanal anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>Grün- oder Magenta-Kanal anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>Blau- oder Gelb-Kanal anzeigen</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>Schwarz-Kanal anzeigen</translation>
     </message>
 </context>
 <context>

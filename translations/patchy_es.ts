@@ -14344,10 +14344,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>Seleccione para ver en escala de grises. Marque para mostrar una superposición de color.</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>%CTRL%+clic para cargar este canal como selección.</translation>
     </message>
@@ -14398,6 +14394,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+clic carga como selección las zonas sin tinta de esta plancha.</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>Seleccione para ver en escala de grises. Haga clic en el ojo para mostrar una superposición de color.</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>Mostrar u ocultar este canal como superposición de color</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>Mostrar todos los canales de color</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>Mostrar u ocultar este canal. Al menos un canal permanece visible.</translation>
     </message>
 </context>
 <context>
@@ -25352,6 +25364,42 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostrar el aviso de Información de archivo sobre datos que quizá no quiera compartir</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>Mostrando canales: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>Viendo canales: %1 (haga clic para salir)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>Haga clic para volver a mostrar todos los canales de color.</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>Mostrar canal compuesto</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>Mostrar canal rojo o cian</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>Mostrar canal verde o magenta</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>Mostrar canal azul o amarillo</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>Mostrar canal negro</translation>
     </message>
 </context>
 <context>

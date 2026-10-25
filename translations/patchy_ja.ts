@@ -14309,10 +14309,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>選択するとグレースケールで表示します。チェックするとカラーオーバーレイを表示します。</translation>
-    </message>
-    <message>
         <source>Spot channels can be previewed but not edited.</source>
         <translation>スポットカラーチャンネルはプレビューできますが、編集はできません。</translation>
     </message>
@@ -14363,6 +14359,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+クリックで、この版のインキがない部分を選択範囲として読み込みます。</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>選択するとグレースケールで表示します。目のアイコンをクリックするとカラーオーバーレイを表示します。</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>このチャンネルをカラーオーバーレイとして表示または非表示</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>すべてのカラーチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>このチャンネルを表示または非表示にします。少なくとも 1 つのチャンネルは表示されたままです。</translation>
     </message>
 </context>
 <context>
@@ -25279,6 +25291,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>共有したくない可能性のある情報についてのファイル情報の通知を表示する</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>チャンネルを表示しています: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>チャンネルを表示中: %1（クリックして終了）</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>クリックするとすべてのカラーチャンネルを再び表示します。</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>コンポジットチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>レッドまたはシアンチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>グリーンまたはマゼンタチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>ブルーまたはイエローチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>ブラックチャンネルを表示</translation>
     </message>
 </context>
 <context>

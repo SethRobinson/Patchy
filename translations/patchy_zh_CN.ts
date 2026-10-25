@@ -14309,10 +14309,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>选择可查看灰度视图。勾选可显示彩色叠加。</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>按住 %CTRL% 单击可将此通道载入为选区。</translation>
     </message>
@@ -14363,6 +14359,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+单击可将此印版无油墨的区域载入为选区。</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>选择可查看灰度视图。单击眼睛可显示彩色叠加。</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>以彩色叠加显示或隐藏此通道</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>显示所有颜色通道</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>显示或隐藏此通道。至少有一个通道保持可见。</translation>
     </message>
 </context>
 <context>
@@ -25279,6 +25291,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>显示文件简介中有关您可能不想分享的信息的提示</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>，</translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>正在显示通道: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>正在查看通道: %1 (单击退出)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>单击可重新显示所有颜色通道。</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>显示复合通道</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>显示红色或青色通道</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>显示绿色或洋红通道</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>显示蓝色或黄色通道</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>显示黑色通道</translation>
     </message>
 </context>
 <context>
