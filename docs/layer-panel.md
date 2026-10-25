@@ -26,7 +26,8 @@ attach row widgets. The order is load-bearing: `setData`/`setToolTip` on an inse
 item emits `dataChanged` and layout work, and each `setItemWidget` editor index makes
 every LATER insert pay an update walk (interleaving goes quadratic). Never mutate an
 inserted item mid-rebuild or attach a row widget before the last item is in.
-Profiling: [performance.md](performance.md) (`layerpanel`, `manylayers`).
+Duplicate Layer adds only its copies' rows (`insert_duplicated_layer_rows`, #402).
+Profiling: [performance.md](performance.md) (`layerpanel`, `manylayers`, `duplicate`).
 
 New sessions build rows once. Their row-attachment callback pumps paints/timers
 with input excluded and the preview edit lock held; recursive rebuilds are refused.

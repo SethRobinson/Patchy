@@ -47,6 +47,8 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QTextCursor>
+#include <QTextEdit>
 #include <QTimer>
 
 #include <algorithm>
@@ -102,6 +104,8 @@ class MainWindowTestAccess {
   static void refresh_layer_list(MainWindow& window) { window.refresh_layer_list(); }
   static void edit_active_layer_style(MainWindow& window) { window.edit_active_layer_style(); }
   static void undo(MainWindow& window) { window.undo(); }
+  static void duplicate_active_layer(MainWindow& window) { window.duplicate_active_layer(); }
+  static void add_text_at(MainWindow& window, QPoint document_point) { window.add_text_at(document_point, QRect()); }
   static bool cmyk_proof(MainWindow& window) {
     return window.active_session() != nullptr && window.active_session()->cmyk_proof;
   }
@@ -2737,6 +2741,108 @@ void idle_new_document_perf() {
             << " presets=" << library.presets().size() << '\n';
 }
 
+// Ctrl+J over and over on a fresh document (GitHub issue 402: the UI lagged past about
+// 100 layers while the reporter duplicated a text layer). Each duplicate is timed as the
+// call itself plus the event loop and canvas settling after it, the way a held Ctrl+J
+// feels; the report gives the mean per bucket. PATCHY_PERF_DUP_COUNT (default 300) sets
+// how many copies, PATCHY_PERF_DUP_FILL=1 duplicates the full-canvas white Background
+// instead of a text layer, PATCHY_PERF_SAMPLER=1 samples the main thread per bucket.
+void duplicate_layer_perf() {
+  isolate_perf_settings();
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::new_document(window, 1920, 1080, 72.0);
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->fit_to_view();
+  const auto settle = [&] {
+    // A key press returns to exec(), which runs the rows the rebuild retired with
+    // deleteLater(); this loop has no exec(), so it delivers them itself.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QApplication::processEvents();
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 30.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  settle();
+  if (!qEnvironmentVariableIsSet("PATCHY_PERF_DUP_FILL")) {
+    patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(200, 120));
+    QApplication::processEvents();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    editor->textCursor().insertText(QStringLiteral("NOT FOR YOU"));
+    QApplication::processEvents();
+    send_key(*editor, Qt::Key_Return, Qt::ControlModifier);
+    settle();
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr ||
+          canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"))->property("patchy.textEditorFinished").toBool());
+  }
+  const auto count = qEnvironmentVariableIsSet("PATCHY_PERF_DUP_COUNT")
+                         ? std::max(10, qEnvironmentVariableIntValue("PATCHY_PERF_DUP_COUNT"))
+                         : 300;
+  const auto initial_layers = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size();
+  struct Bucket {
+    double call_ms{0.0};
+    double total_ms{0.0};
+    double worst_ms{0.0};
+    int samples{0};
+  };
+  Bucket bucket;
+#ifdef Q_OS_WIN
+  std::unique_ptr<MainThreadSampler> sampler;
+  const bool sample = qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER");
+  if (sample) {
+    sampler = std::make_unique<MainThreadSampler>();
+  }
+#endif
+  for (int index = 1; index <= count; ++index) {
+    const auto started = Clock::now();
+    patchy::ui::MainWindowTestAccess::duplicate_active_layer(window);
+    const auto call_ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    settle();
+    const auto total_ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    bucket.call_ms += call_ms;
+    bucket.total_ms += total_ms;
+    bucket.worst_ms = std::max(bucket.worst_ms, total_ms);
+    ++bucket.samples;
+    const bool report = index == 10 || index % 50 == 0 || index == count;
+    if (report) {
+      const auto layers = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size();
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] duplicate layers=" << layers
+                << " mean_call_ms=" << bucket.call_ms / bucket.samples
+                << " mean_total_ms=" << bucket.total_ms / bucket.samples << " worst_total_ms=" << bucket.worst_ms
+                << " samples=" << bucket.samples << '\n';
+#ifdef Q_OS_WIN
+      if (sampler) {
+        std::cout << "[SAMPLER_PHASE] duplicate up_to_" << layers << '\n';
+        sampler.reset();
+        if (index != count) {
+          sampler = std::make_unique<MainThreadSampler>();
+        }
+      }
+#endif
+      bucket = Bucket{};
+    }
+  }
+  CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size() ==
+        initial_layers + static_cast<std::size_t>(count));
+}
+
 // One stroke per brush size and hardness on a fresh A5 300 ppi document (GitHub issue
 // 135: lag grew with the brush size). Moves are 12 widget px apart, a brisk stroke, or 3 px
 // apart ("slow"), the short steps a high-rate mouse delivers.
@@ -3039,6 +3145,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
       run_scenario("liquifydrag", liquify_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "duplicate") {
+      run_scenario("duplicate", duplicate_layer_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {

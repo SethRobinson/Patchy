@@ -2047,6 +2047,24 @@ private:
   // and options-bar controls. Does nothing for a tool without those options.
   void apply_selection_edge_settings_for_tool(CanvasTool tool);
   void refresh_layer_list(bool retire_automation_rows = false, const std::function<void()>& progress = {});
+  // One Layers panel row's inputs, shared by the rebuild and the incremental insert.
+  struct LayerListRowSpec {
+    QListWidgetItem* item{nullptr};
+    const Layer* layer{nullptr};
+    int depth{0};
+    bool ancestors_visible{true};
+    bool group_expanded{true};
+    LayerLockFlags ancestor_lock_flags{kLayerLockNone};
+    bool row_clipped{false};
+    bool background_row{false};
+  };
+  [[nodiscard]] QString layer_list_item_tooltip(const LayerListRowSpec& row) const;
+  QListWidgetItem* make_layer_list_item(const LayerListRowSpec& row, std::optional<LayerId> active);
+  QWidget* make_layer_list_row_widget(const LayerListRowSpec& row, std::optional<LayerId> active,
+                                      LayerEditTarget edit_target, std::optional<LayerId> session_layer);
+  // Adds the rows for freshly duplicated layers without rebuilding the panel; false when
+  // the copies need a full refresh_layer_list instead (GitHub issue 402).
+  bool insert_duplicated_layer_rows(const std::vector<LayerId>& copy_ids_top_to_bottom);
   void refresh_layer_thumbnails();
   // Revision-keyed thumbnail pixmaps for the ACTIVE document's layer rows.
   // refresh_layer_list() destroys and rebuilds every row widget, so without

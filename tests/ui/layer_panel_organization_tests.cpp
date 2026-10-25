@@ -60,6 +60,7 @@
 #include <QToolButton>
 #include <QWidget>
 #include <algorithm>
+#include <map>
 #include <atomic>
 #include <array>
 #include <cstdint>
@@ -905,6 +906,171 @@ void ui_duplicate_layer_inserts_copies_above_source() {
   QApplication::processEvents();
   CHECK(rows() == before_multi);
   save_widget_artifact("ui_duplicate_layer_inserts_copies_above_source", window);
+}
+
+// GitHub issue 402: Duplicate Layer adds the copy's row without rebuilding the others,
+// the panel then matches a full rebuild, and the canvas repaints only where the copy
+// renders. A copy under a clipped layer still takes the full rebuild.
+void ui_duplicate_layer_adds_rows_without_rebuilding_the_panel() {
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document document(96, 64, format);
+  document.add_pixel_layer("Background", solid_pixels(96, 64, format, QColor(Qt::white)));
+  patchy::Layer sprite(document.allocate_layer_id(), "Sprite", solid_pixels(12, 10, format, QColor(255, 0, 0, 128)));
+  sprite.set_bounds(patchy::Rect{20, 14, 12, 10});
+  document.add_layer(std::move(sprite));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Inner", solid_pixels(8, 8, format, QColor(Qt::blue))));
+  document.add_layer(std::move(folder));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Base", solid_pixels(40, 30, format, QColor(0, 128, 0, 200))));
+  patchy::Layer clipped(document.allocate_layer_id(), "Clipped", solid_pixels(96, 64, format, QColor(Qt::yellow)));
+  clipped.set_clipped(true);
+  document.add_layer(std::move(clipped));
+
+  auto&& [window, initial_canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Duplicate Rows"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(canvas != nullptr);
+  if (layer_list == nullptr || canvas == nullptr) {
+    return;
+  }
+
+  struct RowState {
+    QString text;
+    int depth{0};
+    QString tooltip;
+    bool bold{false};
+    int check{0};
+    int height{0};
+    bool selected{false};
+    bool current{false};
+    bool operator==(const RowState&) const = default;
+  };
+  const auto row_states = [layer_list] {
+    std::vector<RowState> out;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      const auto* item = layer_list->item(row);
+      out.push_back(RowState{item->text(), item->data(patchy::ui::kLayerDepthRole).toInt(), item->toolTip(),
+                             item->font().bold(), static_cast<int>(item->checkState()), item->sizeHint().height(),
+                             item->isSelected(), item == layer_list->currentItem()});
+    }
+    return out;
+  };
+  const auto row_names = [layer_list] {
+    QStringList out;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      out << layer_list->item(row)->text();
+    }
+    return out;
+  };
+  const auto row_widgets = [layer_list] {
+    std::map<QString, QPointer<QWidget>> out;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      out[layer_list->item(row)->text()] = layer_list->itemWidget(layer_list->item(row));
+    }
+    return out;
+  };
+  const auto settle = [canvas] {
+    QApplication::processEvents();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    canvas->repaint();
+    QApplication::processEvents();
+  };
+  const auto duplicate = [&](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(item);
+    item->setSelected(true);
+    settle();
+    require_action(window, "layerDuplicateAction")->trigger();
+    settle();
+  };
+  const auto canvas_matches_full_render = [&] {
+    const auto patched = canvas->grab().toImage();
+    canvas->force_refresh();
+    settle();
+    return patched == canvas->grab().toImage();
+  };
+  const auto matches_rebuild = [&] {
+    const auto incremental = row_states();
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    settle();
+    return incremental == row_states();
+  };
+  const auto kept_rows = [&](const std::map<QString, QPointer<QWidget>>& before) {
+    const auto after = row_widgets();
+    return std::all_of(before.begin(), before.end(), [&after](const auto& entry) {
+      const auto found = after.find(entry.first);
+      return entry.second != nullptr && found != after.end() && found->second == entry.second;
+    });
+  };
+  settle();
+
+  // Placing the copy reads the tree: no other layer's revision may move, or every
+  // revision-keyed thumbnail and canvas cache is rebuilt on each duplicate.
+  const auto revisions = [&window] {
+    std::map<patchy::LayerId, std::uint64_t> out;
+    const auto collect = [&out](const auto& self, const std::vector<patchy::Layer>& layers) -> void {
+      for (const auto& layer : layers) {
+        out[layer.id()] = layer.render_revision();
+        self(self, layer.children());
+      }
+    };
+    collect(collect, std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers());
+    return out;
+  };
+
+  // A loose layer: one new row, every other row widget kept, and a partial canvas patch.
+  auto before = row_widgets();
+  const auto revisions_before = revisions();
+  auto diagnostics = canvas->render_cache_diagnostics();
+  duplicate(QStringLiteral("Sprite"));
+  const auto revisions_after = revisions();
+  CHECK(std::all_of(revisions_before.begin(), revisions_before.end(), [&revisions_after](const auto& entry) {
+    const auto found = revisions_after.find(entry.first);
+    return found != revisions_after.end() && found->second == entry.second;
+  }));
+  CHECK((row_names() == QStringList{QStringLiteral("Clipped"), QStringLiteral("Base"), QStringLiteral("Folder"),
+                                   QStringLiteral("Inner"), QStringLiteral("Sprite copy"), QStringLiteral("Sprite"),
+                                   QStringLiteral("Background")}));
+  CHECK(kept_rows(before));
+  CHECK(canvas->render_cache_diagnostics().full_refreshes == diagnostics.full_refreshes);
+  CHECK(canvas->render_cache_diagnostics().dirty_region_batches > diagnostics.dirty_region_batches);
+  CHECK(canvas_matches_full_render());
+  CHECK(layer_list->currentItem() != nullptr && layer_list->currentItem()->text() == QStringLiteral("Sprite copy"));
+  const auto framed_targets = [layer_list](const QString& name) {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, name));
+    const auto children = row != nullptr ? row->findChildren<QWidget*>() : QList<QWidget*>{};
+    return std::count_if(children.begin(), children.end(),
+                         [](const QWidget* child) { return child->property("layerTargetActive").toBool(); });
+  };
+  CHECK(framed_targets(QStringLiteral("Sprite")) == 0);
+  CHECK(framed_targets(QStringLiteral("Sprite copy")) > 0);
+  CHECK(matches_rebuild());
+
+  // Inside a folder: the copy keeps the depth and the folder's tooltip counts it.
+  before = row_widgets();
+  duplicate(QStringLiteral("Inner"));
+  CHECK(kept_rows(before));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Inner copy"))->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Folder"))->toolTip().contains(QStringLiteral("2 layers")));
+  CHECK(canvas_matches_full_render());
+  CHECK(matches_rebuild());
+
+  // A clipped layer above the source: the clipping run reattaches, so the panel rebuilds.
+  before = row_widgets();
+  duplicate(QStringLiteral("Base"));
+  CHECK(!kept_rows(before));
+  CHECK((row_names().mid(0, 3) ==
+         QStringList{QStringLiteral("Clipped"), QStringLiteral("Base copy"), QStringLiteral("Base")}));
+  CHECK(canvas_matches_full_render());
+  CHECK(matches_rebuild());
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  settle();
+  CHECK(!row_names().contains(QStringLiteral("Base copy")));
+  CHECK(canvas_matches_full_render());
 }
 
 void ui_copy_paste_layer_panel_copies_layers_and_folder_trees() {
@@ -5478,6 +5644,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_document_with_only_folders_opens_with_no_layer_selected},
       {"ui_duplicate_layer_copies_text_and_folder_trees", ui_duplicate_layer_copies_text_and_folder_trees},
       {"ui_duplicate_layer_inserts_copies_above_source", ui_duplicate_layer_inserts_copies_above_source},
+      {"ui_duplicate_layer_adds_rows_without_rebuilding_the_panel", ui_duplicate_layer_adds_rows_without_rebuilding_the_panel},
       {"ui_delete_layer_activates_the_layer_below", ui_delete_layer_activates_the_layer_below},
       {"ui_copy_paste_layer_panel_copies_layers_and_folder_trees",
        ui_copy_paste_layer_panel_copies_layers_and_folder_trees},

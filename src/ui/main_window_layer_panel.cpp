@@ -3811,21 +3811,11 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   // for the 622-row Affinity card template; batched, the item and insert
   // passes cost ~10 ms and the whole rebuild ~0.4 s, all of it genuine widget
   // construction and QSS polish). Pass 3 attaches the row widgets.
-  struct PendingLayerRow {
-    QListWidgetItem* item{nullptr};
-    const Layer* layer{nullptr};
-    int depth{0};
-    bool ancestors_visible{true};
-    bool group_expanded{true};
-    LayerLockFlags ancestor_lock_flags{kLayerLockNone};
-    bool row_clipped{false};
-    bool background_row{false};
-  };
   std::optional<LayerId> background_id;
   if (const auto* background = document_background_layer(); background != nullptr) {
     background_id = background->id();
   }
-  std::vector<PendingLayerRow> pending_rows;
+  std::vector<LayerListRowSpec> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
     for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
@@ -3833,8 +3823,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         continue;
       }
       const auto effective_visible = ancestors_visible && it->visible();
-      const auto direct_lock_flags = layer_lock_flags(*it);
-      const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
+      const auto effective_lock_flags = ancestor_lock_flags | layer_lock_flags(*it);
       const auto is_group = it->kind() == LayerKind::Group;
       // While filtering, shown groups are force-expanded for display only
       // (session collapse state untouched) so matches inside collapsed
@@ -3845,51 +3834,12 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
       const auto row_clipped =
           !is_group && it->clipped() && effective_clip_base(layers, sibling_index) != nullptr;
       const auto item_started = std::chrono::steady_clock::now();
-      auto* item = new QListWidgetItem(QString::fromStdString(it->name()));
-      item->setData(kLayerIdRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(it->id())));
-      item->setData(kLayerDepthRole, depth);
-      item->setData(kLayerIsGroupRole, is_group);
-      item->setData(kLayerGroupExpandedRole, group_expanded);
-      item->setFlags((item->flags() & ~Qt::ItemIsUserCheckable) | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
-      item->setCheckState(it->visible() ? Qt::Checked : Qt::Unchecked);
-      const auto folder_detail =
-          is_group ? tr("\nFolder with %1 layers%2")
-                         .arg(layer_descendant_count(*it))
-                         .arg(group_expanded ? QString() : tr("\nCollapsed"))
-                   : QString();
-      item->setToolTip(tr("%1\n%2% opacity%3%4%5%6%7%8")
-                           .arg(QString::fromStdString(it->name()))
-                           .arg(std::round(it->opacity() * 100.0F))
-                           .arg(!ancestors_visible
-                                    ? tr("\nHidden by parent folder")
-                                    : QString())
-                           .arg((effective_lock_flags & kLayerLockAll) != kLayerLockNone ? tr("\nLocked") : QString())
-                           .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
-                           .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
-                           .arg(folder_detail)
-                           .arg(row_clipped ? tr("\nClipped to the layer below") : QString()));
-      const auto* smart_filters = it->smart_filter_stack();
-      const auto smart_filters_expanded = !session().collapsed_smart_filters.contains(it->id());
-      const auto smart_filter_row_count =
-          smart_filters != nullptr
-              ? 1 + (smart_filters_expanded ? static_cast<int>(smart_filters->entries.size()) : 0)
-              : 0;
-      const auto effect_count = it->layer_style().effect_count();
-      const auto effects_expanded = session().expanded_layer_effects.contains(it->id());
-      const auto effect_row_count =
-          effect_count > 0 ? 1 + (effects_expanded ? static_cast<int>(effect_count) : 0) : 0;
-      item->setSizeHint(QSize(0, layer_main_row_height(layer_thumbnail_size_) +
-                                     26 * (smart_filter_row_count + effect_row_count)));
-      item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
-      if (active.has_value() && *active == it->id()) {
-        auto font = item->font();
-        font.setBold(true);
-        item->setFont(font);
-      }
       // The Background (core background_layer, GitHub issue 274) shows one lock badge.
       const auto background_row = depth == 0 && background_id.has_value() && it->id() == *background_id;
-      pending_rows.push_back(PendingLayerRow{item, &*it, depth, ancestors_visible, group_expanded,
-                                             ancestor_lock_flags, row_clipped, background_row});
+      LayerListRowSpec row{nullptr, &*it, depth, ancestors_visible, group_expanded,
+                           ancestor_lock_flags, row_clipped, background_row};
+      row.item = make_layer_list_item(row, active);
+      pending_rows.push_back(row);
       item_ms += phase_ms(item_started);
       if (is_group && group_expanded) {
         // Folders pass on their editing locks, not Prevent Auto-Nesting.
@@ -3909,148 +3859,11 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   }
   item_ms += phase_ms(insert_started);
   for (const auto& pending : pending_rows) {
-    const auto& layer = *pending.layer;
-    auto* item = pending.item;
-    const auto depth = pending.depth;
-    const auto ancestors_visible = pending.ancestors_visible;
-    const auto group_expanded = pending.group_expanded;
-    const auto ancestor_lock_flags = pending.ancestor_lock_flags;
-    const auto row_clipped = pending.row_clipped;
     const auto widget_started = std::chrono::steady_clock::now();
-    auto* row_widget = make_layer_row_widget(layer, item, layer_list_,
-                                      [this](const Layer& row_layer) {
-                                        return cached_layer_content_thumbnail(row_layer, document().width(),
-                                                                              document().height());
-                                      },
-                                      [this](const Layer& row_layer) {
-                                        return cached_layer_mask_thumbnail(row_layer, document().width(),
-                                                                           document().height());
-                                      },
-                                      depth, ancestors_visible, group_expanded, ancestor_lock_flags,
-                                      [this](LayerId layer_id, LayerFolderToggleScope scope) {
-                                        if (scope == LayerFolderToggleScope::All) {
-                                          toggle_all_layer_folders_expanded(layer_id);
-                                        } else {
-                                          toggle_layer_folder_expanded(
-                                              layer_id, scope == LayerFolderToggleScope::Branch);
-                                        }
-                                      },
-                                      [this](LayerId layer_id, bool linked) {
-        if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
-          document().set_active_layer(layer_id);
-          set_active_layer_mask_linked(linked);
-        }
-      },
-                                      active.has_value() && *active == layer.id() &&
-                                          edit_target == CanvasWidget::LayerEditTarget::Content,
-                                      active.has_value() && *active == layer.id() &&
-                                          edit_target == CanvasWidget::LayerEditTarget::Mask,
-                                      active.has_value() && *active == layer.id() &&
-                                          edit_target == CanvasWidget::LayerEditTarget::SmartFilterMask,
-                                      smart_filter_mask_document_editing_supported(
-                                          document().width(), document().height()),
-                                      [this](LayerId layer_id) {
-        if (!has_active_document()) {
-          return;
-        }
-        if (document().find_layer(layer_id) == nullptr) {
-          return;
-        }
-        // Badge clicks: the row is under the pointer, so the list must not scroll
-        // (GitHub issue 266).
-        const auto selected = selected_layer_ids();
-        if (std::find(selected.begin(), selected.end(), layer_id) != selected.end())
-          select_layers_in_layer_list(selected, layer_id, true);
-        else reveal_layer_in_layer_list(layer_id, true);
-        if (document().active_layer_id() != layer_id) document().set_active_layer(layer_id);
-        edit_active_layer_style();
-      },
-                                      [this](LayerId layer_id) {
-        if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
-          return;
-        }
-        reveal_layer_in_layer_list(layer_id, true);
-        if (document().active_layer_id() != layer_id) {
-          document().set_active_layer(layer_id);
-        }
-        open_smart_object_contents();
-      },
-                                      [this](LayerId layer_id) {
-        if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
-          return;
-        }
-        const auto selected = selected_layer_ids();
-        if (std::find(selected.begin(), selected.end(), layer_id) != selected.end())
-          select_layers_in_layer_list(selected, layer_id, true);
-        else reveal_layer_in_layer_list(layer_id, true);
-        if (document().active_layer_id() != layer_id) document().set_active_layer(layer_id);
-        edit_active_shape_appearance();
-      },
-                                      row_clipped,
-                                      [this](LayerId layer_id) {
-        if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
-          return;
-        }
-        reveal_layer_in_layer_list(layer_id, true);
-        if (document().active_layer_id() != layer_id) {
-          document().set_active_layer(layer_id);
-        }
-        toggle_active_layer_clipping();
-      },
-                                      [this](LayerId layer_id, bool enabled) {
-        set_smart_filter_stack_enabled(layer_id, enabled);
-      },
-                                      [this](LayerId layer_id, std::size_t execution_index,
-                                             bool enabled) {
-        set_smart_filter_enabled(layer_id, execution_index, enabled);
-      },
-                                      [this](LayerId layer_id, std::size_t execution_index) {
-        edit_smart_filter(layer_id, execution_index);
-      },
-                                      [this](LayerId layer_id, std::size_t execution_index) {
-        duplicate_smart_filter(layer_id, execution_index);
-      },
-                                      [this](LayerId layer_id, std::size_t execution_index,
-                                             int visual_direction) {
-        move_smart_filter(layer_id, execution_index, visual_direction);
-      },
-                                      [this](LayerId layer_id, std::size_t execution_index) {
-        delete_smart_filter(layer_id, execution_index);
-      },
-                                      [this](LayerId layer_id) { delete_smart_filter_stack(layer_id); },
-                                      active.has_value() && *active == layer.id() &&
-                                          edit_target == CanvasWidget::LayerEditTarget::VectorMask,
-                                      QSize(document().width(), document().height()),
-                                      [this](const Layer& row_layer) {
-                                        return layer_thumbnail_crop(row_layer);
-                                      },
-                                      pending.background_row,
-                                      [this](LayerId layer_id, bool visible) {
-                                        set_layer_effects_visible(layer_id, visible);
-                                      },
-                                      [this](LayerId layer_id, LayerStyleEffect effect, std::size_t index,
-                                             bool enabled) {
-                                        set_layer_effect_enabled(layer_id, effect, index, enabled);
-                                      },
-                                      [this](LayerId layer_id, LayerStyleEffect effect, std::size_t index) {
-                                        edit_layer_effect(layer_id, effect, index);
-                                      },
-                                      session().expanded_layer_effects.contains(layer.id()),
-                                      [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); },
-                                      !session().collapsed_smart_filters.contains(layer.id()),
-                                      [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); },
-                                      layer_thumbnail_size_);
+    auto* row_widget = make_layer_list_row_widget(pending, active, edit_target, session_layer);
     widget_ms += phase_ms(widget_started);
-    if (session_layer == layer.id() && layer_is_text(layer)) {
-      // The content tile above came without the badge; the tooltip has to agree.
-      if (auto* thumbnail = row_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
-          thumbnail != nullptr) {
-        thumbnail->setProperty(kLayerContentThumbnailFontBadgeHiddenProperty, true);
-        thumbnail->setToolTip(layer_content_thumbnail_tooltip(layer, false));
-      }
-    }
     const auto set_widget_started = std::chrono::steady_clock::now();
-    layer_list_->setItemWidget(item, row_widget);
+    layer_list_->setItemWidget(pending.item, row_widget);
     set_widget_ms += phase_ms(set_widget_started);
     if (progress) {
       progress();
@@ -4099,6 +3912,368 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
          << " set_widget_ms=" << set_widget_ms << " restyle_ms=" << restyle_ms
          << " widths_ms=" << widths_ms << " repaint_ms=" << repaint_ms << " paths_ms=" << paths_ms;
   log_ui_profile("refresh_layer_list", phase_ms(started), detail.str());
+}
+
+QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
+  const auto& layer = *row.layer;
+  const auto effective_lock_flags = row.ancestor_lock_flags | layer_lock_flags(layer);
+  const auto folder_detail =
+      layer.kind() == LayerKind::Group
+          ? tr("\nFolder with %1 layers%2")
+                .arg(layer_descendant_count(layer))
+                .arg(row.group_expanded ? QString() : tr("\nCollapsed"))
+          : QString();
+  return tr("%1\n%2% opacity%3%4%5%6%7%8")
+      .arg(QString::fromStdString(layer.name()))
+      .arg(std::round(layer.opacity() * 100.0F))
+      .arg(!row.ancestors_visible ? tr("\nHidden by parent folder") : QString())
+      .arg((effective_lock_flags & kLayerLockAll) != kLayerLockNone ? tr("\nLocked") : QString())
+      .arg(layer_locks_transparent_pixels(layer) ? tr("\nTransparent pixels locked") : QString())
+      .arg(layer.mask().has_value() ? tr("\nLayer mask") : QString())
+      .arg(folder_detail)
+      .arg(row.row_clipped ? tr("\nClipped to the layer below") : QString());
+}
+
+// Configures a row's item completely while it is still parentless (the rebuild's pass 1;
+// see refresh_layer_list for why nothing may be set on an inserted item).
+QListWidgetItem* MainWindow::make_layer_list_item(const LayerListRowSpec& row, std::optional<LayerId> active) {
+  const auto& layer = *row.layer;
+  const auto is_group = layer.kind() == LayerKind::Group;
+  const auto effective_visible = row.ancestors_visible && layer.visible();
+  auto* item = new QListWidgetItem(QString::fromStdString(layer.name()));
+  item->setData(kLayerIdRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.id())));
+  item->setData(kLayerDepthRole, row.depth);
+  item->setData(kLayerIsGroupRole, is_group);
+  item->setData(kLayerGroupExpandedRole, row.group_expanded);
+  item->setFlags((item->flags() & ~Qt::ItemIsUserCheckable) | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+  item->setCheckState(layer.visible() ? Qt::Checked : Qt::Unchecked);
+  item->setToolTip(layer_list_item_tooltip(row));
+  const auto* smart_filters = layer.smart_filter_stack();
+  const auto smart_filters_expanded = !session().collapsed_smart_filters.contains(layer.id());
+  const auto smart_filter_row_count =
+      smart_filters != nullptr
+          ? 1 + (smart_filters_expanded ? static_cast<int>(smart_filters->entries.size()) : 0)
+          : 0;
+  const auto effect_count = layer.layer_style().effect_count();
+  const auto effects_expanded = session().expanded_layer_effects.contains(layer.id());
+  const auto effect_row_count =
+      effect_count > 0 ? 1 + (effects_expanded ? static_cast<int>(effect_count) : 0) : 0;
+  item->setSizeHint(QSize(0, layer_main_row_height(layer_thumbnail_size_) +
+                                 26 * (smart_filter_row_count + effect_row_count)));
+  item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
+  if (active.has_value() && *active == layer.id()) {
+    auto font = item->font();
+    font.setBold(true);
+    item->setFont(font);
+  }
+  return item;
+}
+
+QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending, std::optional<LayerId> active,
+                                                CanvasWidget::LayerEditTarget edit_target,
+                                                std::optional<LayerId> session_layer) {
+  const auto& layer = *pending.layer;
+  auto* item = pending.item;
+  const auto depth = pending.depth;
+  const auto ancestors_visible = pending.ancestors_visible;
+  const auto group_expanded = pending.group_expanded;
+  const auto ancestor_lock_flags = pending.ancestor_lock_flags;
+  const auto row_clipped = pending.row_clipped;
+  auto* row_widget = make_layer_row_widget(layer, item, layer_list_,
+                                    [this](const Layer& row_layer) {
+                                      return cached_layer_content_thumbnail(row_layer, document().width(),
+                                                                            document().height());
+                                    },
+                                    [this](const Layer& row_layer) {
+                                      return cached_layer_mask_thumbnail(row_layer, document().width(),
+                                                                         document().height());
+                                    },
+                                    depth, ancestors_visible, group_expanded, ancestor_lock_flags,
+                                    [this](LayerId layer_id, LayerFolderToggleScope scope) {
+                                      if (scope == LayerFolderToggleScope::All) {
+                                        toggle_all_layer_folders_expanded(layer_id);
+                                      } else {
+                                        toggle_layer_folder_expanded(
+                                            layer_id, scope == LayerFolderToggleScope::Branch);
+                                      }
+                                    },
+                                    [this](LayerId layer_id, bool linked) {
+      if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
+        document().set_active_layer(layer_id);
+        set_active_layer_mask_linked(linked);
+      }
+    },
+                                    active.has_value() && *active == layer.id() &&
+                                        edit_target == CanvasWidget::LayerEditTarget::Content,
+                                    active.has_value() && *active == layer.id() &&
+                                        edit_target == CanvasWidget::LayerEditTarget::Mask,
+                                    active.has_value() && *active == layer.id() &&
+                                        edit_target == CanvasWidget::LayerEditTarget::SmartFilterMask,
+                                    smart_filter_mask_document_editing_supported(
+                                        document().width(), document().height()),
+                                    [this](LayerId layer_id) {
+      if (!has_active_document()) {
+        return;
+      }
+      if (document().find_layer(layer_id) == nullptr) {
+        return;
+      }
+      // Badge clicks: the row is under the pointer, so the list must not scroll
+      // (GitHub issue 266).
+      const auto selected = selected_layer_ids();
+      if (std::find(selected.begin(), selected.end(), layer_id) != selected.end())
+        select_layers_in_layer_list(selected, layer_id, true);
+      else reveal_layer_in_layer_list(layer_id, true);
+      if (document().active_layer_id() != layer_id) document().set_active_layer(layer_id);
+      edit_active_layer_style();
+    },
+                                    [this](LayerId layer_id) {
+      if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+        return;
+      }
+      reveal_layer_in_layer_list(layer_id, true);
+      if (document().active_layer_id() != layer_id) {
+        document().set_active_layer(layer_id);
+      }
+      open_smart_object_contents();
+    },
+                                    [this](LayerId layer_id) {
+      if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+        return;
+      }
+      const auto selected = selected_layer_ids();
+      if (std::find(selected.begin(), selected.end(), layer_id) != selected.end())
+        select_layers_in_layer_list(selected, layer_id, true);
+      else reveal_layer_in_layer_list(layer_id, true);
+      if (document().active_layer_id() != layer_id) document().set_active_layer(layer_id);
+      edit_active_shape_appearance();
+    },
+                                    row_clipped,
+                                    [this](LayerId layer_id) {
+      if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+        return;
+      }
+      reveal_layer_in_layer_list(layer_id, true);
+      if (document().active_layer_id() != layer_id) {
+        document().set_active_layer(layer_id);
+      }
+      toggle_active_layer_clipping();
+    },
+                                    [this](LayerId layer_id, bool enabled) {
+      set_smart_filter_stack_enabled(layer_id, enabled);
+    },
+                                    [this](LayerId layer_id, std::size_t execution_index,
+                                           bool enabled) {
+      set_smart_filter_enabled(layer_id, execution_index, enabled);
+    },
+                                    [this](LayerId layer_id, std::size_t execution_index) {
+      edit_smart_filter(layer_id, execution_index);
+    },
+                                    [this](LayerId layer_id, std::size_t execution_index) {
+      duplicate_smart_filter(layer_id, execution_index);
+    },
+                                    [this](LayerId layer_id, std::size_t execution_index,
+                                           int visual_direction) {
+      move_smart_filter(layer_id, execution_index, visual_direction);
+    },
+                                    [this](LayerId layer_id, std::size_t execution_index) {
+      delete_smart_filter(layer_id, execution_index);
+    },
+                                    [this](LayerId layer_id) { delete_smart_filter_stack(layer_id); },
+                                    active.has_value() && *active == layer.id() &&
+                                        edit_target == CanvasWidget::LayerEditTarget::VectorMask,
+                                    QSize(document().width(), document().height()),
+                                    [this](const Layer& row_layer) {
+                                      return layer_thumbnail_crop(row_layer);
+                                    },
+                                    pending.background_row,
+                                    [this](LayerId layer_id, bool visible) {
+                                      set_layer_effects_visible(layer_id, visible);
+                                    },
+                                    [this](LayerId layer_id, LayerStyleEffect effect, std::size_t index,
+                                           bool enabled) {
+                                      set_layer_effect_enabled(layer_id, effect, index, enabled);
+                                    },
+                                    [this](LayerId layer_id, LayerStyleEffect effect, std::size_t index) {
+                                      edit_layer_effect(layer_id, effect, index);
+                                    },
+                                    session().expanded_layer_effects.contains(layer.id()),
+                                    [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); },
+                                    !session().collapsed_smart_filters.contains(layer.id()),
+                                    [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); },
+                                    layer_thumbnail_size_);
+  if (session_layer == layer.id() && layer_is_text(layer)) {
+    // The content tile above came without the badge; the tooltip has to agree.
+    if (auto* thumbnail = row_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+        thumbnail != nullptr) {
+      thumbnail->setProperty(kLayerContentThumbnailFontBadgeHiddenProperty, true);
+      thumbnail->setToolTip(layer_content_thumbnail_tooltip(layer, false));
+    }
+  }
+  return row_widget;
+}
+
+// Duplicate Layer adds rows without rebuilding the others (GitHub issue 402): a full
+// rebuild constructs and attaches every row widget, about a millisecond per row, so
+// holding Ctrl+J slowed down as the stack grew. The copies must be one contiguous run
+// of non-folder layers directly above an existing row; the rows around them are
+// unchanged by the insert as long as no clipping run is involved, so anything else
+// (folders, clipping, the name filter, rows hidden in collapsed folders) returns false
+// and the caller rebuilds.
+bool MainWindow::insert_duplicated_layer_rows(const std::vector<LayerId>& copy_ids_top_to_bottom) {
+  if (layer_list_ == nullptr || updating_layer_list_ || !has_active_document() ||
+      copy_ids_top_to_bottom.empty()) {
+    return false;
+  }
+  if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
+    return false;
+  }
+  const auto started = std::chrono::steady_clock::now();
+  const auto& doc = std::as_const(document());
+  const auto location = find_layer_location(doc.layers(), copy_ids_top_to_bottom.back());
+  if (!location.has_value()) {
+    return false;
+  }
+  const auto& siblings = *location->siblings;
+  const auto bottom_index = location->index;
+  const auto run = copy_ids_top_to_bottom.size();
+  if (bottom_index == 0 || bottom_index + run > siblings.size()) {
+    return false;
+  }
+  // The copies sit at bottom_index .. bottom_index + run - 1, bottom to top.
+  for (std::size_t offset = 0; offset < run; ++offset) {
+    const auto& copy = siblings[bottom_index + offset];
+    if (copy.id() != copy_ids_top_to_bottom[run - 1 - offset] || copy.kind() == LayerKind::Group ||
+        copy.clipped()) {
+      return false;
+    }
+  }
+  if (bottom_index + run < siblings.size() && siblings[bottom_index + run].clipped()) {
+    return false;
+  }
+  auto* below_item = layer_row_item(*layer_list_, siblings[bottom_index - 1].id());
+  if (below_item == nullptr) {
+    return false;
+  }
+  // Ancestors outermost first: the rebuild's visibility and lock inheritance.
+  std::vector<LayerId> ancestor_ids;
+  if (!collect_layer_ancestor_groups(doc.layers(), copy_ids_top_to_bottom.back(), ancestor_ids)) {
+    return false;
+  }
+  std::reverse(ancestor_ids.begin(), ancestor_ids.end());
+  const auto depth = static_cast<int>(ancestor_ids.size());
+  if (below_item->data(kLayerDepthRole).toInt() != depth) {
+    return false;
+  }
+  struct AncestorRow {
+    LayerListRowSpec spec;
+    QListWidgetItem* item{nullptr};
+  };
+  std::vector<AncestorRow> ancestor_rows;
+  bool ancestors_visible = true;
+  LayerLockFlags ancestor_lock_flags = kLayerLockNone;
+  for (std::size_t level = 0; level < ancestor_ids.size(); ++level) {
+    const auto* ancestor = doc.find_layer(ancestor_ids[level]);
+    auto* item = ancestor != nullptr ? layer_row_item(*layer_list_, ancestor->id()) : nullptr;
+    if (item == nullptr) {
+      return false;
+    }
+    // A folder's own row is never clipped, and only an open folder shows child rows.
+    ancestor_rows.push_back(AncestorRow{
+        LayerListRowSpec{nullptr, ancestor, static_cast<int>(level), ancestors_visible, true,
+                         ancestor_lock_flags, false, false},
+        item});
+    ancestors_visible = ancestors_visible && ancestor->visible();
+    ancestor_lock_flags = (ancestor_lock_flags | layer_lock_flags(*ancestor)) & kLayerLockAll;
+  }
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    background_id = background->id();
+  }
+
+  const auto scroll_value = layer_list_->verticalScrollBar() != nullptr ? layer_list_->verticalScrollBar()->value() : 0;
+  const auto horizontal_scroll_value =
+      layer_list_->horizontalScrollBar() != nullptr ? layer_list_->horizontalScrollBar()->value() : 0;
+  updating_layer_list_ = true;
+  if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
+    list->cancel_inline_rename();
+  }
+  QSignalBlocker blocker(layer_list_);
+  layer_list_->setUpdatesEnabled(false);
+  const auto active = doc.active_layer_id();
+  const auto edit_target =
+      canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
+  // The rebuild's pass order on a small scale: configure the parentless items, insert
+  // them all, then attach the row widgets.
+  std::vector<LayerListRowSpec> rows;
+  rows.reserve(run);
+  for (std::size_t offset = run; offset-- > 0;) {
+    const auto& copy = siblings[bottom_index + offset];
+    LayerListRowSpec row{nullptr, &copy, depth, ancestors_visible, true, ancestor_lock_flags, false,
+                         depth == 0 && background_id.has_value() && copy.id() == *background_id};
+    row.item = make_layer_list_item(row, active);
+    rows.push_back(row);
+  }
+  const auto first_row = layer_list_->row(below_item);
+  for (std::size_t index = 0; index < rows.size(); ++index) {
+    layer_list_->insertItem(first_row + static_cast<int>(index), rows[index].item);
+  }
+  const auto session_layer = live_text_session_layer_id();
+  for (const auto& row : rows) {
+    layer_list_->setItemWidget(row.item, make_layer_list_row_widget(row, active, edit_target, session_layer));
+  }
+  // The old active row still frames its edit target.
+  update_layer_target_styles(layer_list_, active, edit_target);
+  // What the rebuild derives from the whole tree: the bold active item, the folders'
+  // layer counts in their tooltips, and the current row.
+  int active_row = -1;
+  for (int index = 0; index < layer_list_->count(); ++index) {
+    auto* item = layer_list_->item(index);
+    const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    const bool bold = active.has_value() && *active == id;
+    if (bold) {
+      active_row = index;
+    }
+    if (item->font().bold() != bold) {
+      auto font = item->font();
+      font.setBold(bold);
+      item->setFont(font);
+    }
+  }
+  for (const auto& ancestor : ancestor_rows) {
+    ancestor.item->setToolTip(layer_list_item_tooltip(ancestor.spec));
+  }
+  if (auto* selection_model = layer_list_->selectionModel(); selection_model != nullptr) {
+    if (active_row >= 0) {
+      selection_model->setCurrentIndex(layer_list_->model()->index(active_row, 0),
+                                       QItemSelectionModel::ClearAndSelect);
+    } else {
+      selection_model->clear();
+    }
+  }
+  updating_layer_list_ = false;
+  if (canvas_ != nullptr) {
+    canvas_->set_selected_layer_ids(selected_layer_ids());
+  }
+  restyle_layer_rows(layer_list_);
+  if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
+    list->refresh_row_widths();
+  }
+  if (auto* scroll_bar = layer_list_->verticalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
+  if (auto* scroll_bar = layer_list_->horizontalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(horizontal_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
+  layer_list_->setUpdatesEnabled(true);
+  layer_list_->viewport()->update();
+  refresh_paths_panel();
+  std::ostringstream detail;
+  detail << "rows=" << layer_list_->count() << " inserted=" << rows.size();
+  log_ui_profile("insert_duplicated_layer_rows",
+                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(),
+                 detail.str());
+  return true;
 }
 
 std::optional<Rect> MainWindow::layer_thumbnail_crop(const Layer& layer) const {

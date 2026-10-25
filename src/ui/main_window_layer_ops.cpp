@@ -2252,9 +2252,30 @@ std::vector<LayerId> MainWindow::duplicate_layers(std::vector<LayerId> ids) {
     copy_ids_top_to_bottom.insert(copy_ids_top_to_bottom.begin(), id);
   }
   doc.set_active_layer(copy_ids_top_to_bottom.front());
-  refresh_layer_list();
+  if (!insert_duplicated_layer_rows(copy_ids_top_to_bottom)) {
+    refresh_layer_list();
+  }
   refresh_layer_controls();
-  canvas_->document_changed();
+  // A copy changes the composite only where it renders; a full refresh would
+  // recomposite every layer per duplicate (GitHub issue 402). Folders, adjustments
+  // and Smart Filter stacks reach past their own bounds, so they take the full path.
+  QRegion copies_region;
+  const bool copies_bounded = std::all_of(
+      copy_ids_top_to_bottom.begin(), copy_ids_top_to_bottom.end(), [&](LayerId id) {
+        const auto* copy = std::as_const(doc).find_layer(id);
+        if (copy == nullptr || copy->smart_filter_stack() != nullptr ||
+            (copy->kind() != LayerKind::Pixel && copy->kind() != LayerKind::Text &&
+             copy->kind() != LayerKind::Vector)) {
+          return false;
+        }
+        copies_region += to_qrect(layer_render_bounds(*copy));
+        return true;
+      });
+  if (copies_bounded && !copies_region.isEmpty()) {
+    canvas_->document_changed_effect_bounds(copies_region);
+  } else {
+    canvas_->document_changed();
+  }
   select_layers_in_layer_list(copy_ids_top_to_bottom, copy_ids_top_to_bottom.front());
   // A duplicated artboard does not sit on its original: it goes beside the others.
   if (std::any_of(copy_ids_top_to_bottom.begin(), copy_ids_top_to_bottom.end(), [&doc](LayerId id) {
