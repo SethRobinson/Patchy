@@ -45,6 +45,12 @@ public:
   QSize minimumSize() const override;
   void invalidate() override;
 
+  // Centers the rows in a rect taller than they need and each control on its row's
+  // middle, so the gap above the controls equals the gap below and a 24 px label
+  // sits on a 26 px field's line (the Options bar; GitHub issue 409). Off: rows and
+  // controls start at the top.
+  void set_center_rows(bool center) { center_rows_ = center; }
+
   // Every tool's row: the widgets each tool shows, in no particular order (the
   // layout keeps its own item order). Hidden widgets are measured too.
   void set_rows(std::vector<QSet<QWidget*>> rows);
@@ -68,6 +74,7 @@ private:
   QList<QLayoutItem*> items_;
   int horizontal_spacing_;
   int vertical_spacing_;
+  bool center_rows_ = false;
   std::vector<QSet<QWidget*>> rows_;
   mutable int cached_width_ = -1;
   mutable RowsMeasure cached_measure_;

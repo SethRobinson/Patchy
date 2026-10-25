@@ -114,10 +114,14 @@ QString photoshop_style_template() {
       min-width: 26px;
       min-height: 26px;
     }
+    /* 20 px content, 2 px padding and the border: 26 px, the bar's field height, so a
+       row of icon buttons centers on the strip like the fields (GitHub issue 409).
+       QStyleSheetStyle inflated the old 16 px minimum to 27 px. */
     QToolButton[optionsBarButton="true"] {
       padding: 2px;
       min-width: 18px;
-      min-height: 16px;
+      min-height: 20px;
+      max-height: 20px;
     }
     /* The tip picker reads as a field with a dropdown chevron, like the Artboard bar's
        preset picker; BrushTipPicker::paintEvent draws the thumbnail, name and chevron. */
@@ -613,7 +617,10 @@ QString photoshop_style_template() {
       border: 1px solid @status_field_border;
       border-radius: 3px;
       padding: 0 5px;
-      min-height: 16px;
+      /* 17 px, so the 19 px zoom group leaves an even split in the 39 px status
+         bar: the same gap above and below (GitHub issue 409). */
+      min-height: 17px;
+      max-height: 17px;
       font-size: 11px;
     }
     QLineEdit#statusZoomEdit:focus {
@@ -633,8 +640,8 @@ QString photoshop_style_template() {
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0 1px;
-      min-height: 16px;
-      max-height: 16px;
+      min-height: 17px;
+      max-height: 17px;
       min-width: 0;
       font-size: 11px;
     }
