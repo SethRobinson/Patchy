@@ -1396,6 +1396,11 @@ public:
   // Move outline of the active layer that is not a shape or a group (Free
   // Transform); same contract.
   void set_layer_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // The path commands the host appends to the path tools' right-click menu
+  // (Fill Path, Stroke Path, Make Selection, ...; GitHub issue 396); same
+  // contract. Called while the menu is built, so the host may target the
+  // menu's path in the Paths panel first.
+  void set_path_context_actions_callback(std::function<QList<QAction*>()> callback);
   // Blocking refusals (the tool action did NOT happen) report through this
   // callback so the host can present them as errors; unset, they fall back to
   // the plain status callback.
@@ -3882,6 +3887,7 @@ private:
   std::function<QList<QAction*>()> zoom_tool_context_actions_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;
   std::function<QList<QAction*>()> layer_context_actions_callback_;
+  std::function<QList<QAction*>()> path_context_actions_callback_;
   bool vector_preview_enabled_{false};
   std::optional<std::pair<LayerId, QTransform>> vector_preview_transform_key_;
   // The transform scene's document, kept for the pixel grid's tones: the render cache still

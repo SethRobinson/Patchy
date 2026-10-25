@@ -334,6 +334,27 @@ void MainWindow::target_document_path_row(DocumentPathId id) {
   refresh_paths_panel();
 }
 
+void MainWindow::target_canvas_path_in_paths_panel() {
+  if (canvas_ == nullptr || paths_panel_ == nullptr || !has_active_document() ||
+      paths_panel_->selected_row().has_value()) {
+    return;
+  }
+  const auto* target = canvas_->path_edit_target_path();
+  if (target == nullptr) {
+    return;
+  }
+  if (const auto* work = document().work_path(); work != nullptr && target == &work->path()) {
+    target_document_path_row(work->id());
+    return;
+  }
+  // The active layer's shape, vector-mask or text-boundary path: a dismissed
+  // row comes back, auto-targeted.
+  if (path_row_hidden_for_layer_.has_value()) {
+    path_row_hidden_for_layer_.reset();
+    refresh_paths_panel();
+  }
+}
+
 void MainWindow::handle_paths_panel_target(int kind, DocumentPathId id) {
   if (canvas_ == nullptr) {
     return;

@@ -1070,4 +1070,8 @@ void CanvasWidget::set_layer_context_actions_callback(std::function<QList<QActio
   layer_context_actions_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_path_context_actions_callback(std::function<QList<QAction*>()> callback) {
+  path_context_actions_callback_ = std::move(callback);
+}
+
 }  // namespace patchy::ui

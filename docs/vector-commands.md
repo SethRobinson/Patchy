@@ -56,9 +56,8 @@ cursor badge (`apply_pen_cursor`, which returns the badge it showed), the
 click editor (`apply_pen_hover_edit`, shared by the Pen click, the anchor
 tools, and the context menu; undo labels "Add anchor", "Delete anchor",
 "Convert point"), and the hover hint. `pen_family_tool_active()` covers the
-Pen plus the three anchor tools everywhere the Pen's handlers dispatch;
-`path_edit_tool_active()` includes them so anchors draw and the selection
-keys work.
+Pen and the three anchor tools wherever the Pen's handlers dispatch;
+`path_edit_tool_active()` includes them (anchors draw, selection keys work).
 
 ## Auto Add/Delete (Pen options bar)
 
@@ -77,42 +76,37 @@ no default keys; actions `toolAddAnchorAction` etc.; icons
 fixed badge, performs its one edit on a hit, and does nothing on a miss:
 never a session, never a close. Ctrl still latches Direct Select. Switching
 from a live Pen session to an anchor tool commits the path like any tool
-switch. The flyout button is `penToolButton` (menu `penToolMenu`); P
-re-selects the Pen and swaps it back onto the button.
+switch. Flyout button `penToolButton` (menu `penToolMenu`); P re-selects
+the Pen and puts it back on the button.
 
 ## Selection keys under the Pen family
 
-`handle_path_edit_key` lets the Pen family own Delete/Backspace (remove the
-Ctrl-selected anchors) and Escape (clear the selection) once anchors are
-selected; arrows stay with the app hotkeys. `CanvasWidget::event` accepts
+`handle_path_edit_key` gives the Pen family Delete/Backspace (remove the
+Ctrl-selected anchors) and Escape (deselect) once anchors are selected;
+arrows stay with the app hotkeys. `CanvasWidget::event` accepts
 the Delete/Backspace ShortcutOverride for every path tool with a selection
 so `layer.clear` does not fire. Starting a Pen session clears a leftover
 selection.
 
 ## Hints
 
-- Activation: picking a path tool (or Move or Crop) shows a one-sentence
-  gesture hint in the status bar (`tool_activation_hint_source`,
-  main_window_actions_tool_palette.cpp); other tools show their name. The
-  same tools get a second tooltip line (`tool_tooltip_detail_source`, stored
-  as `kActionTooltipDetailProperty` and composed under "Name (Key)" by the
-  hotkey registry).
-- Hover: `update_path_hover_hint` (Pen family: add/delete/convert/close) and
-  `update_path_select_hover_hint` (Path/Direct Select: anchor, handle,
-  segment) emit through the status callback only on the transition INTO an
-  actionable state and never on the way back, so confirmations shown by
-  other code survive mouse motion. `set_tool` resets the memory.
-- Every path-tool hint lives in the status bar; the options bar carries no
-  gesture label. The activation and hover hints name the Ctrl-drag
-  select/move gesture.
-- Point count: `pathPointCountChip` (a permanent status-bar QLabel next to
-  the mask/palette chips, so it survives `showMessage`) shows "%n points
-  selected" once two or more anchors are selected under a per-point tool
-  (Direct Select and the Pen family's Ctrl latch, not Path Select).
-  Refreshed by `refresh_path_point_count_chip` (main_window_vector.cpp) from
-  `set_path_selection_changed_callback` (fired from every mutation of
-  `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects)
-  and from every options-bar refresh (tool switches).
+- Activation: a path tool (or Move or Crop) shows a one-sentence gesture
+  hint in the status bar (`tool_activation_hint_source`,
+  main_window_actions_tool_palette.cpp), other tools their name; the same
+  tools get a second tooltip line (`tool_tooltip_detail_source`,
+  `kActionTooltipDetailProperty`).
+- Hover: `update_path_hover_hint` (Pen family) and
+  `update_path_select_hover_hint` (Path/Direct Select) emit only on the
+  transition INTO an actionable state, so other code's confirmations survive
+  mouse motion. `set_tool` resets the memory.
+- Every path-tool hint lives in the status bar (none in the options bar);
+  the activation and hover hints name the Ctrl-drag gesture.
+- Point count: `pathPointCountChip` (a permanent status-bar QLabel, so it
+  survives `showMessage`) shows "%n points selected" for two or more anchors
+  under Direct Select or the Pen's Ctrl latch (not Path Select).
+  `refresh_path_point_count_chip` (main_window_vector.cpp) runs from
+  `set_path_selection_changed_callback` (every change to
+  `path_selected_anchors_`) and every options-bar refresh.
 
 ## Tool roles
 
@@ -293,9 +287,14 @@ Select, whose selection is whole shapes; it is the Delete key's
 [Deleting the last shape](#deleting-the-last-shape)), then Free Transform Points (Direct Select with a
 selection) or Free Transform Path, enabled for Path/Direct Select only (the
 Pen family sees it disabled and keeps falling through to the layer
-transform). The menu uses the RAW hit, so it works with Auto Add/Delete off
-and under the anchor tools. No menu with no target path, during a Pen
-session, or in a path transform.
+transform). Then the Paths panel's QActions (`set_path_context_actions_callback`,
+issue 396): Make Selection | Fill, Stroke | Simplify | Duplicate, Delete Path.
+They act on the panel's row, so the callback first runs
+`target_canvas_path_in_paths_panel` (no row targeted: target the edited path's
+row); `set_active_document_path` keeps the point selection when the edited path
+stays the same (`ui_path_context_menu_offers_paths_panel_commands`). The menu uses the RAW hit,
+so it works with Auto Add/Delete off and under the anchor tools. No menu with
+no target path, during a Pen session, or in a path transform.
 
 ## Deleting the last shape
 

@@ -2374,6 +2374,80 @@ void ui_path_menu_delete_last_shape_removes_the_layer() {
   CHECK(anchor_count(document, layer_id) == 4);
 }
 
+// GitHub issue 396: the path tools' right-click menu also offers the Paths
+// panel's commands for the path (the panel's own QActions), and works when no
+// panel row is targeted: it targets the path under the tools first, keeping its
+// point selection.
+void ui_path_context_menu_offers_paths_panel_commands() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  CHECK(document.work_path() != nullptr);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->active_document_path().has_value());  // drawing targets the work path row
+
+  static constexpr std::array<const char*, 6> kCommands{
+      "pathMakeSelectionAction", "pathFillAction",      "pathStrokeAction",
+      "pathSimplifyAction",      "pathDuplicateAction", "pathDeleteAction"};
+  with_path_context_menu([&](QMenu& menu) {
+    CHECK(menu.actions().front()->objectName() == QStringLiteral("pathMenuAddAnchorAction"));
+    for (const auto* name : kCommands) {
+      auto* action = require_menu_action(menu, name);
+      CHECK(action != nullptr && action->isEnabled());
+      CHECK(action == window.findChild<QAction*>(QLatin1String(name)));  // the panel's own action
+    }
+    save_window_popup_artifact("issue_396_path_menu", window, *canvas, menu);
+    // Fill Path from the menu opens its dialog and paints the path.
+    canvas->set_primary_color(QColor(30, 160, 40));
+    QTimer::singleShot(0, [] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"))->setCurrentIndex(0);
+      dialog->findChild<QSpinBox*>(QStringLiteral("fillPathOpacitySpin"))->setValue(100);
+      dialog->accept();
+    });
+    require_menu_action(menu, "pathFillAction")->trigger();
+  });
+  open_path_menu_at(*canvas, QPoint(200, 100));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), QColor(30, 160, 40), 8));
+
+  // No row targeted: the tools still edit the work path, and the menu targets
+  // its row so the commands apply, without dropping the point selection.
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
+             QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas->active_document_path().has_value());
+  CHECK(!window.findChild<QAction*>(QStringLiteral("pathFillAction"))->isEnabled());
+  pen_click(*canvas, QPoint(100, 220));
+  CHECK(canvas->path_edit_has_selection());
+  with_path_context_menu([](QMenu& menu) {
+    for (const auto* name : kCommands) {
+      CHECK(require_menu_action(menu, name)->isEnabled());
+    }
+    CHECK(require_menu_action(menu, "pathMenuDeleteSelectedAction")->isEnabled());
+  });
+  open_path_menu_at(*canvas, QPoint(500, 400));
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(canvas->path_edit_has_selection());
+}
+
 // Pen Ctrl latch (Seth on GitHub issue 248): a point selected with Ctrl+click keeps
 // its handle knobs on screen after the mouse button comes up, Ctrl still held, and
 // after Ctrl comes up too, as long as it stays selected, so the user can see where
@@ -2760,6 +2834,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_pen_deletes_ctrl_selected_anchors_with_delete_key",
        ui_pen_deletes_ctrl_selected_anchors_with_delete_key},
       {"ui_path_context_menu_edits_anchors", ui_path_context_menu_edits_anchors},
+      {"ui_path_context_menu_offers_paths_panel_commands", ui_path_context_menu_offers_paths_panel_commands},
       {"ui_anchor_tools_share_pen_flyout_and_edit_points",
        ui_anchor_tools_share_pen_flyout_and_edit_points},
       {"ui_shape_layer_activation_drops_stale_path_target",

@@ -1733,6 +1733,10 @@ private:
   // The one targeting sink: records the id, clears any dismissed-row state,
   // syncs the canvas, and refreshes the panel (row highlight + overlay).
   void target_document_path_row(patchy::DocumentPathId id);
+  // Before the canvas path menu opens: with no Paths panel row targeted, targets
+  // the row of the path the path tools edit, so the menu's path commands
+  // (which act on the panel's row) apply to the path under the pointer.
+  void target_canvas_path_in_paths_panel();
   void rename_document_path(patchy::DocumentPathId id, const QString& name);
   [[nodiscard]] QString unique_saved_path_name();
   void save_work_path_as_named();
