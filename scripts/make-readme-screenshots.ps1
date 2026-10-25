@@ -34,7 +34,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $outDir = Join-Path $repo 'docs\images\screenshots'
-$buildDir = Join-Path $repo 'build\release'
+$buildDir = Join-Path $repo 'build\opt-dev'
 
 # DWM rounds every window Patchy frames itself, but it clips in the compositor
 # (src/ui/window_effects.cpp, DWMWCP_ROUND), so a grabbed window is square. The
@@ -139,7 +139,7 @@ $runOffscreen = $runAll -or -not $jsScenes.Contains($sceneName)
 if (-not $SkipBuild) {
     Push-Location $repo
     try {
-        cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && scripts\run-throttled.bat "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release -j 20 --target patchy patchy_ui_visual_tests'
+        cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && scripts\run-throttled.bat "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset opt-dev -j 20 --target patchy patchy_ui_visual_tests'
         if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" }
     } finally {
         Pop-Location

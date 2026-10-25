@@ -13,7 +13,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-readme-screensh
 # Include the locally installed commercial KPT fixture.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-readme-screenshots.ps1 -IncludeLegacyPlugins
 
-# Rebuild one capture using the current release binaries.
+# Rebuild one capture using the current opt-dev binaries.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-readme-screenshots.ps1 -SkipBuild -Scene long_shadow
 ```
 
@@ -89,6 +89,10 @@ a tracked heading, and two Japanese vertical columns. The sample reads
 type layer. The scene registers its Latin and Japanese test fonts and reports
 a skip if no Japanese family is available; it never publishes missing-glyph boxes.
 
+The vector and SVG scenes select actual path anchors for their editing overlays.
+A drag that starts over another shape's fill can pick and move that shape, so these
+scenes check the active layer and selected-anchor count before capturing.
+
 The KPT recipe uses `local-test-fixtures/photoshop-plugins/kpt5/KPT5_Files/KPT5`.
 Keep the commercial binaries, presets, manuals, and generated state gitignored.
 Follow the fixture scan and first-run requirements in [plugins.md](plugins.md).
@@ -106,7 +110,7 @@ the framed plug-in. The driver scales and positions the plug-in capture over
 Patchy. This is a presentation layout, not a claim about physical window
 positions. It never captures the desktop or crops a desktop screenshot.
 
-Raw captures and script logs stay under `build/release/readme-shot-*`. A failed
+Raw captures and script logs stay under `build/opt-dev/readme-shot-*`. A failed
 script run leaves the last published image intact. The driver uses isolated
 settings, a separate process, pinned 96-DPI geometry, and bounded plug-in windows.
 Only task-owned processes may be stopped after a timeout. Never close a user's

@@ -2509,7 +2509,8 @@ void shot_readme_vector_tools() {
   QApplication::processEvents();
 
   // Select the front ridge and switch to Direct Select: the ridge outline and
-  // anchors draw on canvas, and a marquee leaves the mid anchors selected.
+  // anchors draw on canvas. Click the ridge's peaks directly: starting a
+  // marquee over the sky now picks that shape before it starts the drag.
   patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -2521,14 +2522,17 @@ void shot_readme_vector_tools() {
   CHECK(document.active_layer_id() == front_ridge_id);
   // The halo drawing left the Work Path row explicitly selected, which
   // outranks the transient layer row; retarget the ridge's shape path so the
-  // marquee (and the canvas overlay) work on the ridge.
+  // point selection (and the canvas overlay) work on the ridge.
   paths_list->setCurrentRow(0);
   QApplication::processEvents();
   require_action_by_text(window, QStringLiteral("Direct Select"))->trigger();
   QApplication::processEvents();
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(360, 470)),
-       canvas->widget_position_for_document_point(QPoint(1060, 760)));
+  click_widget_like_a_user(*canvas, canvas->widget_position_for_document_point(QPoint(520, 555)));
+  click_widget_like_a_user(*canvas, canvas->widget_position_for_document_point(QPoint(1000, 570)),
+                          Qt::ShiftModifier);
   QApplication::processEvents();
+  CHECK(document.active_layer_id() == front_ridge_id);
+  CHECK(canvas->path_edit_selected_anchor_count() == 2);
 
   // Panels no longer float, so the Paths panel is grabbed from the column and laid
   // over the canvas, keeping the layer list visible in the same shot (the two share
@@ -2818,17 +2822,21 @@ void shot_readme_svg_import() {
   envelope_item->setSelected(true);
   QApplication::processEvents();
 
-  // Direct Select shows the envelope's anchors; a marquee over its bounds
-  // selects them so they read as solid squares.
+  // Direct Select shows the envelope's anchors. Alt-click an actual anchor
+  // to select its subpath without picking another shape behind the balloon.
   require_action_by_text(window, QStringLiteral("Direct Select"))->trigger();
   QApplication::processEvents();
   auto* canvas = require_canvas(window);
-  const auto bounds = envelope->bounds();
-  drag(*canvas,
-       canvas->widget_position_for_document_point(QPoint(bounds.x - 14, bounds.y - 14)),
-       canvas->widget_position_for_document_point(
-           QPoint(bounds.x + bounds.width + 14, bounds.y + bounds.height + 14)));
+  const auto envelope_id = envelope->id();
+  const auto* target_path = canvas->path_edit_target_path();
+  CHECK(target_path != nullptr && !target_path->subpaths.empty());
+  CHECK(!target_path->subpaths.front().anchors.empty());
+  const auto anchor = target_path->subpaths.front().anchors.front();
+  click_widget_like_a_user(*canvas, canvas->widget_position_for_document_point(
+      QPoint(qRound(anchor.anchor_x), qRound(anchor.anchor_y))), Qt::AltModifier);
   process_events_for(250);
+  CHECK(document.active_layer_id() == envelope_id);
+  CHECK(canvas->path_edit_selected_anchor_count() >= 8);
 
   // Scroll the list to its top so the group-to-folder story is visible: the
   // outer folder rows lead the panel while the balloon's anchors carry the

@@ -16,7 +16,8 @@
 
 ## Painting, selections, and retouching
 
-- Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
+- Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
+- Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the completed stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
 - Brush tip libraries with Photoshop .abr import, custom tips from selections, spacing, angle, roundness, texture, dual-brush effects, wet edges, and dynamics for size, opacity, flow, scatter, and color. Supported dynamics can respond to pen pressure, tilt, rotation, or stroke direction
 - Mixer Brush with Wet, Load, Mix, Flow, and Sample All Layers controls, plus stroke smoothing with pulled-string and catch-up options
 - Rectangular and elliptical marquees, lassos including Magnetic Lasso, Magic Wand, Quick Select, and paintable Quick Mask selections, with feathering and selection adjustments
@@ -25,7 +26,7 @@
 - Guides, grids, snapping, and layer alignment/distribution, plus interactive cropping with aspect-ratio presets and straightening
 - G'MIC Filter Library on desktop: nearly 400 filters from the G'MIC standard library, with controls built from each filter's own description, live preview on the layer, multi-layer input and output, draggable point markers on the canvas, and script access
 - Filter > Last Filter (Ctrl+Alt+F) applies the last filter again with the same settings to the current layer and selection, for built-in filters, Filter Gallery looks, G'MIC filters, and plug-ins
-- Filter Gallery with 32 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks, plus a manual Liquify workspace with warp, twirl, pucker, bloat, and freeze brushes
+- Filter Gallery with photo looks, blur, sharpen, noise, distort, and other effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks, plus a manual Liquify workspace with warp, twirl, pucker, bloat, and freeze brushes
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), and command line options
 
@@ -55,14 +56,14 @@
 ## Files, photographs, and multiple documents
 
 - Multiple document interface: tabbed documents that can float in their own windows, Photoshop-style Tile and Cascade arrangement, a Window menu that lists every open document, and layers that drag or duplicate between documents. Open a whole folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
-- New Document templates in seven groups (screen and video, phones and tablets, social posts and covers, web pages and ad units, print paper, photo prints, icons and game art), with a search field that looks through every group at once
+- New Document templates in seven groups (screen and video, phones and tablets, social posts and covers, web pages and ad units, print paper, photo prints, icons and game art), with a search field that looks through every group at once, a document name, color mode and bit depth choices, and saved custom presets
 - Import multiple files as layers, preserving a layered file's contents in a group, through File > Import, a drop on the Layers panel, or pasted files
 - Scan and Divide Photos separates prints into individual images with editable crop regions, straightening, and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
 - Automatic document recovery periodically saves separate recovery copies of modified documents and reopens them after a crash; the interval is configurable
-- Reads and writes a wide range of formats: PSD/PSB, [PDF](#pdf-documents), PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, JPEG XL (.jxl, with 16 and 32-bit images and animations), JPEG XR (.jxr, on Windows), Proton SDK textures (.rttex), DDS textures (.dds: reads BC1 to BC7, cubemaps, arrays and mipmaps; writes uncompressed, DXT1, DXT5, BC4, BC5, or BC7 with optional mipmaps), and SVG (opens as editable shape layers, exports with vectors preserved)
-- Imports Affinity documents as layered files: the current .af format, Affinity 2 .afphoto/.afdesign/.afpub, and most Affinity 1.x-era files, bringing across rasters, groups, masks, clipping, blend modes, editable text layers, vector shapes, adjustment layers, layer effects, and placed images (which become embedded Smart Objects)
-- Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog with a Natural rendering profile, ISO-based noise reduction, and per-photo settings saved beside the original, and HEIC/HEIF photos through platform codecs
-- Opens HDR screenshots saved as JPEG XR (.jxr), the format NVIDIA's in-game capture uses, tone mapping the high dynamic range down to 8-bit so highlights keep their detail instead of clipping to white
+- Reads and writes a wide range of formats: PSD/PSB, [PDF](#pdf-documents), PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), OpenRaster (.ora), Aseprite files, JPEG XL (.jxl, including 16-bit and 32-bit stills and animation), JPEG 2000 (.jp2), OpenEXR (.exr), Radiance HDR (.hdr/.rgbe), AVIF (desktop), JPEG XR (.jxr, Windows), Proton SDK textures (.rttex), DDS textures (.dds: reads BC1 to BC7, cubemaps, arrays and mipmaps; writes uncompressed, DXT1, DXT5, BC4, BC5, or BC7 with optional mipmaps), and SVG (opens as editable shape layers, exports with vectors preserved)
+- Imports Affinity and Paint.NET documents, and reads and writes OpenRaster, layered TIFF, and Aseprite documents. See [layered format interchange](#layered-format-interchange) for what stays editable and what each format cannot preserve
+- Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) with 16-bit development processing, a Natural rendering profile, ISO-based noise reduction, and per-photo settings saved beside the original. The resulting document is currently 8-bit. HEIC/HEIF photos open through platform codecs, with supported high-bit-depth and HDR input depending on the decoder
+- Opens floating-point JPEG XR HDR screenshots as 32-bit linear documents on Windows, preserving highlight values for editing. With deep editing disabled they tone map to 8-bit; JPEG XR saves are always 8-bit. OpenEXR and Radiance HDR also open as 32-bit documents and export flattened HDR images; see [HDR format support](hdr-formats.md)
 
 ## PDF documents
 
@@ -86,8 +87,9 @@
 ## Platforms, privacy, and interface
 
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak and AppImage) builds
-- Built with C++ and Qt for a native desktop experience. No GPU used, should run on a potato
-- Privacy: YES! Absolutely no telemetry, no tracking, no data collection (if update checks are enabled, it contacts GitHub only to check for a newer version, and to download it when you click Update Now in the Windows build or the Linux AppImage). Settings live in a plain local file, and the installer doesn't screw with your file extension preferences
+- Built with C++ and Qt for a native desktop experience, with CPU rendering. Large documents, high bit depths, and Object Selection need more memory and processing time
+- No telemetry, tracking, or image uploads. Optional update checks contact GitHub; one-click updates on Windows and the Linux AppImage and Object Selection's optional High Quality model download files when requested. Settings live in a plain local file, and the installer leaves your default file associations unchanged
+- Rearrange sidebar panels into tab groups, drag tabs out or reorder them, and collapse panels to save space. The Color panel edits foreground and background colors; the Layers panel previews blend modes while browsing and offers four thumbnail sizes
 - Localized in twelve languages: English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Polish, Japanese, Korean, and Chinese (Simplified and Traditional); the language follows your system or can be changed in File->Preferences
 - UI themes: Dark, Light, seven bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast), or your own. A theme is a small JSON file (`.patchytheme`) that names a base scheme and overrides any of the interface colors, icon tints included; File->Preferences imports it and keeps it in your app-data themes folder (Open Themes Folder shows where). Start from [themes/example-high-contrast.patchytheme](../themes/example-high-contrast.patchytheme) or export the current look, which writes every color so you can see the role names; colors you leave out keep the base scheme's value, and Reload Themes applies an edit without restarting
 
@@ -98,17 +100,37 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 Important Photoshop features that are not supported yet, or are only partially supported:
 
 - Editable Smart Filters cover many classic filters and Image > Adjustments commands with paintable shared masks and per-filter opacity and blend modes; unsupported imported filter types (including the Blur Gallery and Liquify smart filters) remain preview-locked and byte-preserved
-- Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support: Photoshop's newer Color and Vibrance layers open as placeholders that show their kind and are saved unchanged, but have no effect yet
-- True CMYK and Lab editing, CMYK saves of edited PSD files, editable spot separations and RGB component channels, multi-channel overlays, OpenEXR/Radiance HDR files, and full color-management parity (Patchy edits in RGB and converts CMYK, Lab, Grayscale, and the other non-RGB modes to RGB on open; CMYK Proof mode, Proof Colors, and CMYK export of JPEG, TIFF, and flattened PDF cover print output, see [Color and print](#color-and-print))
+- Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support: the newer **Color and Vibrance** adjustment opens as a preserved placeholder without applying its effect. Legacy **Vibrance** is supported
+- True CMYK and Lab editing, CMYK saves of edited PSD files, editable spot separations and RGB component channels, multi-channel overlays, and full color-management parity (Patchy edits in RGB and converts CMYK, Lab, Grayscale, and the other non-RGB modes to RGB on open; CMYK Proof mode, Proof Colors, and CMYK export of JPEG, TIFF, and flattened PDF cover print output, see [Color and print](#color-and-print))
+- OpenEXR imports single-part scanline or tiled RGB/RGBA or luminance images with supported compression; multipart, deep, and some compression types are unsupported. AVIF is desktop-only and exports still images, although sequences can be imported
 - 16 and 32-bit gaps: filters without a deep version run on an 8-bit copy at 16 bits (unchanged pixels keep full precision) and are disabled at 32 bits, as are Liquify and the Filter Gallery; Smart Object contents and their Smart Filters render at 8 bits; Spot Healing, Remove Object, and Patch heal at 8-bit precision
-- Layer comps, timeline/video editing, generative tools (animated GIF and WebP import, preview, and export are supported)
+- Layer comps, timeline/video editing, generative tools (animated GIF, WebP, and PNG import, preview, and export are supported)
 - Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing instead, see above)
 - High-fidelity PSD/PSB edge cases and byte-perfect preservation of every Photoshop-only metadata block
 - Patchy is slower than Photoshop, especially on large documents and it doesn't support any GPU acceleration. (Like, layer styles being done in pixel shaders, etc)  However, being CPU only helps with porting, consistent output, and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
 
+## Layered format interchange
+
+These formats preserve different kinds of content. Import-only formats can be edited
+in Patchy, then saved as PSD or another supported format; Patchy cannot write back to
+their original format.
+
+| Format | Open / save | What carries over and the main limits |
+| --- | --- | --- |
+| **Affinity** (.af, .afphoto, .afdesign, .afpub) | Import only | Supported text, vector shapes, masks, groups, adjustments, effects, artboards, and placed images. Raster content imports at 8 bits; multi-page files open the first spread. [Details below](#affinity-import) |
+| **OpenRaster** (.ora) | Open and save | Pixel layers, groups, names, positions, visibility, opacity, supported blend modes, and image-pixel locks, at 8 or 16 bits. Text, vectors, masks, effects, and Smart Objects bake into pixels; adjustments and some combinations merge with layers below. Clipping and extra blend modes depend on the receiving app. [Interchange details](ora.md) |
+| **Paint.NET** (.pdn) | Import only | Pixel layers, names, visibility, opacity, blend modes, resolution, EXIF, XMP, and the saved palette. Text is already pixels in the source file. Paint.NET-specific blend modes can require baking when saving to another layered format; damaged or oversized files may fall back to their small preview with a notice. [Import details](pdn-format.md) |
+| **Layered TIFF** (.tif, .tiff) | Open and save | Photoshop-style layer data at 8, 16, and 32 bits, including supported text, masks, and effects. Choose Keep Layers when saving; other TIFF readers may show only the merged image. [TIFF details](tiff.md) |
+| **Aseprite** (.ase, .aseprite) | Open and save | The first frame's pixel layers, groups, opacity, and supported blend modes. Saves are a single frame at 8 bits, with procedural content rasterized. [Format details](file-formats.md#per-format-catalogue) |
+
+OpenRaster can exchange layered paintings with applications such as Krita and GIMP;
+their native .kra and .xcf formats are not supported. Keep a PSD master when you need
+Patchy's editable text, effects, masks, or Smart Objects. Import notices and save
+warnings describe conversions that affect a particular document.
+
 ### Affinity import
 
-Patchy opens Affinity documents read-only: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab documents), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, polygons, stars, triangles, diamonds, trapezoids, pies, segments, crescents, hearts, tears, arrows, double and square stars, cogs, clouds), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders and a wild-file corpus that includes real Affinity 2 documents from all three apps. Vector fills and strokes keep their width, alignment, dash pattern, and miter limit, crop-to-shape containers come in as masked groups, and the Erase blend mode imports as an isolated group with an inverse-alpha mask, which is how PSD stores that construction natively. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
+Patchy imports Affinity documents for editing: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab sources, converted to 8-bit RGB), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, polygons, stars, triangles, diamonds, trapezoids, pies, segments, crescents, hearts, tears, arrows, double and square stars, cogs, clouds), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders and a wild-file corpus that includes real Affinity 2 documents from all three apps. Vector fills and strokes keep their width, alignment, dash pattern, and miter limit, crop-to-shape containers come in as masked groups, and the Erase blend mode imports as an isolated group with an inverse-alpha mask, which is how PSD stores that construction natively. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
 
 Affinity features that are not supported yet, or are only partially supported:
 
@@ -118,5 +140,5 @@ Affinity features that are not supported yet, or are only partially supported:
 - Affinity-only blend modes render through their closest Photoshop-compatible equivalent with a notice (Average matches exactly at half opacity; Negation, Reflect, Glow, and Pigment approximate; Contrast Negate falls back to Normal)
 - Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects bake into the layer pixels (they render correctly but are no longer live)
 - Rotated or sheared frame text renders without its rotation (artistic text rotates correctly)
-- Multi-page documents open the first page only
+- Multi-page documents open the first spread only
 - Affinity 1.x-era files: embedded-document placement can land slightly off

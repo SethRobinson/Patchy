@@ -66,7 +66,7 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/camera_raw.png"><img src="images/screenshots/camera_raw.png" width="430" alt="Camera Raw develop dialog showing a snowy mountain photo with white balance, tone, color, and detail controls"></a>
-      <br><sub>16-bit Camera Raw development with white balance, tone, color, demosaic, and denoise controls</sub>
+      <br><sub>Camera Raw development with white balance, tone, color, demosaic, and denoise controls; 16-bit processing currently produces an 8-bit document</sub>
     </td>
 </tr>
 <tr>

@@ -49,7 +49,7 @@ Read-only LibRaw import through `raw_document_io.{hpp,cpp}`, always to an 8-bit 
 
 ## HEIF/HEIC (.heic/.heif/.hif)
 
-Read-only, 8-bit, decoded only by an OS-, distribution- or browser-supplied decoder (never a shipped HEVC codec); AVIF is a separate reader ([avif.md](avif.md)). Per-platform paths, messages and tests: [heif.md](heif.md).
+Read-only through platform decoders (never a shipped HEVC codec), with 16-bit and HDR/32-bit import where supported. Depth, codecs, messages and tests: [heif.md](heif.md). AVIF uses a separate reader ([avif.md](avif.md)).
 
 ## .af (Affinity)
 
