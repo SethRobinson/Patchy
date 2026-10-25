@@ -122,7 +122,7 @@ void ui_theme_adjacent_roles_stay_distinguishable() {
     QColor patchy::ui::ThemePalette::* second;
     int minimum_delta;
   };
-  const std::array<RolePair, 5> pairs{{
+  const std::array<RolePair, 6> pairs{{
       {"a dialog title bar floating over the canvas", &patchy::ui::ThemePalette::title_bar_bg,
        &patchy::ui::ThemePalette::canvas_backdrop, 24},
       {"the About dialog's secondary button on its body", &patchy::ui::ThemePalette::splash_button_bg,
@@ -133,6 +133,9 @@ void ui_theme_adjacent_roles_stay_distinguishable() {
        &patchy::ui::ThemePalette::panel_bg, 16},
       {"the clipping badge on an unselected layer row", &patchy::ui::ThemePalette::layer_clip_badge,
        &patchy::ui::ThemePalette::layer_row_bg, 60},
+      {"a tool group separator on the tool palette (issue 406)",
+       &patchy::ui::ThemePalette::tool_palette_separator, &patchy::ui::ThemePalette::tool_palette_bg,
+       56},
   }};
 
   for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {

@@ -282,7 +282,7 @@ QString photoshop_style_template() {
     QToolBar#toolPalette::separator {
       background: @tool_palette_separator;
       height: 1px;
-      margin: 3px 7px;
+      margin: 3px 4px;
     }
     QToolBar#Options {
       background: @options_bar_bg;
