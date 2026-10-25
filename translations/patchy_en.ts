@@ -23469,10 +23469,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25270,6 +25266,10 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

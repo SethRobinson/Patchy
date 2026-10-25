@@ -90,7 +90,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Custom Shape | Shape (by shape id) | `customShapeId` | yes | yes |
 | Type | Font, Style, Size, Color, alignment, orientation | none | no | no (layer state) |
 | Type | Smoothing (`textSmoothingCombo`) | `textSmoothing` | yes | yes |
-| Pick | Sample Size, Sample, Sets, Show Sample Ring | `eyedropperSampleSize`, `eyedropperSampleLayers` (five-way token; the older bool `eyedropperSampleAllLayers` is still written and maps on first read), `eyedropperPicksBackground`, `eyedropperShowSampleRing` | yes | yes |
+| Pick | Size, Layer, Sets, Show Sample Ring | `eyedropperSampleSize`, `eyedropperSampleLayers` (five-way token; the older bool `eyedropperSampleAllLayers` is still written and maps on first read), `eyedropperPicksBackground`, `eyedropperShowSampleRing` | yes | yes |
 | Zoom | Zoom In/Out, Scrubby | `zoomToolZoomsOut`, `zoomScrubby` | yes | yes |
 
 Counts: 56 rows (a row is one control or one group sharing a handler). 12 new keys across 11 rows: the active tool, the Brush family's preset, size, opacity, Soft, flow, Airbrush and tip, the Eraser's opacity and Soft, the Marquee radius, the pixel shapes' Fill. 35 rows were already persisted. The color pair (issue 339) added 2 keys in 1 row. 9 rows are deliberately session-only or layer state (the list above).

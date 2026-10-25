@@ -23610,10 +23610,6 @@ Patchy может скачать обновление, заменить этот
         <translation>По размеру экрана</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Размер образца:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Точка</translation>
     </message>
@@ -25425,6 +25421,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Показывать уведомление сведений о файле о данных, которыми вы, возможно, не хотите делиться</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Слой:</translation>
     </message>
 </context>
 <context>

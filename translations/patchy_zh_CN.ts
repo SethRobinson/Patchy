@@ -23474,10 +23474,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>按屏幕大小缩放</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>取样大小:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>取样点</translation>
     </message>
@@ -25279,6 +25275,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>显示文件简介中有关您可能不想分享的信息的提示</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>图层:</translation>
     </message>
 </context>
 <context>

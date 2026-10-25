@@ -23474,10 +23474,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>顯示全頁</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>樣本尺寸:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>點狀樣本</translation>
     </message>
@@ -25279,6 +25275,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>顯示檔案資訊中關於您可能不想分享之資訊的提示</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>圖層:</translation>
     </message>
 </context>
 <context>
