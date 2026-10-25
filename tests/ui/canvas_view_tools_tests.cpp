@@ -4131,20 +4131,8 @@ void ui_view_extras_menu_options_dialog_and_settings() {
     }
     CHECK(show_menu->actions().contains(show_edges));
     CHECK(show_menu->actions().contains(require_action(window, "viewExtrasOptionsAction")));
-    if (auto* view_menu = qobject_cast<QMenu*>(show_menu->parent()); view_menu != nullptr) {
-      CHECK(view_menu->actions().contains(extras));
-      view_menu->popup(window.mapToGlobal(QPoint(60, 40)));
-      QApplication::processEvents();
-      save_widget_artifact("ui_view_extras_view_menu", *view_menu);
-      show_menu->popup(window.mapToGlobal(QPoint(300, 40)));
-      QApplication::processEvents();
-      save_widget_artifact("ui_view_extras_show_menu", *show_menu);
-      show_menu->close();
-      view_menu->close();
-      QApplication::processEvents();
-    } else {
-      CHECK(false);
-    }
+    auto* view_menu = qobject_cast<QMenu*>(show_menu->parent());
+    CHECK(view_menu != nullptr && view_menu->actions().contains(extras));
     CHECK(canvas->extras_covered() == kAllViewExtras);
 
     send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
@@ -4197,6 +4185,20 @@ void ui_view_extras_menu_options_dialog_and_settings() {
     CHECK(!canvas->show_selection_edges());
     show_edges->trigger();
     CHECK(canvas->show_selection_edges());
+
+    // The menu captures come last: on macOS a popped-up menu leaves the window's shortcuts
+    // unmatched for the rest of the test, so the Ctrl+H above has to run before them.
+    if (view_menu != nullptr) {
+      view_menu->popup(window.mapToGlobal(QPoint(60, 40)));
+      QApplication::processEvents();
+      save_widget_artifact("ui_view_extras_view_menu", *view_menu);
+      show_menu->popup(window.mapToGlobal(QPoint(300, 40)));
+      QApplication::processEvents();
+      save_widget_artifact("ui_view_extras_show_menu", *show_menu);
+      show_menu->close();
+      view_menu->close();
+      QApplication::processEvents();
+    }
   }
   {
     patchy::ui::MainWindow window;

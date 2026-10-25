@@ -57,6 +57,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSpinBox>
+#include <QSpontaneKeyEvent>
 #include <QStringList>
 #include <QSlider>
 #include <QTabBar>
@@ -1156,6 +1157,20 @@ void cleanup_after_visual_test() {
     settings.remove(QLatin1StringView(key));
   }
   settings.sync();
+  // QTest input (spontaneous events) and, on macOS, plain sent key events leave their
+  // modifiers in QApplication::keyboardModifiers(), which the tool cursors read: an Alt
+  // click or a Ctrl+H must not hand the next test an eyedropper or Move cursor. A
+  // spontaneous key release without modifiers resets that state.
+  if (QApplication::keyboardModifiers() != Qt::NoModifier) {
+    QWidget sink;
+    QKeyEvent release(QEvent::KeyRelease, Qt::Key_unknown, Qt::NoModifier);
+    QSpontaneKeyEvent::setSpontaneous(&release);
+    QApplication::instance()->notify(&sink, &release);
+    if (QApplication::keyboardModifiers() != Qt::NoModifier) {
+      std::fprintf(stderr, "cleanup: keyboard modifiers %x survive the reset\n",
+                   static_cast<unsigned>(QApplication::keyboardModifiers().toInt()));
+    }
+  }
 }
 
 int run_bundled_web_fonts_probe() {
