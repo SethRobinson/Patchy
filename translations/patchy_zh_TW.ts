@@ -448,28 +448,40 @@
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>使用上一個圖層建立剪裁遮色片</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>將新圖層剪裁至下方圖層</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>目前模式沒有中性色</translation>
+        <source>White</source>
+        <translation>白色</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>填滿中性色（白色）</translation>
+        <source>Black</source>
+        <translation>黑色</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>填滿中性色（黑色）</translation>
+        <source>50% gray</source>
+        <translation>50% 灰色</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>填滿中性色（50% 灰色）</translation>
+        <source>Clip to the layer below</source>
+        <translation>剪裁至下方圖層</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>中性色</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>以在此模式下不改變影像的顏色填滿新圖層</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>此模式沒有中性色</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>填滿:</translation>
     </message>
 </context>
 <context>
@@ -12535,6 +12547,82 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>GIMP 影像</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 欄</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 欄</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 欄</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>2 x 2 格線</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>3 x 3 格線</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>4 x 4 格線</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 欄，間距 20 px</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw 濾鏡</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>中和圖層的平均顏色</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>使圖層變暖或變冷。0 保持其顏色不變。</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>使圖層偏向洋紅或綠色。0 保持其顏色不變。</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>圖層: %1 x %2，每色版 %3 位元</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>套用於選取範圍內部。</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>描述檔、去馬賽克和降噪需要感光元件原始資料：開啟相機原始檔時可在「Raw 顯影」中使用。</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>關閉以與套用濾鏡前的圖層比較</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>正在細修...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>正在更新快速預視...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>按住 Shift 按一下可中和平均顏色。按住 %ALT% 按一下可重設。</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>正在套用...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14309,10 +14397,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>選取即可用灰階檢視。勾選可顯示彩色覆蓋。</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>按住 %CTRL% 並按一下,可將這個色版載入為選取範圍。</translation>
     </message>
@@ -14363,6 +14447,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+按一下可將此印版無油墨的區域載入為選取範圍。</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>選取即可用灰階檢視。按一下眼睛可顯示彩色覆蓋。</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>以彩色覆蓋顯示或隱藏此色版</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>顯示所有顏色色版</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>顯示或隱藏此色版。至少有一個色版保持可見。</translation>
     </message>
 </context>
 <context>
@@ -23474,10 +23574,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>顯示全頁</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>樣本尺寸:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>點狀樣本</translation>
     </message>
@@ -25279,6 +25375,78 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>顯示檔案資訊中關於您可能不想分享之資訊的提示</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>圖層:</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>間距:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>上邊界:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>下:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>左邊界:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>右:</translation>
+    </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Camera &amp;Raw 濾鏡...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>調整目前圖層的白平衡、曝光、色調和顏色</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw 濾鏡</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>正在顯示色版：%1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>正在檢視色版：%1 (按一下即可結束)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>按一下即可重新顯示所有顏色色版。</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>顯示複合色版</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>顯示紅色或青色色版</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>顯示綠色或洋紅色版</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>顯示藍色或黃色色版</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>顯示黑色色版</translation>
     </message>
     <message>
         <source>Hide This Layer</source>
@@ -27275,6 +27443,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye: width 和 height 必須至少為 1。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter：請傳入設定物件。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter：未知設定 %1。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter：%1 必須是數字。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter 需要 RGB 像素圖層。</translation>
     </message>
 </context>
 <context>

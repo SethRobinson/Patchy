@@ -3,6 +3,7 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/brush_dynamics.hpp"
+#include "core/channel_view.hpp"
 #include "core/document.hpp"
 #include "core/document_recovery_store.hpp"
 #include "ui/document_session_store.hpp"
@@ -1293,6 +1294,7 @@ private:
   bool prompt_rasterize_procedural_layer(LayerId layer_id, const QString& operation_name,
                                          bool offer_convert_to_smart_object);
   void liquify_dialog();
+  void camera_raw_filter_dialog();
   void convert_for_smart_filters();
   void gaussian_smart_filter_dialog(
       LayerId layer_id,
@@ -2121,6 +2123,15 @@ private:
   void refresh_layer_controls();
   void refresh_channel_panel();
   [[nodiscard]] QPixmap cached_channel_thumbnail(const DocumentChannel& channel);
+  // Channel visibility (docs/channels.md): the Channels panel's eyes and Ctrl+2 to Ctrl+6.
+  void toggle_channel_eye(ChannelPanel::RowKind kind);
+  void show_channel_by_shortcut(int slot);
+  void apply_channel_view_change(ChannelViewChange change);
+  [[nodiscard]] QString channel_view_names(ChannelView view) const;
+  // The Composite, component and ink plate rows' thumbnails, sampled from the canvas's
+  // current composite. False while that composite is not current yet.
+  bool refresh_derived_channel_thumbnails();
+  void schedule_derived_channel_thumbnails();
   [[nodiscard]] QPixmap cached_path_thumbnail(const patchy::DocumentPath& path, int document_width,
                                               int document_height);
   void create_alpha_channel();
@@ -2553,6 +2564,17 @@ private:
     QPixmap thumbnail;
   };
   std::unordered_map<ChannelId, ChannelThumbnailCacheEntry> channel_thumbnail_cache_;
+  // Derived-row thumbnails: Composite, Red, Green, Blue, Cyan, Magenta, Yellow, Black,
+  // keyed on the composite's cacheKey (docs/channels.md, "UI and performance").
+  struct DerivedChannelThumbnails {
+    const CanvasWidget* canvas{nullptr};
+    qint64 source_key{0};
+    std::shared_ptr<const CmykWorkingSpace> space;
+    std::array<QPixmap, 8> thumbnails;
+  };
+  DerivedChannelThumbnails derived_channel_thumbnails_;
+  QTimer* derived_channel_thumbnail_timer_{nullptr};
+  int derived_channel_thumbnail_attempts_{0};
   // Saved/work path thumbnails, keyed on DocumentPath::content_revision (the
   // documented cache key) plus the canvas extent; refresh_paths_panel now
   // rides layer activation and every shape drag, so rows must not
@@ -3010,6 +3032,8 @@ private:
   QAction* channel_delete_action_{nullptr};
   QAction* channel_new_layer_action_{nullptr};
   QAction* channel_new_color_layer_action_{nullptr};
+  // Ctrl+2 (the composite) to Ctrl+6 (Black in CMYK Proof).
+  std::array<QAction*, 5> channel_view_actions_{};
   QToolButton* mask_edit_mode_chip_{nullptr};
   // Palette (indexed) mode UI: dock panel, status chip, advisory compliance scan.
   PalettePanel* palette_panel_{nullptr};
@@ -3379,8 +3403,9 @@ private:
   // pixels (Photoshop's default). Persisted identifier.
   bool snap_transforms_to_pixel_grid_{true};
   // input/escapeCommitsText: Esc applies a text edit instead of canceling it (Photoshop's
-  // "Use ESC key to commit text", GitHub issue 173). Persisted identifier.
-  bool escape_commits_text_{false};
+  // "Use ESC key to commit text", GitHub issue 173). On by default (issue 415). Persisted
+  // identifier.
+  bool escape_commits_text_{true};
   bool zoom_layer_thumbnails_to_content_{true};
   // view/layerThumbnailSize (kLayerThumbnailSizeSettingsKey). Persisted identifier.
   LayerThumbnailSize layer_thumbnail_size_{kDefaultLayerThumbnailSize};

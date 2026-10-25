@@ -1737,6 +1737,33 @@ void MainWindow::create_docks() {
       [this](ChannelPanel::RowKind kind, ChannelId id) { load_channel_as_selection(kind, id); });
   channel_panel_->set_reorder_callback(
       [this](std::vector<ChannelId> order) { reorder_channels_from_panel(std::move(order)); });
+  channel_panel_->set_eye_callback([this](ChannelPanel::RowKind kind) { toggle_channel_eye(kind); });
+  // Ctrl+2 shows the composite, Ctrl+3 to Ctrl+5 one color channel alone (Red, Green, Blue;
+  // Cyan, Magenta, Yellow in CMYK Proof) and Ctrl+6 Black in CMYK Proof. On the window, so
+  // they work whichever panel tab is in front.
+  const std::array<const char*, 5> channel_view_texts{
+      QT_TR_NOOP("Show Composite Channel"), QT_TR_NOOP("Show Red or Cyan Channel"),
+      QT_TR_NOOP("Show Green or Magenta Channel"), QT_TR_NOOP("Show Blue or Yellow Channel"),
+      QT_TR_NOOP("Show Black Channel")};
+  const std::array<const char*, 5> channel_view_ids{"channel.view_composite", "channel.view_first",
+                                                    "channel.view_second", "channel.view_third",
+                                                    "channel.view_fourth"};
+  const std::array<const char*, 5> channel_view_object_names{
+      "channelViewCompositeAction", "channelViewFirstAction", "channelViewSecondAction", "channelViewThirdAction",
+      "channelViewFourthAction"};
+  for (std::size_t slot = 0; slot < channel_view_actions_.size(); ++slot) {
+    auto* action = new QAction(tr(channel_view_texts[slot]), this);
+    action->setObjectName(QLatin1String(channel_view_object_names[slot]));
+    bind_action_text(action, channel_view_texts[slot]);
+    register_hotkey(action, QLatin1String(channel_view_ids[slot]),
+                    QKeySequence(QKeyCombination(Qt::ControlModifier,
+                                                 static_cast<Qt::Key>(Qt::Key_2 + static_cast<int>(slot)))),
+                    QStringLiteral("channels"));
+    register_document_action(action);
+    addAction(action);
+    connect(action, &QAction::triggered, this, [this, slot] { show_channel_by_shortcut(static_cast<int>(slot)); });
+    channel_view_actions_[slot] = action;
+  }
   register_document_widget(channel_panel_);
   refresh_channel_panel();
 

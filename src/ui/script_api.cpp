@@ -1234,6 +1234,11 @@ void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& par
   host_.apply_filter_to_layer(session_id_, layer_id_, filterId, params);
 }
 
+void ScriptLayerObject::applyCameraRawFilter(const QJSValue& settings) {
+  const ScriptApiCall api_call(host_);
+  host_.apply_camera_raw_filter_to_layer(session_id_, layer_id_, settings);
+}
+
 void ScriptLayerObject::applyPlugin(const QString& pluginId, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   bool dialog = true;

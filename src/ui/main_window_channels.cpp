@@ -5,6 +5,7 @@
 #include "core/layer.hpp"
 #include "ui/main_window.hpp"
 #include <QStatusBar>
+#include <QTimer>
 #include <QToolButton>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
@@ -23,7 +24,6 @@
 #include <QImage>
 #include <QInputDialog>
 #include <QLineEdit>
-#include <QLinearGradient>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPixmap>
@@ -56,38 +56,66 @@ namespace patchy::ui {
 
 namespace {
 
-QPixmap component_channel_thumbnail(QColor color) {
-  QPixmap result(42, 30);
-  result.fill(QColor(30, 32, 35));
-  QPainter painter(&result);
-  const QRect swatch(3, 3, result.width() - 6, result.height() - 6);
-  QLinearGradient gradient(swatch.topLeft(), swatch.topRight());
-  gradient.setColorAt(0.0, Qt::black);
-  gradient.setColorAt(1.0, color);
-  painter.fillRect(swatch, gradient);
-  painter.setPen(QColor(92, 96, 102));
-  painter.drawRect(swatch.adjusted(0, 0, -1, -1));
-  return result;
+std::uint8_t white_backed_component(std::uint8_t component, std::uint8_t alpha) {
+  return static_cast<std::uint8_t>((static_cast<int>(component) * static_cast<int>(alpha) +
+                                    255 * (255 - static_cast<int>(alpha))) /
+                                   255);
 }
 
-// An ink plate's swatch: paper white to the ink.
-QPixmap ink_plate_thumbnail(QColor ink) {
-  QPixmap result(42, 30);
-  result.fill(QColor(30, 32, 35));
-  QPainter painter(&result);
-  const QRect swatch(3, 3, result.width() - 6, result.height() - 6);
-  QLinearGradient gradient(swatch.topLeft(), swatch.topRight());
-  gradient.setColorAt(0.0, Qt::white);
-  gradient.setColorAt(1.0, ink);
-  painter.fillRect(swatch, gradient);
-  painter.setPen(QColor(92, 96, 102));
-  painter.drawRect(swatch.adjusted(0, 0, -1, -1));
-  return result;
+[[nodiscard]] std::optional<std::pair<ChannelViewGroup, int>> channel_view_channel(ChannelPanel::RowKind kind) {
+  switch (kind) {
+    case ChannelPanel::RowKind::Red:
+      return std::pair{ChannelViewGroup::Color, 0};
+    case ChannelPanel::RowKind::Green:
+      return std::pair{ChannelViewGroup::Color, 1};
+    case ChannelPanel::RowKind::Blue:
+      return std::pair{ChannelViewGroup::Color, 2};
+    case ChannelPanel::RowKind::Cyan:
+      return std::pair{ChannelViewGroup::Ink, 0};
+    case ChannelPanel::RowKind::Magenta:
+      return std::pair{ChannelViewGroup::Ink, 1};
+    case ChannelPanel::RowKind::Yellow:
+      return std::pair{ChannelViewGroup::Ink, 2};
+    case ChannelPanel::RowKind::Black:
+      return std::pair{ChannelViewGroup::Ink, 3};
+    case ChannelPanel::RowKind::Composite:
+    case ChannelPanel::RowKind::Alpha:
+    case ChannelPanel::RowKind::Spot:
+    case ChannelPanel::RowKind::QuickMask:
+      break;
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] ChannelPanel::RowKind channel_view_row_kind(ChannelViewGroup group, int index) {
+  if (group == ChannelViewGroup::Color) {
+    return index == 0 ? ChannelPanel::RowKind::Red : index == 1 ? ChannelPanel::RowKind::Green
+                                                                : ChannelPanel::RowKind::Blue;
+  }
+  return index == 0   ? ChannelPanel::RowKind::Cyan
+         : index == 1 ? ChannelPanel::RowKind::Magenta
+         : index == 2 ? ChannelPanel::RowKind::Yellow
+                      : ChannelPanel::RowKind::Black;
 }
 
 [[nodiscard]] bool is_ink_plate_row(ChannelPanel::RowKind kind) {
   return kind == ChannelPanel::RowKind::Cyan || kind == ChannelPanel::RowKind::Magenta ||
          kind == ChannelPanel::RowKind::Yellow || kind == ChannelPanel::RowKind::Black;
+}
+
+// A row thumbnail: the scaled image centered in the 42x30 frame (an empty frame for a null
+// image, while the composite is not ready).
+QPixmap framed_channel_thumbnail(const QImage& scaled) {
+  QPixmap result(42, 30);
+  result.fill(QColor(30, 32, 35));
+  QPainter painter(&result);
+  if (!scaled.isNull()) {
+    painter.drawImage(QPoint((result.width() - scaled.width()) / 2, (result.height() - scaled.height()) / 2),
+                      scaled);
+  }
+  painter.setPen(QColor(92, 96, 102));
+  painter.drawRect(result.rect().adjusted(0, 0, -1, -1));
+  return result;
 }
 
 QPixmap grayscale_channel_thumbnail(const PixelBuffer& pixels) {
@@ -99,13 +127,87 @@ QPixmap grayscale_channel_thumbnail(const PixelBuffer& pixels) {
     const auto source = pixels.row(y);
     std::copy(source.begin(), source.end(), image.scanLine(y));
   }
-  const auto scaled = image.scaled(QSize(42, 30), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-  QPixmap result(42, 30);
-  result.fill(QColor(30, 32, 35));
-  QPainter painter(&result);
-  painter.drawImage(QPoint((result.width() - scaled.width()) / 2, (result.height() - scaled.height()) / 2), scaled);
-  painter.setPen(QColor(92, 96, 102));
-  painter.drawRect(result.rect().adjusted(0, 0, -1, -1));
+  return framed_channel_thumbnail(image.scaled(QSize(42, 30), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
+// The derived rows' thumbnails (Composite, Red, Green, Blue, then the four ink plates when
+// `space` is set) from the canvas composite. Each thumbnail pixel averages a 3x3 grid of
+// composite samples over white, the values Load as Selection reads, so the cost is fixed
+// whatever the document size. The composite is the canvas's display image, already encoded
+// to 8 bits for 16/32-bit documents.
+std::array<QPixmap, 8> derived_channel_thumbnail_pixmaps(const QImage& composite, const CmykWorkingSpace* space) {
+  std::array<QPixmap, 8> result;
+  if (composite.isNull()) {
+    return result;
+  }
+  const auto size = composite.size().scaled(QSize(42, 30), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+  const int width = size.width();
+  const int height = size.height();
+  constexpr int kSamples = 3;
+  const auto sample_position = [](int cell, int sub, int cells, int extent) {
+    const auto numerator = (static_cast<std::int64_t>(cell) * kSamples + sub) * 2 + 1;
+    const auto denominator = static_cast<std::int64_t>(cells) * kSamples * 2;
+    return std::clamp(static_cast<int>(numerator * extent / denominator), 0, extent - 1);
+  };
+  std::vector<std::uint8_t> rgba(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      std::array<int, 3> sum{};
+      for (int sub_y = 0; sub_y < kSamples; ++sub_y) {
+        const auto source_y = sample_position(y, sub_y, height, composite.height());
+        for (int sub_x = 0; sub_x < kSamples; ++sub_x) {
+          const auto source_x = sample_position(x, sub_x, width, composite.width());
+          const auto color = composite.pixelColor(source_x, source_y).rgba();
+          const auto alpha = static_cast<std::uint8_t>(qAlpha(color));
+          sum[0] += white_backed_component(static_cast<std::uint8_t>(qRed(color)), alpha);
+          sum[1] += white_backed_component(static_cast<std::uint8_t>(qGreen(color)), alpha);
+          sum[2] += white_backed_component(static_cast<std::uint8_t>(qBlue(color)), alpha);
+        }
+      }
+      auto* out = rgba.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                 static_cast<std::size_t>(x)) * 4U;
+      constexpr int kCount = kSamples * kSamples;
+      for (std::size_t channel = 0; channel < 3; ++channel) {
+        out[channel] = static_cast<std::uint8_t>((sum[channel] + kCount / 2) / kCount);
+      }
+      out[3] = 255;
+    }
+  }
+  QImage color(width, height, QImage::Format_RGB888);
+  std::array<QImage, 3> components{QImage(width, height, QImage::Format_Grayscale8),
+                                   QImage(width, height, QImage::Format_Grayscale8),
+                                   QImage(width, height, QImage::Format_Grayscale8)};
+  for (int y = 0; y < height; ++y) {
+    auto* color_row = color.scanLine(y);
+    for (int x = 0; x < width; ++x) {
+      const auto* pixel = rgba.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                         static_cast<std::size_t>(x)) * 4U;
+      for (std::size_t channel = 0; channel < 3; ++channel) {
+        color_row[static_cast<std::size_t>(x) * 3U + channel] = pixel[channel];
+        components[channel].scanLine(y)[x] = pixel[channel];
+      }
+    }
+  }
+  result[0] = framed_channel_thumbnail(color);
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    result[channel + 1U] = framed_channel_thumbnail(components[channel]);
+  }
+  if (space != nullptr) {
+    // A plate is dark where it prints ink, like the plate view on the canvas.
+    const auto inks = space->separate_rgba8(rgba);
+    for (std::size_t plate = 0; plate < 4; ++plate) {
+      QImage gray(width, height, QImage::Format_Grayscale8);
+      for (int y = 0; y < height; ++y) {
+        auto* row = gray.scanLine(y);
+        for (int x = 0; x < width; ++x) {
+          const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                             static_cast<std::size_t>(x);
+          row[x] = static_cast<std::uint8_t>(255 - inks[index * 4U + plate]);
+        }
+      }
+      result[plate + 4U] = framed_channel_thumbnail(gray);
+    }
+  }
   return result;
 }
 
@@ -144,12 +246,6 @@ QPixmap sampled_grayscale_channel_thumbnail(const PixelBuffer& pixels) {
   return result;
 }
 
-std::uint8_t white_backed_component(std::uint8_t component, std::uint8_t alpha) {
-  return static_cast<std::uint8_t>((static_cast<int>(component) * static_cast<int>(alpha) +
-                                    255 * (255 - static_cast<int>(alpha))) /
-                                   255);
-}
-
 std::uint8_t channel_selection_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
   return static_cast<std::uint8_t>((static_cast<int>(red) * 30 + static_cast<int>(green) * 59 +
                                     static_cast<int>(blue) * 11) /
@@ -165,6 +261,158 @@ QPixmap MainWindow::cached_channel_thumbnail(const DocumentChannel& channel) {
     cached.thumbnail = grayscale_channel_thumbnail(channel.pixels());
   }
   return cached.thumbnail;
+}
+
+bool MainWindow::refresh_derived_channel_thumbnails() {
+  if (canvas_ == nullptr || !has_active_document() || channel_panel_ == nullptr) {
+    return true;
+  }
+  const auto composite = canvas_->current_composite();
+  if (composite.isNull()) {
+    return false;
+  }
+  const auto& proof = canvas_->proof_display_transform();
+  const auto space = proof != nullptr && proof->simulates_colors() ? working_cmyk_space()
+                                                                    : std::shared_ptr<const CmykWorkingSpace>();
+  auto& cache = derived_channel_thumbnails_;
+  if (cache.canvas == canvas_ && cache.source_key == composite.cacheKey() && cache.space == space) {
+    return true;
+  }
+  cache.canvas = canvas_;
+  cache.source_key = composite.cacheKey();
+  cache.space = space;
+  cache.thumbnails = derived_channel_thumbnail_pixmaps(composite, space.get());
+  constexpr std::array<ChannelPanel::RowKind, 8> kinds{
+      ChannelPanel::RowKind::Composite, ChannelPanel::RowKind::Red,     ChannelPanel::RowKind::Green,
+      ChannelPanel::RowKind::Blue,      ChannelPanel::RowKind::Cyan,    ChannelPanel::RowKind::Magenta,
+      ChannelPanel::RowKind::Yellow,    ChannelPanel::RowKind::Black};
+  for (std::size_t index = 0; index < kinds.size(); ++index) {
+    if (!cache.thumbnails[index].isNull()) {
+      channel_panel_->set_row_thumbnail(kinds[index], cache.thumbnails[index]);
+    }
+  }
+  return true;
+}
+
+void MainWindow::schedule_derived_channel_thumbnails() {
+  if (derived_channel_thumbnail_timer_ == nullptr) {
+    derived_channel_thumbnail_timer_ = new QTimer(this);
+    derived_channel_thumbnail_timer_->setSingleShot(true);
+    derived_channel_thumbnail_timer_->setInterval(120);
+    connect(derived_channel_thumbnail_timer_, &QTimer::timeout, this, [this] {
+      // The canvas recomposites lazily (on paint, or in the background): wait for it.
+      if (!refresh_derived_channel_thumbnails() && ++derived_channel_thumbnail_attempts_ < 100) {
+        derived_channel_thumbnail_timer_->start();
+      }
+    });
+  }
+  derived_channel_thumbnail_attempts_ = 0;
+  derived_channel_thumbnail_timer_->start();
+}
+
+QString MainWindow::channel_view_names(ChannelView view) const {
+  QStringList names;
+  for (int index = 0; index < channel_view_group_size(view.group); ++index) {
+    if (!channel_view_shows(view, view.group, index)) {
+      continue;
+    }
+    switch (channel_view_row_kind(view.group, index)) {
+      case ChannelPanel::RowKind::Red:
+        names << tr("Red");
+        break;
+      case ChannelPanel::RowKind::Green:
+        names << tr("Green");
+        break;
+      case ChannelPanel::RowKind::Blue:
+        names << tr("Blue");
+        break;
+      case ChannelPanel::RowKind::Cyan:
+        names << tr("Cyan");
+        break;
+      case ChannelPanel::RowKind::Magenta:
+        names << tr("Magenta");
+        break;
+      case ChannelPanel::RowKind::Yellow:
+        names << tr("Yellow");
+        break;
+      case ChannelPanel::RowKind::Black:
+        names << tr("Black");
+        break;
+      case ChannelPanel::RowKind::Composite:
+      case ChannelPanel::RowKind::Alpha:
+      case ChannelPanel::RowKind::Spot:
+      case ChannelPanel::RowKind::QuickMask:
+        break;
+    }
+  }
+  return names.join(tr(", "));
+}
+
+void MainWindow::toggle_channel_eye(ChannelPanel::RowKind kind) {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  if (kind == ChannelPanel::RowKind::Composite) {
+    apply_channel_view_change(select_composite_channel());
+    return;
+  }
+  const auto channel = channel_view_channel(kind);
+  if (!channel.has_value()) {
+    return;
+  }
+  const auto target = canvas_->layer_edit_target();
+  // A saved channel shown alone hides the color channels: an eye shows that one again.
+  const bool saved_channel_alone = !canvas_->quick_mask_active() &&
+                                   target == CanvasWidget::LayerEditTarget::DocumentChannel &&
+                                   canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::Overlay;
+  apply_channel_view_change(saved_channel_alone
+                                ? select_single_channel(channel->first, channel->second)
+                                : patchy::toggle_channel_eye(canvas_->channel_view(),
+                                                             CanvasWidget::channel_view_target_for(target), channel->first,
+                                                             channel->second));
+}
+
+void MainWindow::show_channel_by_shortcut(int slot) {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  if (slot == 0) {
+    set_channel_edit_target(ChannelPanel::RowKind::Composite, 0, false, true);
+    return;
+  }
+  // Inks in a CMYK Proof document whose plates are listed (docs/cmyk.md); otherwise colors.
+  const auto* session = active_session();
+  const auto& proof = canvas_->proof_display_transform();
+  const bool inks = session != nullptr && session->cmyk_proof && proof != nullptr && proof->simulates_colors();
+  const auto index = slot - 1;
+  if (index >= channel_view_group_size(inks ? ChannelViewGroup::Ink : ChannelViewGroup::Color)) {
+    return;
+  }
+  set_channel_edit_target(channel_view_row_kind(inks ? ChannelViewGroup::Ink : ChannelViewGroup::Color, index), 0,
+                          false, true);
+}
+
+void MainWindow::apply_channel_view_change(ChannelViewChange change) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  const auto current = canvas_->layer_edit_target();
+  const bool saved_channel_alone = current == CanvasWidget::LayerEditTarget::DocumentChannel &&
+                                   canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::Overlay;
+  // A composite target leaves a component or a saved channel shown alone; a layer, a mask
+  // or a saved channel overlay stays targeted (painting goes on with a channel hidden).
+  if (change.target.composite) {
+    if (CanvasWidget::is_component_preview(current) || saved_channel_alone) {
+      set_channel_edit_target(ChannelPanel::RowKind::Composite, 0, false, false);
+    }
+  } else if (CanvasWidget::layer_edit_target_for(change.target) != current) {
+    set_channel_edit_target(channel_view_row_kind(change.target.group, change.target.index), 0, false, false);
+  }
+  canvas_->set_channel_view(change.view);
+  refresh_channel_panel();
+  statusBar()->showMessage(channel_view_is_composite(change.view)
+                               ? tr("Showing composite")
+                               : tr("Showing channels: %1").arg(channel_view_names(change.view)));
 }
 
 void MainWindow::refresh_channel_panel() {
@@ -186,24 +434,44 @@ void MainWindow::refresh_channel_panel() {
   }
 
   const auto& doc = std::as_const(document());
+  if (!refresh_derived_channel_thumbnails()) {
+    schedule_derived_channel_thumbnails();
+  }
+  const bool thumbnails_current = derived_channel_thumbnails_.canvas == canvas_;
+  const auto derived_thumbnail = [this, thumbnails_current](std::size_t index) {
+    const auto& cached = derived_channel_thumbnails_.thumbnails[index];
+    return thumbnails_current && !cached.isNull() ? cached : framed_channel_thumbnail(QImage());
+  };
+  // Eyes (docs/channels.md, "Channel visibility"). A saved channel shown alone hides
+  // every color channel.
+  const auto view = canvas_->channel_view();
+  const bool saved_channel_alone = !canvas_->quick_mask_active() &&
+                                   canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel &&
+                                   canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::Overlay;
+  const auto eye = [&view, saved_channel_alone](ChannelViewGroup group, int index) {
+    return !saved_channel_alone && channel_view_eye_on(view, group, index);
+  };
   std::vector<ChannelPanel::Row> rows;
   rows.reserve(5U + doc.channels().size());
-  rows.push_back({ChannelPanel::RowKind::Composite, 0, tr("Composite"),
-                  component_channel_thumbnail(QColor(230, 230, 230)), false});
-  rows.push_back({ChannelPanel::RowKind::Red, 0, tr("Red"), component_channel_thumbnail(QColor(235, 70, 70)),
-                  false});
-  rows.push_back({ChannelPanel::RowKind::Green, 0, tr("Green"),
-                  component_channel_thumbnail(QColor(65, 210, 90)), false});
-  rows.push_back({ChannelPanel::RowKind::Blue, 0, tr("Blue"),
-                  component_channel_thumbnail(QColor(70, 120, 245)), false});
+  rows.push_back({ChannelPanel::RowKind::Composite, 0, tr("Composite"), derived_thumbnail(0), false,
+                  !saved_channel_alone && channel_view_is_composite(view)});
+  rows.push_back({ChannelPanel::RowKind::Red, 0, tr("Red"), derived_thumbnail(1), false,
+                  eye(ChannelViewGroup::Color, 0)});
+  rows.push_back({ChannelPanel::RowKind::Green, 0, tr("Green"), derived_thumbnail(2), false,
+                  eye(ChannelViewGroup::Color, 1)});
+  rows.push_back({ChannelPanel::RowKind::Blue, 0, tr("Blue"), derived_thumbnail(3), false,
+                  eye(ChannelViewGroup::Color, 2)});
   // The CMYK proof's ink plates (docs/cmyk.md), while the canvas simulates the print
   // (View > Proof Colors, or the document is in CMYK Proof mode).
   if (const auto& proof = canvas_->proof_display_transform(); proof != nullptr && proof->simulates_colors()) {
-    rows.push_back({ChannelPanel::RowKind::Cyan, 0, tr("Cyan"), ink_plate_thumbnail(QColor(0, 174, 239)), false});
-    rows.push_back(
-        {ChannelPanel::RowKind::Magenta, 0, tr("Magenta"), ink_plate_thumbnail(QColor(236, 0, 140)), false});
-    rows.push_back({ChannelPanel::RowKind::Yellow, 0, tr("Yellow"), ink_plate_thumbnail(QColor(255, 242, 0)), false});
-    rows.push_back({ChannelPanel::RowKind::Black, 0, tr("Black"), ink_plate_thumbnail(QColor(35, 31, 32)), false});
+    rows.push_back({ChannelPanel::RowKind::Cyan, 0, tr("Cyan"), derived_thumbnail(4), false,
+                    eye(ChannelViewGroup::Ink, 0)});
+    rows.push_back({ChannelPanel::RowKind::Magenta, 0, tr("Magenta"), derived_thumbnail(5), false,
+                    eye(ChannelViewGroup::Ink, 1)});
+    rows.push_back({ChannelPanel::RowKind::Yellow, 0, tr("Yellow"), derived_thumbnail(6), false,
+                    eye(ChannelViewGroup::Ink, 2)});
+    rows.push_back({ChannelPanel::RowKind::Black, 0, tr("Black"), derived_thumbnail(7), false,
+                    eye(ChannelViewGroup::Ink, 3)});
   }
 
   if (canvas_->quick_mask_active()) {
@@ -216,7 +484,7 @@ void MainWindow::refresh_channel_panel() {
           sampled_grayscale_channel_thumbnail(canvas_->quick_mask_pixels());
     }
     rows.push_back({ChannelPanel::RowKind::QuickMask, 0, tr("Quick Mask"),
-                    quick_mask_thumbnail_, false});
+                    quick_mask_thumbnail_, false, std::nullopt});
   }
 
   std::set<ChannelId> current_ids;
@@ -225,9 +493,10 @@ void MainWindow::refresh_channel_panel() {
     current_ids.insert(channel.id());
     const auto kind = channel.kind() == DocumentChannelKind::Spot ? ChannelPanel::RowKind::Spot
                                                                   : ChannelPanel::RowKind::Alpha;
+    const bool overlay = selected_channel_id == channel.id() &&
+                         canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay;
     rows.push_back({kind, channel.id(), QString::fromStdString(channel.name()), cached_channel_thumbnail(channel),
-                    selected_channel_id == channel.id() &&
-                        canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay});
+                    overlay, overlay});
   }
   for (auto it = channel_thumbnail_cache_.begin(); it != channel_thumbnail_cache_.end();) {
     if (!current_ids.contains(it->first)) {
@@ -313,34 +582,42 @@ void MainWindow::set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId i
     case ChannelPanel::RowKind::Composite:
       set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, false);
       canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
+      canvas_->set_channel_view(composite_channel_view());
       message = tr("Showing composite");
       break;
     case ChannelPanel::RowKind::Red:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentRed);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Red channel (read-only)");
       break;
     case ChannelPanel::RowKind::Green:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentGreen);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Green channel (read-only)");
       break;
     case ChannelPanel::RowKind::Blue:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentBlue);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Blue channel (read-only)");
       break;
     case ChannelPanel::RowKind::Cyan:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentCyan);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Cyan plate (read-only)");
       break;
     case ChannelPanel::RowKind::Magenta:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentMagenta);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Magenta plate (read-only)");
       break;
     case ChannelPanel::RowKind::Yellow:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentYellow);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Yellow plate (read-only)");
       break;
     case ChannelPanel::RowKind::Black:
       canvas_->set_component_channel_preview(CanvasWidget::LayerEditTarget::ComponentBlack);
+      canvas_->set_channel_view(single_channel_view(channel_view_channel(kind)->first, channel_view_channel(kind)->second));
       message = tr("Previewing Black plate (read-only)");
       break;
     case ChannelPanel::RowKind::Alpha:
@@ -837,9 +1114,21 @@ void MainWindow::refresh_edit_target_chip() {
     case CanvasWidget::LayerEditTarget::SmartFilterMask:
       break;
   }
+  const auto view = canvas_->channel_view();
+  if (!component_name.isEmpty() && channel_view_visible_count(view) > 1) {
+    component_name.clear();
+  }
   if (!component_name.isEmpty()) {
     mask_edit_mode_chip_->setText(tr("Viewing channel: %1 (click to exit)").arg(component_name));
     mask_edit_mode_chip_->setToolTip(tr("Click to return to the composite image."));
+    mask_edit_mode_chip_->show();
+    return;
+  }
+  if (!channel_view_is_composite(view) &&
+      (CanvasWidget::is_component_preview(canvas_->layer_edit_target()) ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Content)) {
+    mask_edit_mode_chip_->setText(tr("Viewing channels: %1 (click to exit)").arg(channel_view_names(view)));
+    mask_edit_mode_chip_->setToolTip(tr("Click to show every color channel again."));
     mask_edit_mode_chip_->show();
     return;
   }

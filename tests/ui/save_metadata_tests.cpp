@@ -227,17 +227,31 @@ void ui_save_metadata_modes_for_psd_and_jpeg() {
   CHECK(saved_info(dir + QStringLiteral("/none.psd")).exif == nullptr);
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/none.jpg")));
   CHECK(saved_info(dir + QStringLiteral("/none.jpg")).xmp == nullptr);
+  CHECK(saved_info(dir + QStringLiteral("/none.jpg")).exif == nullptr);
+  {
+    // Exactly the encoder's bytes: no APP1 Exif or XMP segment was spliced in.
+    QFile file(dir + QStringLiteral("/none.jpg"));
+    CHECK(file.open(QIODevice::ReadOnly));
+    const auto bytes = file.readAll();
+    CHECK(!bytes.contains(QByteArray("Exif\0\0", 6)) && !bytes.contains("http://ns.adobe.com/xap/1.0/"));
+  }
 
   patchy::ui::set_stored_save_metadata_mode(patchy::ui::SaveMetadataMode::Basic);
   new_document(window, QStringLiteral("Basic"));
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/basic.psd")));
   CHECK(creator_tool(saved_info(dir + QStringLiteral("/basic.psd"))).rfind("Patchy ", 0) == 0U);
   CHECK(md::read_fields(saved_info(dir + QStringLiteral("/basic.psd"))).authors.empty());
-  // Basic stamps PSD and PSB only (docs/file-info.md): a JPEG of a document without metadata
-  // stays exactly as before. (A document saved as PSD first carries that stamp onward.)
+  // Basic stamps PSD, PSB and JPEG saves (docs/file-info.md; JPEG since October 25, 2026):
+  // a new document's JPEG gets the XMP record and a minimal EXIF block.
   new_document(window, QStringLiteral("Basic JPEG"));
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/basic.jpg")));
-  CHECK(saved_info(dir + QStringLiteral("/basic.jpg")).xmp == nullptr);
+  CHECK(creator_tool(saved_info(dir + QStringLiteral("/basic.jpg"))).rfind("Patchy ", 0) == 0U);
+  CHECK(saved_info(dir + QStringLiteral("/basic.jpg")).exif != nullptr);
+  // Other flat formats stay as they were.
+  new_document(window, QStringLiteral("Basic PNG"));
+  CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/basic.png")));
+  CHECK(saved_info(dir + QStringLiteral("/basic.png")).xmp == nullptr);
+  CHECK(saved_info(dir + QStringLiteral("/basic.png")).exif == nullptr);
 
   set_personal(/*ask=*/false);
   new_document(window, QStringLiteral("Personal"));

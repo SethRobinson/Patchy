@@ -14,6 +14,12 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-25 (additive): `layer.applyCameraRawFilter(settings)` runs Filter > Camera Raw Filter (GitHub
+issue 392, [camera-raw.md](camera-raw.md#camera-raw-filter)) on an RGB pixel layer at its depth, limited
+to the selection like `applyFilter`. Permanent setting names: `temperature`, `tint` (-100..100,
+relative), `exposure` (-5..5 EV), `contrast`, `highlights`, `shadows`, `saturation`, `vibrance`
+(-100..100); missing ones are neutral, out-of-range numbers clamp, unknown names or non-numbers throw.
+Pinned by `ui_camera_raw_filter_script_and_selection`.
 2026-10-25 (additive): blend mode ids `grain-extract`, `grain-merge`, `hsv-hue`, `hsv-saturation`,
 `hsl-color`, `hsv-value`, `lch-hue`, `lch-chroma`, `lch-color`, `lch-lightness`, `luminance`,
 `luma-darken-only`, `luma-lighten-only`, `linear-multiply`, `linear-addition`, `linear-subtract` and

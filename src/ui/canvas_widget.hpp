@@ -7,6 +7,7 @@
 #include "color/color_management.hpp"
 
 #include "core/artboard.hpp"
+#include "core/channel_view.hpp"
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/layer_alignment.hpp"
@@ -286,6 +287,13 @@ public:
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
   void set_document_channel_edit_target(ChannelId id, MaskDisplayMode mode = MaskDisplayMode::Grayscale);
   void set_component_channel_preview(LayerEditTarget component);
+  // The color channels the canvas shows (docs/channels.md, "Channel visibility"): a view
+  // mask over the cached composite, never pixels. Target changes keep it consistent
+  // through channel_view_for_target.
+  void set_channel_view(ChannelView view);
+  [[nodiscard]] ChannelView channel_view() const noexcept;
+  [[nodiscard]] static ChannelViewTarget channel_view_target_for(LayerEditTarget target) noexcept;
+  [[nodiscard]] static LayerEditTarget layer_edit_target_for(ChannelViewTarget target) noexcept;
   [[nodiscard]] std::optional<ChannelId> active_document_channel_id() const noexcept;
   [[nodiscard]] bool editing_document_channel() const noexcept;
   [[nodiscard]] bool document_channel_is_editable() const noexcept;
@@ -2973,6 +2981,10 @@ private:
   std::vector<std::uint8_t> plate_inks_;
   qint64 plate_inks_source_key_{0};
   std::shared_ptr<const CmykWorkingSpace> plate_inks_space_;
+  ChannelView channel_view_{};
+  // Each plate's ink alone on paper per ink level, for views of several plates.
+  std::array<std::array<QRgb, 256>, 4> plate_ink_colors_{};
+  std::shared_ptr<const CmykWorkingSpace> plate_ink_colors_space_;
   QColor primary_color_{Qt::black};
   QColor secondary_color_{Qt::white};
   // Palette-mode snap cache; rebuilt lazily when the document palette changes

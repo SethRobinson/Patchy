@@ -448,28 +448,40 @@
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>下のレイヤーでクリッピングマスクを作成</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>現在のモードにはニュートラルカラーがありません</translation>
+        <source>White</source>
+        <translation>白</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>ニュートラルカラーで塗りつぶす（白）</translation>
+        <source>Black</source>
+        <translation>黒</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>ニュートラルカラーで塗りつぶす（黒）</translation>
+        <source>50% gray</source>
+        <translation>50% グレー</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>ニュートラルカラーで塗りつぶす（50% グレー）</translation>
+        <source>Clip to the layer below</source>
+        <translation>下のレイヤーにクリップ</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>ニュートラルカラー</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>このモードで画像を変えない色で新規レイヤーを塗りつぶします</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>このモードにはニュートラルカラーがありません</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>塗り:</translation>
     </message>
 </context>
 <context>
@@ -12535,6 +12547,82 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>GIMP 画像</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 列</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 列</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 列</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>2 x 2 グリッド</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>3 x 3 グリッド</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>4 x 4 グリッド</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 列、間隔 20 px</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw フィルター</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>レイヤーの平均色をニュートラルにします</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>レイヤーを暖色または寒色にします。0 で元の色のままです。</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>レイヤーをマゼンタまたはグリーン寄りにします。0 で元の色のままです。</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>レイヤー: %1 x %2、%3 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>選択範囲の内側に適用します。</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>プロファイル、デモザイク、ノイズ軽減にはセンサーの RAW データが必要です。カメラ RAW ファイルを開くときの「Raw 現像」にあります。</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>オフにするとフィルター適用前のレイヤーと比較できます</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>高品質プレビューを処理中...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>簡易プレビューを更新中...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>Shift キーを押しながらクリックすると平均色をニュートラルにします。%ALT% キーを押しながらクリックするとリセットします。</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>適用中...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14309,10 +14397,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>選択するとグレースケールで表示します。チェックするとカラーオーバーレイを表示します。</translation>
-    </message>
-    <message>
         <source>Spot channels can be previewed but not edited.</source>
         <translation>スポットカラーチャンネルはプレビューできますが、編集はできません。</translation>
     </message>
@@ -14363,6 +14447,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+クリックで、この版のインキがない部分を選択範囲として読み込みます。</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>選択するとグレースケールで表示します。目のアイコンをクリックするとカラーオーバーレイを表示します。</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>このチャンネルをカラーオーバーレイとして表示または非表示</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>すべてのカラーチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>このチャンネルを表示または非表示にします。少なくとも 1 つのチャンネルは表示されたままです。</translation>
     </message>
 </context>
 <context>
@@ -23474,10 +23574,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>画面サイズに合わせる</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>サンプル範囲:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>指定したピクセル</translation>
     </message>
@@ -25279,6 +25375,78 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>共有したくない可能性のある情報についてのファイル情報の通知を表示する</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>レイヤー:</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>間隔:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>上マージン:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>下:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>左マージン:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>右:</translation>
+    </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Camera &amp;Raw フィルター...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>アクティブなレイヤーのホワイトバランス、露光量、トーン、カラーを調整します</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw フィルター</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>チャンネルを表示しています: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>チャンネルを表示中: %1（クリックして終了）</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>クリックするとすべてのカラーチャンネルを再び表示します。</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>コンポジットチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>レッドまたはシアンチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>グリーンまたはマゼンタチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>ブルーまたはイエローチャンネルを表示</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>ブラックチャンネルを表示</translation>
     </message>
     <message>
         <source>Hide This Layer</source>
@@ -27275,6 +27443,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye: width と height は 1 以上である必要があります。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter: 設定のオブジェクトを渡してください。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter: 不明な設定 %1 です。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter: %1 は数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter には RGB のピクセルレイヤーが必要です。</translation>
     </message>
 </context>
 <context>

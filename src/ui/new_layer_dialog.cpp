@@ -2,6 +2,7 @@
 
 #include "ui/blend_mode_ui.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -9,7 +10,11 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
+#include <QPixmap>
 #include <QSpinBox>
 #include <QVBoxLayout>
 
@@ -23,19 +28,31 @@ class NewLayerDialogStrings {
   Q_DECLARE_TR_FUNCTIONS(NewLayerDialog)
 };
 
-QString neutral_fill_label(std::optional<NeutralFillColor> color) {
-  if (!color.has_value()) {
-    return NewLayerDialogStrings::tr("No neutral color exists for current mode");
-  }
-  switch (*color) {
+QString neutral_fill_name(NeutralFillColor color) {
+  switch (color) {
     case NeutralFillColor::White:
-      return NewLayerDialogStrings::tr("Fill with neutral color (white)");
+      return NewLayerDialogStrings::tr("White");
     case NeutralFillColor::Black:
-      return NewLayerDialogStrings::tr("Fill with neutral color (black)");
+      return NewLayerDialogStrings::tr("Black");
     case NeutralFillColor::Gray:
-      return NewLayerDialogStrings::tr("Fill with neutral color (50% gray)");
+      return NewLayerDialogStrings::tr("50% gray");
   }
   return {};
+}
+
+// The neutral color itself (document content, not chrome), framed so white and black both
+// read against either scheme. Wider than tall, so it reads as a color chip, not a checkbox.
+QPixmap neutral_fill_swatch(NeutralFillColor color, qreal device_pixel_ratio) {
+  constexpr int kWidth = 24;
+  constexpr int kHeight = 14;
+  const int value = color == NeutralFillColor::White ? 255 : color == NeutralFillColor::Black ? 0 : 128;
+  QPixmap pixmap(QSize(kWidth, kHeight) * device_pixel_ratio);
+  pixmap.setDevicePixelRatio(device_pixel_ratio);
+  pixmap.fill(QColor(value, value, value));
+  QPainter painter(&pixmap);
+  painter.setPen(QPen(theme().text_secondary, 0));
+  painter.drawRect(QRectF(0.5, 0.5, kWidth - 1.0, kHeight - 1.0));
+  return pixmap;
 }
 
 }  // namespace
@@ -87,7 +104,7 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, cons
   form->addRow(NewLayerDialogStrings::tr("Name:"), name_edit);
 
   // Under Name in the field column, lined up with the fields (#410).
-  auto* clip_check = new QCheckBox(NewLayerDialogStrings::tr("Use Previous Layer to Create Clipping Mask"), &dialog);
+  auto* clip_check = new QCheckBox(NewLayerDialogStrings::tr("Clip to the layer below"), &dialog);
   clip_check->setObjectName(QStringLiteral("newLayerClipCheck"));
   clip_check->setEnabled(clip_available);
   clip_check->setToolTip(NewLayerDialogStrings::tr("Clip the new layer to the layer below it"));
@@ -108,16 +125,43 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, cons
   mode_combo->setCurrentIndex(std::max(0, mode_combo->findData(static_cast<int>(BlendMode::Normal))));
   form->addRow(NewLayerDialogStrings::tr("Mode:"), mode_combo);
 
-  auto* neutral_check = new QCheckBox(&dialog);
+  // Fill: the mode's neutral color, shown as a swatch and its name (#410). A mode without one
+  // says so in plain text rather than a dimmed, easily missed control.
+  auto* fill_row = new QWidget(&dialog);
+  fill_row->setObjectName(QStringLiteral("newLayerNeutralFillRow"));
+  auto* fill_layout = new QHBoxLayout(fill_row);
+  fill_layout->setContentsMargins(0, 0, 0, 0);
+  fill_layout->setSpacing(6);
+  auto* neutral_check = new QCheckBox(NewLayerDialogStrings::tr("Neutral color"), fill_row);
   neutral_check->setObjectName(QStringLiteral("newLayerNeutralFillCheck"));
-  const auto refresh_neutral_check = [mode_combo, neutral_check] {
+  neutral_check->setToolTip(NewLayerDialogStrings::tr("Fill the new layer with the color that leaves the image unchanged in this mode"));
+  auto* neutral_swatch = new QLabel(fill_row);
+  neutral_swatch->setObjectName(QStringLiteral("newLayerNeutralFillSwatch"));
+  auto* neutral_name = new QLabel(fill_row);
+  neutral_name->setObjectName(QStringLiteral("newLayerNeutralFillName"));
+  auto* neutral_note = new QLabel(NewLayerDialogStrings::tr("This mode has no neutral color"), fill_row);
+  neutral_note->setObjectName(QStringLiteral("newLayerNeutralFillNote"));
+  fill_layout->addWidget(neutral_check);
+  fill_layout->addWidget(neutral_swatch);
+  fill_layout->addWidget(neutral_name);
+  fill_layout->addWidget(neutral_note);
+  fill_layout->addStretch(1);
+  fill_row->setMinimumHeight(neutral_check->sizeHint().height());
+  const auto refresh_neutral_fill = [mode_combo, neutral_check, neutral_swatch, neutral_name, neutral_note] {
     const auto color = neutral_fill_for_blend_mode(static_cast<BlendMode>(mode_combo->currentData().toInt()));
-    neutral_check->setText(neutral_fill_label(color));
     neutral_check->setEnabled(color.has_value());
+    neutral_check->setVisible(color.has_value());
+    neutral_swatch->setVisible(color.has_value());
+    neutral_name->setVisible(color.has_value());
+    neutral_note->setVisible(!color.has_value());
+    if (color.has_value()) {
+      neutral_swatch->setPixmap(neutral_fill_swatch(*color, neutral_swatch->devicePixelRatioF()));
+      neutral_name->setText(neutral_fill_name(*color));
+    }
   };
-  refresh_neutral_check();
-  QObject::connect(mode_combo, &QComboBox::currentIndexChanged, neutral_check, refresh_neutral_check);
-  form->addRow(static_cast<QWidget*>(nullptr), neutral_check);
+  refresh_neutral_fill();
+  QObject::connect(mode_combo, &QComboBox::currentIndexChanged, fill_row, refresh_neutral_fill);
+  form->addRow(NewLayerDialogStrings::tr("Fill:"), fill_row);
 
   auto* opacity_spin = add_dialog_slider_spin_row(form, &dialog, NewLayerDialogStrings::tr("Opacity:"),
                                                   QStringLiteral("newLayerOpacitySlider"),

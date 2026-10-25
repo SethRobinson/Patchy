@@ -1369,4 +1369,21 @@ void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const Filte
                                 [&] { apply_color_balance_to_pixels_hard(pixels, bounds, selection, settings, progress); });
 }
 
+void apply_camera_raw_filter_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
+                                       const PhotoDevelopParams& params, const FilterProgress* progress) {
+  const PhotoDeveloper developer(params);
+  if (developer.is_identity()) {
+    return;
+  }
+  apply_with_selection_coverage(pixels, bounds, selection, [&] {
+    const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+      developer.apply_row(pixels, y, x_begin, x_end);
+    };
+    if (apply_row_spans_in_parallel(pixels, selection.region, progress, apply_span)) {
+      return;
+    }
+    for_each_selected_row_span(pixels, bounds, selection.region, progress, apply_span);
+  });
+}
+
 }  // namespace patchy::ui

@@ -1414,7 +1414,7 @@ void MainWindow::warp_transform_active_layer() {
 namespace {
 
 // Whether a new layer inserted above `anchor` (insert_layer_after_anchor) has a layer
-// below it to clip to: the New Layer dialog's "Use Previous Layer" option.
+// below it to clip to: the New Layer dialog's "Clip to the layer below" option.
 bool new_layer_has_clip_base(const Document& document, std::optional<LayerId> anchor) {
   if (!anchor.has_value()) {
     return false;

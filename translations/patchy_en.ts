@@ -448,27 +448,39 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
+        <source>White</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
+        <source>Black</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
+        <source>50% gray</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
+        <source>Clip to the layer below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -12554,6 +12566,82 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>GIMP Image</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14328,10 +14416,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14381,6 +14465,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -23469,10 +23569,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25270,6 +25366,78 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -27267,6 +27435,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>redEye: width and height must be at least 1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
