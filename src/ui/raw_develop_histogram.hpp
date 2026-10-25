@@ -89,6 +89,24 @@ private:
 [[nodiscard]] std::optional<RawToneAutoValues> raw_auto_tone(const RawPreviewHistogram& baseline,
                                                              const RawToneModel& model);
 
+// Shift-click auto values for the Tone sliders. Each reads the luminance
+// histogram of a preview developed with the slider at `rendered` and returns
+// the new slider value (already clamped to its range), or nullopt when the
+// histogram is empty or flat. They reuse Image > Adjustments' clip scan
+// (auto_levels_clip_scan: 0.1% per end) and Auto Color's midtone target 128:
+//   Exposure (EV, -2..3): moves the mean luminance toward 128, never pushing
+//     the clip white point past white; darkens only when whites clip.
+//   Contrast (-100..100): Auto Contrast's stretch of the clip black and white
+//     points, as the S-curve slope that matches it at mid gray.
+//   Highlights (-100..100): pulls back clipped whites, or carries a white
+//     point short of white up to it.
+//   Shadows (-100..100): opens crushed blacks, or deepens a black point that
+//     stops short of black.
+[[nodiscard]] std::optional<double> raw_auto_exposure_ev(const RawPreviewHistogram& histogram, double rendered);
+[[nodiscard]] std::optional<double> raw_auto_contrast(const RawPreviewHistogram& histogram, double rendered);
+[[nodiscard]] std::optional<double> raw_auto_highlights(const RawPreviewHistogram& histogram, double rendered);
+[[nodiscard]] std::optional<double> raw_auto_shadows(const RawPreviewHistogram& histogram, double rendered);
+
 enum class RawHistogramDragPhase { Begin, Move, End };
 
 // The Develop Raw dialog's histogram (GitHub issue 393): RGB and luminance of

@@ -216,6 +216,102 @@ std::optional<RawToneAutoValues> raw_auto_tone(const RawPreviewHistogram& baseli
   return best;
 }
 
+namespace {
+
+constexpr double kClipShare = 0.001;
+constexpr double kMidtoneTarget = 128.0 / 255.0;
+
+// Same shape as the tone curve's (formats/raw_tone.cpp), so the auto values aim
+// at where the sliders actually act.
+double smoothstep(double edge0, double edge1, double x) {
+  const auto t = std::clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+  return t * t * (3.0 - 2.0 * t);
+}
+
+struct LuminanceScan {
+  int black{0};
+  int white{255};
+  double mean{0.0};
+  double bottom_share{0.0};
+  double top_share{0.0};
+};
+
+std::optional<LuminanceScan> scan_luminance(const RawPreviewHistogram& histogram) {
+  if (histogram.samples == 0) return std::nullopt;
+  const auto clip = auto_levels_clip_scan(histogram.luminance, histogram.samples);
+  if (!clip) return std::nullopt;
+  std::uint64_t weighted = 0;
+  for (std::size_t bin = 0; bin < histogram.luminance.size(); ++bin) weighted += bin * histogram.luminance[bin];
+  const auto samples = static_cast<double>(histogram.samples);
+  LuminanceScan scan;
+  scan.black = clip->black_input;
+  scan.white = clip->white_input;
+  scan.mean = static_cast<double>(weighted) / (255.0 * samples);
+  scan.bottom_share = histogram.luminance.front() / samples;
+  scan.top_share = histogram.luminance.back() / samples;
+  return scan;
+}
+
+double clamp_round(double value, double minimum, double maximum, double scale) {
+  return std::clamp(std::round(value * scale) / scale, minimum, maximum);
+}
+
+}  // namespace
+
+std::optional<double> raw_auto_exposure_ev(const RawPreviewHistogram& histogram, double rendered) {
+  const auto scan = scan_luminance(histogram);
+  if (!scan) return std::nullopt;
+  const auto mean_linear = srgb_to_linear(scan->mean);
+  if (!(mean_linear > 0.0)) return std::nullopt;
+  auto delta = std::log2(srgb_to_linear(kMidtoneTarget) / mean_linear);
+  if (delta > 0.0) {
+    const auto headroom = scan->white < 255 ? std::log2(1.0 / srgb_to_linear(scan->white / 255.0)) : 0.0;
+    delta = std::min(delta, headroom);
+  } else if (scan->top_share <= kClipShare) {
+    // A bright scene that does not clip keeps its exposure (snow stays white).
+    delta = 0.0;
+  }
+  return clamp_round(rendered + delta, -2.0, 3.0, 100.0);
+}
+
+std::optional<double> raw_auto_contrast(const RawPreviewHistogram& histogram, double rendered) {
+  const auto scan = scan_luminance(histogram);
+  if (!scan) return std::nullopt;
+  const auto spread = static_cast<double>(scan->white - scan->black) / 255.0;
+  // The smoothstep S-curve's slope at mid gray is 1 + amount / 2; Auto
+  // Contrast's stretch has slope 1 / spread.
+  const auto amount = spread < 1.0 ? std::min(1.0, 2.0 * (1.0 / spread - 1.0)) : 0.0;
+  return clamp_round(rendered + amount * 100.0, -100.0, 100.0, 1.0);
+}
+
+std::optional<double> raw_auto_highlights(const RawPreviewHistogram& histogram, double rendered) {
+  const auto scan = scan_luminance(histogram);
+  if (!scan) return std::nullopt;
+  double amount = 0.0;
+  if (scan->top_share > kClipShare) {
+    amount = -std::min(1.0, scan->top_share * 20.0);
+  } else {
+    const auto x = scan->white / 255.0;
+    const auto weight = smoothstep(0.35, 0.85, x);
+    if (x < 1.0 && weight > 0.05) amount = std::min(1.0, (1.0 - x) / (0.25 * weight));
+  }
+  return clamp_round(rendered + amount * 100.0, -100.0, 100.0, 1.0);
+}
+
+std::optional<double> raw_auto_shadows(const RawPreviewHistogram& histogram, double rendered) {
+  const auto scan = scan_luminance(histogram);
+  if (!scan) return std::nullopt;
+  double amount = 0.0;
+  if (scan->bottom_share > kClipShare) {
+    amount = std::min(1.0, scan->bottom_share * 20.0);
+  } else {
+    const auto x = scan->black / 255.0;
+    const auto weight = smoothstep(0.0, 0.15, x) * (1.0 - smoothstep(0.15, 0.65, x));
+    if (x > 0.0 && weight > 0.05) amount = -std::min(1.0, x / (0.30 * weight));
+  }
+  return clamp_round(rendered + amount * 100.0, -100.0, 100.0, 1.0);
+}
+
 RawHistogramWidget::RawHistogramWidget(QWidget* parent) : QWidget(parent) {
   setMouseTracking(true);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
