@@ -1407,6 +1407,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   metadata_help->setObjectName(QStringLiteral("preferencesSavedMetadataHelp"));
   metadata_help->setWordWrap(true);
   metadata_form->addRow(metadata_help);
+  auto* privacy_notice_check =
+      new QCheckBox(tr("Show the File Info notice about information you may not want to share"), metadata_group);
+  privacy_notice_check->setObjectName(QStringLiteral("preferencesFileInfoPrivacyNoticeCheck"));
+  privacy_notice_check->setChecked(stored_show_file_info_privacy_notice());
+  metadata_form->addRow(privacy_notice_check);
   watermarks_layout->addWidget(metadata_group);
   const int current_year = QDate::currentDate().year();
   const auto refresh_metadata_fields = [metadata_personal_radio, metadata_name_edit, metadata_copyright_edit,
@@ -2198,6 +2203,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     set_stored_personal_save_metadata(PersonalSaveMetadata{metadata_name_edit->text(), metadata_copyright_edit->text(),
                                                            metadata_email_edit->text(), metadata_website_edit->text(),
                                                            metadata_ask_check->isChecked()});
+    set_stored_show_file_info_privacy_notice(privacy_notice_check->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/convertRgbProfilesToSrgb"), convert_rgb_profiles_check->isChecked());

@@ -12334,6 +12334,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>Les calques dont ce format ne peut pas enregistrer le mode de fusion ont été enregistrés en Normal, donc l&apos;image enregistrée a un autre aspect.</translation>
     </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>Ne plus afficher</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>Préférences &gt; Métadonnées et filigranes permet de réafficher cet avis.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25104,6 +25112,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
         <translation>Masque de fusion ajouté qui masque le calque. Peignez en blanc pour faire apparaître.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>Afficher l&apos;avis des Informations sur le fichier concernant les données que vous ne souhaitez peut-être pas partager</translation>
     </message>
 </context>
 <context>

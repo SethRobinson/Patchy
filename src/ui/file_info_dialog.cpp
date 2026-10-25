@@ -8,6 +8,7 @@
 #include "render/compositor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/object_selection_model_download.hpp"
+#include "ui/save_metadata_settings.hpp"
 #include "ui/watermark_model_download.hpp"
 #include "ui/watermark_scan_report.hpp"
 #include "ui/theme_palette.hpp"
@@ -538,10 +539,37 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
   root->setContentsMargins(10, 10, 10, 10);
   root->setSpacing(8);
 
-  auto* banner = new QLabel(&dialog);
+  // The privacy notice, with a way to turn it off (Preferences > Metadata and Watermarks
+  // turns it back on). A pixel watermark found by Scan for Watermarks always shows.
+  auto* banner_row = new QWidget(&dialog);
+  banner_row->setObjectName(QStringLiteral("fileInfoPrivacyBannerRow"));
+  auto* banner_layout = new QHBoxLayout(banner_row);
+  banner_layout->setContentsMargins(0, 0, 0, 0);
+  banner_layout->setSpacing(8);
+  auto* banner = new QLabel(banner_row);
   banner->setObjectName(QStringLiteral("fileInfoPrivacyBanner"));
   banner->setWordWrap(true);
-  root->addWidget(banner);
+  banner_layout->addWidget(banner, 1);
+  auto* hide_notice = new QPushButton(QObject::tr("Don't Show Again"), banner_row);
+  hide_notice->setObjectName(QStringLiteral("fileInfoHidePrivacyNoticeButton"));
+  hide_notice->setToolTip(QObject::tr("Preferences > Metadata and Watermarks can show this notice again."));
+  banner_layout->addWidget(hide_notice, 0, Qt::AlignVCenter);
+  root->addWidget(banner_row);
+  QString banner_watermarks;  // what the latest scan found, for the banner
+  const auto show_banner = [banner, banner_row, hide_notice, &banner_watermarks](
+                               const std::map<md::PrivacyClass, std::size_t>& counts) {
+    const bool notice = stored_show_file_info_privacy_notice();
+    const auto summary = privacy_summary_text(notice ? counts : std::map<md::PrivacyClass, std::size_t>{},
+                                              banner_watermarks);
+    banner->setText(summary);
+    banner->setVisible(!summary.isEmpty());
+    hide_notice->setVisible(notice && !privacy_summary_text(counts, {}).isEmpty());
+    banner_row->setVisible(!summary.isEmpty());
+  };
+  QObject::connect(hide_notice, &QPushButton::clicked, &dialog, [show_banner] {
+    set_stored_show_file_info_privacy_notice(false);
+    show_banner({});
+  });
 
   auto* body = new QHBoxLayout();
   body->setSpacing(10);
@@ -1186,9 +1214,8 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
                                             "pixels", md::PrivacyClass::Watermark});
       }
     }
-    const auto summary = privacy_summary_text(counts, pixel_watermarks.join(QStringLiteral(", ")));
-    banner->setText(summary);
-    banner->setVisible(!summary.isEmpty());
+    banner_watermarks = pixel_watermarks.join(QStringLiteral(", "));
+    show_banner(counts);
     build_camera();
     build_color();
     build_history();

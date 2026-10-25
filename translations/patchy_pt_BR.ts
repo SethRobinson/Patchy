@@ -12334,6 +12334,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>As camadas em modos de mesclagem que este formato não pode salvar foram salvas como Normal, então a imagem salva fica diferente.</translation>
     </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>Não mostrar novamente</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>Preferências &gt; Metadados e marcas d&apos;água pode mostrar este aviso novamente.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25104,6 +25112,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
         <translation>Adicionada máscara de camada que esconde a camada. Pinte de branco para revelar.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>Mostrar o aviso de Informações do arquivo sobre dados que você talvez não queira compartilhar</translation>
     </message>
 </context>
 <context>

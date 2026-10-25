@@ -222,6 +222,12 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
 
 ## Display
 
+- The privacy notice above the pages lists the privacy classes present (timestamps
+  excepted). Its Don't Show Again button (`fileInfoHidePrivacyNoticeButton`, #417) turns it
+  off for every document; Preferences > Metadata and Watermarks
+  (`preferencesFileInfoPrivacyNoticeCheck`) turns it back on. Settings key, permanent:
+  `fileInfo/showPrivacyNotice` (true by default). A pixel watermark found by Scan for
+  Watermarks still shows there.
 - All Metadata lists every row from `describe_file_info` grouped by container, with a
   privacy column. Group, name and value text there are specification identifiers and
   container descriptions shown untranslated, as ExifTool does (docs/localization.md); the

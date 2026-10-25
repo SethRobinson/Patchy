@@ -12334,6 +12334,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>Ebenen mit Füllmethoden, die dieses Format nicht speichern kann, wurden als Normal gespeichert, daher sieht das gespeicherte Bild anders aus.</translation>
     </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>Nicht mehr anzeigen</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>Voreinstellungen &gt; Metadaten und Wasserzeichen kann diesen Hinweis wieder einblenden.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25104,6 +25112,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
         <translation>Ebenenmaske hinzugefügt, die die Ebene ausblendet. Malen Sie mit Weiß zum Einblenden.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>Den Hinweis der Dateiinformationen zu Angaben anzeigen, die Sie vielleicht nicht teilen möchten</translation>
     </message>
 </context>
 <context>

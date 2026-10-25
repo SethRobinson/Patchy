@@ -12318,6 +12318,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25022,6 +25030,10 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

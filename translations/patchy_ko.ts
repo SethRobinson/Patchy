@@ -12299,6 +12299,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>이 형식에 저장할 수 없는 혼합 모드의 레이어는 표준으로 저장되어, 저장된 이미지가 다르게 보입니다.</translation>
     </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>다시 표시하지 않음</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>환경설정 &gt; 메타데이터 및 워터마크에서 이 알림을 다시 표시할 수 있습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25031,6 +25039,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
         <translation>레이어를 숨기는 레이어 마스크를 추가했습니다. 흰색으로 칠하면 드러납니다.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>공유하고 싶지 않을 수 있는 정보에 대한 파일 정보 알림 표시</translation>
     </message>
 </context>
 <context>
