@@ -683,6 +683,8 @@ void ui_raw_open_progress_continues_matching_refinement() {
       auto* label = dialog.findChild<QLabel*>(QStringLiteral("rawDevelopStatus"));
       auto* button = dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"));
       CHECK(label != nullptr && button != nullptr);
+      const auto text = half_size ? QObject::tr("Developing half size... %1%")
+                                  : QObject::tr("Developing full resolution... %1%");
       if (!clicked_open) {
         if (!accurate || percent < 20 || percent >= 80) return;
         previous_percent = percent;
@@ -690,21 +692,23 @@ void ui_raw_open_progress_continues_matching_refinement() {
         button->click();
         // Open joins the active accurate decode, including its last checkpoint.
         CHECK(dialog.property("rawProgressPercent").toInt() == percent);
+        CHECK(!button->isEnabled());
+        CHECK(label->text() == text.arg(percent));
+        // Checked before the capture: it processes events, and a later checkpoint can land
+        // in it and move the label on.
         save_widget_artifact(half_size ? "ui_raw_open_half_progress" : "ui_raw_open_full_progress", dialog);
-      } else {
-        CHECK(accurate);
-        CHECK(percent >= previous_percent && percent <= 100);
-        if (percent == 100) {
-          CHECK(dialog.property("rawPreviewAccurate").toBool());
-          CHECK(label->text().isEmpty());
-          return; // A completed image is already ready for the import.
-        }
-        advanced = advanced || percent > previous_percent;
-        previous_percent = percent;
+        return;
       }
+      CHECK(accurate);
+      CHECK(percent >= previous_percent && percent <= 100);
+      if (percent == 100) {
+        CHECK(dialog.property("rawPreviewAccurate").toBool());
+        CHECK(label->text().isEmpty());
+        return; // A completed image is already ready for the import.
+      }
+      advanced = advanced || percent > previous_percent;
+      previous_percent = percent;
       CHECK(!button->isEnabled());
-      const auto text = half_size ? QObject::tr("Developing half size... %1%")
-                                  : QObject::tr("Developing full resolution... %1%");
       CHECK(label->text() == text.arg(percent));
     });
     CHECK(clicked_open && advanced && result.has_value());
