@@ -67,7 +67,7 @@ Handled in src/ui/canvas_widget_events.cpp; the tool works while a preview dialo
 
 The pen button action `PenButtonAction::ZoomCanvas` (`canvas_widget_pen.cpp` for tablet events, the pen-button-as-mouse path in `canvas_widget_events.cpp`) uses `begin_zoom_drag` / `update_zoom_drag` / `end_zoom_drag` (canvas_widget_view.cpp): vertical delta, up = in, anchored at the press, gated by `pen_zoom_dragging_`. It shares `zoom_drag_anchor_widget_`, `zoom_drag_last_pos_`, and `apply_zoom_drag_step` with Scrubby Zoom; the two gestures cannot overlap because a left press ends a pen-button gesture first.
 
-`kZoomDragFactorPerPixel` (canvas_widget_view.cpp) is the one sensitivity constant for both gestures.
+`kZoomDragFactorPerPixel` (canvas_widget_view.cpp) is the one sensitivity constant for both gestures. Dialog previews have their own copy: `ZoomableImagePreview::set_scrubby_zoom` (the Develop Raw dialog's Scrubby Zoom, GitHub issue 395) repeats it and `kZoomClickSlopPx` in zoomable_image_preview.cpp; keep them in step.
 
 ## Coverage
 

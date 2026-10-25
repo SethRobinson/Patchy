@@ -12299,6 +12299,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>この形式で保存できない描画モードのレイヤーは通常として保存されたため、保存された画像の見た目は異なります。</translation>
     </message>
+    <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>プレビューのズーム。サイズを選ぶか、パーセントを入力します。</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>スクラブズーム</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>プレビュー上で左右にドラッグしてズームします。</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift+クリックで自動の値に設定します。%ALT%クリックでリセットします。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%クリックでリセットします。</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift+クリックで自動ホワイトバランスを使います。%ALT%クリックで撮影時の設定に戻します。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%クリックでノイズ低減を自動に戻します。</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>ヒストグラムにポインターを合わせると、その部分で調整する設定が表示されます。左右にドラッグすると変更できます。</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>左右にドラッグしてズームします。クリックで拡大、%ALT%クリックで縮小します。スペースキーを押したままにするか中ボタンで移動します。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -176,6 +176,40 @@ One pending latest request bounds work. Painting/panning reuse the cache; 100%
 and above retain precise pixel viewing. Shared users, including Filter Gallery,
 receive the same scaling fix with alpha and overlay coordinates intact.
 
+## Dialog histogram, slider clicks and zoom
+
+Histogram (GitHub issue 393; `raw_develop_histogram.{hpp,cpp}`): the worker counts R, G, B and
+integer 30/59/11 luminance of every completed develop (`Completion::histogram`) on a stride
+bounded by `kRawHistogramMaxSamples`, so a full-resolution accurate preview costs at most about a
+million reads and painting never touches pixels. Bars use the Levels/Curves display ceiling. The
+R/G/B fills are fixed data colors like the Curves histogram; the backdrop, frame, region highlight
+and luminance outline are theme roles. Regions, as plot-width fractions: Shadows 0 to 0.30,
+Exposure 0.30 to 0.65, Highlights 0.65 to 1. There is no Blacks or Whites slider, so Blacks folds
+into Shadows and Whites into Highlights. Hover highlights the region and names it with its value
+under the plot (`rawHistogramRegionLabel`); a drag holds that slider down (refinement waits for
+the release, as for a slider drag) and moves it by half its range per plot width, clamped.
+
+Slider clicks (GitHub issue 394): Shift-click and Alt-click on a slider, its name or its value label,
+read from the event's modifiers. Alt resets to `DevelopParams{}`; for Temperature/Tint it selects
+As Shot, for Denoise Auto noise reduction. Shift on Temperature/Tint selects Auto white balance.
+Shift on Exposure, Contrast, Highlights and Shadows computes from the histogram on screen and the
+settings it was rendered with (`histogram_params`), using Image > Adjustments' 0.1% clip scan and
+Auto Color's midtone target: Exposure moves mean luminance toward 128 without pushing the clip white
+past white and darkens only when whites clip; Contrast matches Auto Contrast's stretch with the
+S-curve slope at mid gray; Highlights pulls back clipped whites or carries a short white point up;
+Shadows opens crushed blacks or deepens a short black point. Each click is one step from the
+current preview, so a second click after the refresh refines it. Brightness, Saturation, Vibrance
+and Denoise have no automatic value: Shift-click does nothing there.
+
+Zoom (GitHub issue 395): bottom left, an editable `rawZoomCombo` (Fit, 12.5% to 1600%, typed
+percentages; Enter is consumed so it never presses Open), `rawZoom100Button`, `rawZoomFitButton`
+and `rawScrubbyZoomCheck` (`imports/rawDevelopScrubbyZoom`, default off). Scrubby Zoom is
+`ZoomableImagePreview::set_scrubby_zoom`: the canvas gesture's factor and slop
+([view-navigation.md](view-navigation.md)), a click steps in and Alt-click out; Space or the
+middle button pans then. The middle button pans in every preview. Tests:
+`ui_raw_histogram_regions_and_auto_values`, `ui_raw_dialog_histogram_drag_and_modifier_clicks`,
+`ui_raw_dialog_zoom_controls_and_scrubby_zoom`, `ui_raw_dialog_issue_shots_if_available`.
+
 ## Formats and tests
 
 RAW sources are read-only: no writer, empty `save_extensions`; `save_document()`

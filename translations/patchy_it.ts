@@ -12334,6 +12334,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>I livelli con metodi di fusione che questo formato non può salvare sono stati salvati come Normale, quindi l&apos;immagine salvata appare diversa.</translation>
     </message>
+    <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Zoom dell'anteprima. Scegli una dimensione o digita una percentuale.</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>Zoom trascinando</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Trascina a sinistra o a destra nell'anteprima per lo zoom.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Maiusc+clic imposta il valore automatico. %ALT%+clic lo ripristina.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%+clic lo ripristina.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Maiusc+clic usa il bilanciamento del bianco automatico. %ALT%+clic torna a Come scattato.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%+clic riporta la riduzione disturbo su Auto.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Punta l'istogramma per vedere quale impostazione regola quella zona, poi trascina a sinistra o a destra per cambiarla.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Trascina a sinistra o a destra per lo zoom. Un clic ingrandisce, %ALT%+clic riduce. Tieni premuto Spazio o usa il pulsante centrale per spostarti.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

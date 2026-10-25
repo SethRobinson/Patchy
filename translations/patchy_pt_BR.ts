@@ -12334,6 +12334,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>As camadas em modos de mesclagem que este formato não pode salvar foram salvas como Normal, então a imagem salva fica diferente.</translation>
     </message>
+    <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Zoom da visualização. Escolha um tamanho ou digite uma porcentagem.</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>Zoom por arraste</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Arraste para a esquerda ou para a direita na visualização para aplicar zoom.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift-clique define o valor automático. %ALT%-clique o redefine.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-clique o redefine.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift-clique usa o equilíbrio de branco automático. %ALT%-clique volta para Como capturado.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-clique volta a redução de ruído para Auto.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Aponte para o histograma para ver qual ajuste essa parte altera e arraste para a esquerda ou para a direita para mudá-lo.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Arraste para a esquerda ou para a direita para aplicar zoom. Clique aproxima, %ALT%-clique afasta. Segure Espaço ou use o botão do meio para mover.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
