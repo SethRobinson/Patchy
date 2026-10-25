@@ -767,6 +767,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       dragging_transform_ = true;
       transform_drag_uses_proxy_preview_ = false;
+      transform_drag_uses_clip_group_preview_ = false;
       transform_drag_handle_ = handle;
       transform_drag_start_point_ = document_position_f(event->position());
       transform_drag_start_rect_ = transform_current_rect_;
@@ -1198,6 +1199,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         if (begin_free_transform() && prepare_free_transform_source()) {
           dragging_transform_ = true;
           transform_drag_uses_proxy_preview_ = false;
+          transform_drag_uses_clip_group_preview_ = false;
           transform_drag_handle_ = passive_handle;
           transform_drag_start_point_ = document_position_f(event->position());
           transform_drag_start_rect_ = transform_current_rect_;
@@ -2717,13 +2719,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     transform_drag_kind_ = TransformDragKind::Scale;
     record_transform_session_step(transform_session_step_at_press_);
     clear_drag_readout();
-    if (transform_drag_uses_proxy_preview_) {
+    if (transform_drag_uses_proxy_preview_ || transform_drag_uses_clip_group_preview_) {
       // The latched drag skipped the composited patches; render them once at
       // the final geometry so the resting preview is accurate. The latch stays
       // set until the patches exist so paints during the overlay wait keep
-      // showing the proxy rather than the raw source blit.
+      // showing the proxy (or the clip-group blit) rather than the raw source.
       refresh_transform_composited_preview_cache(true);
       transform_drag_uses_proxy_preview_ = false;
+      transform_drag_uses_clip_group_preview_ = false;
     } else if (transform_preview_patches_banded_) {
       // Live drag frames render in preview-only bands; the resting preview
       // (and the commit hold built from it) gets the exact render.
@@ -4462,6 +4465,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   }
   dragging_transform_ = dragging_warp_handle_ = false;
   transform_drag_uses_proxy_preview_ = false;
+  transform_drag_uses_clip_group_preview_ = false;
   path_transform_drag_handle_ = TransformHandle::None;
   path_drag_mode_ = PathEditDrag::None;
   pen_handle_dragging_ = false;

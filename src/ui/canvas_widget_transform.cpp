@@ -23,6 +23,7 @@
 #include "core/vector_shape.hpp"
 #include "core/warp_mesh.hpp"
 #include "core/worker_budget.hpp"
+#include "render/layer_knockout.hpp"
 #include "render/layer_render_facade.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/canvas_types.hpp"
@@ -193,6 +194,99 @@ bool transform_preview_needs_compositing(const Document& document, const Layer& 
   // A layer on an artboard clips to it (docs/artboards.md): the raw blit has no clip.
   return layer_needs_composited_transform_preview(layer) || layer_has_visible_content_above(document, layer.id()) ||
          artboard_owning_layer(document, layer.id()) != nullptr;
+}
+
+// The sibling list holding `id`, searched depth-first; nullptr when absent.
+const std::vector<Layer>* sibling_list_holding(const std::vector<Layer>& layers, LayerId id) {
+  for (const auto& layer : layers) {
+    if (layer.id() == id) {
+      return &layers;
+    }
+    if (layer.kind() == LayerKind::Group) {
+      if (const auto* found = sibling_list_holding(layer.children(), id); found != nullptr) {
+        return found;
+      }
+    }
+  }
+  return nullptr;
+}
+
+bool layer_has_rendered_advanced_blending(const Layer& layer) {
+  return (layer.blend_if_payload_status() == BlendIfPayloadStatus::Supported &&
+          !blend_if_is_identity(layer.blend_if())) ||
+         (layer.channel_restriction_supported() && layer.restricted_channels() != 0U) ||
+         render_detail::layer_knockout_mode(layer) != 0U;
+}
+
+// The clipped members of a clipping base: the consecutive clipped non-group
+// siblings right above it (the compositor's run rule, composite_sibling_layers).
+std::vector<const Layer*> clip_run_members(const Document& document, const Layer& base) {
+  std::vector<const Layer*> members;
+  const auto* siblings = sibling_list_holding(document.layers(), base.id());
+  if (siblings == nullptr || base.kind() != LayerKind::Pixel || base.clipped()) {
+    return members;
+  }
+  auto it = std::find_if(siblings->begin(), siblings->end(),
+                         [&](const Layer& layer) { return layer.id() == base.id(); });
+  for (++it; it != siblings->end() && it->clipped() && it->kind() != LayerKind::Group; ++it) {
+    members.push_back(&*it);
+  }
+  return members;
+}
+
+// GitHub #398: a clipping base whose members only paint over it (Normal
+// members, no adjustments) and with nothing visible above its run previews a
+// drag exactly as the compositor merges the run, up to resampling: the base at
+// its opacity times Fill, the members' own composite drawn source-atop (they
+// blend against the base color at full strength and take its coverage), then
+// the ensemble over a base cache that already hides the whole run. Anything
+// the atop blit cannot carry (a styled, masked, blended or Blend If base,
+// adjustment or non-Normal members, content above, an ancestor that is not a
+// plain pass-through or full-strength Normal folder, artboards, non-8-bit-RGB
+// documents) keeps the composited patches.
+bool transform_clip_group_preview_possible(const Document& document, const Layer& layer) {
+  if (document.palette_editing() || document.format().color_mode != ColorMode::RGB ||
+      document.format().bit_depth != BitDepth::UInt8) {
+    return false;
+  }
+  if (layer.kind() != LayerKind::Pixel || layer.clipped() || layer.blend_mode() != BlendMode::Normal ||
+      (layer.layer_style().effects_visible && !layer.layer_style().empty()) ||
+      (layer.mask().has_value() && raster_mask_affects_render(*layer.mask())) ||
+      patchy::layer_has_enabled_vector_mask(layer) || layer_has_rendered_advanced_blending(layer) ||
+      artboard_owning_layer(document, layer.id()) != nullptr) {
+    return false;
+  }
+  const auto members = clip_run_members(document, layer);
+  bool any_visible = false;
+  for (const auto* member : members) {
+    if (!member->visible()) {
+      continue;
+    }
+    any_visible = true;
+    if (member->kind() == LayerKind::Adjustment || member->blend_mode() != BlendMode::Normal ||
+        layer_has_rendered_advanced_blending(*member)) {
+      return false;
+    }
+  }
+  if (!any_visible || layer_has_visible_content_above(document, members.back()->id())) {
+    return false;
+  }
+  std::vector<LayerId> ancestors;
+  if (!collect_layer_ancestor_groups(document.layers(), layer.id(), ancestors)) {
+    return false;
+  }
+  for (const auto id : ancestors) {
+    const auto* group = document.find_layer(id);
+    if (group == nullptr ||
+        (group->blend_mode() != BlendMode::Normal && group->blend_mode() != BlendMode::PassThrough) ||
+        group->opacity() < 1.0F || group->fill_opacity() < 1.0F ||
+        (group->layer_style().effects_visible && !group->layer_style().empty()) ||
+        (group->mask().has_value() && raster_mask_affects_render(*group->mask())) ||
+        patchy::layer_has_enabled_vector_mask(*group) || layer_has_rendered_advanced_blending(*group)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Smallest sub-rect of a gray8 mask buffer holding every pixel that differs
@@ -1268,9 +1362,13 @@ bool CanvasWidget::begin_free_transform() {
   transform_drag_uses_proxy_preview_ = false;
   transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
+  transform_drag_uses_clip_group_preview_ = false;
+  transform_clip_group_image_ = QImage();
+  transform_clip_group_rect_ = QRect();
   transform_mask_sources_.clear();
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = transform_preview_needs_compositing(*document_, *layer);
+  transform_clip_group_preview_possible_ = transform_clip_group_preview_possible(*document_, *layer);
   setCursor(Qt::ArrowCursor);
   update();
   notify_transform_controls_changed();
@@ -1481,6 +1579,9 @@ bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collecti
   transform_drag_uses_proxy_preview_ = false;
   transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
+  transform_drag_uses_clip_group_preview_ = false;
+  transform_clip_group_image_ = QImage();
+  transform_clip_group_rect_ = QRect();
   transform_mask_sources_.clear();
   transform_proxy_layer_opacity_ = 1.0;
   transform_multi_snapshot_ = QImage();
@@ -1491,6 +1592,7 @@ bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collecti
   // non-drag refresh renders accurate patches, so multi sessions always use the
   // composited-preview machinery.
   transform_requires_composited_preview_ = true;
+  transform_clip_group_preview_possible_ = false;
   setCursor(Qt::ArrowCursor);
   update();
   notify_transform_controls_changed();
@@ -1621,9 +1723,13 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_live_frame_slow_ = false;
   transform_preview_patches_banded_ = false;
   transform_proxy_image_ = QImage();
+  transform_drag_uses_clip_group_preview_ = false;
+  transform_clip_group_image_ = QImage();
+  transform_clip_group_rect_ = QRect();
   transform_mask_sources_.clear();
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = false;
+  transform_clip_group_preview_possible_ = false;
   transform_source_local_rect_ = QRect();
   transform_targets_.clear();
   transform_mask_only_ids_.clear();
@@ -2406,6 +2512,107 @@ void CanvasWidget::ensure_transform_proxy_image() {
                                .convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 
+// The clipped members' own composite over transparency (members unclipped on
+// a copy-on-write document copy, every other leaf hidden), over their extent
+// on the canvas, built once per session at the first clip-group drag frame.
+// Bounded like the transform proxy. False when there is nothing to draw.
+bool CanvasWidget::ensure_transform_clip_group_image() {
+  if (!transform_clip_group_image_.isNull()) {
+    return true;
+  }
+  if (document_ == nullptr || !transform_layer_id_.has_value()) {
+    return false;
+  }
+  const auto* base = std::as_const(*document_).find_layer(*transform_layer_id_);
+  if (base == nullptr) {
+    return false;
+  }
+  const auto members = clip_run_members(*document_, *base);
+  Document unclipped(*document_);
+  std::vector<LayerId> member_ids;
+  QRect rect;
+  for (const auto* member : members) {
+    if (!member->visible()) {
+      continue;
+    }
+    member_ids.push_back(member->id());
+    rect = rect.united(to_qrect(layer_bounds_with_effects(*member, layer_pixel_bounds(*member))));
+    if (auto* copy = unclipped.find_layer(member->id()); copy != nullptr) {
+      copy->set_clipped(false);
+    }
+  }
+  rect = rect.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (member_ids.empty() || rect.isEmpty()) {
+    return false;
+  }
+  std::vector<LayerId> hidden;
+  const std::function<void(const std::vector<Layer>&)> collect = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.kind() == LayerKind::Group) {
+        collect(layer.children());
+      } else if (std::find(member_ids.begin(), member_ids.end(), layer.id()) == member_ids.end()) {
+        hidden.push_back(layer.id());
+      }
+    }
+  };
+  collect(std::as_const(unclipped).layers());
+  auto image = qimage_from_document_rect_with_hidden_layers_banded(unclipped, rect, true, hidden)
+                   .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  if (image.isNull()) {
+    return false;
+  }
+  const auto area = static_cast<std::int64_t>(image.width()) * static_cast<std::int64_t>(image.height());
+  if (area > kTransformProxyMaxPixels) {
+    const auto scale = std::sqrt(static_cast<double>(kTransformProxyMaxPixels) / static_cast<double>(area));
+    image = image.scaled(std::max(1, static_cast<int>(std::lround(image.width() * scale))),
+                         std::max(1, static_cast<int>(std::lround(image.height() * scale))), Qt::IgnoreAspectRatio,
+                         Qt::SmoothTransformation);
+  }
+  transform_clip_group_image_ = std::move(image);
+  transform_clip_group_rect_ = rect;
+  transform_proxy_layer_opacity_ = static_cast<double>(base->opacity()) * static_cast<double>(base->fill_opacity());
+  return true;
+}
+
+// Paints the clip-group drag preview: the transformed source at the base's
+// opacity times Fill into an offscreen image over its widget extent, the
+// members' snapshot drawn source-atop (members over the base color, inside the
+// base's coverage: the compositor's frozen clip merge), then the ensemble over
+// the base cache. Per frame the work is two blits over the transformed extent.
+void CanvasWidget::draw_transform_clip_group_preview(QPainter& painter) const {
+  const auto& source = transform_preview_source_image();
+  if (source.isNull()) {
+    return;
+  }
+  const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+  const auto source_to_widget = transform_session_image_to_document(source) * document_to_widget;
+  const auto target =
+      source_to_widget.mapRect(QRectF(source.rect())).toAlignedRect().adjusted(-1, -1, 1, 1).intersected(rect());
+  if (target.isEmpty()) {
+    return;
+  }
+  const auto device_ratio = painter.device() != nullptr ? painter.device()->devicePixelRatioF() : 1.0;
+  QImage group(target.size() * device_ratio, QImage::Format_ARGB32_Premultiplied);
+  group.setDevicePixelRatio(device_ratio);
+  group.fill(Qt::transparent);
+  {
+    QPainter group_painter(&group);
+    group_painter.setRenderHint(QPainter::SmoothPixmapTransform,
+                                transform_interpolation_ != TransformInterpolation::NearestNeighbor);
+    group_painter.translate(-target.topLeft());
+    group_painter.save();
+    group_painter.setOpacity(transform_proxy_layer_opacity_);
+    group_painter.setTransform(source_to_widget, true);
+    group_painter.drawImage(QRectF(source.rect()), source, QRectF(source.rect()));
+    group_painter.restore();
+    group_painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+    group_painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    group_painter.drawImage(widget_rect_for_document_rect(QRectF(transform_clip_group_rect_)),
+                            transform_clip_group_image_, QRectF(transform_clip_group_image_.rect()));
+  }
+  painter.drawImage(target.topLeft(), group);
+}
+
 // Drag-time preview refresh: heavy composited previews latch onto the bounded
 // proxy blit for the rest of the drag (the accurate patches come back with the
 // release-time refresh); everything else keeps the full-quality path. Only the
@@ -2418,6 +2625,18 @@ void CanvasWidget::refresh_transform_preview_for_drag() {
     // the accurate patch refresh (with the overlay wait) once the drag ends;
     // the single-path proxy diagnostics counter is deliberately not bumped.
     transform_drag_uses_proxy_preview_ = true;
+    transform_preview_patches_.clear();
+    transform_preview_patches_rect_ = QRect();
+    return;
+  }
+  if (dragging_transform_ && transform_requires_composited_preview_ && transform_clip_group_preview_possible_ &&
+      ensure_transform_clip_group_image()) {
+    // GitHub #398: a clipping base blits itself and atop-composites the
+    // members' snapshot in paint; the release renders the accurate patches.
+    if (!transform_drag_uses_clip_group_preview_) {
+      transform_drag_uses_clip_group_preview_ = true;
+      ++render_cache_diagnostics_.transform_clip_group_previews;
+    }
     transform_preview_patches_.clear();
     transform_preview_patches_rect_ = QRect();
     return;
@@ -2524,6 +2743,9 @@ void CanvasWidget::refresh_free_transform_preview_caches() {
   // The base cache rebuilds in BOTH regimes: the composited preview now draws
   // patches over it instead of a full-canvas recomposite.
   transform_requires_composited_preview_ = transform_preview_needs_compositing(*document_, *layer);
+  transform_clip_group_preview_possible_ = transform_clip_group_preview_possible(*document_, *layer);
+  transform_clip_group_image_ = QImage();  // a member's live style edit changes the snapshot
+  transform_clip_group_rect_ = QRect();
   rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   if (isVisible()) {
@@ -3829,6 +4051,9 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
                         QRectF(transform_multi_snapshot_.rect()));
       painter.restore();
     }
+  } else if (transform_drag_uses_clip_group_preview_ && !transform_clip_group_image_.isNull() &&
+             transform_preview_patches_.empty()) {
+    draw_transform_clip_group_preview(painter);
   } else if (transform_drag_uses_proxy_preview_ && !transform_proxy_image_.isNull() && transform_preview_patches_.empty()) {
     // Latched heavy drag: the bounded proxy stands in for the composited
     // patches. Unlike the plain source blit below it applies the layer's
@@ -5814,9 +6039,13 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   transform_drag_uses_proxy_preview_ = false;
   transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
+  transform_drag_uses_clip_group_preview_ = false;
+  transform_clip_group_image_ = QImage();
+  transform_clip_group_rect_ = QRect();
   transform_mask_sources_.clear();
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = transform_preview_needs_compositing(*document_, *layer);
+  transform_clip_group_preview_possible_ = transform_clip_group_preview_possible(*document_, *layer);
   rebuild_transform_base_cache();
   if (transform_requires_composited_preview_) {
     refresh_transform_composited_preview_cache();

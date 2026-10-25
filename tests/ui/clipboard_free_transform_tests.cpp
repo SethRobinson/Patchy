@@ -6,9 +6,12 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "core/adjustment_layer.hpp"
 #include "core/artboard.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
@@ -2952,6 +2955,183 @@ void ui_free_transform_drag_proxy_engages_above_threshold() {
   save_widget_artifact("ui_free_transform_proxy_latch", window);
 }
 
+// GitHub #398: a shape layer with a layer clipped to it, as in the report: a
+// white backdrop, an ellipse shape layer and a striped layer clipped to it.
+// `extra` appends one more layer (a clipped adjustment, or an unclipped layer
+// above) for the fallback cases.
+enum class ClipDragExtra { None, ClippedInvert, LayerAbove };
+
+patchy::Document clipped_shape_document(ClipDragExtra extra, patchy::LayerId& shape_id) {
+  patchy::Document document(640, 420, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(640, 420, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Ellipse;
+  params.left = 160.0;
+  params.top = 120.0;
+  params.right = 400.0;
+  params.bottom = 280.0;
+  patchy::VectorShapeContent shape;
+  shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  shape.fill.color = {40, 140, 190};
+  patchy::Layer shape_layer(document.allocate_layer_id(), "Ellipse", patchy::LayerKind::Pixel);
+  shape_layer.set_vector_shape(std::move(shape));
+  patchy::update_vector_shape_raster(shape_layer, patchy::Rect::from_size(640, 420), nullptr);
+  shape_id = shape_layer.id();
+  document.add_layer(std::move(shape_layer));
+
+  // Wide vertical bands, so a resampling difference only shows at band edges.
+  patchy::PixelBuffer stripes(640, 420, patchy::PixelFormat::rgba8());
+  const std::array<std::array<std::uint8_t, 3>, 3> bands{{{230, 60, 40}, {40, 180, 70}, {250, 200, 30}}};
+  for (int y = 0; y < 420; ++y) {
+    auto row = stripes.row(y);
+    for (int x = 0; x < 640; ++x) {
+      const auto& band = bands[static_cast<std::size_t>((x / 40) % 3)];
+      auto* pixel = row.data() + static_cast<std::size_t>(x) * 4U;
+      pixel[0] = band[0];
+      pixel[1] = band[1];
+      pixel[2] = band[2];
+      pixel[3] = 255;
+    }
+  }
+  patchy::Layer clipped(document.allocate_layer_id(), "Stripes", std::move(stripes));
+  clipped.set_clipped(true);
+  clipped.set_opacity(0.8F);
+  document.add_layer(std::move(clipped));
+
+  if (extra == ClipDragExtra::ClippedInvert) {
+    patchy::AdjustmentSettings invert;
+    invert.kind = patchy::AdjustmentKind::Invert;
+    patchy::Layer adjustment(document.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+    patchy::configure_adjustment_layer(adjustment, invert);
+    adjustment.set_clipped(true);
+    document.add_layer(std::move(adjustment));
+  } else if (extra == ClipDragExtra::LayerAbove) {
+    auto pixels = solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(20, 20, 20, 255));
+    patchy::Layer above(document.allocate_layer_id(), "Above", std::move(pixels));
+    above.set_bounds(patchy::Rect{20, 20, 80, 60});
+    document.add_layer(std::move(above));
+  }
+  return document;
+}
+
+void ui_free_transform_clipped_base_drag_blits_clip_group() {
+  // Resizing a clipping base used to composite a patch over the whole
+  // transformed area on every mouse-move (5x the unclipped cost, and a
+  // low-res proxy without the clipped content on big documents). The drag now
+  // blits the base and atop-composites the members' one-time snapshot: no
+  // patches, no proxy, and a frame that matches the accurate render.
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::LayerId shape_id = 0;
+  auto document = clipped_shape_document(ClipDragExtra::None, shape_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Clipped Shape"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  Access::select_layers(window, {shape_id}, shape_id);
+  QApplication::processEvents();
+
+  const auto before = canvas->render_cache_diagnostics();
+  const auto corner = canvas->widget_position_for_document_point(QPoint(400, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto end = corner + QPoint(90, -60);
+  for (int step = 1; step <= 3; ++step) {
+    send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(30 * step, -20 * step), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+  }
+  const auto mid = canvas->render_cache_diagnostics();
+  CHECK(mid.transform_clip_group_previews == before.transform_clip_group_previews + 1);
+  CHECK(mid.transform_proxy_previews == before.transform_proxy_previews);
+  const auto mid_drag = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  // One count per drag; the release rendered the accurate patches.
+  CHECK(canvas->render_cache_diagnostics().transform_clip_group_previews ==
+        before.transform_clip_group_previews + 1);
+  const auto resting = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  CHECK(mid_drag.size() == resting.size());
+
+  // The clipped stripes fill the enlarged ellipse mid-drag: a point inside the
+  // new shape but outside the old one shows the stripe over white at 80%, not
+  // the bare backdrop or the shape's own blue.
+  const auto probe = canvas->widget_position_for_document_point(QPoint(430, 160));
+  CHECK(mid_drag.rect().contains(probe));
+  CHECK(color_close(mid_drag.pixelColor(probe), resting.pixelColor(probe), 12));
+  CHECK(!color_close(mid_drag.pixelColor(probe), QColor(Qt::white), 30));
+
+  // The drag frame matches the accurate render up to resampling: compare the
+  // transformed extent pixel by pixel and allow only anti-aliased edges.
+  const auto extent = QRect(canvas->widget_position_for_document_point(QPoint(150, 50)),
+                            canvas->widget_position_for_document_point(QPoint(500, 290)))
+                          .intersected(mid_drag.rect());
+  CHECK(!extent.isEmpty());
+  int off = 0;
+  double total = 0.0;
+  for (int y = extent.top(); y <= extent.bottom(); ++y) {
+    for (int x = extent.left(); x <= extent.right(); ++x) {
+      const auto a = mid_drag.pixelColor(x, y);
+      const auto b = resting.pixelColor(x, y);
+      const auto diff = std::max({std::abs(a.red() - b.red()), std::abs(a.green() - b.green()),
+                                  std::abs(a.blue() - b.blue())});
+      total += diff;
+      if (diff > 40) {
+        ++off;
+      }
+    }
+  }
+  const auto pixels = static_cast<double>(extent.width()) * static_cast<double>(extent.height());
+  std::cout << "[CLIP_GROUP_DRAG] mean_diff=" << total / pixels << " off_pixels=" << off << " of " << pixels << '\n';
+  CHECK(total / pixels < 2.0);
+  CHECK(static_cast<double>(off) < pixels * 0.01);
+  save_widget_artifact("ui_free_transform_clipped_base_drag", window);
+
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(apply != nullptr);
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(430, 160)), resting.pixelColor(probe), 12));
+}
+
+void ui_free_transform_clipped_base_keeps_patches_when_blit_cannot_match() {
+  // A clipped adjustment recolors the base itself and a layer above must stay
+  // on top; neither fits the atop blit, so those drags keep the composited
+  // patches (live at this size) and never count a clip-group preview.
+  using Access = patchy::ui::MainWindowTestAccess;
+  for (const auto extra : {ClipDragExtra::ClippedInvert, ClipDragExtra::LayerAbove}) {
+    patchy::LayerId shape_id = 0;
+    auto document = clipped_shape_document(extra, shape_id);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Clipped Shape Fallback"));
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    canvas->set_show_transform_controls(true);
+    Access::select_layers(window, {shape_id}, shape_id);
+    QApplication::processEvents();
+
+    const auto before = canvas->render_cache_diagnostics();
+    const auto corner = canvas->widget_position_for_document_point(QPoint(400, 120));
+    send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(canvas->free_transform_active());
+    send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(40, -20), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(canvas->render_cache_diagnostics().transform_clip_group_previews == before.transform_clip_group_previews);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(40, -20), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    send_key(*canvas, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+}
+
 void ui_free_transform_drag_small_doc_stays_live() {
   // Styled layer far below kStyledTransformProxyAreaThreshold: handle drags
   // must keep the live composited preview (stroke visible mid-drag) and the
@@ -3392,6 +3572,10 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_free_transform_drag_proxy_engages_above_threshold",
        ui_free_transform_drag_proxy_engages_above_threshold},
       {"ui_free_transform_drag_small_doc_stays_live", ui_free_transform_drag_small_doc_stays_live},
+      {"ui_free_transform_clipped_base_drag_blits_clip_group",
+       ui_free_transform_clipped_base_drag_blits_clip_group},
+      {"ui_free_transform_clipped_base_keeps_patches_when_blit_cannot_match",
+       ui_free_transform_clipped_base_keeps_patches_when_blit_cannot_match},
       {"ui_free_transform_keeps_layers_above_visible_mid_drag", ui_free_transform_keeps_layers_above_visible_mid_drag},
       {"ui_free_transform_slow_frame_latches_proxy", ui_free_transform_slow_frame_latches_proxy},
       {"ui_free_transform_scaled_base_zoomed_out", ui_free_transform_scaled_base_zoomed_out},

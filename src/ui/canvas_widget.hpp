@@ -2594,6 +2594,8 @@ private:
   void refresh_transform_preview_for_drag();
   [[nodiscard]] bool transform_drag_should_use_proxy_preview() const;
   void ensure_transform_proxy_image();
+  bool ensure_transform_clip_group_image();
+  void draw_transform_clip_group_preview(QPainter& painter) const;
   void refresh_free_transform_preview_caches();
   void rebuild_transform_base_cache();
   [[nodiscard]] QRect transform_preview_document_rect() const;
@@ -3704,6 +3706,16 @@ private:
   int transform_base_cache_scale_level_{0};
   QImage transform_proxy_image_{};
   double transform_proxy_layer_opacity_{1.0};
+  // Clip-group drag preview (GitHub #398): a single target that is a clipping
+  // base with nothing visible above its run draws, per drag frame, the
+  // transformed source atop-composited with the clipped members' one-time
+  // snapshot instead of compositing patches. Eligibility is decided with
+  // transform_requires_composited_preview_; the snapshot builds at the first
+  // drag frame and persists for the session.
+  bool transform_clip_group_preview_possible_{false};
+  bool transform_drag_uses_clip_group_preview_{false};
+  QImage transform_clip_group_image_{};
+  QRect transform_clip_group_rect_{};
   // Multi-target Free Transform session (folder / multi-selection). Invariant
   // while transforming_layer_: transform_layer_id_ has a value XOR
   // transform_targets_ is non-empty; the single-layer path never reads these.
