@@ -265,6 +265,15 @@ struct RawPreviewState {
   std::function<void(QString, bool)> fail;
   std::function<void(raw::RawFileInfo)> info_ready;
   std::function<void(int, bool)> progress;
+  // Shift-click auto values (GitHub issue 394) measure a develop with the Tone
+  // sliders at their defaults. It runs in its own small lane (one worker, its
+  // own session, one latest pending request), never touching the preview.
+  struct Baseline {
+    bool in_flight{false};
+    std::optional<raw::DevelopParams> pending;
+    std::shared_ptr<raw::DevelopSession> session;  // worker-owned
+  } baseline;
+  std::function<void(raw::DevelopParams, RawPreviewHistogram)> baseline_ready;
 };
 
 void enqueue_raw_develop(const std::shared_ptr<RawPreviewState>& state, raw::DevelopParams params,
@@ -296,6 +305,73 @@ void close_raw_develop(const std::shared_ptr<RawPreviewState>& state) {
   state->fail = {};
   state->info_ready = {};
   state->progress = {};
+  state->baseline.pending.reset();
+  state->baseline_ready = {};
+}
+
+// The develop the Shift-click auto values measure: every setting as it is, the
+// four Tone sliders at their defaults.
+raw::DevelopParams tone_baseline_params(raw::DevelopParams params) {
+  const raw::DevelopParams defaults;
+  params.exposure_ev = defaults.exposure_ev;
+  params.contrast = defaults.contrast;
+  params.highlights = defaults.highlights;
+  params.shadows = defaults.shadows;
+  return params;
+}
+
+// Settings that change the baseline's histogram. Output size, demosaic and
+// noise reduction do not reach a draft develop, so they never invalidate it.
+raw::DevelopParams tone_baseline_key(raw::DevelopParams params) {
+  params = tone_baseline_params(params);
+  const raw::DevelopParams defaults;
+  params.half_size = defaults.half_size;
+  params.demosaic = defaults.demosaic;
+  params.noise_reduction = defaults.noise_reduction;
+  params.wavelet_denoise_threshold = defaults.wavelet_denoise_threshold;
+  params.fbdd = defaults.fbdd;
+  params.color_denoise_passes = defaults.color_denoise_passes;
+  return params;
+}
+
+bool tone_sliders_at_defaults(const raw::DevelopParams& params) {
+  return params == tone_baseline_params(params);
+}
+
+// Develops `params` as a draft on the baseline lane and reports its histogram.
+// Call only after the first draft has published the file snapshot.
+void request_baseline_develop(const std::shared_ptr<RawPreviewState>& state, raw::DevelopParams params) {
+  if (state == nullptr || state->closed || !state->file_bytes) return;
+  if (state->baseline.in_flight) {
+    state->baseline.pending = params;
+    return;
+  }
+  state->baseline.in_flight = true;
+  auto* app = QCoreApplication::instance();
+  run_tracked_background_worker([state, params, app] {
+    std::optional<RawPreviewHistogram> histogram;
+    try {
+      if (state->baseline.session == nullptr)
+        state->baseline.session = std::make_shared<raw::DevelopSession>(*state->file_bytes);
+      raw::DevelopOptions options;
+      options.quality = raw::DevelopQuality::Draft;
+      options.cancelled = [state] { return state->closed.load(); };
+      const auto developed = state->baseline.session->develop(params, options);
+      histogram = raw_preview_histogram(developed.rgb, developed.width, developed.height);
+    } catch (const std::exception&) {
+      // Cancelled or undecodable: Shift-click then has nothing to apply.
+    }
+    QMetaObject::invokeMethod(app, [state, params, histogram] {
+      state->baseline.in_flight = false;
+      if (state->closed) return;
+      if (histogram && state->baseline_ready) state->baseline_ready(params, *histogram);
+      if (state->baseline.pending) {
+        const auto next = *state->baseline.pending;
+        state->baseline.pending.reset();
+        request_baseline_develop(state, next);
+      }
+    }, Qt::QueuedConnection);
+  });
 }
 
 std::vector<std::uint8_t> read_file_bytes_for_worker(const QString& path) {
@@ -739,9 +815,22 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   raw::DevelopParams final_params;
   bool accepting = false;
   bool preview_has_render = false;
-  // The develop settings the histogram on screen was rendered with: Shift-click
-  // auto values are measured from it.
-  std::optional<raw::DevelopParams> histogram_params;
+  // The Shift-click baseline: the histogram of a develop with the Tone sliders
+  // at their defaults, its settings key, and the auto values solved from it on
+  // first use. The first measurement for a key is kept, so repeated clicks see
+  // the same histogram and give the same value.
+  std::optional<raw::DevelopParams> auto_baseline_key;
+  std::optional<RawPreviewHistogram> auto_baseline;
+  bool auto_values_solved = false;
+  std::optional<RawToneAutoValues> auto_values;
+  QSlider* pending_auto_slider = nullptr;
+  const auto store_auto_baseline = [&](const raw::DevelopParams& rendered, const RawPreviewHistogram& measured) {
+    const auto key = tone_baseline_key(rendered);
+    if (auto_baseline_key && *auto_baseline_key == key) return;
+    auto_baseline_key = key;
+    auto_baseline = measured;
+    auto_values_solved = false;
+  };
   bool reset_requested = false;
   std::optional<raw::DevelopParams> displayed_draft;
   bool refinement_due = false;
@@ -916,7 +1005,9 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     preview_has_render = true;
     preview->set_image(completion.image, completion.output_size);
     histogram->set_histogram(completion.histogram);
-    histogram_params = completion.params;
+    // A preview with the Tone sliders at their defaults is itself the baseline.
+    if (completion.histogram && tone_sliders_at_defaults(completion.params))
+      store_auto_baseline(completion.params, *completion.histogram);
     if (completion.white_balance) {
       effective_white_balance = completion.white_balance;
       if (params.white_balance != raw::WhiteBalanceMode::Custom) {
@@ -1257,6 +1348,33 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
 
   // --- Shift-click auto, Alt-click reset (GitHub issue 394) ---
   const raw::DevelopParams default_params;
+  const auto apply_auto_value = [&](QSlider* slider) {
+    if (!auto_values_solved) {
+      auto_values_solved = true;
+      auto_values.reset();
+      if (auto_baseline)
+        auto_values = raw_auto_tone(*auto_baseline, RawToneModel(params.profile, params.processing_version));
+    }
+    if (!auto_values) return;
+    const auto& values = *auto_values;
+    if (slider == exposure_slider) slider->setValue(static_cast<int>(std::lround(values.exposure_ev * 100.0)));
+    else if (slider == contrast_slider) slider->setValue(static_cast<int>(std::lround(values.contrast)));
+    else if (slider == tone_highlights_slider) slider->setValue(static_cast<int>(std::lround(values.highlights)));
+    else if (slider == shadows_slider) slider->setValue(static_cast<int>(std::lround(values.shadows)));
+  };
+  state->baseline_ready = [&](raw::DevelopParams rendered, RawPreviewHistogram measured) {
+    store_auto_baseline(rendered, measured);
+    if (pending_auto_slider == nullptr || accepting) return;
+    read_params_from_widgets();
+    if (*auto_baseline_key != tone_baseline_key(params)) {
+      // Settings moved on while it was measured: measure again.
+      request_baseline_develop(state, tone_baseline_params(params));
+      return;
+    }
+    auto* slider = std::exchange(pending_auto_slider, nullptr);
+    dialog.setProperty("rawAutoMeasuring", false);
+    apply_auto_value(slider);
+  };
   const auto apply_modifier_click = [&](QSlider* slider, bool reset) {
     if (accepting) return;
     if (slider == temperature_slider || slider == tint_slider) {
@@ -1279,23 +1397,20 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       return;
     }
     // Brightness, Saturation and Vibrance have no automatic value.
-    const auto& measured = histogram->histogram();
-    if (!measured || !histogram_params) return;
-    std::optional<int> value;
-    if (slider == exposure_slider) {
-      if (const auto ev = raw_auto_exposure_ev(*measured, histogram_params->exposure_ev))
-        value = static_cast<int>(std::lround(*ev * 100.0));
-    } else if (slider == contrast_slider) {
-      if (const auto amount = raw_auto_contrast(*measured, histogram_params->contrast))
-        value = static_cast<int>(std::lround(*amount));
-    } else if (slider == tone_highlights_slider) {
-      if (const auto amount = raw_auto_highlights(*measured, histogram_params->highlights))
-        value = static_cast<int>(std::lround(*amount));
-    } else if (slider == shadows_slider) {
-      if (const auto amount = raw_auto_shadows(*measured, histogram_params->shadows))
-        value = static_cast<int>(std::lround(*amount));
+    if (slider != exposure_slider && slider != contrast_slider && slider != tone_highlights_slider &&
+        slider != shadows_slider)
+      return;
+    // Nothing is developed yet (the file snapshot is not published either).
+    if (!displayed_draft) return;
+    read_params_from_widgets();
+    if (!auto_baseline_key || *auto_baseline_key != tone_baseline_key(params)) {
+      // Measure the baseline for the current settings; the click applies when it arrives.
+      pending_auto_slider = slider;
+      dialog.setProperty("rawAutoMeasuring", true);
+      request_baseline_develop(state, tone_baseline_params(params));
+      return;
     }
-    if (value) slider->setValue(*value);
+    apply_auto_value(slider);
   };
   auto* modifier_click_filter = new CallbackEventFilter(&dialog, [&](QObject* watched, QEvent* event) {
     if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseButtonDblClick) return false;
@@ -1393,7 +1508,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   });
   // The callbacks above capture this frame's locals by reference; disarm them
   // before those locals go, ahead of the dialog's own destruction.
-  const auto disarm_callbacks = qScopeGuard([histogram, preview, modifier_click_filter, zoom_entry_filter] {
+  const auto disarm_callbacks = qScopeGuard([state, histogram, preview, modifier_click_filter, zoom_entry_filter] {
+    state->baseline_ready = {};
     histogram->set_hover_callback({});
     histogram->set_drag_callback({});
     preview->set_zoom_changed_callback({});

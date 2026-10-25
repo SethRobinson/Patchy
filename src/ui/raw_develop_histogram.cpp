@@ -1,6 +1,7 @@
 #include "ui/raw_develop_histogram.hpp"
 
 #include "filters/auto_levels_math.hpp"
+#include "formats/raw_document_io.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -16,48 +17,18 @@ namespace patchy::ui {
 
 namespace {
 
-// A share of the samples above Image > Adjustments' 0.1% clip counts as clipped.
-constexpr double kClipShare = 0.001;
-constexpr double kMidtoneTarget = 128.0 / 255.0;
+// Keeps the fit from trading large opposite slider moves for a tiny gain.
+constexpr double kSliderPenalty = 1e-4;
 
 double srgb_to_linear(double value) {
   return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
 }
 
-// Same shape as the tone curve's (formats/raw_tone.cpp), so the auto values aim
-// at where the sliders actually act.
-double smoothstep(double edge0, double edge1, double x) {
-  const auto t = std::clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-  return t * t * (3.0 - 2.0 * t);
+double linear_to_srgb(double value) {
+  return value <= 0.0031308 ? value * 12.92 : 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
 }
 
-struct LuminanceScan {
-  int black{0};
-  int white{255};
-  double mean{0.0};
-  double bottom_share{0.0};
-  double top_share{0.0};
-};
-
-std::optional<LuminanceScan> scan_luminance(const RawPreviewHistogram& histogram) {
-  if (histogram.samples == 0) return std::nullopt;
-  const auto clip = auto_levels_clip_scan(histogram.luminance, histogram.samples);
-  if (!clip) return std::nullopt;
-  std::uint64_t weighted = 0;
-  for (std::size_t bin = 0; bin < histogram.luminance.size(); ++bin) weighted += bin * histogram.luminance[bin];
-  const auto samples = static_cast<double>(histogram.samples);
-  LuminanceScan scan;
-  scan.black = clip->black_input;
-  scan.white = clip->white_input;
-  scan.mean = static_cast<double>(weighted) / (255.0 * samples);
-  scan.bottom_share = histogram.luminance.front() / samples;
-  scan.top_share = histogram.luminance.back() / samples;
-  return scan;
-}
-
-double clamp_round(double value, double minimum, double maximum, double scale) {
-  return std::clamp(std::round(value * scale) / scale, minimum, maximum);
-}
+double square(double value) { return value * value; }
 
 }  // namespace
 
@@ -121,58 +92,128 @@ QString raw_histogram_region_token(RawHistogramRegion region) {
   return QStringLiteral("none");
 }
 
-std::optional<double> raw_auto_exposure_ev(const RawPreviewHistogram& histogram, double rendered) {
-  const auto scan = scan_luminance(histogram);
-  if (!scan) return std::nullopt;
-  const auto mean_linear = srgb_to_linear(scan->mean);
-  if (!(mean_linear > 0.0)) return std::nullopt;
-  auto delta = std::log2(srgb_to_linear(kMidtoneTarget) / mean_linear);
-  if (delta > 0.0) {
-    const auto headroom = scan->white < 255 ? std::log2(1.0 / srgb_to_linear(scan->white / 255.0)) : 0.0;
-    delta = std::min(delta, headroom);
-  } else if (scan->top_share <= kClipShare) {
-    // A bright scene that does not clip keeps its exposure (snow stays white).
-    delta = 0.0;
+RawToneModel::RawToneModel(raw::RenderingProfile profile, int processing_version) {
+  if (profile == raw::RenderingProfile::Natural) {
+    const auto lut = raw::build_natural_profile_lut(processing_version);
+    profile_lut_.assign(lut.begin(), lut.end());
   }
-  return clamp_round(rendered + delta, -2.0, 3.0, 100.0);
 }
 
-std::optional<double> raw_auto_contrast(const RawPreviewHistogram& histogram, double rendered) {
-  const auto scan = scan_luminance(histogram);
-  if (!scan) return std::nullopt;
-  const auto spread = static_cast<double>(scan->white - scan->black) / 255.0;
-  // The smoothstep S-curve's slope at mid gray is 1 + amount / 2; Auto
-  // Contrast's stretch has slope 1 / spread.
-  const auto amount = spread < 1.0 ? std::min(1.0, 2.0 * (1.0 / spread - 1.0)) : 0.0;
-  return clamp_round(rendered + amount * 100.0, -100.0, 100.0, 1.0);
+double RawToneModel::profile(double value) const {
+  const auto clamped = std::clamp(value, 0.0, 1.0);
+  if (profile_lut_.empty()) return clamped;
+  return profile_lut_[static_cast<std::size_t>(std::lround(clamped * 65535.0))] / 65535.0;
 }
 
-std::optional<double> raw_auto_highlights(const RawPreviewHistogram& histogram, double rendered) {
-  const auto scan = scan_luminance(histogram);
-  if (!scan) return std::nullopt;
-  double amount = 0.0;
-  if (scan->top_share > kClipShare) {
-    amount = -std::min(1.0, scan->top_share * 20.0);
-  } else {
-    const auto x = scan->white / 255.0;
-    const auto weight = smoothstep(0.35, 0.85, x);
-    if (x < 1.0 && weight > 0.05) amount = std::min(1.0, (1.0 - x) / (0.25 * weight));
-  }
-  return clamp_round(rendered + amount * 100.0, -100.0, 100.0, 1.0);
+double RawToneModel::before_profile(double output) const {
+  const auto clamped = std::clamp(output, 0.0, 1.0);
+  if (profile_lut_.empty()) return clamped;
+  const auto code = static_cast<std::uint16_t>(std::lround(clamped * 65535.0));
+  const auto found = std::lower_bound(profile_lut_.begin(), profile_lut_.end(), code);
+  return static_cast<double>(found - profile_lut_.begin()) / 65535.0;
 }
 
-std::optional<double> raw_auto_shadows(const RawPreviewHistogram& histogram, double rendered) {
-  const auto scan = scan_luminance(histogram);
-  if (!scan) return std::nullopt;
-  double amount = 0.0;
-  if (scan->bottom_share > kClipShare) {
-    amount = std::min(1.0, scan->bottom_share * 20.0);
-  } else {
-    const auto x = scan->black / 255.0;
-    const auto weight = smoothstep(0.0, 0.15, x) * (1.0 - smoothstep(0.15, 0.65, x));
-    if (x > 0.0 && weight > 0.05) amount = -std::min(1.0, x / (0.30 * weight));
+double RawToneModel::expose(double value, double exposure_ev) {
+  // raw_document_io turns exposure correction off within 0.001 EV of zero.
+  if (std::abs(exposure_ev) <= 1e-3) return std::clamp(value, 0.0, 1.0);
+  const auto shift = std::clamp(std::exp2(exposure_ev), raw::kMinExposureShift, raw::kMaxExposureShift);
+  // LibRaw's exp_bef on its 16-bit table (TBLN = 65535): linear below x1, then
+  // a cube-root shoulder that keeps some highlight detail when brightening.
+  constexpr double kTable = 65535.0;
+  const auto linear = srgb_to_linear(std::clamp(value, 0.0, 1.0)) * kTable;
+  double exposed = linear * shift;
+  if (shift > 1.0) {
+    const auto smooth = raw::kExposureHighlightPreservation;
+    const auto room_linear = std::exp2(std::log2(shift) * 2.0);
+    const auto x2 = kTable;
+    const auto x1 = (x2 + 1.0) / room_linear - 1.0;
+    const auto y1 = x1 * shift;
+    const auto y2 = x2 * (1.0 + (1.0 - smooth) * (shift - 1.0));
+    const auto cube_root = std::cbrt(x1 * x1 * x2);
+    const auto b = (y2 - y1 + shift * (3.0 * x1 - 3.0 * cube_root)) / (x2 + 2.0 * x1 - 3.0 * cube_root);
+    const auto a = (shift - b) * 3.0 * std::cbrt(x1 * x1);
+    const auto offset = y2 - a * std::cbrt(x2) - b * x2;
+    if (linear >= x1) exposed = a * std::cbrt(linear) + b * linear + offset;
   }
-  return clamp_round(rendered + amount * 100.0, -100.0, 100.0, 1.0);
+  return linear_to_srgb(std::clamp(exposed / kTable, 0.0, 1.0));
+}
+
+double RawToneModel::map(double baseline, const RawToneAutoValues& values) const {
+  const auto exposed = profile(expose(before_profile(baseline), values.exposure_ev));
+  return raw::tone_curve_value(exposed, raw::ToneParams{values.contrast, values.highlights, values.shadows});
+}
+
+std::optional<RawToneAutoValues> raw_auto_tone(const RawPreviewHistogram& baseline, const RawToneModel& model) {
+  if (baseline.samples == 0) return std::nullopt;
+  const auto clip = auto_levels_clip_scan(baseline.luminance, baseline.samples);
+  if (!clip) return std::nullopt;
+  const auto black = clip->black_input / 255.0;
+  const auto white = clip->white_input / 255.0;
+  struct Bin {
+    double weight;
+    double target;
+    double before_profile;
+  };
+  std::vector<Bin> bins;
+  for (std::size_t code = 0; code < baseline.luminance.size(); ++code) {
+    const auto count = baseline.luminance[code];
+    if (count == 0) continue;
+    const auto value = static_cast<double>(code) / 255.0;
+    bins.push_back({static_cast<double>(count) / static_cast<double>(baseline.samples),
+                    std::clamp((value - black) / (white - black), 0.0, 1.0), model.before_profile(value)});
+  }
+  // Each bin after Exposure and the profile curve; the Tone curve comes last.
+  const auto exposed_for = [&](double exposure_ev) {
+    std::vector<double> exposed(bins.size());
+    for (std::size_t index = 0; index < bins.size(); ++index)
+      exposed[index] = model.profile(RawToneModel::expose(bins[index].before_profile, exposure_ev));
+    return exposed;
+  };
+  const auto cost_of = [&](const std::vector<double>& exposed, const RawToneAutoValues& values) {
+    const raw::ToneParams tone{values.contrast, values.highlights, values.shadows};
+    auto cost = kSliderPenalty * (square(values.exposure_ev / 5.0) + square(values.contrast / 200.0) +
+                                  square(values.highlights / 200.0) + square(values.shadows / 200.0));
+    for (std::size_t index = 0; index < bins.size(); ++index)
+      cost += bins[index].weight * square(raw::tone_curve_value(exposed[index], tone) - bins[index].target);
+    return cost;
+  };
+
+  // Coordinate descent over the sliders' own steps, in a fixed order, so the
+  // same baseline always gives the same values.
+  RawToneAutoValues best;
+  auto exposed = exposed_for(best.exposure_ev);
+  auto best_cost = cost_of(exposed, best);
+  for (int round = 0; round < 16; ++round) {
+    bool changed = false;
+    for (int step = -200; step <= 300; ++step) {
+      auto candidate = best;
+      candidate.exposure_ev = step / 100.0;
+      if (candidate == best) continue;
+      auto candidate_exposed = exposed_for(candidate.exposure_ev);
+      const auto cost = cost_of(candidate_exposed, candidate);
+      if (cost < best_cost) {
+        best = candidate;
+        best_cost = cost;
+        exposed = std::move(candidate_exposed);
+        changed = true;
+      }
+    }
+    for (auto member : {&RawToneAutoValues::contrast, &RawToneAutoValues::highlights, &RawToneAutoValues::shadows}) {
+      for (int step = -100; step <= 100; ++step) {
+        auto candidate = best;
+        candidate.*member = step;
+        if (candidate == best) continue;
+        const auto cost = cost_of(exposed, candidate);
+        if (cost < best_cost) {
+          best = candidate;
+          best_cost = cost;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return best;
 }
 
 RawHistogramWidget::RawHistogramWidget(QWidget* parent) : QWidget(parent) {

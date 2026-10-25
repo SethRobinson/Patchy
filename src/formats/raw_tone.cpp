@@ -73,36 +73,36 @@ void apply_natural_profile(std::array<std::uint16_t, 3>& rgb,
     channel = static_cast<std::uint16_t>(std::lround(std::clamp(mapped + (channel - luma) * scale, 0.0, 65535.0)));
 }
 
-std::array<std::uint16_t, 65536> build_tone_lut(const ToneParams& params) {
-  std::array<std::uint16_t, 65536> lut;
+double tone_curve_value(double x, const ToneParams& params) {
   const auto shadows_amount = std::clamp(params.shadows, -100.0, 100.0) / 100.0;
   const auto highlights_amount = std::clamp(params.highlights, -100.0, 100.0) / 100.0;
   const auto contrast_amount = std::clamp(params.contrast, -100.0, 100.0) / 100.0;
+  if (shadows_amount != 0.0) {
+    // Bell over the shadow band: zero at pure black (pinned) and fully faded by the
+    // midtones, peaking around 0.15.
+    const auto weight = smoothstep(0.0, 0.15, x) * (1.0 - smoothstep(0.15, 0.65, x));
+    x = std::clamp(x + shadows_amount * 0.30 * weight, 0.0, 1.0);
+  }
+  if (highlights_amount != 0.0) {
+    // Ramp over the highlight range; deliberately still active at 1.0 so negative
+    // values visibly dim blown whites (detail reconstruction is the recovery mode's
+    // job, this is tonal compression).
+    const auto weight = smoothstep(0.35, 0.85, x);
+    x = std::clamp(x + highlights_amount * 0.25 * weight, 0.0, 1.0);
+  }
+  if (contrast_amount > 0.0) {
+    x = x + (smoothstep(0.0, 1.0, x) - x) * contrast_amount;
+  } else if (contrast_amount < 0.0) {
+    x = x + (inverse_smoothstep(x) - x) * -contrast_amount;
+  }
+  return std::clamp(x, 0.0, 1.0);
+}
 
+std::array<std::uint16_t, 65536> build_tone_lut(const ToneParams& params) {
+  std::array<std::uint16_t, 65536> lut;
   for (int index = 0; index < 65536; ++index) {
-    auto x = static_cast<double>(index) / 65535.0;
-
-    if (shadows_amount != 0.0) {
-      // Bell over the shadow band: zero at pure black (pinned) and fully faded by the
-      // midtones, peaking around 0.15.
-      const auto weight = smoothstep(0.0, 0.15, x) * (1.0 - smoothstep(0.15, 0.65, x));
-      x = std::clamp(x + shadows_amount * 0.30 * weight, 0.0, 1.0);
-    }
-    if (highlights_amount != 0.0) {
-      // Ramp over the highlight range; deliberately still active at 1.0 so negative
-      // values visibly dim blown whites (detail reconstruction is the recovery mode's
-      // job, this is tonal compression).
-      const auto weight = smoothstep(0.35, 0.85, x);
-      x = std::clamp(x + highlights_amount * 0.25 * weight, 0.0, 1.0);
-    }
-    if (contrast_amount > 0.0) {
-      x = x + (smoothstep(0.0, 1.0, x) - x) * contrast_amount;
-    } else if (contrast_amount < 0.0) {
-      x = x + (inverse_smoothstep(x) - x) * -contrast_amount;
-    }
-
-    lut[static_cast<std::size_t>(index)] =
-        static_cast<std::uint16_t>(std::lround(std::clamp(x, 0.0, 1.0) * 65535.0));
+    lut[static_cast<std::size_t>(index)] = static_cast<std::uint16_t>(
+        std::lround(tone_curve_value(static_cast<double>(index) / 65535.0, params) * 65535.0));
   }
   return lut;
 }

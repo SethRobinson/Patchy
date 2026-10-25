@@ -1,5 +1,7 @@
 #pragma once
 
+#include "formats/raw_tone.hpp"
+
 #include <QString>
 #include <QWidget>
 
@@ -9,6 +11,7 @@
 #include <optional>
 #include <span>
 #include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -43,23 +46,48 @@ enum class RawHistogramRegion { None, Shadows, Exposure, Highlights };
 // "shadows", "exposure", "highlights" or "none": test and script tokens.
 [[nodiscard]] QString raw_histogram_region_token(RawHistogramRegion region);
 
-// Shift-click auto values for the Tone sliders. Each reads the luminance
-// histogram of a preview developed with the slider at `rendered` and returns
-// the new slider value (already clamped to its range), or nullopt when the
-// histogram is empty or flat. They reuse Image > Adjustments' clip scan
-// (auto_levels_clip_scan: 0.1% per end) and Auto Color's midtone target 128:
-//   Exposure (EV, -2..3): moves the mean luminance toward 128, never pushing
-//     the clip white point past white; darkens only when whites clip.
-//   Contrast (-100..100): Auto Contrast's stretch of the clip black and white
-//     points, as the S-curve slope that matches it at mid gray.
-//   Highlights (-100..100): pulls back clipped whites, or carries a white
-//     point short of white up to it.
-//   Shadows (-100..100): opens crushed blacks, or deepens a black point that
-//     stops short of black.
-[[nodiscard]] std::optional<double> raw_auto_exposure_ev(const RawPreviewHistogram& histogram, double rendered);
-[[nodiscard]] std::optional<double> raw_auto_contrast(const RawPreviewHistogram& histogram, double rendered);
-[[nodiscard]] std::optional<double> raw_auto_highlights(const RawPreviewHistogram& histogram, double rendered);
-[[nodiscard]] std::optional<double> raw_auto_shadows(const RawPreviewHistogram& histogram, double rendered);
+// Shift-click auto values for the Tone sliders (GitHub issue 394). They are
+// solved from a baseline: the luminance histogram of a develop with all four
+// Tone sliders at their defaults and every other setting as it is, so the
+// answer never depends on where the sliders sit and repeats exactly. The
+// target is Auto Tone's levels stretch (Image > Adjustments: the 0.1% black
+// and white points of auto_levels_clip_scan moved to 0 and 255). The four
+// values are fitted together through RawToneModel, so Shift-clicking all four
+// lands on that stretch and each slider's value is its share of it.
+struct RawToneAutoValues {
+  double exposure_ev{0.0};
+  double contrast{0.0};
+  double highlights{0.0};
+  double shadows{0.0};
+
+  friend bool operator==(const RawToneAutoValues&, const RawToneAutoValues&) = default;
+};
+
+// What the Tone sliders do to one luminance value of a baseline develop
+// (0..1): Exposure through LibRaw's exp_bef curve in linear light (with the
+// highlight preservation raw_document_io sets), then the rendering profile's
+// tone curve on luma, then raw_tone's Shadows/Highlights/Contrast curve.
+// Color steps (saturation, the profile's color enhancement) are left out.
+class RawToneModel {
+public:
+  RawToneModel(raw::RenderingProfile profile, int processing_version);
+
+  [[nodiscard]] double map(double baseline, const RawToneAutoValues& values) const;
+  // The profile curve and its inverse on sRGB-encoded values; identity for Neutral.
+  [[nodiscard]] double profile(double value) const;
+  [[nodiscard]] double before_profile(double output) const;
+  // Exposure on an sRGB-encoded value, as LibRaw applies exp_shift.
+  [[nodiscard]] static double expose(double value, double exposure_ev);
+
+private:
+  std::vector<std::uint16_t> profile_lut_;
+};
+
+// The Tone slider values whose combined effect on `baseline` best matches
+// Auto Tone's stretch of it, in the sliders' own steps (0.01 EV, whole units),
+// or nullopt when the histogram is empty or flat.
+[[nodiscard]] std::optional<RawToneAutoValues> raw_auto_tone(const RawPreviewHistogram& baseline,
+                                                             const RawToneModel& model);
 
 enum class RawHistogramDragPhase { Begin, Move, End };
 

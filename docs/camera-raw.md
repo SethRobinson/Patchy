@@ -192,13 +192,18 @@ the release, as for a slider drag) and moves it by half its range per plot width
 Slider clicks (GitHub issue 394): Shift-click and Alt-click on a slider, its name or its value label,
 read from the event's modifiers. Alt resets to `DevelopParams{}`; for Temperature/Tint it selects
 As Shot, for Denoise Auto noise reduction. Shift on Temperature/Tint selects Auto white balance.
-Shift on Exposure, Contrast, Highlights and Shadows computes from the histogram on screen and the
-settings it was rendered with (`histogram_params`), using Image > Adjustments' 0.1% clip scan and
-Auto Color's midtone target: Exposure moves mean luminance toward 128 without pushing the clip white
-past white and darkens only when whites clip; Contrast matches Auto Contrast's stretch with the
-S-curve slope at mid gray; Highlights pulls back clipped whites or carries a short white point up;
-Shadows opens crushed blacks or deepens a short black point. Each click is one step from the
-current preview, so a second click after the refresh refines it. Brightness, Saturation, Vibrance
+Shift on Exposure, Contrast, Highlights and Shadows never measures the preview on screen (it
+already holds the sliders' own change, so clicks would compound). It reads a baseline: the
+luminance histogram of a draft develop with those four sliders at their defaults and everything
+else as set (`tone_baseline_params`), taken free from any preview at those defaults or developed on
+demand in a separate one-worker lane with its own session (`request_baseline_develop`). The first
+baseline for a settings key (`tone_baseline_key`: output size, demosaic and noise left out) is kept
+until a setting that changes it does, so a click repeats exactly whatever the sliders hold.
+`raw_auto_tone` fits all four at once, in slider steps, by coordinate descent: the target is Auto
+Tone's stretch of the baseline (0.1% clip black and white to 0 and 255), and `RawToneModel` predicts
+each luminance code through LibRaw's exp_bef curve (with `kExposureHighlightPreservation`), the
+profile curve and `raw::tone_curve_value`, with a small penalty on large moves. Shift-clicking all
+four lands on that stretch; one slider gets its share. Brightness, Saturation, Vibrance
 and Denoise have no automatic value: Shift-click does nothing there.
 
 Zoom (GitHub issue 395): bottom left, an editable `rawZoomCombo` (Fit, 12.5% to 1600%, typed

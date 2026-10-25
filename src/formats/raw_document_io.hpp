@@ -69,6 +69,13 @@ public:
   const char* what() const noexcept override { return "RAW development cancelled"; }
 };
 
+// LibRaw's exp_preser for positive exposure: keeps some highlight detail when
+// brightening. The dialog's Shift-click auto values model exposure with it.
+inline constexpr double kExposureHighlightPreservation = 0.8;
+// LibRaw's exp_shift bounds (0.25x to 8x).
+inline constexpr double kMinExposureShift = 0.25;
+inline constexpr double kMaxExposureShift = 8.0;
+
 struct DevelopParams {
   // Version 1 preserves the original neutral rendering and Auto noise policy.
   int processing_version{kProcessingVersion};
