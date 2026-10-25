@@ -12,6 +12,7 @@
 class QMouseEvent;
 class QPainter;
 class QKeyEvent;
+class QFocusEvent;
 class QResizeEvent;
 class QWheelEvent;
 
@@ -64,6 +65,12 @@ public:
   void zoom_step(int direction,
                  std::optional<QPointF> anchor = std::nullopt);
   void set_zoom_changed_callback(std::function<void()> callback);
+  // Scrubby Zoom, the Zoom tool's gesture (docs/view-navigation.md): a left
+  // drag zooms about the press point, right = in, vertical travel ignored; a
+  // click without travel steps in, Alt-click out. Space held or the middle
+  // button still pans. Off by default (a left drag pans).
+  void set_scrubby_zoom(bool enabled);
+  [[nodiscard]] bool scrubby_zoom() const noexcept;
 
   // A missing outer optional hides the overlay. Like Patchy's other reusable
   // editors, interaction is callback-driven: the host pushes accepted values
@@ -114,6 +121,8 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override;
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
+  void keyReleaseEvent(QKeyEvent* event) override;
+  void focusOutEvent(QFocusEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
   void leaveEvent(QEvent* event) override;
 
@@ -157,6 +166,7 @@ private:
   void request_tilt_shift_overlay(NormalizedTiltShiftOverlay overlay,
                                   bool gesture_finished);
   void update_interaction_cursor(QPointF position);
+  void refresh_interaction_tooltip();
   void clamp_pan();
   void publish_overlay_state();
   void request_display_cache();
@@ -188,6 +198,14 @@ private:
   double zoom_{1.0};
   bool fit_mode_{true};
   bool panning_{false};
+  Qt::MouseButton pan_button_{Qt::NoButton};
+  bool scrubby_zoom_{false};
+  bool space_held_{false};
+  bool scrub_armed_{false};
+  bool scrub_started_{false};
+  QPointF scrub_anchor_;
+  QPointF scrub_press_position_;
+  QPointF scrub_last_position_;
   OverlayHandle active_overlay_handle_{OverlayHandle::None};
   bool overlay_drag_changed_{false};
 };

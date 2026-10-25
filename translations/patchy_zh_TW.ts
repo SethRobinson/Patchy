@@ -12283,6 +12283,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>此格式無法儲存其混合模式的圖層已存為正常，因此儲存的影像看起來不同。</translation>
     </message>
+    <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>預覽縮放。選擇大小或輸入百分比。</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>細微縮放</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>在預覽上向左或向右拖曳以縮放。</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>按住 Shift 按一下可設為自動值。按住 %ALT% 按一下可重設。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>按住 %ALT% 按一下可重設。</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>按住 Shift 按一下可使用自動白平衡。按住 %ALT% 按一下可恢復為拍攝時設定。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>按住 %ALT% 按一下可將減少雜訊恢復為自動。</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>指向直方圖可查看該部分調整的設定，然後向左或向右拖曳即可變更。</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>向左或向右拖曳以縮放。按一下放大，按住 %ALT% 按一下縮小。按住空白鍵或使用滑鼠中鍵平移。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -12353,6 +12353,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>Слои в режимах наложения, которые этот формат не может сохранить, сохранены как «Обычный», поэтому сохранённое изображение выглядит иначе.</translation>
     </message>
+    <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Масштаб просмотра. Выберите размер или введите процент.</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>Масштабирование перетаскиванием</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Перетащите влево или вправо в окне просмотра, чтобы изменить масштаб.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Щелчок с Shift задаёт автоматическое значение. Щелчок с %ALT% сбрасывает его.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>Щелчок с %ALT% сбрасывает его.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Щелчок с Shift включает автоматический баланс белого. Щелчок с %ALT% возвращает «Как при съёмке».</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>Щелчок с %ALT% возвращает снижению шума режим «Авто».</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Наведите указатель на гистограмму, чтобы увидеть, какой параметр меняет эта часть, затем перетащите влево или вправо, чтобы изменить его.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Перетащите влево или вправо, чтобы изменить масштаб. Щелчок увеличивает, щелчок с %ALT% уменьшает. Удерживайте пробел или используйте среднюю кнопку для прокрутки.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

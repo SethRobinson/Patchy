@@ -12283,6 +12283,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>이 형식에 저장할 수 없는 혼합 모드의 레이어는 표준으로 저장되어, 저장된 이미지가 다르게 보입니다.</translation>
     </message>
+    <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>미리 보기 확대/축소. 크기를 고르거나 백분율을 입력하세요.</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>스크러비 줌</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>미리 보기에서 왼쪽이나 오른쪽으로 드래그하여 확대/축소합니다.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift-클릭: 자동 값 설정. %ALT%-클릭: 재설정.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-클릭: 재설정.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift-클릭: 자동 화이트 밸런스 사용. %ALT%-클릭: 촬영 시 설정으로 되돌리기.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-클릭: 노이즈 감소를 자동으로 되돌리기.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>히스토그램을 가리키면 그 부분이 조정하는 설정이 표시되고, 왼쪽이나 오른쪽으로 드래그하면 변경됩니다.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>왼쪽이나 오른쪽으로 드래그하여 확대/축소합니다. 클릭하면 확대, %ALT%-클릭하면 축소합니다. Space 키를 누르고 있거나 가운데 버튼으로 이동합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

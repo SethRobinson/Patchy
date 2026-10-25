@@ -1416,6 +1416,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/qt_geometry.cpp
       src/ui/raw_develop_dialog.hpp
       src/ui/raw_develop_dialog.cpp
+      src/ui/raw_develop_histogram.hpp
+      src/ui/raw_develop_histogram.cpp
       src/ui/raw_develop_settings.hpp
       src/ui/raw_develop_settings.cpp
       src/ui/scanner_import.hpp
