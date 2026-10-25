@@ -12535,6 +12535,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>GIMP 이미지</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2열</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3열</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4열</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>2 x 2 격자</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>3 x 3 격자</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>4 x 4 격자</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12열, 간격 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25279,6 +25307,26 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Layer:</source>
         <translation>레이어:</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>간격:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>위쪽 여백:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>아래쪽:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>왼쪽 여백:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>오른쪽:</translation>
     </message>
 </context>
 <context>

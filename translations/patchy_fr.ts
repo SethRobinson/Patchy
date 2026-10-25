@@ -12570,6 +12570,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Image GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 colonnes</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 colonnes</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 colonnes</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Grille 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Grille 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Grille 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 colonnes, gouttière de 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25352,6 +25380,26 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Layer:</source>
         <translation>Calque :</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Gouttière :</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Marge supérieure :</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Inférieure :</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Marge gauche :</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Droite :</translation>
     </message>
 </context>
 <context>

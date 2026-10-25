@@ -170,6 +170,7 @@ add_library(patchy_core
   src/core/image_trace.cpp
   src/core/layer.cpp
   src/core/smart_filter_schema.cpp
+  src/core/guide_layout.cpp
   src/core/layer_alignment.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
@@ -2188,6 +2189,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
     tests/core/pipl_tests.cpp
+    tests/core/guide_layout_tests.cpp
     tests/core/layer_alignment_tests.cpp
     tests/core/layer_metadata_tests.cpp
     tests/core/file_info_metadata_tests.cpp

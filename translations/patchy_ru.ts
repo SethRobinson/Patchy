@@ -12605,6 +12605,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Изображение GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 столбца</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 столбца</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 столбца</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Сетка 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Сетка 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Сетка 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 столбцов, промежуток 20 px</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25425,6 +25453,26 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Layer:</source>
         <translation>Слой:</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Промежуток:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Верхнее поле:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Нижнее:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Левое поле:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Правое:</translation>
     </message>
 </context>
 <context>
