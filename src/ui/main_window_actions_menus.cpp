@@ -55,6 +55,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QSize>
 #include <QString>
 #include <QStringLiteral>
@@ -2008,7 +2009,22 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   view_gamut_warning_action_->setCheckable(true);
   register_hotkey(view_gamut_warning_action_, "view.gamut_warning");
   connect(view_gamut_warning_action_, &QAction::toggled, this, [this] { refresh_proof_display(); });
-  auto* selection_edges_action = view_menu->addAction(tr("Show Selection &Edges"));
+  // View > Extras (GitHub issue 420) hides or shows every overlay ticked in Show Extras
+  // Options; it keeps the old Show Selection Edges command id (view.selection_edges), so
+  // a custom Ctrl+H binding carries over. Per canvas, like Photoshop's.
+  view_extras_action_ = view_menu->addAction(tr("&Extras"));
+  view_extras_action_->setObjectName(QStringLiteral("viewExtrasAction"));
+  view_extras_action_->setCheckable(true);
+  view_extras_action_->setChecked(true);
+  auto* show_menu = view_menu->addMenu(tr("S&how"));
+  show_menu->setObjectName(QStringLiteral("viewShowMenu"));
+  auto* show_selection_edges_action = show_menu->addAction(tr("&Selection Edges"));
+  show_selection_edges_action->setObjectName(QStringLiteral("viewShowSelectionEdgesAction"));
+  show_selection_edges_action->setCheckable(true);
+  show_selection_edges_action->setChecked(view_selection_edges_shown_);
+  show_menu->addSeparator();
+  auto* extras_options_action = show_menu->addAction(tr("Show &Extras Options..."));
+  extras_options_action->setObjectName(QStringLiteral("viewExtrasOptionsAction"));
   auto* target_path_action = view_menu->addAction(tr("Show Target &Path"));
   view_menu->addSeparator();
   view_rulers_action_ = view_menu->addAction(tr("&Rulers"));
@@ -2063,7 +2079,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   fill_screen->setObjectName(QStringLiteral("viewFillScreenAction"));
   zoom_reset->setObjectName(QStringLiteral("viewActualPixelsAction"));
   zoom_200->setObjectName(QStringLiteral("viewZoom200Action"));
-  selection_edges_action->setObjectName(QStringLiteral("viewToggleSelectionEdgesAction"));
   target_path_action->setObjectName(QStringLiteral("viewToggleTargetPathAction"));
   view_rulers_action_->setObjectName(QStringLiteral("viewToggleRulersAction"));
   view_grid_action_->setObjectName(QStringLiteral("viewToggleGridAction"));
@@ -2086,7 +2101,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   fit_on_screen->setIcon(simple_icon(QStringLiteral("fit")));
   fill_screen->setIcon(simple_icon(QStringLiteral("fill")));
   zoom_reset->setIcon(simple_icon(QStringLiteral("1x")));
-  selection_edges_action->setIcon(simple_icon(QStringLiteral("SE")));
+  view_extras_action_->setIcon(simple_icon(QStringLiteral("SE")));
   view_rulers_action_->setIcon(simple_icon(QStringLiteral("RU")));
   view_grid_action_->setIcon(simple_icon(QStringLiteral("GRD")));
   view_guides_action_->setIcon(simple_icon(QStringLiteral("GDE")));
@@ -2128,7 +2143,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(fill_screen, "view.fill_screen");
   register_hotkey(zoom_reset, "view.actual_pixels", QKeySequence(Qt::CTRL | Qt::Key_1));
   register_hotkey(zoom_200, "view.zoom_200");
-  register_hotkey(selection_edges_action, "view.selection_edges", QKeySequence(Qt::CTRL | Qt::Key_H));
+  register_hotkey(view_extras_action_, "view.selection_edges", QKeySequence(Qt::CTRL | Qt::Key_H));
+  register_hotkey(show_selection_edges_action, "view.show_selection_edges");
+  register_hotkey(extras_options_action, "view.extras_options");
   register_hotkey(target_path_action, "view.target_path",
                   QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
   register_hotkey(view_rulers_action_, "view.rulers", QKeySequence(Qt::CTRL | Qt::Key_R));
@@ -2155,11 +2172,23 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // The Zoom tool's canvas right-click menu (GitHub issue 300; docs/tools.md,
   // "Canvas right-click menu"): these same actions, so shortcuts and behavior match.
   zoom_tool_context_actions_ = {zoom_in, zoom_out, nullptr, fit_on_screen, zoom_reset, zoom_200};
-  connect(selection_edges_action, &QAction::triggered, this, [this] {
+  // triggered (not toggled): activate_document_canvas syncs the check from each canvas.
+  connect(view_extras_action_, &QAction::triggered, this, [this] {
     if (canvas_ != nullptr) {
-      canvas_->toggle_selection_edges_visible();
+      canvas_->toggle_extras_visible();
+    }
+    const QSignalBlocker blocker(view_extras_action_);
+    view_extras_action_->setChecked(canvas_ == nullptr || canvas_->extras_visible());
+  });
+  connect(show_selection_edges_action, &QAction::toggled, this, [this](bool checked) {
+    view_selection_edges_shown_ = checked;
+    for (const auto& active_session : sessions_) {
+      if (active_session->canvas != nullptr) {
+        active_session->canvas->set_show_selection_edges(checked);
+      }
     }
   });
+  connect(extras_options_action, &QAction::triggered, this, [this] { view_extras_options_dialog(); });
   connect(target_path_action, &QAction::toggled, this, [this](bool checked) {
     view_target_path_visible_ = checked;
     // Deliberately not persisted: every launch starts visible (Photoshop).
@@ -2223,7 +2252,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(new_guide_layout_action, &QAction::triggered, this, [this] { new_guide_layout_dialog(); });
   connect(clear_selected_guides_action, &QAction::triggered, this, [this] { clear_selected_guides(); });
   connect(clear_guides_action, &QAction::triggered, this, [this] { clear_guides(); });
-  for (auto* action : {zoom_in, zoom_out, fit_on_screen, fill_screen, zoom_reset, zoom_200, selection_edges_action,
+  for (auto* action : {zoom_in, zoom_out, fit_on_screen, fill_screen, zoom_reset, zoom_200, view_extras_action_,
                        view_rulers_action_,
                        view_grid_action_, view_guides_action_, view_snap_action_, view_lock_guides_action_,
                        snap_to_menu->menuAction(), view_snap_guides_action_, view_snap_grid_action_,
@@ -2460,7 +2489,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.fill_screen = fill_screen;
   ctx.zoom_reset = zoom_reset;
   ctx.zoom_200 = zoom_200;
-  ctx.selection_edges_action = selection_edges_action;
+  ctx.extras_action = view_extras_action_;
+  ctx.show_menu = show_menu;
+  ctx.show_selection_edges_action = show_selection_edges_action;
+  ctx.extras_options_action = extras_options_action;
   ctx.target_path_action = target_path_action;
   ctx.tile_preview_action = tile_preview_action;
   ctx.snap_to_menu = snap_to_menu;

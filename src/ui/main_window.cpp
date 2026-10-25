@@ -11603,7 +11603,7 @@ bool MainWindow::document_action_enabled_during_preview_lock(const QAction* acti
       object_name == QStringLiteral("viewFitOnScreenAction") ||
       object_name == QStringLiteral("viewActualPixelsAction") ||
       object_name == QStringLiteral("viewZoom200Action") ||
-      object_name == QStringLiteral("viewToggleSelectionEdgesAction") ||
+      object_name == QStringLiteral("viewExtrasAction") ||
       object_name == QStringLiteral("viewToggleRulersAction") ||
       object_name == QStringLiteral("viewToggleGridAction") ||
       object_name == QStringLiteral("viewToggleGuidesAction") ||

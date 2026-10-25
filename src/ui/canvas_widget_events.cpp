@@ -4642,7 +4642,7 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
   if (event->timerId() == selection_timer_.timerId()) {
     selection_dash_offset_ = (selection_dash_offset_ + 1) % 8;
     if ((!quick_mask_active_ && !selection_.isEmpty() &&
-         selection_edges_visible_) ||
+         selection_edges_drawn()) ||
         lassoing_ || magnetic_lassoing_ || polygon_lassoing_ || (zooming_ && !zoom_scrubbing_)) {
       update();
     }

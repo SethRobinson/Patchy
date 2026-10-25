@@ -26,6 +26,7 @@
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
 #include "ui/script_stroke.hpp"
+#include "ui/view_extras.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/text_paragraph_metrics.hpp"
 #include "ui/unit_spin_box.hpp"
@@ -1115,6 +1116,8 @@ private:
   // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
   void apply_tool_palette_factor(double factor);
   void new_guide_dialog();
+  // View > Show > Show Extras Options (GitHub issue 420): stores and applies the choice.
+  void view_extras_options_dialog();
   void new_guide_layout_dialog();
   void clear_guides();
   void clear_selected_guides();
@@ -2995,6 +2998,7 @@ private:
   QAction* view_grid_action_{nullptr};
   QAction* view_guides_action_{nullptr};
   QAction* view_pixel_grid_action_{nullptr};
+  QAction* view_extras_action_{nullptr};
   QAction* view_snap_action_{nullptr};
   QAction* view_lock_guides_action_{nullptr};
   QAction* view_snap_guides_action_{nullptr};
@@ -3384,6 +3388,10 @@ private:
   // Photoshop's View > Show > Target Path (Ctrl+Shift+H). Deliberately NOT
   // persisted: every launch starts visible, like Photoshop.
   bool view_target_path_visible_{true};
+  // View > Show > Selection Edges; not persisted, like Target Path.
+  bool view_selection_edges_shown_{true};
+  // Which overlays View > Extras covers (view/extras/*, docs/view-navigation.md "Extras").
+  std::uint32_t view_extras_covered_{kAllViewExtras};
   bool view_vector_preview_enabled_{false};
   std::set<QString> vector_preview_notices_shown_;
   bool view_guides_locked_{false};
