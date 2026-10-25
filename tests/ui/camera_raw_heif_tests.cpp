@@ -4,6 +4,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/raw_develop_dialog.hpp"
+#include "ui/theme_palette.hpp"
 #include "filters/auto_levels_math.hpp"
 #include "ui/raw_develop_histogram.hpp"
 #include "ui/raw_develop_settings.hpp"
@@ -39,6 +40,9 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPushButton>
+#include <QPalette>
+#include <QToolTip>
+#include <QPainter>
 #include <QSettings>
 #include <QSlider>
 #include <QTabBar>
@@ -1649,10 +1653,36 @@ void ui_raw_dialog_issue_shots_if_available() {
       send_mouse(*histogram, QEvent::MouseMove, QPoint(plot.left() + plot.width() / 2, plot.center().y()), Qt::NoButton,
                  Qt::NoButton);
       save_widget_artifact("issue_393_after", dialog);
-      auto* tone = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->parentWidget();
-      save_stacked_artifact("issue_394_after",
-                            {tone->grab().toImage(),
-                             render_widget_tooltip(*dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider")))});
+      {
+        // The Tone group with the Exposure tooltip, both themed as in the app: the dialog
+        // carries the app sheet, and the tip reads QToolTip's palette, which ThemeManager
+        // sets from the theme (apply_tooltip_palette).
+        ThemedCaptureScope themed(dialog);
+        const auto previous_tip_palette = QToolTip::palette();
+        auto tip_palette = previous_tip_palette;
+        tip_palette.setColor(QPalette::ToolTipBase, patchy::ui::theme().panel_bg);
+        tip_palette.setColor(QPalette::ToolTipText, patchy::ui::theme().text_primary);
+        QToolTip::setPalette(tip_palette);
+        auto* exposure = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
+        auto* tone = exposure->parentWidget();
+        auto shot = dialog.grab().toImage().convertToFormat(QImage::Format_ARGB32);
+        const auto tip = render_widget_tooltip(*exposure);
+        QToolTip::setPalette(previous_tip_palette);
+        CHECK(!tip.isNull());
+        // A pointer on the slider handle, and the tip just below and right of it.
+        const auto handle_x = static_cast<int>(std::lround(
+            exposure->width() * static_cast<double>(exposure->value() - exposure->minimum()) /
+            (exposure->maximum() - exposure->minimum())));
+        const auto pointer = exposure->mapTo(&dialog, QPoint(handle_x, exposure->height() / 2));
+        const QPoint tip_at(std::min(pointer.x() + 2, shot.width() - tip.width() - 4), pointer.y() + 18);
+        {
+          QPainter painter(&shot);
+          painter.drawImage(tip_at, tip);
+        }
+        const QRect tone_rect(tone->mapTo(&dialog, QPoint(0, 0)), tone->size());
+        save_image_artifact("issue_394_after",
+                            shot.copy(tone_rect.united(QRect(tip_at, tip.size())).adjusted(-6, -20, 6, -6) & shot.rect()));
+      }
       send_mouse(*histogram, QEvent::MouseMove, QPoint(-5, -5), Qt::NoButton, Qt::NoButton);
       dialog.findChild<QPushButton*>(QStringLiteral("rawZoom100Button"))->click();
       stage = 1;
