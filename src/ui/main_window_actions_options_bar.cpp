@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/clone_source_panel.hpp"
 #include "ui/appearance_edits.hpp"
 #include "ui/artboard_preset_picker.hpp"
 #include "ui/main_window_shared.hpp"
@@ -2683,8 +2684,56 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (canvas_ != nullptr) {
       canvas_->set_clone_aligned(checked);
       save_tool_settings();
+      refresh_clone_source_panel();
     }
   });
+  // Clone source settings (GitHub issue 424): the slots, offset, scale and rotation and
+  // the overlay, in a popup on a gear button (rule 8) after the checkbox group.
+  clone_source_options_button_ = new QToolButton(toolbar);
+  clone_source_options_button_->setObjectName(QStringLiteral("cloneSourceOptionsButton"));
+  make_options_menu_button(clone_source_options_button_);
+  bind_tooltip(clone_source_options_button_,
+               QT_TR_NOOP("Clone source settings: sources, offset, scale, rotation and overlay"));
+  {
+    clone_source_menu_ = new QMenu(clone_source_options_button_);
+    clone_source_menu_->setObjectName(QStringLiteral("cloneSourceMenu"));
+    clone_source_panel_ = new CloneSourcePanel(clone_source_menu_);
+    auto* panel_action = new QWidgetAction(clone_source_menu_);
+    panel_action->setDefaultWidget(clone_source_panel_);
+    clone_source_menu_->addAction(panel_action);
+    connect(clone_source_menu_, &QMenu::aboutToShow, this, [this] { refresh_clone_source_panel(); });
+    connect(clone_source_panel_, &CloneSourcePanel::slot_picked, this, [this](int slot) {
+      if (canvas_ != nullptr) {
+        canvas_->set_clone_source_slot(slot);
+      }
+      refresh_clone_source_panel();
+    });
+    connect(clone_source_panel_, &CloneSourcePanel::offset_edited, this, [this](QPoint offset) {
+      if (canvas_ != nullptr) {
+        canvas_->set_clone_source_offset(offset);
+      }
+      refresh_clone_source_panel();
+    });
+    connect(clone_source_panel_, &CloneSourcePanel::transform_edited, this,
+            [this](patchy::CloneSourceTransform transform) {
+              if (canvas_ != nullptr) {
+                canvas_->set_clone_source_transform(transform);
+              }
+              refresh_clone_source_panel();
+            });
+    connect(clone_source_panel_, &CloneSourcePanel::overlay_edited, this, [this](bool shown, int opacity) {
+      current_clone_overlay_shown_ = shown;
+      current_clone_overlay_opacity_ = std::clamp(opacity, 1, 100);
+      for (auto* canvas : findChildren<CanvasWidget*>()) {
+        canvas->set_clone_overlay_shown(current_clone_overlay_shown_);
+        canvas->set_clone_overlay_opacity(current_clone_overlay_opacity_);
+      }
+      schedule_save_tool_settings();
+      refresh_clone_source_panel();
+    });
+    clone_source_options_button_->setMenu(clone_source_menu_);
+  }
+  add_option_widget(clone_source_options_button_, {CanvasTool::Clone, CanvasTool::Healing});
 
   add_option_label(QT_TR_NOOP("Patch:"), {CanvasTool::PatchTool});
   patch_mode_combo_ = new QComboBox(toolbar);

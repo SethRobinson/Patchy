@@ -1019,9 +1019,19 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       clone_source_cache_ = retouch_source_snapshot();
       clone_source_deep_ = document_->color_state().bit_depth != BitDepth::UInt8 ? retouch_source_deep()
                                                                                  : PixelBuffer{};
-      if (!clone_aligned_ || !clone_aligned_offset_set_) {
+      const bool offset_changed = !clone_aligned_ || !clone_aligned_offset_set_;
+      if (offset_changed) {
         clone_source_offset_ = clone_source_point_ - document_point;
         clone_aligned_offset_set_ = clone_aligned_;
+      }
+      // The Clone Stamp samples through the source transform; the Healing Brush keeps
+      // the plain offset (docs/healing.md "Clone source settings").
+      invalidate_clone_overlay();
+      clone_stroke_mapping_ = patchy::CloneSourceMapping(
+          clone_source_point_.x(), clone_source_point_.y(), clone_source_offset_.x(), clone_source_offset_.y(),
+          healing ? patchy::CloneSourceTransform{} : clone_source_transform_);
+      if (offset_changed) {
+        notify_clone_source_changed();
       }
       clear_brush_stroke_tracking();
       // The Healing Brush (except Replace) previews the raw source while painting and
@@ -2535,6 +2545,7 @@ void CanvasWidget::focusInEvent(QFocusEvent* event) {
 void CanvasWidget::leaveEvent(QEvent* event) {
   clear_move_hover_outline();
   hide_eyedropper_sample_outline();
+  invalidate_clone_overlay();
   if (brush_hover_position_valid_) {
     const auto stale = brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
     brush_hover_position_valid_ = false;
@@ -2829,6 +2840,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     dirty = dirty.united(finish_healing_brush_stroke());
     painting_ = false;
     set_retouch_source_indicator(std::nullopt);
+    invalidate_clone_overlay();
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();

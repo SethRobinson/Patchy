@@ -14544,6 +14544,101 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>ソース:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>ポイント:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>オフセット:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>ブラシの右方向にどれだけ離れた位置からソースを取得するか</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>ブラシの下方向にどれだけ離れた位置からソースを取得するか</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>スケール:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>コピーする内容のサイズ</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>回転:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>コピーする内容を時計回りに回転します</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>リセット</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>100% と 0 度に戻します</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>オーバーレイを表示</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>ペイントする前にブラシの下にソースをプレビューします</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>ソースオーバーレイの不透明度</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>ソース %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>ソース %1: 未設定</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>未設定: カンバスを %ALT% クリックしてください</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>整列がオフ: 各ストロークはソースポイントから始まります。</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>次のストロークでオフセットが決まります。</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>スケールと回転はコピースタンプに適用されます。</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25743,6 +25838,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
         <translation>Shift+クリックで前回のストロークから直線を描きます。%CTRL%+クリックでポインターの下のレイヤーを選択、%CTRL%+ドラッグでレイヤーを移動、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>クローン元の設定: ソース、オフセット、スケール、回転、オーバーレイ</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>クローン元</translation>
     </message>
 </context>
 <context>

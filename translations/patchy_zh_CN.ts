@@ -14544,6 +14544,101 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>源:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>点:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>位移:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>在画笔右侧多远处取样源</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>在画笔下方多远处取样源</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>缩放:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>仿制内容的大小</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>旋转:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>按顺时针方向旋转仿制内容</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>复位</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>恢复为 100% 和 0 度</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>显示叠加</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>绘画前在画笔下预览源</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>源叠加的不透明度</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>源 %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>源 %1: 未设置</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>未设置: 按住 %ALT% 并单击画布</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>对齐已关闭: 每一笔都从源点开始。</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>下一笔将设置位移。</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>缩放和旋转适用于仿制图章。</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25743,6 +25838,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
         <translation>Shift+单击从上一笔画出直线。%CTRL%+单击选择指针下方的图层，%CTRL%+拖动移动图层，%ALT%+右键拖动更改大小和柔和度。</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>仿制源设置: 源、位移、缩放、旋转和叠加</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>仿制源</translation>
     </message>
 </context>
 <context>

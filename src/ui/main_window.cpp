@@ -5652,6 +5652,11 @@ void MainWindow::show_status_error(const QString& text) {
 
 void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->setObjectName(QStringLiteral("canvas"));
+  canvas->set_clone_source_changed_callback([this, canvas] {
+    if (canvas == canvas_) {
+      refresh_clone_source_panel();
+    }
+  });
   // A canvas can be born while a preview dialog holds the edit lock (drag & drop,
   // second-instance open); every canvas joins the lock here so no creation path
   // can produce an editable canvas behind an open preview dialog.

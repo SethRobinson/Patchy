@@ -14562,6 +14562,101 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25733,6 +25828,14 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -12,6 +12,7 @@
 #include "core/blend_math.hpp"
 #include "core/brush_dynamics.hpp"
 #include "core/brush_tip.hpp"
+#include "core/clone_source_transform.hpp"
 #include "core/layer.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_buffer.hpp"
@@ -30,6 +31,7 @@
 #include <QCursor>
 #include <QImage>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
 #include <QPoint>
@@ -41,6 +43,7 @@
 #include <QRgb>
 #include <QScopeGuard>
 #include <QSize>
+#include <QTransform>
 #include <QString>
 #include <Qt>
 #include <QtGlobal>
@@ -633,10 +636,16 @@ void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
   }
   const auto old_rect =
       brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
+  const auto old_overlay = clone_overlay_drawn_rect_;
   brush_hover_widget_position_ = widget_position;
   brush_hover_position_valid_ = true;
   if (brush_outline_uses_overlay()) {
     update(old_rect.united(brush_hover_outline_rect()).adjusted(-2, -2, 2, 2));
+  }
+  if (clone_overlay_active()) {
+    update(old_overlay.united(clone_overlay_widget_rect()));
+  } else if (!old_overlay.isEmpty()) {
+    update(old_overlay);
   }
 }
 
@@ -2697,6 +2706,171 @@ void CanvasWidget::set_clone_source(QPoint point) {
                          .arg(point.x())
                          .arg(point.y()));
   }
+  notify_clone_source_changed();
+}
+
+void CanvasWidget::notify_clone_source_changed() {
+  if (clone_source_changed_callback_) {
+    clone_source_changed_callback_();
+  }
+}
+
+CanvasWidget::CloneSourceSlot CanvasWidget::clone_source_slot_state(int slot) const {
+  if (slot == clone_source_slot_) {
+    return CloneSourceSlot{.set = clone_source_set_,
+                           .point = clone_source_point_,
+                           .offset = clone_source_offset_,
+                           .offset_set = clone_aligned_offset_set_,
+                           .transform = clone_source_transform_};
+  }
+  if (slot < 0 || slot >= kCloneSourceSlotCount) {
+    return {};
+  }
+  return clone_source_slots_[static_cast<std::size_t>(slot)];
+}
+
+void CanvasWidget::set_clone_source_slot(int slot) {
+  slot = std::clamp(slot, 0, kCloneSourceSlotCount - 1);
+  if (slot == clone_source_slot_ || painting_) {
+    return;
+  }
+  invalidate_clone_overlay();
+  clone_source_slots_[static_cast<std::size_t>(clone_source_slot_)] = clone_source_slot_state(clone_source_slot_);
+  clone_source_slot_ = slot;
+  const auto& next = clone_source_slots_[static_cast<std::size_t>(slot)];
+  clone_source_set_ = next.set;
+  clone_source_point_ = next.point;
+  clone_source_offset_ = next.offset;
+  clone_aligned_offset_set_ = next.offset_set;
+  clone_source_transform_ = next.transform;
+  update();  // the source marker moves
+  update_tool_cursor();
+  notify_clone_source_changed();
+}
+
+void CanvasWidget::set_clone_source_offset(QPoint offset) {
+  if (painting_ || (clone_aligned_offset_set_ && clone_source_offset_ == offset)) {
+    return;
+  }
+  invalidate_clone_overlay();
+  clone_source_offset_ = offset;
+  clone_aligned_offset_set_ = true;
+  invalidate_clone_overlay();
+  notify_clone_source_changed();
+}
+
+void CanvasWidget::set_clone_source_transform(const patchy::CloneSourceTransform& transform) {
+  const auto value = transform.normalized();
+  if (painting_ || value == clone_source_transform_) {
+    return;
+  }
+  clone_source_transform_ = value;
+  invalidate_clone_overlay();
+  notify_clone_source_changed();
+}
+
+void CanvasWidget::set_clone_overlay_shown(bool shown) {
+  if (clone_overlay_shown_ == shown) {
+    return;
+  }
+  invalidate_clone_overlay();
+  clone_overlay_shown_ = shown;
+  invalidate_clone_overlay();
+}
+
+void CanvasWidget::set_clone_overlay_opacity(int percent) {
+  percent = std::clamp(percent, 1, 100);
+  if (clone_overlay_opacity_ == percent) {
+    return;
+  }
+  clone_overlay_opacity_ = percent;
+  invalidate_clone_overlay();
+}
+
+bool CanvasWidget::clone_overlay_active() const {
+  return clone_overlay_shown_ && retouch_source_tool_active() && clone_source_set_ && !painting_ &&
+         brush_hover_position_valid_ && !spacebar_panning_ && document_ != nullptr && !render_cache_.isNull() &&
+         render_cache_.size() == QSize(document_->width(), document_->height());
+}
+
+QRect CanvasWidget::clone_overlay_widget_rect() const {
+  const auto radius =
+      static_cast<int>(std::ceil(static_cast<double>(std::max(1, active_outline_brush_size())) * zoom_ / 2.0)) + 3;
+  return QRect(brush_hover_widget_position_.x() - radius, brush_hover_widget_position_.y() - radius, 2 * radius + 1,
+               2 * radius + 1);
+}
+
+void CanvasWidget::invalidate_clone_overlay() {
+  QRect region = clone_overlay_drawn_rect_;
+  if (clone_overlay_active()) {
+    region = region.united(clone_overlay_widget_rect());
+  }
+  if (!region.isEmpty()) {
+    update(region);
+  }
+}
+
+// The source under the hovered brush, at the overlay opacity and clipped to the brush
+// footprint (GitHub issue 424). It reads the displayed composite (render_cache_) through
+// the transform the next stroke would use; only the source pixels under the brush are
+// drawn, so the cost follows the brush, not the document.
+void CanvasWidget::draw_clone_source_overlay(QPainter& painter) const {
+  clone_overlay_drawn_rect_ = QRect();
+  if (!clone_overlay_active()) {
+    return;
+  }
+  const auto hover = document_position(brush_hover_widget_position_);
+  // The offset the next stroke takes: the kept one while Aligned has one, else the
+  // source point lands under the pointer.
+  const auto offset = clone_aligned_ && clone_aligned_offset_set_ ? clone_source_offset_ : clone_source_point_ - hover;
+  const auto transform = tool_ == CanvasTool::Clone ? clone_source_transform_ : patchy::CloneSourceTransform{};
+  const auto anchor = QPointF(clone_source_point_ - offset) + QPointF(0.5, 0.5);
+  const auto source_center = QPointF(clone_source_point_) + QPointF(0.5, 0.5);
+  // Source document coordinates to widget coordinates (the last call applies first).
+  QTransform to_widget;
+  to_widget.translate(pan_.x(), pan_.y());
+  to_widget.scale(zoom_, zoom_);
+  to_widget.translate(anchor.x(), anchor.y());
+  to_widget.rotate(transform.rotation_degrees);
+  to_widget.scale(transform.scale_percent / 100.0, transform.scale_percent / 100.0);
+  to_widget.translate(-source_center.x(), -source_center.y());
+
+  const auto brush = effective_brush_input();
+  const auto radius = std::max(1.0, static_cast<double>(std::max(1, brush.size)) * zoom_ / 2.0);
+  QPainterPath footprint;
+  footprint.addEllipse(QPointF(0.0, 0.0), radius,
+                       std::max(0.5, radius * static_cast<double>(brush.roundness) / 100.0));
+  QTransform footprint_place;
+  footprint_place.translate(brush_hover_widget_position_.x(), brush_hover_widget_position_.y());
+  footprint_place.rotate(brush.angle_degrees);
+  QPainterPath document_area;
+  document_area.addRect(QRectF(widget_position_f(QPointF(0.0, 0.0)),
+                               widget_position_f(QPointF(document_->width(), document_->height()))));
+  const auto clip = footprint_place.map(footprint).intersected(document_area);
+  if (clip.isEmpty()) {
+    return;
+  }
+  const auto clip_rect = clip.boundingRect();
+  bool invertible = false;
+  const auto to_source = to_widget.inverted(&invertible);
+  if (!invertible) {
+    return;
+  }
+  const auto source_rect = to_source.mapRect(clip_rect)
+                               .toAlignedRect()
+                               .adjusted(-1, -1, 1, 1)
+                               .intersected(QRect(QPoint(0, 0), render_cache_.size()));
+  if (source_rect.isEmpty()) {
+    return;
+  }
+  painter.save();
+  painter.setClipPath(clip);
+  painter.setOpacity(static_cast<double>(clone_overlay_opacity_) / 100.0);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, !transform.is_identity() || zoom_ < 1.0);
+  painter.setTransform(to_widget);
+  painter.drawImage(QRectF(source_rect), render_cache_, QRectF(source_rect));
+  painter.restore();
+  clone_overlay_drawn_rect_ = clip_rect.toAlignedRect().adjusted(-2, -2, 2, 2);
 }
 
 bool CanvasWidget::begin_pattern_stamp_stroke(QPoint point) {
@@ -2756,7 +2930,12 @@ void CanvasWidget::set_retouch_source_indicator(std::optional<QPoint> document_p
 
 QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   if (painting_) {
-    set_retouch_source_indicator(to + clone_source_offset_);
+    if (clone_stroke_mapping_.identity()) {
+      set_retouch_source_indicator(to + clone_source_offset_);
+    } else {
+      const auto nearest = clone_stroke_mapping_.map_nearest(to.x(), to.y());
+      set_retouch_source_indicator(QPoint(nearest[0], nearest[1]));
+    }
   }
   const auto dirty = clone_brush_stamp_segment(from, to);
   if (healing_membrane_stroke_) {
@@ -2780,6 +2959,30 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
     return {};
   }
   const auto* palette_snap = palette_snap_for_edits();
+  // The source pixel a destination pixel takes, or nullptr outside the source. At the
+  // identity transform it is the plain offset read (byte-identical to before GitHub
+  // issue 424); otherwise a bilinear sample through the stroke's mapping.
+  const auto& mapping = clone_stroke_mapping_;
+  std::array<std::uint8_t, 4> transformed_sample{};
+  const auto source_pixel = [&](QPoint document_point) -> const std::uint8_t* {
+    if (mapping.identity()) {
+      const auto source_point = document_point + clone_source_offset_;
+      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
+          source_point.y() >= clone_source_cache_.height()) {
+        return nullptr;
+      }
+      return clone_source_cache_.constScanLine(source_point.y()) + static_cast<std::size_t>(source_point.x()) * 4U;
+    }
+    const auto position = mapping.map_q8(document_point.x(), document_point.y());
+    const auto taps =
+        patchy::clone_source_taps(position[0], position[1], clone_source_cache_.width(), clone_source_cache_.height());
+    if (!taps.has_value()) {
+      return nullptr;
+    }
+    transformed_sample = patchy::sample_clone_source_rgba8(
+        clone_source_cache_.constBits(), static_cast<std::size_t>(clone_source_cache_.bytesPerLine()), *taps);
+    return transformed_sample.data();
+  };
 
   const auto brush = effective_brush_input();
   const auto radius = std::max(1, brush.size) / 2;
@@ -2818,9 +3021,8 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
         }
         coverage = 1.0F;
       }
-      const auto source_point = document_point + clone_source_offset_;
-      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
-          source_point.y() >= clone_source_cache_.height()) {
+      const auto* src = source_pixel(document_point);
+      if (src == nullptr) {
         return;
       }
 
@@ -2834,8 +3036,6 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
         return;
       }
 
-      const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
-                        static_cast<std::size_t>(source_point.x()) * 4U;
       const auto covered_opacity = opacity * coverage;
       if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, src, covered_opacity);
@@ -2925,9 +3125,8 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
         coverage = 1.0F;
       }
 
-      const auto source_point = document_point + clone_source_offset_;
-      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
-          source_point.y() >= clone_source_cache_.height()) {
+      const auto* src = source_pixel(document_point);
+      if (src == nullptr) {
         continue;
       }
 
@@ -2941,8 +3140,6 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
         continue;
       }
 
-      const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
-                        static_cast<std::size_t>(source_point.x()) * 4U;
       const auto covered_opacity = opacity * coverage;
       if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, src, covered_opacity);
@@ -3001,6 +3198,33 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
     y = std::clamp(y, 0, source.height() - 1);
     return load_pixel(source.format(), source.pixel(x, y));
   };
+  // A transformed source (GitHub issue 424) takes a bilinear sample, weighted in
+  // premultiplied form like sample_clone_source_rgba8.
+  const auto& mapping = clone_stroke_mapping_;
+  const auto sample_transformed = [&source](const patchy::CloneSourceTaps& taps) {
+    const std::array<std::array<float, 4>, 4> corners = {
+        load_pixel(source.format(), source.pixel(taps.x0, taps.y0)),
+        load_pixel(source.format(), source.pixel(taps.x1, taps.y0)),
+        load_pixel(source.format(), source.pixel(taps.x0, taps.y1)),
+        load_pixel(source.format(), source.pixel(taps.x1, taps.y1))};
+    const auto fx = static_cast<float>(taps.wx) / 256.0F;
+    const auto fy = static_cast<float>(taps.wy) / 256.0F;
+    const std::array<float, 4> weights = {(1.0F - fx) * (1.0F - fy), fx * (1.0F - fy), (1.0F - fx) * fy, fx * fy};
+    std::array<float, 4> out{0.0F, 0.0F, 0.0F, 0.0F};
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+      const auto weighted_alpha = weights[i] * corners[i][3];
+      out[3] += weighted_alpha;
+      for (std::size_t c = 0; c < 3U; ++c) {
+        out[c] += weighted_alpha * corners[i][c];
+      }
+    }
+    if (out[3] > 0.0F) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        out[c] /= out[3];
+      }
+    }
+    return out;
+  };
   const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
   const auto dx = static_cast<double>(to.x() - from.x());
   const auto dy = static_cast<double>(to.y() - from.y());
@@ -3026,10 +3250,21 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
           continue;
         }
       }
-      const auto source_point = document_point + clone_source_offset_;
-      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= source.width() ||
-          source_point.y() >= source.height()) {
-        continue;
+      std::array<float, 4> src{};
+      if (mapping.identity()) {
+        const auto source_point = document_point + clone_source_offset_;
+        if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= source.width() ||
+            source_point.y() >= source.height()) {
+          continue;
+        }
+        src = sample(source_point.x(), source_point.y());
+      } else {
+        const auto position = mapping.map_q8(x, y);
+        const auto taps = patchy::clone_source_taps(position[0], position[1], source.width(), source.height());
+        if (!taps.has_value()) {
+          continue;
+        }
+        src = sample_transformed(*taps);
       }
       auto* dst = pixels.pixel(x - bounds.x, y - bounds.y);
       const auto before = load_pixel(format, dst);
@@ -3040,7 +3275,6 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
       if (coverage <= 0.0F) {
         continue;
       }
-      const auto src = sample(source_point.x(), source_point.y());
       const auto amount = std::clamp(opacity * coverage, 0.0F, 1.0F);
       auto value = before;
       if (format.channels >= 4 && !lock_transparent_pixels) {

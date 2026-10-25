@@ -14544,6 +14544,101 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>소스:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>지점:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>오프셋:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>브러시 오른쪽으로 얼마나 떨어진 곳에서 소스를 샘플링할지</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>브러시 아래쪽으로 얼마나 떨어진 곳에서 소스를 샘플링할지</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>비율:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>복제되는 내용의 크기</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>회전:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>복제되는 내용을 시계 방향으로 회전합니다</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>초기화</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>100%와 0도로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>오버레이 표시</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>칠하기 전에 브러시 아래에 소스를 미리 봅니다</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>불투명도:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>소스 오버레이의 불투명도</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>소스 %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>소스 %1: 설정 안 됨</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>설정 안 됨: 캔버스를 %ALT%-클릭하세요</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>정렬이 꺼져 있습니다: 모든 획이 소스 지점에서 시작합니다.</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>다음 획이 오프셋을 정합니다.</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>비율과 회전은 복제 도장에 적용됩니다.</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25743,6 +25838,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
         <translation>Shift+클릭으로 마지막 획에서 직선을 그립니다. %CTRL%+클릭으로 포인터 아래 레이어를 선택하고, %CTRL%+드래그로 레이어를 이동하며, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 오버레이</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>복제 소스</translation>
     </message>
 </context>
 <context>

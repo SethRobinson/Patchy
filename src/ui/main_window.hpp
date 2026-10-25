@@ -177,6 +177,7 @@ class CustomShapeLibrary;
 class AnimationPreviewWindow;
 class PalettePanel;
 class ColorDockPanel;
+class CloneSourcePanel;
 class PathsPanel;
 struct PathCommandRefusals;
 class StartPanel;
@@ -2521,6 +2522,10 @@ private:
   void sync_tool_option_controls_from_canvas();
   // The retouch tools' Sample controls (GitHub issue 382) from the active canvas.
   void sync_retouch_sample_controls_from_canvas();
+  // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
+  // the gear popup's panel follows the active canvas; Window > Clone Source opens it.
+  void refresh_clone_source_panel();
+  void show_clone_source_popup();
   // The Sample choice for the document info lines ("active layer", ...).
   [[nodiscard]] QString retouch_sample_info_text() const;
   // Derives the crop ratio preset combo's row from the canvas ratio values
@@ -2796,6 +2801,13 @@ private:
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  QToolButton* clone_source_options_button_{nullptr};
+  QMenu* clone_source_menu_{nullptr};
+  CloneSourcePanel* clone_source_panel_{nullptr};
+  QAction* window_clone_source_action_{nullptr};
+  // The overlay settings every canvas shares (tools/cloneOverlay, tools/cloneOverlayOpacity).
+  bool current_clone_overlay_shown_{false};
+  int current_clone_overlay_opacity_{50};
   QComboBox* retouch_sample_layers_combo_{nullptr};
   QComboBox* healing_mode_combo_{nullptr};
   QCheckBox* retouch_ignore_adjustments_check_{nullptr};

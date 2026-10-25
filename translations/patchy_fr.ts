@@ -14579,6 +14579,101 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>Sources :</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>Point :</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>Décalage :</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X :</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y :</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>Distance à droite du pinceau où la source est prélevée</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>Distance sous le pinceau où la source est prélevée</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>Échelle :</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>Taille du contenu dupliqué</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>Rotation :</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>Fait pivoter le contenu dupliqué dans le sens horaire</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Réinitialiser</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>Retour à 100 % et 0 degré</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>Afficher la superposition</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Affiche la source sous le pinceau avant de peindre</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacité :</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>Opacité de la superposition de la source</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>Source %1 : %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>Source %1 : non définie</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>Non définie : %ALT%-clic sur le canevas</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>Aligné est désactivé : chaque trait commence au point source.</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>Votre prochain trait définit le décalage.</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>L&apos;échelle et la rotation s&apos;appliquent au Tampon de duplication.</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25816,6 +25911,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
         <translation>Maj+clic trace une ligne droite depuis le dernier tracé. %CTRL%+clic sélectionne le calque sous le pointeur, %CTRL%+glisser déplace le calque, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation et superposition</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Source de duplication</translation>
     </message>
 </context>
 <context>

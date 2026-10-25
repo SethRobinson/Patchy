@@ -117,7 +117,7 @@ Read these before acting in the named area:
 - **Warp:** [docs/warp.md](docs/warp.md).
 - **Brush tips, dynamics, Flow/Airbrush, Pattern Stamp, and ABR** *(legal)*: [docs/brushes.md](docs/brushes.md).
 - **Mixer Brush pickup engine and stroke Smoothing** *(legal)*: [docs/mixer.md](docs/mixer.md).
-- **Healing Brush, Spot Healing, Patch tool, Remove Object (dialog, variations, tone match), and retouch Sample All Layers** *(legal)*: [docs/healing.md](docs/healing.md); Red Eye: [docs/red-eye.md](docs/red-eye.md).
+- **Healing Brush, Spot Healing, Patch tool, Remove Object (dialog, variations, tone match), retouch Sample, Clone source** *(legal)*: [docs/healing.md](docs/healing.md); Red Eye: [docs/red-eye.md](docs/red-eye.md).
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md). CMYK: [docs/cmyk.md](docs/cmyk.md).
 - **RGB profiles (convert on open, Convert to Color Profile):** [docs/rgb-profiles.md](docs/rgb-profiles.md). RGB is always shown as sRGB; sRGB is detected by colorants and curves, never bytes.
 - **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [docs/high-bit-depth.md](docs/high-bit-depth.md).

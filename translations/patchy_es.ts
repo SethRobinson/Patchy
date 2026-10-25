@@ -14579,6 +14579,101 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>Orígenes:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>Punto:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>Desplazamiento:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>Distancia a la derecha del pincel a la que se toma el origen</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>Distancia por debajo del pincel a la que se toma el origen</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>Escala:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>Tamaño del contenido clonado</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>Rotación:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>Gira el contenido clonado en el sentido de las agujas del reloj</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Restaurar</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>Volver a 100% y 0 grados</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>Mostrar superposición</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Muestra el origen bajo el pincel antes de pintar</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidad:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>Opacidad de la superposición del origen</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>Origen %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>Origen %1: sin definir</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>Sin definir: haga %ALT%+clic en el lienzo</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>Alineado está desactivado: cada trazo empieza en el punto de origen.</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>Su próximo trazo define el desplazamiento.</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>La escala y la rotación se aplican al Tampón de clonar.</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25816,6 +25911,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
         <translation>Mayús+clic traza una línea recta desde el último trazo. %CTRL%+clic selecciona la capa bajo el puntero, %CTRL%+arrastrar mueve la capa, %ALT%+arrastrar con el botón derecho cambia el tamaño y la suavidad.</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>Ajustes del origen de clonación: orígenes, desplazamiento, escala, rotación y superposición</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Origen de clonación</translation>
     </message>
 </context>
 <context>
