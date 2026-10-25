@@ -190,6 +190,7 @@ int main(int argc, char** argv) {
            artboard_tests,
            af_format_tests,
            pdn_tests,
+           xcf_tests,
            composite_corpus_tests,
            translation_marker_tests,
            atomic_write_recovery_tests,

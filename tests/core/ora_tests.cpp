@@ -817,6 +817,8 @@ const char* blend_mode_label(BlendMode mode) {
     case BlendMode::Glow: return "glow";
     case BlendMode::Negation: return "negation";
     case BlendMode::Xor: return "xor";
+    case BlendMode::GrainExtract: return "grain-extract";
+    case BlendMode::GrainMerge: return "grain-merge";
   }
   return "unknown";
 }

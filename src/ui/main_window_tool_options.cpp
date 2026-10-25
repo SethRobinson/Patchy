@@ -1396,7 +1396,7 @@ void MainWindow::set_active_layer_blend(int index) {
       in_use.push_back(layer->blend_mode());
     }
   }
-  set_paint_dot_net_blend_modes_offered(blend_combo_, in_use);
+  set_non_photoshop_blend_modes_offered(blend_combo_, in_use);
 }
 
 void MainWindow::finish_pending_layer_blend_edit() {

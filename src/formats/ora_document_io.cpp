@@ -187,7 +187,9 @@ struct WriteOp {
     case BlendMode::Glow:
     case BlendMode::Negation:
     case BlendMode::Xor:
-      return std::nullopt;  // Paint.NET's modes: no name seen in any ORA writer
+    case BlendMode::GrainExtract:
+    case BlendMode::GrainMerge:
+      return std::nullopt;  // Paint.NET's and GIMP's modes: no name GIMP's ORA writer keeps
   }
   return std::nullopt;
 }

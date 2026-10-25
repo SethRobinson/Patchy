@@ -109,6 +109,11 @@ float blend_channel_unit(float s, float d, BlendMode mode, bool linear) noexcept
       const auto b = static_cast<unsigned>(std::lround(d * 255.0F));
       return static_cast<float>(a ^ b) / 255.0F;
     }
+    // GIMP's grain modes (blend_math.cpp has the calibrated byte kernels).
+    case BlendMode::GrainExtract:
+      return std::clamp(d - s + 0.5F, 0.0F, 1.0F);
+    case BlendMode::GrainMerge:
+      return std::clamp(d + s - 0.5F, 0.0F, 1.0F);
     default:
       return s;
   }

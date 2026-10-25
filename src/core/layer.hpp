@@ -116,7 +116,13 @@ enum class BlendMode {
   Reflect,
   Glow,
   Negation,
-  Xor
+  Xor,
+  // October 2026 additions for GIMP .xcf import (docs/xcf.md): GIMP's Grain Extract and
+  // Grain Merge, bit-exact against GIMP's legacy modes (blend_math.cpp). Photoshop has no
+  // such modes, so PSD saves write Normal with a notice (docs/blend-modes.md, "GIMP
+  // modes").
+  GrainExtract,
+  GrainMerge
 };
 
 enum class LayerKind {

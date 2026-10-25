@@ -12353,6 +12353,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation>Warstwy w trybach mieszania, których ten format nie może zapisać, zapisano jako Zwykły, więc zapisany obraz wygląda inaczej.</translation>
     </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>Wyodrębnianie ziarna</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>Scalanie ziarna</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14,6 +14,10 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-25 (additive): blend mode ids `grain-extract` and `grain-merge` (GIMP's modes, for .xcf files,
+[xcf.md](xcf.md)), appended to the permanent list for `layer.blendMode` and stroke `mode`. 8 and
+16-bit documents only; a PSD save writes them as `normal` or bakes them. Pinned by
+`ui_script_gimp_blend_mode_ids`.
 2026-10-25 (additive): save option `unsupportedBlendModes` for `.psd`, `.psb`, layered `.tif`/`.tiff`
 and `.aseprite`/`.ase` (GitHub issue 379, [blend-modes.md](blend-modes.md#layered-saves)): `"normal"`
 (the default, as before) writes layers in blend modes the format cannot store as Normal; `"bake"`

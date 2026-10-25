@@ -326,7 +326,7 @@ Reflect, Glow, Negation and Xor (GitHub issue 379) exist for Paint.NET import ([
 
 Where they appear and what files keep them:
 
-- No blend menu lists them, so nobody picks a mode a PSD cannot keep. A layer or folder combo (the Layers panel, Layer Style's Blending Options) shows one, after Photoshop's modes, only while a layer it edits uses it (`set_paint_dot_net_blend_modes_offered`; in the Layers panel, any selected layer). Switching the layer to another mode removes the row; undo brings it back. Stepping a closed combo (arrows, Home/End, Page Up/Down, the wheel; `BlendModeArrowKeys`) never lands on them, though it leaves one. Layer-effect menus (`BlendModeMenu::Effect`), recipes and Smart Filters (`recipe_blend_mode_supported`), the brush Mode menu and New Layer never show them. Pinned by `ui_pdn_files_open_with_layers_and_by_content` and `ui_blend_mode_combos_step_past_paint_dot_net_modes`.
+- No blend menu lists them, so nobody picks a mode a PSD cannot keep. A layer or folder combo (the Layers panel, Layer Style's Blending Options) shows one, after Photoshop's modes, only while a layer it edits uses it (`set_non_photoshop_blend_modes_offered`; in the Layers panel, any selected layer). Switching the layer to another mode removes the row; undo brings it back. Stepping a closed combo (arrows, Home/End, Page Up/Down, the wheel; `BlendModeArrowKeys`) never lands on them, though it leaves one. Layer-effect menus (`BlendModeMenu::Effect`), recipes and Smart Filters (`recipe_blend_mode_supported`), the brush Mode menu and New Layer never show them. Pinned by `ui_pdn_files_open_with_layers_and_by_content` and `ui_blend_mode_combos_step_past_paint_dot_net_modes`.
 - They are 8 and 16-bit only (`blend_mode_supported_at_depth` refuses them at 32 bits).
 - PSD (layer key and lfx2 stringID), layered TIFF and Aseprite cannot store them: see [Layered saves](#layered-saves). Document recovery's PSB snapshots carry Normal.
 - Script ids `reflect`, `glow`, `negation`, `xor` append to `kBlendModeIds`.
@@ -334,12 +334,16 @@ Where they appear and what files keep them:
 
 Paint.NET's Multiply, Screen and Overlay round where the Photoshop-calibrated kernels floor, and its Color Burn/Dodge floor where they round, so those imports differ by at most one level, apart from Burn's and Dodge's corners ([pdn-format.md](pdn-format.md#blend-calibration)); the kernels stay Photoshop's.
 
+## GIMP modes
+
+Grain Extract and Grain Merge exist for GIMP .xcf import ([xcf.md](xcf.md)). They are bit-exact against GIMP 3.2's renders of its legacy modes (`d - s + 128` and `d + s - 128`, clamped, with `s` the layer and `d` the backdrop) and within one level of its default modes, which blend in float. The 16/32-bit kernel uses 0.5 for 128. They follow every rule of the Paint.NET modes above: no blend menu lists them (`set_non_photoshop_blend_modes_offered`), 8 and 16-bit only, script ids `grain-extract` and `grain-merge`, and PSD, layered TIFF and Aseprite saves write them as Normal or bake them. OpenRaster bakes them like any mode it has no name for.
+
 ## Layered saves
 
 `src/formats/layered_blend_support.{hpp,cpp}` (Qt-free) knows which modes each layered save format stores (`layered_format_stores_blend_mode`):
 
-- Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
-- Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
+- Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four and GIMP's two, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
+- Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four, GIMP's two). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
 
 `find_unsupported_blend_modes` lists the modes and the layers (hidden ones too). When it finds any, an interactive save to one of those formats asks first (`unsupportedBlendModesMessageBox`, MainWindow::save_document_to_path): Keep the Look (default) bakes, Save as Normal writes the layers as Normal (the writers' old behaviour), Cancel writes nothing. Scripts never see the prompt: saveAs option `unsupportedBlendModes` is `"normal"` (default) or `"bake"`. The answer travels as `ImageSaveOptions::bake_unsupported_blend_modes`, never persisted; `DocumentSaveCoordinator::write_prepared` applies it to the save snapshot only and adds a notice either way. OpenRaster keeps its own baking ([ora.md](ora.md)).
 

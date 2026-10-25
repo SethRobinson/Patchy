@@ -2155,6 +2155,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/adjustments_curves_tests.cpp
     tests/core/af_tests.cpp
     tests/core/pdn_tests.cpp
+    tests/core/xcf_tests.cpp
     tests/core/brush_engine_tests.cpp
     tests/core/composite_corpus_tests.cpp
     tests/core/compositor_blend_if_tests.cpp

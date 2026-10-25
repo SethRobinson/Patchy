@@ -198,6 +198,11 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       return static_cast<std::uint8_t>(255 - std::abs(255 - static_cast<int>(src) - static_cast<int>(dst)));
     case BlendMode::Xor:
       return static_cast<std::uint8_t>(src ^ dst);
+    // GIMP's grain modes, bit-exact on GIMP 3.2's legacy-mode renders (docs/xcf.md).
+    case BlendMode::GrainExtract:
+      return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) - static_cast<int>(src) + 128, 0, 255));
+    case BlendMode::GrainMerge:
+      return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) + static_cast<int>(src) - 128, 0, 255));
   }
   return src;
 }
@@ -699,6 +704,20 @@ bool layers_use_paint_dot_net_blend_modes(const std::vector<Layer>& layers) noex
     return blend_mode_is_paint_dot_net_only(layer.blend_mode()) ||
            layers_use_paint_dot_net_blend_modes(layer.children());
   });
+}
+
+bool blend_mode_is_gimp_only(BlendMode mode) noexcept {
+  return mode == BlendMode::GrainExtract || mode == BlendMode::GrainMerge;
+}
+
+bool layers_use_gimp_blend_modes(const std::vector<Layer>& layers) noexcept {
+  return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) {
+    return blend_mode_is_gimp_only(layer.blend_mode()) || layers_use_gimp_blend_modes(layer.children());
+  });
+}
+
+bool blend_mode_is_non_photoshop(BlendMode mode) noexcept {
+  return blend_mode_is_paint_dot_net_only(mode) || blend_mode_is_gimp_only(mode);
 }
 
 bool blend_mode_has_special_fill(BlendMode mode) noexcept {

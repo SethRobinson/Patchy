@@ -22,17 +22,17 @@ namespace {
 
 constexpr char kBlendModeArrowKeysProperty[] = "patchy.blendModeArrowKeys";
 
-// A Paint.NET-only mode's row (GitHub issue 379): offered only while a layer uses it,
-// and never a stop when the closed combo is stepped.
-bool is_paint_dot_net_row(const QComboBox* combo, int index) {
+// A Paint.NET or GIMP mode's row (GitHub issue 379, docs/xcf.md): offered only while a
+// layer uses it, and never a stop when the closed combo is stepped.
+bool is_non_photoshop_row(const QComboBox* combo, int index) {
   const auto data = combo->itemData(index);
-  return data.isValid() && blend_mode_is_paint_dot_net_only(static_cast<BlendMode>(data.toInt()));
+  return data.isValid() && blend_mode_is_non_photoshop(static_cast<BlendMode>(data.toInt()));
 }
 
 bool is_step_stop(const QComboBox* combo, int index) {
   const auto* model = qobject_cast<const QStandardItemModel*>(combo->model());
   const auto* item = model != nullptr ? model->item(index) : nullptr;
-  return (item == nullptr || item->isEnabled()) && !is_paint_dot_net_row(combo, index);
+  return (item == nullptr || item->isEnabled()) && !is_non_photoshop_row(combo, index);
 }
 
 // The next row a step of `direction` (+1/-1) lands on from `from`, or `from` itself.
@@ -201,6 +201,10 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Negation");
     case BlendMode::Xor:
       return QObject::tr("Xor");
+    case BlendMode::GrainExtract:
+      return QObject::tr("Grain Extract");
+    case BlendMode::GrainMerge:
+      return QObject::tr("Grain Merge");
   }
   return QObject::tr("Normal");
 }
@@ -222,11 +226,13 @@ constexpr std::array kBlendModes = {
       BlendMode::Hue,        BlendMode::Saturation,  BlendMode::Color,      BlendMode::Luminosity,
 };
 
-// Paint.NET's modes (GitHub issue 379): no menu lists them. A layer or folder combo shows
-// one, after Photoshop's list, only while the layer it edits uses it
-// (set_paint_dot_net_blend_modes_offered), so nobody picks a mode a PSD cannot keep.
-constexpr std::array kPaintDotNetBlendModes = {
-    BlendMode::Negation, BlendMode::Reflect, BlendMode::Glow, BlendMode::Xor,
+// Paint.NET's modes (GitHub issue 379) and GIMP's grain modes (docs/xcf.md): no menu
+// lists them. A layer or folder combo shows one, after Photoshop's list, only while the
+// layer it edits uses it (set_non_photoshop_blend_modes_offered), so nobody picks a mode a
+// PSD cannot keep.
+constexpr std::array kNonPhotoshopBlendModes = {
+    BlendMode::Negation, BlendMode::Reflect,      BlendMode::Glow,
+    BlendMode::Xor,      BlendMode::GrainExtract, BlendMode::GrainMerge,
 };
 
 // Behind and Clear are not BlendMode values; their item data sits past the enum.
@@ -255,21 +261,21 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
   install_blend_mode_arrow_keys(combo);
 }
 
-void set_paint_dot_net_blend_modes_offered(QComboBox* combo, const std::vector<BlendMode>& in_use) {
+void set_non_photoshop_blend_modes_offered(QComboBox* combo, const std::vector<BlendMode>& in_use) {
   if (combo == nullptr) {
     return;
   }
   // The caller sets the current row afterwards; the removals here must not reach a
   // blend-change handler as a user choice.
   const QSignalBlocker blocker(combo);
-  for (const auto mode : kPaintDotNetBlendModes) {
+  for (const auto mode : kNonPhotoshopBlendModes) {
     const bool wanted = std::find(in_use.begin(), in_use.end(), mode) != in_use.end();
     const auto index = combo->findData(static_cast<int>(mode));
     if (!wanted && index >= 0) {
       combo->removeItem(index);
     }
   }
-  for (const auto mode : kPaintDotNetBlendModes) {
+  for (const auto mode : kNonPhotoshopBlendModes) {
     const bool wanted = std::find(in_use.begin(), in_use.end(), mode) != in_use.end();
     if (wanted && combo->findData(static_cast<int>(mode)) < 0) {
       combo->addItem(blend_mode_name(mode), static_cast<int>(mode));

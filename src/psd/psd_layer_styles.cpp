@@ -1288,6 +1288,8 @@ std::string_view blend_mode_descriptor_value(BlendMode mode) {
     case BlendMode::Glow:
     case BlendMode::Negation:
     case BlendMode::Xor:
+    case BlendMode::GrainExtract:
+    case BlendMode::GrainMerge:
       return "normal";
   }
   return "normal";

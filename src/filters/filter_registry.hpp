@@ -60,6 +60,8 @@ struct FilterRecipe {
     case BlendMode::Glow:
     case BlendMode::Negation:
     case BlendMode::Xor:
+    case BlendMode::GrainExtract:
+    case BlendMode::GrainMerge:
       return false;
     case BlendMode::Normal:
     case BlendMode::Multiply:

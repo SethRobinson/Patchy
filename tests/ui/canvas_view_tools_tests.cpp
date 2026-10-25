@@ -7776,7 +7776,7 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
 void ui_blend_mode_combos_step_past_paint_dot_net_modes() {
   QComboBox combo;
   patchy::ui::add_blend_mode_items(&combo, patchy::ui::BlendModeMenu::Layer);
-  patchy::ui::set_paint_dot_net_blend_modes_offered(&combo, {patchy::BlendMode::Xor, patchy::BlendMode::Negation});
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Xor, patchy::BlendMode::Negation});
   const auto luminosity = combo.findData(static_cast<int>(patchy::BlendMode::Luminosity));
   const auto negation = combo.findData(static_cast<int>(patchy::BlendMode::Negation));
   const auto xor_row = combo.findData(static_cast<int>(patchy::BlendMode::Xor));
@@ -7801,7 +7801,7 @@ void ui_blend_mode_combos_step_past_paint_dot_net_modes() {
   QTest::keyClick(&combo, Qt::Key_Home);
   CHECK(combo.currentIndex() == 0);
   // The offer follows the layer: nothing in use, nothing shown.
-  patchy::ui::set_paint_dot_net_blend_modes_offered(&combo, {patchy::BlendMode::Multiply});
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Multiply});
   CHECK(combo.findData(static_cast<int>(patchy::BlendMode::Xor)) < 0);
   CHECK(combo.findData(static_cast<int>(patchy::BlendMode::Negation)) < 0);
   CHECK(combo.count() == luminosity + 1);

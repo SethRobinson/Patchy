@@ -4286,7 +4286,7 @@ void MainWindow::refresh_layer_controls() {
     }
     if (blend_combo_ != nullptr) {
       set_blend_mode_pass_through_offered(blend_combo_, false);
-      set_paint_dot_net_blend_modes_offered(blend_combo_, {});
+      set_non_photoshop_blend_modes_offered(blend_combo_, {});
       blend_combo_->setCurrentIndex(0);
     }
     set_layer_lock_control_state(lock_transparent_pixels_button_, false, false, tr("Lock transparent pixels"));
@@ -4404,7 +4404,7 @@ void MainWindow::refresh_layer_controls() {
         in_use.push_back(original);
       }
     }
-    set_paint_dot_net_blend_modes_offered(blend_combo_, in_use);
+    set_non_photoshop_blend_modes_offered(blend_combo_, in_use);
     const auto blend_value = static_cast<int>(blend_mode);
     const auto index = blend_combo_->findData(blend_value);
     blend_combo_->setCurrentIndex(index >= 0 ? index : 0);

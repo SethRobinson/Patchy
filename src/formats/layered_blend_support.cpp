@@ -344,7 +344,7 @@ bool layered_format_stores_blend_mode(LayeredSaveFormat format, BlendMode mode, 
                                       BitDepth depth) noexcept {
   switch (format) {
     case LayeredSaveFormat::Photoshop:
-      if (blend_mode_is_paint_dot_net_only(mode)) {
+      if (blend_mode_is_non_photoshop(mode)) {
         return false;
       }
       if (mode == BlendMode::PassThrough) {

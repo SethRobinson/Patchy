@@ -337,6 +337,9 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
     case BlendMode::Glow:
     case BlendMode::Negation:
     case BlendMode::Xor:
+    // GIMP's grain modes likewise (layers_use_gimp_blend_modes).
+    case BlendMode::GrainExtract:
+    case BlendMode::GrainMerge:
       return {'n', 'o', 'r', 'm'};
   }
   return {'n', 'o', 'r', 'm'};

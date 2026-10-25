@@ -141,6 +141,8 @@ constexpr std::uint8_t kAlphaThreshold = 128;
     case BlendMode::Glow:
     case BlendMode::Negation:
     case BlendMode::Xor:
+    case BlendMode::GrainExtract:
+    case BlendMode::GrainMerge:
       if (lossy != nullptr) {
         *lossy = true;
       }

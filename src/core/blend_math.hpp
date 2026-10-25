@@ -67,6 +67,11 @@ enum class DissolveField : std::uint32_t {
 [[nodiscard]] bool blend_mode_is_paint_dot_net_only(BlendMode mode) noexcept;
 // True when any layer in the tree (groups included) uses one of those modes.
 [[nodiscard]] bool layers_use_paint_dot_net_blend_modes(const std::vector<Layer>& layers) noexcept;
+// GIMP's Grain Extract and Grain Merge (docs/xcf.md): no Photoshop file carries them either.
+[[nodiscard]] bool blend_mode_is_gimp_only(BlendMode mode) noexcept;
+[[nodiscard]] bool layers_use_gimp_blend_modes(const std::vector<Layer>& layers) noexcept;
+// Either kind: a mode that exists for another editor's files and that no blend menu lists.
+[[nodiscard]] bool blend_mode_is_non_photoshop(BlendMode mode) noexcept;
 [[nodiscard]] FillCompositeResult composite_special_fill_rgb(
     std::array<std::uint8_t, 3> source, std::array<std::uint8_t, 3> destination, BlendMode mode,
     float source_coverage, float fill_opacity, float layer_opacity, float destination_alpha);
