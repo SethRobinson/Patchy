@@ -4869,6 +4869,152 @@ void ui_layer_eye_sweep_skips_disabled_and_off_column() {
   CHECK(document_layer_visible(doc, ids.background));
 }
 
+// GitHub issue 407: a sweep that leaves the list's bottom edge keeps it scrolling
+// and hides every row that scrolls under the pointer; swept rows never flip back
+// when the drag reverses over them, and a plain click still toggles one eye.
+void ui_layer_eye_sweep_autoscrolls_past_the_list_edge() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
+  const auto background_id =
+      document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)))
+          .id();
+  std::vector<patchy::LayerId> ids;
+  constexpr int kLayerCount = 24;
+  for (int index = 0; index < kLayerCount; ++index) {
+    const auto name = QStringLiteral("Layer %1").arg(index + 1, 2, 10, QLatin1Char('0')).toStdString();
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40 + index * 8, 90, 220 - index * 6)));
+    layer.set_bounds(patchy::Rect{(index % 8) * 18 + 6, (index / 8) * 36 + 10, 12, 12});
+    ids.push_back(layer.id());
+    document.add_layer(std::move(layer));
+  }
+
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Eye Sweep Scroll"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->setFixedHeight(200);
+  QApplication::processEvents();
+  auto* viewport = layer_list->viewport();
+  auto* scroll = layer_list->verticalScrollBar();
+  CHECK(scroll != nullptr);
+  CHECK(scroll->maximum() > 0);
+  scroll->setValue(scroll->minimum());
+  QApplication::processEvents();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto selected_before = layer_list->selectedItems().size();
+
+  auto* eye = layer_row_eye_button(*layer_list, QStringLiteral("Layer 24"));
+  CHECK(eye != nullptr);
+  const auto center = eye->rect().center();
+  const auto column_x = viewport->mapFromGlobal(eye->mapToGlobal(center)).x();
+  const auto row_y = [&](const char* name) {
+    return layer_list->visualItemRect(require_layer_item(*layer_list, QString::fromLatin1(name))).center().y();
+  };
+  const auto move_to = [&](QPoint position) {
+    send_mouse(*viewport, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+  send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(!document_layer_visible(doc, ids[23]));
+
+  // Down two rows, back up over them, then on: the swept rows stay hidden.
+  move_to(QPoint(column_x, row_y("Layer 22")));
+  move_to(QPoint(column_x, row_y("Layer 23")));
+  CHECK(!document_layer_visible(doc, ids[22]));
+  CHECK(!document_layer_visible(doc, ids[21]));
+  CHECK(document_layer_visible(doc, ids[20]));
+
+  // Past the bottom edge, drifting sideways off the column: the list scrolls to
+  // its end and every row it brings under the pointer is hidden.
+  const QPoint below(column_x + 30, viewport->height() + 24);
+  move_to(below);
+  for (int tick = 0; tick < 100 && scroll->value() < scroll->maximum(); ++tick) {
+    QTest::qWait(50);
+  }
+  QTest::qWait(50);
+  QApplication::processEvents();
+  CHECK(scroll->value() == scroll->maximum());
+  send_mouse(*viewport, QEvent::MouseButtonRelease, below, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  for (const auto id : ids) {
+    CHECK(!document_layer_visible(doc, id));
+  }
+  // The Background row is the last row; it was crossed too.
+  CHECK(!document_layer_visible(doc, background_id));
+  CHECK(layer_list->selectedItems().size() == selected_before);
+  CHECK(QWidget::mouseGrabber() == nullptr);
+
+  // The release stopped the scrolling.
+  scroll->setValue(scroll->minimum());
+  QTest::qWait(200);
+  CHECK(scroll->value() == scroll->minimum());
+
+  // A plain click still toggles exactly one eye.
+  click_layer_row_eye(*layer_list, QStringLiteral("Layer 22"));
+  CHECK(document_layer_visible(doc, ids[21]));
+  CHECK(!document_layer_visible(doc, ids[20]));
+  CHECK(!document_layer_visible(doc, ids[22]));
+}
+
+// GitHub issue 407 pictures: a short stack before and after one press-drag down
+// the eye column (Dark).
+void ui_layer_eye_sweep_issue_407_shots() {
+  patchy::Document document(240, 160, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(240, 160, patchy::PixelFormat::rgb8(), QColor(236, 236, 236)));
+  const std::array<QColor, 5> colors{QColor(220, 70, 60), QColor(240, 170, 40), QColor(70, 170, 90),
+                                     QColor(60, 120, 220), QColor(150, 80, 200)};
+  for (int index = 0; index < 5; ++index) {
+    patchy::Layer layer(document.allocate_layer_id(), "Shape " + std::to_string(index + 1),
+                        solid_pixels(70, 70, patchy::PixelFormat::rgba8(), colors[index]));
+    layer.set_bounds(patchy::Rect{12 + index * 36, 20 + (index % 2) * 50, 70, 70});
+    document.add_layer(std::move(layer));
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Sweep"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* viewport = layer_list->viewport();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  save_widget_artifact("ui_layer_eye_sweep_issue_407_before", window);
+
+  auto* eye = layer_row_eye_button(*layer_list, QStringLiteral("Shape 5"));
+  CHECK(eye != nullptr);
+  const auto center = eye->rect().center();
+  const auto column_x = viewport->mapFromGlobal(eye->mapToGlobal(center)).x();
+  send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  QPoint last(column_x, 0);
+  for (const auto* name : {"Shape 4", "Shape 3", "Shape 2"}) {
+    last = QPoint(column_x,
+                  layer_list->visualItemRect(require_layer_item(*layer_list, QString::fromLatin1(name))).center().y());
+    send_mouse(*viewport, QEvent::MouseMove, last, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+  send_mouse(*viewport, QEvent::MouseButtonRelease, last, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  int hidden = 0;
+  for (const auto& layer : std::as_const(doc).layers()) {
+    hidden += layer.visible() ? 0 : 1;
+  }
+  CHECK(hidden == 4);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  save_widget_artifact("ui_layer_eye_sweep_issue_407_after", window);
+}
+
 // GitHub issue 397: the clipping badge's bent arrow turns down and points at the
 // base layer below the row, in Dark and Light, and the row badge uses that glyph.
 void ui_layer_clip_badge_arrow_points_down() {
@@ -5342,6 +5488,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_eye_sweep_sets_crossed_rows_to_first_state},
       {"ui_layer_eye_sweep_skips_disabled_and_off_column", ui_layer_eye_sweep_skips_disabled_and_off_column},
       {"ui_layer_eye_sweep_survives_folder_row_rebuild", ui_layer_eye_sweep_survives_folder_row_rebuild},
+      {"ui_layer_eye_sweep_autoscrolls_past_the_list_edge", ui_layer_eye_sweep_autoscrolls_past_the_list_edge},
+      {"ui_layer_eye_sweep_issue_407_shots", ui_layer_eye_sweep_issue_407_shots},
       {"ui_layer_clip_badge_arrow_points_down", ui_layer_clip_badge_arrow_points_down},
       {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
       {"ui_move_auto_select_click_keeps_existing_layer_rows",
