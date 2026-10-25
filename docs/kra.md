@@ -204,8 +204,10 @@ Against Krita's merged image unless noted.
   0.79, inner glow range 0.46, interior/exterior blending 0.90 (worst 155); Krita's own
   re-save loses gradient midpoints (`4a-roundtrip`, 18.9) and changes a shape-burst stroke
   (5.0). Against Krita's render they differ by up to 16: Krita draws effects its own way.
-- Blend modes: every mapped mode within 0.3 per tile (Hard Mix 1.9 and Vivid Light 0.55 from
-  pixels on a threshold); the 100 or so Krita-only modes open as Normal.
+- Blend modes (`modes.kra`, one 24 x 24 tile per id): every mapped mode within 0.3 per tile
+  (Hard Mix 1.9 and Vivid Light 0.55 from pixels on a threshold); Krita's own modes and the
+  grain modes 0.02 to 0.64; 38 of the 126 tiles within 0.5, whole-sheet mean 40.8 (44.5 before
+  the Krita modes). About 90 other Krita ids still open as Normal.
 - Filters: invert, the four RGB curves and the BT.709, BT.601 and average desaturations
   exact or within 0.6; Hue/Saturation in HSL 1.7; Krita's other HSV models 16 to 67;
   color balance 16 to 18; posterize 13 (Krita rounds to `steps` intervals, Photoshop floors
@@ -216,7 +218,7 @@ Against Krita's merged image unless noted.
   Krita.
 - Corpus (65 files, all open; 60 carry a merged image): 31 identical, 23 more within a mean of
   0.25 (the old OpenDocument vector pages 0.18 and 0.19 among them); GDQuest's kraken 1.04 (older curves and color balance); Pepper&Carrot's
-  2025 painting 2.2 (Grain Merge and Luminosity/Shine, color balance); three files whose text
+  2025 painting 0.63 (Luminosity/Shine, color balance); three files whose text
   renders only in the app (core sweep: 1.1 to 6.9); an OpenGameArt nest 9.4 (lightness
   Levels on a group).
 
