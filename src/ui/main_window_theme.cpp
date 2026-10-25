@@ -784,8 +784,9 @@ QString photoshop_style_template() {
       padding: 0;
     }
     /* The clip badge takes the content thumbnail's width (Small is 22 px), so it centers on
-       the base row's thumbnail (#397); the generic 26 px minimum would widen it. */
-    QToolButton#layerClippingBadgeButton {
+       the base row's thumbnail (#397), and the mask link is 22 px; the generic 26 px minimum
+       would widen both. */
+    QToolButton#layerClippingBadgeButton, QToolButton#layerMaskLinkButton {
       min-width: 0;
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerFxBadgeButton:hover,
