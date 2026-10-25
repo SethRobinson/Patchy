@@ -232,25 +232,29 @@ def build_structure(b, name, model="RGBA", depth="U8"):
 
 
 def build_modes(b, name):
+    """One tile per Krita blend mode. Each tile is its own isolated group holding a backdrop
+    and the mode layer, so modes that erase the backdrop (erase, in, out, destination-in)
+    only clear their own tile."""
     import json
     modes = json.loads(os.environ["PATCHY_KRA_MODES"])
     tile, columns = 24, 16
     rows = (len(modes) + columns - 1) // columns
     w, h = tile * columns, tile * rows
     doc, root, p = b.new(name, w, h, background=False)
-    back = b.paint(doc, root, "Backdrop")
-    p.fill(back, 0, 0, w, h,
-           lambda x, y: ((x % tile) / (tile - 1), (y % tile) / (tile - 1), ((x // tile) * 37 % 256) / 255.0,
-                         1.0 if (y % tile) < tile - 4 else 0.5))
-    above = back
+    above = None
     for index, mode in enumerate(modes):
-        node = b.paint(doc, root, mode, above)
         x0, y0 = (index % columns) * tile, (index // columns) * tile
+        group = b.group(doc, root, mode, above)
+        back = b.paint(doc, group, "Backdrop")
+        p.fill(back, x0, y0, tile, tile,
+               lambda x, y: (x / (tile - 1), y / (tile - 1), (index * 37 % 256) / 255.0,
+                             1.0 if y < tile - 4 else 0.5))
+        node = b.paint(doc, group, mode, back)
         p.fill(node, x0, y0, tile, tile,
                lambda x, y: (1.0 - y / (tile - 1), (x * 11 % tile) / (tile - 1), x / (tile - 1),
                              1.0 if x < tile - 6 else 0.6))
         node.setBlendingMode(mode)
-        above = node
+        above = group
     b.save(doc, name)
 
 

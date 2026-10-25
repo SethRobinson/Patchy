@@ -2367,6 +2367,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/ora_ui_tests.cpp
+      tests/ui/kra_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/scripting_test_support.cpp

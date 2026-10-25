@@ -12302,6 +12302,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Layers in blend modes this format cannot store were saved as Normal, so the saved image looks different.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

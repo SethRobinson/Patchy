@@ -185,7 +185,7 @@ constexpr std::string_view kSyntheticMaindoc = R"(<?xml version="1.0" encoding="
  <IMAGE colorspacename="RGBA" x-res="150" y-res="150" name="Doc" width="100" height="80" mime="application/x-kra">
   <layers>
    <layer name="Unknown op" nodetype="paintlayer" filename="layer6" compositeop="freeze" opacity="255" visible="1" x="0" y="0" colorspacename="RGBA"/>
-   <layer name="Group" nodetype="grouplayer" passthrough="1" filename="layer2" compositeop="normal" opacity="200" visible="1" x="0" y="0" collapsed="1" colorlabel="2">
+   <layer name="Group" nodetype="grouplayer" passthrough="0" filename="layer2" compositeop="screen" opacity="200" visible="1" x="0" y="0" collapsed="1" colorlabel="2">
     <layers>
      <layer name="Clipped" nodetype="paintlayer" filename="layer4" compositeop="multiply" opacity="128" visible="0" channelflags="1110" x="5" y="-3" colorspacename="RGBA"/>
      <layer name="Base" nodetype="paintlayer" filename="layer3" compositeop="normal" opacity="255" visible="1" locked="1" channellockflags="1110" x="0" y="0" colorspacename="RGBA">
@@ -194,6 +194,9 @@ constexpr std::string_view kSyntheticMaindoc = R"(<?xml version="1.0" encoding="
       </masks>
      </layer>
     </layers>
+   </layer>
+   <layer name="Through" nodetype="grouplayer" passthrough="1" filename="layer7" compositeop="multiply" opacity="255" visible="1" x="0" y="0">
+    <layers/>
    </layer>
    <layer name="Escape" nodetype="paintlayer" filename="../evil" compositeop="normal" opacity="255" visible="1" x="0" y="0" colorspacename="RGBA"/>
    <layer name="Background" nodetype="paintlayer" filename="layer1" compositeop="normal" opacity="255" visible="1" x="0" y="0" colorspacename="RGBA"/>
@@ -280,16 +283,17 @@ void kra_reader_maps_the_layer_tree() {
   CHECK(read.width() == 100 && read.height() == 80);
   CHECK(read.color_state().bit_depth == BitDepth::UInt8);
   CHECK(std::abs(read.print_settings().horizontal_ppi - 150.0) < 1e-9);
-  // Bottom first: Background, Escape, Group [Base, Clipped], Unknown op.
-  CHECK(read.layers().size() == 4U);
+  // Bottom first: Background, Escape, Through, Group [Base, Clipped], Unknown op.
+  CHECK(read.layers().size() == 5U);
   const auto& background = read.layers()[0];
   CHECK(background.name() == "Background");
   // A white default pixel and no tiles: the layer covers the canvas.
   CHECK(background.bounds() == rect_of(0, 0, 100, 80));
   CHECK(background.pixels().pixel(99, 79)[0] == 255 && background.pixels().pixel(99, 79)[3] == 255);
   CHECK(read.layers()[1].name() == "Escape" && read.layers()[1].pixels().empty());
-  const auto& group = read.layers()[2];
-  CHECK(group.kind() == LayerKind::Group && group.blend_mode() == BlendMode::PassThrough);
+  CHECK(read.layers()[2].name() == "Through" && read.layers()[2].blend_mode() == BlendMode::PassThrough);
+  const auto& group = read.layers()[3];
+  CHECK(group.kind() == LayerKind::Group && group.blend_mode() == BlendMode::Screen);
   CHECK(std::abs(group.opacity() - 200.0F / 255.0F) < 1e-6F);
   CHECK(group.color_label() == patchy::kLayerColorGreen);
   CHECK(group.children().size() == 2U);
@@ -311,7 +315,7 @@ void kra_reader_maps_the_layer_tree() {
   CHECK(clipped.name() == "Clipped" && clipped.clipped() && !clipped.visible());
   CHECK(clipped.blend_mode() == BlendMode::Multiply);
   CHECK(clipped.bounds() == rect_of(5, -3, 64, 64));
-  CHECK(read.layers()[3].blend_mode() == BlendMode::Normal);
+  CHECK(read.layers()[4].blend_mode() == BlendMode::Normal);
   CHECK(notices_mention(notices, "Unknown op (freeze)"));
   // Guides are stored in points: 12 pt at 150 ppi is 25 px.
   CHECK(read.guides().size() == 3U);
@@ -330,7 +334,7 @@ void kra_sniff_and_registry_recognize_krita_files() {
   CHECK(patchy::builtin_format_registry().find_by_extension(".krz") == handler);
   const auto sniffed = patchy::formats::sniff_openable_image_format(bytes);
   CHECK(sniffed.has_value() && sniffed->extension == "kra");
-  CHECK(handler != nullptr && handler->read(bytes).document.layers().size() == 4U);
+  CHECK(handler != nullptr && handler->read(bytes).document.layers().size() == 5U);
 }
 
 void kra_unicode_path_reads() {
@@ -344,7 +348,7 @@ void kra_unicode_path_reads() {
     out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   }
   const auto read = kra::DocumentIo::read_file(path);
-  CHECK(read.layers().size() == 4U && find_named(read.layers(), "Base") != nullptr);
+  CHECK(read.layers().size() == 5U && find_named(read.layers(), "Base") != nullptr);
   // A file layer beside the document, also under a Unicode name, loads from the file's folder.
   const auto entries = synthetic_entries();
   std::string maindoc(kSyntheticMaindoc);
@@ -534,8 +538,40 @@ std::optional<PixelBuffer> merged_image(const std::vector<std::uint8_t>& kra_byt
   return decode_png(png);
 }
 
-void write_artifact_png(const std::string& name, const PixelBuffer& pixels) {
-  const auto dir = std::filesystem::path("test-artifacts") / "kra";
+// Every `factor` x `factor` block averaged (straight RGBA, alpha-weighted): a smaller
+// artifact for the corpus's large paintings.
+PixelBuffer box_downscale(const PixelBuffer& pixels, int factor) {
+  if (factor <= 1) {
+    return pixels;
+  }
+  const auto width = std::max(1, pixels.width() / factor);
+  const auto height = std::max(1, pixels.height() / factor);
+  PixelBuffer out(width, height, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      std::uint64_t sum[4] = {0, 0, 0, 0};
+      for (int dy = 0; dy < factor; ++dy) {
+        for (int dx = 0; dx < factor; ++dx) {
+          const auto* px = pixels.pixel(std::min(pixels.width() - 1, x * factor + dx),
+                                        std::min(pixels.height() - 1, y * factor + dy));
+          for (int c = 0; c < 3; ++c) {
+            sum[c] += static_cast<std::uint64_t>(px[c]) * px[3];
+          }
+          sum[3] += px[3];
+        }
+      }
+      auto* target = out.pixel(x, y);
+      for (int c = 0; c < 3; ++c) {
+        target[c] = sum[3] == 0 ? 0 : static_cast<std::uint8_t>(sum[c] / sum[3]);
+      }
+      target[3] = static_cast<std::uint8_t>(sum[3] / static_cast<std::uint64_t>(factor * factor));
+    }
+  }
+  return out;
+}
+
+void write_artifact_png(const std::string& name, const PixelBuffer& pixels, const char* folder = "kra") {
+  const auto dir = std::filesystem::path("test-artifacts") / folder;
   std::filesystem::create_directories(dir);
   const auto png = patchy::ora::detail::encode_png(pixels);
   std::ofstream out(dir / (name + "-patchy.png"), std::ios::binary);
@@ -628,6 +664,8 @@ void kra_reads_corpus_if_available() {
       auto read = kra::DocumentIo::read_file(path, &notices);
       convert_like_open(read);
       const auto ours = patchy::flatten_document_rgba8(read);
+      const int factor = std::max(1, (std::max(ours.width(), ours.height()) + 1199) / 1200);
+      write_artifact_png(stem, box_downscale(ours, factor), "kra-corpus");
       Difference difference;
       // Krita's own render inside the file.
       const auto bytes = patchy::test::read_binary_file(path);

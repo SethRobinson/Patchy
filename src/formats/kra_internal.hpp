@@ -77,8 +77,10 @@ struct FilterConfig {
 
 // The Patchy adjustment a Krita filter maps to (docs/kra.md "Filters"). Nullopt for filters
 // with no adjustment equivalent. `approximate` is set when the mapping is close but not
-// Krita's exact math.
-[[nodiscard]] std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& config, bool& approximate);
+// Krita's exact math. `blend` receives the blend mode the adjustment layer needs to come
+// close (Luminosity for Krita's lightness-only Levels), Normal otherwise.
+[[nodiscard]] std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& config, bool& approximate,
+                                                                       BlendMode& blend);
 
 // A fill layer's paint for Krita's "color" generator; nullopt for the other generators.
 [[nodiscard]] std::optional<VectorFill> fill_from_generator(const FilterConfig& config);

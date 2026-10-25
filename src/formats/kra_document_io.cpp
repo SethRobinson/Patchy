@@ -18,6 +18,7 @@
 #include "core/pixel_depth.hpp"
 #include "core/vector_raster.hpp"
 #include "core/worker_budget.hpp"
+#include "formats/document_flatten.hpp"
 #include "formats/format_file_io.hpp"
 #include "formats/kra_internal.hpp"
 #include "formats/ora_document_io.hpp"
@@ -25,6 +26,7 @@
 #include "formats/svg_xml.hpp"
 #include "formats/zip_entry_reader.hpp"
 #include "psd/asl_io.hpp"
+#include "render/compositor.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -178,12 +180,21 @@ constexpr std::array kKritaOps = {
     KritaOp{"saturation", BlendMode::Saturation},
     KritaOp{"luminize", BlendMode::Luminosity},
     KritaOp{"add", BlendMode::LinearDodge},
+    // Paint.NET's modes have the same formulas in Krita (measured on its renders).
+    KritaOp{"xor", BlendMode::Xor},
+    KritaOp{"negation", BlendMode::Negation},
 };
 
 // Krita modes that open as a near Patchy mode (docs/kra.md "Blend modes" has the measured
 // differences).
 constexpr std::array kApproximateOps = {
     KritaOp{"soft_light_svg", BlendMode::SoftLight},
+    // Krita's Reflect and Glow round differently from Paint.NET's (at most 11 levels apart).
+    KritaOp{"reflect", BlendMode::Reflect},
+    KritaOp{"glow", BlendMode::Glow},
+    // SAI's Luminosity/Shine adds the layer scaled by its alpha: Linear Dodge where the sum
+    // stays below white.
+    KritaOp{"luminosity_sai", BlendMode::LinearDodge},
 };
 
 [[nodiscard]] std::optional<BlendMode> blend_mode_from_krita(std::string_view id, bool& approximate) {
@@ -318,6 +329,9 @@ struct ReadState {
   std::vector<std::string> unsupported_generators;
   std::vector<std::string> merged_masks;
   std::vector<std::string> inherit_alpha_grouped;
+  std::vector<std::string> inherit_alpha_unclipped;
+  std::vector<std::string> inlined_groups;
+  std::vector<std::string> inherit_alpha_flattened;
   std::vector<std::string> clone_layers;
   std::vector<std::string> missing_files;
   std::vector<std::string> loaded_files;
@@ -629,6 +643,32 @@ void read_layers(const svg::XmlNode& list, std::vector<Node>& out, ReadState& st
   }
 }
 
+// A pass-through group at full opacity with no masks or style is the same as its layers in
+// its place. When its bottom layer inherits alpha, Krita clips that layer to what lies
+// below the group, which only works in Patchy with the group's layers inline.
+void inline_pass_through_groups(std::vector<Node>& nodes, ReadState& state) {
+  for (auto& node : nodes) {
+    inline_pass_through_groups(node.children, state);
+  }
+  for (std::size_t index = 0; index < nodes.size();) {
+    auto& node = nodes[index];
+    const bool candidate = node.type == NodeType::Group && node.passthrough && node.visible && node.opacity >= 1.0F &&
+                           node.masks.empty() && node.layer_style.empty() && !node.children.empty() &&
+                           node.children.back().inherit_alpha && !node.inherit_alpha;
+    if (!candidate) {
+      ++index;
+      continue;
+    }
+    add_unique(state.inlined_groups, node.name);
+    auto children = std::move(node.children);
+    nodes.erase(nodes.begin() + static_cast<std::ptrdiff_t>(index));
+    const auto count = children.size();
+    nodes.insert(nodes.begin() + static_cast<std::ptrdiff_t>(index), std::make_move_iterator(children.begin()),
+                 std::make_move_iterator(children.end()));
+    index += count;
+  }
+}
+
 // ---------------------------------------------------------------------------------------
 // Samples to Patchy buffers.
 
@@ -910,6 +950,36 @@ void read_layers(const svg::XmlNode& list, std::vector<Node>& out, ReadState& st
 // ---------------------------------------------------------------------------------------
 // Decoding.
 
+// Whether a layer's pixels cover the canvas with full alpha everywhere.
+[[nodiscard]] bool opaque_over_canvas(const PixelBuffer& pixels, Rect bounds, std::int32_t width, std::int32_t height) {
+  if (bounds.x > 0 || bounds.y > 0 || bounds.x + bounds.width < width || bounds.y + bounds.height < height) {
+    return false;
+  }
+  const auto depth = pixels.format().bit_depth;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto row = pixels.row(y - bounds.y);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto at = static_cast<std::size_t>(x - bounds.x);
+      bool full = false;
+      if (depth == BitDepth::UInt8) {
+        full = row[at * 4U + 3U] == 255;
+      } else if (depth == BitDepth::UInt16) {
+        std::uint16_t alpha = 0;
+        std::memcpy(&alpha, row.data() + at * 8U + 6U, 2);
+        full = alpha == 65535;
+      } else {
+        float alpha = 0.0F;
+        std::memcpy(&alpha, row.data() + at * 16U + 12U, 4);
+        full = alpha >= 1.0F;
+      }
+      if (!full) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // Whether a default pixel's alpha is full scale (alpha is the last channel everywhere).
 [[nodiscard]] bool default_alpha_is_full(const std::vector<std::uint8_t>& pixel, const ColorSpace& space) {
   const auto bytes = static_cast<std::size_t>(space.sample_bytes());
@@ -1052,6 +1122,9 @@ void decode_paint_layers(std::vector<Node>& nodes, BitDepth depth, ReadState& st
     if (auto pixels = to_pixel_buffer(raw, node.source, depth, state); pixels.has_value()) {
       node.pixel_bounds = raw.bounds;
       node.pixels = std::move(pixels);
+      if (!node.covers_canvas) {
+        node.covers_canvas = opaque_over_canvas(*node.pixels, node.pixel_bounds, state.width, state.height);
+      }
     } else {
       add_unique(state.unreadable, node.name + " (" + node.source.space.name + ")");
     }
@@ -1071,6 +1144,11 @@ struct BuildState {
   std::map<std::string, const Node*> by_uuid;
   std::map<std::string, const Node*> by_name;
   std::optional<LayerId> selected;
+  // Inside a pass-through group: whether what lies below the group is opaque everywhere,
+  // which the group's layers see as their backdrop.
+  bool backdrop_opaque{false};
+  // Set by build_list for the group being built: whether the stack below it is opaque.
+  bool group_backdrop_opaque{false};
 };
 
 [[nodiscard]] std::string normalized_uuid(std::string id) {
@@ -1169,7 +1247,8 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
                                                     const std::optional<RawImage>& selection, BuildState& state,
                                                     const std::string& owner_name) {
   bool approximate = false;
-  const auto settings = adjustment_from_filter(config, approximate);
+  BlendMode blend = BlendMode::Normal;
+  const auto settings = adjustment_from_filter(config, approximate, blend);
   const auto label = owner_name.empty() ? name : owner_name + " / " + name;
   if (!settings.has_value()) {
     add_unique(state.read.unsupported_filters, label + " (" + config.name + ")");
@@ -1180,6 +1259,7 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   }
   Layer layer(state.document.allocate_layer_id(), name, LayerKind::Adjustment);
   configure_adjustment_layer(layer, *settings);
+  layer.set_blend_mode(blend);
   if (selection.has_value()) {
     if (auto mask = mask_from_selection(*selection); mask.has_value()) {
       layer.set_mask(std::move(*mask));
@@ -1236,7 +1316,11 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   switch (node.type) {
     case NodeType::Group: {
       Layer group(state.document.allocate_layer_id(), node.name, LayerKind::Group);
+      // A pass-through group's layers see the stack below the group as their backdrop.
+      const bool outer = state.backdrop_opaque;
+      state.backdrop_opaque = node.passthrough && state.group_backdrop_opaque;
       auto children = build_list(node.children, state);
+      state.backdrop_opaque = outer;
       for (auto& child : children) {
         group.add_child(std::move(child));
       }
@@ -1405,6 +1489,31 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   return std::all_of(layers.begin() + 1, layers.end(), [](const Layer& layer) { return layer.clipped(); });
 }
 
+// A group's content composited into one pixel layer that keeps the group's own settings.
+// Patchy never clips a group (Photoshop's rule), so an Inherit Alpha group opens this way.
+[[nodiscard]] Layer flattened_group(Layer group, BuildState& state) {
+  Document content(state.document.width(), state.document.height(), state.document.format());
+  content.color_state().bit_depth = state.depth;
+  content.metadata().patterns = state.document.metadata().patterns;
+  for (auto& child : group.children()) {
+    content.add_layer(std::move(child));
+  }
+  PixelBuffer pixels = state.depth == BitDepth::UInt8 ? flatten_document_rgba8(content)
+                                                      : Compositor().flatten_rgba_deep(content);
+  Layer layer(state.document.allocate_layer_id(), group.name(), std::move(pixels));
+  layer.set_bounds(Rect::from_size(state.document.width(), state.document.height()));
+  layer.set_opacity(group.opacity());
+  layer.set_visible(group.visible());
+  layer.set_blend_mode(group.blend_mode() == BlendMode::PassThrough ? BlendMode::Normal : group.blend_mode());
+  layer.set_lock_flags(group.lock_flags());
+  layer.set_color_label(group.color_label());
+  if (group.mask().has_value()) {
+    layer.set_mask(*group.mask());
+  }
+  layer.layer_style() = group.layer_style();
+  return layer;
+}
+
 std::vector<Layer> build_list(const std::vector<Node>& nodes, BuildState& state) {
   // Built bottom first. Inherit Alpha keeps the layer inside the alpha of everything below
   // it in the same stack. Patchy's clipping is to the first unclipped layer below, which is
@@ -1415,8 +1524,15 @@ std::vector<Layer> build_list(const std::vector<Node>& nodes, BuildState& state)
   for (auto index = nodes.size(); index-- > 0;) {
     const auto& node = nodes[index];
     std::vector<Layer> above;
+    const bool below_opaque = opaque_cover_below(nodes, index) || state.backdrop_opaque;
+    state.group_backdrop_opaque = below_opaque;
     Layer layer = build_layer(node, state, above);
-    if (node.inherit_alpha && !out.empty() && !opaque_cover_below(nodes, index)) {
+    if (node.inherit_alpha && out.empty() && !below_opaque) {
+      // Nothing below in its own stack: Krita keeps nothing of it in an isolated group, and
+      // in a pass-through group clips it to what is below the group, which Patchy cannot.
+      add_unique(state.read.inherit_alpha_unclipped, node.name);
+    }
+    if (node.inherit_alpha && !out.empty() && !below_opaque) {
       if (!is_single_clip_run(out)) {
         Layer base(state.document.allocate_layer_id(), "Inherit Alpha base", LayerKind::Group);
         for (auto& below : out) {
@@ -1425,6 +1541,10 @@ std::vector<Layer> build_list(const std::vector<Node>& nodes, BuildState& state)
         out.clear();
         out.push_back(std::move(base));
         add_unique(state.read.inherit_alpha_grouped, node.name);
+      }
+      if (layer.kind() == LayerKind::Group) {
+        layer = flattened_group(std::move(layer), state);
+        add_unique(state.read.inherit_alpha_flattened, node.name);
       }
       layer.set_clipped(true);
     }
@@ -1452,8 +1572,43 @@ void read_styles(ReadState& read, BuildState& build) {
   for (const auto& pattern : parsed->patterns) {
     build.document.metadata().patterns.adopt(pattern);
   }
+  // Effects set to "use global light" take the document's light: Krita keeps Photoshop's
+  // global angle and altitude resources (1037, 1049) as annotations when it opened a PSD;
+  // otherwise Photoshop's defaults apply (120 and 30 degrees).
+  const auto resource_degrees = [&](const char* id, float fallback) {
+    auto bytes = read.zip.extract(read.prefix + "annotations/PSD Resource Block_ " + id, 64);
+    if (!bytes.has_value() || bytes->size() < 4) {
+      return fallback;
+    }
+    const auto value = static_cast<std::int32_t>((static_cast<std::uint32_t>((*bytes)[0]) << 24U) |
+                                                 (static_cast<std::uint32_t>((*bytes)[1]) << 16U) |
+                                                 (static_cast<std::uint32_t>((*bytes)[2]) << 8U) | (*bytes)[3]);
+    return std::abs(value) <= 360 ? static_cast<float>(value) : fallback;
+  };
+  const auto angle = resource_degrees("1037", 120.0F);
+  const auto altitude = resource_degrees("1049", 30.0F);
   for (const auto& style : parsed->styles) {
-    build.styles[normalized_uuid(style.id)] = style.style;
+    auto resolved = style.style;
+    for (auto& shadow : resolved.drop_shadows) {
+      if (shadow.use_global_light) {
+        shadow.angle_degrees = angle;
+        shadow.use_global_light = false;
+      }
+    }
+    for (auto& shadow : resolved.inner_shadows) {
+      if (shadow.use_global_light) {
+        shadow.angle_degrees = angle;
+        shadow.use_global_light = false;
+      }
+    }
+    for (auto& bevel : resolved.bevels) {
+      if (bevel.use_global_light) {
+        bevel.angle_degrees = angle;
+        bevel.altitude_degrees = altitude;
+        bevel.use_global_light = false;
+      }
+    }
+    build.styles[normalized_uuid(style.id)] = std::move(resolved);
   }
   for (const auto& warning : parsed->warnings) {
     add_unique(read.style_notices, warning);
@@ -1619,6 +1774,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     read_layers(*layers, nodes, state, nullptr, 0);
   }
   decide_linear(nodes, state);
+  inline_pass_through_groups(nodes, state);
   SampleSource image_source{state.image_space, state.image_icc, false};
   image_source.linear = profile_is_linear(image_source);
 
@@ -1683,6 +1839,13 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     note(state.inherit_alpha_grouped,
          "Layers below an Inherit Alpha layer were grouped as \"Inherit Alpha base\" so the layer clips to all of "
          "them, as in Krita: ");
+    note(state.inherit_alpha_flattened,
+         "Groups with Inherit Alpha were merged into one clipped layer (Patchy cannot clip a group): ");
+    note(state.inlined_groups,
+         "Pass-through groups whose bottom layer inherits alpha opened as their layers, so it clips to the layers "
+         "below: ");
+    note(state.inherit_alpha_unclipped,
+         "Inherit Alpha layers with nothing below them in their group opened unclipped: ");
     note(state.clone_layers, "Clone layers opened as copies of their source layer: ");
     note(state.loaded_files, "File layers were loaded from their files as pixel layers: ");
     note(state.missing_files, "File layers whose file was not found opened empty: ");

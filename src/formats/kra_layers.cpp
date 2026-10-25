@@ -147,8 +147,10 @@ FilterConfig parse_filter_config(std::string name, std::span<const std::uint8_t>
   return config;
 }
 
-std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& config, bool& approximate) {
+std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& config, bool& approximate,
+                                                       BlendMode& blend) {
   approximate = false;
+  blend = BlendMode::Normal;
   AdjustmentSettings settings;
   const auto& name = config.name;
   if (name == "invert") {
@@ -184,9 +186,13 @@ std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& con
         }
       }
     }
-    // Krita's lightness mode adjusts lightness rather than each RGB channel.
+    // Krita's lightness mode (and the version 1 settings, which Krita reads the same way)
+    // adjusts lightness and keeps the colors: Levels at Luminosity comes close.
     const auto* mode = config.find("mode");
     approximate = mode == nullptr || *mode == "lightness";
+    if (approximate) {
+      blend = BlendMode::Luminosity;
+    }
     return settings;
   }
   if (name == "perchannel") {
