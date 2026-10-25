@@ -11,7 +11,10 @@ Shape | Path | Pixels persists as `tools/vectorToolMode` (default Shape).
 Shape drags preview options-bar fill/stroke at draw time for the Content
 target, with the committed stroke alignment, join and cap (the inside/outside
 band clipped by the fill path, as in `rasterize_vector_stroke`; issue 125);
-mask/channel/quick-mask targets always rasterize. Release creates a
+mask/channel/quick-mask targets always rasterize. A drag that commits a work
+path or vector-mask subpaths (Path mode, Polygon, Custom Shape) previews the
+committed geometry as a path-accent outline (`shape_drag_preview_path`), never
+Pixels mode's brush-size paint (`ui_path_mode_drag_previews_path_outline_only`). Release creates a
 shape layer from live parameters (rect, rounded rect via Radius, ellipse,
 line with Weight) and the options-bar paints. Stroke alignment defaults to
 Inside, like PS. Combine (New Layer / Add / Subtract / Intersect / Exclude)

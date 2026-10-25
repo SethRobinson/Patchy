@@ -272,26 +272,27 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
     }
   }
 
-  // The vector-only tools preview as an accent outline (the committed result
-  // is a shape layer or path, never raster paint).
-  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
-    painter.save();
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(QColor(116, 192, 255), 1.2));
-    painter.setBrush(Qt::NoBrush);
-    if (tool_ == CanvasTool::Polygon) {
-      const auto subpath = polygon_drag_subpath(QPointF(shape_start_), QPointF(shape_current_));
-      QPolygonF outline;
-      for (const auto& anchor : subpath.anchors) {
-        outline << widget_position_f(QPointF(anchor.anchor_x, anchor.anchor_y));
+  // A drag that commits a work path or vector-mask subpaths previews that
+  // geometry as a path outline (options-bar radius, line weight, polygon or
+  // custom shape included). The raster preview below is Pixels mode's: its
+  // brush-size stroke and Fill option never apply to a path. Polygon and
+  // Custom Shape always commit vectors.
+  const bool vector_target =
+      !quick_mask_active_ &&
+      (layer_edit_target_ == LayerEditTarget::Content ||
+       (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
+  const bool commits_path =
+      tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape ||
+      (vector_shape_tool && vector_target && vector_tool_mode_ != VectorToolMode::Pixels &&
+       vector_shape_drawn_callback_);
+  if (commits_path) {
+    double line_weight = 1.0;
+    if (tool_ == CanvasTool::Line && shape_preview_appearance_callback_) {
+      if (const auto appearance = shape_preview_appearance_callback_(); appearance.has_value()) {
+        line_weight = static_cast<double>(appearance->line_weight);
       }
-      if (!outline.isEmpty()) {
-        painter.drawPolygon(outline);
-      }
-    } else {
-      painter.drawRect(QRectF(QPointF(a), QPointF(b)));
     }
-    painter.restore();
+    draw_path_preview_outline(painter, shape_drag_preview_path(line_weight));
     return;
   }
 
@@ -577,13 +578,7 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
   }
 }
 
-bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
-                                                 const ShapePreviewAppearance& appearance) {
-  // Approximation note: line arrowheads appear at commit. The stroke itself
-  // follows the committed alignment, join and cap (issue 125): an inside or
-  // outside stroke is the double-width centered band clipped to the fill
-  // region or its complement, the same construction rasterize_vector_stroke
-  // uses, so the shape neither shrinks nor changes its corners on release.
+QPainterPath CanvasWidget::shape_drag_preview_path(double line_weight) const {
   QPainterPath path;
   const auto to_widget = [this](QPointF document_point) {
     return widget_position_f(document_point);
@@ -613,7 +608,7 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
       spine.moveTo(to_widget(QPointF(shape_start_)));
       spine.lineTo(to_widget(QPointF(shape_current_)));
       QPainterPathStroker stroker;
-      stroker.setWidth(std::max(1.0, static_cast<double>(appearance.line_weight) * zoom_));
+      stroker.setWidth(std::max(1.0, line_weight * zoom_));
       stroker.setCapStyle(Qt::FlatCap);
       path = stroker.createStroke(spine);
       break;
@@ -621,7 +616,7 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
     case CanvasTool::Polygon: {
       const auto subpath = polygon_drag_subpath(QPointF(shape_start_), QPointF(shape_current_));
       if (subpath.anchors.size() < 3) {
-        return false;
+        return {};
       }
       QPolygonF outline;
       for (const auto& anchor : subpath.anchors) {
@@ -634,7 +629,7 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
     case CanvasTool::CustomShape: {
       if (custom_shape_path_ == nullptr || custom_shape_path_->subpaths.empty() ||
           drag_rect.width() <= 0 || drag_rect.height() <= 0) {
-        return false;
+        return {};
       }
       // The stamp scales the unit-box shape into the drag rect.
       for (const auto& subpath : custom_shape_path_->subpaths) {
@@ -660,8 +655,19 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
       break;
     }
     default:
-      return false;
+      break;
   }
+  return path;
+}
+
+bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
+                                                 const ShapePreviewAppearance& appearance) {
+  // Approximation note: line arrowheads appear at commit. The stroke itself
+  // follows the committed alignment, join and cap (issue 125): an inside or
+  // outside stroke is the double-width centered band clipped to the fill
+  // region or its complement, the same construction rasterize_vector_stroke
+  // uses, so the shape neither shrinks nor changes its corners on release.
+  const auto path = shape_drag_preview_path(static_cast<double>(appearance.line_weight));
   if (path.isEmpty()) {
     return false;
   }
