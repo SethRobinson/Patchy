@@ -394,6 +394,27 @@ void FontPreviewPane::paintEvent(QPaintEvent* /*event*/) {
 
 FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
   popup_clock_.start();
+  // Text set by code (a pick, a layer switch, setCurrentFont under a QSignalBlocker on the combo)
+  // leaves the line edit unmodified; text the user is typing stays where the cursor is.
+  if (auto* edit = lineEdit(); edit != nullptr) {
+    connect(edit, &QLineEdit::textChanged, this, [this, edit] {
+      if (!edit->isModified()) {
+        show_name_from_start();
+      }
+    });
+  }
+  show_name_from_start();
+}
+
+void FontPickerCombo::show_name_from_start() {
+  if (auto* edit = lineEdit(); edit != nullptr) {
+    edit->setCursorPosition(0);
+  }
+}
+
+void FontPickerCombo::focusOutEvent(QFocusEvent* event) {
+  QFontComboBox::focusOutEvent(event);
+  show_name_from_start();
 }
 
 const FontFamilyRenderInfo& FontPickerCombo::family_render_info(const QString& family) {
