@@ -162,7 +162,12 @@ std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& con
     settings.kind = AdjustmentKind::Levels;
     // Version 2 stores 0..1 records ("lightness" for the composite, "channel_N" per channel);
     // version 1 stored 0..255 numbers.
-    if (const auto* lightness = config.find("lightness"); lightness != nullptr) {
+    const auto* mode = config.find("mode");
+    const bool lightness_mode = mode == nullptr || *mode == "lightness";
+    if (const auto* lightness = config.find("lightness"); lightness != nullptr && !lightness_mode) {
+      // The per-channel mode ignores the lightness record (measured: Krita draws nothing
+      // for it); only the channel records below apply.
+    } else if (lightness != nullptr) {
       if (const auto record = levels_record(*lightness); record.has_value()) {
         settings.levels.black_input = record->black_input;
         settings.levels.white_input = record->white_input;
@@ -188,10 +193,10 @@ std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& con
       }
     }
     // Krita's lightness mode (and the version 1 settings, which Krita reads the same way)
-    // adjusts lightness and keeps the colors: Levels at Luminosity comes close.
-    const auto* mode = config.find("mode");
-    approximate = mode == nullptr || *mode == "lightness";
-    if (approximate) {
+    // levels CIE L* and keeps a and b (measured within 1 level). Patchy's Levels runs on
+    // RGB; at Luminosity it keeps the colors and comes closest (docs/kra.md).
+    approximate = lightness_mode;
+    if (lightness_mode) {
       blend = BlendMode::Luminosity;
     }
     return settings;

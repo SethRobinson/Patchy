@@ -625,6 +625,7 @@ add_library(patchy_formats
   src/formats/metadata/xmp.cpp
   src/formats/kra_document_io.cpp
   src/formats/kra_layers.cpp
+  src/formats/kra_odg.cpp
   src/formats/kra_tiles.cpp
   src/formats/ora_document_io.cpp
   src/formats/zip_entry_reader.cpp

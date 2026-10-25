@@ -100,6 +100,12 @@ struct FilterConfig {
 [[nodiscard]] std::vector<Layer> read_vector_layer(std::span<const std::uint8_t> svg, Document& target,
                                                    std::vector<std::string>& notices);
 
+// A Krita 2 or 3 vector layer's content.xml (an OpenDocument drawing): shapes through the
+// SVG importer, text boxes as Patchy box text rendered after the open. Throws when the XML
+// cannot be read.
+[[nodiscard]] std::vector<Layer> read_odg_vector_layer(std::span<const std::uint8_t> content, Document& target,
+                                                       std::vector<std::string>& notices);
+
 // A float from IEEE 754 half precision bits.
 [[nodiscard]] float half_to_float(std::uint16_t bits) noexcept;
 

@@ -171,11 +171,44 @@ The corpus (`local-test-fixtures/kra-corpus/`, sources and licences in its READM
 committed): 65 files under CC0, CC-BY, CC-BY-SA, MIT and Apache licences from
 Pepper&Carrot, GDQuest, OpenGameArt and GitHub, Krita 2.x to 6.1.
 
+## Measured differences
+
+8-bit units on premultiplied RGBA, mean and worst pixel, October 25, 2026 (Krita 5.3.2.1).
+Against Krita's merged image unless noted.
+
+- Structure at 8, 16, half and float bits, grayscale, masks, channel flags, clone and file
+  layers, guides, the ClayRGB profile, the 3000 x 2000 canvas: mean 0.06 or less, worst 1.
+- CMYK: mean 4.1, worst 91. Krita blends in CMYK, Patchy in RGB after converting each layer.
+- Layer styles (`psd-*`, against Patchy's render of the source PSD): 0.00 for drop and inner
+  shadows, glows, bevels, satin, pattern overlay, strokes and global light; gradient overlay
+  0.79, inner glow range 0.46, interior/exterior blending 0.90 (worst 155); Krita's own
+  re-save loses gradient midpoints (`4a-roundtrip`, 18.9) and changes a shape-burst stroke
+  (5.0). Against Krita's render they differ by up to 16: Krita draws effects its own way.
+- Blend modes: every mapped mode within 0.3 per tile (Hard Mix 1.9 and Vivid Light 0.55 from
+  pixels on a threshold); the 100 or so Krita-only modes open as Normal.
+- Filters: invert, the four RGB curves and the BT.709, BT.601 and average desaturations
+  exact or within 0.6; Hue/Saturation in HSL 1.7; Krita's other HSV models 16 to 67;
+  color balance 16 to 18; posterize 13 (Krita rounds to `steps` intervals, Photoshop floors
+  to levels); lightness Levels 11 to 15 (Krita levels CIE L*: Patchy's Levels at Luminosity
+  is the nearest editable form).
+- Vector layers: shapes match; in the app (text rendered) the vector fixture's mean is 5.6:
+  glyphs rasterize differently and the SVG importer blends a linear gradient lighter than
+  Krita.
+- Corpus (65 files, all open; 60 carry a merged image): 31 identical, 23 more within a mean of
+  0.25 (the old OpenDocument vector pages 0.18 and 0.19 among them); GDQuest's kraken 1.04 (older curves and color balance); Pepper&Carrot's
+  2025 painting 2.2 (Grain Merge and Luminosity/Shine, color balance); three files whose text
+  renders only in the app (core sweep: 1.1 to 6.9); an OpenGameArt nest 9.4 (lightness
+  Levels on a group).
+
 ## Tests
 
 Core (`tests/core/kra_tests.cpp`, filter `kra_`): LZF, a synthetic file built in the test
 (tree, offsets, BGRA order, stored and LZF tiles, masks, guides, Inherit Alpha, locks,
 labels), sniffing and the registry, the Unicode path with a file layer beside the file,
-hostile and damaged input, the Krita fixtures and the corpus against Krita's merged image
-(mean and worst in 8-bit units on premultiplied RGBA; `psd-*` also against Patchy's render of
-the source PSD).
+hostile and damaged input, the Krita fixtures against Krita's merged image (and `psd-*`
+against Patchy's render of the source PSD) with the limits above, and the corpus sweep,
+which runs only with `PATCHY_KRA_CORPUS=1` and `PATCHY_TEST_TIMEOUT_SECONDS=0` (about seven
+minutes). UI (`tests/ui/kra_ui_tests.cpp`, filter `ui_kra_`): a .kra under a Unicode name
+opens with vector shapes, rendered text and a file layer, and by content under another
+name; the vector fixture in the app against Krita. Both write Patchy's renders to
+`test-artifacts/kra*/`.

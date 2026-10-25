@@ -303,6 +303,7 @@ struct Node {
   std::optional<FilterConfig> config;     // filter and fill layers
   std::optional<RawImage> selection;      // filter and fill layers
   std::vector<std::uint8_t> svg;          // vector layers
+  std::vector<std::uint8_t> odg;          // vector layers from Krita 2 and 3
 };
 
 struct ReadState {
@@ -605,6 +606,9 @@ void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, Rea
       if (!node.filename.empty()) {
         if (auto svg = extract_small(state, layer_entry + ".shapelayer/content.svg"); svg.has_value()) {
           node.svg = std::move(*svg);
+        } else if (auto odg = extract_small(state, layer_entry + ".shapelayer/content.xml"); odg.has_value()) {
+          // Krita 2 and 3 stored vector layers as an OpenDocument drawing.
+          node.odg = std::move(*odg);
         }
       }
       break;
@@ -1520,10 +1524,11 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
     }
     case NodeType::Vector: {
       std::vector<Layer> shapes;
-      if (!node.svg.empty()) {
+      if (!node.svg.empty() || !node.odg.empty()) {
         std::vector<std::string> notices;
         try {
-          shapes = read_vector_layer(node.svg, state.document, notices);
+          shapes = node.svg.empty() ? read_odg_vector_layer(node.odg, state.document, notices)
+                                    : read_vector_layer(node.svg, state.document, notices);
         } catch (const std::exception& error) {
           notices.emplace_back(error.what());
           shapes.clear();

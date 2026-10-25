@@ -377,6 +377,37 @@ def build_filter_settings(b, name):
     b.save(doc, name)
 
 
+LEGACY_LEVELS = ('<!DOCTYPE params><params version="1"><param name="blackvalue">0</param>'
+                 '<param name="gammavalue">1</param><param name="outblackvalue">0</param>'
+                 '<param name="outwhitevalue">255</param><param name="whitevalue">164</param></params>')
+
+
+def build_levels_legacy(b, name):
+    """A Levels filter layer with Krita 4's version 1 settings (written into the saved file,
+    then opened and saved again by Krita, as for the curves fixture)."""
+    import zipfile
+    doc, root, p = b.new(name, 64, 64)
+    back = b.paint(doc, root, "Backdrop", root.childNodes()[0])
+    p.fill(back, 0, 0, 64, 64, lambda x, y: (x / 63.0, y / 63.0, 0.3 + 0.4 * ((x + y) % 2), 1.0))
+    layer = doc.createFilterLayer("levels v1", b.filter("levels"), b.selection(0, 0, 64, 64))
+    root.addChildNode(layer, back)
+    b.save(doc, name)
+    path = os.path.join(b.out, name + ".kra")
+    with zipfile.ZipFile(path) as archive:
+        entries = [(info, archive.read(info.filename)) for info in archive.infolist()]
+    patched = path + ".tmp"
+    with zipfile.ZipFile(patched, "w") as archive:
+        for info, data in entries:
+            if info.filename.endswith(".filterconfig"):
+                data = LEGACY_LEVELS.encode("utf-8")
+            archive.writestr(info, data)
+    os.replace(patched, path)
+    reopened = b.k.openDocument(path)
+    if reopened is None:
+        raise RuntimeError("Krita could not reopen " + path)
+    b.save(reopened, name)
+
+
 def build_curves(b, name):
     """Per-channel curves, one curve set per tile. Krita's scripting does not take curve
     settings, so the curves are written into the saved file's filter settings, and Krita
@@ -622,6 +653,7 @@ FIXTURES = {
     "filter-settings": lambda b: build_filter_settings(b, "filter-settings"),
     "channels": lambda b: build_channels(b, "channels"),
     "curves": lambda b: build_curves(b, "curves"),
+    "levels-legacy": lambda b: build_levels_legacy(b, "levels-legacy"),
 }
 # Mode tables are analysis data, not test fixtures: build them into another folder.
 TABLE_MODES = ["soft_light_svg", "soft_light", "luminosity_sai", "additive_subtractive", "arc_tangent",

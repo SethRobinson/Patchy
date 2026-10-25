@@ -6,6 +6,7 @@
 #include "color/rgb_profiles.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
+#include "core/document_channel.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
@@ -24,6 +25,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -184,7 +186,11 @@ constexpr std::string_view kSyntheticMaindoc = R"(<?xml version="1.0" encoding="
 <DOC xmlns="http://www.calligra.org/DTD/krita" syntaxVersion="2.0" editor="Krita" kritaVersion="5.3.2">
  <IMAGE colorspacename="RGBA" x-res="150" y-res="150" name="Doc" width="100" height="80" mime="application/x-kra">
   <layers>
-   <layer name="Unknown op" nodetype="paintlayer" filename="layer6" compositeop="freeze" opacity="255" visible="1" x="0" y="0" colorspacename="RGBA"/>
+   <layer name="Unknown op" nodetype="paintlayer" filename="layer6" compositeop="freeze" opacity="255" visible="1" x="0" y="0" colorspacename="RGBA">
+    <masks>
+     <mask name="Saved" nodetype="selectionmask" filename="mask8" x="0" y="0" visible="1"/>
+    </masks>
+   </layer>
    <layer name="Group" nodetype="grouplayer" passthrough="0" filename="layer2" compositeop="screen" opacity="200" visible="1" x="0" y="0" collapsed="1" colorlabel="2">
     <layers>
      <layer name="Clipped" nodetype="paintlayer" filename="layer4" compositeop="multiply" opacity="128" visible="0" channelflags="1110" x="5" y="-3" colorspacename="RGBA"/>
@@ -242,6 +248,8 @@ std::vector<patchy::ora::detail::ZipEntry> synthetic_entries() {
     entries.push_back({"Doc/layers/mask5.pixelselection", tile_file(1, {{0, 0, mask}}), true});
     entries.push_back({"Doc/layers/mask5.pixelselection.defaultpixel", {0}, false});
   }
+  entries.push_back({"Doc/layers/mask8.pixelselection",
+                     tile_file(1, {{0, 0, std::vector<std::uint8_t>(64U * 64U, 255)}}), true});
   entries.push_back({"Doc/layers/layer6",
                      tile_file(4, {{0, 0, bgra_tile([](int, int) { return std::array<std::uint8_t, 4>{1, 2, 3, 4}; })}}),
                      true});
@@ -317,6 +325,13 @@ void kra_reader_maps_the_layer_tree() {
   CHECK(clipped.bounds() == rect_of(5, -3, 64, 64));
   CHECK(read.layers()[4].blend_mode() == BlendMode::Normal);
   CHECK(notices_mention(notices, "Unknown op (freeze)"));
+  // The selection mask is a saved selection: an alpha channel, white where selected.
+  CHECK(read.channels().size() == 1U);
+  if (!read.channels().empty()) {
+    const auto& channel = read.channels().front();
+    CHECK(channel.name() == "Unknown op Saved" && channel.kind() == patchy::DocumentChannelKind::Alpha);
+    CHECK(channel.pixels().pixel(5, 5)[0] == 255 && channel.pixels().pixel(90, 70)[0] == 0);
+  }
   // Guides are stored in points: 12 pt at 150 ppi is 25 px.
   CHECK(read.guides().size() == 3U);
   CHECK(read.guides()[0].orientation == patchy::GuideOrientation::Horizontal && read.guides()[0].position_32 == 25 * 32);
@@ -578,16 +593,31 @@ void write_artifact_png(const std::string& name, const PixelBuffer& pixels, cons
   out.write(reinterpret_cast<const char*>(png.data()), static_cast<std::streamsize>(png.size()));
 }
 
-// Per fixture: mean and worst allowed against Krita's merged image (docs/kra.md
-// "Measured differences" says why each is what it is).
+// Per fixture: mean and worst allowed (8-bit units, premultiplied RGBA), against Krita's
+// merged image or, for the fixtures Krita made from Patchy's PSDs, against Patchy's render of
+// that PSD (Krita draws layer styles with its own engine). The measured values and why each
+// limit is what it is: docs/kra.md "Measured differences". Fixtures not listed are reported
+// only (Krita features Patchy approximates or leaves out: blend modes, fills, some filters).
 struct FixtureLimit {
   const char* name;
   double mean;
   int worst;
+  bool against_psd;
 };
 
 constexpr FixtureLimit kFixtureLimits[] = {
-    {"structure-u8", 0.5, 3},
+    {"structure-u8", 0.05, 1, false},   {"structure-u16", 0.01, 1, false}, {"structure-f16", 0.01, 1, false},
+    {"structure-f32", 0.01, 1, false},  {"gray-u8", 0.1, 1, false},        {"gray-u16", 0.01, 1, false},
+    {"masks", 0.0, 0, false},           {"channels", 0.0, 0, false},       {"clone-file", 0.0, 0, false},
+    {"document", 0.0, 0, false},        {"profile-clay", 0.0, 0, false},   {"large", 0.01, 1, false},
+    {"cmyk-u8", 4.5, 100, false},
+    {"psd-emboss-styles", 0.01, 1, true},             {"psd-global-light-shadow", 0.01, 1, true},
+    {"psd-inner-glow", 0.01, 1, true},                {"psd-inner-shadow", 0.01, 1, true},
+    {"psd-outer-glow", 0.01, 1, true},                {"psd-outer-glow-range", 0.01, 1, true},
+    {"psd-pattern-overlay", 0.01, 1, true},           {"psd-pillow-emboss", 0.01, 1, true},
+    {"psd-satin-default", 0.01, 1, true},             {"psd-shape-solid", 0.01, 1, true},
+    {"psd-stroke-positions", 0.01, 1, true},          {"psd-gradient-overlay-geometry", 1.0, 64, true},
+    {"psd-inner-glow-range", 0.5, 64, true},          {"psd-interior-exterior-blending", 1.0, 160, true},
 };
 
 void kra_reads_krita_fixtures_if_available() {
@@ -601,9 +631,9 @@ void kra_reads_krita_fixtures_if_available() {
     }
   }
   std::sort(files.begin(), files.end());
-  std::map<std::string, std::pair<double, int>> limits;
+  std::map<std::string, FixtureLimit> limits;
   for (const auto& limit : kFixtureLimits) {
-    limits[limit.name] = {limit.mean, limit.worst};
+    limits[limit.name] = limit;
   }
   for (const auto& path : files) {
     const auto stem = path.stem().string();
@@ -615,6 +645,7 @@ void kra_reads_krita_fixtures_if_available() {
     auto png_path = path;
     png_path.replace_extension(".png");
     Difference difference;
+    Difference against_psd;
     if (std::filesystem::exists(png_path)) {
       if (const auto theirs = decode_png(patchy::test::read_binary_file(png_path)); theirs.has_value()) {
         difference = compare_with(ours, *theirs);
@@ -631,7 +662,7 @@ void kra_reads_krita_fixtures_if_available() {
         const auto psd = patchy::psd::DocumentIo::read_file(source);
         const auto psd_render = patchy::flatten_document_rgba8(psd);
         write_artifact_png(stem + "-psd", psd_render);
-        const auto against_psd = compare_with(ours, psd_render);
+        against_psd = compare_with(ours, psd_render);
         std::cout << "  | against the PSD: mean " << against_psd.mean << "  worst " << against_psd.worst;
       }
     }
@@ -640,14 +671,22 @@ void kra_reads_krita_fixtures_if_available() {
       std::cout << "      " << notice << "\n";
     }
     if (const auto found = limits.find(stem); found != limits.end()) {
-      CHECK(difference.compared);
-      CHECK(difference.mean <= found->second.first);
-      CHECK(difference.worst <= found->second.second);
+      const auto& measured = found->second.against_psd ? against_psd : difference;
+      CHECK(measured.compared);
+      CHECK(measured.mean <= found->second.mean);
+      CHECK(measured.worst <= found->second.worst);
     }
   }
 }
 
+// The corpus sweep takes several minutes (65 paintings up to 2800 x 12658), past the
+// harness's per-test limit, so it runs only on request: PATCHY_KRA_CORPUS=1 and
+// PATCHY_TEST_TIMEOUT_SECONDS=0 (docs/kra.md "Tests").
 void kra_reads_corpus_if_available() {
+  const char* requested = std::getenv("PATCHY_KRA_CORPUS");
+  if (requested == nullptr || std::string_view(requested) != "1") {
+    patchy::test::skip("the corpus sweep runs with PATCHY_KRA_CORPUS=1");
+  }
   DeepEditingScope deep(true);
   const auto dir = patchy::test::local_format_fixture_path("kra-corpus", "");
   patchy::test::skip_unless_exists(patchy::test::local_format_fixture_path("kra-corpus", "README.txt"));
