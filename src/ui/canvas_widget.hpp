@@ -1725,6 +1725,11 @@ private:
   // Shape-mode live preview with the actual fill/stroke appearance; returns
   // false when the tool/geometry has no appearance form (caller falls back).
   bool draw_shape_appearance_preview(QPainter& painter, const ShapePreviewAppearance& appearance);
+  // The geometry a shape-tool drag commits, in widget coordinates (empty when
+  // the tool has none yet); line_weight is the Line tool's band width.
+  [[nodiscard]] QPainterPath shape_drag_preview_path(double line_weight) const;
+  // A path-committing drag's preview: the outline in the path overlay accent.
+  void draw_path_preview_outline(QPainter& painter, const QPainterPath& outline) const;
   void draw_drag_size_readout(QPainter& painter) const;
   void draw_transform_drag_readout(QPainter& painter) const;
   // The readout sits outside the bounded drag repaints, so its old and new rects

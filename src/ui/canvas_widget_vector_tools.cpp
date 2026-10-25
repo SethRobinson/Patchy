@@ -675,6 +675,16 @@ void draw_path_outline(QPainter& painter, const QPainterPath& outline, const QCo
 }
 }  // namespace
 
+void CanvasWidget::draw_path_preview_outline(QPainter& painter, const QPainterPath& outline) const {
+  if (outline.isEmpty()) {
+    return;
+  }
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  draw_path_outline(painter, outline, path_overlay_accent());
+  painter.restore();
+}
+
 void CanvasWidget::draw_pen_overlay(QPainter& painter) {
   if (tool_ != CanvasTool::Pen || !pen_session_active_ || pen_anchors_.empty()) {
     return;

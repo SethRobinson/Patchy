@@ -1835,6 +1835,122 @@ void ui_shape_mode_drag_previews_stroke_inside_the_shape() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(303, 253)), stroke_color, 30));
 }
 
+// Seth, October 25, 2026: a Path-mode drag previewed the Pixels-mode raster
+// shape (the foreground color stroked at the brush size, so a big brush drew
+// a thick filled band with a hole). It now previews the path outline the
+// release commits, with the options-bar radius, whatever the brush size and
+// shape stroke are; the committed outline matches it.
+void ui_path_mode_drag_previews_path_outline_only() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  CHECK(mode_combo != nullptr && radius_spin != nullptr && stroke_width != nullptr);
+  if (mode_combo == nullptr || radius_spin == nullptr || stroke_width == nullptr) {
+    return;
+  }
+  // Settings that must not leak into a path preview: a big brush, a dark
+  // foreground, Fill off, a thick shape stroke.
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  stroke_width->setValue(40);
+  mode_combo->setCurrentIndex(1);  // Path
+  radius_spin->setValue(30);
+  canvas->set_brush_size(150);
+  canvas->set_fill_shapes(false);
+  canvas->set_primary_color(QColor(140, 30, 30));
+  QApplication::processEvents();
+
+  const auto is_white = [](QColor color) { return color_close(color, Qt::white, 12); };
+  const auto is_accent = [](QColor color) {
+    return color.blue() > color.red() + 60 && color.blue() > color.green() + 20;
+  };
+  const auto widget_rect_for = [&](QRect document_rect) {
+    return QRect(canvas->widget_position_for_document_point(document_rect.topLeft()),
+                 canvas->widget_position_for_document_point(document_rect.bottomRight()));
+  };
+
+  const QPoint from(150, 150);
+  const QPoint to(400, 300);
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(from),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(to),
+             Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  save_widget_artifact("ui_path_mode_drag_preview_rectangle", window);
+  const auto preview = canvas->grab().toImage();
+  // Inside, near the edges and outside: the untouched white canvas.
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(275, 225))));
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(160, 225))));
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(140, 225))));
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(275, 162))));
+  // The edge is the thin path accent.
+  CHECK(is_accent(canvas_pixel(*canvas, QPoint(150, 225))));
+  CHECK(is_accent(canvas_pixel(*canvas, QPoint(275, 150))));
+  // The 30 px radius cuts the corner: the edges start 30 px in.
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(156, 150))));
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(150, 156))));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(to),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  save_widget_artifact("ui_path_mode_drag_committed_rectangle", window);
+
+  // The committed work path's outline lands where the preview drew it. The
+  // top half only: the drag size readout sits over the bottom edge.
+  const auto committed = canvas->grab().toImage();
+  const auto compare = widget_rect_for(QRect(QPoint(140, 140), QPoint(410, 225)));
+  int preview_accent = 0;
+  int mismatched = 0;
+  for (int y = compare.top(); y <= compare.bottom(); ++y) {
+    for (int x = compare.left(); x <= compare.right(); ++x) {
+      const bool before = is_accent(preview.pixelColor(x, y));
+      preview_accent += before ? 1 : 0;
+      mismatched += before != is_accent(committed.pixelColor(x, y)) ? 1 : 0;
+    }
+  }
+  CHECK(preview_accent > 300);
+  CHECK(mismatched <= 12);
+
+  // Ellipse and Line in Path mode: outlines too, never the brush-size paint.
+  require_action(window, "toolEllipseAction")->trigger();
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonPress,
+             canvas->widget_position_for_document_point(QPoint(150, 350)), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove,
+             canvas->widget_position_for_document_point(QPoint(400, 500)), Qt::NoButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(275, 425))));
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(162, 425))));
+  CHECK(is_accent(canvas_pixel(*canvas, QPoint(150, 425))));
+  send_mouse(*canvas, QEvent::MouseButtonRelease,
+             canvas->widget_position_for_document_point(QPoint(400, 500)), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+
+  require_action(window, "toolLineAction")->trigger();
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonPress,
+             canvas->widget_position_for_document_point(QPoint(450, 150)), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove,
+             canvas->widget_position_for_document_point(QPoint(450, 400)), Qt::NoButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(465, 275))));
+  CHECK(is_white(canvas_pixel(*canvas, QPoint(435, 275))));
+  send_mouse(*canvas, QEvent::MouseButtonRelease,
+             canvas->widget_position_for_document_point(QPoint(450, 400)), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+}
+
 void ui_paths_panel_clipping_path_toggle() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -6168,6 +6284,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_mode_drag_previews_fill_appearance},
       {"ui_shape_mode_drag_previews_stroke_inside_the_shape",
        ui_shape_mode_drag_previews_stroke_inside_the_shape},
+      {"ui_path_mode_drag_previews_path_outline_only",
+       ui_path_mode_drag_previews_path_outline_only},
       {"ui_shape_geometry_edits_live_shape", ui_shape_geometry_edits_live_shape},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
