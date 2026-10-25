@@ -14,6 +14,7 @@
 
 #include "color/color_management.hpp"
 #include "color/rgb_profiles.hpp"
+#include "core/document_channel.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/vector_raster.hpp"
@@ -1670,10 +1671,11 @@ void read_styles(ReadState& read, BuildState& build) {
     build.document.metadata().patterns.adopt(pattern);
   }
   // Effects set to "use global light" take the document's light: Krita keeps Photoshop's
-  // global angle and altitude resources (1037, 1049) as annotations when it opened a PSD;
+  // global angle and altitude resources (1037, 1049) as "PSD Resource Block: <id>"
+  // annotations when it opened a PSD;
   // otherwise Photoshop's defaults apply (120 and 30 degrees).
   const auto resource_degrees = [&](const char* id, float fallback) {
-    auto bytes = read.zip.extract(read.prefix + "annotations/PSD Resource Block_ " + id, 64);
+    auto bytes = read.zip.extract(read.prefix + "annotations/PSD Resource Block: " + id, 64);
     if (!bytes.has_value() || bytes->size() < 4) {
       return fallback;
     }
@@ -1905,6 +1907,42 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     document.add_layer(std::move(layer));
   }
   read_guides(*image, document, state.xres, state.yres);
+  // Selection masks are stored selections: they open as alpha channels (white selected),
+  // which Patchy loads as selections the same way.
+  std::vector<std::string> selection_channels;
+  const auto add_selection_channels = [&](auto&& self, const std::vector<Node>& list) -> void {
+    for (const auto& node : list) {
+      for (const auto& mask : node.masks) {
+        if (mask.type != MaskType::Selection || !mask.selection.has_value() ||
+            document.channels().size() >= kMaximumPhotoshopChannelCount) {
+          continue;
+        }
+        const auto& raw = *mask.selection;
+        PixelBuffer pixels(state.width, state.height, PixelFormat::gray8());
+        pixels.clear(raw.default_pixel.empty() ? 0 : raw.default_pixel[0]);
+        for (std::int32_t y = 0; y < raw.bounds.height; ++y) {
+          const auto canvas_y = raw.bounds.y + y;
+          if (canvas_y < 0 || canvas_y >= state.height) {
+            continue;
+          }
+          auto row = pixels.row(canvas_y);
+          for (std::int32_t x = 0; x < raw.bounds.width; ++x) {
+            const auto canvas_x = raw.bounds.x + x;
+            if (canvas_x >= 0 && canvas_x < state.width) {
+              row[static_cast<std::size_t>(canvas_x)] =
+                  raw.data[static_cast<std::size_t>(y) * static_cast<std::size_t>(raw.bounds.width) + x];
+            }
+          }
+        }
+        const auto name = node.name + " " + mask.name;
+        document.add_channel(DocumentChannel(document.allocate_channel_id(), name, DocumentChannelKind::Alpha,
+                                             std::move(pixels)));
+        selection_channels.push_back(name);
+      }
+      self(self, node.children);
+    }
+  };
+  add_selection_channels(add_selection_channels, nodes);
 
   if (document.layers().empty()) {
     // No layers: Krita's own render (or a transparent layer) keeps the document openable.
@@ -1958,9 +1996,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     const auto collect = [&](auto&& self, const std::vector<Node>& list) -> void {
       for (const auto& node : list) {
         for (const auto& mask : node.masks) {
-          if (mask.type == MaskType::Selection) {
-            add_unique(unsupported_masks, node.name + " / " + mask.name + " (selection mask)");
-          } else if (mask.type == MaskType::Transform || mask.type == MaskType::Colorize ||
+          if (mask.type == MaskType::Transform || mask.type == MaskType::Colorize ||
                      mask.type == MaskType::Unknown) {
             add_unique(unsupported_masks, node.name + " / " + mask.name + " (" + mask.nodetype + ")");
           }
@@ -1970,6 +2006,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     };
     collect(collect, nodes);
     note(unsupported_masks, "Krita masks Patchy does not have were left out: ");
+    note(selection_channels, "Selection masks opened as alpha channels: ");
     if (state.animated) {
       notices->push_back("Animated layers opened at the current frame; their other frames were left out");
     }

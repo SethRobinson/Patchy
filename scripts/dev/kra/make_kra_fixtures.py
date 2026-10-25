@@ -331,7 +331,7 @@ def build_filters(b, name, as_masks=False):
         except Exception:
             continue
         if as_masks:
-            mask = doc.createFilterMask(filter_name, filt, node)
+            mask = doc.createFilterMask(filter_name, filt, b.selection(x0, y0, tile, tile))
             node.addChildNode(mask, None)
         else:
             layer = doc.createFilterLayer(filter_name, filt, b.selection(x0, y0, tile, tile))

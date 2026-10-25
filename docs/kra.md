@@ -24,7 +24,7 @@ on Krita's own renders. Legal record: [patent-research-formats.md](patent-resear
   8-bit; files from about 2013 and older have none), and a folder named after the image
   (`<IMAGE name>`; found by its `layers/` entries when the name does not match) holding
   `layers/`, `annotations/` (`icc`, `layerstyles.asl`, PSD resource blocks Krita keeps from
-  an imported PSD) and `animation/`.
+  an imported PSD, named `PSD Resource Block: <id>`) and `animation/`.
 - Zip reading is the shared `formats::ZipEntryReader` (`zip_entry_reader.{hpp,cpp}`, also
   used by OpenRaster) with the OpenRaster limits ([ora.md](ora.md) "Limits"); every name
   read from the XML goes through `safe_zip_entry_path`. A pixel budget of 2^31 is taken from
@@ -115,7 +115,7 @@ Masks and selections are one byte per pixel.
   `layerstyle` uuid. Read with `psd::read_asl`, patterns adopted into the document; the
   style's blending options give the layer's Fill and Blend If. Effects set to use global
   light take the angle and altitude Krita keeps from an imported PSD
-  (`annotations/PSD Resource Block_ 1037` and `_ 1049`, big-endian degrees), else 120 and 30.
+  (`annotations/PSD Resource Block: 1037` and `: 1049`, big-endian degrees), else 120 and 30.
   Krita renders effects with its own engine; Patchy renders Photoshop's look, so the
   fixtures made from Patchy's PSDs are judged against Patchy's render of the PSD.
 
