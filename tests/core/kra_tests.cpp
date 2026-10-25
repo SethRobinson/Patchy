@@ -25,7 +25,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -683,8 +682,7 @@ void kra_reads_krita_fixtures_if_available() {
 // harness's per-test limit, so it runs only on request: PATCHY_KRA_CORPUS=1 and
 // PATCHY_TEST_TIMEOUT_SECONDS=0 (docs/kra.md "Tests").
 void kra_reads_corpus_if_available() {
-  const char* requested = std::getenv("PATCHY_KRA_CORPUS");
-  if (requested == nullptr || std::string_view(requested) != "1") {
+  if (patchy::test::environment_value("PATCHY_KRA_CORPUS") != "1") {
     patchy::test::skip("the corpus sweep runs with PATCHY_KRA_CORPUS=1");
   }
   DeepEditingScope deep(true);
