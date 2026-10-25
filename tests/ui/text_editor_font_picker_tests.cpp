@@ -829,11 +829,14 @@ void ui_text_font_picker_popup_filters_and_commits() {
 // setting it under a signal blocker as a layer switch does, a popup pick, focus leaving after
 // typing) must leave the start of the name visible; typing itself keeps its cursor.
 void ui_text_font_picker_shows_name_from_start() {
-  register_test_fonts(TestFontRole::TimesNewRoman);
+  // Verdana in a narrowed box, not Times New Roman: registering the Times role's two files
+  // leaves that family without italics for the rest of the run, and later tests ask for
+  // Times New Roman Bold Italic (ui_text_options_follow_active_rich_text_span).
   register_test_fonts(TestFontRole::Verdana);
-  const auto family = QStringLiteral("Times New Roman");
-  if (!QFontDatabase::families().contains(family)) {
-    patchy::test::skip("Times New Roman unavailable on this machine");
+  const auto family = QStringLiteral("Verdana");
+  const auto other = QStringLiteral("Arial");  // the suite's UI font, always registered
+  if (!QFontDatabase::families().contains(family) || !QFontDatabase::families().contains(other)) {
+    patchy::test::skip("Verdana or Arial unavailable on this machine");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -844,8 +847,13 @@ void ui_text_font_picker_shows_name_from_start() {
   auto* edit = picker->lineEdit();
   CHECK(edit != nullptr);
   // Narrow enough that the name cannot fit, so a scrolled field really hides its start.
-  picker->setFixedWidth(100);
-  QApplication::processEvents();
+  for (int width = 100; width >= 40; width -= 10) {
+    picker->setFixedWidth(width);
+    QApplication::processEvents();
+    if (edit->fontMetrics().horizontalAdvance(family) > edit->contentsRect().width() * 3 / 2) {
+      break;
+    }
+  }
   CHECK(edit->fontMetrics().horizontalAdvance(family) > edit->contentsRect().width());
 
   const auto shows_start = [edit, &family] {
@@ -857,7 +865,7 @@ void ui_text_font_picker_shows_name_from_start() {
   // Set by code under a signal blocker, as the options bar does when the active layer changes.
   {
     const QSignalBlocker blocker(picker);
-    picker->setCurrentFont(QFont(QStringLiteral("Verdana")));
+    picker->setCurrentFont(QFont(other));
     picker->setCurrentFont(QFont(family));
   }
   QApplication::processEvents();
@@ -887,7 +895,7 @@ void ui_text_font_picker_shows_name_from_start() {
   // A pick from the popup.
   {
     const QSignalBlocker blocker(picker);
-    picker->setCurrentFont(QFont(QStringLiteral("Verdana")));
+    picker->setCurrentFont(QFont(other));
   }
   picker->showPopup();
   QApplication::processEvents();
