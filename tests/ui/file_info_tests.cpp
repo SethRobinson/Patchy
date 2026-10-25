@@ -926,6 +926,16 @@ void ui_file_info_privacy_notice_can_be_hidden() {
     expect(hide != nullptr && !hide->isHidden(), "Don't Show Again is not shown");
     if (auto* row = dialog.findChild<QWidget*>(QStringLiteral("fileInfoPrivacyBannerRow"))) {
       QApplication::processEvents();
+      // The button sits inside the bar, as far from its right edge as from its top and bottom.
+      if (hide != nullptr) {
+        const auto box = hide->geometry();
+        const int right = row->width() - (box.x() + box.width());
+        const int top = box.y();
+        const int bottom = row->height() - (box.y() + box.height());
+        expect(box.x() >= 0 && right >= 0 && top >= 0 && bottom >= 0, "Don't Show Again is outside the bar");
+        expect(std::abs(top - bottom) <= 1, "Don't Show Again is not centered vertically");
+        expect(std::abs(right - top) <= 1, "Don't Show Again's right gap differs from its top gap");
+      }
       save_widget_artifact("file-info/notice-shown", *row);
     }
     if (hide != nullptr) {
