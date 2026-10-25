@@ -14097,6 +14097,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>적목 현상 제거: 빨간 영역이 선택 영역 밖에 있습니다</translation>
     </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>선택한 영역이 비어 있습니다.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>뒤틀기는 레이어 전체에 적용됩니다. 먼저 이 변형을 적용하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

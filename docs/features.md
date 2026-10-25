@@ -17,6 +17,7 @@
 ## Painting, selections, and retouching
 
 - Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
+- Free Transform, Skew, Distort and Perspective work on the selected pixels when a selection is active: the selection lifts out of the layer, the box fits it, and the selection follows the pixels on Enter
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the completed stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
 - Brush tip libraries with Photoshop .abr import, custom tips from selections, spacing, angle, roundness, texture, dual-brush effects, wet edges, and dynamics for size, opacity, flow, scatter, and color. Supported dynamics can respond to pen pressure, tilt, rotation, or stroke direction
 - Mixer Brush with Wet, Load, Mix, Flow, and Sample All Layers controls, plus stroke smoothing with pulled-string and catch-up options

@@ -9,6 +9,7 @@
 #include "ui/canvas_widget.hpp"
 
 #include "core/document.hpp"
+#include "core/floating_selection.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
@@ -17,6 +18,7 @@
 #include "core/pixel_depth.hpp"
 #include "core/pixel_grid.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/rect_utils.hpp"
 #include "core/resample.hpp"
 #include "core/smart_filter.hpp"
 #include "core/smart_object.hpp"
@@ -65,6 +67,7 @@
 #include <functional>
 #include <future>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <ratio>
 #include <span>
@@ -1207,7 +1210,14 @@ bool CanvasWidget::begin_free_transform() {
     report_status_error(tr("Select an editable pixel layer to transform"));
     return false;
   }
-  if (layer_effectively_locks_position(*layer)) {
+  // With a selection on a pixel layer only the selected pixels transform (GitHub
+  // issue 399). The Background's position lock keeps the layer in place, not its
+  // pixels, so its selection transforms too (the hole fills with the background color).
+  const auto floating_rect = floating_selection_rect_for_layer(*layer);
+  const bool floating_on_background =
+      floating_rect.has_value() &&
+      background_layer(std::as_const(*document_).layers(), document_->width(), document_->height()) == layer;
+  if (layer_effectively_locks_position(*layer) && !floating_on_background) {
     show_layer_position_locked_message();
     return false;
   }
@@ -1235,6 +1245,13 @@ bool CanvasWidget::begin_free_transform() {
   // corner under the cursor on the first mouse move (box text went "instantly giant").
   const std::optional<QRect> local_transform_rect =
       layer_is_text(*layer) ? move_layer_transform_local_rect(*layer).value_or(*opaque_rect) : *opaque_rect;
+  std::optional<TransformFloatingSelection> floating;
+  if (floating_rect.has_value()) {
+    floating = lift_floating_selection(*layer, *floating_rect);
+    if (!floating.has_value()) {
+      return false;
+    }
+  }
 
   transforming_layer_ = true;
   clear_transform_session_steps();
@@ -1245,8 +1262,10 @@ bool CanvasWidget::begin_free_transform() {
   set_move_transform_controls_layer(std::nullopt);
   const auto bounds = layer->bounds();
   transform_original_rect_ =
-      QRectF(bounds.x + local_transform_rect->x(), bounds.y + local_transform_rect->y(), local_transform_rect->width(),
-             local_transform_rect->height());
+      floating.has_value()
+          ? QRectF(*floating_rect)
+          : QRectF(bounds.x + local_transform_rect->x(), bounds.y + local_transform_rect->y(),
+                   local_transform_rect->width(), local_transform_rect->height());
   transform_current_rect_ = transform_original_rect_;
   transform_drag_start_rect_ = transform_current_rect_;
   transform_drag_start_point_ = {};
@@ -1270,7 +1289,11 @@ bool CanvasWidget::begin_free_transform() {
   transform_proxy_image_ = QImage();
   transform_mask_sources_.clear();
   transform_proxy_layer_opacity_ = 1.0;
-  transform_requires_composited_preview_ = transform_preview_needs_compositing(*document_, *layer);
+  // A floating selection always previews composited: the floating pixels land on
+  // the layer's own remaining pixels, which a blit over the base cannot show.
+  transform_floating_ = std::move(floating);
+  transform_requires_composited_preview_ =
+      transform_floating_.has_value() || transform_preview_needs_compositing(*document_, *layer);
   setCursor(Qt::ArrowCursor);
   update();
   notify_transform_controls_changed();
@@ -1280,6 +1303,88 @@ bool CanvasWidget::begin_free_transform() {
                          : tr("Drag handles to transform. Shift resizes freely."));
   }
   return true;
+}
+
+std::optional<QRect> CanvasWidget::floating_selection_rect_for_layer(const Layer& layer) const {
+  if (document_ == nullptr || selection_.isEmpty() || quick_mask_active_ ||
+      layer_edit_target_ != LayerEditTarget::Content || layer.kind() != LayerKind::Pixel ||
+      layer_pixels_are_procedural(layer) || !layer_has_movable_pixels(layer)) {
+    return std::nullopt;
+  }
+  const auto opaque_rect = opaque_pixel_local_rect(layer);
+  if (!opaque_rect.has_value()) {
+    return QRect();
+  }
+  const auto bounds = layer.bounds();
+  return opaque_rect->translated(bounds.x, bounds.y).intersected(selection_.boundingRect());
+}
+
+std::optional<CanvasWidget::TransformFloatingSelection> CanvasWidget::lift_floating_selection(const Layer& layer,
+                                                                                              QRect floating_rect) {
+  if (document_ == nullptr) {
+    return std::nullopt;
+  }
+  if (layer_effectively_locks_image_pixels(layer)) {
+    show_layer_pixels_locked_message();
+    return std::nullopt;
+  }
+  const auto report_empty = [this] { report_status_error(tr("The selected area is empty.")); };
+  if (floating_rect.isEmpty()) {
+    report_empty();
+    return std::nullopt;
+  }
+  const auto& document = std::as_const(*document_);
+  // The whole selection's coverage (the commit moves all of it, also where the
+  // layer is transparent), clipped to the canvas like the selection itself.
+  const auto coverage_rect = selection_.boundingRect().intersected(QRect(0, 0, document.width(), document.height()));
+  TransformFloatingSelection floating;
+  floating.coverage = selection_coverage_buffer(coverage_rect);
+  floating.coverage_bounds = to_core_rect(coverage_rect);
+  // The Background (no alpha) and transparency-locked layers keep their alpha: the
+  // hole fills with the background color, as Cut does there.
+  floating.preserve_alpha = layer_effectively_locks_transparent_pixels(document.layers(), layer.id()) ||
+                            background_layer(document.layers(), document.width(), document.height()) == &layer;
+  std::optional<std::array<std::uint8_t, 3>> fill;
+  if (floating.preserve_alpha) {
+    const auto color = secondary_color();
+    fill = std::array<std::uint8_t, 3>{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                                       static_cast<std::uint8_t>(color.blue())};
+  }
+  auto lifted = lift_selected_pixels(layer.pixels(), layer.bounds(), floating.coverage, floating.coverage_bounds, fill);
+  const auto floating_local =
+      floating_rect.translated(-lifted.floating_bounds.x, -lifted.floating_bounds.y)
+          .intersected(QRect(0, 0, lifted.floating.width(), lifted.floating.height()));
+  if (lifted.floating.empty() || floating_local != floating_rect.translated(-lifted.floating_bounds.x,
+                                                                            -lifted.floating_bounds.y) ||
+      !visible_alpha_local_bounds(lifted.floating).has_value()) {
+    report_empty();
+    return std::nullopt;
+  }
+  floating.floating = qimage_from_pixel_buffer(lifted.floating).copy(floating_local);
+  floating.remainder = std::move(lifted.remainder);
+  floating.remainder_bounds = layer.bounds();
+  if (floating.floating.isNull()) {
+    report_empty();
+    return std::nullopt;
+  }
+  return floating;
+}
+
+// The document the floating-selection previews render: a copy-on-write copy
+// (O(layer count)) whose session layer holds the pixels left behind.
+Document CanvasWidget::floating_selection_preview_document() const {
+  Document copy = *document_;
+  if (transform_floating_.has_value() && transform_layer_id_.has_value()) {
+    if (auto* layer = copy.find_layer(*transform_layer_id_); layer != nullptr) {
+      layer->set_pixels(transform_floating_->remainder);
+      layer->set_bounds(transform_floating_->remainder_bounds);
+    }
+  }
+  return copy;
+}
+
+bool CanvasWidget::free_transform_floats_selection() const noexcept {
+  return transforming_layer_ && transform_floating_.has_value();
 }
 
 // Resolves the current panel selection to Free Transform targets. Exactly one
@@ -1632,6 +1737,7 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_multi_snapshot_rect_ = QRect();
   transform_multi_snapshot_scale_level_ = 0;
   transform_multi_snapshot_clip_.reset();
+  transform_floating_.reset();
 }
 
 void CanvasWidget::clear_pending_warp() {
@@ -1703,6 +1809,13 @@ std::optional<QRectF> CanvasWidget::move_transform_target_rect() const {
     if (layer->kind() != LayerKind::Group) {
       if (layer_effectively_locks_position(*layer)) {
         return std::nullopt;
+      }
+      // With a selection the box frames what a handle grab would float.
+      if (const auto floating_rect = floating_selection_rect_for_layer(*layer); floating_rect.has_value()) {
+        if (floating_rect->isEmpty()) {
+          return std::nullopt;
+        }
+        return QRectF(*floating_rect);
       }
       return transform_controls_rect_for_layer(*layer);
     }
@@ -1826,7 +1939,9 @@ bool CanvasWidget::prepare_free_transform_source() {
   }
 
   transform_source_image_ =
-      qimage_from_pixel_buffer(std::as_const(*layer).pixels()).copy(transform_source_local_rect_);
+      transform_floating_.has_value()
+          ? transform_floating_->floating
+          : qimage_from_pixel_buffer(std::as_const(*layer).pixels()).copy(transform_source_local_rect_);
   rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   return !transform_source_image_.isNull();
@@ -1866,6 +1981,8 @@ void CanvasWidget::rebuild_transform_base_cache() {
   // the multi session. Preview-only; the commit path never reads this cache.
   std::vector<LayerId> hidden;
   QRect layers_effect_rect;
+  // A floating selection keeps its layer in the base, holding the pixels left behind.
+  std::optional<Document> floating_document;
   if (!transform_targets_.empty()) {
     hidden.reserve(transform_targets_.size());
     for (const auto& target : transform_targets_) {
@@ -1888,16 +2005,23 @@ void CanvasWidget::rebuild_transform_base_cache() {
     if (layer == nullptr) {
       return;
     }
-    hidden.push_back(*transform_layer_id_);
+    if (transform_floating_.has_value()) {
+      floating_document.emplace(floating_selection_preview_document());
+    } else {
+      hidden.push_back(*transform_layer_id_);
+    }
     layers_effect_rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds()));
   } else {
     return;
   }
+  const Document& base_document = floating_document.has_value() ? *floating_document : *document_;
 
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   // Display-resolution compositing: when zoomed out, build the base from the
-  // preview-scaled document (4^level less work than a full-res canvas).
-  if (const auto composite_level = preview_composite_level_for_zoom(view_zoom()); composite_level >= 1) {
+  // preview-scaled document (4^level less work than a full-res canvas). The
+  // scaled document holds the layer as it is, so a floating selection skips it.
+  if (const auto composite_level = preview_composite_level_for_zoom(view_zoom());
+      composite_level >= 1 && !floating_document.has_value()) {
     if (auto* scaled_document = preview_scaled_document_for_level(composite_level)) {
       const QRect scaled_canvas(0, 0, scaled_document->width(), scaled_document->height());
       auto base = qimage_from_document_rect_with_hidden_layers_banded(*scaled_document, scaled_canvas, true, hidden)
@@ -1911,7 +2035,7 @@ void CanvasWidget::rebuild_transform_base_cache() {
     }
   }
   if (render_cache_dirty_ || render_cache_.isNull() || render_cache_.size() != canvas_rect.size()) {
-    transform_base_cache_ = qimage_from_document_rect_with_hidden_layers(*document_, canvas_rect, true, hidden)
+    transform_base_cache_ = qimage_from_document_rect_with_hidden_layers(base_document, canvas_rect, true, hidden)
                                 .convertToFormat(QImage::Format_RGBA8888);
     return;
   }
@@ -1919,7 +2043,7 @@ void CanvasWidget::rebuild_transform_base_cache() {
   const auto layer_rect = layers_effect_rect.intersected(canvas_rect);
   QImage base = render_cache_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
   if (!layer_rect.isEmpty()) {
-    const auto cleared = qimage_from_document_rect_with_hidden_layers(*document_, layer_rect, true, hidden);
+    const auto cleared = qimage_from_document_rect_with_hidden_layers(base_document, layer_rect, true, hidden);
     if (!cleared.isNull()) {
       QPainter painter(&base);
       painter.setCompositionMode(QPainter::CompositionMode_Source);
@@ -2215,8 +2339,24 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
   // The linked mask's crop comes from the session cache on the main thread
   // (the compute may run on a worker at release) and shares copy-on-write.
   std::optional<TransformLinkedMaskSource> mask_source;
-  if (const auto* cached = transform_linked_mask_source(*layer); cached != nullptr) {
+  if (const auto* cached = transform_linked_mask_source(*layer); cached != nullptr && !transform_floating_.has_value()) {
     mask_source = *cached;
+  }
+  // A floating selection renders over the document holding the pixels left
+  // behind; the layer override is those pixels with the transformed ones on top,
+  // cropped to what the patch can read (its rect plus the effects' reach). The
+  // layer mask stays where it is.
+  struct FloatingPreview {
+    std::shared_ptr<const Document> document;
+    PixelBuffer remainder;
+    Rect remainder_bounds{};
+    bool preserve_alpha{false};
+  };
+  std::optional<FloatingPreview> floating_preview;
+  if (transform_floating_.has_value()) {
+    floating_preview = FloatingPreview{std::make_shared<const Document>(floating_selection_preview_document()),
+                                       transform_floating_->remainder, transform_floating_->remainder_bounds,
+                                       transform_floating_->preserve_alpha};
   }
 
   // Region-limited: the layer (plus its effects) can only contribute inside
@@ -2225,7 +2365,7 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
   // mouse-move was the transform preview's dominant cost on large documents.
   const bool live_drag = dragging_transform_ && !processing_wait;
   const auto compute = [document = document_, layer, layer_id = *transform_layer_id_,
-                        source = transform_source_image_, mask_source,
+                        source = transform_source_image_, mask_source, floating_preview,
                         source_to_document =
                             transform_session_source_to_document(transform_source_image_.size()),
                         delta = transform_session_delta(),
@@ -2256,6 +2396,22 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
           masked_layer->set_mask(std::move(*mask));
         }
       }
+    }
+    if (floating_preview.has_value()) {
+      const auto extent = floating_preview->preserve_alpha
+                              ? floating_preview->remainder_bounds
+                              : unite_rect(floating_preview->remainder_bounds, transformed_result.bounds);
+      const auto override_bounds = intersect_rect(layer_bounds_with_effects(*layer, to_core_rect(patch_rect)), extent);
+      const auto override_pixels = composite_floating_pixels(
+          floating_preview->remainder, floating_preview->remainder_bounds, transformed_pixels, transformed_result.bounds,
+          override_bounds, floating_preview->preserve_alpha);
+      auto patches = live_drag ? qimage_patch_from_document_rect_with_layer_pixels_banded(
+                                     *floating_preview->document, patch_rect, true, layer_id, override_pixels,
+                                     override_bounds)
+                               : qimage_patches_from_document_region_with_layer_pixels(
+                                     *floating_preview->document, QRegion(patch_rect), true, layer_id,
+                                     override_pixels, override_bounds);
+      return {std::move(patches), patch_rect};
     }
     const auto& render_document = masked_document.has_value() ? *masked_document : *document;
     // Drag frames band the patch across workers: a single rect under 4 Mpx
@@ -2389,7 +2545,7 @@ void CanvasWidget::ensure_transform_proxy_image() {
     return;
   }
   QImage source = transform_preview_source_image();
-  if (document_ != nullptr && transform_layer_id_.has_value()) {
+  if (document_ != nullptr && transform_layer_id_.has_value() && !transform_floating_.has_value()) {
     if (const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_); layer != nullptr) {
       source = source_image_with_mask_coverage(source, *layer, transform_original_rect_);
     }
@@ -2523,7 +2679,8 @@ void CanvasWidget::refresh_free_transform_preview_caches() {
   // needs compositing at all) must be rebuilt from the current document state.
   // The base cache rebuilds in BOTH regimes: the composited preview now draws
   // patches over it instead of a full-canvas recomposite.
-  transform_requires_composited_preview_ = transform_preview_needs_compositing(*document_, *layer);
+  transform_requires_composited_preview_ =
+      transform_floating_.has_value() || transform_preview_needs_compositing(*document_, *layer);
   rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   if (isVisible()) {
@@ -4435,6 +4592,10 @@ void CanvasWidget::commit_free_transform() {
     commit_free_transform_with_pending_warp();
     return;
   }
+  if (transform_floating_.has_value()) {
+    commit_free_transform_floating();
+    return;
+  }
 
   auto* layer = document_->find_layer(*transform_layer_id_);
   if (layer == nullptr) {
@@ -4561,6 +4722,69 @@ void CanvasWidget::commit_free_transform() {
   } else if (status_callback_) {
     status_callback_(changed ? tr("Transformed layer")
                              : tr("Free Transform cancelled"));
+  }
+  notify_transform_controls_changed();
+}
+
+// Floating-selection commit (GitHub issue 399): the transformed pixels land on
+// what the lift left behind, and the selection follows through the same delta.
+// One history entry; its snapshot holds the untouched layer and the selection
+// the session started from.
+void CanvasWidget::commit_free_transform_floating() {
+  auto* layer = document_->find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    cancel_free_transform();
+    return;
+  }
+  const auto source_to_document = transform_session_source_to_document(transform_source_image_.size());
+  const auto transformed_result =
+      resample_transformed_rgba8(transform_source_image_, source_to_document, transform_interpolation_);
+  const auto new_bounds = transformed_result.bounds;
+  const auto original_bounds = Rect{static_cast<std::int32_t>(std::round(transform_original_rect_.left())),
+                                    static_cast<std::int32_t>(std::round(transform_original_rect_.top())),
+                                    static_cast<std::int32_t>(std::round(transform_original_rect_.width())),
+                                    static_cast<std::int32_t>(std::round(transform_original_rect_.height()))};
+  const auto changed = transform_scale_x_sign_ < 0.0 || transform_scale_y_sign_ < 0.0 ||
+                       std::abs(transform_angle_) > 0.01 || transform_is_distorted() || new_bounds != original_bounds;
+  if (!changed) {
+    reset_free_transform_session_state();
+    update_tool_cursor();
+    update();
+    if (status_callback_) {
+      status_callback_(tr("Free Transform cancelled"));
+    }
+    notify_transform_controls_changed();
+    return;
+  }
+
+  const auto delta = transform_session_delta();
+  const auto interpolation = transform_interpolation_;
+  if (before_edit_callback_) {
+    before_edit_callback_(tr("Free Transform"));
+  }
+  const auto& floating = *transform_floating_;
+  const auto old_bounds = layer->bounds();
+  const auto output_bounds =
+      floating.preserve_alpha ? floating.remainder_bounds : unite_rect(floating.remainder_bounds, new_bounds);
+  const auto transformed_pixels = transformed_result.image.isNull()
+                                      ? PixelBuffer()
+                                      : pixels_from_image_native(transformed_result.image);
+  layer->set_pixels(composite_floating_pixels(floating.remainder, floating.remainder_bounds, transformed_pixels,
+                                              new_bounds, output_bounds, floating.preserve_alpha));
+  layer->set_bounds(output_bounds);
+  const auto moved_selection = resample_transformed_gray8(
+      floating.coverage, 0U,
+      QTransform::fromTranslate(floating.coverage_bounds.x, floating.coverage_bounds.y) * delta, interpolation);
+
+  arm_transform_commit_hold();
+  reset_free_transform_session_state();
+  set_selection_from_coverage(to_qrect(moved_selection.bounds), moved_selection.pixels);
+  update_tool_cursor();
+  document_changed(to_qrect(old_bounds).united(to_qrect(output_bounds)));
+  disarm_transform_commit_hold_if_settled();
+  update();
+  if (status_callback_) {
+    status_callback_(tr("Transformed layer"));
   }
   notify_transform_controls_changed();
 }
@@ -4881,6 +5105,11 @@ bool CanvasWidget::begin_warp_transform() {
     // Refused BEFORE any teardown so the pending multi-target transform stays
     // alive (the same contract as the per-layer refusals below).
     report_status_error(tr("Warp works on a single layer. Select one layer to warp."));
+    return false;
+  }
+  if (free_transform_floats_selection()) {
+    // Warp takes whole layers; refused before teardown like the multi case.
+    report_status_error(tr("Warp works on the whole layer. Apply this transform first."));
     return false;
   }
   if (transforming_layer_ && transform_has_pending_warp_) {

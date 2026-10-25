@@ -12336,7 +12336,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Preview zoom. Pick a size or type a percentage.</source>
-        <translation>Zoom dell'anteprima. Scegli una dimensione o digita una percentuale.</translation>
+        <translation>Zoom dell&apos;anteprima. Scegli una dimensione o digita una percentuale.</translation>
     </message>
     <message>
         <source>Scrubby Zoom</source>
@@ -12344,7 +12344,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Drag left or right on the preview to zoom.</source>
-        <translation>Trascina a sinistra o a destra nell'anteprima per lo zoom.</translation>
+        <translation>Trascina a sinistra o a destra nell&apos;anteprima per lo zoom.</translation>
     </message>
     <message>
         <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
@@ -12364,7 +12364,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
-        <translation>Punta l'istogramma per vedere quale impostazione regola quella zona, poi trascina a sinistra o a destra per cambiarla.</translation>
+        <translation>Punta l&apos;istogramma per vedere quale impostazione regola quella zona, poi trascina a sinistra o a destra per cambiarla.</translation>
     </message>
     <message>
         <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
@@ -14131,6 +14131,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>Occhi rossi: l&apos;area rossa è fuori dalla selezione</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>L&apos;area selezionata è vuota.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>Altera agisce sull&apos;intero livello. Applica prima questa trasformazione.</translation>
     </message>
 </context>
 <context>

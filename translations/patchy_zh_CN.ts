@@ -14097,6 +14097,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>红眼: 红色区域在选区之外</translation>
     </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>所选区域为空。</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>变形作用于整个图层。请先应用此变换。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

@@ -12336,7 +12336,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Preview zoom. Pick a size or type a percentage.</source>
-        <translation>Zoom de l'aperçu. Choisissez une taille ou saisissez un pourcentage.</translation>
+        <translation>Zoom de l&apos;aperçu. Choisissez une taille ou saisissez un pourcentage.</translation>
     </message>
     <message>
         <source>Scrubby Zoom</source>
@@ -12344,7 +12344,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Drag left or right on the preview to zoom.</source>
-        <translation>Faites glisser vers la gauche ou la droite dans l'aperçu pour zoomer.</translation>
+        <translation>Faites glisser vers la gauche ou la droite dans l&apos;aperçu pour zoomer.</translation>
     </message>
     <message>
         <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
@@ -12364,7 +12364,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
-        <translation>Pointez l'histogramme pour voir quel réglage cette zone modifie, puis faites glisser vers la gauche ou la droite pour le changer.</translation>
+        <translation>Pointez l&apos;histogramme pour voir quel réglage cette zone modifie, puis faites glisser vers la gauche ou la droite pour le changer.</translation>
     </message>
     <message>
         <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
@@ -14131,6 +14131,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>Yeux rouges : la zone rouge est hors de la sélection</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>La zone sélectionnée est vide.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>La déformation s&apos;applique à tout le calque. Appliquez d&apos;abord cette transformation.</translation>
     </message>
 </context>
 <context>

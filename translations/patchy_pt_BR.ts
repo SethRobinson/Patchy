@@ -14132,6 +14132,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>Olhos vermelhos: a área vermelha está fora da seleção</translation>
     </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>A área selecionada está vazia.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>A distorção atua na camada inteira. Aplique esta transformação primeiro.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
