@@ -12563,6 +12563,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>12 Columns, 20 px Gutter</source>
         <translation>12 列，间距 20 px</translation>
     </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>柔光 (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>加减</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>反正切</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>几何平均</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon 平均</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>并联</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>强叠加</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>插值</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>柔和减淡</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -12598,6 +12598,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>12 Columns, 20 px Gutter</source>
         <translation>12 colonnes, gouttière de 20 px</translation>
     </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>Lumière tamisée (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>Additif-soustractif</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>Arc tangente</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>Moyenne géométrique</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>Parallèle</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>Incrustation dure</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Interpolation</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>Densité douce -</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
