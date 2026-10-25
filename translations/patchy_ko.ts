@@ -12291,6 +12291,162 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Grain Merge</source>
         <translation>그레인 병합</translation>
     </message>
+    <message>
+        <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
+        <translation>이 GIMP 파일의 일부 레이어 픽셀이 손상되어 해당 영역은 투명하게 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes set to blend in another color space than usual; they opened in the closest Patchy mode.</source>
+        <translation>일부 레이어가 평소와 다른 색 공간에서 혼합하도록 설정된 GIMP 혼합 모드를 사용합니다. 가장 가까운 Patchy 모드로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes Patchy does not have (Behind, Color Erase or Merge); they opened as Normal.</source>
+        <translation>일부 레이어가 Patchy에 없는 GIMP 혼합 모드(뒤, 색상 지우기, 병합)를 사용합니다. 표준으로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>The floating selection opened as an ordinary layer above the layer it was attached to.</source>
+        <translation>떠 있는 선택 영역은 연결되어 있던 레이어 위에 일반 레이어로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>The floating selection was attached to a channel or layer mask, so it was left out.</source>
+        <translation>떠 있는 선택 영역이 채널 또는 레이어 마스크에 연결되어 있어 제외했습니다.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>일부 텍스트 레이어는 GIMP에서 텍스트를 입력한 뒤 그 위에 그림을 그렸기 때문에 픽셀 레이어로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
+        <translation>일부 텍스트 레이어를 텍스트로 읽을 수 없어 픽셀 레이어로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
+        <translation>일부 GIMP 레이어 효과는 Patchy에 대응하는 기능이 없어 적용하지 않았습니다. 해당 레이어는 효과 없이 픽셀을 표시합니다.</translation>
+    </message>
+    <message>
+        <source>GIMP vector layers opened as pixel layers.</source>
+        <translation>GIMP 벡터 레이어는 픽셀 레이어로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
+        <translation>GIMP 링크 레이어는 픽셀 레이어로 열렸으며 더 이상 연결된 파일을 따르지 않습니다.</translation>
+    </message>
+    <message>
+        <source>This floating-point GIMP image opened at 16 bits per channel, because it uses blend modes Patchy offers only at 8 and 16 bits.</source>
+        <translation>이 부동 소수점 GIMP 이미지는 Patchy가 8비트와 16비트에서만 제공하는 혼합 모드를 사용하므로 채널당 16비트로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>This high bit depth GIMP image was converted to 8 bits per channel.</source>
+        <translation>이 높은 비트 심도의 GIMP 이미지는 채널당 8비트로 변환되었습니다.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layers below them are, as GIMP composites them; they got layer masks made from the layers below.</source>
+        <translation>일부 레이어는 GIMP의 합성 방식대로 아래 레이어가 있는 곳에만 보입니다. 아래 레이어로 만든 레이어 마스크를 붙였습니다.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
+        <translation>일부 레이어는 GIMP의 합성 방식대로 아래 레이어가 있는 곳에만 보입니다. 그 레이어에 대한 클리핑 마스크로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
+        <translation>GIMP의 가우시안 흐림 레이어 효과를 해당 레이어의 픽셀에 적용했습니다.</translation>
+    </message>
+    <message>
+        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <translation>GIMP의 지우기 또는 분할 모드 레이어는 마스크가 되었습니다. 각 레이어 아래의 레이어들은 그 이름의 그룹에 들어 있고, 지우던 곳이 마스크됩니다.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP composite modes Patchy approximates; they may look different where the layers below them are transparent.</source>
+        <translation>일부 레이어가 Patchy에서 근사하는 GIMP 합성 모드를 사용합니다. 아래 레이어가 투명한 곳에서는 다르게 보일 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Parts of this GIMP file are damaged; the layers that could be read opened.</source>
+        <translation>이 GIMP 파일의 일부가 손상되어 읽을 수 있는 레이어만 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>This file is not a GIMP image</source>
+        <translation>이 파일은 GIMP 이미지가 아닙니다</translation>
+    </message>
+    <message>
+        <source>This XCF file was written by CinePaint, whose format Patchy cannot read</source>
+        <translation>이 XCF 파일은 CinePaint에서 저장되었으며, Patchy는 그 형식을 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>This GIMP image is too large for Patchy to open.</source>
+        <translation>이 GIMP 이미지는 너무 커서 Patchy에서 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>This compressed GIMP file is damaged and could not be opened.</source>
+        <translation>이 압축된 GIMP 파일은 손상되어 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>This GIMP file is damaged and could not be opened.</source>
+        <translation>이 GIMP 파일은 손상되어 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>HSV Hue</source>
+        <translation>HSV 색조</translation>
+    </message>
+    <message>
+        <source>HSV Saturation</source>
+        <translation>HSV 채도</translation>
+    </message>
+    <message>
+        <source>HSL Color</source>
+        <translation>HSL 색상</translation>
+    </message>
+    <message>
+        <source>HSV Value</source>
+        <translation>HSV 명도</translation>
+    </message>
+    <message>
+        <source>LCh Hue</source>
+        <translation>LCh 색조</translation>
+    </message>
+    <message>
+        <source>LCh Chroma</source>
+        <translation>LCh 채도</translation>
+    </message>
+    <message>
+        <source>LCh Color</source>
+        <translation>LCh 색상</translation>
+    </message>
+    <message>
+        <source>LCh Lightness</source>
+        <translation>LCh 밝기</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>휘도</translation>
+    </message>
+    <message>
+        <source>Luma Darken Only</source>
+        <translation>어둡게만 (루마)</translation>
+    </message>
+    <message>
+        <source>Luma Lighten Only</source>
+        <translation>밝게만 (루마)</translation>
+    </message>
+    <message>
+        <source>Multiply (Linear)</source>
+        <translation>곱하기 (선형)</translation>
+    </message>
+    <message>
+        <source>Addition (Linear)</source>
+        <translation>더하기 (선형)</translation>
+    </message>
+    <message>
+        <source>Subtract (Linear)</source>
+        <translation>빼기 (선형)</translation>
+    </message>
+    <message>
+        <source>Divide (Linear)</source>
+        <translation>나누기 (선형)</translation>
+    </message>
+    <message>
+        <source>GIMP Image</source>
+        <translation>GIMP 이미지</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

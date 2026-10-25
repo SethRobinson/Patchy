@@ -96,5 +96,25 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     The apps run only as command-line tools for fixtures and interchange checks, nothing of them is
     linked or shipped, and the format and app names are used only to name the format and where
     files come from (no app logos or icons).
-  - *Not covered*: Krita's .kra and GIMP's .xcf. Each needs its own read before any work.
+  - *Not covered*: Krita's .kra. It needs its own read before any work (GIMP's .xcf: next entry).
+- **GIMP XCF (.xcf) read 2026-10-25** (local desk card local-011), an engineering read before
+  the code.
+  - *Format*: GIMP's native document: big-endian image, layer, channel, path and effect
+    records with 64 x 64 tiles stored raw, run-length coded or zlib-deflated, often wrapped
+    in gzip, bzip2 or xz. GIMP's developers describe it at
+    [developer.gimp.org/core/standards/xcf](https://developer.gimp.org/core/standards/xcf/).
+    That page is GPL-2.0-or-later documentation; it is read as a description of the format
+    only and no text from it enters the repository (it is linked). It names GIMP's code as the
+    reference; that code is not read. No patent claim, licence term or assertion tied to the
+    format was found. Deflate is already in Patchy (miniz); the run-length scheme is the
+    format's own; bzip2 (Burrows-Wheeler, Huffman; patent-free by design) and xz/LZMA2 (the
+    format specification and SDK are public domain) decode through Patchy's own code.
+  - *Source*: GIMP, GEGL and babl are GPL/LGPL; xcftools, libxcf, ImageMagick's and Krita's
+    XCF importers and the GimpFormats Python package were neither used nor read. Patchy's
+    reader comes from the description page and from files GIMP writes, inspected as data;
+    text-layer keys, color serializations, effect parameters and the formulas of GIMP's own
+    blend modes were found by observation and by fitting against GIMP's renders. GIMP runs
+    only as a command-line tool for fixtures and reference renders; nothing of it is linked
+    or shipped. "GIMP" and "XCF" name the format and its origin only; no GIMP logos or icons.
+  - Binding rule in [legal-constraints.md](legal-constraints.md).
   - Binding rule in [legal-constraints.md](legal-constraints.md).

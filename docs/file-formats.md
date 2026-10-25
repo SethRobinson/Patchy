@@ -59,6 +59,10 @@ Read-only importer; registry id `patchy.formats.af`, sniff on magic `00 FF 4B 41
 
 Read-only importer; registry id `patchy.formats.pdn`, sniff on `PDN3`; header-less 1.x/2.x files open by extension. Format record: [pdn-format.md](pdn-format.md).
 
+## .xcf (GIMP)
+
+Read-only importer; registry id `patchy.formats.xcf`, sniff on `gimp xcf ` (gzip, bzip2 and xz wrappers unwrap first); `*.xcf.gz/.bz2/.xz` names route through `xcf::is_compressed_xcf_file_name`. Format record, mappings and the render comparison: [xcf.md](xcf.md).
+
 ## PDF
 
 Import and export: [pdf.md](pdf.md). PDF has no registry row and is a read-only source; the filter-string and save-guard rules still apply to it.

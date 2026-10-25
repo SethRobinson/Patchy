@@ -12310,6 +12310,162 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Grain Merge</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes set to blend in another color space than usual; they opened in the closest Patchy mode.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes Patchy does not have (Behind, Color Erase or Merge); they opened as Normal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The floating selection opened as an ordinary layer above the layer it was attached to.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The floating selection was attached to a channel or layer mask, so it was left out.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP vector layers opened as pixel layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This floating-point GIMP image opened at 16 bits per channel, because it uses blend modes Patchy offers only at 8 and 16 bits.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This high bit depth GIMP image was converted to 8 bits per channel.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layers below them are, as GIMP composites them; they got layer masks made from the layers below.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP composite modes Patchy approximates; they may look different where the layers below them are transparent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parts of this GIMP file are damaged; the layers that could be read opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This file is not a GIMP image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This XCF file was written by CinePaint, whose format Patchy cannot read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This GIMP image is too large for Patchy to open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This compressed GIMP file is damaged and could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This GIMP file is damaged and could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSV Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSV Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSL Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSV Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LCh Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LCh Chroma</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LCh Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LCh Lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Luma Darken Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Luma Lighten Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Multiply (Linear)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Addition (Linear)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtract (Linear)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Divide (Linear)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP Image</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

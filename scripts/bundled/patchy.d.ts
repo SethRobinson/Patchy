@@ -42,9 +42,12 @@
 // "luminosity", "exclusion", "hue", "color", "linear-dodge", "subtract",
 // "divide", "vivid-light", "linear-light", "hard-mix", "darker-color",
 // "lighter-color", and the Paint.NET-compatibility modes "reflect", "glow", "negation"
-// and "xor" (for .pdn files), and GIMP's "grain-extract" and "grain-merge" (for .xcf
-// files): 8 and 16-bit documents only, not offered in Patchy's blend menus, and a PSD
-// save writes them as "normal" or bakes them (save option unsupportedBlendModes).
+// and "xor" (for .pdn files), and GIMP's "grain-extract", "grain-merge", "hsv-hue",
+// "hsv-saturation", "hsl-color", "hsv-value", "lch-hue", "lch-chroma", "lch-color",
+// "lch-lightness", "luminance", "luma-darken-only", "luma-lighten-only", "linear-multiply",
+// "linear-addition", "linear-subtract" and "linear-divide" (for .xcf files): 8 and 16-bit
+// documents only, not offered in Patchy's blend menus, and a PSD save writes them as
+// "normal" or bakes them (save option unsupportedBlendModes).
 // Brush Mode ids (stroke `mode`): every blend mode id except "pass-through", plus
 // "behind" (paints only into transparent pixels) and "clear" (removes alpha).
 

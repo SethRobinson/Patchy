@@ -124,6 +124,7 @@ Read these before acting in the named area:
 - **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), layered TIFF in [docs/tiff.md](docs/tiff.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), Paint.NET in [docs/pdn-format.md](docs/pdn-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md); TrustMark watermarks: [docs/watermarks.md](docs/watermarks.md).
 - **JPEG XR, JPEG XL, JPEG 2000, Radiance HDR, OpenEXR, AVIF:** [docs/jxr.md](docs/jxr.md), [docs/jxl.md](docs/jxl.md), [docs/hdr-formats.md](docs/hdr-formats.md), [docs/avif.md](docs/avif.md) *(legal: codec rules)*.
 - **Proton (.rttex), DDS (.dds) and OpenRaster (.ora):** [docs/rttex.md](docs/rttex.md), [docs/dds.md](docs/dds.md), [docs/ora.md](docs/ora.md) (clean-room).
+- **GIMP .xcf import** *(legal)*: [docs/xcf.md](docs/xcf.md). Clean-room from GIMP's published description and its renders; GIMP's own blend modes are Patchy modes a PSD save bakes.
 - **PDF import/export:** [docs/pdf.md](docs/pdf.md); timings in [docs/pdf-performance.md](docs/pdf-performance.md).
 - **Artboards (model, compositor, PSD `artb`/`artd`, tool, exports, scripts):** [docs/artboards.md](docs/artboards.md). Artboards stay top-level groups; nothing infers one from edit history.
 - **Document channels:** [docs/channels.md](docs/channels.md).

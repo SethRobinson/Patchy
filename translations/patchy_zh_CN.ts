@@ -12291,6 +12291,162 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Grain Merge</source>
         <translation>颗粒合并</translation>
     </message>
+    <message>
+        <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
+        <translation>此 GIMP 文件中的部分图层像素已损坏，这些区域以透明方式打开。</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes set to blend in another color space than usual; they opened in the closest Patchy mode.</source>
+        <translation>部分图层使用的 GIMP 混合模式被设为在非默认的色彩空间中混合，已改用最接近的 Patchy 模式打开。</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes Patchy does not have (Behind, Color Erase or Merge); they opened as Normal.</source>
+        <translation>部分图层使用了 Patchy 没有的 GIMP 混合模式（背后、颜色擦除或合并），已按正常模式打开。</translation>
+    </message>
+    <message>
+        <source>The floating selection opened as an ordinary layer above the layer it was attached to.</source>
+        <translation>浮动选区已作为普通图层打开，位于其所附加的图层之上。</translation>
+    </message>
+    <message>
+        <source>The floating selection was attached to a channel or layer mask, so it was left out.</source>
+        <translation>浮动选区附加在通道或图层蒙版上，因此已略去。</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>部分文字图层在 GIMP 中设置文字后又被绘制过，因此已作为像素图层打开。</translation>
+    </message>
+    <message>
+        <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
+        <translation>部分文字图层无法作为文字读取，因此已作为像素图层打开。</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
+        <translation>部分 GIMP 图层效果在 Patchy 中没有对应功能，未予应用；这些图层显示未加效果的像素。</translation>
+    </message>
+    <message>
+        <source>GIMP vector layers opened as pixel layers.</source>
+        <translation>GIMP 矢量图层已作为像素图层打开。</translation>
+    </message>
+    <message>
+        <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
+        <translation>GIMP 链接图层已作为像素图层打开，不再跟随所链接的文件。</translation>
+    </message>
+    <message>
+        <source>This floating-point GIMP image opened at 16 bits per channel, because it uses blend modes Patchy offers only at 8 and 16 bits.</source>
+        <translation>此浮点 GIMP 图像以每通道 16 位打开，因为它使用了 Patchy 仅在 8 位和 16 位下提供的混合模式。</translation>
+    </message>
+    <message>
+        <source>This high bit depth GIMP image was converted to 8 bits per channel.</source>
+        <translation>此高位深 GIMP 图像已转换为每通道 8 位。</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layers below them are, as GIMP composites them; they got layer masks made from the layers below.</source>
+        <translation>部分图层只在其下方图层所在之处显示（与 GIMP 的合成方式一致），已为其添加由下方图层生成的图层蒙版。</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
+        <translation>部分图层只在其下方图层所在之处显示（与 GIMP 的合成方式一致），已作为该图层的剪贴蒙版打开。</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
+        <translation>GIMP 的高斯模糊图层效果已应用到其图层的像素上。</translation>
+    </message>
+    <message>
+        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <translation>GIMP 擦除或分割模式的图层已变为蒙版：每个图层下方的图层都放入以其命名的组中，并在其擦除之处加以遮盖。</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP composite modes Patchy approximates; they may look different where the layers below them are transparent.</source>
+        <translation>部分图层使用了 Patchy 只能近似的 GIMP 合成模式，在其下方图层透明之处可能看起来不同。</translation>
+    </message>
+    <message>
+        <source>Parts of this GIMP file are damaged; the layers that could be read opened.</source>
+        <translation>此 GIMP 文件的部分内容已损坏，已打开能读取的图层。</translation>
+    </message>
+    <message>
+        <source>This file is not a GIMP image</source>
+        <translation>此文件不是 GIMP 图像</translation>
+    </message>
+    <message>
+        <source>This XCF file was written by CinePaint, whose format Patchy cannot read</source>
+        <translation>此 XCF 文件由 CinePaint 写入，Patchy 无法读取其格式</translation>
+    </message>
+    <message>
+        <source>This GIMP image is too large for Patchy to open.</source>
+        <translation>此 GIMP 图像太大，Patchy 无法打开。</translation>
+    </message>
+    <message>
+        <source>This compressed GIMP file is damaged and could not be opened.</source>
+        <translation>此压缩的 GIMP 文件已损坏，无法打开。</translation>
+    </message>
+    <message>
+        <source>This GIMP file is damaged and could not be opened.</source>
+        <translation>此 GIMP 文件已损坏，无法打开。</translation>
+    </message>
+    <message>
+        <source>HSV Hue</source>
+        <translation>HSV 色相</translation>
+    </message>
+    <message>
+        <source>HSV Saturation</source>
+        <translation>HSV 饱和度</translation>
+    </message>
+    <message>
+        <source>HSL Color</source>
+        <translation>HSL 颜色</translation>
+    </message>
+    <message>
+        <source>HSV Value</source>
+        <translation>HSV 明度</translation>
+    </message>
+    <message>
+        <source>LCh Hue</source>
+        <translation>LCh 色相</translation>
+    </message>
+    <message>
+        <source>LCh Chroma</source>
+        <translation>LCh 色度</translation>
+    </message>
+    <message>
+        <source>LCh Color</source>
+        <translation>LCh 颜色</translation>
+    </message>
+    <message>
+        <source>LCh Lightness</source>
+        <translation>LCh 亮度</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>明度</translation>
+    </message>
+    <message>
+        <source>Luma Darken Only</source>
+        <translation>仅变暗（亮度）</translation>
+    </message>
+    <message>
+        <source>Luma Lighten Only</source>
+        <translation>仅变亮（亮度）</translation>
+    </message>
+    <message>
+        <source>Multiply (Linear)</source>
+        <translation>正片叠底（线性）</translation>
+    </message>
+    <message>
+        <source>Addition (Linear)</source>
+        <translation>相加（线性）</translation>
+    </message>
+    <message>
+        <source>Subtract (Linear)</source>
+        <translation>减去（线性）</translation>
+    </message>
+    <message>
+        <source>Divide (Linear)</source>
+        <translation>划分（线性）</translation>
+    </message>
+    <message>
+        <source>GIMP Image</source>
+        <translation>GIMP 图像</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

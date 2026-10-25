@@ -145,6 +145,7 @@ add_library(patchy_core
   src/core/blend_math.cpp
   src/core/splitmix64.hpp
   src/core/blend_math_deep.cpp
+  src/core/gimp_blend_modes.cpp
   src/core/brush_dynamics.cpp
   src/core/paint_mode.cpp
   src/core/brush_tip.cpp
@@ -627,6 +628,9 @@ add_library(patchy_formats
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/pdn_document_io.cpp
+  src/formats/xcf_document_io.cpp
+  src/formats/xcf_text.cpp
+  src/formats/xcf_unwrap.cpp
   src/formats/pdf_content.cpp
   src/formats/pdf_crypt.cpp
   src/formats/pdf_document_io.cpp
@@ -2363,6 +2367,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/ora_ui_tests.cpp
+      tests/ui/xcf_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/scripting_test_support.cpp

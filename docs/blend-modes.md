@@ -336,14 +336,14 @@ Paint.NET's Multiply, Screen and Overlay round where the Photoshop-calibrated ke
 
 ## GIMP modes
 
-Grain Extract and Grain Merge exist for GIMP .xcf import ([xcf.md](xcf.md)). They are bit-exact against GIMP 3.2's renders of its legacy modes (`d - s + 128` and `d + s - 128`, clamped, with `s` the layer and `d` the backdrop) and within one level of its default modes, which blend in float. The 16/32-bit kernel uses 0.5 for 128. They follow every rule of the Paint.NET modes above: no blend menu lists them (`set_non_photoshop_blend_modes_offered`), 8 and 16-bit only, script ids `grain-extract` and `grain-merge`, and PSD, layered TIFF and Aseprite saves write them as Normal or bake them. OpenRaster bakes them like any mode it has no name for.
+Seventeen modes exist for GIMP .xcf import: Grain Extract and Grain Merge (byte kernels in blend_math.cpp), GIMP's HSV, HSL and LCh color-model modes, Luminance, Luma Darken/Lighten Only, and Multiply, Addition, Subtract and Divide in linear light (`core/gimp_blend_modes.cpp`, run per pixel from `blend_rgb` and `blend_rgb_deep`). Their formulas and calibration are in [xcf.md](xcf.md#gimps-own-modes). They follow every rule of the Paint.NET modes above: no blend menu lists them (`set_non_photoshop_blend_modes_offered`), 8 and 16-bit only, permanent script ids (see [scripting-api-changes.md](scripting-api-changes.md)), and PSD, layered TIFF and Aseprite saves write them as Normal or bake them. OpenRaster bakes them like any mode it has no name for.
 
 ## Layered saves
 
 `src/formats/layered_blend_support.{hpp,cpp}` (Qt-free) knows which modes each layered save format stores (`layered_format_stores_blend_mode`):
 
-- Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four and GIMP's two, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
-- Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four, GIMP's two). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
+- Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four and GIMP's seventeen, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
+- Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four, GIMP's seventeen). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
 
 `find_unsupported_blend_modes` lists the modes and the layers (hidden ones too). When it finds any, an interactive save to one of those formats asks first (`unsupportedBlendModesMessageBox`, MainWindow::save_document_to_path): Keep the Look (default) bakes, Save as Normal writes the layers as Normal (the writers' old behaviour), Cancel writes nothing. Scripts never see the prompt: saveAs option `unsupportedBlendModes` is `"normal"` (default) or `"bake"`. The answer travels as `ImageSaveOptions::bake_unsupported_blend_modes`, never persisted; `DocumentSaveCoordinator::write_prepared` applies it to the save snapshot only and adds a notice either way. OpenRaster keeps its own baking ([ora.md](ora.md)).
 

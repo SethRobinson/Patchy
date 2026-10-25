@@ -1,4 +1,5 @@
 #include "core/blend_math.hpp"
+#include "core/gimp_blend_modes.hpp"
 
 #include "core/splitmix64.hpp"
 
@@ -203,6 +204,23 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) - static_cast<int>(src) + 128, 0, 255));
     case BlendMode::GrainMerge:
       return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) + static_cast<int>(src) - 128, 0, 255));
+    // GIMP's color-model modes run in blend_rgb (gimp_blend_unit), never per channel.
+    case BlendMode::HsvHue:
+    case BlendMode::HsvSaturation:
+    case BlendMode::HslColor:
+    case BlendMode::HsvValue:
+    case BlendMode::LchHue:
+    case BlendMode::LchChroma:
+    case BlendMode::LchColor:
+    case BlendMode::LchLightness:
+    case BlendMode::Luminance:
+    case BlendMode::LumaDarkenOnly:
+    case BlendMode::LumaLightenOnly:
+    case BlendMode::LinearMultiply:
+    case BlendMode::LinearAddition:
+    case BlendMode::LinearSubtract:
+    case BlendMode::LinearDivide:
+      return src;
   }
   return src;
 }
@@ -601,6 +619,13 @@ std::uint8_t blend_if_underlying_alpha_byte(const LayerBlendIf& settings, RgbCol
 
 std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                       std::array<std::uint8_t, 3> destination, BlendMode mode) {
+  if (blend_mode_is_gimp_color_model(mode)) {
+    const auto blended = gimp_blend_unit({source[0] / 255.0, source[1] / 255.0, source[2] / 255.0},
+                                         {destination[0] / 255.0, destination[1] / 255.0, destination[2] / 255.0},
+                                         mode);
+    return {clamp_byte(static_cast<float>(blended[0] * 255.0)), clamp_byte(static_cast<float>(blended[1] * 255.0)),
+            clamp_byte(static_cast<float>(blended[2] * 255.0))};
+  }
   // Darker/Lighter Colour pick one whole input color by comparing rounded
   // 0.3/0.59/0.11 luma (integer half-up rounding; ties keep the destination).
   // Calibrated against Photoshop 2026: exact on gray inputs; on color inputs a
@@ -707,7 +732,7 @@ bool layers_use_paint_dot_net_blend_modes(const std::vector<Layer>& layers) noex
 }
 
 bool blend_mode_is_gimp_only(BlendMode mode) noexcept {
-  return mode == BlendMode::GrainExtract || mode == BlendMode::GrainMerge;
+  return mode == BlendMode::GrainExtract || mode == BlendMode::GrainMerge || blend_mode_is_gimp_color_model(mode);
 }
 
 bool layers_use_gimp_blend_modes(const std::vector<Layer>& layers) noexcept {

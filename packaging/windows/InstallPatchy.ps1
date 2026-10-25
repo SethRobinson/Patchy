@@ -945,7 +945,7 @@ $PatchyOpenWithExtensions = @(
     "svg", "svgz",
     "heic", "heif", "hif", "jxr", "wdp", "hdp", "jxl", "rttex", "dds",
     "hdr", "rgbe", "exr", "jp2", "j2k", "j2c", "jpc", "jpx", "jpf", "avif", "avifs",
-    "af", "afphoto", "afdesign", "afpub", "pdn",
+    "af", "afphoto", "afdesign", "afpub", "pdn", "xcf", "xcfgz", "xcfbz2", "xcfxz",
     "dng", "cr2", "cr3", "crw", "nef", "nrw", "arw", "sr2", "srf", "orf", "raf", "rw2",
     "pef", "srw", "mrw", "3fr", "fff", "iiq", "erf", "kdc", "dcr", "mos", "rwl", "x3f"
 )

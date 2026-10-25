@@ -1,4 +1,6 @@
 #include "core/blend_math_deep.hpp"
+#include "core/gimp_blend_modes.hpp"
+#include "core/pixel_depth.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -220,6 +222,24 @@ float blend_if_factor(const LayerBlendIf& settings, DeepChannels color, DeepDoma
 
 DeepChannels blend_rgb_deep(DeepChannels source, DeepChannels destination, BlendMode mode, DeepDomain domain) {
   const bool linear = domain == DeepDomain::Linear;
+  if (blend_mode_is_gimp_color_model(mode)) {
+    // The kernels take display-encoded values; 32-bit documents never offer these modes
+    // (blend_mode_supported_at_depth), so the linear domain only round-trips through them.
+    std::array<double, 3> s{};
+    std::array<double, 3> d{};
+    for (std::size_t c = 0; c < 3U; ++c) {
+      const double su = std::clamp(static_cast<double>(source[c]) / 255.0, 0.0, 1.0);
+      const double du = std::clamp(static_cast<double>(destination[c]) / 255.0, 0.0, 1.0);
+      s[c] = linear ? srgb_encode(su) : su;
+      d[c] = linear ? srgb_encode(du) : du;
+    }
+    const auto blended = gimp_blend_unit(s, d, mode);
+    DeepChannels out{};
+    for (std::size_t c = 0; c < 3U; ++c) {
+      out[c] = static_cast<float>((linear ? srgb_decode(blended[c]) : blended[c]) * 255.0);
+    }
+    return out;
+  }
   if (mode == BlendMode::DarkerColor || mode == BlendMode::LighterColor) {
     const auto luma = [](const DeepChannels& c) { return 0.30F * c[0] + 0.59F * c[1] + 0.11F * c[2]; };
     const bool pick_source =

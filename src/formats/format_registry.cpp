@@ -15,6 +15,7 @@
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/pdn_document_io.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "formats/raw_document_io.hpp"
 #include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
@@ -250,6 +251,19 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              nullptr,
                              [](std::span<const std::uint8_t> bytes) { return pdn::sniff(bytes); }});
+  // GIMP documents are read-only too (docs/xcf.md). The reader unwraps gzip, bzip2 and xz
+  // itself, so GIMP's .xcfgz/.xcfbz2/.xcfxz names open here; "name.xcf.gz" reaches this row
+  // through the open path's is_compressed_xcf_file_name check.
+  registry.register_handler({"patchy.formats.xcf",
+                             "GIMP Image",
+                             xcf::xcf_extensions(),
+                             [](std::span<const std::uint8_t> bytes) {
+                               FormatReadResult result;
+                               result.document = xcf::DocumentIo::read(bytes, &result.notices);
+                               return result;
+                             },
+                             nullptr,
+                             [](std::span<const std::uint8_t> bytes) { return xcf::sniff(bytes); }});
   // Camera raws are read-only sources (write stays null). This headless path develops with
   // camera-JPEG-like defaults; the interactive develop dialog lives in the UI layer and runs
   // BEFORE load_document_from_path reaches the registry.

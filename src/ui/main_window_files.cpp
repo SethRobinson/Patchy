@@ -62,6 +62,7 @@
 #include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_tiff.hpp"
 #include "ui/app_settings.hpp"
@@ -681,6 +682,14 @@ const QList<FileFormatEntry>& file_format_entries() {
                     false});
     // Paint.NET documents open read-only too (docs/pdn-format.md).
     list.push_back({QT_TRANSLATE_NOOP("QObject", "Paint.NET Image"), {QStringLiteral("pdn")}, {}, false, false});
+    // GIMP documents open read-only (docs/xcf.md), plain or in GIMP's compressed forms.
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "GIMP Image"),
+                    {QStringLiteral("xcf"), QStringLiteral("xcf.gz"), QStringLiteral("xcf.bz2"),
+                     QStringLiteral("xcf.xz"), QStringLiteral("xcfgz"), QStringLiteral("xcfbz2"),
+                     QStringLiteral("xcfxz")},
+                    {},
+                    false,
+                    false});
     // HEIF/HEIC is decode-only like camera raw (platform codecs never encode for us and
     // Patchy must not ship an HEVC encoder), so its entry is read-only too. Where no
     // decoder exists at all (an AppImage on a machine without libheif) the row is left out
@@ -884,6 +893,10 @@ void remember_open_directory_for_path(const QString& path) {
 }
 
 QString extension_for_path(const QString& path) {
+  // GIMP's "name.xcf.gz" (docs/xcf.md): the format is the XCF inside.
+  if (xcf::is_compressed_xcf_file_name(QFileInfo(path).fileName().toStdString())) {
+    return QStringLiteral("xcf");
+  }
   return QFileInfo(path).suffix().toLower();
 }
 
@@ -934,7 +947,8 @@ bool is_supported_open_path(const QString& path) {
   }
 
   const auto extension = info.suffix().toLower();
-  if (is_photoshop_document_extension(extension) || is_supported_image_extension(extension)) {
+  if (is_photoshop_document_extension(extension) || is_supported_image_extension(extension) ||
+      xcf::is_compressed_xcf_file_name(info.fileName().toStdString())) {
     return true;
   }
   // A .pdf is recognized even where the import module is missing (wasm, a desktop Qt
@@ -1800,7 +1814,10 @@ bool is_plain_raster_extension(const QString& extension) {
 // any other known extension opens by name first and by content only when that fails. The
 // result's content_extension says it happened, so Save asks for a name that fits.
 OpenDocumentResult load_document_from_path(QString path) {
-  const auto extension = QFileInfo(path).suffix().toLower();
+  // "name.xcf.gz" and its kin: the last extension alone says nothing (docs/xcf.md).
+  const auto extension = xcf::is_compressed_xcf_file_name(QFileInfo(path).fileName().toStdString())
+                             ? QStringLiteral("xcf")
+                             : QFileInfo(path).suffix().toLower();
   const auto sniffed = formats::sniff_openable_image_format(read_file_head_bytes(path));
   if (!sniffed.has_value() || formats::extensions_share_format(sniffed->extension, extension.toStdString())) {
     return load_document_from_path_as(path, extension);
@@ -4589,9 +4606,13 @@ bool MainWindow::save_document_as() {
     // format the document was opened from. Read-only sources (camera raw) also default
     // to PSD: their own extension can never be written.
     const QFileInfo initial_info(initial_path);
-    const auto base_name = is_supported_image_extension(extension_for_path(initial_path))
-                               ? initial_info.completeBaseName()
-                               : initial_info.fileName();
+    auto base_name = is_supported_image_extension(extension_for_path(initial_path))
+                         ? initial_info.completeBaseName()
+                         : initial_info.fileName();
+    if (xcf::is_compressed_xcf_file_name(initial_info.fileName().toStdString())) {
+      base_name = initial_info.fileName().left(initial_info.fileName().lastIndexOf(QStringLiteral(".xcf."),
+                                                                               -1, Qt::CaseInsensitive));
+    }
     initial_path = initial_info.dir().filePath(base_name + QStringLiteral(".psd"));
   }
   auto selected_filter = save_file_filter_for_path(initial_path);

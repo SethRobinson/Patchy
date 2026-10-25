@@ -12326,6 +12326,162 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Grain Merge</source>
         <translation>Mesclar granulação</translation>
     </message>
+    <message>
+        <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
+        <translation>Alguns pixels de camada deste arquivo do GIMP estão danificados; essas áreas foram abertas transparentes.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes set to blend in another color space than usual; they opened in the closest Patchy mode.</source>
+        <translation>Algumas camadas usam modos de mesclagem do GIMP configurados para mesclar em outro espaço de cor diferente do habitual; elas foram abertas no modo do Patchy mais próximo.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes Patchy does not have (Behind, Color Erase or Merge); they opened as Normal.</source>
+        <translation>Algumas camadas usam modos de mesclagem do GIMP que o Patchy não tem (Atrás, Apagar cor ou Mesclar); elas foram abertas como Normal.</translation>
+    </message>
+    <message>
+        <source>The floating selection opened as an ordinary layer above the layer it was attached to.</source>
+        <translation>A seleção flutuante foi aberta como uma camada comum acima da camada à qual estava anexada.</translation>
+    </message>
+    <message>
+        <source>The floating selection was attached to a channel or layer mask, so it was left out.</source>
+        <translation>A seleção flutuante estava anexada a um canal ou a uma máscara de camada, por isso foi deixada de fora.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>Algumas camadas de texto foram pintadas no GIMP depois que o texto foi definido, por isso foram abertas como camadas de pixels.</translation>
+    </message>
+    <message>
+        <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
+        <translation>Algumas camadas de texto não puderam ser lidas como texto, por isso foram abertas como camadas de pixels.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
+        <translation>Alguns efeitos de camada do GIMP não têm equivalente no Patchy e não foram aplicados; essas camadas mostram seus pixels sem o efeito.</translation>
+    </message>
+    <message>
+        <source>GIMP vector layers opened as pixel layers.</source>
+        <translation>As camadas vetoriais do GIMP foram abertas como camadas de pixels.</translation>
+    </message>
+    <message>
+        <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
+        <translation>As camadas vinculadas do GIMP foram abertas como camadas de pixels; elas não acompanham mais seus arquivos vinculados.</translation>
+    </message>
+    <message>
+        <source>This floating-point GIMP image opened at 16 bits per channel, because it uses blend modes Patchy offers only at 8 and 16 bits.</source>
+        <translation>Esta imagem de ponto flutuante do GIMP foi aberta com 16 bits por canal, porque usa modos de mesclagem que o Patchy oferece apenas em 8 e 16 bits.</translation>
+    </message>
+    <message>
+        <source>This high bit depth GIMP image was converted to 8 bits per channel.</source>
+        <translation>Esta imagem do GIMP de alta profundidade de bits foi convertida para 8 bits por canal.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layers below them are, as GIMP composites them; they got layer masks made from the layers below.</source>
+        <translation>Algumas camadas só aparecem onde estão as camadas abaixo delas, como o GIMP as compõe; elas receberam máscaras de camada feitas a partir das camadas abaixo.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
+        <translation>Algumas camadas só aparecem onde está a camada abaixo delas, como o GIMP as compõe; elas foram abertas como máscaras de corte sobre ela.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
+        <translation>Os efeitos de camada Desfoque gaussiano do GIMP foram aplicados aos pixels de suas camadas.</translation>
+    </message>
+    <message>
+        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <translation>As camadas no modo Apagar ou Dividir do GIMP viraram máscaras: as camadas abaixo de cada uma estão em um grupo com o nome dela, mascarado onde ela apagava.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP composite modes Patchy approximates; they may look different where the layers below them are transparent.</source>
+        <translation>Algumas camadas usam modos de composição do GIMP que o Patchy aproxima; elas podem parecer diferentes onde as camadas abaixo são transparentes.</translation>
+    </message>
+    <message>
+        <source>Parts of this GIMP file are damaged; the layers that could be read opened.</source>
+        <translation>Partes deste arquivo do GIMP estão danificadas; as camadas que puderam ser lidas foram abertas.</translation>
+    </message>
+    <message>
+        <source>This file is not a GIMP image</source>
+        <translation>Este arquivo não é uma imagem do GIMP</translation>
+    </message>
+    <message>
+        <source>This XCF file was written by CinePaint, whose format Patchy cannot read</source>
+        <translation>Este arquivo XCF foi gravado pelo CinePaint, cujo formato o Patchy não consegue ler</translation>
+    </message>
+    <message>
+        <source>This GIMP image is too large for Patchy to open.</source>
+        <translation>Esta imagem do GIMP é grande demais para o Patchy abrir.</translation>
+    </message>
+    <message>
+        <source>This compressed GIMP file is damaged and could not be opened.</source>
+        <translation>Este arquivo compactado do GIMP está danificado e não pôde ser aberto.</translation>
+    </message>
+    <message>
+        <source>This GIMP file is damaged and could not be opened.</source>
+        <translation>Este arquivo do GIMP está danificado e não pôde ser aberto.</translation>
+    </message>
+    <message>
+        <source>HSV Hue</source>
+        <translation>Matiz HSV</translation>
+    </message>
+    <message>
+        <source>HSV Saturation</source>
+        <translation>Saturação HSV</translation>
+    </message>
+    <message>
+        <source>HSL Color</source>
+        <translation>Cor HSL</translation>
+    </message>
+    <message>
+        <source>HSV Value</source>
+        <translation>Valor HSV</translation>
+    </message>
+    <message>
+        <source>LCh Hue</source>
+        <translation>Matiz LCh</translation>
+    </message>
+    <message>
+        <source>LCh Chroma</source>
+        <translation>Croma LCh</translation>
+    </message>
+    <message>
+        <source>LCh Color</source>
+        <translation>Cor LCh</translation>
+    </message>
+    <message>
+        <source>LCh Lightness</source>
+        <translation>Luminosidade LCh</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>Luminância</translation>
+    </message>
+    <message>
+        <source>Luma Darken Only</source>
+        <translation>Somente escurecer (luma)</translation>
+    </message>
+    <message>
+        <source>Luma Lighten Only</source>
+        <translation>Somente clarear (luma)</translation>
+    </message>
+    <message>
+        <source>Multiply (Linear)</source>
+        <translation>Multiplicação (linear)</translation>
+    </message>
+    <message>
+        <source>Addition (Linear)</source>
+        <translation>Adição (linear)</translation>
+    </message>
+    <message>
+        <source>Subtract (Linear)</source>
+        <translation>Subtração (linear)</translation>
+    </message>
+    <message>
+        <source>Divide (Linear)</source>
+        <translation>Divisão (linear)</translation>
+    </message>
+    <message>
+        <source>GIMP Image</source>
+        <translation>Imagem do GIMP</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

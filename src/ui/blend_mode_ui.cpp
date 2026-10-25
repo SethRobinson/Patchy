@@ -205,6 +205,36 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Grain Extract");
     case BlendMode::GrainMerge:
       return QObject::tr("Grain Merge");
+    case BlendMode::HsvHue:
+      return QObject::tr("HSV Hue");
+    case BlendMode::HsvSaturation:
+      return QObject::tr("HSV Saturation");
+    case BlendMode::HslColor:
+      return QObject::tr("HSL Color");
+    case BlendMode::HsvValue:
+      return QObject::tr("HSV Value");
+    case BlendMode::LchHue:
+      return QObject::tr("LCh Hue");
+    case BlendMode::LchChroma:
+      return QObject::tr("LCh Chroma");
+    case BlendMode::LchColor:
+      return QObject::tr("LCh Color");
+    case BlendMode::LchLightness:
+      return QObject::tr("LCh Lightness");
+    case BlendMode::Luminance:
+      return QObject::tr("Luminance");
+    case BlendMode::LumaDarkenOnly:
+      return QObject::tr("Luma Darken Only");
+    case BlendMode::LumaLightenOnly:
+      return QObject::tr("Luma Lighten Only");
+    case BlendMode::LinearMultiply:
+      return QObject::tr("Multiply (Linear)");
+    case BlendMode::LinearAddition:
+      return QObject::tr("Addition (Linear)");
+    case BlendMode::LinearSubtract:
+      return QObject::tr("Subtract (Linear)");
+    case BlendMode::LinearDivide:
+      return QObject::tr("Divide (Linear)");
   }
   return QObject::tr("Normal");
 }
@@ -233,6 +263,21 @@ constexpr std::array kBlendModes = {
 constexpr std::array kNonPhotoshopBlendModes = {
     BlendMode::Negation, BlendMode::Reflect,      BlendMode::Glow,
     BlendMode::Xor,      BlendMode::GrainExtract, BlendMode::GrainMerge,
+    BlendMode::HsvHue,
+    BlendMode::HsvSaturation,
+    BlendMode::HslColor,
+    BlendMode::HsvValue,
+    BlendMode::LchHue,
+    BlendMode::LchChroma,
+    BlendMode::LchColor,
+    BlendMode::LchLightness,
+    BlendMode::Luminance,
+    BlendMode::LumaDarkenOnly,
+    BlendMode::LumaLightenOnly,
+    BlendMode::LinearMultiply,
+    BlendMode::LinearAddition,
+    BlendMode::LinearSubtract,
+    BlendMode::LinearDivide,
 };
 
 // Behind and Clear are not BlendMode values; their item data sits past the enum.

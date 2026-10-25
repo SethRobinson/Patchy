@@ -12326,6 +12326,162 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Grain Merge</source>
         <translation>Körnung zusammenführen</translation>
     </message>
+    <message>
+        <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
+        <translation>Einige Ebenenpixel in dieser GIMP-Datei sind beschädigt; diese Bereiche wurden transparent geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes set to blend in another color space than usual; they opened in the closest Patchy mode.</source>
+        <translation>Einige Ebenen verwenden GIMP-Füllmethoden, die auf einen anderen Farbraum als üblich eingestellt sind; sie wurden mit der ähnlichsten Patchy-Füllmethode geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes Patchy does not have (Behind, Color Erase or Merge); they opened as Normal.</source>
+        <translation>Einige Ebenen verwenden GIMP-Füllmethoden, die Patchy nicht hat (Dahinter, Farbe radieren oder Zusammenführen); sie wurden als Normal geöffnet.</translation>
+    </message>
+    <message>
+        <source>The floating selection opened as an ordinary layer above the layer it was attached to.</source>
+        <translation>Die schwebende Auswahl wurde als normale Ebene über der Ebene geöffnet, an der sie hing.</translation>
+    </message>
+    <message>
+        <source>The floating selection was attached to a channel or layer mask, so it was left out.</source>
+        <translation>Die schwebende Auswahl hing an einem Kanal oder einer Ebenenmaske und wurde deshalb weggelassen.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>Auf einige Textebenen wurde in GIMP nach dem Setzen des Textes gemalt; sie wurden deshalb als Pixelebenen geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
+        <translation>Einige Textebenen konnten nicht als Text gelesen werden und wurden deshalb als Pixelebenen geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
+        <translation>Einige GIMP-Ebeneneffekte haben in Patchy keine Entsprechung und wurden nicht angewendet; diese Ebenen zeigen ihre Pixel ohne den Effekt.</translation>
+    </message>
+    <message>
+        <source>GIMP vector layers opened as pixel layers.</source>
+        <translation>GIMP-Vektorebenen wurden als Pixelebenen geöffnet.</translation>
+    </message>
+    <message>
+        <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
+        <translation>GIMP-Verknüpfungsebenen wurden als Pixelebenen geöffnet; sie folgen ihren verknüpften Dateien nicht mehr.</translation>
+    </message>
+    <message>
+        <source>This floating-point GIMP image opened at 16 bits per channel, because it uses blend modes Patchy offers only at 8 and 16 bits.</source>
+        <translation>Dieses Gleitkomma-GIMP-Bild wurde mit 16 Bit pro Kanal geöffnet, weil es Füllmethoden verwendet, die Patchy nur bei 8 und 16 Bit anbietet.</translation>
+    </message>
+    <message>
+        <source>This high bit depth GIMP image was converted to 8 bits per channel.</source>
+        <translation>Dieses GIMP-Bild mit hoher Farbtiefe wurde in 8 Bit pro Kanal umgewandelt.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layers below them are, as GIMP composites them; they got layer masks made from the layers below.</source>
+        <translation>Einige Ebenen erscheinen nur dort, wo die Ebenen darunter sind, so wie GIMP sie zusammensetzt; sie haben Ebenenmasken aus den Ebenen darunter erhalten.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
+        <translation>Einige Ebenen erscheinen nur dort, wo die Ebene darunter ist, so wie GIMP sie zusammensetzt; sie wurden als Schnittmasken auf ihr geöffnet.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
+        <translation>Die GIMP-Ebeneneffekte Gaußscher Weichzeichner wurden auf die Pixel ihrer Ebenen angewendet.</translation>
+    </message>
+    <message>
+        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <translation>Ebenen im GIMP-Modus Radieren oder Teilen wurden zu Masken: Die Ebenen darunter liegen jeweils in einer nach ihr benannten Gruppe, die dort maskiert ist, wo sie radiert hat.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP composite modes Patchy approximates; they may look different where the layers below them are transparent.</source>
+        <translation>Einige Ebenen verwenden GIMP-Kompositionsmodi, die Patchy annähert; sie können dort anders aussehen, wo die Ebenen darunter transparent sind.</translation>
+    </message>
+    <message>
+        <source>Parts of this GIMP file are damaged; the layers that could be read opened.</source>
+        <translation>Teile dieser GIMP-Datei sind beschädigt; die lesbaren Ebenen wurden geöffnet.</translation>
+    </message>
+    <message>
+        <source>This file is not a GIMP image</source>
+        <translation>Diese Datei ist kein GIMP-Bild</translation>
+    </message>
+    <message>
+        <source>This XCF file was written by CinePaint, whose format Patchy cannot read</source>
+        <translation>Diese XCF-Datei wurde von CinePaint geschrieben, dessen Format Patchy nicht lesen kann</translation>
+    </message>
+    <message>
+        <source>This GIMP image is too large for Patchy to open.</source>
+        <translation>Dieses GIMP-Bild ist zu groß, um es in Patchy zu öffnen.</translation>
+    </message>
+    <message>
+        <source>This compressed GIMP file is damaged and could not be opened.</source>
+        <translation>Diese komprimierte GIMP-Datei ist beschädigt und konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>This GIMP file is damaged and could not be opened.</source>
+        <translation>Diese GIMP-Datei ist beschädigt und konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>HSV Hue</source>
+        <translation>HSV-Farbton</translation>
+    </message>
+    <message>
+        <source>HSV Saturation</source>
+        <translation>HSV-Sättigung</translation>
+    </message>
+    <message>
+        <source>HSL Color</source>
+        <translation>HSL-Farbe</translation>
+    </message>
+    <message>
+        <source>HSV Value</source>
+        <translation>HSV-Wert</translation>
+    </message>
+    <message>
+        <source>LCh Hue</source>
+        <translation>LCh-Farbton</translation>
+    </message>
+    <message>
+        <source>LCh Chroma</source>
+        <translation>LCh-Buntheit</translation>
+    </message>
+    <message>
+        <source>LCh Color</source>
+        <translation>LCh-Farbe</translation>
+    </message>
+    <message>
+        <source>LCh Lightness</source>
+        <translation>LCh-Helligkeit</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>Luminanz</translation>
+    </message>
+    <message>
+        <source>Luma Darken Only</source>
+        <translation>Nur abdunkeln (Luma)</translation>
+    </message>
+    <message>
+        <source>Luma Lighten Only</source>
+        <translation>Nur aufhellen (Luma)</translation>
+    </message>
+    <message>
+        <source>Multiply (Linear)</source>
+        <translation>Multiplizieren (linear)</translation>
+    </message>
+    <message>
+        <source>Addition (Linear)</source>
+        <translation>Addition (linear)</translation>
+    </message>
+    <message>
+        <source>Subtract (Linear)</source>
+        <translation>Subtrahieren (linear)</translation>
+    </message>
+    <message>
+        <source>Divide (Linear)</source>
+        <translation>Dividieren (linear)</translation>
+    </message>
+    <message>
+        <source>GIMP Image</source>
+        <translation>GIMP-Bild</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

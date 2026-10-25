@@ -56,6 +56,7 @@ using namespace std::string_view_literals;
   if (ext == "avif" || ext == "avifs") return "avif";
   if (ext == "psd" || ext == "psb") return "psd";
   if (ext == "jp2" || ext == "j2k" || ext == "jpx" || ext == "jpf") return "jp2";
+  if (ext == "xcf" || ext == "xcfgz" || ext == "xcfbz2" || ext == "xcfxz") return "xcf";
   return ext;
 }
 
@@ -100,7 +101,7 @@ struct Detected {
   if (bytes_at(bytes, 0, "PDN3")) return Detected{"Paint.NET", "pdn", "pdn"};
   if (bytes_at(bytes, 0, "%PDF")) return Detected{"PDF", "pdf", "pdf"};
   if (bytes_at(bytes, 0, "DDS ")) return Detected{"DDS", "dds", "dds"};
-  if (bytes_at(bytes, 0, "gimp xcf")) return Detected{"GIMP XCF", "", "xcf"};
+  if (bytes_at(bytes, 0, "gimp xcf ")) return Detected{"GIMP", "xcf", "xcf"};
   if (bytes_at(bytes, 0, "BM") && bytes.size() >= 14) return Detected{"BMP", "bmp", "bmp"};
   // OpenRaster: a zip whose first entry is the stored "mimetype" (docs/ora.md).
   if (bytes_at(bytes, 0, "PK\x03\x04") && bytes_at(bytes, 30, "mimetypeimage/openraster")) {

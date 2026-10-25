@@ -122,7 +122,24 @@ enum class BlendMode {
   // such modes, so PSD saves write Normal with a notice (docs/blend-modes.md, "GIMP
   // modes").
   GrainExtract,
-  GrainMerge
+  GrainMerge,
+  // GIMP's own color-model and linear-light modes, the same rules as the grain modes
+  // (core/gimp_blend_modes.hpp).
+  HsvHue,
+  HsvSaturation,
+  HslColor,
+  HsvValue,
+  LchHue,
+  LchChroma,
+  LchColor,
+  LchLightness,
+  Luminance,
+  LumaDarkenOnly,
+  LumaLightenOnly,
+  LinearMultiply,
+  LinearAddition,
+  LinearSubtract,
+  LinearDivide
 };
 
 enum class LayerKind {

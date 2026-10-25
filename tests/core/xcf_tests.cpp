@@ -1,25 +1,273 @@
 // GIMP .xcf import (docs/xcf.md). Committed tests build their bytes in code
-// (tests/xcf_test_builder.hpp); GIMP-made fixtures and the public corpus are optional
-// local fixtures (local-test-fixtures/xcf, local-test-fixtures/xcf-corpus).
+// (tests/xcf_test_builder.hpp) or read the small GIMP-made files in test-fixtures/xcf;
+// GIMP's fixture set and the public corpus are optional local fixtures
+// (local-test-fixtures/xcf, local-test-fixtures/xcf-corpus).
 
+#include "color/color_management.hpp"
+#include "color/rgb_profiles.hpp"
 #include "core/blend_math.hpp"
 #include "core/blend_math_deep.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
+#include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
+#include "formats/document_flatten.hpp"
+#include "formats/format_registry.hpp"
+#include "formats/image_open_diagnosis.hpp"
 #include "formats/layered_blend_support.hpp"
+#include "formats/ora_document_io.hpp"
+#include "formats/stb/stb_image.h"
+#include "formats/xcf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "render/compositor.hpp"
 #include "core_test_support.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
+#include "unicode_path_names.hpp"
+#include "xcf_test_builder.hpp"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <tuple>
 #include <vector>
 
 namespace {
 
 using patchy::BlendMode;
 using patchy::Document;
+namespace builder = patchy::test::xcf;
+
+// --- helpers --------------------------------------------------------------------------------
+
+[[nodiscard]] const patchy::Layer* find_named(const std::vector<patchy::Layer>& layers, const std::string& name) {
+  for (const auto& layer : layers) {
+    if (layer.name() == name) {
+      return &layer;
+    }
+    if (const auto* child = find_named(layer.children(), name)) {
+      return child;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] std::array<std::uint8_t, 4> rgba_at(const patchy::Layer& layer, std::int32_t x, std::int32_t y) {
+  return patchy::display_rgba8_at(std::as_const(layer).pixels(), x, y);
+}
+
+[[nodiscard]] std::vector<std::uint8_t> read_bytes(const std::filesystem::path& path) {
+  std::ifstream file(path, std::ios::binary);
+  return std::vector<std::uint8_t>(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+// The document's composite as 8-bit straight RGBA, whatever its depth, after the sRGB
+// conversion the open path makes for an embedded profile (docs/rgb-profiles.md).
+[[nodiscard]] patchy::PixelBuffer composite_rgba8(const Document& source) {
+  Document document = source;
+  const auto profile = std::as_const(document).color_state().embedded_icc_profile;
+  if (!profile.empty() && patchy::rgb_profile_needs_conversion(profile)) {
+    (void)patchy::convert_document_rgb_profile(document, {}, patchy::RenderingIntent::RelativeColorimetric, true);
+  }
+  if (document.color_state().bit_depth == patchy::BitDepth::UInt8) {
+    return patchy::flatten_document_rgba8(document);
+  }
+  const auto deep = patchy::Compositor().flatten_rgba_deep(document);
+  patchy::PixelBuffer out(deep.width(), deep.height(), patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < deep.height(); ++y) {
+    for (std::int32_t x = 0; x < deep.width(); ++x) {
+      const auto px = patchy::display_rgba8_at(deep, x, y);
+      std::memcpy(out.pixel(x, y), px.data(), 4);
+    }
+  }
+  return out;
+}
+
+// Writes `pixels` (8-bit RGBA) as test-artifacts/<folder>/<name>.png for a look beside
+// GIMP's render.
+void write_png_artifact(const std::string& folder, const std::string& name, const patchy::PixelBuffer& pixels) {
+  const auto dir = std::filesystem::path("test-artifacts") / folder;
+  std::filesystem::create_directories(dir);
+  const auto png = patchy::ora::detail::encode_png(pixels);
+  std::ofstream file(dir / (name + ".png"), std::ios::binary);
+  file.write(reinterpret_cast<const char*>(png.data()), static_cast<std::streamsize>(png.size()));
+}
+
+struct Difference {
+  double mean{0.0};  // per channel, 8-bit units, on premultiplied RGBA
+  int worst{0};
+  double bad_fraction{0.0};  // pixels with any channel off by more than 8
+};
+
+// Compares a composite with a PNG (8 or 16-bit, any channel count) on premultiplied RGBA.
+[[nodiscard]] std::optional<Difference> compare_with_png(const patchy::PixelBuffer& composite,
+                                                         const std::filesystem::path& png) {
+  const auto bytes = read_bytes(png);
+  int width = 0;
+  int height = 0;
+  int components = 0;
+  auto* decoded = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &width, &height, &components, 4);
+  if (decoded == nullptr) {
+    return std::nullopt;
+  }
+  if (width != composite.width() || height != composite.height()) {
+    stbi_image_free(decoded);
+    return std::nullopt;
+  }
+  Difference difference;
+  double total = 0.0;
+  std::size_t bad = 0;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const auto* a = decoded + (static_cast<std::size_t>(y) * width + x) * 4;
+      const auto* b = composite.pixel(x, y);
+      int pixel_worst = 0;
+      for (int c = 0; c < 4; ++c) {
+        const double pa = c == 3 ? a[3] : a[c] * a[3] / 255.0;
+        const double pb = c == 3 ? b[3] : b[c] * b[3] / 255.0;
+        const int delta = static_cast<int>(std::lround(std::abs(pa - pb)));
+        total += std::abs(pa - pb);
+        pixel_worst = std::max(pixel_worst, delta);
+      }
+      difference.worst = std::max(difference.worst, pixel_worst);
+      bad += pixel_worst > 8 ? 1U : 0U;
+    }
+  }
+  stbi_image_free(decoded);
+  difference.mean = total / (static_cast<double>(width) * height * 4.0);
+  difference.bad_fraction = static_cast<double>(bad) / (static_cast<double>(width) * height);
+  return difference;
+}
+
+// A gradient RGBA drawable (8-bit), so tiles and channels differ from pixel to pixel.
+[[nodiscard]] builder::Drawable gradient(std::uint32_t width, std::uint32_t height, bool alpha = true) {
+  builder::Drawable d;
+  d.width = width;
+  d.height = height;
+  d.bpp = alpha ? 4 : 3;
+  for (std::uint32_t y = 0; y < height; ++y) {
+    for (std::uint32_t x = 0; x < width; ++x) {
+      d.pixels.push_back(static_cast<std::uint8_t>(x * 3));
+      d.pixels.push_back(static_cast<std::uint8_t>(y * 5));
+      d.pixels.push_back(static_cast<std::uint8_t>((x + y) * 2));
+      if (alpha) {
+        d.pixels.push_back(static_cast<std::uint8_t>(255 - ((x * 7 + y) % 200)));
+      }
+    }
+  }
+  return d;
+}
+
+[[nodiscard]] builder::Layer pixel_layer(const std::string& name, builder::Drawable drawable, std::int32_t x = 0,
+                                         std::int32_t y = 0) {
+  builder::Layer layer;
+  layer.name = name;
+  layer.type = drawable.bpp == 4 ? 1U : 0U;
+  layer.drawable = std::move(drawable);
+  layer.properties.push_back(builder::prop_offsets(x, y));
+  return layer;
+}
+
+[[nodiscard]] builder::Image structure_image(int version, builder::Compression compression) {
+  builder::Image image;
+  image.version = version;
+  image.width = 100;
+  image.height = 80;
+  image.compression = compression;
+  image.properties.push_back([] {
+    builder::Bytes b;
+    b.f32(150.0F);
+    b.f32(150.0F);
+    return builder::Property{builder::kResolution, b.data, std::nullopt};
+  }());
+  // Top first: a text layer, a group with two children (one masked), a background.
+  auto top = pixel_layer("Top", gradient(70, 66), 5, 7);
+  top.properties.push_back(builder::prop_u32(builder::kMode, 30));  // Multiply
+  top.properties.push_back(builder::prop_u32(builder::kOpacity, 128));
+  top.properties.push_back(builder::prop_f32(builder::kFloatOpacity, 0.5F));
+  top.properties.push_back(builder::prop_u32(builder::kColorTag, 6));
+  top.properties.push_back(builder::prop_u32(builder::kLockAlpha, 1));
+  top.properties.push_back(builder::prop_empty(builder::kActiveLayer));
+  image.layers.push_back(top);
+  builder::Layer group;
+  group.name = "Group";
+  group.drawable = builder::solid(30, 20, {0, 0, 0, 0});
+  group.properties = {builder::prop_empty(builder::kGroupItem), builder::prop_offsets(10, 10),
+                      builder::prop_u32(builder::kMode, 61), builder::prop_u32(builder::kGroupItemFlags, 0),
+                      builder::prop_u32(builder::kVisible, 1)};
+  image.layers.push_back(group);
+  auto child = pixel_layer("Child", builder::solid(20, 10, {200, 100, 50, 255}), 10, 10);
+  child.properties.push_back(builder::prop_item_path({1, 0}));
+  child.properties.push_back(builder::prop_u32(builder::kMode, 46));  // Grain Extract
+  builder::Channel mask;
+  mask.name = "Child mask";
+  mask.drawable = builder::solid(20, 10, {64});
+  child.mask = mask;
+  child.properties.push_back(builder::prop_u32(builder::kApplyMask, 0));
+  image.layers.push_back(child);
+  auto hidden = pixel_layer("Hidden", builder::solid(5, 5, {1, 2, 3, 255}), 20, 15);
+  hidden.properties.push_back(builder::prop_item_path({1, 1}));
+  hidden.properties.push_back(builder::prop_u32(builder::kVisible, 0));
+  hidden.properties.push_back(builder::prop_u32(builder::kLockContent, 1));
+  image.layers.push_back(hidden);
+  auto background = pixel_layer("Background", gradient(100, 80, false));
+  background.type = 0;
+  image.layers.push_back(background);
+  return image;
+}
+
+void check_structure_document(const Document& document) {
+  CHECK(document.width() == 100 && document.height() == 80);
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 150.0) < 1e-6);
+  const auto& layers = document.layers();
+  CHECK(layers.size() == 3);
+  CHECK(layers[0].name() == "Background");
+  CHECK(layers[0].pixels().format().channels == 3);  // GIMP's alpha-less bottom layer
+  CHECK(patchy::layer_locks_position(layers[0]));
+  CHECK(layers[1].name() == "Group" && layers[1].kind() == patchy::LayerKind::Group);
+  CHECK(layers[1].blend_mode() == BlendMode::PassThrough);
+  CHECK(!patchy::layer_group_expanded(layers[1]));
+  CHECK(layers[1].children().size() == 2);
+  CHECK(layers[1].children()[0].name() == "Hidden");  // bottom first
+  CHECK(!layers[1].children()[0].visible());
+  CHECK(patchy::layer_locks_image_pixels(layers[1].children()[0]));
+  const auto& child = layers[1].children()[1];
+  CHECK(child.name() == "Child" && child.blend_mode() == BlendMode::GrainExtract);
+  CHECK(child.mask().has_value() && child.mask()->disabled);
+  CHECK(child.mask()->bounds == (patchy::Rect{10, 10, 20, 10}));
+  CHECK(std::as_const(child).mask()->pixels.pixel(3, 3)[0] == 64);
+  const auto& top = layers[2];
+  CHECK(top.name() == "Top" && top.blend_mode() == BlendMode::LinearMultiply);  // GIMP 2.10+ Multiply
+  CHECK(std::abs(top.opacity() - 0.5F) < 1e-6F);
+  CHECK(top.bounds() == (patchy::Rect{5, 7, 70, 66}));
+  CHECK(top.color_label() == patchy::kLayerColorRed);
+  CHECK(patchy::layer_locks_transparent_pixels(top));
+  CHECK(document.active_layer_id() == top.id());
+  // A pixel in each of the tiles of the 70 x 66 layer (it spans four).
+  for (const auto [x, y] : {std::pair{0, 0}, std::pair{65, 3}, std::pair{2, 65}, std::pair{69, 65}}) {
+    const auto px = rgba_at(top, x, y);
+    if (px[0] != static_cast<std::uint8_t>(x * 3) || px[1] != static_cast<std::uint8_t>(y * 5)) {
+      std::cout << "  Top at " << x << "," << y << ": " << int(px[0]) << " " << int(px[1]) << " " << int(px[2]) << " "
+                << int(px[3]) << "\n";
+    }
+    CHECK(px[0] == static_cast<std::uint8_t>(x * 3) && px[1] == static_cast<std::uint8_t>(y * 5));
+    CHECK(px[2] == static_cast<std::uint8_t>((x + y) * 2) && px[3] == static_cast<std::uint8_t>(255 - ((x * 7 + y) % 200)));
+  }
+}
+
+// --- tests --------------------------------------------------------------------------------
 
 // GIMP 3.2's renders of its legacy grain modes over 8-bit samples (modes-legacy.xcf in
 // local-test-fixtures/xcf matched these kernels on every opaque pixel).
@@ -64,6 +312,87 @@ void blend_math_gimp_grain_modes_match_gimp_renders() {
   CHECK(patchy::blend_mode_supported_at_depth(BlendMode::GrainMerge, patchy::BitDepth::UInt16));
 }
 
+// GIMP's color-model and linear-light modes (core/gimp_blend_modes.hpp): sample points of
+// the formulas that matched GIMP 3.2's renders of modes.xcf and modes-legacy.xcf within a
+// level on every opaque pixel.
+void blend_math_gimp_color_modes_match_gimp_renders() {
+  struct Sample {
+    BlendMode mode;
+    std::array<std::uint8_t, 3> s;
+    std::array<std::uint8_t, 3> d;
+    std::array<std::uint8_t, 3> expected;
+  };
+  const std::vector<Sample> samples{
+      {BlendMode::HsvHue, {200, 40, 90}, {30, 160, 220}, {220, 30, 89}},
+      {BlendMode::HsvHue, {12, 250, 128}, {240, 200, 10}, {10, 240, 122}},
+      {BlendMode::HsvHue, {128, 128, 128}, {90, 60, 200}, {90, 60, 200}},
+      {BlendMode::HsvSaturation, {200, 40, 90}, {30, 160, 220}, {44, 164, 220}},
+      {BlendMode::HsvSaturation, {12, 250, 128}, {240, 200, 10}, {240, 200, 12}},
+      {BlendMode::HsvSaturation, {128, 128, 128}, {90, 60, 200}, {200, 200, 200}},
+      {BlendMode::HslColor, {200, 40, 90}, {30, 160, 220}, {208, 42, 94}},
+      {BlendMode::HslColor, {12, 250, 128}, {240, 200, 10}, {5, 245, 122}},
+      {BlendMode::HslColor, {128, 128, 128}, {90, 60, 200}, {130, 130, 130}},
+      {BlendMode::HsvValue, {200, 40, 90}, {30, 160, 220}, {27, 145, 200}},
+      {BlendMode::HsvValue, {12, 250, 128}, {240, 200, 10}, {250, 208, 10}},
+      {BlendMode::HsvValue, {128, 128, 128}, {90, 60, 200}, {58, 38, 128}},
+      {BlendMode::LchHue, {200, 40, 90}, {30, 160, 220}, {221, 115, 135}},
+      {BlendMode::LchHue, {12, 250, 128}, {240, 200, 10}, {0, 236, 117}},
+      {BlendMode::LchHue, {128, 128, 128}, {90, 60, 200}, {90, 60, 200}},
+      {BlendMode::LchChroma, {200, 40, 90}, {30, 160, 220}, {0, 165, 253}},
+      {BlendMode::LchChroma, {12, 250, 128}, {240, 200, 10}, {240, 200, 0}},
+      {BlendMode::LchChroma, {128, 128, 128}, {90, 60, 200}, {85, 85, 85}},
+      {BlendMode::LchColor, {200, 40, 90}, {30, 160, 220}, {249, 91, 129}},
+      {BlendMode::LchColor, {12, 250, 128}, {240, 200, 10}, {0, 236, 116}},
+      {BlendMode::LchColor, {128, 128, 128}, {90, 60, 200}, {85, 85, 85}},
+      {BlendMode::LchLightness, {200, 40, 90}, {30, 160, 220}, {0, 119, 176}},
+      {BlendMode::LchLightness, {12, 250, 128}, {240, 200, 10}, {254, 213, 37}},
+      {BlendMode::LchLightness, {128, 128, 128}, {90, 60, 200}, {141, 103, 251}},
+      {BlendMode::Luminance, {200, 40, 90}, {30, 160, 220}, {19, 117, 162}},
+      {BlendMode::Luminance, {12, 250, 128}, {240, 200, 10}, {255, 213, 11}},
+      {BlendMode::Luminance, {128, 128, 128}, {90, 60, 200}, {136, 92, 255}},
+      {BlendMode::LumaDarkenOnly, {200, 40, 90}, {30, 160, 220}, {200, 40, 90}},
+      {BlendMode::LumaDarkenOnly, {12, 250, 128}, {240, 200, 10}, {240, 200, 10}},
+      {BlendMode::LumaDarkenOnly, {128, 128, 128}, {90, 60, 200}, {90, 60, 200}},
+      {BlendMode::LumaLightenOnly, {200, 40, 90}, {30, 160, 220}, {30, 160, 220}},
+      {BlendMode::LumaLightenOnly, {12, 250, 128}, {240, 200, 10}, {12, 250, 128}},
+      {BlendMode::LumaLightenOnly, {128, 128, 128}, {90, 60, 200}, {128, 128, 128}},
+      {BlendMode::LinearMultiply, {200, 40, 90}, {30, 160, 220}, {21, 21, 76}},
+      {BlendMode::LinearMultiply, {12, 250, 128}, {240, 200, 10}, {11, 196, 2}},
+      {BlendMode::LinearMultiply, {128, 128, 128}, {90, 60, 200}, {41, 25, 99}},
+      {BlendMode::LinearAddition, {200, 40, 90}, {30, 160, 220}, {202, 164, 233}},
+      {BlendMode::LinearAddition, {12, 250, 128}, {240, 200, 10}, {240, 255, 129}},
+      {BlendMode::LinearAddition, {128, 128, 128}, {90, 60, 200}, {153, 140, 230}},
+      {BlendMode::LinearSubtract, {200, 40, 90}, {30, 160, 220}, {0, 156, 205}},
+      {BlendMode::LinearSubtract, {12, 250, 128}, {240, 200, 10}, {240, 0, 0}},
+      {BlendMode::LinearSubtract, {128, 128, 128}, {90, 60, 200}, {0, 0, 162}},
+      {BlendMode::LinearDivide, {200, 40, 90}, {30, 160, 220}, {41, 255, 255}},
+      {BlendMode::LinearDivide, {12, 250, 128}, {240, 200, 10}, {255, 204, 31}},
+      {BlendMode::LinearDivide, {128, 128, 128}, {90, 60, 200}, {183, 126, 255}},
+  };
+  for (const auto& sample : samples) {
+    const auto out = patchy::blend_rgb(sample.s, sample.d, sample.mode);
+    for (int c = 0; c < 3; ++c) {
+      const int delta = std::abs(static_cast<int>(out[static_cast<std::size_t>(c)]) -
+                                 static_cast<int>(sample.expected[static_cast<std::size_t>(c)]));
+      if (delta > 1) {
+        std::cout << "  mode " << static_cast<int>(sample.mode) << " channel " << c << ": " << int(out[c]) << " vs "
+                  << int(sample.expected[c]) << "\n";
+      }
+      CHECK(delta <= 1);
+    }
+    // The deep kernel agrees within a level.
+    const auto deep = patchy::blend_rgb_deep(
+        {static_cast<float>(sample.s[0]), static_cast<float>(sample.s[1]), static_cast<float>(sample.s[2])},
+        {static_cast<float>(sample.d[0]), static_cast<float>(sample.d[1]), static_cast<float>(sample.d[2])},
+        sample.mode, patchy::DeepDomain::Encoded);
+    for (int c = 0; c < 3; ++c) {
+      CHECK(std::abs(deep[static_cast<std::size_t>(c)] - static_cast<float>(out[static_cast<std::size_t>(c)])) <= 1.0F);
+    }
+    CHECK(patchy::blend_mode_is_gimp_only(sample.mode) && patchy::blend_mode_is_non_photoshop(sample.mode));
+    CHECK(!patchy::blend_mode_supported_at_depth(sample.mode, patchy::BitDepth::Float32));
+  }
+}
+
 void psd_saves_gimp_blend_modes_as_normal() {
   Document document(4, 2, patchy::PixelFormat::rgba8());
   const std::array modes{BlendMode::GrainExtract, BlendMode::GrainMerge, BlendMode::Multiply};
@@ -84,11 +413,727 @@ void psd_saves_gimp_blend_modes_as_normal() {
   CHECK(reread.layers()[2].blend_mode() == BlendMode::Multiply);
 }
 
+void xcf_reads_layers_groups_masks_and_properties() {
+  std::vector<std::string> notices;
+  const auto document =
+      patchy::xcf::DocumentIo::read(builder::write(structure_image(11, builder::Compression::Rle)), &notices);
+  check_structure_document(document);
+  CHECK(notices.empty());
+}
+
+// Raw, RLE and zlib tiles, and 32-bit pointers (versions up to 10) against 64-bit ones.
+void xcf_reads_every_tile_compression_and_pointer_size() {
+  for (const int version : {3, 7, 10, 11, 14}) {
+    for (const auto compression :
+         {builder::Compression::None, builder::Compression::Rle, builder::Compression::Zlib}) {
+      if (version < 8 && compression == builder::Compression::Zlib) {
+        continue;
+      }
+      check_structure_document(patchy::xcf::DocumentIo::read(builder::write(structure_image(version, compression))));
+    }
+  }
+  // Version 0 ("gimp xcf file"): no precision field.
+  auto image = structure_image(0, builder::Compression::Rle);
+  check_structure_document(patchy::xcf::DocumentIo::read(builder::write(image)));
+}
+
+// Big-endian samples of one layer at a precision, for xcf_reads_every_precision.
+[[nodiscard]] builder::Drawable precision_drawable(std::uint32_t component_bytes,
+                                                   const std::function<void(builder::Bytes&, double)>& put,
+                                                   const std::array<double, 4>& rgba) {
+  builder::Drawable d;
+  d.width = 3;
+  d.height = 2;
+  d.bpp = component_bytes * 4;
+  builder::Bytes bytes;
+  for (int i = 0; i < 6; ++i) {
+    for (const auto value : rgba) {
+      put(bytes, value);
+    }
+  }
+  d.pixels = bytes.data;
+  return d;
+}
+
+void xcf_reads_every_precision() {
+  patchy::set_deep_editing_override(true);
+  struct Case {
+    std::uint32_t precision;
+    std::uint32_t bytes;
+    patchy::BitDepth depth;
+    bool linear;
+  };
+  const auto put_u8 = [](builder::Bytes& b, double v) { b.u8(static_cast<std::uint8_t>(std::lround(v * 255.0))); };
+  const auto put_u16 = [](builder::Bytes& b, double v) {
+    const auto value = static_cast<std::uint16_t>(std::lround(v * 65535.0));
+    b.u8(static_cast<std::uint8_t>(value >> 8U));
+    b.u8(static_cast<std::uint8_t>(value));
+  };
+  const auto put_u32 = [](builder::Bytes& b, double v) {
+    b.u32(static_cast<std::uint32_t>(std::llround(v * 4294967295.0)));
+  };
+  const auto put_half = [](builder::Bytes& b, double v) {
+    // Exact halves for the test values (0, 0.25, 0.5, 1).
+    std::uint16_t half = 0;
+    if (v == 1.0) half = 0x3C00;
+    else if (v == 0.5) half = 0x3800;
+    else if (v == 0.25) half = 0x3400;
+    b.u8(static_cast<std::uint8_t>(half >> 8U));
+    b.u8(static_cast<std::uint8_t>(half));
+  };
+  const auto put_float = [](builder::Bytes& b, double v) { b.f32(static_cast<float>(v)); };
+  const auto put_double = [](builder::Bytes& b, double v) {
+    std::uint64_t bits = 0;
+    std::memcpy(&bits, &v, sizeof(bits));
+    b.u64(bits);
+  };
+  const std::array<double, 4> rgba{0.25, 0.5, 1.0, 0.5};
+  const std::vector<std::tuple<Case, std::function<void(builder::Bytes&, double)>>> cases{
+      {{150, 1, patchy::BitDepth::UInt8, false}, put_u8},     {{175, 1, patchy::BitDepth::UInt8, false}, put_u8},
+      {{100, 1, patchy::BitDepth::UInt16, true}, put_u8},     {{250, 2, patchy::BitDepth::UInt16, false}, put_u16},
+      {{200, 2, patchy::BitDepth::UInt16, true}, put_u16},    {{350, 4, patchy::BitDepth::UInt16, false}, put_u32},
+      {{300, 4, patchy::BitDepth::UInt16, true}, put_u32},    {{550, 2, patchy::BitDepth::Float32, false}, put_half},
+      {{500, 2, patchy::BitDepth::Float32, true}, put_half},  {{650, 4, patchy::BitDepth::Float32, false}, put_float},
+      {{600, 4, patchy::BitDepth::Float32, true}, put_float}, {{700, 8, patchy::BitDepth::Float32, true}, put_double},
+  };
+  for (const auto& [spec, put] : cases) {
+    builder::Image image;
+    image.version = 12;
+    image.width = 3;
+    image.height = 2;
+    image.precision = spec.precision;
+    builder::Layer layer;
+    layer.name = "Samples";
+    layer.drawable = precision_drawable(spec.bytes, put, rgba);
+    image.layers.push_back(layer);
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+    CHECK(document.color_state().bit_depth == spec.depth);
+    const auto& layer_pixels = std::as_const(document.layers()[0]).pixels();
+    CHECK(layer_pixels.format().bit_depth == spec.depth);
+    const auto loaded = patchy::load_pixel(layer_pixels.format(), layer_pixels.pixel(1, 1));
+    // Expected on the deep scale: encoded for 8/16 bits, linear for 32.
+    for (int c = 0; c < 3; ++c) {
+      double expected = rgba[static_cast<std::size_t>(c)];
+      if (spec.depth == patchy::BitDepth::Float32) {
+        expected = spec.linear ? expected : patchy::srgb_decode(expected);
+      } else {
+        expected = spec.linear ? patchy::srgb_encode(expected) : expected;
+      }
+      const double tolerance = spec.precision == 100 ? 2.0 : 0.6;  // 8-bit linear is coarse
+      CHECK(std::abs(loaded[static_cast<std::size_t>(c)] - expected * 255.0) <= tolerance);
+    }
+    CHECK(std::abs(loaded[3] - 127.5F) <= 0.6F);
+  }
+  // With deep editing off, every precision opens at 8 bits and says so.
+  patchy::set_deep_editing_override(false);
+  builder::Image image;
+  image.version = 12;
+  image.width = 3;
+  image.height = 2;
+  image.precision = 250;
+  builder::Layer layer;
+  layer.drawable = precision_drawable(2, put_u16, rgba);
+  image.layers.push_back(layer);
+  std::vector<std::string> notices;
+  const auto narrowed = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  CHECK(narrowed.color_state().bit_depth == patchy::BitDepth::UInt8);
+  CHECK(notices.size() == 1 && notices[0].find("8 bits") != std::string::npos);
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+void xcf_reads_gray_and_indexed_images() {
+  {
+    builder::Image image;
+    image.base_type = 1;
+    image.width = 4;
+    image.height = 4;
+    builder::Layer layer;
+    layer.type = 3;
+    layer.drawable = builder::solid(4, 4, {90, 200});
+    image.layers.push_back(layer);
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+    const auto px = rgba_at(document.layers()[0], 1, 1);
+    CHECK(px[0] == 90 && px[1] == 90 && px[2] == 90 && px[3] == 200);
+  }
+  {
+    builder::Image image;
+    image.base_type = 2;
+    image.width = 4;
+    image.height = 4;
+    builder::Bytes colormap;
+    colormap.u32(3);
+    for (const std::uint8_t v : std::array<std::uint8_t, 9>{10, 20, 30, 200, 100, 50, 0, 255, 0}) {
+      colormap.u8(v);
+    }
+    // Old GIMP releases wrote n + 4 as the length: the reader measures the payload.
+    image.properties.push_back(builder::Property{builder::kColormap, colormap.data, 3U + 4U});
+    builder::Layer layer;
+    layer.type = 5;
+    layer.drawable = builder::solid(4, 4, {1, 200});
+    layer.drawable.pixels[2] = 2;  // the second pixel: index 2, alpha 100 (under half: off)
+    layer.drawable.pixels[3] = 100;
+    image.layers.push_back(layer);
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+    const auto first = rgba_at(document.layers()[0], 0, 0);
+    CHECK(first[0] == 200 && first[1] == 100 && first[2] == 50 && first[3] == 255);
+    const auto second = rgba_at(document.layers()[0], 1, 0);
+    CHECK(second[3] == 0);
+  }
+}
+
+// Every PROP_MODE value maps (docs/xcf.md, "Blend modes"), with notices for the
+// approximated and missing ones.
+void xcf_maps_every_gimp_layer_mode() {
+  const std::map<std::uint32_t, BlendMode> expected{
+      {0, BlendMode::Normal},        {1, BlendMode::Dissolve},     {3, BlendMode::Multiply},
+      {4, BlendMode::Screen},        {6, BlendMode::Difference},   {7, BlendMode::LinearDodge},
+      {8, BlendMode::Subtract},      {9, BlendMode::Darken},       {10, BlendMode::Lighten},
+      {11, BlendMode::HsvHue},       {12, BlendMode::HsvSaturation}, {13, BlendMode::HslColor},
+      {14, BlendMode::HsvValue},   {15, BlendMode::Divide},      {16, BlendMode::ColorDodge},
+      {17, BlendMode::ColorBurn},    {18, BlendMode::HardLight},   {19, BlendMode::SoftLight},
+      {20, BlendMode::GrainExtract}, {21, BlendMode::GrainMerge},  {22, BlendMode::Normal},
+      {23, BlendMode::Overlay},      {24, BlendMode::LchHue},      {25, BlendMode::LchChroma},
+      {26, BlendMode::LchColor},     {27, BlendMode::LchLightness}, {28, BlendMode::Normal},
+      {29, BlendMode::Normal},       {30, BlendMode::LinearMultiply}, {31, BlendMode::Screen},
+      {32, BlendMode::Difference},   {33, BlendMode::LinearAddition}, {34, BlendMode::LinearSubtract},
+      {35, BlendMode::Darken},       {36, BlendMode::Lighten},     {37, BlendMode::HsvHue},
+      {38, BlendMode::HsvSaturation}, {39, BlendMode::HslColor},   {40, BlendMode::HsvValue},
+      {41, BlendMode::LinearDivide},       {42, BlendMode::ColorDodge},  {43, BlendMode::ColorBurn},
+      {44, BlendMode::HardLight},    {45, BlendMode::SoftLight},   {46, BlendMode::GrainExtract},
+      {47, BlendMode::GrainMerge},   {48, BlendMode::VividLight},  {49, BlendMode::PinLight},
+      {50, BlendMode::LinearLight},  {51, BlendMode::HardMix},     {52, BlendMode::Exclusion},
+      {53, BlendMode::LinearBurn},   {54, BlendMode::LumaDarkenOnly}, {55, BlendMode::LumaLightenOnly},
+      {56, BlendMode::Luminance},   {57, BlendMode::Normal},      {59, BlendMode::Normal},
+      {60, BlendMode::Normal},       {61, BlendMode::Normal},      {999, BlendMode::Normal},
+  };
+  builder::Image image;
+  image.width = 2;
+  image.height = 2;
+  for (const auto& [mode, blend] : expected) {
+    auto layer = pixel_layer("mode " + std::to_string(mode), builder::solid(2, 2, {10, 20, 30, 255}));
+    layer.properties.push_back(builder::prop_u32(builder::kMode, mode));
+    image.layers.push_back(layer);
+  }
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  for (const auto& [mode, blend] : expected) {
+    const auto* layer = find_named(document.layers(), "mode " + std::to_string(mode));
+    CHECK(layer != nullptr);
+    if (layer->blend_mode() != blend) {
+      std::cout << "  mode " << mode << " opened as " << static_cast<int>(layer->blend_mode()) << "\n";
+    }
+    CHECK(layer->blend_mode() == blend);
+  }
+  const auto has = [&](std::string_view text) {
+    return std::any_of(notices.begin(), notices.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
+  };
+  CHECK(has("does not have"));
+  CHECK(!has("another color space"));
+}
+
+void xcf_text_parasites_parse_gimp_2_and_3_forms() {
+  const auto gimp3 = patchy::xcf::detail::parse_text_parasite(R"((text "Hello \"GIMP\"\nsecond")
+(font "GimpFont"
+    (fonthash "f5f5")
+    (fullname "Noto Sans Bold")
+    (family "Sans-serif")
+    (style "Bold")
+    (psname "NotoSans-Bold")
+    (index 0))
+(font-size 24)
+(font-size-unit pixels)
+(antialias yes)
+(justify center)
+(letter-spacing 2.5)
+(line-spacing -1)
+(box-mode fixed)
+(box-width 150)
+(box-height 90.5)
+(color
+    (color "R'G'B'A float" 16 "\0\0\200\77\0\0\0\0\0\0\0\77\0\0\200\77" 0))
+)");
+  CHECK(gimp3.text == "Hello \"GIMP\"\nsecond");
+  CHECK(gimp3.font == "Noto Sans Bold" && gimp3.font_family == "Sans-serif" && gimp3.font_style == "Bold");
+  CHECK(gimp3.font_size == 24.0 && gimp3.font_size_unit == "pixels" && gimp3.antialias);
+  CHECK(gimp3.justify == "center" && gimp3.letter_spacing == 2.5 && gimp3.line_spacing == -1.0);
+  CHECK(gimp3.box_mode == "fixed" && gimp3.box_width == 150.0 && gimp3.box_height == 90.5);
+  CHECK(gimp3.have_color && gimp3.color[0] == 1.0 && gimp3.color[1] == 0.0 && std::abs(gimp3.color[2] - 0.5) < 1e-6);
+  const auto gimp2 = patchy::xcf::detail::parse_text_parasite(
+      "(text \"Old\")\n(font \"Serif Bold Italic\")\n(font-size 18.000000)\n(font-size-unit points)\n"
+      "(color (color-rgb 0.000000 0.501961 1.000000))\n(justify left)\n(box-mode dynamic)\n");
+  CHECK(gimp2.text == "Old" && gimp2.font == "Serif Bold Italic" && gimp2.font_size_unit == "points");
+  CHECK(gimp2.have_color && std::abs(gimp2.color[1] - 0.501961) < 1e-6);
+  // Hostile input throws, never crashes.
+  for (const std::string bad : {"(text \"unterminated", "((((((((((((((((((((((((((((((((((((((((x", "(text \\", ")"}) {
+    try {
+      (void)patchy::xcf::detail::parse_text_parasite(bad);
+    } catch (const std::exception&) {
+    }
+  }
+}
+
+[[nodiscard]] std::string metadata_of(const patchy::Layer& layer, const char* key) {
+  const auto found = layer.metadata().find(key);
+  return found == layer.metadata().end() ? std::string() : found->second;
+}
+
+void xcf_text_layers_open_as_editable_text_over_gimps_raster() {
+  builder::Image image;
+  image.width = 60;
+  image.height = 40;
+  image.properties.push_back([] {
+    builder::Bytes b;
+    b.f32(144.0F);
+    b.f32(144.0F);
+    return builder::Property{builder::kResolution, b.data, std::nullopt};
+  }());
+  auto text = pixel_layer("Hello", builder::solid(30, 12, {255, 0, 0, 255}), 3, 4);
+  text.properties.push_back(builder::prop_parasites({builder::text_parasite(
+      "(text \"Hello\")\n(font \"Serif Bold\")\n(font-size 10)\n(font-size-unit points)\n"
+      "(color (color-rgb 1 0 0))\n(justify right)\n(box-mode dynamic)\n")}));
+  image.layers.push_back(text);
+  auto rich = pixel_layer("Rich", builder::solid(30, 12, {0, 0, 0, 255}), 3, 20);
+  rich.properties.push_back(builder::prop_parasites({builder::text_parasite(
+      "(markup \"<markup>A <b>bold</b> <span foreground=\\\"#00ff00\\\">green</span></markup>\")\n"
+      "(font \"Sans-serif\")\n(font-size 16)\n(font-size-unit pixels)\n(color (color-rgb 0 0 0))\n")}));
+  image.layers.push_back(rich);
+  auto painted = pixel_layer("Painted", builder::solid(10, 10, {1, 1, 1, 255}), 40, 20);
+  painted.properties.push_back(builder::prop_parasites({builder::text_parasite("(text \"Painted\")\n(font-size 10)\n")}));
+  painted.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 3));
+  image.layers.push_back(painted);
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  const auto* hello = find_named(document.layers(), "Hello");
+  CHECK(hello != nullptr && patchy::layer_is_text(*hello));
+  CHECK(metadata_of(*hello, patchy::kLayerMetadataText) == "Hello");
+  CHECK(metadata_of(*hello, patchy::kLayerMetadataTextFont) == "Serif");
+  CHECK(metadata_of(*hello, patchy::kLayerMetadataTextBold) == "true");
+  CHECK(metadata_of(*hello, patchy::kLayerMetadataTextSize) == "20");  // 10 pt at 144 ppi
+  CHECK(metadata_of(*hello, patchy::kLayerMetadataTextColor) == "#ff0000");
+  CHECK(metadata_of(*hello, patchy::kLayerMetadataTextParagraphRuns).find("right") != std::string::npos);
+  CHECK(rgba_at(*hello, 0, 0)[0] == 255);  // GIMP's raster stays until the text is edited
+  const auto* rich_layer = find_named(document.layers(), "Rich");
+  CHECK(rich_layer != nullptr && metadata_of(*rich_layer, patchy::kLayerMetadataText) == "A bold green");
+  const auto runs = metadata_of(*rich_layer, patchy::kLayerMetadataTextRuns);
+  CHECK(!runs.empty() && runs.find("00ff00") != std::string::npos);
+  CHECK(metadata_of(*rich_layer, patchy::kLayerMetadataTextFont) == "Sans Serif");
+  const auto* painted_layer = find_named(document.layers(), "Painted");
+  CHECK(painted_layer != nullptr && !patchy::layer_is_text(*painted_layer));
+  CHECK(std::any_of(notices.begin(), notices.end(),
+                    [](const std::string& n) { return n.find("painted on") != std::string::npos; }));
+}
+
+void xcf_floating_selection_opens_above_its_layer() {
+  builder::Image image;
+  image.width = 20;
+  image.height = 20;
+  auto floating = pixel_layer("Pasted", builder::solid(4, 4, {0, 255, 0, 255}), 2, 2);
+  floating.floating_target = 1;
+  image.layers.push_back(floating);
+  image.layers.push_back(pixel_layer("Target", builder::solid(10, 10, {255, 0, 0, 255})));
+  image.layers.push_back(pixel_layer("Below", builder::solid(20, 20, {0, 0, 255, 255})));
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  CHECK(document.layers().size() == 3);
+  CHECK(document.layers()[1].name() == "Target" && document.layers()[2].name() == "Pasted");
+  CHECK(notices.size() == 1 && notices[0].find("floating selection") != std::string::npos);
+}
+
+void xcf_reads_channels_selection_paths_guides_and_metadata() {
+  builder::Image image;
+  image.version = 15;
+  image.width = 32;
+  image.height = 24;
+  builder::Bytes guides;
+  guides.i32(10);
+  guides.u8(1);
+  guides.i32(-5);  // off the canvas: kept from version 15
+  guides.u8(2);
+  image.properties.push_back(builder::Property{builder::kGuides, guides.data, std::nullopt});
+  image.properties.push_back(builder::prop_u32(builder::kUnit, 2));
+  // PROP_PATHS (format 3) with GIMP 3's anchor 1 / control 2 numbering: an open curve.
+  builder::Bytes paths;
+  paths.u32(0);
+  paths.u32(1);
+  paths.string("Curve");
+  paths.u32(0);
+  paths.u8(2);
+  paths.u32(0);   // open
+  paths.u32(5);   // points
+  paths.u32(3);   // version
+  paths.u32(1);
+  paths.u32(7);   // tattoo
+  for (const auto [type, x, y] : {std::tuple{1, 1.0F, 20.0F}, std::tuple{2, 6.0F, 10.0F}, std::tuple{2, 12.0F, 16.0F},
+                                  std::tuple{1, 19.0F, 12.0F}, std::tuple{2, 19.0F, 12.0F}}) {
+    paths.i32(type);
+    paths.f32(x);
+    paths.f32(y);
+  }
+  image.properties.push_back(builder::Property{builder::kPaths, paths.data, std::nullopt});
+  builder::Bytes comment;
+  for (const char c : std::string("A GIMP comment")) comment.u8(static_cast<std::uint8_t>(c));
+  comment.u8(0);
+  image.properties.push_back(builder::prop_parasites({{"gimp-comment", comment.data}}));
+  image.layers.push_back(pixel_layer("Layer", builder::solid(32, 24, {9, 9, 9, 255})));
+  builder::Channel saved;
+  saved.name = "Saved ellipse";
+  saved.drawable = builder::solid(32, 24, {200});
+  saved.properties.push_back(builder::prop_u32(builder::kOpacity, 127));
+  image.channels.push_back(saved);
+  builder::Channel selection;
+  selection.name = "Selection Mask";
+  selection.drawable = builder::solid(32, 24, {255});
+  selection.properties.push_back(builder::prop_empty(builder::kSelection));
+  image.channels.push_back(selection);
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  CHECK(document.guides().size() == 2);
+  CHECK(document.guides()[0].orientation == patchy::GuideOrientation::Horizontal);
+  CHECK(document.guides()[0].position_32 == 320);
+  CHECK(document.guides()[1].position_32 == -160);
+  CHECK(document.print_settings().width_display_unit == 2);
+  CHECK(document.channels().size() == 2);
+  CHECK(document.channels()[0].name() == "Saved ellipse");
+  CHECK(std::as_const(document.channels()[0]).pixels().pixel(4, 4)[0] == 200);
+  CHECK(document.channels()[1].name() == "Selection Mask");
+  CHECK(document.paths().size() == 1);
+  const auto& path = document.paths()[0];
+  CHECK(path.name() == "Curve" && path.path().subpaths.size() == 1);
+  const auto& subpath = path.path().subpaths[0];
+  CHECK(!subpath.closed && subpath.anchors.size() == 2);
+  CHECK(subpath.anchors[0].anchor_x == 1.0 && subpath.anchors[0].out_x == 6.0 && subpath.anchors[0].out_y == 10.0);
+  CHECK(subpath.anchors[1].in_x == 12.0 && subpath.anchors[1].in_y == 16.0 && subpath.anchors[1].anchor_x == 19.0);
+  CHECK(document.file_info().source_format == "XCF");
+  CHECK(document.file_info().text.size() == 1 && document.file_info().text[0].value == "A GIMP comment");
+}
+
+// GIMP's own .xcf.gz, .xcf.bz2 and .xcf.xz of one small image (test-fixtures/xcf).
+void xcf_unwraps_gzip_bzip2_and_xz() {
+  const auto plain = read_bytes(patchy::test::committed_format_fixture_path("xcf", "compressed.xcf"));
+  CHECK(!plain.empty());
+  const auto reference = patchy::flatten_document_rgba8(patchy::xcf::DocumentIo::read(plain));
+  for (const char* name : {"compressed.xcf.gz", "compressed.xcf.bz2", "compressed.xcf.xz"}) {
+    const auto bytes = read_bytes(patchy::test::committed_format_fixture_path("xcf", name));
+    CHECK(patchy::xcf::sniff(bytes));
+    // GIMP saved each file on its own, so only the gzip one holds exactly the plain bytes
+    // (the others differ in a tattoo); all of them render the same.
+    const auto unwrapped = patchy::xcf::unwrap(bytes);
+    CHECK(unwrapped.size() == plain.size() && std::memcmp(unwrapped.data(), "gimp xcf ", 9) == 0);
+    if (std::string(name).ends_with(".gz")) {
+      CHECK(unwrapped == plain);
+    }
+    const auto composite = patchy::flatten_document_rgba8(patchy::xcf::DocumentIo::read(bytes));
+    CHECK(composite.width() == reference.width());
+    CHECK(std::equal(composite.data().begin(), composite.data().end(), reference.data().begin()));
+    // A cut-off wrapper is damaged, not a crash.
+    try {
+      (void)patchy::xcf::DocumentIo::read(std::vector<std::uint8_t>(bytes.begin(), bytes.begin() + bytes.size() / 2));
+      CHECK(false);
+    } catch (const std::runtime_error&) {
+    }
+  }
+  CHECK(patchy::xcf::is_compressed_xcf_file_name("Picture.XCF.gz"));
+  CHECK(patchy::xcf::is_compressed_xcf_file_name("a.xcf.bz2") && patchy::xcf::is_compressed_xcf_file_name("a.xcf.xz"));
+  CHECK(!patchy::xcf::is_compressed_xcf_file_name("a.gz") && !patchy::xcf::is_compressed_xcf_file_name("xcf.gz"));
+}
+
+void xcf_hostile_input_never_crashes() {
+  const auto valid = builder::write(structure_image(11, builder::Compression::Rle));
+  std::size_t opened = 0;
+  std::size_t refused = 0;
+  const auto attempt = [&](const std::vector<std::uint8_t>& bytes) {
+    try {
+      const auto document = patchy::xcf::DocumentIo::read(bytes);
+      CHECK(document.width() > 0 && document.height() > 0 && !document.layers().empty());
+      ++opened;
+    } catch (const std::runtime_error&) {
+      ++refused;
+    }
+  };
+  for (std::size_t length = 0; length < valid.size(); length += 11) {
+    attempt(std::vector<std::uint8_t>(valid.begin(), valid.begin() + static_cast<std::ptrdiff_t>(length)));
+  }
+  std::uint64_t state = 0x9E3779B97F4A7C15ULL;
+  const auto next = [&] {
+    state ^= state << 13U;
+    state ^= state >> 7U;
+    state ^= state << 17U;
+    return state;
+  };
+  for (int round = 0; round < 800; ++round) {
+    auto bytes = valid;
+    const auto flips = 1 + next() % 4;
+    for (std::uint64_t i = 0; i < flips; ++i) {
+      const auto at = static_cast<std::size_t>(next() % bytes.size());
+      if (round % 5 == 0 && at + 4 <= bytes.size()) {
+        std::fill_n(bytes.begin() + static_cast<std::ptrdiff_t>(at), 4, std::uint8_t{0xFF});
+      } else {
+        bytes[at] ^= static_cast<std::uint8_t>(1U << (next() % 8));
+      }
+    }
+    attempt(bytes);
+  }
+  std::cout << "  mutation sweep: " << opened << " opened, " << refused << " refused\n";
+  // A canvas past the limits is "too large", not "damaged".
+  builder::Image huge;
+  huge.width = 400000;
+  huge.height = 10;
+  try {
+    (void)patchy::xcf::DocumentIo::read(builder::write(huge));
+    CHECK(false);
+  } catch (const std::runtime_error& error) {
+    CHECK(std::string(error.what()).find("too large") != std::string::npos);
+  }
+  // A layer claiming 2^31 pixels with no data behind it.
+  builder::Image bomb;
+  bomb.width = 16;
+  bomb.height = 16;
+  auto layer = pixel_layer("Bomb", builder::solid(1, 1, {0, 0, 0, 0}));
+  layer.drawable.width = 65536;
+  layer.drawable.height = 32768;
+  layer.drawable.no_tiles = true;
+  bomb.layers.push_back(layer);
+  try {
+    (void)patchy::xcf::DocumentIo::read(builder::write(bomb));
+  } catch (const std::runtime_error&) {
+  }
+  // Not XCF at all, and CinePaint's XCF.
+  for (const std::string text : {std::string("hello world, not an image"), std::string("gimp xcf v100\0", 14)}) {
+    try {
+      (void)patchy::xcf::DocumentIo::read(std::vector<std::uint8_t>(text.begin(), text.end()));
+      CHECK(false);
+    } catch (const std::runtime_error&) {
+    }
+  }
+  // Deep nesting: 200 groups, each in the previous one.
+  builder::Image nested;
+  nested.width = 4;
+  nested.height = 4;
+  std::vector<std::uint32_t> path;
+  for (int i = 0; i < 200; ++i) {
+    builder::Layer group;
+    group.name = "G" + std::to_string(i);
+    group.drawable = builder::solid(1, 1, {0, 0, 0, 0});
+    group.properties.push_back(builder::prop_empty(builder::kGroupItem));
+    path.push_back(0);
+    if (i > 0) group.properties.push_back(builder::prop_item_path(path));
+    nested.layers.push_back(group);
+  }
+  (void)patchy::xcf::DocumentIo::read(builder::write(nested));
+}
+
+void xcf_registry_sniff_and_open_by_content() {
+  const auto bytes = builder::write(structure_image(11, builder::Compression::Rle));
+  for (const char* extension : {".xcf", ".xcfgz", ".xcfbz2", ".xcfxz"}) {
+    const auto* handler = patchy::builtin_format_registry().find_by_extension(extension);
+    CHECK(handler != nullptr && handler->identifier == "patchy.formats.xcf" && !handler->can_write());
+  }
+  const auto* handler = patchy::builtin_format_registry().find_by_extension(".xcf");
+  CHECK(handler->sniff && handler->sniff(bytes));
+  check_structure_document(handler->read(bytes).document);
+  const auto sniffed = patchy::formats::sniff_openable_image_format(bytes);
+  CHECK(sniffed.has_value() && sniffed->extension == "xcf");
+  CHECK(patchy::formats::extensions_share_format("xcf", "XCF"));
+}
+
+void xcf_unicode_path_opens() {
+  const auto dir = patchy::test::unicode_artifact_dir(u8"xcf");
+  const auto bytes = builder::write(structure_image(11, builder::Compression::Zlib));
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    const auto path = dir / patchy::test::unicode_path_piece(std::u8string(stem) + u8".xcf");
+    {
+      std::ofstream file(path, std::ios::binary);
+      file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    }
+    check_structure_document(patchy::xcf::DocumentIo::read_file(path));
+  }
+}
+
+// The committed GIMP-made files against GIMP's own renders of them (test-fixtures/xcf).
+void xcf_committed_gimp_files_match_gimp_renders() {
+  struct Entry {
+    const char* name;
+    double max_mean;
+    int max_worst;
+  };
+  // Ceilings a little over the measured differences (docs/xcf.md, "Rendering against GIMP"):
+  // what remains is GIMP compositing partly covered pixels in linear light.
+  for (const auto& entry : {Entry{"compressed", 0.01, 1}, Entry{"plain-rgba", 0.01, 1}, Entry{"structure", 1.3, 70},
+                            Entry{"modes", 4.2, 255}, Entry{"modes-legacy", 0.6, 60}, Entry{"groups", 2.9, 50},
+                            Entry{"text", 2.0, 80}, Entry{"indexed", 0.01, 1}}) {
+    const auto xcf_path = patchy::test::committed_format_fixture_path("xcf", std::string(entry.name) + ".xcf");
+    const auto png_path = patchy::test::committed_format_fixture_path("xcf", std::string(entry.name) + ".png");
+    const auto document = patchy::xcf::DocumentIo::read_file(xcf_path);
+    const auto difference = compare_with_png(composite_rgba8(document), png_path);
+    CHECK(difference.has_value());
+    std::cout << "  " << entry.name << ": mean " << difference->mean << ", worst " << difference->worst << "\n";
+    CHECK(difference->mean <= entry.max_mean && difference->worst <= entry.max_worst);
+  }
+}
+
+// GIMP's fixture set (scripts/dev/xcf/make_xcf_fixtures.py): every file opens, and its
+// composite is compared with GIMP's merge of the visible layers. The tolerances are the
+// known differences in docs/xcf.md ("Rendering against GIMP").
+void xcf_gimp_fixtures_match_gimp_renders_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf";
+  patchy::test::skip_unless_exists(dir / "manifest.txt");
+  patchy::set_deep_editing_override(true);
+  std::size_t checked = 0;
+  std::vector<std::string> failures;
+  for (const auto& item : std::filesystem::directory_iterator(dir)) {
+    const auto name = item.path().filename().string();
+    if (name.find(".xcf") == std::string::npos) {
+      continue;
+    }
+    const auto stem = name.substr(0, name.find(".xcf"));
+    const auto png = dir / (stem + ".png");
+    std::vector<std::string> notices;
+    Document document;
+    try {
+      document = patchy::xcf::DocumentIo::read_file(item.path(), &notices);
+    } catch (const std::exception& error) {
+      failures.push_back(name + ": " + error.what());
+      continue;
+    }
+    ++checked;
+    if (!std::filesystem::exists(png)) {
+      continue;
+    }
+    const auto composite = composite_rgba8(document);
+    write_png_artifact("xcf-renders", stem, composite);
+    const auto difference = compare_with_png(composite, png);
+    if (!difference.has_value()) {
+      failures.push_back(name + ": the render could not be compared");
+      continue;
+    }
+    std::cout << "  " << std::left << std::setw(34) << name << " mean " << std::fixed << std::setprecision(2)
+              << difference->mean << "  worst " << std::setw(3) << difference->worst << "  bad "
+              << std::setprecision(4) << difference->bad_fraction << "  notices " << notices.size() << "\n";
+    // The per-file ceilings: linear-light compositing and GIMP's own color models move
+    // edges and the HSV/LCh tiles; anything past these is a real regression.
+    // The "-alpha" mode files blend over a half-transparent backdrop, where GIMP's clip to
+    // backdrop keeps the backdrop's coverage and Patchy's masks only approach it.
+    const double max_mean = name.find("-alpha") != std::string::npos ? 16.0
+                            : name.rfind("modes", 0) == 0          ? 5.0
+                                                                   : 3.0;
+    if (difference->mean > max_mean) {
+      failures.push_back(name + ": mean difference " + std::to_string(difference->mean));
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+  for (const auto& failure : failures) {
+    std::cout << "  FAIL " << failure << "\n";
+  }
+  CHECK(checked > 0);
+  CHECK(failures.empty());
+}
+
+// The public corpus (local-test-fixtures/xcf-corpus, sources in its README.txt): every file
+// opens or is refused with a plain message, quickly; a PNG beside a file is its reference.
+void xcf_corpus_opens_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-corpus";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  patchy::set_deep_editing_override(true);
+  patchy::xcf::detail::set_trace_override(1);
+  std::size_t opened = 0;
+  std::size_t refused = 0;
+  std::size_t compared_count = 0;
+  std::size_t far_count = 0;
+  for (const auto& item : std::filesystem::recursive_directory_iterator(dir)) {
+    if (!item.is_regular_file()) {
+      continue;
+    }
+    const auto name = item.path().filename().string();
+    std::string lower;
+    for (const char c : name) lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    const bool xcf_name = lower.ends_with(".xcf") || lower.ends_with(".xcf.gz") || lower.ends_with(".xcf.bz2") ||
+                          lower.ends_with(".xcf.xz") || lower.ends_with(".xcfgz") || lower.ends_with(".xcfbz2") ||
+                          lower.ends_with(".xcfxz");
+    if (!xcf_name) {
+      continue;
+    }
+    const auto start = std::chrono::steady_clock::now();
+    std::vector<std::string> notices;
+    std::string outcome;
+    auto relative = std::filesystem::relative(item.path(), dir).generic_string();
+    std::string render_name;
+    for (std::size_t i = 0; i < relative.size(); ++i) {
+      render_name += relative[i] == '/' ? std::string("__") : std::string(1, relative[i]);
+    }
+    double read_ms = 0.0;
+    try {
+      const auto document = patchy::xcf::DocumentIo::read_file(item.path(), &notices);
+      read_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+      ++opened;
+      const auto reference = dir / "gimp-renders" / (render_name + ".png");
+      std::string compared;
+      if (std::filesystem::exists(reference)) {
+        const auto composite = composite_rgba8(document);
+        write_png_artifact("xcf-corpus-renders", render_name, composite);
+        if (const auto difference = compare_with_png(composite, reference)) {
+          std::ostringstream text;
+          text << std::fixed << std::setprecision(2) << " | vs GIMP mean " << difference->mean << " worst "
+               << difference->worst << " bad " << std::setprecision(4) << difference->bad_fraction;
+          compared = text.str();
+          ++compared_count;
+          if (difference->mean > 6.0) {
+            ++far_count;
+          }
+        } else {
+          compared = " | GIMP render size differs";
+        }
+      }
+      std::size_t count = 0;
+      std::function<void(const std::vector<patchy::Layer>&)> walk = [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          ++count;
+          walk(layer.children());
+        }
+      };
+      walk(document.layers());
+      std::ostringstream text;
+      text << document.width() << "x" << document.height() << " " << static_cast<int>(document.color_state().bit_depth)
+           << "-bit, " << count << " layers, " << notices.size() << " notices";
+      outcome = text.str() + compared;
+    } catch (const std::exception& error) {
+      ++refused;
+      outcome = std::string("refused: ") + error.what();
+    }
+    const auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    std::cout << "  " << std::left << std::setw(48) << name << " " << outcome << " (read " << std::fixed
+              << std::setprecision(0) << read_ms << " ms, all " << ms << " ms)\n";
+    for (const auto& notice : notices) {
+      std::cout << "      - " << notice << "\n";
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+  patchy::xcf::detail::set_trace_override(-1);
+  std::cout << "  corpus: " << opened << " opened, " << refused << " refused, " << compared_count
+            << " compared with GIMP, " << far_count << " with a mean difference over 6\n";
+  CHECK(opened > 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> xcf_tests() {
   return {
       {"blend_math_gimp_grain_modes_match_gimp_renders", blend_math_gimp_grain_modes_match_gimp_renders},
+      {"blend_math_gimp_color_modes_match_gimp_renders", blend_math_gimp_color_modes_match_gimp_renders},
       {"psd_saves_gimp_blend_modes_as_normal", psd_saves_gimp_blend_modes_as_normal},
+      {"xcf_reads_layers_groups_masks_and_properties", xcf_reads_layers_groups_masks_and_properties},
+      {"xcf_reads_every_tile_compression_and_pointer_size", xcf_reads_every_tile_compression_and_pointer_size},
+      {"xcf_reads_every_precision", xcf_reads_every_precision},
+      {"xcf_reads_gray_and_indexed_images", xcf_reads_gray_and_indexed_images},
+      {"xcf_maps_every_gimp_layer_mode", xcf_maps_every_gimp_layer_mode},
+      {"xcf_text_parasites_parse_gimp_2_and_3_forms", xcf_text_parasites_parse_gimp_2_and_3_forms},
+      {"xcf_text_layers_open_as_editable_text_over_gimps_raster", xcf_text_layers_open_as_editable_text_over_gimps_raster},
+      {"xcf_floating_selection_opens_above_its_layer", xcf_floating_selection_opens_above_its_layer},
+      {"xcf_reads_channels_selection_paths_guides_and_metadata", xcf_reads_channels_selection_paths_guides_and_metadata},
+      {"xcf_unwraps_gzip_bzip2_and_xz", xcf_unwraps_gzip_bzip2_and_xz},
+      {"xcf_hostile_input_never_crashes", xcf_hostile_input_never_crashes},
+      {"xcf_registry_sniff_and_open_by_content", xcf_registry_sniff_and_open_by_content},
+      {"xcf_unicode_path_opens", xcf_unicode_path_opens},
+      {"xcf_committed_gimp_files_match_gimp_renders", xcf_committed_gimp_files_match_gimp_renders},
+      {"xcf_gimp_fixtures_match_gimp_renders_if_available", xcf_gimp_fixtures_match_gimp_renders_if_available},
+      {"xcf_corpus_opens_if_available", xcf_corpus_opens_if_available},
   };
 }

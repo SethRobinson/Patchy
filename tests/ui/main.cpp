@@ -425,6 +425,7 @@ int main(int argc, char* argv[]) {
            vector_scripting_tests,
            svg_ui_tests,
            ora_ui_tests,
+           xcf_ui_tests,
            image_trace_ui_tests,
            scripting_tests,
            script_move_tests,

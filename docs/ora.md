@@ -11,8 +11,8 @@ The format comes only from the published spec ([openraster.org](https://www.open
 layer stack and file layout pages; link it, never copy its text) and from files GIMP, Krita and
 Patchy write. Krita, GIMP and libkra are GPL: never read, copy or search their source. GIMP and Krita
 are run only as tools, through their command lines, to make fixtures and check interchange. Format
-and app names only; no app logos or icons ([legal-constraints.md](legal-constraints.md)). KRA and
-XCF are not supported.
+and app names only; no app logos or icons ([legal-constraints.md](legal-constraints.md)). KRA is
+not supported; XCF opens through its own importer ([xcf.md](xcf.md)).
 
 ## Container
 

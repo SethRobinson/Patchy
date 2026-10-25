@@ -1290,6 +1290,21 @@ std::string_view blend_mode_descriptor_value(BlendMode mode) {
     case BlendMode::Xor:
     case BlendMode::GrainExtract:
     case BlendMode::GrainMerge:
+    case BlendMode::HsvHue:
+    case BlendMode::HsvSaturation:
+    case BlendMode::HslColor:
+    case BlendMode::HsvValue:
+    case BlendMode::LchHue:
+    case BlendMode::LchChroma:
+    case BlendMode::LchColor:
+    case BlendMode::LchLightness:
+    case BlendMode::Luminance:
+    case BlendMode::LumaDarkenOnly:
+    case BlendMode::LumaLightenOnly:
+    case BlendMode::LinearMultiply:
+    case BlendMode::LinearAddition:
+    case BlendMode::LinearSubtract:
+    case BlendMode::LinearDivide:
       return "normal";
   }
   return "normal";

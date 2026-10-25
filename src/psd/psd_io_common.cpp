@@ -340,6 +340,21 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
     // GIMP's grain modes likewise (layers_use_gimp_blend_modes).
     case BlendMode::GrainExtract:
     case BlendMode::GrainMerge:
+    case BlendMode::HsvHue:
+    case BlendMode::HsvSaturation:
+    case BlendMode::HslColor:
+    case BlendMode::HsvValue:
+    case BlendMode::LchHue:
+    case BlendMode::LchChroma:
+    case BlendMode::LchColor:
+    case BlendMode::LchLightness:
+    case BlendMode::Luminance:
+    case BlendMode::LumaDarkenOnly:
+    case BlendMode::LumaLightenOnly:
+    case BlendMode::LinearMultiply:
+    case BlendMode::LinearAddition:
+    case BlendMode::LinearSubtract:
+    case BlendMode::LinearDivide:
       return {'n', 'o', 'r', 'm'};
   }
   return {'n', 'o', 'r', 'm'};

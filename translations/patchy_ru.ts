@@ -12361,6 +12361,162 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Grain Merge</source>
         <translation>Слияние зерна</translation>
     </message>
+    <message>
+        <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
+        <translation>Некоторые пиксели слоёв в этом файле GIMP повреждены; эти области открыты прозрачными.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes set to blend in another color space than usual; they opened in the closest Patchy mode.</source>
+        <translation>Некоторые слои используют режимы наложения GIMP, настроенные на смешивание в другом цветовом пространстве, чем обычно; они открыты в ближайшем режиме Patchy.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP blend modes Patchy does not have (Behind, Color Erase or Merge); they opened as Normal.</source>
+        <translation>Некоторые слои используют режимы наложения GIMP, которых нет в Patchy («Позади», «Стирание цвета» или «Слияние»); они открыты в режиме «Обычный».</translation>
+    </message>
+    <message>
+        <source>The floating selection opened as an ordinary layer above the layer it was attached to.</source>
+        <translation>Плавающее выделение открыто как обычный слой над слоем, к которому оно было прикреплено.</translation>
+    </message>
+    <message>
+        <source>The floating selection was attached to a channel or layer mask, so it was left out.</source>
+        <translation>Плавающее выделение было прикреплено к каналу или маске слоя, поэтому оно пропущено.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>На некоторых текстовых слоях в GIMP рисовали после ввода текста, поэтому они открыты как пиксельные слои.</translation>
+    </message>
+    <message>
+        <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
+        <translation>Некоторые текстовые слои не удалось прочитать как текст, поэтому они открыты как пиксельные слои.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
+        <translation>Некоторые эффекты слоёв GIMP не имеют аналога в Patchy и не применены; эти слои показывают свои пиксели без эффекта.</translation>
+    </message>
+    <message>
+        <source>GIMP vector layers opened as pixel layers.</source>
+        <translation>Векторные слои GIMP открыты как пиксельные слои.</translation>
+    </message>
+    <message>
+        <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
+        <translation>Связанные слои GIMP открыты как пиксельные слои; они больше не следуют за связанными файлами.</translation>
+    </message>
+    <message>
+        <source>This floating-point GIMP image opened at 16 bits per channel, because it uses blend modes Patchy offers only at 8 and 16 bits.</source>
+        <translation>Это изображение GIMP с плавающей точкой открыто с 16 битами на канал, так как в нём используются режимы наложения, которые Patchy предлагает только для 8 и 16 бит.</translation>
+    </message>
+    <message>
+        <source>This high bit depth GIMP image was converted to 8 bits per channel.</source>
+        <translation>Это изображение GIMP с высокой глубиной цвета преобразовано в 8 бит на канал.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layers below them are, as GIMP composites them; they got layer masks made from the layers below.</source>
+        <translation>Некоторые слои видны только там, где есть слои под ними, как их составляет GIMP; им добавлены маски слоя, созданные из нижних слоёв.</translation>
+    </message>
+    <message>
+        <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
+        <translation>Некоторые слои видны только там, где есть слой под ними, как их составляет GIMP; они открыты как обтравочные маски на нём.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
+        <translation>Эффекты слоя «Гауссово размытие» GIMP применены к пикселям их слоёв.</translation>
+    </message>
+    <message>
+        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <translation>Слои в режиме «Стирание» или «Разделение» GIMP превращены в маски: слои под каждым из них помещены в группу с его именем, замаскированную там, где он стирал.</translation>
+    </message>
+    <message>
+        <source>Some layers use GIMP composite modes Patchy approximates; they may look different where the layers below them are transparent.</source>
+        <translation>Некоторые слои используют режимы композиции GIMP, которые Patchy передаёт приближённо; они могут выглядеть иначе там, где нижние слои прозрачны.</translation>
+    </message>
+    <message>
+        <source>Parts of this GIMP file are damaged; the layers that could be read opened.</source>
+        <translation>Части этого файла GIMP повреждены; открыты слои, которые удалось прочитать.</translation>
+    </message>
+    <message>
+        <source>This file is not a GIMP image</source>
+        <translation>Этот файл не является изображением GIMP</translation>
+    </message>
+    <message>
+        <source>This XCF file was written by CinePaint, whose format Patchy cannot read</source>
+        <translation>Этот файл XCF записан программой CinePaint, формат которой Patchy прочитать не может</translation>
+    </message>
+    <message>
+        <source>This GIMP image is too large for Patchy to open.</source>
+        <translation>Это изображение GIMP слишком велико, чтобы Patchy мог его открыть.</translation>
+    </message>
+    <message>
+        <source>This compressed GIMP file is damaged and could not be opened.</source>
+        <translation>Этот сжатый файл GIMP повреждён, и его не удалось открыть.</translation>
+    </message>
+    <message>
+        <source>This GIMP file is damaged and could not be opened.</source>
+        <translation>Этот файл GIMP повреждён, и его не удалось открыть.</translation>
+    </message>
+    <message>
+        <source>HSV Hue</source>
+        <translation>Тон HSV</translation>
+    </message>
+    <message>
+        <source>HSV Saturation</source>
+        <translation>Насыщенность HSV</translation>
+    </message>
+    <message>
+        <source>HSL Color</source>
+        <translation>Цвет HSL</translation>
+    </message>
+    <message>
+        <source>HSV Value</source>
+        <translation>Значение HSV</translation>
+    </message>
+    <message>
+        <source>LCh Hue</source>
+        <translation>Тон LCh</translation>
+    </message>
+    <message>
+        <source>LCh Chroma</source>
+        <translation>Хрома LCh</translation>
+    </message>
+    <message>
+        <source>LCh Color</source>
+        <translation>Цвет LCh</translation>
+    </message>
+    <message>
+        <source>LCh Lightness</source>
+        <translation>Светлота LCh</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>Яркость</translation>
+    </message>
+    <message>
+        <source>Luma Darken Only</source>
+        <translation>Только затемнение (яркость)</translation>
+    </message>
+    <message>
+        <source>Luma Lighten Only</source>
+        <translation>Только осветление (яркость)</translation>
+    </message>
+    <message>
+        <source>Multiply (Linear)</source>
+        <translation>Умножение (линейное)</translation>
+    </message>
+    <message>
+        <source>Addition (Linear)</source>
+        <translation>Сложение (линейное)</translation>
+    </message>
+    <message>
+        <source>Subtract (Linear)</source>
+        <translation>Вычитание (линейное)</translation>
+    </message>
+    <message>
+        <source>Divide (Linear)</source>
+        <translation>Деление (линейное)</translation>
+    </message>
+    <message>
+        <source>GIMP Image</source>
+        <translation>Изображение GIMP</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

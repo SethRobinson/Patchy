@@ -12,6 +12,7 @@
 #include "formats/ora_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "formats/svg_document_io.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "ui/document_session.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
@@ -137,7 +138,8 @@ bool DocumentSaveCoordinator::save(std::int64_t session_id) {
   if (path.isEmpty()) {
     return host_.save_as();
   }
-  if (is_read_only_source_extension(QFileInfo(path).suffix().toLower())) {
+  if (is_read_only_source_extension(QFileInfo(path).suffix().toLower()) ||
+      xcf::is_compressed_xcf_file_name(QFileInfo(path).fileName().toStdString())) {
     // The document was developed from a read-only source (camera raw); writing the raw
     // back is impossible, so Save is really Save As (defaulting to <basename>.psd).
     return host_.save_as();

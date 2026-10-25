@@ -14,10 +14,15 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
-2026-10-25 (additive): blend mode ids `grain-extract` and `grain-merge` (GIMP's modes, for .xcf files,
-[xcf.md](xcf.md)), appended to the permanent list for `layer.blendMode` and stroke `mode`. 8 and
-16-bit documents only; a PSD save writes them as `normal` or bakes them. Pinned by
-`ui_script_gimp_blend_mode_ids`.
+2026-10-25 (additive): blend mode ids `grain-extract`, `grain-merge`, `hsv-hue`, `hsv-saturation`,
+`hsl-color`, `hsv-value`, `lch-hue`, `lch-chroma`, `lch-color`, `lch-lightness`, `luminance`,
+`luma-darken-only`, `luma-lighten-only`, `linear-multiply`, `linear-addition`, `linear-subtract` and
+`linear-divide` (GIMP's modes, for .xcf files, [xcf.md](xcf.md)), appended in that order to the
+permanent list for `layer.blendMode` and stroke `mode`. 8 and 16-bit documents only; a PSD save writes
+them as `normal` or bakes them. Pinned by `ui_script_gimp_blend_mode_ids`.
+2026-10-25 (additive): `app.open` and the other path-taking calls open GIMP `.xcf` files (also
+`.xcf.gz`, `.xcf.bz2`, `.xcf.xz`, `.xcfgz`, `.xcfbz2`, `.xcfxz`) as layered documents, read-only like
+`.pdn`; `doc.importNotes` lists what was approximated ([xcf.md](xcf.md)).
 2026-10-25 (additive): save option `unsupportedBlendModes` for `.psd`, `.psb`, layered `.tif`/`.tiff`
 and `.aseprite`/`.ase` (GitHub issue 379, [blend-modes.md](blend-modes.md#layered-saves)): `"normal"`
 (the default, as before) writes layers in blend modes the format cannot store as Normal; `"bake"`

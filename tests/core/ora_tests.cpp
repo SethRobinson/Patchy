@@ -819,6 +819,21 @@ const char* blend_mode_label(BlendMode mode) {
     case BlendMode::Xor: return "xor";
     case BlendMode::GrainExtract: return "grain-extract";
     case BlendMode::GrainMerge: return "grain-merge";
+    case BlendMode::HsvHue: return "hsv-hue";
+    case BlendMode::HsvSaturation: return "hsv-saturation";
+    case BlendMode::HslColor: return "hsl-color";
+    case BlendMode::HsvValue: return "hsv-value";
+    case BlendMode::LchHue: return "lch-hue";
+    case BlendMode::LchChroma: return "lch-chroma";
+    case BlendMode::LchColor: return "lch-color";
+    case BlendMode::LchLightness: return "lch-lightness";
+    case BlendMode::Luminance: return "luminance";
+    case BlendMode::LumaDarkenOnly: return "luma-darken-only";
+    case BlendMode::LumaLightenOnly: return "luma-lighten-only";
+    case BlendMode::LinearMultiply: return "linear-multiply";
+    case BlendMode::LinearAddition: return "linear-addition";
+    case BlendMode::LinearSubtract: return "linear-subtract";
+    case BlendMode::LinearDivide: return "linear-divide";
   }
   return "unknown";
 }

@@ -144,14 +144,29 @@ PixelBuffer script_fresh_pixels(const Document* document, int width, int height)
 
 // Script-facing blend mode ids. Append-only and aligned with the BlendMode
 // enum order (core/layer.hpp); scripts hard-code these strings.
-constexpr std::array<const char*, 34> kBlendModeIds = {
+constexpr std::array<const char*, 49> kBlendModeIds = {
     "pass-through", "normal",       "multiply",    "screen",       "overlay",
     "darken",       "lighten",      "color-dodge", "color-burn",   "hard-light",
     "soft-light",   "difference",   "linear-burn", "pin-light",    "saturation",
     "luminosity",   "exclusion",    "hue",         "color",        "linear-dodge",
     "subtract",     "divide",       "vivid-light", "linear-light", "hard-mix",
     "darker-color", "lighter-color", "dissolve",     "reflect",      "glow",
-    "negation",     "xor",          "grain-extract", "grain-merge"};
+    "negation",     "xor",          "grain-extract", "grain-merge",
+    "hsv-hue",
+    "hsv-saturation",
+    "hsl-color",
+    "hsv-value",
+    "lch-hue",
+    "lch-chroma",
+    "lch-color",
+    "lch-lightness",
+    "luminance",
+    "luma-darken-only",
+    "luma-lighten-only",
+    "linear-multiply",
+    "linear-addition",
+    "linear-subtract",
+    "linear-divide"};
 
 QJSValue rect_to_js(QJSEngine* engine, const Rect& rect) {
   auto value = engine->newObject();

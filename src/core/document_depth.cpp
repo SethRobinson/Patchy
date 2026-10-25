@@ -146,6 +146,21 @@ bool blend_mode_supported_at_depth(BlendMode mode, BitDepth depth) noexcept {
     // GIMP's grain modes too (no 32-bit file format here carries them).
     case BlendMode::GrainExtract:
     case BlendMode::GrainMerge:
+    case BlendMode::HsvHue:
+    case BlendMode::HsvSaturation:
+    case BlendMode::HslColor:
+    case BlendMode::HsvValue:
+    case BlendMode::LchHue:
+    case BlendMode::LchChroma:
+    case BlendMode::LchColor:
+    case BlendMode::LchLightness:
+    case BlendMode::Luminance:
+    case BlendMode::LumaDarkenOnly:
+    case BlendMode::LumaLightenOnly:
+    case BlendMode::LinearMultiply:
+    case BlendMode::LinearAddition:
+    case BlendMode::LinearSubtract:
+    case BlendMode::LinearDivide:
       return false;
     default:
       return true;

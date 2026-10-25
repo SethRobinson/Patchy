@@ -189,6 +189,21 @@ struct WriteOp {
     case BlendMode::Xor:
     case BlendMode::GrainExtract:
     case BlendMode::GrainMerge:
+    case BlendMode::HsvHue:
+    case BlendMode::HsvSaturation:
+    case BlendMode::HslColor:
+    case BlendMode::HsvValue:
+    case BlendMode::LchHue:
+    case BlendMode::LchChroma:
+    case BlendMode::LchColor:
+    case BlendMode::LchLightness:
+    case BlendMode::Luminance:
+    case BlendMode::LumaDarkenOnly:
+    case BlendMode::LumaLightenOnly:
+    case BlendMode::LinearMultiply:
+    case BlendMode::LinearAddition:
+    case BlendMode::LinearSubtract:
+    case BlendMode::LinearDivide:
       return std::nullopt;  // Paint.NET's and GIMP's modes: no name GIMP's ORA writer keeps
   }
   return std::nullopt;
