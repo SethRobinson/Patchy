@@ -187,11 +187,17 @@ constexpr int kLayerColorStripWidth = 4;
 static_assert(kLayerColorStripWidth < kLayerRowBaseIndent);
 constexpr int kLayerFolderDisclosureWidth = 18;
 constexpr int kLayerFolderDisclosureHeight = 20;
-constexpr int kLayerRowHorizontalSpacing = 6;
-constexpr int kLayerChildIndent = 22;
+// The row keeps the eye, folder arrow, clip badge and thumbnail close (#397 follow-up): one
+// small gap between them, no empty arrow slot on rows that have no arrow.
+constexpr int kLayerRowHorizontalSpacing = 4;
+// One nesting level. Rows without an arrow have no arrow slot, so a child's indent covers its
+// folder's arrow (18 px plus the 1 px QSS border on each side) and its gap, and then sets the
+// child 8 px past the folder's glyph, as the folder tests pin.
+constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + 2 + kLayerRowHorizontalSpacing + 8;
 
+// The indent widget is followed by the row spacing, which the first level already counts.
 int layer_tree_indent_width(int depth) {
-  return std::max(0, depth) * kLayerChildIndent;
+  return depth > 0 ? depth * kLayerChildIndent - kLayerRowHorizontalSpacing : 0;
 }
 
 // What a disclosure-arrow click toggles: the folder alone, the folder and its
@@ -220,8 +226,9 @@ protected:
     auto depth_guide = theme().layer_depth_guide;
     depth_guide.setAlpha(125);
     painter.setPen(QPen(depth_guide, 1));
+    // Each guide runs under that level's folder arrow.
     for (int level = 0; level < depth_; ++level) {
-      const auto x = level * kLayerChildIndent + kLayerChildIndent / 2;
+      const auto x = level * kLayerChildIndent + (kLayerFolderDisclosureWidth + 2) / 2;
       painter.drawLine(QPoint(x, 4), QPoint(x, height() - 4));
     }
   }
@@ -284,12 +291,13 @@ protected:
   }
 };
 
-// The clipping badge (#397): as wide as the content thumbnail so it centers on the base
-// row's thumbnail. The size lives in the hints because style-sheet polish resets the
-// minimum that setFixedSize sets (the QSS gives it min-width 0 so Small's 22 px fits).
-class LayerClipBadgeButton final : public QToolButton {
+// A row button narrower than the generic QToolButton minimum: the clipping badge (#397), as
+// wide as the content thumbnail so it centers on the base row's thumbnail, and the mask link.
+// The size lives in the hints because style-sheet polish resets the minimum that setFixedSize
+// sets (the QSS gives these min-width 0 so they can be narrower than 28 px).
+class LayerRowFixedSizeButton final : public QToolButton {
 public:
-  LayerClipBadgeButton(QSize size, QWidget* parent) : QToolButton(parent), size_(size) { setFixedSize(size); }
+  LayerRowFixedSizeButton(QSize size, QWidget* parent) : QToolButton(parent), size_(size) { setFixedSize(size); }
   [[nodiscard]] QSize sizeHint() const override { return size_; }
   [[nodiscard]] QSize minimumSizeHint() const override { return size_; }
 
@@ -1666,7 +1674,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
   layout->addWidget(visibility, 0, Qt::AlignVCenter);
 
-  layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
+  if (depth > 0) {
+    layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
+  }
 
   const auto is_group = layer.kind() == LayerKind::Group;
   if (is_group) {
@@ -1701,8 +1711,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
     });
     layout->addWidget(disclosure, 0, Qt::AlignVCenter);
-  } else {
-    layout->addSpacing(kLayerFolderDisclosureWidth);
   }
 
   // The thumbnail size setting (GitHub issue 386): None builds no content tile at all, so
@@ -1712,7 +1720,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (clipped) {
     // As wide as the content thumbnail and in its slot (after the folder arrow's
     // spacer), so the arrow centers on the base row's thumbnail below (#397).
-    auto* clip_badge = new LayerClipBadgeButton(QSize(content_tile > 0 ? content_tile + 2 : 24, 24), row);
+    auto* clip_badge = new LayerRowFixedSizeButton(QSize(content_tile > 0 ? content_tile + 2 : 24, 24), row);
     clip_badge->setObjectName(QStringLiteral("layerClippingBadgeButton"));
     clip_badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
     clip_badge->setIcon(simple_icon(QStringLiteral("clip"), &ThemePalette::layer_clip_badge));
@@ -1764,7 +1772,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         adjustment_placeholder_kind(layer).empty()) {
       thumbnail->setToolTip(QObject::tr("Layer pixels. Click to edit them instead of the mask."));
     }
-    auto* link = new QToolButton(row);
+    auto* link = new LayerRowFixedSizeButton(QSize(22, 24), row);
     link->setObjectName(QStringLiteral("layerMaskLinkButton"));
     link->setCheckable(true);
     link->setChecked(layer_mask_linked(layer));
@@ -1775,7 +1783,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     link->setIconSize(QSize(19, 19));
     link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked. Click to unlink.")
                                        : QObject::tr("Layer and mask are unlinked. Click to link."));
-    link->setFixedSize(24, 24);
     link->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
       link->installEventFilter(list_parent);
@@ -1998,9 +2005,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       nested_row->installEventFilter(list_parent);
     }
     auto* nested_layout = new QHBoxLayout(nested_row);
+    // Under the main row's thumbnail: past the eye, the tree indent and a folder's arrow.
     const auto indent = kLayerRowBaseIndent + 22 + kLayerRowHorizontalSpacing +
-                        layer_tree_indent_width(depth) + kLayerFolderDisclosureWidth +
-                        kLayerRowHorizontalSpacing + extra_indent;
+                        (depth > 0 ? layer_tree_indent_width(depth) + kLayerRowHorizontalSpacing : 0) +
+                        (is_group ? kLayerFolderDisclosureWidth + 2 + kLayerRowHorizontalSpacing : 0) + extra_indent;
     nested_layout->setContentsMargins(indent, 1, 8, 1);
     nested_layout->setSpacing(kNestedRowSpacing);
     row_layout->addWidget(nested_row);

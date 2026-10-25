@@ -153,8 +153,8 @@ void ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel() {
 
   assert_badges_visible();
   CHECK(name->text() == long_name);
+  // The long name must elide; the shorter details line may fit since the rows tightened (#397).
   CHECK(name->fontMetrics().horizontalAdvance(name->text()) > name->width());
-  CHECK(details->fontMetrics().horizontalAdvance(details->text()) > details->width());
   patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, narrow_width + 180);
   QApplication::processEvents();
   assert_badges_visible();

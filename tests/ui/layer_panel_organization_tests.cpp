@@ -5263,6 +5263,100 @@ void ui_layer_eye_sweep_issue_407_shots() {
   save_widget_artifact("ui_layer_eye_sweep_issue_407_after", window);
 }
 
+// A stack with a group, a clipped layer and a masked layer for the row-spacing checks and the
+// issue 397 follow-up pictures (Seth, October 25: the eye, clip badge and thumbnail sat too
+// far apart).
+patchy::Document make_layer_row_spacing_document() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  document.add_pixel_layer("Base Shape", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(60, 120, 220)));
+  auto& clipped = document.add_pixel_layer("Clipped Color",
+                                           solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(230, 90, 40)));
+  clipped.set_clipped(true);
+  auto& masked =
+      document.add_pixel_layer("Masked Layer", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(70, 170, 90)));
+  patchy::PixelBuffer mask_pixels(96, 64, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  for (int y = 0; y < 64; ++y) {
+    for (int x = 0; x < 48; ++x) {
+      *mask_pixels.pixel(x, y) = 0;
+    }
+  }
+  masked.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 96, 64}, std::move(mask_pixels), 0, false});
+  patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+  for (const auto* name : {"Child Two", "Child One"}) {
+    group.add_child(patchy::Layer(document.allocate_layer_id(), name,
+                                  solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(150, 80, 200))));
+  }
+  document.add_layer(std::move(group));
+  return document;
+}
+
+QRect layer_row_part_rect(QListWidget& layer_list, const char* row_name, const char* part) {
+  auto* row = layer_list.itemWidget(require_layer_item(layer_list, QString::fromLatin1(row_name)));
+  CHECK(row != nullptr);
+  auto* widget = row != nullptr ? row->findChild<QWidget*>(QString::fromLatin1(part)) : nullptr;
+  CHECK(widget != nullptr);
+  if (widget == nullptr) {
+    return {};
+  }
+  return QRect(widget->mapTo(layer_list.viewport(), QPoint()), widget->size());
+}
+
+// The eye, the clip badge and the thumbnail sit close together: no empty folder-arrow slot on
+// rows without an arrow, a child sits just past its folder's glyph, and the click targets keep
+// their size. Saves the issue 397 follow-up pictures in Dark and Light.
+void ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close() {
+  SettingsValueRestorer thumbnail_size_setting(QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey));
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    const std::string scheme_name = scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+    window.add_document_session(make_layer_row_spacing_document(), QStringLiteral("Row Spacing"));
+    QApplication::processEvents();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+    CHECK(layers_dock != nullptr);
+    if (layers_dock != nullptr) {
+      save_widget_artifact("ui_layer_row_spacing_" + scheme_name, *layers_dock);
+    }
+
+    for (const auto* size_action : {"layerThumbnailSizeSmallAction", "layerThumbnailSizeLargeAction",
+                                    "layerThumbnailSizeMediumAction"}) {
+      require_action(window, size_action)->trigger();
+      QApplication::processEvents();
+      const auto eye = layer_row_part_rect(*layer_list, "Base Shape", "layerVisibilityCheck");
+      const auto base_thumbnail = layer_row_part_rect(*layer_list, "Base Shape", "layerContentThumbnail");
+      const auto clip = layer_row_part_rect(*layer_list, "Clipped Color", "layerClippingBadgeButton");
+      const auto clipped_thumbnail = layer_row_part_rect(*layer_list, "Clipped Color", "layerContentThumbnail");
+      const auto folder_arrow = layer_row_part_rect(*layer_list, "Group", "layerFolderDisclosureButton");
+      const auto folder_thumbnail = layer_row_part_rect(*layer_list, "Group", "layerContentThumbnail");
+      const auto child_thumbnail = layer_row_part_rect(*layer_list, "Child One", "layerContentThumbnail");
+      const auto masked_thumbnail = layer_row_part_rect(*layer_list, "Masked Layer", "layerContentThumbnail");
+      const auto mask_thumbnail = layer_row_part_rect(*layer_list, "Masked Layer", "layerMaskThumbnail");
+      // Click targets keep their size.
+      CHECK(eye.width() >= 22 && eye.height() >= 22);
+      CHECK(folder_arrow.width() >= 18);
+      // A plain row's thumbnail follows the eye after one small gap.
+      CHECK(base_thumbnail.left() - eye.right() - 1 <= 6);
+      CHECK(masked_thumbnail.left() == base_thumbnail.left());
+      // The clip badge takes that slot and centers on the base thumbnail below it.
+      CHECK(clip.left() == base_thumbnail.left());
+      CHECK(std::abs(clip.center().x() - base_thumbnail.center().x()) <= 1);
+      CHECK(clipped_thumbnail.left() - clip.right() - 1 <= 6);
+      // The folder arrow follows the eye; the children sit a little past the folder glyph.
+      CHECK(folder_arrow.left() - eye.right() - 1 <= 6);
+      CHECK(child_thumbnail.left() >= folder_thumbnail.left() + 8);
+      CHECK(child_thumbnail.left() <= folder_thumbnail.left() + 12);
+      // The mask still follows its content thumbnail.
+      CHECK(mask_thumbnail.left() > masked_thumbnail.right());
+      CHECK(mask_thumbnail.left() - masked_thumbnail.right() - 1 <= 30);
+    }
+  }
+}
+
 // GitHub issue 397: the clipping badge's bent arrow comes in from the right, turns
 // down and points at the base layer below the row, in Dark and Light; the row badge
 // uses that glyph and centers on the base row's thumbnail at every thumbnail size.
@@ -5921,6 +6015,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_eye_sweep_autoscrolls_past_the_list_edge", ui_layer_eye_sweep_autoscrolls_past_the_list_edge},
       {"ui_layer_eye_sweep_issue_407_shots", ui_layer_eye_sweep_issue_407_shots},
       {"ui_layer_clip_badge_arrow_points_down", ui_layer_clip_badge_arrow_points_down},
+      {"ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close",
+       ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close},
       {"ui_layer_eye_menu_sets_this_other_and_all_layers", ui_layer_eye_menu_sets_this_other_and_all_layers},
       {"ui_layer_eye_menu_opens_from_eye_column_only", ui_layer_eye_menu_opens_from_eye_column_only},
       {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
