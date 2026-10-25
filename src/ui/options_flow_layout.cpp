@@ -80,10 +80,13 @@ void FlowLayout::setGeometry(const QRect& rect) {
     do_layout(rect, false, nullptr);
     return;
   }
-  // The bar can be taller than the live row (its minimum height, or another tool's
-  // taller row reserved): split the spare height evenly above and below.
+  // Rows start at the top margin, so a one-row tool keeps its place on line one when the
+  // bar holds the height another tool's second row reserved (GitHub issue 409). Only
+  // height beyond what any tool's rows need at this width (a taller minimum strip) is
+  // split evenly above and below; the reserved rows' spare height stays below.
   const int needed = do_layout(QRect(rect.x(), rect.y(), rect.width(), 0), true, nullptr).height;
-  const int offset = std::max(0, (rect.height() - needed) / 2);
+  const int tallest = has_rows() ? std::max(needed, measure_rows(rect.width()).height) : needed;
+  const int offset = std::max(0, (rect.height() - tallest) / 2);
   do_layout(rect.translated(0, offset), false, nullptr);
 }
 

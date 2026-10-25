@@ -528,6 +528,94 @@ void ui_options_bar_controls_sit_centered_on_the_strip() {
   }
 }
 
+// GitHub issue 409 regression: in a narrow window Move wraps the bar onto two rows and
+// the bar keeps that height; a one-row tool picked next stays on line one at the y it
+// has on a one-row bar, instead of being centered across both lines. A wrapped bar has
+// each row centered on its own band, the rows apart, and the same gap above and below.
+void ui_options_bar_short_row_stays_on_line_one_after_a_wrapped_tool() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options_bar != nullptr && options != nullptr);
+  if (options_bar == nullptr || options == nullptr) {
+    return;
+  }
+  const auto settle = [] {
+    QApplication::processEvents();
+    process_events_for(20);
+  };
+  // The visible controls grouped into rows: {top, bottom} of each, top to bottom.
+  const auto rows_of = [&options]() {
+    std::vector<std::pair<int, int>> rows;
+    std::vector<QWidget*> visible;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible()) {
+        visible.push_back(child);
+      }
+    }
+    std::sort(visible.begin(), visible.end(), [](QWidget* a, QWidget* b) { return a->y() < b->y(); });
+    for (auto* child : visible) {
+      if (rows.empty() || child->y() >= rows.back().second) {
+        rows.push_back({child->y(), child->y() + child->height()});
+      } else {
+        rows.back().first = std::min(rows.back().first, child->y());
+        rows.back().second = std::max(rows.back().second, child->y() + child->height());
+      }
+    }
+    // Each control centered on its row (doubled coordinates, half a pixel).
+    for (auto* child : visible) {
+      for (const auto& [top, bottom] : rows) {
+        if (child->y() >= top && child->y() < bottom) {
+          CHECK(std::abs((2 * child->y() + child->height()) - (top + bottom)) <= 1);
+        }
+      }
+    }
+    return rows;
+  };
+
+  window.resize(1366, 738);
+  settle();
+  require_action(window, "toolPickAction")->trigger();
+  settle();
+  const auto one_row = rows_of();
+  CHECK(one_row.size() == 1);
+  const int one_row_top = one_row.empty() ? 0 : one_row.front().first;
+  const int one_row_strip = options->height();
+  std::printf("  one-row bar: strip %d px, Pick row at y %d\n", one_row_strip, one_row_top);
+
+  window.resize(1024, 738);
+  settle();
+  require_action(window, "toolMoveAction")->trigger();
+  settle();
+  const auto wrapped = rows_of();
+  const int wrapped_bar = options_bar->height();
+  std::printf("  1024 px Move: strip %d px, %zu rows:", options->height(), wrapped.size());
+  for (const auto& [top, bottom] : wrapped) {
+    std::printf(" %d..%d", top, bottom);
+  }
+  std::printf("\n");
+  const int wrapped_strip = options->height();
+
+  require_action(window, "toolPickAction")->trigger();
+  settle();
+  const auto short_row = rows_of();
+  save_widget_artifact("issue_409_pick_after_wrapped_move", window);
+  std::printf("  then Pick: bar %d px (wrapped %d px), row at y %d\n", options_bar->height(), wrapped_bar,
+              short_row.empty() ? -1 : short_row.front().first);
+  // Checked after the capture, so a failing run still shows where the row sat.
+  CHECK(wrapped.size() >= 2);
+  if (wrapped.size() >= 2) {
+    CHECK(wrapped.front().first == one_row_top);
+    CHECK(wrapped_strip - wrapped.back().second == wrapped.front().first);
+    for (std::size_t i = 1; i < wrapped.size(); ++i) {
+      CHECK(wrapped[i].first >= wrapped[i - 1].second);
+    }
+  }
+  CHECK(options_bar->height() == wrapped_bar);
+  CHECK(short_row.size() == 1);
+  CHECK(!short_row.empty() && short_row.front().first == one_row_top);
+}
+
 // The active tool's controls left to right, one token each: "|" for a separator, a
 // label's text, a mode button's action name, otherwise the widget's object name.
 std::vector<QString> options_row_tokens(QWidget& options) {
@@ -9367,6 +9455,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
       {"ui_options_bar_controls_sit_centered_on_the_strip", ui_options_bar_controls_sit_centered_on_the_strip},
+      {"ui_options_bar_short_row_stays_on_line_one_after_a_wrapped_tool",
+       ui_options_bar_short_row_stays_on_line_one_after_a_wrapped_tool},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
