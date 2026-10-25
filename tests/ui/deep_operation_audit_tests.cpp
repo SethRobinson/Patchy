@@ -78,6 +78,8 @@ const std::vector<AuditOperation>& audit_operations() {
       {"transform scale 150%", "top.transform({matrix: [1.5, 0, 0, 1.5, -40, -30]});"},
       {"transform rotate 30", "top.transform({matrix: [0.866, 0.5, -0.5, 0.866, 50, -30]});"},
       {"transform perspective", "top.transform({quad: [[40, 20], [130, 35], [120, 95], [55, 100]]});"},
+      {"transform selection perspective",
+       "doc.selection.selectRect(60, 40, 40, 30); top.transform({quad: [[55, 35], [110, 45], [105, 80], [60, 75]]});"},
       {"transform nearest", "top.transform({matrix: [2, 0, 0, 2, -80, -55], interpolation: 'nearest'});"},
       // Resampling and geometry.
       {"image size 50% bicubic", "doc.resizeImage(80, 60, {method: 'bicubic'});"},

@@ -1359,6 +1359,165 @@ void masked_layer_rotate_perf() {
   }
 }
 
+// Free Transform resize of a shape layer with a layer clipped to it (GitHub
+// #398: "resizing a clipped shape is not smooth"). An ellipse shape layer is
+// scaled up by dragging its top-right corner handle, alone (the cheap blit),
+// with a canvas-sized noise layer clipped to it, and with that clipped layer
+// plus a 0% fill on the shape (the clipped content shows only through the
+// shape). Each mouse-move plus its repaint is timed. PATCHY_RENDER_THREADS=4
+// prices the low-core case.
+void clipped_shape_resize_perf() {
+  struct Size {
+    int width;
+    int height;
+  };
+  for (const auto size : {Size{1920, 1080}, Size{4000, 3000}}) {
+    double alone_median_ms = 0.0;
+    // 0 = shape alone, 1 = a layer clipped to it, 2 = clipped with the
+    // shape's fill at 0%.
+    for (const int config : {0, 1, 2}) {
+      patchy::Document document(size.width, size.height, patchy::PixelFormat::rgba8());
+      patchy::PixelBuffer backdrop(size.width, size.height, patchy::PixelFormat::rgba8());
+      backdrop.clear(255);
+      document.add_layer(patchy::Layer(document.allocate_layer_id(), "Backdrop", std::move(backdrop)));
+
+      patchy::LiveShapeParams params;
+      params.kind = patchy::LiveShapeKind::Ellipse;
+      params.left = size.width * 0.3;
+      params.top = size.height * 0.3;
+      params.right = size.width * 0.7;
+      params.bottom = size.height * 0.6;
+      patchy::VectorShapeContent shape;
+      shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+      shape.fill.color = {40, 140, 190};
+      patchy::Layer shape_layer(document.allocate_layer_id(), "Ellipse", patchy::LayerKind::Pixel);
+      shape_layer.set_vector_shape(std::move(shape));
+      patchy::update_vector_shape_raster(shape_layer, patchy::Rect::from_size(size.width, size.height), nullptr);
+      if (config == 2) {
+        shape_layer.set_fill_opacity(0.0F);
+      }
+      const auto shape_id = shape_layer.id();
+      document.add_layer(std::move(shape_layer));
+
+      if (config != 0) {
+        patchy::PixelBuffer noise(size.width, size.height, patchy::PixelFormat::rgba8());
+        std::uint64_t seed = 0x9E3779B97F4A7C15ULL;
+        for (int y = 0; y < size.height; ++y) {
+          auto row = noise.row(y);
+          for (int x = 0; x < size.width; ++x) {
+            seed += 0x9E3779B97F4A7C15ULL;
+            auto z = seed;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+            z ^= z >> 31;
+            auto* pixel = row.data() + static_cast<std::size_t>(x) * 4U;
+            pixel[0] = static_cast<std::uint8_t>(z);
+            pixel[1] = static_cast<std::uint8_t>(z >> 8);
+            pixel[2] = static_cast<std::uint8_t>(z >> 16);
+            pixel[3] = 255;
+          }
+        }
+        patchy::Layer clipped(document.allocate_layer_id(), "Clipped", std::move(noise));
+        clipped.set_clipped(true);
+        document.add_layer(std::move(clipped));
+      }
+
+      patchy::ui::MainWindow window;
+      window.resize(1600, 1000);
+      if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+        window.showMaximized();
+      } else {
+        window.show();
+      }
+      QApplication::processEvents();
+      window.add_document_session(std::move(document), QStringLiteral("Clipped Shape Perf"));
+      QApplication::processEvents();
+      auto* canvas = active_canvas(window);
+      CHECK(canvas != nullptr);
+      const auto settle_started = Clock::now();
+      while (!canvas->render_settled() &&
+             std::chrono::duration<double>(Clock::now() - settle_started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+      auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+      CHECK(layer_list != nullptr);
+      for (int row = 0; row < layer_list->count(); ++row) {
+        auto* item = layer_list->item(row);
+        if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == shape_id) {
+          layer_list->clearSelection();
+          layer_list->setCurrentItem(item);
+          item->setSelected(true);
+        }
+      }
+      QApplication::processEvents();
+
+      auto* transform_action = window.findChild<QAction*>(QStringLiteral("editFreeTransformAction"));
+      CHECK(transform_action != nullptr);
+      transform_action->trigger();
+      QApplication::processEvents();
+      CHECK(canvas->free_transform_active());
+
+      const auto bounds =
+          std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(shape_id)->bounds();
+      const auto start = canvas->widget_position_for_document_point(QPoint(bounds.x + bounds.width, bounds.y));
+      const auto before = canvas->render_cache_diagnostics();
+      const auto press_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+        canvas->repaint();
+      });
+      constexpr int kFrames = 40;
+      std::vector<double> frames;
+      frames.reserve(kFrames);
+      for (int frame = 1; frame <= kFrames; ++frame) {
+        const auto point = start + QPoint(frame * 5, -frame * 2);
+        frames.push_back(elapsed_ms([&] {
+          send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+          canvas->repaint();
+        }));
+      }
+      const auto release_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(kFrames * 5, -kFrames * 2), Qt::LeftButton,
+                   Qt::NoButton);
+        canvas->repaint();
+      });
+      const auto after = canvas->render_cache_diagnostics();
+      const auto commit_ms = elapsed_ms([&] {
+        send_key(*canvas, Qt::Key_Return);
+        const auto commit_started = Clock::now();
+        canvas->repaint();
+        while (!canvas->render_settled() &&
+               std::chrono::duration<double>(Clock::now() - commit_started).count() < 60.0) {
+          QApplication::processEvents();
+        }
+        CHECK(canvas->render_settled());
+      });
+      CHECK(!canvas->free_transform_active());
+
+      auto sorted = frames;
+      std::sort(sorted.begin(), sorted.end());
+      double total = 0.0;
+      for (const auto value : frames) {
+        total += value;
+      }
+      const auto median_ms = sorted[sorted.size() / 2];
+      std::cout << std::fixed << std::setprecision(1) << "[PERF] clipshape " << size.width << 'x' << size.height
+                << " config=" << (config == 0 ? "alone" : config == 1 ? "clipped" : "clipped_fill0")
+                << " press_ms=" << press_ms << " first_frame_ms=" << frames.front()
+                << " frame_avg_ms=" << total / kFrames << " frame_median_ms=" << median_ms
+                << " frame_max_ms=" << sorted.back() << " release_ms=" << release_ms << " commit_ms=" << commit_ms
+                << " proxy_latched=" << (after.transform_proxy_previews - before.transform_proxy_previews)
+                << " threads=" << patchy::hardware_worker_threads() << '\n';
+      if (config == 0) {
+        alone_median_ms = median_ms;
+      } else {
+        // The clipped base keeps the unclipped drag's cost class.
+        CHECK(median_ms <= alone_median_ms * 3.0 + 8.0);
+      }
+    }
+  }
+}
+
 // PDF open and export timing (September 2026 report: an 86 MB, 85-page scanned
 // PDF took minutes to open and saved as 700 MB). The file comes from argv[2],
 // else PATCHY_PERF_PDF, else local-test-fixtures/pdf; PATCHY_PERF_PDF_PAGES
@@ -2862,6 +3021,10 @@ int main(int argc, char* argv[]) {
       run_scenario("maskrotate", masked_layer_rotate_perf);
       return 0;
     }
+    if (argc > 1 && std::string_view(argv[1]) == "clipshape") {
+      run_scenario("clipshape", clipped_shape_resize_perf);
+      return 0;
+    }
     if (argc > 1 && std::string_view(argv[1]) == "warpdrag") {
       run_scenario("warpdrag", warp_drag_perf);
       return 0;
@@ -2901,6 +3064,7 @@ int main(int argc, char* argv[]) {
     run_scenario("layerpanel", quintavius_layer_panel_perf_if_available);
     run_scenario("manylayers", many_layers_select_and_move_perf_if_available);
     run_scenario("maskrotate", masked_layer_rotate_perf);
+    run_scenario("clipshape", clipped_shape_resize_perf);
     run_scenario("warpdrag", warp_drag_perf);
     run_scenario("warpphoto", warp_photo_perf_if_available);
     run_scenario("gradientdrag", gradient_shape_drag_perf);

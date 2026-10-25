@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>將新圖層剪裁至下方圖層</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>目前模式沒有中性色</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>填滿中性色（白色）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>填滿中性色（黑色）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>填滿中性色（50% 灰色）</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12284,12 +12300,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>此格式無法儲存其混合模式的圖層已存為正常，因此儲存的影像看起來不同。</translation>
     </message>
     <message>
-        <source>Grain Extract</source>
-        <translation>顆粒擷取</translation>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>預覽縮放。選擇大小或輸入百分比。</translation>
     </message>
     <message>
-        <source>Grain Merge</source>
-        <translation>顆粒合併</translation>
+        <source>Scrubby Zoom</source>
+        <translation>細微縮放</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>在預覽上向左或向右拖曳以縮放。</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>按住 Shift 按一下可設為自動值。按住 %ALT% 按一下可重設。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>按住 %ALT% 按一下可重設。</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>按住 Shift 按一下可使用自動白平衡。按住 %ALT% 按一下可恢復為拍攝時設定。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>按住 %ALT% 按一下可將減少雜訊恢復為自動。</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>指向直方圖可查看該部分調整的設定，然後向左或向右拖曳即可變更。</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>向左或向右拖曳以縮放。按一下放大，按住 %ALT% 按一下縮小。按住空白鍵或使用滑鼠中鍵平移。</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>不再顯示</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>可在 偏好設定 &gt; 中繼資料與浮水印 中重新顯示此提示。</translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>Krita 圖層清單 (maindoc.xml) 已損毀或不是有效的 XML</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Krita 檔案已損毀：其 zip 目錄遺失或被截斷</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Krita 檔案太大，無法開啟</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Krita 檔案使用了 Patchy 無法讀取的 zip 功能（加密或未知的壓縮方式）</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Krita 檔案已損毀：無法解壓縮某個項目</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>此檔案不是 Krita 文件</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Krita 文件</translation>
     </message>
     <message>
         <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
@@ -12348,6 +12428,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>部分圖層只在其下方圖層所在之處顯示（與 GIMP 的合成方式一致），已作為該圖層的剪裁遮色片開啟。</translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy 能夠重現的 GIMP 圖層效果（高斯模糊，以及色階、色相-飽和度、去色等顏色濾鏡）已套用到其圖層的像素上。</translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP 擦除或分割模式的圖層已變為遮色片：每個圖層下方的圖層都放入以其命名的群組中，並在其擦除之處加以遮蓋。</translation>
     </message>
@@ -12378,6 +12462,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
         <translation>此 GIMP 檔案已損毀，無法開啟。</translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>顆粒擷取</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>顆粒合併</translation>
     </message>
     <message>
         <source>HSV Hue</source>
@@ -12442,10 +12534,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>GIMP 影像</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy 能夠重現的 GIMP 圖層效果（高斯模糊，以及色階、色相-飽和度、去色等顏色濾鏡）已套用到其圖層的像素上。</translation>
     </message>
 </context>
 <context>
@@ -14208,6 +14296,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>紅眼: 紅色區域在選取範圍之外</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>所選區域是空的。</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>彎曲作用於整個圖層。請先套用此變形。</translation>
     </message>
 </context>
 <context>
@@ -25171,6 +25267,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>存為正常</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>已新增隱藏選取範圍的圖層遮色片</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>已新增隱藏圖層的圖層遮色片。以白色塗抹可顯現。</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>顯示檔案資訊中關於您可能不想分享之資訊的提示</translation>
     </message>
 </context>
 <context>

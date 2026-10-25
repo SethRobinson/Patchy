@@ -4,6 +4,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/raw_develop_dialog.hpp"
+#include "ui/raw_develop_histogram.hpp"
 #include "ui/raw_develop_settings.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/qt_paths.hpp"
@@ -28,6 +29,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTemporaryDir>
@@ -1292,6 +1294,317 @@ void ui_heif_open_is_read_only_if_available() {
   CHECK(default_name == QStringLiteral("quadrants.psd"));
 }
 
+// --- Develop Raw histogram, Shift/Alt-click and zoom controls (GitHub issues 393, 394, 395) ---
+
+patchy::ui::RawPreviewHistogram raw_test_luminance_histogram(
+    std::initializer_list<std::pair<int, std::uint32_t>> bins) {
+  patchy::ui::RawPreviewHistogram histogram;
+  for (const auto& [bin, count] : bins) {
+    histogram.luminance[static_cast<std::size_t>(bin)] += count;
+    histogram.samples += count;
+  }
+  return histogram;
+}
+
+QLabel* raw_test_row_label(QDialog& dialog, const QString& text) {
+  for (auto* label : dialog.findChildren<QLabel*>()) {
+    if (label->text() == text) return label;
+  }
+  return nullptr;
+}
+
+void ui_raw_histogram_regions_and_auto_values() {
+  using namespace patchy::ui;
+  using Region = RawHistogramRegion;
+  CHECK(raw_histogram_region_at(0.0) == Region::Shadows);
+  CHECK(raw_histogram_region_at(0.29) == Region::Shadows);
+  CHECK(raw_histogram_region_at(0.30) == Region::Exposure);
+  CHECK(raw_histogram_region_at(0.64) == Region::Exposure);
+  CHECK(raw_histogram_region_at(0.65) == Region::Highlights);
+  CHECK(raw_histogram_region_at(1.0) == Region::Highlights);
+  CHECK(raw_histogram_region_at(-0.01) == Region::None);
+  CHECK(raw_histogram_region_at(1.01) == Region::None);
+  CHECK(raw_histogram_region_token(Region::Exposure) == QStringLiteral("exposure"));
+
+  // Counting: luminance uses the integer 30/59/11 weights.
+  const std::array<std::uint8_t, 18> pixels = {255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 128, 128, 128};
+  const auto small = raw_preview_histogram(pixels, 3, 2);
+  CHECK(small.samples == 6);
+  CHECK(small.red[255] == 2 && small.green[255] == 2 && small.blue[255] == 2);
+  CHECK(small.luminance[77] == 1 && small.luminance[150] == 1 && small.luminance[28] == 1);
+  CHECK(small.luminance[0] == 1 && small.luminance[255] == 1 && small.luminance[128] == 1);
+  CHECK(raw_preview_histogram(pixels, 4, 2).samples == 0);
+  // A large develop is read on a stride, bounded by kRawHistogramMaxSamples.
+  std::vector<std::uint8_t> large(static_cast<std::size_t>(3000) * 2000 * 3, 90);
+  const auto strided = raw_preview_histogram(large, 3000, 2000);
+  CHECK(strided.samples > 0 && strided.samples <= kRawHistogramMaxSamples);
+  CHECK(strided.luminance[90] == strided.samples);
+
+  // Empty and flat histograms have no automatic value.
+  CHECK(!raw_auto_exposure_ev({}, 0.0));
+  CHECK(!raw_auto_contrast(raw_test_luminance_histogram({{128, 5000}}), 0.0));
+
+  // A dark, flat image: brighter, more contrast, a deeper black point, no highlight push.
+  const auto dark = raw_test_luminance_histogram({{20, 1000}, {30, 3000}, {45, 4000}, {60, 2000}});
+  const auto dark_ev = raw_auto_exposure_ev(dark, 0.25);
+  CHECK(dark_ev && *dark_ev > 0.25 && *dark_ev <= 3.0);
+  CHECK(raw_auto_exposure_ev(dark, 2.9) == 3.0);
+  CHECK(raw_auto_contrast(dark, 10.0) == 100.0);
+  const auto dark_shadows = raw_auto_shadows(dark, 0.0);
+  CHECK(dark_shadows && *dark_shadows < 0.0);
+  CHECK(raw_auto_highlights(dark, 5.0) == 5.0);
+
+  // Clipped whites: darker exposure and a full Highlights pull-back.
+  const auto blown = raw_test_luminance_histogram({{120, 3000}, {170, 3000}, {200, 3000}, {255, 1000}});
+  const auto blown_ev = raw_auto_exposure_ev(blown, 0.0);
+  CHECK(blown_ev && *blown_ev < 0.0);
+  CHECK(raw_auto_highlights(blown, 0.0) == -100.0);
+  // A bright scene that does not clip keeps its exposure.
+  const auto snow = raw_test_luminance_histogram({{150, 3000}, {200, 4000}, {240, 3000}});
+  CHECK(raw_auto_exposure_ev(snow, 0.5) == 0.5);
+  // Whites that stop short of white are carried up.
+  const auto highlights_short = raw_auto_highlights(snow, 0.0);
+  CHECK(highlights_short && *highlights_short > 0.0);
+
+  // Crushed blacks open up; a full-range image keeps its contrast.
+  const auto crushed = raw_test_luminance_histogram({{0, 1000}, {60, 3000}, {128, 3000}, {255, 30}, {250, 3000}});
+  const auto crushed_shadows = raw_auto_shadows(crushed, 0.0);
+  CHECK(crushed_shadows && *crushed_shadows > 0.0);
+  CHECK(raw_auto_contrast(crushed, 25.0) == 25.0);
+}
+
+void ui_raw_dialog_histogram_drag_and_modifier_clicks() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_histogram_controls.dng"));
+  // A horizontal ramp, so the histogram spans the tones and every auto value exists.
+  patchy::test::SyntheticDngOptions ramp;
+  ramp.horizontal_ramp = true;
+  const auto ramp_bytes = patchy::test::synthetic_bayer_dng(128, 96, ramp);
+  raw_test_write(path, QByteArray(reinterpret_cast<const char*>(ramp_bytes.data()),
+                                  static_cast<qsizetype>(ramp_bytes.size())));
+  bool checked = false;
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    if (checked) return;
+    auto* histogram = static_cast<RawHistogramWidget*>(dialog.findChild<QWidget*>(QStringLiteral("rawHistogram")));
+    auto* region_label = dialog.findChild<QLabel*>(QStringLiteral("rawHistogramRegionLabel"));
+    CHECK(histogram != nullptr && region_label != nullptr);
+    if (!dialog.property("rawPreviewAccurate").toBool() || !histogram->histogram()) return;
+    checked = true;
+    CHECK(histogram->property("rawHistogramSamples").toULongLong() == 128ULL * 96ULL);
+    auto* exposure = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
+    auto* contrast = dialog.findChild<QSlider*>(QStringLiteral("rawContrastSlider"));
+    auto* shadows = dialog.findChild<QSlider*>(QStringLiteral("rawShadowsSlider"));
+    auto* saturation = dialog.findChild<QSlider*>(QStringLiteral("rawSaturationSlider"));
+    auto* brightness = dialog.findChild<QSlider*>(QStringLiteral("rawBrightnessSlider"));
+    auto* wb = dialog.findChild<QComboBox*>(QStringLiteral("rawWhiteBalanceCombo"));
+    const auto click = [](QWidget& widget, Qt::KeyboardModifiers modifiers) {
+      const auto center = widget.rect().center();
+      send_mouse(widget, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, modifiers);
+      send_mouse(widget, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, modifiers);
+    };
+
+    // Shift-click: the auto value measured from the histogram on screen (rendered at 0).
+    const auto measured = *histogram->histogram();
+    const auto auto_ev = raw_auto_exposure_ev(measured, 0.0);
+    const auto auto_contrast = raw_auto_contrast(measured, 0.0);
+    CHECK(auto_ev.has_value() && auto_contrast.has_value());
+    click(*exposure, Qt::ShiftModifier);
+    CHECK(exposure->value() == static_cast<int>(std::lround(*auto_ev * 100.0)));
+    click(*raw_test_row_label(dialog, QObject::tr("Contrast:")), Qt::ShiftModifier);
+    CHECK(contrast->value() == static_cast<int>(std::lround(*auto_contrast)));
+    // No automatic value: Shift-click leaves Saturation and Brightness alone.
+    saturation->setValue(30);
+    click(*saturation, Qt::ShiftModifier);
+    CHECK(saturation->value() == 30);
+    brightness->setValue(150);
+    click(*raw_test_row_label(dialog, QObject::tr("Brightness:")), Qt::ShiftModifier);
+    CHECK(brightness->value() == 150);
+    // Alt-click resets, on the slider, its name or its value label.
+    click(*raw_test_row_label(dialog, QObject::tr("Saturation:")), Qt::AltModifier);
+    CHECK(saturation->value() == 0);
+    click(*dialog.findChild<QLabel*>(QStringLiteral("rawBrightnessSliderValue")), Qt::AltModifier);
+    CHECK(brightness->value() == 100);
+    // White balance: Shift is Auto, Alt is As Shot.
+    click(*raw_test_row_label(dialog, QObject::tr("Temperature:")), Qt::ShiftModifier);
+    CHECK(wb->currentData().toString() == QStringLiteral("auto"));
+    click(*raw_test_row_label(dialog, QObject::tr("Tint:")), Qt::AltModifier);
+    CHECK(wb->currentData().toString() == QStringLiteral("asShot"));
+    CHECK(exposure->toolTip().contains(QStringLiteral("Shift-click")));
+    CHECK(saturation->toolTip().contains(QStringLiteral("-click")) && !saturation->toolTip().contains(QStringLiteral("Shift")));
+
+    // Hovering names the region's setting; dragging there moves its slider.
+    const auto plot = histogram->plot_rect();
+    const auto at = [&](double fraction) {
+      return QPoint(plot.left() + static_cast<int>(std::lround(fraction * plot.width())), plot.center().y());
+    };
+    send_mouse(*histogram, QEvent::MouseMove, at(0.1), Qt::NoButton, Qt::NoButton);
+    CHECK(histogram->property("rawHistogramRegion").toString() == QStringLiteral("shadows"));
+    CHECK(region_label->text().startsWith(QObject::tr("Shadows")));
+    send_mouse(*histogram, QEvent::MouseMove, at(0.5), Qt::NoButton, Qt::NoButton);
+    CHECK(histogram->property("rawHistogramRegion").toString() == QStringLiteral("exposure"));
+    CHECK(region_label->text().startsWith(QObject::tr("Exposure")));
+    CHECK(region_label->text().contains(QObject::tr("EV")));
+    send_mouse(*histogram, QEvent::MouseMove, at(0.9), Qt::NoButton, Qt::NoButton);
+    CHECK(histogram->property("rawHistogramRegion").toString() == QStringLiteral("highlights"));
+
+    const auto start = exposure->value();
+    const auto from = at(0.5);
+    const auto to = from + QPoint(plot.width() / 4, 7);
+    send_mouse(*histogram, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    CHECK(exposure->isSliderDown());
+    send_mouse(*histogram, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+    const auto expected = std::clamp(
+        start + static_cast<int>(std::lround(static_cast<double>(to.x() - from.x()) / plot.width() * 250.0)),
+        exposure->minimum(), exposure->maximum());
+    CHECK(exposure->value() == expected);
+    CHECK(histogram->property("rawHistogramDragging").toBool());
+    // The pointer leaving the Exposure region mid-drag keeps adjusting Exposure.
+    send_mouse(*histogram, QEvent::MouseMove, at(0.95), Qt::NoButton, Qt::LeftButton);
+    CHECK(region_label->text().startsWith(QObject::tr("Exposure")));
+    send_mouse(*histogram, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    CHECK(exposure->value() == expected);
+    CHECK(!exposure->isSliderDown() && !histogram->property("rawHistogramDragging").toBool());
+    // Dragging left in the Shadows region lowers Shadows, clamped to its range.
+    send_mouse(*histogram, QEvent::MouseButtonPress, at(0.2), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*histogram, QEvent::MouseMove, at(0.2) - QPoint(plot.width() * 3, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*histogram, QEvent::MouseButtonRelease, at(0.2) - QPoint(plot.width() * 3, 0), Qt::LeftButton, Qt::NoButton);
+    CHECK(shadows->value() == shadows->minimum());
+    dialog.reject();
+  }));
+  CHECK(checked);
+}
+
+void ui_raw_dialog_zoom_controls_and_scrubby_zoom() {
+  using namespace patchy::ui;
+  SettingsValueRestorer scrubby_restorer(QStringLiteral("imports/rawDevelopScrubbyZoom"));
+  {
+    auto settings = app_settings();
+    settings.setValue(QStringLiteral("imports/rawDevelopScrubbyZoom"), false);
+    settings.sync();
+  }
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_zoom_controls.dng"));
+  bool checked = false;
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    if (checked || !dialog.property("rawPreviewAccurate").toBool()) return;
+    checked = true;
+    auto* preview = static_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("rawZoomCombo"));
+    auto* zoom_100 = dialog.findChild<QPushButton*>(QStringLiteral("rawZoom100Button"));
+    auto* zoom_fit = dialog.findChild<QPushButton*>(QStringLiteral("rawZoomFitButton"));
+    auto* scrubby = dialog.findChild<QCheckBox*>(QStringLiteral("rawScrubbyZoomCheck"));
+    auto* open = dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"));
+    CHECK(preview && combo && zoom_100 && zoom_fit && scrubby && open);
+    CHECK(preview->fit_mode() && combo->currentText().startsWith(QObject::tr("Fit")));
+    CHECK(!scrubby->isChecked() && !preview->scrubby_zoom());
+
+    zoom_100->click();
+    CHECK(!preview->fit_mode() && std::abs(preview->zoom() - 1.0) < 1e-9);
+    CHECK(combo->currentText() == QStringLiteral("100%"));
+    zoom_fit->click();
+    CHECK(preview->fit_mode() && combo->currentText().startsWith(QObject::tr("Fit")));
+    const auto index_200 = combo->findData(2.0);
+    CHECK(index_200 > 0);
+    emit combo->activated(index_200);
+    CHECK(std::abs(preview->zoom() - 2.0) < 1e-9 && combo->currentText() == QStringLiteral("200%"));
+    emit combo->activated(0);
+    CHECK(preview->fit_mode());
+    // A typed percentage zooms on Enter without pressing the default Open button.
+    combo->lineEdit()->setFocus();
+    combo->setEditText(QStringLiteral("150"));
+    send_key(*combo->lineEdit(), Qt::Key_Return);
+    CHECK(std::abs(preview->zoom() - 1.5) < 1e-9 && combo->currentText() == QStringLiteral("150%"));
+    CHECK(open->isEnabled() && dialog.isVisible());
+    // Wheel zoom off the presets shows its own percentage.
+    preview->zoom_to(1.234);
+    CHECK(combo->currentText() == QStringLiteral("123.4%"));
+
+    // Left drag pans with Scrubby Zoom off.
+    preview->zoom_to(8.0);
+    const auto center = preview->rect().center();
+    const auto pan_before = preview->property("previewPanOffset").toPoint();
+    drag(*preview, center, center + QPoint(40, 0));
+    CHECK(preview->property("previewPanOffset").toPoint() != pan_before);
+    CHECK(std::abs(preview->zoom() - 8.0) < 1e-9);
+
+    // Scrubby Zoom: a horizontal drag zooms about the press point, right = in.
+    scrubby->click();
+    CHECK(preview->scrubby_zoom() && app_settings().value(QStringLiteral("imports/rawDevelopScrubbyZoom")).toBool());
+    preview->zoom_to(1.0);
+    send_mouse(*preview, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, center + QPoint(10, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, center + QPoint(60, 25), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseButtonRelease, center + QPoint(60, 25), Qt::LeftButton, Qt::NoButton);
+    CHECK(std::abs(preview->zoom() - std::pow(1.01, 60.0)) < 1e-6);
+    send_mouse(*preview, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, center + QPoint(10, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, center - QPoint(60, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseButtonRelease, center - QPoint(60, 0), Qt::LeftButton, Qt::NoButton);
+    CHECK(std::abs(preview->zoom() - 1.0) < 1e-6);
+    // A click steps in, an Alt-click steps out.
+    send_mouse(*preview, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    CHECK(std::abs(preview->zoom() - 1.5) < 1e-9);
+    send_mouse(*preview, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*preview, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    CHECK(std::abs(preview->zoom() - 1.0) < 1e-9);
+    // The middle button still pans while Scrubby Zoom is on.
+    preview->zoom_to(8.0);
+    const auto pan_scrubby = preview->property("previewPanOffset").toPoint();
+    drag(*preview, center, center + QPoint(0, 30), Qt::NoModifier, Qt::MiddleButton);
+    CHECK(preview->property("previewPanOffset").toPoint() != pan_scrubby);
+    CHECK(std::abs(preview->zoom() - 8.0) < 1e-9);
+    scrubby->click();
+    CHECK(!preview->scrubby_zoom());
+    dialog.reject();
+  }));
+  CHECK(checked);
+}
+
+// Issue screenshots on a real photo (local-test-fixtures/raw); skipped without it.
+void ui_raw_dialog_issue_shots_if_available() {
+  using namespace patchy::ui;
+  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300354.arw";
+  if (!std::filesystem::exists(source)) {
+    patchy::test::skip("optional fixture missing: local-test-fixtures/raw/sony_fx30_fx300354.arw");
+  }
+  SettingsValueRestorer scrubby_restorer(QStringLiteral("imports/rawDevelopScrubbyZoom"));
+  {
+    auto settings = app_settings();
+    settings.setValue(QStringLiteral("imports/rawDevelopScrubbyZoom"), true);
+    settings.sync();
+  }
+  const auto path = to_qstring(source);
+  const auto sidecar = raw_develop_settings_path(path);
+  const auto had_sidecar = QFileInfo::exists(sidecar);
+  int stage = 0;
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* preview = static_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+    auto* histogram = static_cast<RawHistogramWidget*>(dialog.findChild<QWidget*>(QStringLiteral("rawHistogram")));
+    if (!dialog.property("rawPreviewAccurate").toBool() || !preview->property("previewScaleReady").toBool() ||
+        !histogram->histogram())
+      return;
+    if (stage == 0) {
+      const auto plot = histogram->plot_rect();
+      send_mouse(*histogram, QEvent::MouseMove, QPoint(plot.left() + plot.width() / 2, plot.center().y()), Qt::NoButton,
+                 Qt::NoButton);
+      save_widget_artifact("issue_393_after", dialog);
+      auto* tone = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->parentWidget();
+      save_stacked_artifact("issue_394_after",
+                            {tone->grab().toImage(),
+                             render_widget_tooltip(*dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider")))});
+      send_mouse(*histogram, QEvent::MouseMove, QPoint(-5, -5), Qt::NoButton, Qt::NoButton);
+      dialog.findChild<QPushButton*>(QStringLiteral("rawZoom100Button"))->click();
+      stage = 1;
+      return;
+    }
+    save_widget_artifact("issue_395_after", dialog);
+    dialog.reject();
+    stage = 2;
+  }));
+  CHECK(stage == 2);
+  CHECK(QFileInfo::exists(sidecar) == had_sidecar);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
@@ -1317,6 +1630,10 @@ std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
       {"ui_raw_preference_disabled_opens_with_camera_defaults",
        ui_raw_preference_disabled_opens_with_camera_defaults},
       {"ui_heif_open_is_read_only_if_available", ui_heif_open_is_read_only_if_available},
+      {"ui_raw_histogram_regions_and_auto_values", ui_raw_histogram_regions_and_auto_values},
+      {"ui_raw_dialog_histogram_drag_and_modifier_clicks", ui_raw_dialog_histogram_drag_and_modifier_clicks},
+      {"ui_raw_dialog_zoom_controls_and_scrubby_zoom", ui_raw_dialog_zoom_controls_and_scrubby_zoom},
+      {"ui_raw_dialog_issue_shots_if_available", ui_raw_dialog_issue_shots_if_available},
       {"ui_flat_save_of_layered_document_warns_and_saves_copy",
        ui_flat_save_of_layered_document_warns_and_saves_copy},
   };

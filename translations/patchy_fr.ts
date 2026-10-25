@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Aucune couleur neutre pour le mode actuel</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Remplir avec la couleur neutre (blanc)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Remplir avec la couleur neutre (noir)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Remplir avec la couleur neutre (gris 50 %)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12319,12 +12335,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Les calques dont ce format ne peut pas enregistrer le mode de fusion ont été enregistrés en Normal, donc l&apos;image enregistrée a un autre aspect.</translation>
     </message>
     <message>
-        <source>Grain Extract</source>
-        <translation>Extraction de grain</translation>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Zoom de l&apos;aperçu. Choisissez une taille ou saisissez un pourcentage.</translation>
     </message>
     <message>
-        <source>Grain Merge</source>
-        <translation>Fusion de grain</translation>
+        <source>Scrubby Zoom</source>
+        <translation>Zoom continu</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Faites glisser vers la gauche ou la droite dans l&apos;aperçu pour zoomer.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Maj-clic applique la valeur automatique. %ALT%-clic la réinitialise.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-clic la réinitialise.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Maj-clic utilise la balance des blancs automatique. %ALT%-clic revient à Tel quel.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-clic remet la réduction du bruit sur Auto.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Pointez l&apos;histogramme pour voir quel réglage cette zone modifie, puis faites glisser vers la gauche ou la droite pour le changer.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Faites glisser vers la gauche ou la droite pour zoomer. Un clic zoome, %ALT%-clic dézoome. Maintenez Espace ou utilisez le bouton central pour vous déplacer.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>Ne plus afficher</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>Préférences &gt; Métadonnées et filigranes permet de réafficher cet avis.</translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>La liste des calques Krita (maindoc.xml) est endommagée ou n&apos;est pas du XML valide</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Le fichier Krita est endommagé : son répertoire zip est absent ou tronqué</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Le fichier Krita est trop volumineux pour être ouvert</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Le fichier Krita utilise des fonctions zip que Patchy ne sait pas lire (chiffrement ou compression inconnue)</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Le fichier Krita est endommagé : une entrée ne peut pas être décompressée</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>Ce fichier n&apos;est pas un document Krita</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Document Krita</translation>
     </message>
     <message>
         <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
@@ -12383,6 +12463,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Certains calques n&apos;apparaissent que là où se trouve le calque en dessous, comme GIMP les compose ; ils ont été ouverts comme masques d&apos;écrêtage sur celui-ci.</translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Les effets de calque de GIMP que Patchy sait reproduire (Flou gaussien et filtres de couleur comme Niveaux, Teinte-Saturation et Désaturer) ont été appliqués aux pixels de leurs calques.</translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Les calques en mode Effacer ou Scinder de GIMP sont devenus des masques : les calques sous chacun d&apos;eux sont dans un groupe portant son nom, masqué là où il effaçait.</translation>
     </message>
@@ -12413,6 +12497,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
         <translation>Ce fichier GIMP est endommagé et n&apos;a pas pu être ouvert.</translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>Extraction de grain</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>Fusion de grain</translation>
     </message>
     <message>
         <source>HSV Hue</source>
@@ -12477,10 +12569,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>Image GIMP</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Les effets de calque de GIMP que Patchy sait reproduire (Flou gaussien et filtres de couleur comme Niveaux, Teinte-Saturation et Désaturer) ont été appliqués aux pixels de leurs calques.</translation>
     </message>
 </context>
 <context>
@@ -14243,6 +14331,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>Yeux rouges : la zone rouge est hors de la sélection</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>La zone sélectionnée est vide.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>La déformation s&apos;applique à tout le calque. Appliquez d&apos;abord cette transformation.</translation>
     </message>
 </context>
 <context>
@@ -25244,6 +25340,18 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Save as Normal</source>
         <translation>Enregistrer en Normal</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Masque de fusion ajouté qui masque la sélection</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Masque de fusion ajouté qui masque le calque. Peignez en blanc pour faire apparaître.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>Afficher l&apos;avis des Informations sur le fichier concernant les données que vous ne souhaitez peut-être pas partager</translation>
     </message>
 </context>
 <context>

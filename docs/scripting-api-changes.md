@@ -23,6 +23,13 @@ them as `normal` or bakes them. Pinned by `ui_script_gimp_blend_mode_ids`.
 2026-10-25 (additive): `app.open` and the other path-taking calls open GIMP `.xcf` files (also
 `.xcf.gz`, `.xcf.bz2`, `.xcf.xz`, `.xcfgz`, `.xcfbz2`, `.xcfxz`) as layered documents, read-only like
 `.pdn`; `doc.importNotes` lists what was approximated ([xcf.md](xcf.md)).
+2026-10-25 (behavioral): `layer.transform` on a pixel layer while the document has a selection
+transforms only the selected pixels, as Free Transform now does (GitHub issue 399,
+[free-transform.md](free-transform.md#transforming-the-selected-pixels-github-issue-399)): the box
+is the selection bounds clipped to the layer's pixels, the transformed pixels land back on the
+layer, and the selection follows them. Without a selection, and on text, shape and smart object
+layers, it transforms the whole layer as before. Pinned by
+`ui_free_transform_selection_on_background_and_script`.
 2026-10-25 (additive): save option `unsupportedBlendModes` for `.psd`, `.psb`, layered `.tif`/`.tiff`
 and `.aseprite`/`.ase` (GitHub issue 379, [blend-modes.md](blend-modes.md#layered-saves)): `"normal"`
 (the default, as before) writes layers in blend modes the format cannot store as Normal; `"bake"`

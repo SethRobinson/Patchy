@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/document_depth.hpp"
+#include "ui/dialog_utils.hpp"
 #include "filters/filter_registry.hpp"
 
 #include <QAbstractItemView>
@@ -289,6 +290,9 @@ void install_blend_mode_arrow_keys(QComboBox* combo) {
     combo->setProperty(kBlendModeArrowKeysProperty, true);
     new BlendModeArrowKeys(combo);
   }
+  // The menu form placed the current row over the box and ran off the top of a small
+  // screen (GitHub issue 414); the list form opens below the box and stays on the screen.
+  use_scrolling_list_popup(*combo, kBlendModeListPopupRows);
 }
 
 }  // namespace

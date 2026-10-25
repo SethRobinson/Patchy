@@ -108,6 +108,18 @@ struct SaveStamp {
   std::string instance_guid;  // a fresh random GUID per save, lowercase with hyphens
 };
 
+// The document as a PSD/PSB save writes it, for the parts of the stamp that describe the
+// file rather than the save.
+struct SaveStampDocument {
+  std::string format{"application/vnd.adobe.photoshop"};  // dc:format
+  int color_mode{3};  // photoshop:ColorMode, the PSD header mode (1 gray, 3 RGB, 4 CMYK, ...)
+  std::int32_t width{0};
+  std::int32_t height{0};
+  double horizontal_ppi{72.0};
+  double vertical_ppi{72.0};
+  bool srgb{false};  // EXIF ColorSpace 1 (sRGB), else 65535 (uncalibrated)
+};
+
 // Records a save the way Photoshop does: xmp:ModifyDate and xmp:MetadataDate become
 // stamp.when; xmp:CreateDate and xmp:CreatorTool are set only when the packet has none (a
 // file another application created keeps its creator and creation date); xmpMM:History
@@ -116,7 +128,13 @@ struct SaveStamp {
 // and OriginalDocumentID when absent). An existing EXIF block gets IFD0 Software and
 // DateTime from the stamp. Every other property stays. A packet that does not parse is
 // left as it is.
-void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp);
+// With `document` the stamp also describes the saved file as Photoshop does: dc:format and
+// photoshop:ColorMode, EXIF pixel size and resolution where the block has them, no stale
+// IFD1 thumbnail, and for a document without EXIF (unless Strip All Metadata ran) a new
+// block: IFD0 Orientation, resolution, Software and DateTime, Exif IFD ExifVersion,
+// ColorSpace and pixel size.
+void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp,
+                              const SaveStampDocument* document = nullptr);
 
 // "2026-10-20T09:41:05+09:00": `unix_seconds` (UTC) shown at `utc_offset_minutes`.
 [[nodiscard]] std::string xmp_date(std::int64_t unix_seconds, int utc_offset_minutes);

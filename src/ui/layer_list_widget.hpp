@@ -170,6 +170,8 @@ private:
   void clear_clip_boundary_cursor();
   bool handle_visibility_eye_press(QWidget* eye_button, const QMouseEvent* event);
   bool handle_visibility_sweep_move(QPoint viewport_position, const QMouseEvent* event);
+  void sweep_visibility_to(QPoint viewport_position);
+  void update_visibility_sweep_auto_scroll();
   void end_visibility_sweep();
   [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
                                                                       QPoint viewport_pos) const;
@@ -242,6 +244,8 @@ private:
   int visibility_sweep_min_x_{0};
   int visibility_sweep_max_x_{0};
   QPoint visibility_sweep_last_viewport_pos_{};
+  // Where the pointer is, unclamped (past the list's edge while autoscrolling).
+  QPoint visibility_sweep_pointer_{};
   std::vector<LayerId> visibility_swept_ids_;
   QBasicTimer auto_scroll_timer_;
   int auto_scroll_direction_{0};

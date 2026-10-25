@@ -179,6 +179,17 @@ std::optional<AvailableTextFamilyStyle> platform_installed_family_style_match(co
         }
       }
     }
+    if (!resolved_family.has_value()) {
+      // The database lists the face under another language's name: Qt names fonts for the
+      // user's locale, so a Chinese Windows lists DingMao.ttf only by its Chinese family while
+      // the reader stores the en-us one (GitHub issue 413).
+      for (const auto& name : psd::installed_font_family_names(requested.toUtf8().toStdString())) {
+        if (const auto listed = available_text_family_match(QString::fromStdString(name)); listed.has_value()) {
+          resolved_family = listed;
+          break;
+        }
+      }
+    }
     if (resolved_family.has_value()) {
       if (style.isEmpty()) {
         style = installed->bold ? (installed->italic ? QStringLiteral("Bold Italic") : QStringLiteral("Bold"))

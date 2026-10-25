@@ -237,14 +237,47 @@ const std::vector<ContactField>& contact_fields() {
 
 }  // namespace
 
-void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp) {
+void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp, const SaveStampDocument* document) {
   // EXIF IFD0 names the application and time of the latest save, as Photoshop writes it
   // even into a file another application created (xmp:CreatorTool keeps the creator).
-  // Only an EXIF block the document already has: a save never adds one.
-  if (auto stream = exif_of(info)) {
+  // Without the document, only an EXIF block the document already has; with it, a
+  // document that has none gets Photoshop's minimal block unless it was stripped.
+  auto stream = exif_of(info);
+  const bool new_exif = (!info.exif || info.exif->empty()) && document != nullptr && !info.stripped;
+  if (new_exif) {
+    stream = TiffStream{};
+    stream->big_endian = true;  // Photoshop writes its EXIF big-endian
+    stream->set_short(IfdKind::Ifd0, exif_tag::kOrientation, 1);
+    static constexpr std::array<std::uint8_t, 4> kExifVersion{'0', '2', '3', '1'};
+    stream->set_undefined(IfdKind::Exif, exif_tag::kExifVersion, kExifVersion);
+    stream->set_short(IfdKind::Exif, exif_tag::kColorSpace, document->srgb ? 1 : 0xFFFF);
+  }
+  if (stream.has_value()) {
     stream->set_ascii(IfdKind::Ifd0, exif_tag::kSoftware, stamp.software);
     if (const auto when = xmp_date_to_exif(stamp.when); !when.empty()) {
       stream->set_ascii(IfdKind::Ifd0, exif_tag::kDateTime, when);
+    }
+    if (document != nullptr) {
+      // The saved file's size and resolution; an IFD1 thumbnail shows an older image.
+      stream->thumbnail.clear();
+      std::erase_if(stream->ifds, [](const TiffIfd& ifd) { return ifd.kind == IfdKind::Ifd1; });
+      if (auto* exif = stream->find(IfdKind::Exif); exif != nullptr) {
+        if (new_exif || exif->find(exif_tag::kPixelXDimension) != nullptr ||
+            exif->find(exif_tag::kPixelYDimension) != nullptr) {
+          stream->set_long(IfdKind::Exif, exif_tag::kPixelXDimension, static_cast<std::uint32_t>(document->width));
+          stream->set_long(IfdKind::Exif, exif_tag::kPixelYDimension, static_cast<std::uint32_t>(document->height));
+        }
+      }
+      if (const auto* ifd0 = stream->find(IfdKind::Ifd0);
+          new_exif || (ifd0 != nullptr && (ifd0->find(exif_tag::kXResolution) != nullptr ||
+                                           ifd0->find(exif_tag::kYResolution) != nullptr))) {
+        const auto ppi = [](double value) {
+          return static_cast<std::uint32_t>(std::clamp(std::lround(value * 100.0), 1L, 100000000L));
+        };
+        stream->set_rational(IfdKind::Ifd0, exif_tag::kXResolution, ppi(document->horizontal_ppi), 100);
+        stream->set_rational(IfdKind::Ifd0, exif_tag::kYResolution, ppi(document->vertical_ppi), 100);
+        stream->set_short(IfdKind::Ifd0, exif_tag::kResolutionUnit, 2);
+      }
     }
     info.exif = make_metadata_bytes(write_tiff(*stream));
   }
@@ -266,6 +299,10 @@ void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp) {
   }
   packet.set_simple(xmp_ns::kXmp, "ModifyDate", stamp.when);
   packet.set_simple(xmp_ns::kXmp, "MetadataDate", stamp.when);
+  if (document != nullptr) {
+    packet.set_simple(xmp_ns::kDc, "format", document->format);
+    packet.set_simple(xmp_ns::kPhotoshop, "ColorMode", std::to_string(document->color_mode));
+  }
 
   XmpValue event;
   event.kind = XmpValue::Kind::Struct;
@@ -528,6 +565,7 @@ void strip_file_info(DocumentFileInfo& info, bool keep_color_profile) {
   info.text.clear();
   info.psd_resources.clear();
   info.observed.clear();
+  info.stripped = true;
   if (!keep_color_profile) {
     info.png_color_chunks.clear();
     info.source_icc.reset();

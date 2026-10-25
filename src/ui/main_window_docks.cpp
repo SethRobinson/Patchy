@@ -8,6 +8,7 @@
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 #include "ui/channel_panel.hpp"
+#include "ui/click_modifier_recorder.hpp"
 #include "core/document_channel.hpp"
 #include "core/document_path.hpp"
 #include "ui/main_window.hpp"
@@ -1651,9 +1652,20 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(animation_button);
   layer_buttons->addWidget(delete_button);
   layers_layout->addLayout(layer_buttons);
-  connect(add_button, &QPushButton::clicked, this, [this] { add_layer(); });
+  // Alt-click opens the New Layer dialog (#408) and adds a hiding mask (#400).
+  record_click_modifiers(add_button);
+  record_click_modifiers(add_mask_button);
+  connect(add_button, &QPushButton::clicked, this, [this, add_button] {
+    if ((take_click_modifiers(add_button) & Qt::AltModifier) != 0) {
+      add_layer_with_dialog();
+    } else {
+      add_layer();
+    }
+  });
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
-  connect(add_mask_button, &QPushButton::clicked, this, [this] { add_layer_mask(); });
+  connect(add_mask_button, &QPushButton::clicked, this, [this, add_mask_button] {
+    add_layer_mask((take_click_modifiers(add_mask_button) & Qt::AltModifier) != 0);
+  });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
   connect(animation_button, &QPushButton::clicked, this, [this] { toggle_animation_preview_window(); });
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_active_layer(); });

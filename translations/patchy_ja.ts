@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>現在のモードにはニュートラルカラーがありません</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>ニュートラルカラーで塗りつぶす（白）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>ニュートラルカラーで塗りつぶす（黒）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>ニュートラルカラーで塗りつぶす（50% グレー）</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12284,12 +12300,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>この形式で保存できない描画モードのレイヤーは通常として保存されたため、保存された画像の見た目は異なります。</translation>
     </message>
     <message>
-        <source>Grain Extract</source>
-        <translation>粒子抽出</translation>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>プレビューのズーム。サイズを選ぶか、パーセントを入力します。</translation>
     </message>
     <message>
-        <source>Grain Merge</source>
-        <translation>粒子結合</translation>
+        <source>Scrubby Zoom</source>
+        <translation>スクラブズーム</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>プレビュー上で左右にドラッグしてズームします。</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift+クリックで自動の値に設定します。%ALT%クリックでリセットします。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%クリックでリセットします。</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift+クリックで自動ホワイトバランスを使います。%ALT%クリックで撮影時の設定に戻します。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%クリックでノイズ低減を自動に戻します。</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>ヒストグラムにポインターを合わせると、その部分で調整する設定が表示されます。左右にドラッグすると変更できます。</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>左右にドラッグしてズームします。クリックで拡大、%ALT%クリックで縮小します。スペースキーを押したままにするか中ボタンで移動します。</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>今後表示しない</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>環境設定 &gt; メタデータと透かし でこの通知を再び表示できます。</translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>Krita のレイヤーリスト (maindoc.xml) が破損しているか、有効な XML ではありません</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Krita ファイルが破損しています: zip のディレクトリがないか途中で切れています</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Krita ファイルが大きすぎて開けません</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Krita ファイルは Patchy が読み込めない zip の機能 (暗号化または不明な圧縮) を使用しています</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Krita ファイルが破損しています: エントリを展開できません</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>このファイルは Krita ドキュメントではありません</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Krita ドキュメント</translation>
     </message>
     <message>
         <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
@@ -12348,6 +12428,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>一部のレイヤーは、GIMP の合成方法どおり下のレイヤーがある所にだけ表示されます。そのレイヤーへのクリッピングマスクとして開きました。</translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy で再現できる GIMP のレイヤー効果（ガウスぼかしと、レベル、色相-彩度、脱色などの色フィルター）は、各レイヤーのピクセルに適用しました。</translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP の消去または分割モードのレイヤーはマスクになりました。各レイヤーの下のレイヤーは、その名前のグループに入り、消去していた所がマスクされています。</translation>
     </message>
@@ -12378,6 +12462,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
         <translation>この GIMP ファイルは破損しているため、開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>粒子抽出</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>粒子結合</translation>
     </message>
     <message>
         <source>HSV Hue</source>
@@ -12442,10 +12534,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>GIMP 画像</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy で再現できる GIMP のレイヤー効果（ガウスぼかしと、レベル、色相-彩度、脱色などの色フィルター）は、各レイヤーのピクセルに適用しました。</translation>
     </message>
 </context>
 <context>
@@ -14208,6 +14296,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>赤目修正: 赤い領域が選択範囲の外にあります</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>選択範囲が空です。</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>ワープはレイヤー全体に適用されます。先にこの変形を確定してください。</translation>
     </message>
 </context>
 <context>
@@ -25171,6 +25267,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>通常として保存</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>選択範囲を非表示にするレイヤーマスクを追加しました</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>レイヤーを非表示にするレイヤーマスクを追加しました。白で塗ると表示されます。</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>共有したくない可能性のある情報についてのファイル情報の通知を表示する</translation>
     </message>
 </context>
 <context>

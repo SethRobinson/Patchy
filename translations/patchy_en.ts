@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12303,11 +12319,75 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Grain Extract</source>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Grain Merge</source>
+        <source>Scrubby Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12367,6 +12447,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12396,6 +12480,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12460,10 +12552,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>GIMP Image</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -14226,6 +14314,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -25162,6 +25258,18 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Save as Normal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

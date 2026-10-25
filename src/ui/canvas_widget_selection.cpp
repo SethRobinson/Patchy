@@ -688,6 +688,50 @@ PixelBuffer CanvasWidget::selection_as_grayscale() const {
   return pixels;
 }
 
+PixelBuffer CanvasWidget::selection_coverage_buffer(QRect rect) const {
+  if (rect.isEmpty()) {
+    return {};
+  }
+  PixelBuffer coverage(rect.width(), rect.height(), PixelFormat::gray8());
+  coverage.clear(0);
+  if (selection_.isEmpty()) {
+    return coverage;
+  }
+  if (!selection_mask_alpha_.isNull()) {
+    const QRect image_bounds(selection_mask_bounds_.topLeft(), selection_mask_alpha_.size());
+    const auto copy_bounds = image_bounds.intersected(rect);
+    for (int y = copy_bounds.top(); y <= copy_bounds.bottom(); ++y) {
+      const auto* source =
+          selection_mask_alpha_.constScanLine(y - image_bounds.y()) + (copy_bounds.x() - image_bounds.x());
+      auto destination = coverage.row(y - rect.y());
+      std::copy_n(source, copy_bounds.width(), destination.begin() + (copy_bounds.x() - rect.x()));
+    }
+    return coverage;
+  }
+  for (const auto& run : selection_.intersected(rect)) {
+    for (int y = run.top(); y <= run.bottom(); ++y) {
+      auto row = coverage.row(y - rect.y());
+      std::fill(row.begin() + (run.left() - rect.x()), row.begin() + (run.right() - rect.x() + 1), std::uint8_t{255});
+    }
+  }
+  return coverage;
+}
+
+void CanvasWidget::set_selection_from_coverage(QRect bounds, const PixelBuffer& coverage) {
+  if (bounds.isEmpty() || coverage.format() != PixelFormat::gray8() || coverage.width() != bounds.width() ||
+      coverage.height() != bounds.height()) {
+    set_selection_from_mask(QRegion(), QRect(), QImage());
+    return;
+  }
+  QImage alpha(bounds.size(), QImage::Format_Grayscale8);
+  for (int y = 0; y < bounds.height(); ++y) {
+    const auto row = coverage.row(y);
+    std::copy(row.begin(), row.end(), alpha.scanLine(y));
+  }
+  auto region = region_from_alpha_mask(alpha, bounds);
+  set_selection_from_mask(std::move(region), bounds, std::move(alpha));
+}
+
 void CanvasWidget::apply_grayscale_to_selection(const PixelBuffer& pixels) {
   if (document_ == nullptr || pixels.format() != PixelFormat::gray8() ||
       pixels.width() != document_->width() || pixels.height() != document_->height()) {
@@ -1136,8 +1180,11 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
   // A crop session adopted the selection as its box; the ants would only
   // shadow it (and go stale as the box moves).
   const bool hidden_by_crop = tool_ == CanvasTool::Crop && crop_session_active_ && crop_box_from_selection_;
+  // Free Transform of the selected pixels: the box frames them and the outline
+  // comes back, moved with them, at commit (or unchanged at cancel).
+  const bool hidden_by_transform = free_transform_floats_selection();
   if (!quick_mask_active_ && !selection_.isEmpty() &&
-      selection_edges_visible_ && !hidden_by_crop) {
+      selection_edges_visible_ && !hidden_by_crop && !hidden_by_transform) {
     ensure_selection_outline_screen_path();
     if (!selection_outline_screen_paths_.marching.isEmpty()) {
       stroke_marching_ants(painter, selection_outline_screen_paths_.marching, selection_dash_offset_);

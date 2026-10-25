@@ -128,6 +128,9 @@ struct LayerPixelsOverrideSpec {
     const Document& document, QRect document_rect, bool preserve_alpha, const std::vector<LayerId>& hidden_layer_ids,
     const std::vector<std::pair<LayerId, Rect>>& layer_bounds);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
+// A save's thumbnail as JFIF bytes (PSD resource 1036, JPEG EXIF IFD1; docs/file-info.md,
+// "Thumbnails"): `image` fit to psd::kThumbnailMaxSide pixels (never enlarged), over white.
+[[nodiscard]] std::vector<std::uint8_t> encode_thumbnail_jpeg(const QImage& image);
 // The flattened image every flat-file writer starts from. With preserve_alpha, a single
 // masked layer exports non-destructively: the original colors are kept and the mask
 // becomes the alpha channel, because compositing would erase the colors wherever the

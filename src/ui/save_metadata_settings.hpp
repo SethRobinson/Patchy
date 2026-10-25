@@ -25,6 +25,9 @@ inline constexpr auto kSaveMetadataCopyrightSettingKey = "saveMetadata/copyright
 inline constexpr auto kSaveMetadataEmailSettingKey = "saveMetadata/contactEmail";
 inline constexpr auto kSaveMetadataWebsiteSettingKey = "saveMetadata/contactWebsite";
 inline constexpr auto kSaveMetadataAskSettingKey = "saveMetadata/askBeforeAdding";
+// File Info's notice about information a document carries that the user may not want to
+// share (its Don't Show Again button and the Preferences checkbox).
+inline constexpr auto kFileInfoPrivacyNoticeSettingKey = "fileInfo/showPrivacyNotice";
 
 // "none", "basic", "personal" (also the scripting values).
 [[nodiscard]] QString save_metadata_mode_token(SaveMetadataMode mode);
@@ -40,6 +43,8 @@ struct PersonalSaveMetadata {
 
 [[nodiscard]] SaveMetadataMode stored_save_metadata_mode();  // Basic by default
 void set_stored_save_metadata_mode(SaveMetadataMode mode);
+[[nodiscard]] bool stored_show_file_info_privacy_notice();  // true by default
+void set_stored_show_file_info_privacy_notice(bool show);
 [[nodiscard]] PersonalSaveMetadata stored_personal_save_metadata();
 void set_stored_personal_save_metadata(const PersonalSaveMetadata& personal);
 

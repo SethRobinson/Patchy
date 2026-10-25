@@ -9,6 +9,7 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/vector_compound.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
@@ -987,6 +988,8 @@ constexpr std::uint16_t kResourceCopyrightUrl = 1035;
 constexpr std::uint16_t kResourceExif = 1058;
 constexpr std::uint16_t kResourceXmp = 1060;
 constexpr std::uint16_t kResourceCaptionDigest = 1061;
+constexpr std::uint16_t kResourceThumbnailPhotoshop4 = 1033;  // BGR JFIF
+constexpr std::uint16_t kResourceThumbnail = 1036;            // RGB JFIF
 // Kept verbatim in DocumentFileInfo::psd_resources: thumbnails, workflow URL, version
 // info, EXIF data 3, Mac/Windows print records, auto-save path/format, Lightroom.
 constexpr std::array<std::uint16_t, 10> kOpaqueFileInfoResources{1033, 1036, 1051, 1057, 1059,
@@ -1139,7 +1142,8 @@ void lift_file_info_resources(Document& document, std::uint16_t source_color_mod
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels,
                                                        std::uint16_t output_mode,
-                                                       const std::vector<std::uint8_t>* output_icc_profile) {
+                                                       const std::vector<std::uint8_t>* output_icc_profile,
+                                                       const std::vector<std::uint8_t>* thumbnail) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
@@ -1188,6 +1192,14 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   }
   if (auto text = file_info_text_resource(info.text); !text.empty()) {
     upsert_image_resource(*parsed, kImageResourcePatchyFileInfoText, std::move(text));
+  }
+  if (thumbnail != nullptr) {
+    // A thumbnail from an earlier save shows the image as it was then.
+    remove_image_resource(*parsed, kResourceThumbnailPhotoshop4);
+    remove_image_resource(*parsed, kResourceThumbnail);
+    if (!thumbnail->empty()) {
+      upsert_image_resource(*parsed, kResourceThumbnail, *thumbnail);
+    }
   }
   if (const auto color_mode = document.metadata().values.find("psd.color_mode");
       output_mode == kColorModeRgb && color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
@@ -1324,6 +1336,86 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
     });
   }
   return write_image_resources(*parsed);
+}
+
+PixelBuffer thumbnail_pixels(const PixelBuffer& composite, std::span<const std::uint8_t> transparency,
+                             std::int32_t max_side) {
+  const auto width = composite.width();
+  const auto height = composite.height();
+  if (width <= 0 || height <= 0 || max_side <= 0) {
+    return {};
+  }
+  const std::int64_t longest = std::max(width, height);
+  const auto fit = [&](std::int32_t side) {
+    if (longest <= max_side) {
+      return side;
+    }
+    return static_cast<std::int32_t>(std::max<std::int64_t>(1, (side * std::int64_t{max_side} + longest / 2) / longest));
+  };
+  const auto out_width = fit(width);
+  const auto out_height = fit(height);
+  const bool use_transparency =
+      transparency.size() == static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  PixelBuffer out(out_width, out_height, PixelFormat::rgb8());
+  auto* out_bytes = out.data().data();
+  // Per output column: the matted sums (value * 255) of R, G and B, and the pixel count.
+  std::vector<std::uint64_t> sums(static_cast<std::size_t>(out_width) * 4U, 0U);
+  std::vector<float> row(static_cast<std::size_t>(width) * 4U);
+  const auto flush = [&](std::int32_t out_y) {
+    auto* dst = out_bytes + static_cast<std::size_t>(out_y) * static_cast<std::size_t>(out_width) * 3U;
+    for (std::int32_t x = 0; x < out_width; ++x) {
+      auto* sum = &sums[static_cast<std::size_t>(x) * 4U];
+      const auto divisor = sum[3] * 255U;
+      for (std::size_t c = 0; c < 3U; ++c) {
+        dst[static_cast<std::size_t>(x) * 3U + c] =
+            divisor == 0 ? std::uint8_t{255} : static_cast<std::uint8_t>((sum[c] + divisor / 2U) / divisor);
+      }
+      std::fill(sum, sum + 4, std::uint64_t{0});
+    }
+  };
+  const auto sample = [](float value) {
+    return static_cast<std::uint64_t>(std::clamp(std::lround(value), 0L, 255L));
+  };
+  std::int32_t current_y = 0;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto out_y = static_cast<std::int32_t>(std::int64_t{y} * out_height / height);
+    if (out_y != current_y) {
+      flush(current_y);
+      current_y = out_y;
+    }
+    load_rgba_row(composite, y, 0, width, DeepDomain::Encoded, row);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto* pixel = &row[static_cast<std::size_t>(x) * 4U];
+      auto alpha = sample(pixel[3]);
+      if (use_transparency) {
+        alpha = (alpha * transparency[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                      static_cast<std::size_t>(x)] + 127U) / 255U;
+      }
+      auto* sum = &sums[static_cast<std::size_t>(std::int64_t{x} * out_width / width) * 4U];
+      for (std::size_t c = 0; c < 3U; ++c) {
+        sum[c] += sample(pixel[c]) * alpha + 255U * (255U - alpha);
+      }
+      ++sum[3];
+    }
+  }
+  flush(current_y);
+  return out;
+}
+
+std::vector<std::uint8_t> thumbnail_resource(std::int32_t width, std::int32_t height,
+                                             std::span<const std::uint8_t> jfif) {
+  const auto row_bytes = (static_cast<std::uint32_t>(width) * 24U + 31U) / 32U * 4U;
+  BigEndianWriter writer;
+  writer.write_u32(1);  // kJpegRGB
+  writer.write_u32(static_cast<std::uint32_t>(width));
+  writer.write_u32(static_cast<std::uint32_t>(height));
+  writer.write_u32(row_bytes);
+  writer.write_u32(row_bytes * static_cast<std::uint32_t>(height));
+  writer.write_u32(checked_u32(jfif.size(), "thumbnail size"));
+  writer.write_u16(24);
+  writer.write_u16(1);
+  writer.write_bytes(jfif);
+  return writer.bytes();
 }
 
 }  // namespace patchy::psd

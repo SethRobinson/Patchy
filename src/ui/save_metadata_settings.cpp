@@ -36,6 +36,14 @@ SaveMetadataMode stored_save_metadata_mode() {
       .value_or(SaveMetadataMode::Basic);
 }
 
+bool stored_show_file_info_privacy_notice() {
+  return app_settings().value(QLatin1String(kFileInfoPrivacyNoticeSettingKey), true).toBool();
+}
+
+void set_stored_show_file_info_privacy_notice(bool show) {
+  app_settings().setValue(QLatin1String(kFileInfoPrivacyNoticeSettingKey), show);
+}
+
 void set_stored_save_metadata_mode(SaveMetadataMode mode) {
   app_settings().setValue(QLatin1String(kSaveMetadataModeSettingKey), save_metadata_mode_token(mode));
 }

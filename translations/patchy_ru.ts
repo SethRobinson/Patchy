@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Обтравить новый слой по слою под ним</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Для текущего режима нет нейтрального цвета</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Залить нейтральным цветом (белый)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Залить нейтральным цветом (черный)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Залить нейтральным цветом (50% серого)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12354,12 +12370,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Слои в режимах наложения, которые этот формат не может сохранить, сохранены как «Обычный», поэтому сохранённое изображение выглядит иначе.</translation>
     </message>
     <message>
-        <source>Grain Extract</source>
-        <translation>Извлечение зерна</translation>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Масштаб просмотра. Выберите размер или введите процент.</translation>
     </message>
     <message>
-        <source>Grain Merge</source>
-        <translation>Слияние зерна</translation>
+        <source>Scrubby Zoom</source>
+        <translation>Масштабирование перетаскиванием</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Перетащите влево или вправо в окне просмотра, чтобы изменить масштаб.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Щелчок с Shift задаёт автоматическое значение. Щелчок с %ALT% сбрасывает его.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>Щелчок с %ALT% сбрасывает его.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Щелчок с Shift включает автоматический баланс белого. Щелчок с %ALT% возвращает «Как при съёмке».</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>Щелчок с %ALT% возвращает снижению шума режим «Авто».</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Наведите указатель на гистограмму, чтобы увидеть, какой параметр меняет эта часть, затем перетащите влево или вправо, чтобы изменить его.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Перетащите влево или вправо, чтобы изменить масштаб. Щелчок увеличивает, щелчок с %ALT% уменьшает. Удерживайте пробел или используйте среднюю кнопку для прокрутки.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>Больше не показывать</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>Настройки &gt; Метаданные и водяные знаки позволяют снова показать это уведомление.</translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>Список слоев Krita (maindoc.xml) поврежден или не является допустимым XML</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Файл Krita поврежден: его каталог zip отсутствует или обрезан</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Файл Krita слишком велик, чтобы его открыть</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Файл Krita использует возможности zip, которые Patchy не может прочитать (шифрование или неизвестное сжатие)</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Файл Krita поврежден: не удается распаковать запись</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>Этот файл не является документом Krita</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Документ Krita</translation>
     </message>
     <message>
         <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
@@ -12418,6 +12498,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Некоторые слои видны только там, где есть слой под ними, как их составляет GIMP; они открыты как обтравочные маски на нём.</translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие» и цветовые фильтры, такие как «Уровни», «Тон-Насыщенность» и «Обесцвечивание»), применены к пикселям их слоёв.</translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Слои в режиме «Стирание» или «Разделение» GIMP превращены в маски: слои под каждым из них помещены в группу с его именем, замаскированную там, где он стирал.</translation>
     </message>
@@ -12448,6 +12532,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
         <translation>Этот файл GIMP повреждён, и его не удалось открыть.</translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>Извлечение зерна</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>Слияние зерна</translation>
     </message>
     <message>
         <source>HSV Hue</source>
@@ -12512,10 +12604,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>Изображение GIMP</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие» и цветовые фильтры, такие как «Уровни», «Тон-Насыщенность» и «Обесцвечивание»), применены к пикселям их слоёв.</translation>
     </message>
 </context>
 <context>
@@ -14278,6 +14366,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>«Красные глаза»: красная область находится вне выделения</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>Выделенная область пуста.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>Деформация применяется ко всему слою. Сначала примените это преобразование.</translation>
     </message>
 </context>
 <context>
@@ -25317,6 +25413,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>Сохранить как «Обычный»</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Добавлена маска слоя, скрывающая выделение.</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Добавлена маска слоя, скрывающая слой. Закрасьте белым, чтобы показать.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>Показывать уведомление сведений о файле о данных, которыми вы, возможно, не хотите делиться</translation>
     </message>
 </context>
 <context>

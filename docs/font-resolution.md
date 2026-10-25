@@ -105,6 +105,19 @@ The text engine's font lookup and the PSD reader's naming rules. The session mac
 - On wasm, `available_text_family_match` also resolves common system families through the bundled
   metric-compatible alias table, and every text render appends the bundled CJK families in the UI
   language's order (`wasm_cjk_fallback_families`). See [fonts.md](fonts.md).
+- **Font names compare with every non-ASCII character kept** (`photoshop_font_names_match`, the
+  reader's, writer's and registry matcher): ASCII case, spaces and punctuation are ignored, and a
+  name with nothing left to compare matches nothing. Dropping non-ASCII bytes compacted every
+  all-CJK name to the empty key, so the first such font answered for all of them (issue 413:
+  DingMao came back as KeYan). Test: `psd_text_font_names_keep_non_ascii_characters`,
+  `psd_text_engine_data_keeps_an_uninstalled_cjk_font_name`.
+- **Qt's Windows database lists fonts under the user's locale**: a Chinese Windows shows DingMao.ttf
+  only as its Chinese typographic family, which no en-us string carries. After the en-us lookups,
+  `directwrite_font_for_localized_name` matches full names and family names (DirectWrite, WIN32
+  and typographic) in every locale: the writer turns such a family into its PostScript name, the
+  reader resolves it (after the registry) to the en-us names it always stores, and
+  `platform_installed_family_style_match` maps a stored en-us family onto whichever localized
+  name the database lists (`installed_font_family_names`).
 - **Only Regular (400) and Bold (700) survive being flattened into a family plus a bold flag.**
   The PSD reader keeps the real face for every other weight (`psd_text_read.cpp`): DirectWrite
   on Windows, the font database elsewhere (`src/ui/psd_font_resolver.hpp`), the suffix

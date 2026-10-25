@@ -2,6 +2,7 @@
 #include "ui/save_progress.hpp"
 
 #include "color/color_management.hpp"
+#include "color/rgb_profiles.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
@@ -213,14 +214,25 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     // Photoshop's save record in the XMP and EXIF: the modify and metadata dates, a new
     // instance, and on the first save the creation date and Patchy as the creator
     // (docs/file-info.md, "Save stamp").
+    const bool psb = extension == QStringLiteral("psb");
+    const auto cmyk_proof = effective_image_options.psd_cmyk_proof ? working_cmyk_space() : nullptr;
     if (stamp_save) {
-      metadata::stamp_file_info_for_save(target->document.file_info(), save_stamp_now());
+      const auto& document = std::as_const(target->document);
+      psd::WriteOptions mode_options{psb};
+      mode_options.cmyk_proof = cmyk_proof;
+      metadata::SaveStampDocument described;
+      described.color_mode = psd::DocumentIo::layered_save_color_mode(document, mode_options).mode;
+      described.width = document.width();
+      described.height = document.height();
+      described.horizontal_ppi = document.print_settings().horizontal_ppi;
+      described.vertical_ppi = document.print_settings().vertical_ppi;
+      const auto& profile = document.color_state().embedded_icc_profile;
+      described.srgb = described.color_mode == 3 && !profile.empty() && is_srgb_profile(profile);
+      metadata::stamp_file_info_for_save(target->document.file_info(), save_stamp_now(), &described);
     }
     // The writer reads a copy-on-write snapshot on a worker, so the window keeps painting
     // the Saving dialog through the composite (recovery writes the same way).
     Document snapshot = std::as_const(*target).document_for_write();
-    const bool psb = extension == QStringLiteral("psb");
-    const auto cmyk_proof = effective_image_options.psd_cmyk_proof ? working_cmyk_space() : nullptr;
     const bool bake = effective_image_options.bake_unsupported_blend_modes;
     host_.run_write(path, /*on_worker*/ true, !quiet,
                     [&snapshot, &path, psb, &cmyk_proof, bake, &writer_notices](SaveProgress& progress) {
@@ -229,6 +241,11 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
       options.cmyk_proof = cmyk_proof;
       options.progress = [&progress](int done, int total, const std::string& label) {
         progress.report(done, total, SaveProgress::Kind::Layers, QString::fromStdString(label));
+      };
+      options.encode_thumbnail = [](const PixelBuffer& pixels) {
+        const QImage image(pixels.data().data(), pixels.width(), pixels.height(),
+                           static_cast<qsizetype>(pixels.width()) * 3, QImage::Format_RGB888);
+        return encode_thumbnail_jpeg(image);
       };
       psd::DocumentIo::write_layered_rgb8_file(snapshot, to_filesystem_path(path), options);
     });

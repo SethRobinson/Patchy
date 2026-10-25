@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Przytnij nową warstwę do warstwy pod nią</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Dla bieżącego trybu nie ma koloru neutralnego</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Wypełnij kolorem neutralnym (biały)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Wypełnij kolorem neutralnym (czarny)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Wypełnij kolorem neutralnym (szary 50%)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12354,12 +12370,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Warstwy w trybach mieszania, których ten format nie może zapisać, zapisano jako Zwykły, więc zapisany obraz wygląda inaczej.</translation>
     </message>
     <message>
-        <source>Grain Extract</source>
-        <translation>Wyodrębnianie ziarna</translation>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Powiększenie podglądu. Wybierz rozmiar lub wpisz wartość procentową.</translation>
     </message>
     <message>
-        <source>Grain Merge</source>
-        <translation>Scalanie ziarna</translation>
+        <source>Scrubby Zoom</source>
+        <translation>Powiększanie przez przeciąganie</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Przeciągnij w lewo lub w prawo na podglądzie, aby powiększyć.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift-kliknięcie ustawia wartość automatyczną. %ALT%-kliknięcie ją resetuje.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-kliknięcie ją resetuje.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift-kliknięcie włącza automatyczny balans bieli. %ALT%-kliknięcie przywraca Jak na zdjęciu.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-kliknięcie przywraca automatyczną redukcję szumu.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Wskaż histogram, aby zobaczyć, które ustawienie zmienia ta część, a następnie przeciągnij w lewo lub w prawo, aby je zmienić.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Przeciągnij w lewo lub w prawo, aby powiększyć. Kliknięcie powiększa, %ALT%-kliknięcie pomniejsza. Przytrzymaj Spację lub użyj środkowego przycisku, aby przesuwać.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>Nie pokazuj ponownie</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>Preferencje &gt; Metadane i znaki wodne pozwalają ponownie wyświetlić to powiadomienie.</translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>Lista warstw Krita (maindoc.xml) jest uszkodzona lub nie jest poprawnym XML</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Plik Krita jest uszkodzony: brakuje jego katalogu zip lub jest on ucięty</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Plik Krita jest zbyt duży, aby go otworzyć</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Plik Krita używa funkcji zip, których Patchy nie potrafi odczytać (szyfrowania lub nieznanej kompresji)</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Plik Krita jest uszkodzony: nie można rozpakować jednego z wpisów</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>Ten plik nie jest dokumentem Krita</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Dokument Krita</translation>
     </message>
     <message>
         <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
@@ -12418,6 +12498,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Niektóre warstwy są widoczne tylko tam, gdzie jest warstwa pod nimi, tak jak składa je GIMP; otwarto je jako maski przycinające na niej.</translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie i filtry koloru, takie jak Poziomy, Barwa-Nasycenie i Desaturacja), zastosowano do pikseli ich warstw.</translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Warstwy w trybie Wymazywanie lub Rozdzielanie GIMP stały się maskami: warstwy pod każdą z nich są w grupie nazwanej jej nazwą, zamaskowanej tam, gdzie wymazywała.</translation>
     </message>
@@ -12448,6 +12532,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
         <translation>Ten plik GIMP jest uszkodzony i nie można go otworzyć.</translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>Wyodrębnianie ziarna</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>Scalanie ziarna</translation>
     </message>
     <message>
         <source>HSV Hue</source>
@@ -12512,10 +12604,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>Obraz GIMP</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie i filtry koloru, takie jak Poziomy, Barwa-Nasycenie i Desaturacja), zastosowano do pikseli ich warstw.</translation>
     </message>
 </context>
 <context>
@@ -14278,6 +14366,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>Czerwone oczy: czerwony obszar leży poza zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>Zaznaczony obszar jest pusty.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>Wypaczenie działa na całą warstwę. Najpierw zastosuj to przekształcenie.</translation>
     </message>
 </context>
 <context>
@@ -25317,6 +25413,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Save as Normal</source>
         <translation>Zapisz jako Zwykły</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Dodano maskę warstwy ukrywającą zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Dodano maskę warstwy ukrywającą warstwę. Pomaluj kolorem białym, aby odsłonić.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>Pokazuj powiadomienie Informacji o pliku o danych, których możesz nie chcieć udostępniać</translation>
     </message>
 </context>
 <context>

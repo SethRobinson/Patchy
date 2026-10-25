@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>현재 모드에는 중립 색상이 없습니다</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>중립 색상으로 채우기(흰색)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>중립 색상으로 채우기(검정)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>중립 색상으로 채우기(50% 회색)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -12284,12 +12300,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>이 형식에 저장할 수 없는 혼합 모드의 레이어는 표준으로 저장되어, 저장된 이미지가 다르게 보입니다.</translation>
     </message>
     <message>
-        <source>Grain Extract</source>
-        <translation>그레인 추출</translation>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>미리 보기 확대/축소. 크기를 고르거나 백분율을 입력하세요.</translation>
     </message>
     <message>
-        <source>Grain Merge</source>
-        <translation>그레인 병합</translation>
+        <source>Scrubby Zoom</source>
+        <translation>스크러비 줌</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>미리 보기에서 왼쪽이나 오른쪽으로 드래그하여 확대/축소합니다.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift-클릭: 자동 값 설정. %ALT%-클릭: 재설정.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-클릭: 재설정.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift-클릭: 자동 화이트 밸런스 사용. %ALT%-클릭: 촬영 시 설정으로 되돌리기.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-클릭: 노이즈 감소를 자동으로 되돌리기.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>히스토그램을 가리키면 그 부분이 조정하는 설정이 표시되고, 왼쪽이나 오른쪽으로 드래그하면 변경됩니다.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>왼쪽이나 오른쪽으로 드래그하여 확대/축소합니다. 클릭하면 확대, %ALT%-클릭하면 축소합니다. Space 키를 누르고 있거나 가운데 버튼으로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Show Again</source>
+        <translation>다시 표시하지 않음</translation>
+    </message>
+    <message>
+        <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
+        <translation>환경설정 &gt; 메타데이터 및 워터마크에서 이 알림을 다시 표시할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>Krita 레이어 목록(maindoc.xml)이 손상되었거나 올바른 XML이 아닙니다</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Krita 파일이 손상되었습니다: zip 디렉터리가 없거나 잘려 있습니다</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Krita 파일이 너무 커서 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Krita 파일이 Patchy가 읽을 수 없는 zip 기능(암호화 또는 알 수 없는 압축)을 사용합니다</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Krita 파일이 손상되었습니다: 항목의 압축을 풀 수 없습니다</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>이 파일은 Krita 문서가 아닙니다</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Krita 문서</translation>
     </message>
     <message>
         <source>Some layer pixels in this GIMP file are damaged; those areas opened transparent.</source>
@@ -12348,6 +12428,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>일부 레이어는 GIMP의 합성 방식대로 아래 레이어가 있는 곳에만 보입니다. 그 레이어에 대한 클리핑 마스크로 열렸습니다.</translation>
     </message>
     <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림과 레벨, 색조-채도, 채도 감소 같은 색상 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
+    </message>
+    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP의 지우기 또는 분할 모드 레이어는 마스크가 되었습니다. 각 레이어 아래의 레이어들은 그 이름의 그룹에 들어 있고, 지우던 곳이 마스크됩니다.</translation>
     </message>
@@ -12378,6 +12462,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>This GIMP file is damaged and could not be opened.</source>
         <translation>이 GIMP 파일은 손상되어 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Grain Extract</source>
+        <translation>그레인 추출</translation>
+    </message>
+    <message>
+        <source>Grain Merge</source>
+        <translation>그레인 병합</translation>
     </message>
     <message>
         <source>HSV Hue</source>
@@ -12442,10 +12534,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>GIMP 이미지</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림과 레벨, 색조-채도, 채도 감소 같은 색상 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
     </message>
 </context>
 <context>
@@ -14208,6 +14296,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>적목 현상 제거: 빨간 영역이 선택 영역 밖에 있습니다</translation>
+    </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>선택한 영역이 비어 있습니다.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>뒤틀기는 레이어 전체에 적용됩니다. 먼저 이 변형을 적용하세요.</translation>
     </message>
 </context>
 <context>
@@ -25171,6 +25267,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>표준으로 저장</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>선택 영역을 숨기는 레이어 마스크를 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>레이어를 숨기는 레이어 마스크를 추가했습니다. 흰색으로 칠하면 드러납니다.</translation>
+    </message>
+    <message>
+        <source>Show the File Info notice about information you may not want to share</source>
+        <translation>공유하고 싶지 않을 수 있는 정보에 대한 파일 정보 알림 표시</translation>
     </message>
 </context>
 <context>

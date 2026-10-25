@@ -15,6 +15,7 @@
 #include "scripting_test_support.hpp"
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
+#include "xcf_test_builder.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -26,6 +27,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -93,10 +95,42 @@ void ui_xcf_files_open_by_name_compressed_name_and_content() {
     patchy::ui::MainWindowTestAccess::open_document_path(window, path);
     QApplication::processEvents();
     CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == opened_before + 1U);
-    CHECK(count_layers(patchy::ui::MainWindowTestAccess::document(window).layers()) >= 2U);
+    const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(count_layers(document.layers()) >= 2U);
+    if (path != bin) {
+      // The layer GIMP had selected stays selected.
+      const auto* active = document.active_layer_id().has_value()
+                               ? std::as_const(document).find_layer(*document.active_layer_id())
+                               : nullptr;
+      CHECK(active != nullptr && active->name() == "big-tile.png");
+    }
   }
   // A file opened by content says so (GitHub issue 362).
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("GIMP")));
+
+  // A one-layer GIMP file keeps its layer's transparency: no mask is made from it, as
+  // a flat PNG's would be.
+  namespace builder = patchy::test::xcf;
+  builder::Image single;
+  single.width = 4;
+  single.height = 4;
+  builder::Layer layer;
+  layer.name = "Only";
+  layer.drawable = builder::solid(4, 4, {200, 40, 90, 128});
+  layer.properties.push_back(builder::prop_offsets(0, 0));
+  single.layers.push_back(std::move(layer));
+  const auto bytes = builder::write(single);
+  const auto single_path = temp.filePath(QStringLiteral("single.xcf"));
+  QFile file(single_path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+        static_cast<qint64>(bytes.size()));
+  file.close();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, single_path);
+  QApplication::processEvents();
+  const auto& single_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(single_document.layers().size() == 1U);
+  CHECK(!single_document.layers().front().mask().has_value());
 }
 
 // GIMP's own modes show by name in the Layers panel while the layer uses them; no menu

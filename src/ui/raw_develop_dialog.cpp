@@ -1,8 +1,11 @@
 #include "ui/raw_develop_dialog.hpp"
 
 #include "ui/raw_develop_settings.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/modifier_names.hpp"
+#include "ui/raw_develop_histogram.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
@@ -13,14 +16,18 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QLocale>
+#include <QMouseEvent>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScopeGuard>
@@ -54,6 +61,32 @@ constexpr double kMinTemperatureK = 2000.0;
 constexpr double kMaxTemperatureK = 25000.0;
 constexpr int kTemperatureSliderSteps = 1000;
 constexpr int kPreviewDebounceMs = 80;
+// The preview zoom presets (GitHub issue 395), as factors; Fit comes first.
+constexpr std::array<double, 11> kPreviewZoomPresets = {0.125, 0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0,
+                                                        2.0, 3.0, 4.0, 8.0, 16.0};
+
+QString format_zoom_percent(double factor) {
+  const auto percent = factor * 100.0;
+  const bool whole = std::abs(percent - std::round(percent)) < 0.05;
+  return QStringLiteral("%1%").arg(QLocale().toString(percent, 'f', whole ? 0 : 1));
+}
+
+// Routes the events of the objects it watches through one handler; a true
+// return consumes the event. The dialog clears it before its locals go away.
+class CallbackEventFilter final : public QObject {
+public:
+  CallbackEventFilter(QObject* parent, std::function<bool(QObject*, QEvent*)> handler)
+      : QObject(parent), handler_(std::move(handler)) {}
+  void clear() { handler_ = {}; }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    return (handler_ && handler_(watched, event)) || QObject::eventFilter(watched, event);
+  }
+
+private:
+  std::function<bool(QObject*, QEvent*)> handler_;
+};
 
 QString white_balance_token(raw::WhiteBalanceMode mode) {
   switch (mode) {
@@ -211,6 +244,7 @@ struct RawPreviewState {
     raw::DevelopParams params;
     std::optional<raw::WhiteBalance> white_balance;
     QSize output_size;
+    std::optional<RawPreviewHistogram> histogram;
   };
 
   QString file_path;
@@ -328,8 +362,16 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   controls_scroll->setMinimumWidth(390);
   content_row->addWidget(controls_scroll);
 
-  const auto add_slider_row = [](QFormLayout* form, const QString& label, int minimum, int maximum,
-                                 const char* object_name) {
+  // Each slider with its name and value labels: Shift-click and Alt-click
+  // (GitHub issue 394) work on all three.
+  struct SliderRow {
+    QSlider* slider;
+    QWidget* name;
+    QLabel* value;
+  };
+  std::vector<SliderRow> slider_rows;
+  const auto add_slider_row = [&slider_rows](QFormLayout* form, const QString& label, int minimum, int maximum,
+                                             const char* object_name) {
     auto* slider = new QSlider(Qt::Horizontal);
     slider->setObjectName(QLatin1String(object_name));
     slider->setRange(minimum, maximum);
@@ -342,8 +384,19 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     row->addWidget(slider, 1);
     row->addWidget(value_label);
     form->addRow(label, row);
+    slider_rows.push_back({slider, form->labelForField(row), value_label});
     return std::make_pair(slider, value_label);
   };
+
+  // --- Histogram (GitHub issue 393) ---
+  auto* histogram = new RawHistogramWidget(controls_page);
+  histogram->setObjectName(QStringLiteral("rawHistogram"));
+  controls_column->addWidget(histogram);
+  auto* histogram_label = new QLabel(controls_page);
+  histogram_label->setObjectName(QStringLiteral("rawHistogramRegionLabel"));
+  histogram_label->setAlignment(Qt::AlignCenter);
+  histogram_label->setMinimumHeight(histogram_label->fontMetrics().height());
+  controls_column->addWidget(histogram_label);
 
   auto* profile_group = new QGroupBox(QObject::tr("Rendering"), &dialog);
   auto* profile_form = new QFormLayout(profile_group);
@@ -486,6 +539,30 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   controls_column->addStretch(1);
 
   auto* status_row = new QHBoxLayout();
+  // --- Preview zoom (GitHub issue 395) ---
+  auto* zoom_combo = new QComboBox(&dialog);
+  zoom_combo->setObjectName(QStringLiteral("rawZoomCombo"));
+  zoom_combo->setEditable(true);
+  zoom_combo->setInsertPolicy(QComboBox::NoInsert);
+  zoom_combo->setMinimumContentsLength(9);
+  zoom_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  zoom_combo->addItem(QObject::tr("Fit"), 0.0);
+  for (const auto factor : kPreviewZoomPresets) zoom_combo->addItem(format_zoom_percent(factor), factor);
+  zoom_combo->setToolTip(QObject::tr("Preview zoom. Pick a size or type a percentage."));
+  auto* zoom_100_button = new QPushButton(QStringLiteral("100%"), &dialog);
+  zoom_100_button->setObjectName(QStringLiteral("rawZoom100Button"));
+  zoom_100_button->setToolTip(QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
+  auto* zoom_fit_button = new QPushButton(QObject::tr("Fit"), &dialog);
+  zoom_fit_button->setObjectName(QStringLiteral("rawZoomFitButton"));
+  zoom_fit_button->setToolTip(QObject::tr("Fit the image in the preview"));
+  auto* scrubby_check = new QCheckBox(QObject::tr("Scrubby Zoom"), &dialog);
+  scrubby_check->setObjectName(QStringLiteral("rawScrubbyZoomCheck"));
+  scrubby_check->setToolTip(QObject::tr("Drag left or right on the preview to zoom."));
+  status_row->addWidget(zoom_combo);
+  status_row->addWidget(zoom_100_button);
+  status_row->addWidget(zoom_fit_button);
+  status_row->addWidget(scrubby_check);
+  status_row->addSpacing(8);
   auto* status_label = new QLabel(&dialog);
   status_label->setObjectName(QStringLiteral("rawDevelopStatus"));
   status_label->setToolTip(QObject::tr("Progress is estimated from processing stages. Some stages report only when complete."));
@@ -662,12 +739,16 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   raw::DevelopParams final_params;
   bool accepting = false;
   bool preview_has_render = false;
+  // The develop settings the histogram on screen was rendered with: Shift-click
+  // auto values are measured from it.
+  std::optional<raw::DevelopParams> histogram_params;
   bool reset_requested = false;
   std::optional<raw::DevelopParams> displayed_draft;
   bool refinement_due = false;
   std::optional<RawPreviewState::Completion> accurate_cache;
 
   const auto set_controls_enabled = [&](bool enabled) {
+    histogram->setEnabled(enabled);
     profile_group->setEnabled(enabled);
     white_balance_group->setEnabled(enabled);
     tone_group->setEnabled(enabled);
@@ -834,6 +915,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       completion = *accurate_cache;
     preview_has_render = true;
     preview->set_image(completion.image, completion.output_size);
+    histogram->set_histogram(completion.histogram);
+    histogram_params = completion.params;
     if (completion.white_balance) {
       effective_white_balance = completion.white_balance;
       if (params.white_balance != raw::WhiteBalanceMode::Custom) {
@@ -934,6 +1017,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
         completion.image = image_from_developed(developed);
         completion.output_size = QSize(developed.output_width, developed.output_height);
         completion.white_balance = developed.effective_white_balance;
+        completion.histogram = raw_preview_histogram(developed.rgb, developed.width, developed.height);
         if (work.final_render) {
           auto result = raw::document_from_developed(developed);
           completion.document = std::make_shared<Document>(std::move(result.document));
@@ -1091,6 +1175,231 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     });
   }
   QObject::connect(retry_button, &QPushButton::clicked, &dialog, [&] { request_preview(true); });
+
+  // --- Histogram regions (GitHub issue 393) ---
+  // The dialog has no Blacks or Whites slider: those ends of the histogram
+  // drive Shadows and Highlights, the nearest controls.
+  const auto slider_for_region = [&](RawHistogramRegion region) -> QSlider* {
+    switch (region) {
+      case RawHistogramRegion::Shadows:
+        return shadows_slider;
+      case RawHistogramRegion::Exposure:
+        return exposure_slider;
+      case RawHistogramRegion::Highlights:
+        return tone_highlights_slider;
+      case RawHistogramRegion::None:
+        break;
+    }
+    return nullptr;
+  };
+  const auto value_label_for_region = [&](RawHistogramRegion region) -> QLabel* {
+    switch (region) {
+      case RawHistogramRegion::Shadows:
+        return shadows_value;
+      case RawHistogramRegion::Exposure:
+        return exposure_value;
+      case RawHistogramRegion::Highlights:
+        return tone_highlights_value;
+      case RawHistogramRegion::None:
+        break;
+    }
+    return nullptr;
+  };
+  const auto region_name = [](RawHistogramRegion region) {
+    switch (region) {
+      case RawHistogramRegion::Shadows:
+        return QObject::tr("Shadows");
+      case RawHistogramRegion::Exposure:
+        return QObject::tr("Exposure");
+      case RawHistogramRegion::Highlights:
+        return QObject::tr("Highlights");
+      case RawHistogramRegion::None:
+        break;
+    }
+    return QString();
+  };
+  QSlider* histogram_drag_slider = nullptr;
+  int histogram_drag_start = 0;
+  auto histogram_drag_region = RawHistogramRegion::None;
+  const auto refresh_histogram_label = [&] {
+    const auto region =
+        histogram_drag_region != RawHistogramRegion::None ? histogram_drag_region : histogram->hovered_region();
+    auto* value = value_label_for_region(region);
+    histogram_label->setText(value == nullptr ? QString()
+                                              : QObject::tr("%1: %2").arg(region_name(region), value->text()));
+  };
+  histogram->set_hover_callback([&](RawHistogramRegion) { refresh_histogram_label(); });
+  histogram->set_drag_callback([&](RawHistogramRegion region, double travel, RawHistogramDragPhase phase) {
+    if (phase == RawHistogramDragPhase::Begin) {
+      auto* slider = slider_for_region(region);
+      if (slider == nullptr || !slider->isEnabled() || accepting) return;
+      histogram_drag_slider = slider;
+      histogram_drag_start = slider->value();
+      histogram_drag_region = region;
+      // Held down like a slider drag: refinement waits for the release, which
+      // requests the quick preview and the refinement once.
+      slider->setSliderDown(true);
+      refresh_histogram_label();
+      return;
+    }
+    if (histogram_drag_slider == nullptr) return;
+    // A drag across the whole histogram covers half the slider's range.
+    const auto range = histogram_drag_slider->maximum() - histogram_drag_slider->minimum();
+    // Open locking the controls ends a drag; the settings it captured stay.
+    if (!accepting) histogram_drag_slider->setValue(histogram_drag_start + static_cast<int>(std::lround(travel * range / 2.0)));
+    if (phase == RawHistogramDragPhase::End) {
+      auto* slider = std::exchange(histogram_drag_slider, nullptr);
+      histogram_drag_region = RawHistogramRegion::None;
+      slider->setSliderDown(false);
+    }
+    refresh_histogram_label();
+  });
+
+  // --- Shift-click auto, Alt-click reset (GitHub issue 394) ---
+  const raw::DevelopParams default_params;
+  const auto apply_modifier_click = [&](QSlider* slider, bool reset) {
+    if (accepting) return;
+    if (slider == temperature_slider || slider == tint_slider) {
+      select_combo_data(white_balance_combo, reset ? QStringLiteral("asShot") : QStringLiteral("auto"));
+      return;
+    }
+    if (slider == denoise_slider) {
+      // Auto is both the default and the automatic noise reduction.
+      if (reset) select_combo_data(noise_combo, QStringLiteral("auto"));
+      return;
+    }
+    if (reset) {
+      if (slider == brightness_slider) slider->setValue(static_cast<int>(std::lround(default_params.brightness * 100.0)));
+      else if (slider == exposure_slider) slider->setValue(static_cast<int>(std::lround(default_params.exposure_ev * 100.0)));
+      else if (slider == contrast_slider) slider->setValue(static_cast<int>(std::lround(default_params.contrast)));
+      else if (slider == tone_highlights_slider) slider->setValue(static_cast<int>(std::lround(default_params.highlights)));
+      else if (slider == shadows_slider) slider->setValue(static_cast<int>(std::lround(default_params.shadows)));
+      else if (slider == saturation_slider) slider->setValue(static_cast<int>(std::lround(default_params.saturation)));
+      else if (slider == vibrance_slider) slider->setValue(static_cast<int>(std::lround(default_params.vibrance)));
+      return;
+    }
+    // Brightness, Saturation and Vibrance have no automatic value.
+    const auto& measured = histogram->histogram();
+    if (!measured || !histogram_params) return;
+    std::optional<int> value;
+    if (slider == exposure_slider) {
+      if (const auto ev = raw_auto_exposure_ev(*measured, histogram_params->exposure_ev))
+        value = static_cast<int>(std::lround(*ev * 100.0));
+    } else if (slider == contrast_slider) {
+      if (const auto amount = raw_auto_contrast(*measured, histogram_params->contrast))
+        value = static_cast<int>(std::lround(*amount));
+    } else if (slider == tone_highlights_slider) {
+      if (const auto amount = raw_auto_highlights(*measured, histogram_params->highlights))
+        value = static_cast<int>(std::lround(*amount));
+    } else if (slider == shadows_slider) {
+      if (const auto amount = raw_auto_shadows(*measured, histogram_params->shadows))
+        value = static_cast<int>(std::lround(*amount));
+    }
+    if (value) slider->setValue(*value);
+  };
+  auto* modifier_click_filter = new CallbackEventFilter(&dialog, [&](QObject* watched, QEvent* event) {
+    if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseButtonDblClick) return false;
+    const auto* mouse = static_cast<QMouseEvent*>(event);
+    // Modifiers folded into this event, never the global keyboard state.
+    const auto reset = mouse->modifiers().testFlag(Qt::AltModifier);
+    const auto automatic = !reset && mouse->modifiers().testFlag(Qt::ShiftModifier);
+    if (mouse->button() != Qt::LeftButton || (!reset && !automatic)) return false;
+    const auto row = std::find_if(slider_rows.begin(), slider_rows.end(), [watched](const SliderRow& candidate) {
+      return candidate.slider == watched || candidate.name == watched || candidate.value == watched;
+    });
+    if (row == slider_rows.end()) return false;
+    // A double-click's press already acted; consume the second one too.
+    if (event->type() == QEvent::MouseButtonPress) apply_modifier_click(row->slider, reset);
+    return true;
+  });
+  const auto auto_and_reset_hint =
+      resolve_modifier_names(QObject::tr("Shift-click sets the automatic value. %ALT%-click resets it."));
+  const auto reset_hint = resolve_modifier_names(QObject::tr("%ALT%-click resets it."));
+  const auto white_balance_hint =
+      resolve_modifier_names(QObject::tr("Shift-click uses Auto white balance. %ALT%-click returns to As Shot."));
+  const auto denoise_hint = resolve_modifier_names(QObject::tr("%ALT%-click returns noise reduction to Auto."));
+  for (const auto& row : slider_rows) {
+    const auto& hint = row.slider == temperature_slider || row.slider == tint_slider ? white_balance_hint
+                       : row.slider == denoise_slider                                  ? denoise_hint
+                       : row.slider == exposure_slider || row.slider == contrast_slider ||
+                               row.slider == tone_highlights_slider || row.slider == shadows_slider
+                           ? auto_and_reset_hint
+                           : reset_hint;
+    for (QWidget* widget : {static_cast<QWidget*>(row.slider), row.name, static_cast<QWidget*>(row.value)}) {
+      if (widget == nullptr) continue;
+      widget->installEventFilter(modifier_click_filter);
+      widget->setToolTip(widget->toolTip().isEmpty() ? hint : widget->toolTip() + QLatin1Char('\n') + hint);
+    }
+  }
+
+  // --- Preview zoom (GitHub issue 395) ---
+  const auto refresh_zoom_combo = [preview, zoom_combo] {
+    const QSignalBlocker block(zoom_combo);
+    const auto factor = preview->zoom();
+    if (preview->fit_mode()) {
+      zoom_combo->setCurrentIndex(0);
+      zoom_combo->setEditText(QObject::tr("Fit (%1%)").arg(std::lround(factor * 100.0)));
+      return;
+    }
+    for (int index = 1; index < zoom_combo->count(); ++index) {
+      if (std::abs(zoom_combo->itemData(index).toDouble() - factor) < 0.0005) {
+        zoom_combo->setCurrentIndex(index);
+        zoom_combo->setEditText(zoom_combo->itemText(index));
+        return;
+      }
+    }
+    zoom_combo->setEditText(format_zoom_percent(factor));
+  };
+  preview->set_zoom_changed_callback(refresh_zoom_combo);
+  refresh_zoom_combo();
+  const auto apply_typed_zoom = [preview, zoom_combo, refresh_zoom_combo] {
+    auto text = zoom_combo->currentText().trimmed();
+    if (text.startsWith(zoom_combo->itemText(0), Qt::CaseInsensitive)) {
+      preview->zoom_to_fit();
+    } else {
+      text.remove(QLatin1Char('%'));
+      text = text.trimmed();
+      bool ok = false;
+      auto percent = QLocale().toDouble(text, &ok);
+      if (!ok) percent = text.toDouble(&ok);
+      if (ok && percent > 0.0) preview->zoom_to(percent / 100.0);
+    }
+    refresh_zoom_combo();
+  };
+  QObject::connect(zoom_combo, &QComboBox::activated, &dialog, [preview, zoom_combo](int index) {
+    const auto factor = zoom_combo->itemData(index).toDouble();
+    if (factor > 0.0) preview->zoom_to(factor);
+    else preview->zoom_to_fit();
+  });
+  // Enter applies a typed zoom without pressing the dialog's default Open button.
+  auto* zoom_entry_filter = new CallbackEventFilter(&dialog, [apply_typed_zoom](QObject*, QEvent* event) {
+    if (event->type() != QEvent::KeyPress) return false;
+    const auto key = static_cast<QKeyEvent*>(event)->key();
+    if (key != Qt::Key_Return && key != Qt::Key_Enter) return false;
+    apply_typed_zoom();
+    return true;
+  });
+  zoom_combo->lineEdit()->installEventFilter(zoom_entry_filter);
+  QObject::connect(zoom_combo->lineEdit(), &QLineEdit::editingFinished, &dialog, apply_typed_zoom);
+  QObject::connect(zoom_100_button, &QPushButton::clicked, &dialog, [preview] { preview->zoom_to(1.0); });
+  QObject::connect(zoom_fit_button, &QPushButton::clicked, &dialog, [preview] { preview->zoom_to_fit(); });
+  const auto scrubby_key = QStringLiteral("imports/rawDevelopScrubbyZoom");
+  scrubby_check->setChecked(app_settings().value(scrubby_key, false).toBool());
+  preview->set_scrubby_zoom(scrubby_check->isChecked());
+  QObject::connect(scrubby_check, &QCheckBox::toggled, &dialog, [preview, scrubby_key](bool checked) {
+    preview->set_scrubby_zoom(checked);
+    auto settings = app_settings();
+    settings.setValue(scrubby_key, checked);
+  });
+  // The callbacks above capture this frame's locals by reference; disarm them
+  // before those locals go, ahead of the dialog's own destruction.
+  const auto disarm_callbacks = qScopeGuard([histogram, preview, modifier_click_filter, zoom_entry_filter] {
+    histogram->set_hover_callback({});
+    histogram->set_drag_callback({});
+    preview->set_zoom_changed_callback({});
+    modifier_click_filter->clear();
+    zoom_entry_filter->clear();
+  });
 
   QObject::connect(reset_button, &QPushButton::clicked, &dialog, [&] {
     params = raw::DevelopParams{};

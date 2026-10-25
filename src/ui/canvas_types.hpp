@@ -404,6 +404,10 @@ struct CanvasRenderCacheDiagnostics {
   // frame ran over the live_preview_frame_latch_ms escape hatch. At most
   // once per drag.
   int transform_proxy_previews{0};
+  // Times a free-transform drag of a clipping base drew the clip-group blit
+  // (the transformed base plus the cached clipped members, GitHub #398)
+  // instead of compositing patches per mouse-move. At most once per drag.
+  int transform_clip_group_previews{0};
   // Times a transform session built its base cache from the preview-scaled
   // document (display-resolution compositing at zoom <= 50%).
   int transform_scaled_bases{0};

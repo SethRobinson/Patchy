@@ -24,6 +24,7 @@
 #include "formats/miniz/miniz.h"
 #include "formats/stb/stb_image.h"
 #include "formats/svg_xml.hpp"
+#include "formats/zip_entry_reader.hpp"
 #include "formats/vector_export_plan.hpp"
 #include "render/compositor.hpp"
 #include "render/layer_knockout.hpp"
@@ -397,28 +398,6 @@ constexpr std::uint64_t kZip32Limit = 0xFFFFFFFFULL;
   return std::runtime_error(message);
 }
 
-// A layer src must name an entry inside the archive: no parent steps, no absolute or
-// drive paths, no backslashes. Anything else is refused before it is looked up.
-[[nodiscard]] bool safe_entry_path(std::string_view path) {
-  if (path.empty() || path.front() == '/' || path.find('\\') != std::string_view::npos ||
-      path.find(':') != std::string_view::npos) {
-    return false;
-  }
-  std::size_t start = 0;
-  while (start <= path.size()) {
-    const auto end = path.find('/', start);
-    const auto piece = path.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
-    if (piece == "..") {
-      return false;
-    }
-    if (end == std::string_view::npos) {
-      break;
-    }
-    start = end + 1;
-  }
-  return true;
-}
-
 struct DecodedImage {
   std::int32_t width{0};
   std::int32_t height{0};
@@ -427,78 +406,19 @@ struct DecodedImage {
   std::vector<std::uint16_t> rgba16;
 };
 
-class ZipReader {
+// The OpenRaster messages and caps for the shared zip reader.
+[[nodiscard]] formats::ZipReaderMessages zip_messages() {
+  return {PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is damaged: its zip directory is missing or cut short"),
+          PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is too large to open"),
+          PATCHY_TRANSLATE_NOOP(
+              "QObject", "The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)"),
+          PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is damaged: an entry cannot be unpacked")};
+}
+
+class ZipReader : public formats::ZipEntryReader {
 public:
-  explicit ZipReader(std::span<const std::uint8_t> bytes) {
-    if (bytes.size() < 22 || mz_zip_reader_init_mem(&zip_, bytes.data(), bytes.size(), 0) == MZ_FALSE) {
-      throw read_error(PATCHY_TRANSLATE_NOOP(
-          "QObject", "The OpenRaster file is damaged: its zip directory is missing or cut short"));
-    }
-    open_ = true;
-    if (mz_zip_reader_get_num_files(&zip_) > kMaxEntries) {
-      throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is too large to open"));
-    }
-  }
-  ~ZipReader() {
-    if (open_) {
-      mz_zip_reader_end(&zip_);
-    }
-  }
-  ZipReader(const ZipReader&) = delete;
-  ZipReader& operator=(const ZipReader&) = delete;
-
-  [[nodiscard]] bool contains(const std::string& name) {
-    return mz_zip_reader_locate_file(&zip_, name.c_str(), nullptr, MZ_ZIP_FLAG_CASE_SENSITIVE) >= 0;
-  }
-
-  [[nodiscard]] std::string first_entry_name() {
-    if (mz_zip_reader_get_num_files(&zip_) == 0) {
-      return {};
-    }
-    mz_zip_archive_file_stat stat{};
-    if (mz_zip_reader_file_stat(&zip_, 0, &stat) == MZ_FALSE) {
-      return {};
-    }
-    return stat.m_filename;
-  }
-
-  // nullopt when the entry is missing; throws when it is damaged or past the caps.
-  [[nodiscard]] std::optional<std::vector<std::uint8_t>> extract(const std::string& name, std::uint64_t limit) {
-    const int index = mz_zip_reader_locate_file(&zip_, name.c_str(), nullptr, MZ_ZIP_FLAG_CASE_SENSITIVE);
-    if (index < 0) {
-      return std::nullopt;
-    }
-    mz_zip_archive_file_stat stat{};
-    if (mz_zip_reader_file_stat(&zip_, static_cast<mz_uint>(index), &stat) == MZ_FALSE || stat.m_is_directory) {
-      return std::nullopt;
-    }
-    if (stat.m_is_encrypted || !stat.m_is_supported) {
-      throw read_error(PATCHY_TRANSLATE_NOOP(
-          "QObject", "The OpenRaster file uses zip features Patchy cannot read (encryption or an unknown compression)"));
-    }
-    // Deflate cannot expand past about 1032:1 and a stored entry not at all: a larger
-    // claim is a damaged or hostile directory, refused before allocating for it.
-    if ((stat.m_method == 0 && stat.m_uncomp_size != stat.m_comp_size) ||
-        stat.m_uncomp_size > stat.m_comp_size * 1032U + 4096U) {
-      throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is damaged: an entry cannot be unpacked"));
-    }
-    if (stat.m_uncomp_size > limit || stat.m_uncomp_size > kMaxEntryBytes ||
-        extracted_ + stat.m_uncomp_size > kMaxTotalExtracted) {
-      throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is too large to open"));
-    }
-    std::vector<std::uint8_t> data(static_cast<std::size_t>(stat.m_uncomp_size));
-    if (!data.empty() && mz_zip_reader_extract_to_mem(&zip_, static_cast<mz_uint>(index), data.data(), data.size(),
-                                                      0) == MZ_FALSE) {
-      throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster file is damaged: an entry cannot be unpacked"));
-    }
-    extracted_ += stat.m_uncomp_size;
-    return data;
-  }
-
-private:
-  mz_zip_archive zip_{};
-  bool open_{false};
-  std::uint64_t extracted_{0};
+  explicit ZipReader(std::span<const std::uint8_t> bytes)
+      : formats::ZipEntryReader(bytes, zip_messages(), {kMaxEntryBytes, kMaxTotalExtracted, kMaxEntries}) {}
 };
 
 // Checks PNG (or JPEG) bytes before any decoding: false with a reason when the bytes are
@@ -707,7 +627,7 @@ void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, Rea
   }
   read_common(element, node, state);
   const auto src = attribute_or(element, "src", "");
-  if (!safe_entry_path(src)) {
+  if (!formats::safe_zip_entry_path(src)) {
     add_unique(state.unsafe_paths, node.name);
   } else if (auto bytes = state.zip.extract(src, kMaxEntryBytes); !bytes.has_value()) {
     add_unique(state.missing_files, node.name + " (" + src + ")");
@@ -1559,6 +1479,10 @@ std::vector<Loss> DocumentIo::lost_content(const Document& document) {
 }
 
 namespace detail {
+
+std::optional<BlendMode> blend_mode_from_composite_op(std::string_view op) {
+  return blend_mode_from_op(op);
+}
 
 namespace {
 

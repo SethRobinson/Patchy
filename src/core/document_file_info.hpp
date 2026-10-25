@@ -98,6 +98,9 @@ struct DocumentFileInfo {
   std::string source_icc_note;  // why the source profile was not kept, if it was not
   std::vector<FileInfoObserved> observed;
   std::vector<FileInfoSegment> structure;
+  // Strip All Metadata ran on this document since it was opened: a PSD save stamp then
+  // adds no EXIF block of its own (docs/file-info.md, "Save stamp"). Never written to a file.
+  bool stripped{false};
 
   [[nodiscard]] bool has_metadata() const noexcept {
     return (xmp && !xmp->empty()) || (exif && !exif->empty()) || (iptc && !iptc->empty()) || copyright_flag ||
