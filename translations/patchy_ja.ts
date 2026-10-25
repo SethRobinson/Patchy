@@ -25843,10 +25843,6 @@ The open document keeps its blend modes either way.</source>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>クローン元の設定: ソース、オフセット、スケール、回転、オーバーレイ</translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation>クローン元</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

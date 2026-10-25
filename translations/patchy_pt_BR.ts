@@ -25916,10 +25916,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação e sobreposição</translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation>Origem do clone</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

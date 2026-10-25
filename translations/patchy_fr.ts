@@ -25916,10 +25916,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation et superposition</translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation>Source de duplication</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

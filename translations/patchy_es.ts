@@ -25916,10 +25916,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Ajustes del origen de clonación: orígenes, desplazamiento, escala, rotación y superposición</translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation>Origen de clonación</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

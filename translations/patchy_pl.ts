@@ -25989,10 +25989,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót i nakładka</translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation>Źródło klonowania</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

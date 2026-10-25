@@ -25834,10 +25834,6 @@ The open document keeps its blend modes either way.</source>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

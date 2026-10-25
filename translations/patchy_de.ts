@@ -25916,10 +25916,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung und Überlagerung</translation>
     </message>
-    <message>
-        <source>Clone Source</source>
-        <translation>Kopierquelle</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

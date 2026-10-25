@@ -1,7 +1,7 @@
 // Clone source settings (GitHub issue 424; docs/healing.md "Clone source settings"): the
 // Clone Stamp's scale and rotation (byte-identical output at the identity), the editable
 // offset, the four source slots, the Healing Brush keeping its untransformed source, the
-// overlay under the hovered brush, and the gear popup with Window > Clone Source.
+// overlay under the hovered brush, and the gear popup.
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
@@ -98,6 +98,12 @@ void click(CanvasWidget& canvas, QPoint document_point) {
   const auto at = canvas.widget_position_for_document_point(document_point);
   send_mouse(canvas, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton);
   send_mouse(canvas, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// Opens the gear's popup under it, as its click does (showMenu would block in exec()).
+void open_gear_popup(QToolButton& gear, QMenu& menu) {
+  menu.popup(gear.mapToGlobal(QPoint(0, gear.height())));
   QApplication::processEvents();
 }
 
@@ -301,8 +307,9 @@ void ui_clone_source_overlay_previews_source_under_brush() {
   CHECK(color_close(pixel_under_brush(), QColor(30, 40, 210), 12));
 }
 
-// The gear on the Clone Stamp bar opens the settings; edits reach the canvas, the overlay
-// settings persist, and Window > Clone Source picks the Clone Stamp and opens the popup.
+// The gear on the Clone Stamp bar opens the settings; edits reach the canvas and the
+// overlay settings persist. The Window menu has no Clone Source entry: the settings are
+// a popup, not a panel.
 void ui_clone_source_gear_popup_drives_canvas() {
   SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
   SettingsValueRestorer saved_overlay(QStringLiteral("tools/cloneOverlay"));
@@ -318,13 +325,13 @@ void ui_clone_source_gear_popup_drives_canvas() {
     return;
   }
   CHECK(!gear->isVisible());
+  CHECK(window.findChild<QAction*>(QStringLiteral("windowCloneSourceAction")) == nullptr);
 
-  // Window > Clone Source from the Brush: the Clone Stamp, and the popup under the gear.
-  auto* entry = require_action(window, "windowCloneSourceAction");
-  entry->trigger();
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == CanvasTool::Clone);
   CHECK(gear->isVisible());
+  open_gear_popup(*gear, *menu);
   CHECK(menu->isVisible());
   // An earlier test may have saved Aligned off; the offset fields need it on.
   if (auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck")); aligned != nullptr) {
@@ -429,8 +436,7 @@ void ui_clone_source_overlay_screenshot() {
   canvas->set_brush_size(70);
   canvas->set_brush_softness(0);
   alt_click(*canvas, QPoint(116, 228));
-  require_action(window, "windowCloneSourceAction")->trigger();
-  QApplication::processEvents();
+  open_gear_popup(*gear, *menu);
   panel->scale_spin()->setValue(130.0);
   panel->rotation_spin()->setValue(-15.0);
   panel->overlay_check()->setChecked(true);
@@ -439,8 +445,7 @@ void ui_clone_source_overlay_screenshot() {
   QApplication::processEvents();
   // One stroke with the turned, enlarged source, then the popup with its offset.
   click(*canvas, QPoint(250, 232));
-  require_action(window, "windowCloneSourceAction")->trigger();
-  QApplication::processEvents();
+  open_gear_popup(*gear, *menu);
   CHECK(panel->offset_x_spin()->isEnabled());
   save_window_popup_artifact("ui_clone_source_popup_scene", window, *gear, *menu);
   menu->close();
