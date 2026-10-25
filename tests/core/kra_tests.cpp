@@ -629,7 +629,9 @@ void kra_reads_krita_fixtures_if_available() {
       const auto source = patchy::test::committed_psd_fixture_path("photoshop-" + stem.substr(4) + ".psd");
       if (std::filesystem::exists(source)) {
         const auto psd = patchy::psd::DocumentIo::read_file(source);
-        const auto against_psd = compare_with(ours, patchy::flatten_document_rgba8(psd));
+        const auto psd_render = patchy::flatten_document_rgba8(psd);
+        write_artifact_png(stem + "-psd", psd_render);
+        const auto against_psd = compare_with(ours, psd_render);
         std::cout << "  | against the PSD: mean " << against_psd.mean << "  worst " << against_psd.worst;
       }
     }

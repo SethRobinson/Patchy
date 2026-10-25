@@ -331,6 +331,8 @@ struct ReadState {
   std::vector<std::string> inherit_alpha_grouped;
   std::vector<std::string> inherit_alpha_unclipped;
   std::vector<std::string> inlined_groups;
+  std::vector<std::string> applied_filters;
+  std::vector<std::string> filtered_copies;
   std::vector<std::string> inherit_alpha_flattened;
   std::vector<std::string> clone_layers;
   std::vector<std::string> missing_files;
@@ -1140,7 +1142,7 @@ struct BuildState {
   BitDepth depth;
   ReadState& read;
   const std::filesystem::path& source_directory;
-  std::map<std::string, LayerStyle> styles;
+  std::map<std::string, psd::AslStyle> styles;
   std::map<std::string, const Node*> by_uuid;
   std::map<std::string, const Node*> by_name;
   std::optional<LayerId> selected;
@@ -1199,7 +1201,15 @@ void apply_common(Layer& layer, const Node& node, BuildState& state, bool group)
   }
   if (!node.layer_style.empty()) {
     if (const auto found = state.styles.find(normalized_uuid(node.layer_style)); found != state.styles.end()) {
-      layer.layer_style() = found->second;
+      layer.layer_style() = found->second.style;
+      // The style's blending options carry the layer's Fill and Blend If (maindoc.xml has
+      // the opacity and blend mode).
+      if (const auto& blending = found->second.blend_settings; blending.has_value()) {
+        layer.set_fill_opacity(static_cast<float>(std::clamp(blending->fill_opacity, 0, 100)) / 100.0F);
+        if (!blend_if_is_identity(blending->blend_if)) {
+          (void)layer.set_blend_if(blending->blend_if, true);
+        }
+      }
     } else {
       add_unique(state.read.missing_styles, node.name);
     }
@@ -1269,6 +1279,74 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
 }
 
 [[nodiscard]] std::vector<Layer> build_list(const std::vector<Node>& nodes, BuildState& state);
+
+[[nodiscard]] bool maps_to_adjustment(const FilterConfig& config) {
+  bool approximate = false;
+  BlendMode blend = BlendMode::Normal;
+  return adjustment_from_filter(config, approximate, blend).has_value();
+}
+
+// `original` and `filtered` (both covering `bounds`) mixed by a selection: filtered where it
+// is selected.
+[[nodiscard]] PixelBuffer blend_by_selection(const PixelBuffer& original, const PixelBuffer& filtered, Rect bounds,
+                                             const RawImage& selection) {
+  PixelBuffer out = original;
+  const auto domain = original.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+  std::vector<float> a(static_cast<std::size_t>(bounds.width) * 4U);
+  std::vector<float> b(a.size());
+  const std::uint8_t outside = selection.default_pixel.empty() ? 0 : selection.default_pixel[0];
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    load_rgba_row(original, y, 0, bounds.width, domain, a);
+    load_rgba_row(filtered, y, 0, bounds.width, domain, b);
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto sx = bounds.x + x - selection.bounds.x;
+      const auto sy = bounds.y + y - selection.bounds.y;
+      const bool inside = sx >= 0 && sy >= 0 && sx < selection.bounds.width && sy < selection.bounds.height;
+      const float weight =
+          static_cast<float>(inside ? selection.data[static_cast<std::size_t>(sy) * selection.bounds.width + sx]
+                                    : outside) /
+          255.0F;
+      for (int c = 0; c < 4; ++c) {
+        auto& value = a[static_cast<std::size_t>(x) * 4U + static_cast<std::size_t>(c)];
+        value += (b[static_cast<std::size_t>(x) * 4U + static_cast<std::size_t>(c)] - value) * weight;
+      }
+    }
+    store_rgba_row(out, y, 0, bounds.width, domain, a);
+  }
+  return out;
+}
+
+// A Krita filter layer Patchy has no adjustment for but can draw: the layers below it in its
+// stack, composited and filtered, as a Normal layer with the filter layer's opacity and
+// selection.
+[[nodiscard]] std::optional<Layer> filtered_copy_layer(const Node& node, const std::vector<Layer>& below,
+                                                       BuildState& state) {
+  if (!node.config.has_value() || maps_to_adjustment(*node.config) || !krita_filter_is_applied(*node.config)) {
+    return std::nullopt;
+  }
+  Document content(state.document.width(), state.document.height(), state.document.format());
+  content.color_state().bit_depth = state.depth;
+  content.metadata().patterns = state.document.metadata().patterns;
+  for (const auto& layer : below) {
+    content.add_layer(layer);
+  }
+  PixelBuffer pixels = state.depth == BitDepth::UInt8 ? flatten_document_rgba8(content)
+                                                      : Compositor().flatten_rgba_deep(content);
+  (void)apply_krita_filter(*node.config, pixels);
+  Layer layer(state.document.allocate_layer_id(), node.name, std::move(pixels));
+  layer.set_bounds(Rect::from_size(state.document.width(), state.document.height()));
+  layer.set_opacity(node.opacity);
+  layer.set_visible(node.visible);
+  layer.set_color_label(color_label_from_krita(node.color_label));
+  if (node.selection.has_value()) {
+    if (auto mask = mask_from_selection(*node.selection); mask.has_value()) {
+      layer.set_mask(std::move(*mask));
+    }
+  }
+  apply_transparency_masks(layer, node, state);
+  add_unique(state.read.filtered_copies, node.name + " (" + node.config->name + ")");
+  return layer;
+}
 
 // A file layer's image beside the .kra, decoded by stb_image (PNG, JPEG, BMP, TGA, GIF).
 [[nodiscard]] std::optional<PixelBuffer> load_file_layer(const Node& node, BuildState& state) {
@@ -1376,13 +1454,26 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
         apply_transparency_masks(layer, node, state);
         return layer;
       }
+      // Filter masks Patchy has no adjustment for but can draw (sharpen, unsharp, gaussian
+      // blur) filter the layer's own pixels, within the mask's selection, bottom mask first.
+      for (auto it = node.masks.rbegin(); it != node.masks.rend(); ++it) {
+        if (it->type == MaskType::Filter && it->visible && it->config.has_value() && !maps_to_adjustment(*it->config) &&
+            krita_filter_is_applied(*it->config)) {
+          auto filtered = *pixels;
+          (void)apply_krita_filter(*it->config, filtered);
+          *pixels = it->selection.has_value() ? blend_by_selection(*pixels, filtered, bounds, *it->selection)
+                                              : std::move(filtered);
+          add_unique(state.read.applied_filters, node.name + " / " + it->name + " (" + it->config->name + ")");
+        }
+      }
       Layer layer(state.document.allocate_layer_id(), node.name, std::move(*pixels));
       layer.set_bounds(bounds);
       apply_common(layer, node, state, false);
       apply_transparency_masks(layer, node, state);
       // Filter masks filter this layer's own pixels: clipped adjustments right above it.
       for (auto it = node.masks.rbegin(); it != node.masks.rend(); ++it) {
-        if (it->type == MaskType::Filter && it->config.has_value()) {
+        if (it->type == MaskType::Filter && it->config.has_value() &&
+            (maps_to_adjustment(*it->config) || !krita_filter_is_applied(*it->config))) {
           if (auto adjustment = adjustment_layer(it->name, *it->config, it->selection, state, node.name);
               adjustment.has_value()) {
             adjustment->set_clipped(true);
@@ -1526,6 +1617,12 @@ std::vector<Layer> build_list(const std::vector<Node>& nodes, BuildState& state)
     std::vector<Layer> above;
     const bool below_opaque = opaque_cover_below(nodes, index) || state.backdrop_opaque;
     state.group_backdrop_opaque = below_opaque;
+    if (node.type == NodeType::Filter) {
+      if (auto copy = filtered_copy_layer(node, out, state); copy.has_value()) {
+        out.push_back(std::move(*copy));
+        continue;
+      }
+    }
     Layer layer = build_layer(node, state, above);
     if (node.inherit_alpha && out.empty() && !below_opaque) {
       // Nothing below in its own stack: Krita keeps nothing of it in an isolated group, and
@@ -1608,7 +1705,9 @@ void read_styles(ReadState& read, BuildState& build) {
         bevel.use_global_light = false;
       }
     }
-    build.styles[normalized_uuid(style.id)] = std::move(resolved);
+    auto stored = style;
+    stored.style = std::move(resolved);
+    build.styles[normalized_uuid(style.id)] = std::move(stored);
   }
   for (const auto& warning : parsed->warnings) {
     add_unique(read.style_notices, warning);
@@ -1841,6 +1940,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
          "them, as in Krita: ");
     note(state.inherit_alpha_flattened,
          "Groups with Inherit Alpha were merged into one clipped layer (Patchy cannot clip a group): ");
+    note(state.applied_filters, "Krita filter masks Patchy has no adjustment for were applied to the layer's pixels: ");
+    note(state.filtered_copies,
+         "Krita filter layers Patchy has no adjustment for opened as filtered copies of the layers below: ");
     note(state.inlined_groups,
          "Pass-through groups whose bottom layer inherits alpha opened as their layers, so it clips to the layers "
          "below: ");

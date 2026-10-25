@@ -89,10 +89,18 @@ Masks and selections are one byte per pixel.
 - Inherit Alpha keeps a layer inside the alpha of everything below it in its stack. When the
   stack below is one clipping run it opens as a clipping mask; otherwise the layers below are
   grouped as "Inherit Alpha base" first, so the clip takes them all. Above an opaque
-  full-canvas layer (white Background) it changes nothing and opens unclipped.
+  full-canvas layer (white Background, or a painted layer opaque over the whole canvas) it
+  changes nothing and opens unclipped; inside a pass-through group the stack below the group
+  counts too. Patchy never clips a group, so an Inherit Alpha group is composited into one
+  clipped pixel layer. A pass-through group at full opacity without masks whose bottom layer
+  inherits alpha (Krita clips it to the layers below the group) opens as its layers in place.
 - Filter layers (`adjustmentlayer`, compositeop `copy`) and filter masks: adjustment layers
   where one maps, with the selection as their mask; a filter mask becomes a clipped
-  adjustment right above its layer (on a group: the group's top child). See "Filters".
+  adjustment right above its layer (on a group: the group's top child). Sharpen, unsharp and
+  gaussian blur, which have no adjustment, are drawn: a filter mask filters its layer's
+  pixels within its selection, and a filter layer opens as a Normal pixel layer holding the
+  layers below it, composited and filtered, with the filter layer's opacity and selection.
+  See "Filters".
 - Fill layers (`generatorlayer`): `color` becomes a fill layer with the selection as its
   mask; pattern, gradient, screentone, multigrid, simplex noise and SeExpr open as empty
   layers with a notice (Krita stores no pixels for them).
@@ -104,16 +112,27 @@ Masks and selections are one byte per pixel.
   else `clonefrom`). File layers: the PNG/JPEG at `source` (relative to the .kra) as pixels;
   without the file, or without the folder (registry reads), an empty layer and a notice.
 - Layer styles: `annotations/layerstyles.asl` is Photoshop's ASL; each style's id is the
-  `layerstyle` uuid. Read with `psd::read_asl`, patterns adopted into the document.
+  `layerstyle` uuid. Read with `psd::read_asl`, patterns adopted into the document; the
+  style's blending options give the layer's Fill and Blend If. Effects set to use global
+  light take the angle and altitude Krita keeps from an imported PSD
+  (`annotations/PSD Resource Block_ 1037` and `_ 1049`, big-endian degrees), else 120 and 30.
+  Krita renders effects with its own engine; Patchy renders Photoshop's look, so the
+  fixtures made from Patchy's PSDs are judged against Patchy's render of the PSD.
 
 ## Blend modes
 
 Krita's ids (`compositeop`) map to Patchy's: `normal`, `multiply`, `screen`, `overlay`,
 `darken`, `lighten`, `dodge` (Color Dodge), `burn` (Color Burn), `hard_light`, `diff`,
 `color`, `hue`, `saturation`, `luminize` (Luminosity), `add` and `linear_dodge` (Linear
-Dodge), and every id OpenRaster's table knows as `krita:<id>` ([ora.md](ora.md)). Krita 5.3
-accepts 125 ids; they were found by rendering each candidate against the Normal fallback it
-uses for unknown ids. Unknown ones open as Normal with a notice.
+Dodge), `xor` and `negation` (Paint.NET's formulas exactly), and every id OpenRaster's table
+knows as `krita:<id>` ([ora.md](ora.md)). Near modes, with a notice: `soft_light_svg`
+(Krita's menu "Soft Light", the W3C formula: up to 17 levels from Photoshop's where the
+backdrop is below a quarter), `reflect` and `glow` (Paint.NET's, within 11 levels),
+`luminosity_sai` (SAI's Luminosity/Shine adds the layer times its alpha: Linear Dodge wherever
+the sum stays below white). Krita 5.3 accepts 125 ids; they were found by rendering each
+candidate against the Normal fallback it uses for unknown ids. Unknown ones open as Normal
+with a notice. Krita's HSV, HSL, HSI and HSY hue, saturation and color modes are not
+Python's colorsys formulas (measured), so GIMP's HSV modes do not stand in for them.
 
 ## Filters
 
@@ -122,7 +141,7 @@ Settings are `.filterconfig` XML: `<params version><param name>value</param>`.
 | Krita filter | Patchy |
 |---|---|
 | `invert` | Invert |
-| `levels` | Levels from `lightness` ("black;white;gamma;outblack;outwhite", 0..1) or the 0..255 keys of version 1; Krita's lightness mode is approximate |
+| `levels` | Levels from `lightness` ("black;white;gamma;outblack;outwhite", 0..1) or the 0..255 keys of version 1. Krita's lightness mode keeps the colors: the adjustment layer gets Luminosity (approximate) |
 | `perchannel` | Curves. Krita 5 stores 8 curves for RGB: composite, red, green, blue, alpha, hue, saturation, lightness (measured); the last four have no Curves twin. Older files' first curve goes to the composite |
 | `hsvadjustment` | Hue/Saturation (approximate) |
 | `desaturate` | type 0 (lightness) Hue/Saturation -100; types 1 to 3 (BT.709, BT.601, average) a monochrome Channel Mixer; 4 and 5 (min, max) approximate |
@@ -130,8 +149,12 @@ Settings are `.filterconfig` XML: `<params version><param name>value</param>`.
 | `threshold` | Threshold (approximate) |
 | `posterize` | Posterize with steps + 1 levels (approximate) |
 
-Everything else (blurs, sharpening, noise, pixelize, emboss, gradient map, ...) is left out
-with a notice.
+Drawn by Patchy (premultiplied, edges clamped, at the document depth in its own domain),
+measured on impulse renders: `sharpen` is the 3 x 3 kernel 1/3 [0 -2 0; -2 11 -2; 0 -2 0];
+`gaussian blur` uses sigma = 0.3 x radius + 0.3, truncated at the radius; `unsharp` adds
+`amount` x (pixel - that gaussian of `halfSize`) where the difference passes `threshold`, on
+lightness only when `lightnessOnly` (the default). Everything else (box blur, noise,
+pixelize, emboss, gradient map, ...) is left out with a notice.
 
 ## Fixtures and corpus
 

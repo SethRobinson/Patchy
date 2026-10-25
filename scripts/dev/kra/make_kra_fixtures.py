@@ -302,6 +302,7 @@ FILTERS = [
     ("threshold", {}),
     ("posterize", {}),
     ("gaussian blur", {"horizRadius": 3, "vertRadius": 3}),
+    ("sharpen", {}),
     ("blur", {}),
     ("unsharp", {}),
     ("pixelize", {}),

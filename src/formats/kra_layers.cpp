@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <locale>
 #include <sstream>
 #include <stdexcept>
@@ -299,6 +300,170 @@ std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& con
     return settings;
   }
   return std::nullopt;
+}
+
+namespace {
+
+// Premultiplied RGBA planes (deep scale) of a whole buffer, and back.
+struct Planes {
+  std::int32_t width{0};
+  std::int32_t height{0};
+  std::vector<float> values;  // 4 per pixel, premultiplied
+};
+
+[[nodiscard]] DeepDomain domain_of(const PixelBuffer& pixels) {
+  return pixels.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+}
+
+[[nodiscard]] Planes load_planes(const PixelBuffer& pixels) {
+  Planes planes{pixels.width(), pixels.height(), {}};
+  planes.values.resize(static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height()) * 4U);
+  const auto domain = domain_of(pixels);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    auto row = std::span<float>(planes.values).subspan(static_cast<std::size_t>(y) * pixels.width() * 4U,
+                                                       static_cast<std::size_t>(pixels.width()) * 4U);
+    load_rgba_row(pixels, y, 0, pixels.width(), domain, row);
+    for (std::size_t i = 0; i < row.size(); i += 4) {
+      const float alpha = row[i + 3] / kDeepScale;
+      row[i] *= alpha;
+      row[i + 1] *= alpha;
+      row[i + 2] *= alpha;
+    }
+  }
+  return planes;
+}
+
+void store_planes(const Planes& planes, PixelBuffer& pixels) {
+  const auto domain = domain_of(pixels);
+  const bool linear = domain == DeepDomain::Linear;
+  std::vector<float> row(static_cast<std::size_t>(planes.width) * 4U);
+  for (std::int32_t y = 0; y < planes.height; ++y) {
+    const auto* source = planes.values.data() + static_cast<std::size_t>(y) * planes.width * 4U;
+    for (std::size_t i = 0; i < row.size(); i += 4) {
+      const float alpha = std::clamp(source[i + 3], 0.0F, kDeepScale);
+      for (std::size_t c = 0; c < 3; ++c) {
+        float value = alpha > 0.0F ? source[i + c] * kDeepScale / alpha : 0.0F;
+        row[i + c] = linear ? std::max(0.0F, value) : std::clamp(value, 0.0F, kDeepScale);
+      }
+      row[i + 3] = alpha;
+    }
+    store_rgba_row(pixels, y, 0, planes.width, domain, row);
+  }
+}
+
+// One separable pass of `kernel` (odd length) along x or y, edges clamped.
+[[nodiscard]] Planes convolve_1d(const Planes& in, const std::vector<float>& kernel, bool horizontal) {
+  Planes out{in.width, in.height, std::vector<float>(in.values.size())};
+  const auto half = static_cast<std::int32_t>(kernel.size() / 2);
+  for (std::int32_t y = 0; y < in.height; ++y) {
+    for (std::int32_t x = 0; x < in.width; ++x) {
+      float sum[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+      for (std::int32_t k = -half; k <= half; ++k) {
+        const auto sx = horizontal ? std::clamp(x + k, 0, in.width - 1) : x;
+        const auto sy = horizontal ? y : std::clamp(y + k, 0, in.height - 1);
+        const float weight = kernel[static_cast<std::size_t>(k + half)];
+        const auto* px = in.values.data() + (static_cast<std::size_t>(sy) * in.width + sx) * 4U;
+        for (int c = 0; c < 4; ++c) {
+          sum[c] += weight * px[c];
+        }
+      }
+      auto* target = out.values.data() + (static_cast<std::size_t>(y) * in.width + x) * 4U;
+      for (int c = 0; c < 4; ++c) {
+        target[c] = sum[c];
+      }
+    }
+  }
+  return out;
+}
+
+[[nodiscard]] Planes gaussian(const Planes& in, double radius) {
+  const double sigma = 0.3 * radius + 0.3;
+  const auto half = std::max(1, static_cast<int>(std::ceil(radius)));
+  std::vector<float> kernel(static_cast<std::size_t>(half * 2 + 1));
+  double total = 0.0;
+  for (int k = -half; k <= half; ++k) {
+    const double weight = std::exp(-(k * k) / (2.0 * sigma * sigma));
+    kernel[static_cast<std::size_t>(k + half)] = static_cast<float>(weight);
+    total += weight;
+  }
+  for (auto& weight : kernel) {
+    weight = static_cast<float>(weight / total);
+  }
+  return convolve_1d(convolve_1d(in, kernel, true), kernel, false);
+}
+
+}  // namespace
+
+bool krita_filter_is_applied(const FilterConfig& config) {
+  return config.name == "sharpen" || config.name == "unsharp" || config.name == "gaussian blur";
+}
+
+bool apply_krita_filter(const FilterConfig& config, PixelBuffer& pixels) {
+  if (!krita_filter_is_applied(config) || pixels.empty() || pixels.format().channels != 4) {
+    return false;
+  }
+  const auto planes = load_planes(pixels);
+  Planes result{planes.width, planes.height, std::vector<float>(planes.values.size())};
+  if (config.name == "gaussian blur") {
+    const double horizontal = std::clamp(config.number("horizRadius", 5.0), 0.0, 500.0);
+    const double vertical = std::clamp(config.number("vertRadius", horizontal), 0.0, 500.0);
+    result = gaussian(planes, (horizontal + vertical) / 2.0);
+  } else if (config.name == "sharpen") {
+    const bool linear = domain_of(pixels) == DeepDomain::Linear;
+    const float edge = -2.0F / 3.0F;
+    const float centre = 11.0F / 3.0F;
+    for (std::int32_t y = 0; y < planes.height; ++y) {
+      for (std::int32_t x = 0; x < planes.width; ++x) {
+        const auto at = [&](std::int32_t sx, std::int32_t sy) {
+          return planes.values.data() + (static_cast<std::size_t>(std::clamp(sy, 0, planes.height - 1)) * planes.width +
+                                         static_cast<std::size_t>(std::clamp(sx, 0, planes.width - 1))) *
+                                            4U;
+        };
+        auto* target = result.values.data() + (static_cast<std::size_t>(y) * planes.width + x) * 4U;
+        for (int c = 0; c < 4; ++c) {
+          target[c] = centre * at(x, y)[c] + edge * (at(x - 1, y)[c] + at(x + 1, y)[c] + at(x, y - 1)[c] + at(x, y + 1)[c]);
+        }
+        // Alpha keeps the pixel's own coverage; colors stay within it.
+        target[3] = at(x, y)[3];
+        const float upper = linear ? std::numeric_limits<float>::max() : std::max(target[3], 0.0F);
+        for (int c = 0; c < 3; ++c) {
+          target[c] = std::clamp(target[c], 0.0F, upper);
+        }
+      }
+    }
+  } else {
+    const double half_size = std::clamp(config.number("halfSize", 1.0), 0.0, 500.0);
+    const double amount = std::clamp(config.number("amount", 0.5), 0.0, 100.0);
+    const double threshold = std::clamp(config.number("threshold", 0.0), 0.0, 255.0);
+    const bool lightness_only = config.flag("lightnessOnly", true);
+    const auto blurred = gaussian(planes, half_size);
+    for (std::size_t i = 0; i < planes.values.size(); i += 4) {
+      const auto* px = planes.values.data() + i;
+      const auto* blur = blurred.values.data() + i;
+      auto* target = result.values.data() + i;
+      target[3] = px[3];
+      if (lightness_only) {
+        // The difference of the pixel's lightness, added to every channel.
+        const float light = 0.299F * px[0] + 0.587F * px[1] + 0.114F * px[2];
+        const float blur_light = 0.299F * blur[0] + 0.587F * blur[1] + 0.114F * blur[2];
+        const float difference = light - blur_light;
+        for (int c = 0; c < 3; ++c) {
+          target[c] = std::abs(difference) * (px[3] > 0.0F ? kDeepScale / px[3] : 0.0F) > threshold
+                          ? px[c] + static_cast<float>(amount) * difference
+                          : px[c];
+        }
+      } else {
+        for (int c = 0; c < 3; ++c) {
+          const float difference = px[c] - blur[c];
+          target[c] = std::abs(difference) * (px[3] > 0.0F ? kDeepScale / px[3] : 0.0F) > threshold
+                          ? px[c] + static_cast<float>(amount) * difference
+                          : px[c];
+        }
+      }
+    }
+  }
+  store_planes(result, pixels);
+  return true;
 }
 
 std::optional<VectorFill> fill_from_generator(const FilterConfig& config) {

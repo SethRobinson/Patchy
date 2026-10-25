@@ -4,9 +4,12 @@
 // by content.
 
 #include "core/layer_metadata.hpp"
+#include "formats/document_flatten.hpp"
+#include "formats/stb/stb_image.h"
 #include "formats/ora_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
 #include "ui_test_support.hpp"
@@ -18,6 +21,11 @@
 #include <QStatusBar>
 
 #include <array>
+#include <cmath>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <iterator>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -71,11 +79,11 @@ constexpr std::string_view kMaindoc = R"(<?xml version="1.0" encoding="UTF-8"?>
 </DOC>
 )";
 
-constexpr std::string_view kVectors = R"(<?xml version="1.0" standalone="no"?>
+constexpr std::string_view kVectors = R"svg(<?xml version="1.0" standalone="no"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:krita="http://krita.org/namespaces/svg/krita" width="100pt" height="60pt" viewBox="0 0 100 60">
 <rect id="shape0" transform="translate(5, 5)" fill="#00ff00" width="20" height="10"/><text id="shape1" krita:textVersion="3" fill="#ff0000" x="10" y="45" style="font-family: Arial;font-size: 12;">Hi</text>
 </svg>
-)";
+)svg";
 
 std::vector<std::uint8_t> sample_kra() {
   std::vector<patchy::ora::detail::ZipEntry> entries;
@@ -146,10 +154,51 @@ void ui_kra_open_keeps_layers_vectors_text_and_file_layers() {
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Krita")));
 }
 
+// Krita's vector fixture (local, made by scripts/dev/kra/make_kra_fixtures.py) opened in the
+// app, so its text renders, against Krita's own render: reported, and held to the measured
+// difference (fonts rasterize differently in each app).
+void ui_kra_vector_fixture_matches_krita_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("kra", "vector.kra");
+  patchy::test::skip_unless_exists(path);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto ours = patchy::flatten_document_rgba8(document);
+  {
+    const auto dir = std::filesystem::path("test-artifacts") / "kra";
+    std::filesystem::create_directories(dir);
+    const auto encoded = patchy::ora::detail::encode_png(ours);
+    std::ofstream out(dir / "vector-app-patchy.png", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(encoded.data()), static_cast<std::streamsize>(encoded.size()));
+  }
+  std::ifstream file(patchy::test::local_format_fixture_path("kra", "vector.png"), std::ios::binary);
+  const std::vector<unsigned char> png((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  int width = 0;
+  int height = 0;
+  int components = 0;
+  stbi_uc* theirs = stbi_load_from_memory(png.data(), static_cast<int>(png.size()), &width, &height, &components, 4);
+  CHECK(theirs != nullptr && width == ours.width() && height == ours.height());
+  if (theirs == nullptr || width != ours.width() || height != ours.height()) {
+    stbi_image_free(theirs);
+    return;
+  }
+  const auto data = ours.data();
+  double total = 0.0;
+  for (std::size_t i = 0; i < data.size(); ++i) {
+    total += std::abs(static_cast<int>(data[i]) - static_cast<int>(theirs[i]));
+  }
+  stbi_image_free(theirs);
+  const double mean = total / static_cast<double>(data.size());
+  std::cout << "  vector.kra in the app against Krita's render: mean " << mean << "\n";
+  CHECK(mean < 3.0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> kra_ui_tests() {
   return {
       {"ui_kra_open_keeps_layers_vectors_text_and_file_layers", ui_kra_open_keeps_layers_vectors_text_and_file_layers},
+      {"ui_kra_vector_fixture_matches_krita_if_available", ui_kra_vector_fixture_matches_krita_if_available},
   };
 }

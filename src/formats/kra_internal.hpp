@@ -82,6 +82,14 @@ struct FilterConfig {
 [[nodiscard]] std::optional<AdjustmentSettings> adjustment_from_filter(const FilterConfig& config, bool& approximate,
                                                                        BlendMode& blend);
 
+// Krita's sharpen, unsharp and gaussian blur filters (measured on impulse renders: sharpen
+// is the 3 x 3 kernel 1/3 [0 -2 0; -2 11 -2; 0 -2 0], the gaussian's sigma is
+// 0.3 x radius + 0.3, unsharp adds amount x (pixel - gaussian(halfSize)) above the threshold),
+// applied to RGBA pixels at any depth in their own domain, on premultiplied values with the
+// edges clamped. False, pixels untouched, for every other filter.
+[[nodiscard]] bool apply_krita_filter(const FilterConfig& config, PixelBuffer& pixels);
+[[nodiscard]] bool krita_filter_is_applied(const FilterConfig& config);
+
 // A fill layer's paint for Krita's "color" generator; nullopt for the other generators.
 [[nodiscard]] std::optional<VectorFill> fill_from_generator(const FilterConfig& config);
 
