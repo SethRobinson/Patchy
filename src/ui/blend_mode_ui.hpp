@@ -23,9 +23,13 @@ namespace patchy::ui {
 enum class BlendModeMenu : std::uint8_t { Layer, Filter, Folder, Effect };
 
 [[nodiscard]] QString blend_mode_name(BlendMode mode);
+// Rows a blend mode list shows before it scrolls: every mode on most screens. The list
+// opens below the box and is cut to the screen's available area, scrolling, on a small one
+// (use_scrolling_list_popup, GitHub issue 414).
+inline constexpr int kBlendModeListPopupRows = 40;
 // Fills `combo` with the modes in Photoshop's menu order and makes Left/Right
 // step it like Up/Down (Qt handles only Up/Down on a combo box), both closed
-// and with the list open.
+// and with the list open. The list is the scrolling list form (kBlendModeListPopupRows).
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::Layer);
 // For a combo that serves layers and folders in turn (the Layers panel's): adds Pass
 // Through as the first item when `offered` and it is missing, and removes it otherwise.
