@@ -23474,10 +23474,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>画面サイズに合わせる</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>サンプル範囲:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>指定したピクセル</translation>
     </message>
@@ -25279,6 +25275,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>共有したくない可能性のある情報についてのファイル情報の通知を表示する</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>レイヤー:</translation>
     </message>
 </context>
 <context>

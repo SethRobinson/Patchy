@@ -23542,10 +23542,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Encajar en pantalla</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Tamaño de muestra:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Muestra puntual</translation>
     </message>
@@ -25352,6 +25348,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostrar el aviso de Información de archivo sobre datos que quizá no quiera compartir</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Capa:</translation>
     </message>
 </context>
 <context>

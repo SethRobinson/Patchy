@@ -23542,10 +23542,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Ajustar à tela</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Tamanho da amostra:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Amostra pontual</translation>
     </message>
@@ -25352,6 +25348,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostrar o aviso de Informações do arquivo sobre dados que você talvez não queira compartilhar</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Camada:</translation>
     </message>
 </context>
 <context>

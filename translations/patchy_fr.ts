@@ -23542,10 +23542,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Taille écran</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Taille de l&apos;échantillon :</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Échantillon ponctuel</translation>
     </message>
@@ -25352,6 +25348,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Afficher l&apos;avis des Informations sur le fichier concernant les données que vous ne souhaitez peut-être pas partager</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Calque :</translation>
     </message>
 </context>
 <context>

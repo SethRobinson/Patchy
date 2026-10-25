@@ -895,7 +895,8 @@ void ui_retouch_options_bars_show_sample_and_mode() {
 }
 
 // GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
-// then a separator and the Sample Size and Sample fields, and the Show Sample Ring checkbox
+// then a separator and the Size and Layer fields (labels shortened in GitHub issue 409), and the
+// Show Sample Ring checkbox
 // (GitHub issue 320) after another separator, on one row at 1366 px.
 void ui_pick_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -921,9 +922,9 @@ void ui_pick_options_bar_groups_its_controls() {
     const std::vector<QString> expected{QStringLiteral("eyedropperSetsForegroundButton"),
                                         QStringLiteral("eyedropperSetsBackgroundButton"),
                                         QStringLiteral("|"),
-                                        QStringLiteral("Sample Size"),
+                                        QStringLiteral("Size"),
                                         QStringLiteral("eyedropperSampleSizeCombo"),
-                                        QStringLiteral("Sample"),
+                                        QStringLiteral("Layer"),
                                         QStringLiteral("eyedropperSampleLayersCombo"),
                                         QStringLiteral("|"),
                                         QStringLiteral("eyedropperShowSampleRingCheck")};

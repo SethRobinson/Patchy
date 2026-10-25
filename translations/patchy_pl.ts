@@ -23610,10 +23610,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Dopasuj do ekranu</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Rozmiar próbki:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Próbka punktowa</translation>
     </message>
@@ -25425,6 +25421,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Pokazuj powiadomienie Informacji o pliku o danych, których możesz nie chcieć udostępniać</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Warstwa:</translation>
     </message>
 </context>
 <context>

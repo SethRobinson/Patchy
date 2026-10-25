@@ -23474,10 +23474,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>화면 크기에 맞추기</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>샘플 크기:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>포인트 샘플</translation>
     </message>
@@ -25279,6 +25275,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>공유하고 싶지 않을 수 있는 정보에 대한 파일 정보 알림 표시</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>레이어:</translation>
     </message>
 </context>
 <context>

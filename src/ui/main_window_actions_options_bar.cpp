@@ -3256,10 +3256,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                   QStringLiteral("eyedropperSetsBackgroundButton"), true);
   add_option_separator({CanvasTool::Eyedropper});
 
-  // Photoshop's Eyedropper options (GitHub issue 151): Sample Size averages a
-  // square around the click, Sample picks from the merged document or the
-  // active layer alone. The paint tools' Alt eyedropper uses the same settings.
-  add_option_label(QT_TR_NOOP("Sample Size:"), {CanvasTool::Eyedropper});
+  // Photoshop's Eyedropper options (GitHub issue 151): Size averages a square
+  // around the click, Layer picks from the merged document or the active layer
+  // alone (labels shortened in GitHub issue 409). The paint tools' Alt
+  // eyedropper uses the same settings.
+  add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Eyedropper});
   eyedropper_sample_size_combo_ = new QComboBox(toolbar);
   eyedropper_sample_size_combo_->setObjectName(QStringLiteral("eyedropperSampleSizeCombo"));
   static constexpr std::array<int, 7> kEyedropperSampleSizes{1, 3, 5, 11, 31, 51, 101};
@@ -3289,7 +3290,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     save_tool_settings();
   });
 
-  add_option_label(QT_TR_NOOP("Sample:"), {CanvasTool::Eyedropper});
+  add_option_label(QT_TR_NOOP("Layer:"), {CanvasTool::Eyedropper});
   eyedropper_sample_layers_combo_ = new QComboBox(toolbar);
   eyedropper_sample_layers_combo_->setObjectName(QStringLiteral("eyedropperSampleLayersCombo"));
   // Item data is the settings token (GitHub issue 321); the language refresh below

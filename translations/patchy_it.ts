@@ -23542,10 +23542,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Adatta allo schermo</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Dimensione campione:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Campione puntiforme</translation>
     </message>
@@ -25352,6 +25348,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostra l&apos;avviso di Informazioni file sui dati che potresti non voler condividere</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Livello:</translation>
     </message>
 </context>
 <context>

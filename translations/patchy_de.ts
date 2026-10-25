@@ -23542,10 +23542,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Ganzes Bild</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Aufnahmebereich:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>1 Pixel</translation>
     </message>
@@ -25352,6 +25348,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Den Hinweis der Dateiinformationen zu Angaben anzeigen, die Sie vielleicht nicht teilen möchten</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Ebene:</translation>
     </message>
 </context>
 <context>
