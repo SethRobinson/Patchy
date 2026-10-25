@@ -575,9 +575,11 @@ void ColorDockPanel::retranslate() {
   hue_strip_->setToolTip(hint);
   view_button_->setToolTip(tr("Color panel view"));
   view_button_->setAccessibleName(tr("Color panel view"));
-  view_actions_[0]->setText(tr("Hue Cube"));
-  view_actions_[1]->setText(tr("RGB Sliders"));
-  view_actions_[2]->setText(tr("HSB Sliders"));
+  const std::array<QString, 3> view_names = {tr("Hue Cube"), tr("RGB Sliders"), tr("HSB Sliders")};
+  for (std::size_t index = 0; index < view_names.size(); ++index) {
+    view_actions_[index]->setText(view_names[index]);
+    view_actions_[index]->setToolTip(view_names[index]);
+  }
   // One-letter row labels, the channel's name in the tooltip.
   const std::array<QString, kChannelCount> letters = {
       tr("R", "Red channel"), tr("G", "Green channel"),      tr("B", "Blue channel"),
