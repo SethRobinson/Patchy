@@ -5259,8 +5259,9 @@ void ui_layer_eye_sweep_issue_407_shots() {
   save_widget_artifact("ui_layer_eye_sweep_issue_407_after", window);
 }
 
-// GitHub issue 397: the clipping badge's bent arrow turns down and points at the
-// base layer below the row, in Dark and Light, and the row badge uses that glyph.
+// GitHub issue 397: the clipping badge's bent arrow comes in from the right, turns
+// down and points at the base layer below the row, in Dark and Light; the row badge
+// uses that glyph and centers on the base row's thumbnail at every thumbnail size.
 void ui_layer_clip_badge_arrow_points_down() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore(scheme);
@@ -5284,6 +5285,30 @@ void ui_layer_clip_badge_arrow_points_down() {
       CHECK(badge->icon().name() == QStringLiteral("clip"));
     }
     save_widget_artifact("ui_layer_clip_badge_issue_397_" + scheme_name, *layer_list);
+    if (scheme == patchy::ui::ColorSchemePreference::Dark) {
+      SettingsValueRestorer thumbnail_size_setting(QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey));
+      auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+      CHECK(layers_dock != nullptr);
+      if (layers_dock != nullptr) {
+        save_widget_artifact("ui_layer_clip_badge_issue_397_dock", *layers_dock);
+      }
+      for (const auto* size_action : {"layerThumbnailSizeSmallAction", "layerThumbnailSizeLargeAction",
+                                      "layerThumbnailSizeMediumAction"}) {
+        require_action(window, size_action)->trigger();
+        QApplication::processEvents();
+        auto* clipped_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Clipped Color")));
+        auto* base_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Base Shape")));
+        CHECK(clipped_row != nullptr && base_row != nullptr);
+        auto* clip = clipped_row->findChild<QToolButton*>(QStringLiteral("layerClippingBadgeButton"));
+        auto* base_thumbnail = base_row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+        CHECK(clip != nullptr && base_thumbnail != nullptr);
+        const auto clip_center = clip->mapTo(layer_list->viewport(), clip->rect().center()).x();
+        const auto thumbnail_center =
+            base_thumbnail->mapTo(layer_list->viewport(), base_thumbnail->rect().center()).x();
+        CHECK(clip->width() == base_thumbnail->width());
+        CHECK(std::abs(clip_center - thumbnail_center) <= 1);
+      }
+    }
 
     const auto glyph = patchy::ui::simple_icon(QStringLiteral("clip"), &patchy::ui::ThemePalette::layer_clip_badge)
                            .pixmap(QSize(32, 32))
@@ -5291,19 +5316,21 @@ void ui_layer_clip_badge_arrow_points_down() {
                            .convertToFormat(QImage::Format_ARGB32);
     CHECK(glyph.width() == 32);
     const auto inked = [&](int x, int y) { return qAlpha(glyph.pixel(x, y)) >= 96; };
-    // The arm leaves the left, the stem drops in the right half, and both
+    // The arm comes in from the right, the stem drops in the left half, and both
     // arrowhead wings rise from the tip: the head points down.
-    CHECK(inked(12, 8));
-    CHECK(inked(20, 15));
-    CHECK(inked(20, 20));
-    CHECK(inked(18, 18));
-    CHECK(inked(22, 18));
-    // Nothing of a left-pointing head beside the stem's foot.
-    CHECK(!inked(12, 15));
-    CHECK(!inked(11, 17));
-    CHECK(!inked(13, 20));
-    // The base layer's edge stays under the tip.
-    CHECK(inked(16, 24));
+    CHECK(inked(19, 8));
+    CHECK(inked(11, 15));
+    CHECK(inked(11, 20));
+    CHECK(inked(13, 18));
+    CHECK(inked(9, 18));
+    // No arm on the left, and nothing of a sideways head beside the stem's foot.
+    CHECK(!inked(8, 8));
+    CHECK(!inked(19, 15));
+    CHECK(!inked(20, 17));
+    CHECK(!inked(18, 20));
+    // The base layer's edge stays under the tip, centered in the glyph.
+    CHECK(inked(15, 24));
+    CHECK(inked(7, 24) == inked(24, 24));
   }
 }
 

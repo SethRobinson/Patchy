@@ -6,7 +6,7 @@ Read this before changing anything in the Layers panel. Generic item-widget row 
 
 Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes (`layerTargetActive` is the reference). `ui_layer_row_selected_highlight_paints` pins the rendered colors. Never give a row widget with a tooltip its own selector-less sheet: Qt cascades it into the tip and `background: transparent` cleared its panel (#347).
 
-The clip badge (`layerClippingBadgeButton`; the `clip` glyph in `action_icons.cpp`, also the clip cursor and action icon) is a bent arrow pointing down at the base layer (#397, `ui_layer_clip_badge_arrow_points_down`).
+The clip badge (`layerClippingBadgeButton`; the `clip` glyph in `action_icons.cpp`, also the clip cursor and action icon) is a bent arrow from the right pointing down at the base layer; the badge takes the thumbnail's width and slot, centering on the base row's thumbnail (#397, `ui_layer_clip_badge_arrow_points_down`).
 
 Hidden rows disable name, details, mask link and clip badge; fx, smart-object and vector badges stay clickable, dimmed (`layerRowBadgeDimmed`, issue 230).
 
