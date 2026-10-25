@@ -1,6 +1,7 @@
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/modifier_names.hpp"
 
 #include <QCoreApplication>
 #include <QEvent>
@@ -29,6 +30,10 @@ constexpr double kMaximumZoom = 16.0;
 // fits the widget whole.
 constexpr double kMinimumFitZoom = 0.01;
 constexpr double kOverlayHandleHitRadius = 11.0;
+// Scrubby Zoom's sensitivity and click slop, the canvas Zoom tool's values
+// (kZoomDragFactorPerPixel in canvas_widget_view.cpp, CanvasWidget::kZoomClickSlopPx).
+constexpr double kScrubFactorPerPixel = 1.01;
+constexpr double kScrubClickSlop = 8.0;
 [[nodiscard]] QColor overlay_accent() { return theme().accent_control; }
 constexpr double kPi = 3.14159265358979323846;
 
@@ -73,10 +78,7 @@ ZoomableImagePreview::ZoomableImagePreview(QWidget* parent) : QWidget(parent) {
   setMouseTracking(true);
   setFocusPolicy(Qt::StrongFocus);
   setCursor(Qt::OpenHandCursor);
-  const auto description =
-      QObject::tr("Drag to pan. The mouse wheel zooms.");
-  setToolTip(description);
-  setAccessibleDescription(description);
+  refresh_interaction_tooltip();
   publish_state();
   publish_overlay_state();
 }
@@ -163,6 +165,27 @@ void ZoomableImagePreview::zoom_step(int direction,
     }
   }
   zoom_to(target, anchor);
+}
+
+void ZoomableImagePreview::set_scrubby_zoom(bool enabled) {
+  if (scrubby_zoom_ == enabled) return;
+  scrubby_zoom_ = enabled;
+  scrub_armed_ = false;
+  scrub_started_ = false;
+  refresh_interaction_tooltip();
+  setProperty("previewScrubbyZoom", enabled);
+  update_interaction_cursor(mapFromGlobal(QCursor::pos()));
+}
+
+bool ZoomableImagePreview::scrubby_zoom() const noexcept { return scrubby_zoom_; }
+
+void ZoomableImagePreview::refresh_interaction_tooltip() {
+  const auto description =
+      scrubby_zoom_ ? resolve_modifier_names(QObject::tr("Drag left or right to zoom. Click zooms in, %ALT%-click zooms "
+                                                         "out. Hold Space or use the middle button to pan."))
+                    : QObject::tr("Drag to pan. The mouse wheel zooms.");
+  setToolTip(description);
+  setAccessibleDescription(description);
 }
 
 void ZoomableImagePreview::set_zoom_changed_callback(
@@ -406,7 +429,23 @@ void ZoomableImagePreview::mousePressEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
+    if (scrubby_zoom_ && !space_held_) {
+      scrub_armed_ = true;
+      scrub_started_ = false;
+      const auto frame = displayed_rect();
+      scrub_anchor_ = frame.isEmpty() ? event->position()
+                                      : QPointF(std::clamp(event->position().x(), frame.left(), frame.right()),
+                                                std::clamp(event->position().y(), frame.top(), frame.bottom()));
+      scrub_press_position_ = event->position();
+      scrub_last_position_ = event->position();
+      setFocus(Qt::MouseFocusReason);
+      event->accept();
+      return;
+    }
+  }
+  if ((event->button() == Qt::LeftButton || event->button() == Qt::MiddleButton) && !panning_ && !scrub_armed_) {
     panning_ = true;
+    pan_button_ = event->button();
     pan_press_position_ = event->position();
     pan_press_offset_ = pan_offset_;
     setCursor(interaction_cursor(true));
@@ -438,7 +477,18 @@ void ZoomableImagePreview::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
-  if (panning_ && (event->buttons() & Qt::LeftButton) != 0) {
+  if (scrub_armed_ && (event->buttons() & Qt::LeftButton) != 0) {
+    const auto travel = event->position() - scrub_press_position_;
+    if (!scrub_started_ && std::abs(travel.x()) + std::abs(travel.y()) >= kScrubClickSlop) scrub_started_ = true;
+    if (scrub_started_) {
+      const auto dx = event->position().x() - scrub_last_position_.x();
+      scrub_last_position_ = event->position();
+      if (dx != 0.0) zoom_to(zoom() * std::pow(kScrubFactorPerPixel, dx), scrub_anchor_);
+    }
+    event->accept();
+    return;
+  }
+  if (panning_ && (event->buttons() & pan_button_) != 0) {
     pan_offset_ = pan_press_offset_ + event->position() - pan_press_position_;
     clamp_pan();
     publish_state();
@@ -488,8 +538,19 @@ void ZoomableImagePreview::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
-  if (event->button() == Qt::LeftButton && panning_) {
+  if (event->button() == Qt::LeftButton && scrub_armed_) {
+    const auto clicked = !scrub_started_;
+    scrub_armed_ = false;
+    scrub_started_ = false;
+    // A click without travel is one Zoom-tool step; Alt steps out.
+    if (clicked) zoom_step((event->modifiers() & Qt::AltModifier) != 0 ? -1 : 1, scrub_anchor_);
+    update_interaction_cursor(event->position());
+    event->accept();
+    return;
+  }
+  if (event->button() == pan_button_ && panning_) {
     panning_ = false;
+    pan_button_ = Qt::NoButton;
     update_interaction_cursor(event->position());
     event->accept();
     return;
@@ -500,6 +561,12 @@ void ZoomableImagePreview::mouseReleaseEvent(QMouseEvent* event) {
 void ZoomableImagePreview::mouseDoubleClickEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
     if (overlay_handle_at(event->position()) != OverlayHandle::None) {
+      event->accept();
+      return;
+    }
+    // With Scrubby Zoom each click already stepped the zoom; a double-click
+    // must not undo that by toggling Fit.
+    if (scrubby_zoom_ && !space_held_) {
       event->accept();
       return;
     }
@@ -515,6 +582,14 @@ void ZoomableImagePreview::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void ZoomableImagePreview::keyPressEvent(QKeyEvent* event) {
+  if (event->key() == Qt::Key_Space && scrubby_zoom_) {
+    if (!event->isAutoRepeat()) {
+      space_held_ = true;
+      update_interaction_cursor(mapFromGlobal(QCursor::pos()));
+    }
+    event->accept();
+    return;
+  }
   if (event->key() == Qt::Key_Escape &&
       active_overlay_handle_ != OverlayHandle::None) {
     const auto cancelled_handle = active_overlay_handle_;
@@ -542,6 +617,25 @@ void ZoomableImagePreview::keyPressEvent(QKeyEvent* event) {
   QWidget::keyPressEvent(event);
 }
 
+void ZoomableImagePreview::keyReleaseEvent(QKeyEvent* event) {
+  if (event->key() == Qt::Key_Space && scrubby_zoom_) {
+    if (!event->isAutoRepeat()) {
+      space_held_ = false;
+      update_interaction_cursor(mapFromGlobal(QCursor::pos()));
+    }
+    event->accept();
+    return;
+  }
+  QWidget::keyReleaseEvent(event);
+}
+
+void ZoomableImagePreview::focusOutEvent(QFocusEvent* event) {
+  space_held_ = false;
+  scrub_armed_ = false;
+  scrub_started_ = false;
+  QWidget::focusOutEvent(event);
+}
+
 void ZoomableImagePreview::wheelEvent(QWheelEvent* event) {
   const auto delta = event->angleDelta().y();
   if (delta == 0) {
@@ -553,7 +647,7 @@ void ZoomableImagePreview::wheelEvent(QWheelEvent* event) {
 }
 
 void ZoomableImagePreview::leaveEvent(QEvent* event) {
-  if (!panning_ && active_overlay_handle_ == OverlayHandle::None) {
+  if (!panning_ && !scrub_armed_ && active_overlay_handle_ == OverlayHandle::None) {
     setCursor(interaction_cursor(false));
   }
   QWidget::leaveEvent(event);
@@ -966,6 +1060,8 @@ void ZoomableImagePreview::update_interaction_cursor(QPointF position) {
   } else if (handle == OverlayHandle::TiltFocus ||
              handle == OverlayHandle::TiltTransition) {
     setCursor(Qt::SizeVerCursor);
+  } else if (scrubby_zoom_ && !space_held_) {
+    setCursor(Qt::SizeHorCursor);
   } else {
     setCursor(interaction_cursor(false));
   }

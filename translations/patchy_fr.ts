@@ -12335,6 +12335,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Les calques dont ce format ne peut pas enregistrer le mode de fusion ont été enregistrés en Normal, donc l&apos;image enregistrée a un autre aspect.</translation>
     </message>
     <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Zoom de l&apos;aperçu. Choisissez une taille ou saisissez un pourcentage.</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>Zoom continu</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Faites glisser vers la gauche ou la droite dans l&apos;aperçu pour zoomer.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Maj-clic applique la valeur automatique. %ALT%-clic la réinitialise.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-clic la réinitialise.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Maj-clic utilise la balance des blancs automatique. %ALT%-clic revient à Tel quel.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-clic remet la réduction du bruit sur Auto.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Pointez l&apos;histogramme pour voir quel réglage cette zone modifie, puis faites glisser vers la gauche ou la droite pour le changer.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Faites glisser vers la gauche ou la droite pour zoomer. Un clic zoome, %ALT%-clic dézoome. Maintenez Espace ou utilisez le bouton central pour vous déplacer.</translation>
+    </message>
+    <message>
         <source>Don&apos;t Show Again</source>
         <translation>Ne plus afficher</translation>
     </message>

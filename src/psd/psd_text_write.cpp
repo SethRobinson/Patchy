@@ -1164,6 +1164,10 @@ bool point_text_geometry_needs_baseline_anchor(const Layer& layer, const PsdText
 std::optional<std::wstring> directwrite_localized_string(IDWriteLocalizedStrings* strings);
 std::optional<std::string> directwrite_font_info_string(IDWriteFont* font, DWRITE_INFORMATIONAL_STRING_ID id);
 bool directwrite_font_names_match(std::string_view lhs, std::string_view rhs);
+Microsoft::WRL::ComPtr<IDWriteFont> directwrite_font_for_localized_name(IDWriteFontCollection* collection,
+                                                                        std::string_view name,
+                                                                        std::string_view style, bool bold,
+                                                                        bool italic);
 #endif
 
 namespace {
@@ -1337,6 +1341,15 @@ std::string photoshop_font_name_for_run(std::string_view family, std::string_vie
     // A full name or PostScript name names one exact face, so it wins over the prefix split
     // below, which could otherwise strand a legacy full name on an unrelated shorter family.
     if (const auto font = directwrite_font_with_full_or_postscript_name(collection.Get(), fallback); font) {
+      if (auto name = directwrite_postscript_name(font.Get()); !name.empty()) {
+        return name;
+      }
+    }
+    // A family name in another language: Qt lists fonts under the user's locale, so on a Chinese
+    // Windows DingMao.ttf is its Chinese typographic family, which no en-us string above carries
+    // (GitHub issue 413). Its PostScript name is what Photoshop needs.
+    if (const auto font = directwrite_font_for_localized_name(collection.Get(), fallback, style, bold, italic);
+        font) {
       if (auto name = directwrite_postscript_name(font.Get()); !name.empty()) {
         return name;
       }

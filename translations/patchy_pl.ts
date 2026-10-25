@@ -12370,6 +12370,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Warstwy w trybach mieszania, których ten format nie może zapisać, zapisano jako Zwykły, więc zapisany obraz wygląda inaczej.</translation>
     </message>
     <message>
+        <source>Preview zoom. Pick a size or type a percentage.</source>
+        <translation>Powiększenie podglądu. Wybierz rozmiar lub wpisz wartość procentową.</translation>
+    </message>
+    <message>
+        <source>Scrubby Zoom</source>
+        <translation>Powiększanie przez przeciąganie</translation>
+    </message>
+    <message>
+        <source>Drag left or right on the preview to zoom.</source>
+        <translation>Przeciągnij w lewo lub w prawo na podglądzie, aby powiększyć.</translation>
+    </message>
+    <message>
+        <source>Shift-click sets the automatic value. %ALT%-click resets it.</source>
+        <translation>Shift-kliknięcie ustawia wartość automatyczną. %ALT%-kliknięcie ją resetuje.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click resets it.</source>
+        <translation>%ALT%-kliknięcie ją resetuje.</translation>
+    </message>
+    <message>
+        <source>Shift-click uses Auto white balance. %ALT%-click returns to As Shot.</source>
+        <translation>Shift-kliknięcie włącza automatyczny balans bieli. %ALT%-kliknięcie przywraca Jak na zdjęciu.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click returns noise reduction to Auto.</source>
+        <translation>%ALT%-kliknięcie przywraca automatyczną redukcję szumu.</translation>
+    </message>
+    <message>
+        <source>Point at the histogram to see which setting that part adjusts, then drag left or right to change it.</source>
+        <translation>Wskaż histogram, aby zobaczyć, które ustawienie zmienia ta część, a następnie przeciągnij w lewo lub w prawo, aby je zmienić.</translation>
+    </message>
+    <message>
+        <source>Drag left or right to zoom. Click zooms in, %ALT%-click zooms out. Hold Space or use the middle button to pan.</source>
+        <translation>Przeciągnij w lewo lub w prawo, aby powiększyć. Kliknięcie powiększa, %ALT%-kliknięcie pomniejsza. Przytrzymaj Spację lub użyj środkowego przycisku, aby przesuwać.</translation>
+    </message>
+    <message>
         <source>Don&apos;t Show Again</source>
         <translation>Nie pokazuj ponownie</translation>
     </message>
