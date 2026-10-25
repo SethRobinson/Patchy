@@ -605,6 +605,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   noise_note->setWordWrap(true);
   detail_form->addRow(noise_note);
   controls_column->addWidget(detail_group);
+  // Every group's sliders and fields start at one x (GitHub issue 392 follow-up).
+  align_form_label_columns({profile_form, white_balance_form, tone_form, color_form, detail_form});
 
   // --- File info ---
   auto* info_label = new QLabel(&dialog);

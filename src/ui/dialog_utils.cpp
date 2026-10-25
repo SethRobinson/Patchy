@@ -2024,6 +2024,22 @@ QSpinBox* add_dialog_slider_spin_row_with(QFormLayout* form, QWidget* parent, co
 
 }  // namespace
 
+void align_form_label_columns(std::initializer_list<QFormLayout*> forms) {
+  std::vector<QWidget*> labels;
+  int widest = 0;
+  for (auto* form : forms) {
+    if (form == nullptr) continue;
+    for (int row = 0; row < form->rowCount(); ++row) {
+      auto* item = form->itemAt(row, QFormLayout::LabelRole);
+      auto* label = item != nullptr ? item->widget() : nullptr;
+      if (label == nullptr) continue;
+      labels.push_back(label);
+      widest = std::max(widest, label->sizeHint().width());
+    }
+  }
+  for (auto* label : labels) label->setMinimumWidth(widest);
+}
+
 QSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, const QString& label,
                                      const QString& slider_object_name, const QString& spin_object_name,
                                      int minimum, int maximum, int value, const QString& suffix,

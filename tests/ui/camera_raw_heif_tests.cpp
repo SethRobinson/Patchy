@@ -1168,6 +1168,17 @@ void ui_raw_develop_dialog_exposure_slider_brightens_preview() {
           return false;
         }
         *bright_mean = mean_green(image);
+        {
+          // Every group's sliders start at one x (GitHub issue 392 follow-up).
+          const auto left = [dialog](const char* name) {
+            auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
+            CHECK(widget != nullptr);
+            return widget == nullptr ? -1 : widget->mapTo(dialog, QPoint(0, 0)).x();
+          };
+          CHECK(left("rawExposureSlider") == left("rawTemperatureSlider"));
+          CHECK(left("rawSaturationSlider") == left("rawTemperatureSlider"));
+          CHECK(left("rawDenoiseSlider") == left("rawTemperatureSlider"));
+        }
         save_widget_artifact("ui_raw_develop_dialog", *dialog);
         *stage = 2;
         dialog->reject();

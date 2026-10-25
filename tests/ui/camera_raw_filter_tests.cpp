@@ -17,6 +17,7 @@
 #include <QDialog>
 #include <QKeySequence>
 #include <QLabel>
+#include <QPoint>
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QSlider>
@@ -105,6 +106,22 @@ void ui_camera_raw_filter_dialog_applies_one_undo_step() {
       // Raw-only controls are not part of the filter.
       CHECK(dialog->findChild<QWidget*>(QStringLiteral("rawDemosaicCombo")) == nullptr);
       CHECK(slider("cameraRawFilterTemperatureSlider")->value() == 0);
+      // Every group's sliders share one left and right edge; Auto is a text-sized button
+      // ending where the sliders end.
+      const auto left = [dialog](QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+      const auto right = [dialog](QWidget* widget) { return widget->mapTo(dialog, QPoint(widget->width(), 0)).x(); };
+      auto* temperature = slider("cameraRawFilterTemperatureSlider");
+      for (const char* name : {"cameraRawFilterExposureSlider", "cameraRawFilterShadowsSlider",
+                               "cameraRawFilterVibranceSlider"}) {
+        CHECK(left(slider(name)) == left(temperature));
+        CHECK(right(slider(name)) == right(temperature));
+      }
+      auto* auto_button = dialog->findChild<QPushButton*>(QStringLiteral("cameraRawFilterAutoWhiteBalanceButton"));
+      CHECK(auto_button != nullptr);
+      if (auto_button != nullptr) {
+        CHECK(auto_button->width() < temperature->width() / 2);
+        CHECK(right(auto_button) == right(temperature));
+      }
       slider("cameraRawFilterTemperatureSlider")->setValue(static_cast<int>(expected.temperature));
       slider("cameraRawFilterExposureSlider")->setValue(static_cast<int>(expected.exposure_ev * 100.0));
       slider("cameraRawFilterContrastSlider")->setValue(static_cast<int>(expected.contrast));

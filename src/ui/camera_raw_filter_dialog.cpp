@@ -234,7 +234,11 @@ std::optional<CameraRawFilterOutcome> run_camera_raw_filter_dialog(QWidget* pare
     QLabel* value;
   };
   std::vector<SliderRow> slider_rows;
-  const auto add_slider_row = [&slider_rows](QFormLayout* form, const QString& label, int minimum, int maximum,
+  // One value column width for every group, so sliders end at one x too.
+  constexpr int kValueSpacing = 6;
+  const int value_width =
+      std::max(58, dialog.fontMetrics().horizontalAdvance(QObject::tr("%1 EV").arg(QStringLiteral("-0.00"))) + 6);
+  const auto add_slider_row = [&slider_rows, value_width](QFormLayout* form, const QString& label, int minimum, int maximum,
                                              const char* object_name) {
     auto* slider = new QSlider(Qt::Horizontal);
     slider->setObjectName(QLatin1String(object_name));
@@ -242,9 +246,10 @@ std::optional<CameraRawFilterOutcome> run_camera_raw_filter_dialog(QWidget* pare
     slider->setMinimumWidth(170);
     auto* value_label = new QLabel();
     value_label->setObjectName(QLatin1String(object_name) + QStringLiteral("Value"));
-    value_label->setMinimumWidth(58);
+    value_label->setFixedWidth(value_width);
     auto* row = new QHBoxLayout();
     row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(kValueSpacing);
     row->addWidget(slider, 1);
     row->addWidget(value_label);
     form->addRow(label, row);
@@ -271,7 +276,15 @@ std::optional<CameraRawFilterOutcome> run_camera_raw_filter_dialog(QWidget* pare
   auto* auto_white_balance_button = new QPushButton(QObject::tr("Auto"), white_balance_group);
   auto_white_balance_button->setObjectName(QStringLiteral("cameraRawFilterAutoWhiteBalanceButton"));
   auto_white_balance_button->setToolTip(QObject::tr("Neutralize the layer's average color"));
-  white_balance_form->addRow(QString(), auto_white_balance_button);
+  // A text-sized button under the sliders, its right edge on theirs (Seth, October 25, 2026).
+  auto_white_balance_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  auto* auto_row = new QHBoxLayout();
+  auto_row->setContentsMargins(0, 0, 0, 0);
+  auto_row->setSpacing(0);
+  auto_row->addStretch(1);
+  auto_row->addWidget(auto_white_balance_button);
+  auto_row->addSpacing(kValueSpacing + value_width);
+  white_balance_form->addRow(QString(), auto_row);
   temperature_slider->setToolTip(QObject::tr("Warms or cools the layer. 0 keeps its colors."));
   tint_slider->setToolTip(QObject::tr("Shifts the layer toward magenta or green. 0 keeps its colors."));
   controls_column->addWidget(white_balance_group);
@@ -298,6 +311,7 @@ std::optional<CameraRawFilterOutcome> run_camera_raw_filter_dialog(QWidget* pare
   auto [vibrance_slider, vibrance_value] =
       add_slider_row(color_form, QObject::tr("Vibrance:"), -100, 100, "cameraRawFilterVibranceSlider");
   controls_column->addWidget(color_group);
+  align_form_label_columns({white_balance_form, tone_form, color_form});
 
   auto* info_label = new QLabel(&dialog);
   info_label->setObjectName(QStringLiteral("cameraRawFilterInfoLabel"));
