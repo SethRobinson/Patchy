@@ -17,6 +17,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-readme-screensh
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-readme-screenshots.ps1 -SkipBuild -Scene long_shadow
 ```
 
+Six of these captures (`smart_filters`, `layer_styles`, `vector_tools`, `warp_text`,
+`palette_mode`, `brush_tips`) are also the Linux AppStream screenshots, pinned by tag in
+`packaging/linux/com.rtsoft.patchy.metainfo.xml`. After regenerating any of them, run
+`python scripts/release/check-metainfo.py --version <next release> --fix` so the pins move
+to the release that will ship them ([packaging/linux/README.md](../packaging/linux/README.md)).
+
 The driver accepts image base names or full `shot_readme_*` names. `-Scene hero`
 regenerates `smart_filters.png`, which the README uses directly. Missing local
 fixtures are reported as skips during a full run; an explicitly selected script

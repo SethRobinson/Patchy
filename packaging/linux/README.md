@@ -138,8 +138,16 @@ scalable SVG share the folded source artwork; regenerate with
 bump adds a metainfo `<release>` with a short `<description>` (docs/release-process.md).
 The metainfo screenshots are raw GitHub URLs at a release tag, so they keep resolving. They
 are the README captures in `docs/images/screenshots/` (`scripts/make-readme-screenshots.ps1`);
-when they are regenerated, point the URLs at the next release's tag so the listing (Flathub,
-the AppImage catalog) shows the shipping UI once that tag exists.
+when they are regenerated, the URLs must move to the next release's tag so the listing (software
+centers, the AppImage catalog, Flathub) shows the shipping UI once that tag exists. 1.17 and
+1.18 shipped with the pins still at v1.16 because nothing checked them, so now
+`python scripts/release/check-metainfo.py` fails when a pinned tag's image differs from the
+tree's, when a pin names no tag, when `width`/`height` disagree with the PNG, or when the
+`<release>` entry for the version is missing; `--fix` repoints every pin at `v<version>` and
+corrects the sizes, and `--version 1.NN` names the next release before `CMakeLists.txt` is
+bumped. `release-all.bat`, `release-all-automated.bat`, `release-linux.ps1` and
+`publish-github-release.ps1` run it and stop on a failure. Between releases the pins already
+name the next tag, so the check reports the pending bump until the version moves.
 `make-flatpak.sh` fails when the exported desktop file or the metainfo does not pass the
 host's `desktop-file-validate` or `appstreamcli validate --no-net` (each skipped with a note
 when not installed). The AppImage ships a copy of the desktop file without the Desktop

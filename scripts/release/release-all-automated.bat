@@ -23,6 +23,12 @@ rem marker, which reads as a hung build. See docs/release-process.md.
 setlocal EnableExtensions
 cd /d "%~dp0..\.."
 if not exist build\release-logs mkdir build\release-logs
+rem Preflight: the Linux metainfo (screenshot URLs pinned to a release tag, the <release>
+rem entry) must describe the version in CMakeLists.txt before anything is built or
+rem uploaded. 1.17 and 1.18 shipped with the screenshots still pinned to v1.16 because
+rem nothing checked (docs/release-process.md, "Release safety checks").
+python "%~dp0check-metainfo.py"
+if not "%ERRORLEVEL%"=="0" goto metainfo_failed
 if "%~1"=="" (
   call :launch windows
   call :launch mac
@@ -33,6 +39,14 @@ if "%~1"=="" (
 )
 echo Targets launched. Logs and exit markers: build\release-logs\^<target^>.log and .exit
 exit /b 0
+
+:metainfo_failed
+echo.
+echo RELEASE PREFLIGHT FAILED: packaging\linux\com.rtsoft.patchy.metainfo.xml does not describe
+echo the version in CMakeLists.txt ^(see the errors above^). Nothing was launched. Fix it with
+echo   python scripts\release\check-metainfo.py --fix
+echo and rerun. Python 3 must be on PATH.
+exit /b 1
 
 :launch
 if exist "build\release-logs\%~1.exit" del "build\release-logs\%~1.exit"

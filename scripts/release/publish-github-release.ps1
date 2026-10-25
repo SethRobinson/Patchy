@@ -79,6 +79,17 @@ if ($Version -notmatch '^[0-9]+(\.[0-9]+){1,3}$') { Fail "'$Version' is not a do
 $tag = "v$Version"
 $title = "Patchy $Version"
 
+# The metainfo inside the Linux packages must describe this version: screenshot URLs pinned
+# to this tag (or to an older tag whose images are unchanged) and a <release> entry
+# (scripts\release\check-metainfo.py). Publishing creates the tag the pins name. A backfill
+# (-Target) republishes a commit as it was, so its metainfo is not re-checked.
+if (-not $Target) {
+  $python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue
+  if (-not $python) { Fail 'python is not on PATH (scripts\release\check-metainfo.py needs Python 3)' }
+  & $python.Source (Join-Path $PSScriptRoot 'check-metainfo.py') --version $Version
+  if ($LASTEXITCODE -ne 0) { Fail 'packaging/linux/com.rtsoft.patchy.metainfo.xml does not describe this release (errors above; python scripts\release\check-metainfo.py --fix, commit, push, rerun)' }
+}
+
 # Commit the tag will point at.
 git fetch origin --quiet
 if ($LASTEXITCODE -ne 0) { Fail 'git fetch origin failed' }

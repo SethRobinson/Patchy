@@ -25,6 +25,18 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'remote-hosts.ps1')
 $remoteHost = (Get-PatchyRemoteHost linux).ssh
 
+# Both Linux packages install packaging/linux/com.rtsoft.patchy.metainfo.xml, whose
+# screenshot URLs are pinned to a release tag. Refuse to package while that pin is behind
+# docs/images/screenshots or the <release> entry is missing (scripts/release/check-metainfo.py;
+# 1.17 and 1.18 shipped v1.16's pictures that way). Before the deletes: a refused run leaves
+# the previous artifacts alone.
+$python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue
+if (-not $python) { throw 'python is not on PATH (scripts\release\check-metainfo.py needs Python 3)' }
+& $python.Source (Join-Path $PSScriptRoot '..\release\check-metainfo.py')
+if ($LASTEXITCODE -ne 0) {
+  throw 'packaging/linux/com.rtsoft.patchy.metainfo.xml does not describe this release (errors above; python scripts\release\check-metainfo.py --fix)'
+}
+
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
 $repoRoot = (git rev-parse --show-toplevel).Trim()

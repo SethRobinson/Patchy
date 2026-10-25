@@ -242,7 +242,13 @@ Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_ent
 
 ## Release
 
-`release-linux.ps1` runs `make-appimage.sh` after `make-flatpak.sh` and copies both files
+The AppImage bundles no picture of itself: the screenshots a software center or the AppImage
+catalog shows come from the installed `usr/share/metainfo/com.rtsoft.patchy.metainfo.xml`,
+whose `<screenshot>` URLs are raw GitHub links pinned to a release tag. 1.17 and 1.18 shipped
+pinned to v1.16 (the captures themselves were not regenerated between those tags either), so
+`scripts/release/check-metainfo.py` now fails the release drivers when a pin is behind
+`docs/images/screenshots/` ([packaging/linux/README.md](../packaging/linux/README.md)).
+`release-linux.ps1` runs that check, then `make-appimage.sh` after `make-flatpak.sh`, and copies both files
 back; `publish-github-release.ps1` publishes them as `PatchyLinux.AppImage` and
 `PatchyLinux.AppImage.zsync` (stable names, never renamed); `upload-linux-to-rtsoft.bat`
 mirrors the AppImage only. The announcement commit adds the `appimage_url` and three
