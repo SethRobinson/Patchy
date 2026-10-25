@@ -25521,6 +25521,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Show Black Channel</source>
         <translation>Schwarz-Kanal anzeigen</translation>
     </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>Erhöhen Sie die Toleranz, um Punkte zu entfernen.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>Dieser Pfad hat keine Punkte, die entfernt werden können.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

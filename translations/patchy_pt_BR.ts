@@ -25521,6 +25521,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Show Black Channel</source>
         <translation>Mostrar canal preto</translation>
     </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>Aumente a tolerância para remover pontos.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>Este demarcador não tem pontos para remover.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

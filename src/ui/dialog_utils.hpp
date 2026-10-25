@@ -344,5 +344,12 @@ void reserve_menu_icon_column(QMenu* menu);
 // submenus, context menus, tool flyouts) stays open, the way a click on a
 // disabled item already does. Safe to call more than once.
 void install_menu_separator_click_guard();
+// A translated sentence on a QAction saying why it is disabled right now
+// ("Select an editable pixel layer first"); empty or unset when it is not.
+inline constexpr char kActionDisabledReasonProperty[] = "patchy.disabledReason";
+// In `menu`, hovering a disabled action that carries kActionDisabledReasonProperty
+// shows that reason as a tooltip; every other action keeps showing none (unlike
+// QMenu::setToolTipsVisible, which would show each action's own label).
+void install_disabled_reason_tooltips(QMenu& menu);
 
 }  // namespace patchy::ui

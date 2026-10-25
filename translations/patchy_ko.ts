@@ -25448,6 +25448,14 @@ The open document keeps its blend modes either way.</source>
         <source>Show Black Channel</source>
         <translation>검정 채널 표시</translation>
     </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>점을 제거하려면 허용치를 높이세요.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>이 패스에는 제거할 점이 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

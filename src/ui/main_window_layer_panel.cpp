@@ -47,6 +47,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/paths_panel.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/smart_filter_table_ui.hpp"
 #include "ui/text_font_service.hpp"
@@ -4417,6 +4418,9 @@ void MainWindow::refresh_layer_controls() {
                                                                 : std::vector<LayerId>{});
   }
   sync_vector_shape_size_spins();  // the W / H readouts follow the active shape
+  if (paths_panel_ != nullptr) {
+    paths_panel_->refresh_action_states();  // Fill/Stroke Path follow the active layer
+  }
   if (!updating_layer_controls_) {
     finish_pending_shape_appearance_edit();
     finish_pending_layer_opacity_edit();
