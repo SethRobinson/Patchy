@@ -15,6 +15,7 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
+#include "ui/action_icons.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/localization.hpp"
@@ -4868,6 +4869,54 @@ void ui_layer_eye_sweep_skips_disabled_and_off_column() {
   CHECK(document_layer_visible(doc, ids.background));
 }
 
+// GitHub issue 397: the clipping badge's bent arrow turns down and points at the
+// base layer below the row, in Dark and Light, and the row badge uses that glyph.
+void ui_layer_clip_badge_arrow_points_down() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    const std::string scheme_name = scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light";
+    patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    document.add_pixel_layer("Base Shape", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(60, 120, 220)));
+    auto& clipped = document.add_pixel_layer("Clipped Color",
+                                             solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(230, 90, 40)));
+    clipped.set_clipped(true);
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.add_document_session(std::move(document), QStringLiteral("Clipping Arrow"));
+    QApplication::processEvents();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Clipped Color")));
+    CHECK(row != nullptr);
+    auto* badge = row != nullptr ? row->findChild<QToolButton*>(QStringLiteral("layerClippingBadgeButton")) : nullptr;
+    CHECK(badge != nullptr);
+    if (badge != nullptr) {
+      CHECK(badge->icon().name() == QStringLiteral("clip"));
+    }
+    save_widget_artifact("ui_layer_clip_badge_issue_397_" + scheme_name, *layer_list);
+
+    const auto glyph = patchy::ui::simple_icon(QStringLiteral("clip"), &patchy::ui::ThemePalette::layer_clip_badge)
+                           .pixmap(QSize(32, 32))
+                           .toImage()
+                           .convertToFormat(QImage::Format_ARGB32);
+    CHECK(glyph.width() == 32);
+    const auto inked = [&](int x, int y) { return qAlpha(glyph.pixel(x, y)) >= 96; };
+    // The arm leaves the left, the stem drops in the right half, and both
+    // arrowhead wings rise from the tip: the head points down.
+    CHECK(inked(12, 8));
+    CHECK(inked(20, 15));
+    CHECK(inked(20, 20));
+    CHECK(inked(18, 18));
+    CHECK(inked(22, 18));
+    // Nothing of a left-pointing head beside the stem's foot.
+    CHECK(!inked(12, 15));
+    CHECK(!inked(11, 17));
+    CHECK(!inked(13, 20));
+    // The base layer's edge stays under the tip.
+    CHECK(inked(16, 24));
+  }
+}
+
 void ui_layer_eye_sweep_survives_folder_row_rebuild() {
   EnvironmentVariableRestorer restore_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
   EnvironmentVariableRestorer restore_threshold{"PATCHY_PROCESSING_OVERLAY_MIN_PIXELS"};
@@ -5293,6 +5342,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_eye_sweep_sets_crossed_rows_to_first_state},
       {"ui_layer_eye_sweep_skips_disabled_and_off_column", ui_layer_eye_sweep_skips_disabled_and_off_column},
       {"ui_layer_eye_sweep_survives_folder_row_rebuild", ui_layer_eye_sweep_survives_folder_row_rebuild},
+      {"ui_layer_clip_badge_arrow_points_down", ui_layer_clip_badge_arrow_points_down},
       {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
       {"ui_move_auto_select_click_keeps_existing_layer_rows",
        ui_move_auto_select_click_keeps_existing_layer_rows},

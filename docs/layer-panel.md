@@ -6,6 +6,8 @@ Read this before changing anything in the Layers panel. Generic item-widget row 
 
 Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes (`layerTargetActive` is the reference). `ui_layer_row_selected_highlight_paints` pins the rendered colors. Never give a row widget with a tooltip its own selector-less sheet: Qt cascades it into the tip and `background: transparent` cleared its panel (#347).
 
+The clip badge (`layerClippingBadgeButton`; the `clip` glyph in `action_icons.cpp`, also the clip cursor and action icon) is a bent arrow pointing down at the base layer (#397, `ui_layer_clip_badge_arrow_points_down`).
+
 Hidden rows disable name, details, mask link and clip badge; fx, smart-object and vector badges stay clickable, dimmed (`layerRowBadgeDimmed`, issue 230).
 
 Locks: the panel's lock buttons and the row's right-click Lock submenu, the only home of Prevent Auto-Nesting (`layer.prevent_auto_nesting`; #246, [artboards.md](artboards.md)). Badges (`make_layer_lock_badge`) show each set lock; a Background shows one padlock instead ([background-layer.md](background-layer.md)); folders pass on editing locks only.
@@ -190,4 +192,4 @@ target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies`
 
 ## File drops onto the panel
 
-OS files dragged onto the list become layers of the active document (Files as Layers, [import.md](import.md)). `dragEnterEvent` asks the owner's `set_file_drop_paths_callback` once per drag and refuses a drag with neither layer ids nor usable files (a text drag never reaches the selected-rows reorder fallback). File drags show the normal insertion preview with CopyAction; the drop records a `LayerFileDropRequest` (paths plus the `drop_target_at` result) that `MainWindow::handle_layer_drop` takes ahead of the layer request and hands to `add_files_as_layers_interactive` (plain opens with no active document).
+OS files dragged onto the list become layers of the active document: [import.md](import.md#files-as-layers) has the panel-side drag rules.
