@@ -1,4 +1,5 @@
 #include <QClipboard>
+#include <QDialog>
 #include <QScrollBar>
 #include <QStatusBar>
 

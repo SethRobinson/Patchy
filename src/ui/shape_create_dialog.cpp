@@ -1,5 +1,6 @@
 // Create <Shape> dialog for a tapped shape tool (docs/vector-tools.md).
 #include "ui/shape_create_dialog.hpp"
+#include "ui/canvas_widget.hpp"
 
 #include "ui/action_icons.hpp"
 #include "ui/custom_shape_library.hpp"

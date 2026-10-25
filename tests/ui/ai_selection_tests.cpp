@@ -1,5 +1,6 @@
 #include "local_psd_fixtures.hpp"
 #include <QByteArray>
+#include <QDialog>
 #include <QIODevice>
 #include <QUrl>
 #include <algorithm>

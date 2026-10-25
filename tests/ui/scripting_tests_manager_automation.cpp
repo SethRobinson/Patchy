@@ -1,4 +1,5 @@
 #include <QClipboard>
+#include <QListWidget>
 #include <QStatusBar>
 #include "core/document.hpp"
 #include "core/pixel_depth.hpp"

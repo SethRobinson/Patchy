@@ -33,11 +33,9 @@
 #include <QBrush>
 #include <QByteArray>
 #include <QColor>
-#include <QDialog>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QKeySequence>
-#include <QListWidget>
 #include <QMainWindow>
 #include <QPageLayout>
 #include <QPixmap>
@@ -68,6 +66,8 @@ class QCheckBox;
 class QCloseEvent;
 class QComboBox;
 class QDialog;
+class QListWidget;
+class QListWidgetItem;
 class QDockWidget;
 class QDoubleSpinBox;
 class QDragEnterEvent;

@@ -29,6 +29,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QClipboard>
+#include <QDialog>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>

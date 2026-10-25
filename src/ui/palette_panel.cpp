@@ -10,6 +10,7 @@
 #include "ui/main_window_shared.hpp"
 
 #include <QEvent>
+#include <QDialog>
 #include <QSignalBlocker>
 
 #include <QApplication>

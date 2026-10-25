@@ -5,6 +5,7 @@
 #include "ui/dialog_utils.hpp"
 
 #include <QGuiApplication>
+#include <QDialog>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QProgressBar>

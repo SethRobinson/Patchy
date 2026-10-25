@@ -1,4 +1,5 @@
 #include <QStatusBar>
+#include <QListWidget>
 #include "color/color_management.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"

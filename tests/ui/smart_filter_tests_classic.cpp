@@ -4,6 +4,7 @@
 // smart_filter_tests parts so the earlier registration order is unchanged.
 
 #include "core/document.hpp"
+#include "ui/canvas_widget.hpp"
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"

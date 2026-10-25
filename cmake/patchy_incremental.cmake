@@ -145,6 +145,45 @@ function(patchy_setup_build_stamp)
   set(PATCHY_BUILD_STAMP_HEADER "${stamp_header}" PARENT_SCOPE)
 endfunction()
 
+# The Qt-free test suite: standard library only. Its 75 TUs averaged 22 s each without a
+# PCH, half of them spent in <filesystem>, <iostream> and the containers every test uses.
+function(patchy_enable_core_pch target)
+  if(NOT PATCHY_USE_PCH OR EMSCRIPTEN)
+    return()
+  endif()
+  target_precompile_headers(${target} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:<algorithm$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<array$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<chrono$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<cmath$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<cstdint$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<cstring$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<filesystem$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<fstream$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<functional$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<iostream$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<map$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<memory$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<optional$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<span$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<sstream$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<string$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<string_view$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<unordered_map$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<utility$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<vector$<ANGLE-R>>"
+  )
+  get_target_property(sources ${target} SOURCES)
+  foreach(source IN LISTS sources)
+    foreach(property COMPILE_DEFINITIONS COMPILE_OPTIONS INCLUDE_DIRECTORIES)
+      get_source_file_property(value "${source}" ${property})
+      if(value)
+        set_source_files_properties("${source}" PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+      endif()
+    endforeach()
+  endforeach()
+endfunction()
+
 function(patchy_enable_ui_pch target)
   if(NOT PATCHY_USE_PCH OR EMSCRIPTEN)
     return()

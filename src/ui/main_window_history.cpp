@@ -10,6 +10,7 @@
 #include "ui/main_window.hpp"
 #include "core/worker_budget.hpp"
 #include <QStatusBar>
+#include <QListWidget>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
 

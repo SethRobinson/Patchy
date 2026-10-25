@@ -425,4 +425,15 @@ struct CanvasRenderCacheDiagnostics {
   int path_drag_applies{0};
 };
 
+// A resampled image in document space: the result of CanvasWidget's `resample_transformed_rgba8`
+// and `resample_warped_rgba8` (ui/canvas_widget.hpp) and of the smart-object renderer.
+struct TransformedImage {
+  QImage image;
+  Rect bounds{};
+  // resample_warped_rgba8 only: (pixel, cell) inverse tests the walk ran, the warp
+  // renderer's work measure (GitHub issue 299: a stretched cell must not test its
+  // whole bounding box).
+  std::uint64_t cell_pixel_tests{0};
+};
+
 }  // namespace patchy::ui

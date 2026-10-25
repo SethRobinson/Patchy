@@ -4,7 +4,8 @@
 #include "core/layer.hpp"
 #include "core/smart_filter.hpp"
 #include "filters/filter_registry.hpp"
-#include "ui/canvas_widget.hpp"
+#include "ui/canvas_types.hpp"
+#include "ui/curves_clipping_preview.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/filter_selection.hpp"
 
@@ -20,6 +21,8 @@
 class QWidget;
 
 namespace patchy::ui {
+
+class CanvasWidget;
 
 struct HueSaturationSettings {
   int hue_shift{0};

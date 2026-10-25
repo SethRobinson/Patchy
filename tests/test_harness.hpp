@@ -18,14 +18,6 @@
 #include <thread>
 #endif
 
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <crtdbg.h>
-#include <windows.h>
-#endif
-
 namespace patchy::test {
 
 using TestFn = std::function<void()>;
@@ -90,12 +82,9 @@ inline void report_failure(std::string message) {
   deferred_failures().push_back(std::move(message));
 }
 
-inline void suppress_crash_dialogs() noexcept {
-#ifdef _WIN32
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
-  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-#endif
-}
+// Defined in test_harness.cpp: it is the one place the harness needs <windows.h>, which
+// would otherwise ride into every test translation unit.
+void suppress_crash_dialogs() noexcept;
 
 // Exit code of a run a test timeout ended (the same value as coreutils `timeout`).
 inline constexpr int kTestTimeoutExitCode = 124;

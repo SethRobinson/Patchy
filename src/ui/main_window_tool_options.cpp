@@ -21,6 +21,7 @@
 #include "ui/blend_mode_ui.hpp"
 #include "ui/script_api.hpp"
 #include <QAbstractItemView>
+#include <QListWidget>
 #include <QActionGroup>
 #include <QComboBox>
 #include <QStatusBar>

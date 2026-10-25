@@ -5,6 +5,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QApplication>
+#include <QListWidget>
 #include <QBoxLayout>
 #include <QCoreApplication>
 #include <QByteArray>

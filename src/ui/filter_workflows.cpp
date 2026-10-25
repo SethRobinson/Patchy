@@ -1,4 +1,5 @@
 #include "ui/filter_workflows.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/measurement_units.hpp"
 
 #include "core/adjustment_deep.hpp"

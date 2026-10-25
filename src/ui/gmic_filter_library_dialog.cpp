@@ -6,6 +6,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QCheckBox>
+#include <QDialog>
 #include <QComboBox>
 #include <QSignalBlocker>
 #include <QDialogButtonBox>

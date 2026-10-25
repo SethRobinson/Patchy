@@ -15,6 +15,7 @@
 #include "ui_test_support.hpp"
 
 #include <QAbstractButton>
+#include <QDialog>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>

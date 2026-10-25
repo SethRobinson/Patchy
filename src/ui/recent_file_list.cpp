@@ -4,6 +4,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QDir>
+#include <QListWidget>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QHelpEvent>

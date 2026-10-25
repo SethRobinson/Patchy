@@ -20,6 +20,7 @@
 #include "ui/watermark_model_download.hpp"
 
 #include <QCheckBox>
+#include <QDialog>
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFileInfo>

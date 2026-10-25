@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ui/canvas_widget.hpp"
+#include "ui/canvas_types.hpp"
 #include "ui/unit_spin_box.hpp"
 
 #include <array>

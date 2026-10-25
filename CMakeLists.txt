@@ -738,6 +738,8 @@ if(PATCHY_BUILD_APP)
     endif()
     qt_standard_project_setup()
     set(CMAKE_AUTORCC ON)
+    # No .ui files anywhere: skip the per-target uic scan qt_standard_project_setup turns on.
+    set(CMAKE_AUTOUIC OFF)
     set(PATCHY_TRANSLATION_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")
     # Interpreter-only lookup selects a host tool even when cross-compiling wasm.
     find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
@@ -1847,17 +1849,32 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
     patchy_copy_bundled_fonts(patchy)
     patchy_copy_bundled_scripts(patchy)
     patchy_copy_ai_runtime(patchy)
+    # Test translation units the translation checker and the UI suite both need, compiled
+    # once (ui_test_support.cpp alone is about 50 s). The harness body with <windows.h> and the
+    # MainWindowTestAccess bodies live here too, so editing an accessor recompiles one object.
+    add_library(patchy_ui_test_shared OBJECT
+      tests/test_harness.cpp
+      tests/ui/ui_test_support.cpp
+      tests/ui/ui_test_access.cpp
+      tests/ui/localization_tests.cpp
+      tests/ui/translation_runtime_tests.cpp
+    )
+    target_include_directories(patchy_ui_test_shared PRIVATE tests)
+    target_link_libraries(patchy_ui_test_shared PRIVATE patchy_ui Qt6::Test)
+    target_compile_definitions(patchy_ui_test_shared PRIVATE
+      PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+      PATCHY_LUPDATE_MANIFEST="${PATCHY_LUPDATE_MANIFEST}"
+      PATCHY_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}")
+    patchy_configure_target(patchy_ui_test_shared)
+    target_compile_options(patchy_ui_test_shared PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     if(NOT EMSCRIPTEN)
       # This small runner is a required build tool, independent of PATCHY_BUILD_TESTS.
       # It shares the actual checks with the UI suite and has private temporary settings.
       add_executable(patchy_translation_checks
         tests/ui/translation_check_main.cpp
-        tests/ui/localization_tests.cpp
-        tests/ui/translation_runtime_tests.cpp
-        tests/ui/ui_test_support.cpp
       )
       target_include_directories(patchy_translation_checks PRIVATE tests)
-      target_link_libraries(patchy_translation_checks PRIVATE patchy_ui Qt6::Test)
+      target_link_libraries(patchy_translation_checks PRIVATE patchy_ui Qt6::Test patchy_ui_test_shared)
       target_compile_definitions(patchy_translation_checks PRIVATE
         PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
         PATCHY_LUPDATE_MANIFEST="${PATCHY_LUPDATE_MANIFEST}"
@@ -2110,6 +2127,7 @@ if(PATCHY_BUILD_TESTS)
   # main() concatenates the group vectors in a fixed order — never static self-registration).
   add_executable(patchy_core_tests
     tests/core/main.cpp
+    tests/test_harness.cpp
     tests/core/core_test_support.cpp
     tests/core/psd_test_support.cpp
     tests/core/smart_filter_descriptors_test_support.cpp
@@ -2207,6 +2225,8 @@ if(PATCHY_BUILD_TESTS)
     patchy_color
   )
   patchy_configure_target(patchy_core_tests)
+  # No Q_OBJECT in the core suite: skip its moc scan.
+  set_target_properties(patchy_core_tests PROPERTIES AUTOMOC OFF)
   target_compile_definitions(patchy_core_tests PRIVATE PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
   if(WIN32)
     # The legacy host self-tests run the helper executables next to the binary.
@@ -2227,7 +2247,6 @@ if(PATCHY_BUILD_TESTS)
     # static self-registration).
     add_executable(patchy_ui_visual_tests
       tests/ui/main.cpp
-      tests/ui/ui_test_support.cpp
       tests/ui/brush_pattern_palette_test_support.cpp
       tests/ui/destructive_filters_gallery_test_support.cpp
       tests/ui/smart_filter_test_support.cpp
@@ -2237,8 +2256,6 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/app_shell_tests_updates_preferences.cpp
       tests/ui/app_shell_tests_language_chrome.cpp
       tests/ui/app_shell_tests_theme_status.cpp
-      tests/ui/localization_tests.cpp
-      tests/ui/translation_runtime_tests.cpp
       tests/ui/font_coverage_tests.cpp
       tests/ui/missing_fonts_tests.cpp
       tests/ui/filter_catalog_dialog_tests.cpp
@@ -2357,7 +2374,7 @@ if(PATCHY_BUILD_TESTS)
     target_include_directories(patchy_ui_visual_tests PRIVATE tests)
     # Qt6::Test provides QTest::keyClick for tests that must go through real event
     # dispatch (QShortcutMap contention) instead of QApplication::sendEvent.
-    target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui Qt6::Test)
+    target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui Qt6::Test patchy_ui_test_shared)
     # QPdfDocument is the independent decoder the PDF export tests verify against, and
     # patchy_ui links Qt PDF privately, so the tests ask for the headers themselves.
     if(TARGET Qt6::Pdf)
@@ -2384,6 +2401,7 @@ if(PATCHY_BUILD_TESTS)
 
     add_executable(patchy_curves_clipping_preview_tests
       tests/curves_clipping_preview_tests.cpp
+      tests/test_harness.cpp
     )
     target_link_libraries(patchy_curves_clipping_preview_tests PRIVATE patchy_ui)
     patchy_configure_target(patchy_curves_clipping_preview_tests)
@@ -2396,6 +2414,7 @@ if(PATCHY_BUILD_TESTS)
     add_executable(patchy_perf_tests
       tests/perf_tests.cpp
       tests/perf_startup.cpp
+      tests/test_harness.cpp
     )
     target_link_libraries(patchy_perf_tests PRIVATE patchy_ui)
     # The startup scenario launches the app beside it (docs/startup-performance.md).
@@ -2441,8 +2460,11 @@ endif()
 
 # Configure PCHs only after source-specific options have been attached. Keep the
 # no-PCH preset as an include-hygiene check and for comparative measurements.
-foreach(pch_target patchy_ui patchy_translation_checks patchy_ui_visual_tests)
+foreach(pch_target patchy_ui patchy_translation_checks patchy_ui_visual_tests patchy_ui_test_shared patchy_perf_tests)
   if(TARGET ${pch_target})
     patchy_enable_ui_pch(${pch_target})
   endif()
 endforeach()
+if(TARGET patchy_core_tests)
+  patchy_enable_core_pch(patchy_core_tests)
+endif()

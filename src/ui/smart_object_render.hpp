@@ -3,7 +3,7 @@
 #include "core/document.hpp"
 #include "core/smart_object.hpp"
 #include "filters/filter_registry.hpp"
-#include "ui/canvas_widget.hpp"
+#include "ui/canvas_types.hpp"
 
 #include <QImage>
 #include <QString>
@@ -93,7 +93,7 @@ enum class SmartObjectContentsFormat {
 // "png " for everything else.
 [[nodiscard]] std::string smart_object_filetype_for_extension(const QString& extension);
 
-// Linked-file bookkeeping (docs/smart-objects.md, "Place Linked ground truth").
+// Linked-file bookkeeping (docs/smart-objects-ground-truth.md, "Place Linked ground truth").
 //
 // Photoshop stamps a link with the file's modification time in UTC, truncated to
 // whole seconds, plus its byte size, and compares both to decide the link changed.
@@ -137,13 +137,13 @@ bool refresh_smart_object_link_relative_paths(SmartObjectStore& store, const QSt
 // corners). Returns nullopt when the quad cannot be mapped.
 [[nodiscard]] std::optional<TransformedImage> render_smart_object_pixels(
     const QImage& source_image, const SmartObjectPlacement& placement,
-    CanvasWidget::TransformInterpolation interpolation);
+    TransformInterpolation interpolation);
 
 // Warp-aware variant: with a warp (custom envelope mesh) the render goes through the
 // warp surface grid; without one it falls back to the plain quad mapping.
 [[nodiscard]] std::optional<TransformedImage> render_smart_object_pixels(
     const QImage& source_image, const SmartObjectPlacement& placement,
-    const std::optional<SmartObjectWarp>& warp, CanvasWidget::TransformInterpolation interpolation);
+    const std::optional<SmartObjectWarp>& warp, TransformInterpolation interpolation);
 
 // Renders one editable embedded or resolved linked Smart Object from its
 // immutable source. Passing an override stack is used by the Gaussian dialog
@@ -154,7 +154,7 @@ bool refresh_smart_object_link_relative_paths(SmartObjectStore& store, const QSt
 [[nodiscard]] std::optional<SmartObjectLayerPreview>
 render_smart_object_layer_preview(
     const Document& document, const Layer& layer,
-    CanvasWidget::TransformInterpolation interpolation,
+    TransformInterpolation interpolation,
     const SmartFilterStack* override_stack = nullptr,
     const QString& parent_document_dir = {},
     SmartObjectSourceRenderCache* cache = nullptr);
@@ -165,7 +165,7 @@ render_smart_object_layer_preview(
 [[nodiscard]] std::optional<FilterRenderResult>
 render_smart_object_unfiltered_layer_preview(
     const Document& document, const Layer& layer,
-    CanvasWidget::TransformInterpolation interpolation,
+    TransformInterpolation interpolation,
     const QString& parent_document_dir = {},
     SmartObjectSourceRenderCache* cache = nullptr);
 
@@ -175,7 +175,7 @@ render_smart_object_unfiltered_layer_preview(
 render_smart_object_image_preview(
     const QImage& source_image, const SmartObjectPlacement& placement,
     const std::optional<SmartObjectWarp>& warp,
-    CanvasWidget::TransformInterpolation interpolation,
+    TransformInterpolation interpolation,
     const SmartFilterStack* stack, const Document& document);
 
 // Atomically installs a pre-rendered preview and, when requested, regenerates
@@ -190,7 +190,7 @@ bool install_smart_object_layer_preview(Document& document, Layer& layer,
 // an editable embedded or linked smart object, its linked file is missing, or its
 // source cannot be decoded.
 bool refresh_smart_object_layer_preview(Document& document, Layer& layer,
-                                        CanvasWidget::TransformInterpolation interpolation,
+                                        TransformInterpolation interpolation,
                                         bool refresh_native_cache = true,
                                         const QString& parent_document_dir = {},
                                         SmartObjectSourceRenderCache* cache = nullptr);

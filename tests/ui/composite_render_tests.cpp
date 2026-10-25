@@ -8,6 +8,7 @@
 // for the re-pin procedure.
 
 #include "composite_corpus_support.hpp"
+#include "ui/canvas_widget.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"

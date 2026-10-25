@@ -84,6 +84,13 @@
 #include "ui_test_support.hpp"
 #include "app_shell_test_support.hpp"
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace {
 using namespace patchy::test::ui::app_shell_support;
 

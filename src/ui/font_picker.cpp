@@ -5,6 +5,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QAbstractItemView>
+#include <QListWidget>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QColor>

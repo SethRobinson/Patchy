@@ -5,6 +5,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QClipboard>
+#include <QDialog>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>

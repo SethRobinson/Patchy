@@ -7,6 +7,7 @@
 #include "ui/dialog_utils.hpp"
 
 #include <QDoubleSpinBox>
+#include <QDialog>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>

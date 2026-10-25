@@ -1,4 +1,5 @@
 #include "ui/smart_object_render.hpp"
+#include "ui/canvas_widget.hpp"
 
 #include "color/color_management.hpp"
 #include "core/psd_source_colors.hpp"

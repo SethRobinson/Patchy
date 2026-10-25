@@ -6,6 +6,7 @@
 #include "ui/image_document_io.hpp"
 
 #include <QComboBox>
+#include <QDialog>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>

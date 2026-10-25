@@ -14,6 +14,8 @@
 #include "test_harness.hpp"
 
 #include <QApplication>
+#include <QDialog>
+#include <QListWidget>
 #include <QByteArray>
 #include <QColor>
 #include <QEvent>

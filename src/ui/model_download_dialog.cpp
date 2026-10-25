@@ -1,6 +1,7 @@
 #include "ui/model_download_dialog.hpp"
 
 #include <QApplication>
+#include <QDialog>
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QCoreApplication>

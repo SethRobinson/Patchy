@@ -8,6 +8,7 @@
 #include "ui/dialog_utils.hpp"
 
 #include <QColor>
+#include <QDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QPushButton>

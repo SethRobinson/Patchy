@@ -33,6 +33,7 @@
 #include "ui/pdf_export.hpp"
 #include "ui/panel_column.hpp"
 #include <QScopedValueRollback>
+#include <QDialog>
 #include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/script_api.hpp"

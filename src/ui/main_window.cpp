@@ -11970,3 +11970,7 @@ void MainWindow::show_about() {
 }
 
 }  // namespace patchy::ui
+
+// AUTOMOC generates this here instead of in the shared mocs_compilation.cpp, so a
+// change to this class's header rebuilds this object only (docs/building.md).
+#include "moc_main_window.cpp"

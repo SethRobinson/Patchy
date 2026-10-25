@@ -10,6 +10,7 @@
 #include "ui/main_window.hpp"
 #include "ui/model_download_dialog.hpp"
 #include <QComboBox>
+#include <QDialog>
 #include <QPushButton>
 #include <QStatusBar>
 

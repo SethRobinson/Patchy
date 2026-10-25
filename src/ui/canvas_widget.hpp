@@ -3867,17 +3867,11 @@ private:
   std::function<void(LayerId)> smart_object_paint_prompt_callback_;
 };
 
-// Resamples `source` through `source_to_document` into document space (straight-alpha
-// RGBA8888; samples are premultiplied-weighted so transparent texels never bleed color).
-// Shared by the free-transform commit path and the smart-object preview renderer.
-struct TransformedImage {
-  QImage image;
-  Rect bounds{};
-  // resample_warped_rgba8 only: (pixel, cell) inverse tests the walk ran, the warp
-  // renderer's work measure (GitHub issue 299: a stretched cell must not test its
-  // whole bounding box).
-  std::uint64_t cell_pixel_tests{0};
-};
+// `TransformedImage` (the result type) lives in ui/canvas_types.hpp so the smart-object
+// renderer's header needs no CanvasWidget. Resamples `source` through `source_to_document`
+// into document space (straight-alpha RGBA8888; samples are premultiplied-weighted so
+// transparent texels never bleed color). Shared by the free-transform commit path and the
+// smart-object preview renderer.
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation);
 // Warp-mesh variant: inverts each cell of the forward-evaluated surface grid

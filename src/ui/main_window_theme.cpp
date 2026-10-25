@@ -14,6 +14,7 @@
 #include "ui/tool_palette_footer.hpp"
 
 #include <QApplication>
+#include <QListWidget>
 #include <QRegularExpression>
 #include <QString>
 #include <QStyle>
