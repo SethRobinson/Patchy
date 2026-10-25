@@ -13,7 +13,6 @@ namespace patchy {
 // may call them with defaults; other callers pass every argument explicitly.
 
 [[nodiscard]] Rect canvas_rect(const Document& document) noexcept;
-[[nodiscard]] Rect normalized_rect(Rect rect) noexcept;
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept;
 [[nodiscard]] const Layer* editable_layer(const Document& document, LayerId layer_id) noexcept;
 // A color pixel layer at any depth: for operations that move whole pixels (flips)

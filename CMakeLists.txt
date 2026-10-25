@@ -50,7 +50,11 @@ set(PATCHY_BUNDLED_FONTS_DIR "${PROJECT_SOURCE_DIR}/third_party/fonts")
 set(PATCHY_BUNDLED_FONTS_WEB_DIR "${PROJECT_SOURCE_DIR}/third_party/fonts-web")
 
 function(patchy_configure_target target)
-  target_compile_features(${target} PUBLIC cxx_std_20)
+  # PRIVATE on purpose: every Patchy target calls this function itself (and
+  # CMAKE_CXX_STANDARD is 20), while a vendored library that links a Patchy
+  # target for one shim (patchy_gmic_vendor and the zlib.h over miniz) keeps
+  # the standard its own sources are written for.
+  target_compile_features(${target} PRIVATE cxx_std_20)
   target_include_directories(${target} PUBLIC ${PROJECT_SOURCE_DIR}/src)
 
   if(PATCHY_ENABLE_STRICT_WARNINGS)
@@ -139,6 +143,7 @@ add_library(patchy_core
   src/core/invisible_watermark.cpp
   src/core/trustmark_payload.cpp
   src/core/blend_math.cpp
+  src/core/splitmix64.hpp
   src/core/blend_math_deep.cpp
   src/core/brush_dynamics.cpp
   src/core/paint_mode.cpp
@@ -151,6 +156,8 @@ add_library(patchy_core
   src/core/stroke_patch.cpp
   src/core/document_recovery_store.cpp
   src/support/atomic_file_write.cpp
+  src/support/random_uuid.cpp
+  src/support/byte_order.hpp
   src/support/startup_trace.cpp
   src/core/environment.cpp
   src/core/hdr_display.cpp
@@ -696,6 +703,7 @@ patchy_configure_target(patchy_formats)
 
 add_library(patchy_color
   src/color/color_management.cpp
+  src/color/lcms_intent.hpp
   src/color/rgb_profiles.cpp
 )
 target_link_libraries(patchy_color PUBLIC patchy_core PRIVATE patchy_lcms2)
@@ -1230,6 +1238,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/hotkey_registry.hpp
       src/ui/hotkey_registry.cpp
       src/ui/image_document_io.cpp
+      src/ui/alpha_row_bands.hpp
+      src/ui/alpha_row_bands.cpp
       src/ui/image_trace_dialog.hpp
       src/ui/activity_spinner.cpp
       src/ui/image_trace_dialog.cpp

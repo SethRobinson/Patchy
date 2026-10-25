@@ -36,7 +36,9 @@ if(PATCHY_ENABLE_GMIC)
     gmic_core cimg_use_abort cimg_use_zlib gmic_noexec cimg_no_system_calls patchy_gmic_no_patch_algorithms
     patchy_gmic_use_pocketfft)
   target_compile_definitions(patchy_gmic_vendor PUBLIC cimg_display=0)
-  # G'MIC is developed against C++11 through C++17.
+  # G'MIC is developed against C++11 through C++17, so gmic.cpp compiles as C++17
+  # (patchy_configure_target keeps its cxx_std_20 feature PRIVATE for this reason;
+  # linking patchy_psd here only reaches the miniz symbols behind the zlib.h shim).
   set_target_properties(patchy_gmic_vendor PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   if(MSVC)
     target_compile_definitions(patchy_gmic_vendor PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)

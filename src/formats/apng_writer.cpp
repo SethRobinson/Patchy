@@ -1,6 +1,7 @@
 #include "formats/apng_writer.hpp"
 
 #include "formats/miniz/miniz.h"
+#include "support/byte_order.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -16,26 +17,14 @@ namespace {
 // Compressed data longer than this is split over several IDAT / fdAT chunks.
 constexpr std::size_t kMaxChunkData = std::size_t{1} << 20;
 
-void append_be16(std::vector<std::uint8_t>& out, std::uint32_t value) {
-  out.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
-  out.push_back(static_cast<std::uint8_t>(value & 0xFF));
-}
-
-void append_be32(std::vector<std::uint8_t>& out, std::uint32_t value) {
-  out.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
-  out.push_back(static_cast<std::uint8_t>((value >> 16) & 0xFF));
-  out.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
-  out.push_back(static_cast<std::uint8_t>(value & 0xFF));
-}
-
 // Length, type, data, then the CRC of type and data.
 void append_chunk(std::vector<std::uint8_t>& out, const char (&type)[5], std::span<const std::uint8_t> data) {
-  append_be32(out, static_cast<std::uint32_t>(data.size()));
+  append_u32_be(out, static_cast<std::uint32_t>(data.size()));
   const auto crc_start = out.size();
   out.insert(out.end(), type, type + 4);
   out.insert(out.end(), data.begin(), data.end());
   const auto crc = mz_crc32(MZ_CRC32_INIT, out.data() + crc_start, out.size() - crc_start);
-  append_be32(out, static_cast<std::uint32_t>(crc));
+  append_u32_be(out, static_cast<std::uint32_t>(crc));
 }
 
 int paeth(int a, int b, int c) {
@@ -214,34 +203,34 @@ std::vector<std::uint8_t> AnimationEncoder::finish() {
   }
   std::vector<std::uint8_t> png = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
   std::vector<std::uint8_t> data;
-  append_be32(data, static_cast<std::uint32_t>(state.width));
-  append_be32(data, static_cast<std::uint32_t>(state.height));
+  append_u32_be(data, static_cast<std::uint32_t>(state.width));
+  append_u32_be(data, static_cast<std::uint32_t>(state.height));
   data.insert(data.end(), {8, 6, 0, 0, 0});  // 8-bit RGBA, deflate, adaptive filters, no interlace
   append_chunk(png, "IHDR", data);
   if (state.dots_per_meter_x > 0 && state.dots_per_meter_y > 0) {
     data.clear();
-    append_be32(data, static_cast<std::uint32_t>(state.dots_per_meter_x));
-    append_be32(data, static_cast<std::uint32_t>(state.dots_per_meter_y));
+    append_u32_be(data, static_cast<std::uint32_t>(state.dots_per_meter_x));
+    append_u32_be(data, static_cast<std::uint32_t>(state.dots_per_meter_y));
     data.push_back(1);  // the unit is the meter
     append_chunk(png, "pHYs", data);
   }
   data.clear();
-  append_be32(data, static_cast<std::uint32_t>(state.frames.size()));
-  append_be32(data, state.play_count);
+  append_u32_be(data, static_cast<std::uint32_t>(state.frames.size()));
+  append_u32_be(data, state.play_count);
   append_chunk(png, "acTL", data);
 
   std::uint32_t sequence = 0;
   for (std::size_t index = 0; index < state.frames.size(); ++index) {
     const auto& frame = state.frames[index];
     data.clear();
-    append_be32(data, sequence++);
-    append_be32(data, static_cast<std::uint32_t>(frame.width));
-    append_be32(data, static_cast<std::uint32_t>(frame.height));
-    append_be32(data, static_cast<std::uint32_t>(frame.x));
-    append_be32(data, static_cast<std::uint32_t>(frame.y));
+    append_u32_be(data, sequence++);
+    append_u32_be(data, static_cast<std::uint32_t>(frame.width));
+    append_u32_be(data, static_cast<std::uint32_t>(frame.height));
+    append_u32_be(data, static_cast<std::uint32_t>(frame.x));
+    append_u32_be(data, static_cast<std::uint32_t>(frame.y));
     const auto delay = delay_fraction(frame.delay_ms);
-    append_be16(data, delay.num);
-    append_be16(data, delay.den);
+    append_u16_be(data, delay.num);
+    append_u16_be(data, delay.den);
     data.push_back(0);  // dispose none
     data.push_back(0);  // blend source
     append_chunk(png, "fcTL", data);
@@ -253,7 +242,7 @@ std::vector<std::uint8_t> AnimationEncoder::finish() {
         append_chunk(png, "IDAT", piece);
       } else {
         data.clear();
-        append_be32(data, sequence++);
+        append_u32_be(data, sequence++);
         data.insert(data.end(), piece.begin(), piece.end());
         append_chunk(png, "fdAT", data);
       }

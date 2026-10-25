@@ -25,6 +25,9 @@ namespace {
 
 constexpr double kMinimumZoom = 0.0625;
 constexpr double kMaximumZoom = 16.0;
+// Fit mode may go below the zoom buttons' floor so a very large image still
+// fits the widget whole.
+constexpr double kMinimumFitZoom = 0.01;
 constexpr double kOverlayHandleHitRadius = 11.0;
 [[nodiscard]] QColor overlay_accent() { return theme().accent_control; }
 constexpr double kPi = 3.14159265358979323846;
@@ -80,9 +83,13 @@ ZoomableImagePreview::ZoomableImagePreview(QWidget* parent) : QWidget(parent) {
 
 void ZoomableImagePreview::set_image(QImage image, QSize logical_size) {
   if (logical_size.isEmpty()) logical_size = image.size();
+  image_ = std::move(image);
+  set_logical_size(logical_size);
+}
+
+void ZoomableImagePreview::set_logical_size(QSize logical_size) {
   const auto size_changed = logical_size_ != logical_size;
   logical_size_ = logical_size;
-  image_ = std::move(image);
   if (size_changed) {
     scaled_image_ = {};
     fit_mode_ = true;
@@ -92,6 +99,10 @@ void ZoomableImagePreview::set_image(QImage image, QSize logical_size) {
   publish_state();
   update();
 }
+
+QSize ZoomableImagePreview::logical_size() const noexcept { return logical_size_; }
+
+bool ZoomableImagePreview::panning() const noexcept { return panning_; }
 
 const QImage& ZoomableImagePreview::image() const noexcept { return image_; }
 
@@ -111,10 +122,10 @@ void ZoomableImagePreview::zoom_to_fit() {
 void ZoomableImagePreview::zoom_to(double factor,
                                    std::optional<QPointF> anchor) {
   const auto previous_zoom = zoom();
-  const auto target = std::clamp(factor, kMinimumZoom, kMaximumZoom);
+  const auto target = std::clamp(factor, minimum_zoom(), kMaximumZoom);
   const QPointF widget_center(width() / 2.0, height() / 2.0);
   const auto anchor_point = anchor.value_or(widget_center);
-  if (!image_.isNull() && previous_zoom > 0.0) {
+  if (!logical_size_.isEmpty() && previous_zoom > 0.0) {
     const auto old_top_left = displayed_rect().topLeft();
     const auto image_point = (anchor_point - old_top_left) / previous_zoom;
     const QPointF centered_top_left((width() - logical_size_.width() * target) / 2.0,
@@ -135,7 +146,7 @@ void ZoomableImagePreview::zoom_step(int direction,
       1.5,          2.0,   3.0,  4.0,       6.0, 8.0,       12.0,
       kMaximumZoom};
   const auto current = zoom();
-  auto target = direction > 0 ? kMaximumZoom : kMinimumZoom;
+  auto target = direction > 0 ? kMaximumZoom : minimum_zoom();
   if (direction > 0) {
     for (const auto step : kSteps) {
       if (step > current * 1.001) {
@@ -249,12 +260,23 @@ void ZoomableImagePreview::set_tilt_shift_changed_callback(
 
 void ZoomableImagePreview::paintEvent(QPaintEvent*) {
   QPainter painter(this);
+  paint_backdrop(painter);
+  if (logical_size_.isEmpty()) {
+    return;
+  }
+  paint_content(painter, displayed_rect());
+  draw_center_radius_overlay(painter);
+  draw_tilt_shift_overlay(painter);
+}
+
+void ZoomableImagePreview::paint_backdrop(QPainter& painter) {
   painter.fillRect(rect(), QColor(31, 33, 37));
+}
+
+void ZoomableImagePreview::paint_content(QPainter& painter, const QRectF& target) {
   if (image_.isNull()) {
     return;
   }
-
-  const auto target = displayed_rect();
   const auto visible_target = target.intersected(QRectF(rect()));
   if (visible_target.isEmpty()) {
     return;
@@ -282,8 +304,10 @@ void ZoomableImagePreview::paintEvent(QPaintEvent*) {
   painter.restore();
   painter.setPen(QColor(18, 20, 23));
   painter.drawRect(target.adjusted(-1.0, -1.0, 0.0, 0.0));
-  draw_center_radius_overlay(painter);
-  draw_tilt_shift_overlay(painter);
+}
+
+QCursor ZoomableImagePreview::interaction_cursor(bool is_panning) const {
+  return is_panning ? Qt::ClosedHandCursor : Qt::OpenHandCursor;
 }
 
 void ZoomableImagePreview::resizeEvent(QResizeEvent* event) {
@@ -385,7 +409,7 @@ void ZoomableImagePreview::mousePressEvent(QMouseEvent* event) {
     panning_ = true;
     pan_press_position_ = event->position();
     pan_press_offset_ = pan_offset_;
-    setCursor(Qt::ClosedHandCursor);
+    setCursor(interaction_cursor(true));
     event->accept();
     return;
   }
@@ -530,24 +554,27 @@ void ZoomableImagePreview::wheelEvent(QWheelEvent* event) {
 
 void ZoomableImagePreview::leaveEvent(QEvent* event) {
   if (!panning_ && active_overlay_handle_ == OverlayHandle::None) {
-    setCursor(Qt::OpenHandCursor);
+    setCursor(interaction_cursor(false));
   }
   QWidget::leaveEvent(event);
 }
 
 double ZoomableImagePreview::fit_zoom() const {
-  if (image_.isNull() || image_.width() <= 0 || image_.height() <= 0 ||
-      width() <= 0 || height() <= 0) {
+  if (logical_size_.isEmpty() || width() <= 0 || height() <= 0) {
     return 1.0;
   }
   const auto scale =
       std::min(static_cast<double>(width()) / logical_size_.width(),
                static_cast<double>(height()) / logical_size_.height());
-  return std::clamp(scale, kMinimumZoom, kMaximumZoom);
+  return std::clamp(scale, kMinimumFitZoom, kMaximumZoom);
+}
+
+double ZoomableImagePreview::minimum_zoom() const {
+  return std::min(fit_zoom(), kMinimumZoom);
 }
 
 QRectF ZoomableImagePreview::displayed_rect() const {
-  if (image_.isNull()) {
+  if (logical_size_.isEmpty()) {
     return {};
   }
   const auto z = zoom();
@@ -922,7 +949,7 @@ void ZoomableImagePreview::request_tilt_shift_overlay(
 
 void ZoomableImagePreview::update_interaction_cursor(QPointF position) {
   if (panning_) {
-    setCursor(Qt::ClosedHandCursor);
+    setCursor(interaction_cursor(true));
     return;
   }
   const auto handle = active_overlay_handle_ != OverlayHandle::None
@@ -940,12 +967,12 @@ void ZoomableImagePreview::update_interaction_cursor(QPointF position) {
              handle == OverlayHandle::TiltTransition) {
     setCursor(Qt::SizeVerCursor);
   } else {
-    setCursor(Qt::OpenHandCursor);
+    setCursor(interaction_cursor(false));
   }
 }
 
 void ZoomableImagePreview::clamp_pan() {
-  if (fit_mode_ || image_.isNull()) {
+  if (fit_mode_ || logical_size_.isEmpty()) {
     pan_offset_ = {};
     return;
   }

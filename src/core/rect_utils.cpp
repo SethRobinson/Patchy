@@ -4,9 +4,7 @@
 
 namespace patchy {
 
-namespace {
-
-[[nodiscard]] Rect normalized_rect(Rect rect) noexcept {
+Rect normalized_rect(Rect rect) noexcept {
   if (rect.width < 0) {
     rect.x += rect.width;
     rect.width = -rect.width;
@@ -17,8 +15,6 @@ namespace {
   }
   return rect;
 }
-
-}  // namespace
 
 Rect intersect_rect(Rect a, Rect b) noexcept {
   a = normalized_rect(a);

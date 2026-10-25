@@ -1,13 +1,13 @@
 #include "core/smart_object.hpp"
 
 #include "core/document.hpp"
+#include "support/random_uuid.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <random>
 #include <utility>
 
 namespace patchy {
@@ -340,24 +340,8 @@ std::optional<SmartObjectWarp> smart_object_warp_from_layer(const Layer& layer) 
 }
 
 std::string generate_smart_object_uuid() {
-  static std::mt19937_64 engine{std::random_device{}()};
-  const auto hex_digits = "0123456789abcdef";
-  // 8-4-4-4-12 like Photoshop's Idnt values. Randomness here never feeds pixel
-  // output, so the cross-toolchain determinism rule for render code does not apply.
-  std::string uuid;
-  uuid.reserve(36);
-  for (const int group : {8, 4, 4, 4, 12}) {
-    if (!uuid.empty()) {
-      uuid.push_back('-');
-    }
-    for (int i = 0; i < group; ++i) {
-      uuid.push_back(hex_digits[engine() & 0xF]);
-    }
-  }
-  // Photoshop's authored placed-instance ids use the RFC 4122 variant shape
-  // even though their version nibble is not fixed. Match that native form.
-  uuid[19] = hex_digits[8U + (engine() & 0x3U)];
-  return uuid;
+  // 8-4-4-4-12 like Photoshop's Idnt values, in their RFC 4122 variant shape.
+  return generate_random_uuid(RandomUuidShape::Rfc4122Variant);
 }
 
 SmartObjectPlacement rescaled_smart_object_placement(const SmartObjectPlacement& placement, double new_width,

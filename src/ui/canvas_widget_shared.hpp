@@ -148,10 +148,9 @@ QImage automatic_selection_layer_image(const Document& document, LayerId layer_i
 // ONNX Runtime diagnostic.
 QString automatic_selection_out_of_memory_message(const QString& command);
 
-// Procedural round-brush coverage falloff (smoothstep edge over the softness
-// band); shared by the brush TU's stamp shapes and the spot-healing footprint
-// stamper.
-float brush_coverage(double distance_squared, int radius, int softness);
+// The round-brush coverage falloff shared by the brush TU's stamp shapes and the
+// spot-healing footprint stamper is patchy::brush_coverage (core/pixel_tools.hpp),
+// the same function the brush engine stamps with.
 
 // Straight-alpha RGBA mix of `src` over `dst` by `amount`; the write primitive
 // of the clone/heal family. Shared by the brush TU and the spot-healing /

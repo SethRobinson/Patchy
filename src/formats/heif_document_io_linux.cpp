@@ -21,6 +21,7 @@
 #include "core/pixel_depth.hpp"
 #include "formats/hdr_transfer.hpp"
 #include "formats/image_density_probe.hpp"
+#include "support/byte_order.hpp"
 #include "support/translate_noop.hpp"
 
 #define CMS_NO_REGISTER_KEYWORD 1
@@ -396,11 +397,6 @@ private:
     return {};
   }
   return profile;
-}
-
-[[nodiscard]] std::uint32_t read_u32_be(std::span<const std::uint8_t> bytes, std::size_t offset) {
-  return (static_cast<std::uint32_t>(bytes[offset]) << 24U) | (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U) |
-         (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U) | static_cast<std::uint32_t>(bytes[offset + 3U]);
 }
 
 [[nodiscard]] std::optional<formats::ImageDensity> read_exif_density(const Library& lib, const heif_image_handle& handle) {

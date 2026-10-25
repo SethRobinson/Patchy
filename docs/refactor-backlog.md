@@ -65,9 +65,6 @@ made are in [building.md](building.md) ("Compile-time profile").
   `show_window` plus `require_canvas` is repeated about a thousand times across 103 UI test
   files. A shown-window fixture would cover most of it. `tests/synthetic_dng.hpp` is included
   by 92 test TUs and unused in about 50; 7 core tests include `stb_image.h` without decoding.
-- A test copies production code: `alpha_row_bands`/`alpha_row_band_span` from
-  `ui/main_window.cpp` into `tests/ui/ui_test_support.cpp`. Expose the real functions through a
-  header instead.
 
 ## Repeated implementation
 
@@ -100,14 +97,12 @@ made are in [building.md](building.md) ("Compile-time profile").
   16-bit conversion intentionally differs from `deep_sample_to_byte`.
 - `psd_smart_objects.cpp` has its own Pascal-string reader. Its unpadded form is the
   shared reader with `padded_multiple=1`.
-- Byte-order helpers: `psd::BigEndianReader/Writer` exist, yet `read_u32_be` is hand-rolled in
-  `formats/heif_document_io_linux.cpp`, `heif_document_io_wasm.cpp`, `image_density_probe.cpp`
-  and `pdn_document_io.cpp`, `append_be32`/`append_chunk` in `apng_writer.cpp` and
-  `pdf_png_writer.cpp`, and about 25 files shift bytes by hand. A header-only
-  `support/byte_order.hpp` would replace them. UTF-16 surrogate decoding appears five times
-  (`formats/metadata/exif_tags.cpp`, `metadata_containers.cpp`, `psd/psd_io_common.cpp` twice,
-  `psd_descriptor.cpp`, `psd_text_read.cpp`). The Linux and wasm HEIF readers share the lcms
-  transform setup; Windows HEIF and JXR share the WIC colour transform.
+- Byte order: `support/byte_order.hpp` now holds the fixed-width readers, writers and appends,
+  but about 20 files still shift bytes by hand; move them over as they are touched. UTF-16
+  surrogate decoding appears five times (`formats/metadata/exif_tags.cpp`,
+  `metadata_containers.cpp`, `psd/psd_io_common.cpp` twice, `psd_descriptor.cpp`,
+  `psd_text_read.cpp`). The Linux and wasm HEIF readers share the lcms transform setup; Windows
+  HEIF and JXR share the WIC colour transform.
 - PSD `document_alpha_mask_layer` resembles
   `core/layer_render_utils::document_alpha_rgba8`, but their predicates differ. Diff
   the preconditions before sharing code.
@@ -120,21 +115,12 @@ made are in [building.md](building.md) ("Compile-time profile").
 
 ### Core helpers
 
-- `brush_coverage` is verbatim in `core/pixel_tools.cpp` and `ui/canvas_widget_shared.cpp`
-  (painting is pinned by `tool_write_paths_digest_baseline`).
-- `generate_pattern_uuid` (`core/pattern_resource.cpp`) and `generate_smart_object_uuid`
-  (`core/smart_object.cpp`) are identical and each keeps an unsynchronized function-local
-  `static std::mt19937_64`; the af/pdf/svg/asl/pat readers and the UI call them, so two
-  concurrent imports race. **Bug.** One shared, mutex-guarded generator.
-- `clamp_byte` has a private copy in `core/pixel_tools.cpp` beside the public
-  `core/blend_math.hpp` one, plus int/int64/double variants in `filters/builtin_filters.cpp`,
-  `filters/smart_filter_table_render.cpp` and `ui/filter_preview_proxy.cpp`; `splitmix64` is
-  defined in `core/blend_math.cpp`, `core/exemplar_inpaint.cpp` and
-  `filters/smart_filter_table_render.cpp` with identical constants (one constexpr function
-  keeps the output); `Document::find_layer_recursive` duplicates `layer_tree.cpp`'s
-  `find_layer_in_tree`; `normalized_rect` lives in both `core/pixel_tools.cpp` and
-  `core/rect_utils.cpp`; `lcms_intent` is defined twice inside `patchy_color`;
-  `parse_double_token` appears in `core/smart_object.cpp` and `core/text_warp.cpp`.
+- `clamp_byte` has int/int64/double variants in `filters/builtin_filters.cpp`,
+  `filters/smart_filter_table_render.cpp` and `ui/filter_preview_proxy.cpp` beside the public
+  float one in `core/blend_math.hpp`. They stay separate on purpose: the integer clamps sit in
+  per-pixel loops and the double variant rounds differently, so none is bit-identical to a
+  float `lround`. `parse_double_token` appears in `core/smart_object.cpp` and
+  `core/text_warp.cpp`.
 - Tool-classification switches with overlapping case lists sit in `canvas_widget_events.cpp`
   (twice) and `canvas_widget_shared.cpp`.
 
@@ -166,10 +152,8 @@ made are in [building.md](building.md) ("Compile-time profile").
   `canvas_widget_selection.cpp`) and the lock-transparent pixel write path
   (`canvas_widget_patch_tool.cpp`, `canvas_widget_spot_healing.cpp`, twice in
   `canvas_widget_brush.cpp`; painting is byte-pinned).
-- Two zoom/pan preview widgets, `TracePreviewWidget` (`image_trace_dialog.cpp`) and
-  `ConvertPreviewWidget` (`palette_convert_dialog.cpp`), share zoom, mouse and paint code
-  beside the existing `ui/zoomable_image_preview.hpp`. Pan mouse handling is also repeated in
-  `pattern_manager_dialog.cpp` and `tile_preview_window.cpp`; the panel list plus action-bar
+- Pan mouse handling is repeated in `pattern_manager_dialog.cpp` and `tile_preview_window.cpp`
+  (the trace and palette previews now derive from `ui/zoomable_image_preview.hpp`); the panel list plus action-bar
   setup in `channel_panel.cpp` and `paths_panel.cpp`; JSON sidecar load/save in
   `pattern_library.cpp` and `style_library.cpp`; `QIconEngine::paint` mode handling in
   `action_icons.cpp` and `icon_theme.cpp`; the filter overlay `sync_role` blocks and zoom
@@ -238,10 +222,6 @@ made are in [building.md](building.md) ("Compile-time profile").
 
 - `patchy_color` is referenced before its target definition. CMake accepts this, but
   the ordering is easy to break during target reorganization.
-- `cmake/patchy_gmic.cmake` sets C++17 for the vendored G'MIC target, but it links `patchy_psd`
-  PUBLIC and `patchy_configure_target` adds PUBLIC `cxx_std_20`, so `gmic.cpp` compiles as C++20.
-  Make the compile feature PRIVATE (or link only the zlib shim's needs) and verify the C++17
-  build, or document that C++20 is intentional.
 - The absolute VS 18 cmake.exe path is hardcoded in `scripts/make-readme-screenshots.ps1`,
   `scripts/release/build-release.bat` (with a PATH fallback), `scripts/release/build-wasm.bat`,
   `scripts/run-tests.ps1` and the AGENTS.md handoff command, against the vs-env.bat single-owner

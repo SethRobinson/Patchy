@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCursor>
 #include <QImage>
 #include <QPointF>
 #include <QWidget>
@@ -43,7 +44,12 @@ struct NormalizedTiltShiftOverlay {
 // A bounded-image viewer used by dialogs that need Photoshop-style fit, 100%,
 // wheel zoom, and drag-to-pan controls. Image processing is deliberately kept
 // outside paintEvent; this widget only displays the last completed QImage.
-class ZoomableImagePreview final : public QWidget {
+// Dialogs that paint their own pixels (the Image Trace result, the palette
+// conversion windows) derive from it, give it a logical size instead of an
+// image and draw inside the protected paint hooks, so there is one zoom, pan
+// and mouse implementation. Zoom is clamped to [min(fit, 1/16), 16]; fit mode
+// shows the whole image however large it is.
+class ZoomableImagePreview : public QWidget {
 public:
   explicit ZoomableImagePreview(QWidget* parent = nullptr);
 
@@ -78,6 +84,28 @@ public:
                          bool gesture_finished)> callback);
 
 protected:
+  // Subclass surface. paintEvent calls paint_backdrop, then, once a logical
+  // size is set, paint_content with the image's rect at the current zoom and
+  // pan (it may extend past the widget), then the overlays on top.
+  virtual void paint_backdrop(QPainter& painter);
+  // Default: the transparency checkerboard, the image (a smooth-scaled cache
+  // below 100%) and the frame.
+  virtual void paint_content(QPainter& painter, const QRectF& image_rect);
+  // The cursor while idle or panning when no overlay handle is under the
+  // pointer; a subclass can show a busy cursor instead.
+  [[nodiscard]] virtual QCursor interaction_cursor(bool panning) const;
+  // The displayed area for a subclass that paints its own pixels (no QImage).
+  // Like set_image, a size change returns to fit.
+  void set_logical_size(QSize logical_size);
+  [[nodiscard]] QSize logical_size() const noexcept;
+  [[nodiscard]] bool panning() const noexcept;
+  // Where the logical image sits in widget coordinates at the current zoom and
+  // pan; empty without a logical size.
+  [[nodiscard]] QRectF displayed_rect() const;
+  // Refreshes the zoom/fit/pan properties and tells the zoom-changed callback;
+  // a subclass calls it when its own content changes what the label shows.
+  void publish_state();
+
   bool event(QEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
@@ -101,7 +129,7 @@ private:
   };
 
   [[nodiscard]] double fit_zoom() const;
-  [[nodiscard]] QRectF displayed_rect() const;
+  [[nodiscard]] double minimum_zoom() const;
   [[nodiscard]] QPointF overlay_center_point(
       const NormalizedCenterRadiusOverlay& overlay) const;
   [[nodiscard]] double overlay_radius_pixels(
@@ -130,7 +158,6 @@ private:
                                   bool gesture_finished);
   void update_interaction_cursor(QPointF position);
   void clamp_pan();
-  void publish_state();
   void publish_overlay_state();
   void request_display_cache();
   void start_display_cache();

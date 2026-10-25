@@ -1,4 +1,5 @@
 #include "formats/image_density_probe.hpp"
+#include "support/byte_order.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -12,30 +13,6 @@ constexpr double kCentimetersPerInch = 2.54;
 
 [[nodiscard]] bool density_is_usable(double horizontal, double vertical) noexcept {
   return std::isfinite(horizontal) && std::isfinite(vertical) && horizontal > 0.0 && vertical > 0.0;
-}
-
-[[nodiscard]] std::uint16_t read_u16_be(std::span<const std::uint8_t> bytes, std::size_t offset) noexcept {
-  return static_cast<std::uint16_t>((static_cast<std::uint16_t>(bytes[offset]) << 8U) |
-                                    static_cast<std::uint16_t>(bytes[offset + 1U]));
-}
-
-[[nodiscard]] std::uint32_t read_u32_be(std::span<const std::uint8_t> bytes, std::size_t offset) noexcept {
-  return (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
-         (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U) |
-         (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U) |
-         static_cast<std::uint32_t>(bytes[offset + 3U]);
-}
-
-[[nodiscard]] std::uint16_t read_u16_le(std::span<const std::uint8_t> bytes, std::size_t offset) noexcept {
-  return static_cast<std::uint16_t>(static_cast<std::uint16_t>(bytes[offset]) |
-                                    (static_cast<std::uint16_t>(bytes[offset + 1U]) << 8U));
-}
-
-[[nodiscard]] std::uint32_t read_u32_le(std::span<const std::uint8_t> bytes, std::size_t offset) noexcept {
-  return static_cast<std::uint32_t>(bytes[offset]) |
-         (static_cast<std::uint32_t>(bytes[offset + 1U]) << 8U) |
-         (static_cast<std::uint32_t>(bytes[offset + 2U]) << 16U) |
-         (static_cast<std::uint32_t>(bytes[offset + 3U]) << 24U);
 }
 
 constexpr std::uint8_t kPngSignature[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};

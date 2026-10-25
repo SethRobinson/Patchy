@@ -1,5 +1,7 @@
 #include "filters/smart_filter_table_render.hpp"
 
+#include "core/splitmix64.hpp"
+
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -436,15 +438,8 @@ FilterRenderResult render_fragment(const FilterRenderResult &canvas,
 // Crystallize, Pointillize and Mezzotint draw new random cells, dots and
 // screens every time Photoshop renders them and store no seed, so no render
 // can match Photoshop's preview. These are deterministic Patchy renderings in
-// the same style (integer math only, splitmix64 positions, fixed seeds); see
-// docs/smart-filters-pixelate-render.md.
-
-std::uint64_t splitmix64(std::uint64_t value) noexcept {
-  value += 0x9e3779b97f4a7c15ULL;
-  value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
-  value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
-  return value ^ (value >> 31U);
-}
+// the same style (integer math only, splitmix64 positions from
+// core/splitmix64.hpp, fixed seeds); see docs/smart-filters-pixelate-render.md.
 
 std::uint64_t cell_random(std::int64_t x, std::int64_t y,
                           std::uint64_t salt) noexcept {

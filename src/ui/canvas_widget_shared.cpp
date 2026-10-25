@@ -262,32 +262,6 @@ float mask_sample_at(PixelFormat format, const std::uint8_t* px) {
   return 0.0F;
 }
 
-float brush_coverage(double distance_squared, int radius, int softness) {
-  if (radius <= 0) {
-    return distance_squared <= 0.0 ? 1.0F : 0.0F;
-  }
-
-  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
-  if (distance_squared > radius_squared) {
-    return 0.0F;
-  }
-
-  softness = std::clamp(softness, 0, 100);
-  if (softness <= 0) {
-    return 1.0F;
-  }
-
-  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
-  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
-  const auto distance = std::sqrt(distance_squared);
-  if (distance <= inner_radius) {
-    return 1.0F;
-  }
-  const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
-  const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-  return static_cast<float>(1.0 - smooth);
-}
-
 void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
   amount = std::clamp(amount, 0.0F, 1.0F);
   if (amount <= 0.0F) {

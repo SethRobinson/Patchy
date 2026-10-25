@@ -114,6 +114,13 @@ struct ShapeCoverageParams {
 [[nodiscard]] float shape_pixel_coverage(const ShapeCoverageParams& params, std::int32_t x,
                                          std::int32_t y) noexcept;
 
+// Procedural round-brush coverage falloff: 1 inside the hard core, a smoothstep
+// over the softness band (softness percent of the radius, at least one pixel),
+// 0 outside the radius. The brush engine's stamp shapes, the canvas brush
+// preview and the spot-healing footprint all sample this one function; its
+// output is pinned by tool_write_paths_digest_baseline.
+[[nodiscard]] float brush_coverage(double distance_squared, int radius, int softness);
+
 enum class GradientMethod {
   Linear,
   Radial

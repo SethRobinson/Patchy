@@ -20,6 +20,8 @@
 #define CMS_NO_REGISTER_KEYWORD 1
 #include "lcms2.h"
 
+#include "color/lcms_intent.hpp"
+
 namespace patchy {
 
 std::vector<std::uint8_t> read_cmyk_profile(const std::filesystem::path& path) {
@@ -446,24 +448,6 @@ PixelBuffer ColorManager::preview_rgb8(const Document& /*document*/, const Pixel
   }
   return source;
 }
-
-namespace {
-
-[[nodiscard]] cmsUInt32Number lcms_intent(RenderingIntent intent) noexcept {
-  switch (intent) {
-    case RenderingIntent::Perceptual:
-      return INTENT_PERCEPTUAL;
-    case RenderingIntent::RelativeColorimetric:
-      return INTENT_RELATIVE_COLORIMETRIC;
-    case RenderingIntent::Saturation:
-      return INTENT_SATURATION;
-    case RenderingIntent::AbsoluteColorimetric:
-      return INTENT_ABSOLUTE_COLORIMETRIC;
-  }
-  return INTENT_RELATIVE_COLORIMETRIC;
-}
-
-}  // namespace
 
 std::optional<PixelBuffer> rgb_to_native_color_space(
     const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile) {

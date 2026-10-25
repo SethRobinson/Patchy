@@ -1,5 +1,6 @@
 #include "core/pixel_tools.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pixel_tools_internal.hpp"
 
@@ -15,21 +16,36 @@
 namespace patchy {
 
 // Shared painting/geometry helpers with external linkage; declared in
-// core/pixel_tools_internal.hpp and also used by document_geometry.cpp.
+// core/pixel_tools_internal.hpp and also used by document_geometry.cpp
+// (normalized_rect comes from core/rect_utils.hpp).
 [[nodiscard]] Rect canvas_rect(const Document& document) noexcept {
   return Rect{0, 0, document.width(), document.height()};
 }
 
-[[nodiscard]] Rect normalized_rect(Rect rect) noexcept {
-  if (rect.width < 0) {
-    rect.x += rect.width;
-    rect.width = -rect.width;
+float brush_coverage(double distance_squared, int radius, int softness) {
+  if (radius <= 0) {
+    return distance_squared <= 0.0 ? 1.0F : 0.0F;
   }
-  if (rect.height < 0) {
-    rect.y += rect.height;
-    rect.height = -rect.height;
+
+  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+  if (distance_squared > radius_squared) {
+    return 0.0F;
   }
-  return rect;
+
+  softness = std::clamp(softness, 0, 100);
+  if (softness <= 0) {
+    return 1.0F;
+  }
+
+  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
+  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
+  const auto distance = std::sqrt(distance_squared);
+  if (distance <= inner_radius) {
+    return 1.0F;
+  }
+  const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
+  const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+  return static_cast<float>(1.0 - smooth);
 }
 
 namespace {
@@ -63,36 +79,6 @@ void report_edit_progress_periodically(const EditOptions& options, std::size_t& 
   if (counter % interval == 0U) {
     options.progress_callback();
   }
-}
-
-std::uint8_t clamp_byte(float value) {
-  return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
-}
-
-float brush_coverage(double distance_squared, int radius, int softness) {
-  if (radius <= 0) {
-    return distance_squared <= 0.0 ? 1.0F : 0.0F;
-  }
-
-  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
-  if (distance_squared > radius_squared) {
-    return 0.0F;
-  }
-
-  softness = std::clamp(softness, 0, 100);
-  if (softness <= 0) {
-    return 1.0F;
-  }
-
-  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
-  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
-  const auto distance = std::sqrt(distance_squared);
-  if (distance <= inner_radius) {
-    return 1.0F;
-  }
-  const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
-  const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-  return static_cast<float>(1.0 - smooth);
 }
 
 int brush_roundness_percent(const EditOptions& options) noexcept {

@@ -4,6 +4,7 @@
 #include "formats/palette_io.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/zoomable_image_preview.hpp"
 #include "ui/localization.hpp"
 
 #include <QComboBox>
@@ -16,18 +17,14 @@
 #include <QImage>
 #include <QLabel>
 #include <QMessageBox>
-#include <QMouseEvent>
 #include <QPainter>
-#include <QResizeEvent>
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
-#include <QWheelEvent>
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -56,8 +53,6 @@ constexpr std::int64_t kMaxZoomWindowPixels = 2'000'000;
 // Extra full-resolution pixels converted around the visible window so small pans
 // redraw from cache instead of re-running the conversion.
 constexpr int kZoomWindowMargin = 128;
-constexpr double kMaxPreviewZoom = 16.0;
-constexpr double kMinPreviewZoom = 0.0625;
 
 [[nodiscard]] QImage qimage_from_rgb8(const PixelBuffer& pixels) {
   QImage image(pixels.width(), pixels.height(), QImage::Format_RGB32);
@@ -70,32 +65,30 @@ constexpr double kMinPreviewZoom = 0.0625;
   return image;
 }
 
-// Zoomable, pannable conversion preview. Fit-to-window by default; the zoom
-// buttons, mouse wheel, and double-click zoom, dragging pans. Two conversion
-// caches drive the paint: the dialog's debounced refresh supplies the converted
-// downscaled overview (fast, always available), and while zoomed past the
-// overview's resolution the widget converts an exact full-resolution window on
-// demand through the dialog-supplied converter callback.
-class ConvertPreviewWidget final : public QWidget {
+// Zoomable, pannable conversion preview (ZoomableImagePreview: fit-to-window
+// by default; the zoom buttons, mouse wheel, and double-click zoom, dragging
+// pans). Two conversion caches drive the paint: the dialog's debounced refresh
+// supplies the converted downscaled overview (fast, always available), and
+// while zoomed past the overview's resolution the widget converts an exact
+// full-resolution window on demand through the dialog-supplied converter
+// callback.
+class ConvertPreviewWidget final : public ZoomableImagePreview {
 public:
   using WindowConverter = std::function<QImage(const QImage& source_window)>;
 
-  explicit ConvertPreviewWidget(QWidget* parent) : QWidget(parent) {
+  explicit ConvertPreviewWidget(QWidget* parent) : ZoomableImagePreview(parent) {
     setObjectName(QStringLiteral("paletteConvertPreview"));
-    setMinimumSize(420, 300);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setCursor(Qt::OpenHandCursor);
-    setToolTip(QObject::tr("Drag to pan. The mouse wheel zooms."));
+    // Keyboard focus stays with the dialog's controls; the preview is mouse-only.
+    setFocusPolicy(Qt::NoFocus);
   }
 
   void set_source(QImage full_resolution, QImage fit_scaled) {
     full_ = std::move(full_resolution);
     fit_source_ = std::move(fit_scaled);
-    pan_center_ = QPointF(full_.width() / 2.0, full_.height() / 2.0);
+    set_logical_size(full_.size());
   }
 
   void set_window_converter(WindowConverter converter) { convert_window_ = std::move(converter); }
-  void set_zoom_changed_callback(std::function<void()> callback) { zoom_changed_ = std::move(callback); }
 
   // The dialog's debounced refresh pushes the converted overview here (null when
   // the current settings resolve no palette) and invalidates the zoom window.
@@ -103,78 +96,14 @@ public:
     fit_converted_ = std::move(image);
     window_converted_ = QImage();
     window_rect_ = QRect();
-    publish_zoom_state();
+    publish_state();
     update();
-  }
-
-  [[nodiscard]] double zoom() const { return fit_mode_ ? fit_zoom() : zoom_; }
-  [[nodiscard]] bool fit_mode() const noexcept { return fit_mode_; }
-
-  void zoom_to_fit() {
-    fit_mode_ = true;
-    pan_center_ = QPointF(full_.width() / 2.0, full_.height() / 2.0);
-    publish_zoom_state();
-    update();
-  }
-
-  void zoom_to(double factor, std::optional<QPointF> anchor = std::nullopt) {
-    const auto previous_zoom = zoom();
-    const auto bounded = std::clamp(factor, std::min(fit_zoom(), kMinPreviewZoom), kMaxPreviewZoom);
-    const QPointF widget_center(width() / 2.0, height() / 2.0);
-    if (anchor.has_value() && previous_zoom > 0.0) {
-      // Keep the document point under the anchor stationary through the zoom.
-      const QPointF document_point = pan_center_ + (*anchor - widget_center) / previous_zoom;
-      pan_center_ = document_point - (*anchor - widget_center) / bounded;
-    }
-    fit_mode_ = false;
-    zoom_ = bounded;
-    clamp_pan();
-    publish_zoom_state();
-    update();
-  }
-
-  void zoom_step(int direction, std::optional<QPointF> anchor = std::nullopt) {
-    static constexpr std::array<double, 15> kSteps = {kMinPreviewZoom,
-                                                      0.125,
-                                                      0.25,
-                                                      1.0 / 3.0,
-                                                      0.5,
-                                                      2.0 / 3.0,
-                                                      1.0,
-                                                      1.5,
-                                                      2.0,
-                                                      3.0,
-                                                      4.0,
-                                                      6.0,
-                                                      8.0,
-                                                      12.0,
-                                                      kMaxPreviewZoom};
-    const auto current = zoom();
-    double target = current;
-    if (direction > 0) {
-      target = kMaxPreviewZoom;
-      for (const auto step : kSteps) {
-        if (step > current * 1.001) {
-          target = step;
-          break;
-        }
-      }
-    } else {
-      target = std::min(fit_zoom(), kMinPreviewZoom);
-      for (auto it = kSteps.rbegin(); it != kSteps.rend(); ++it) {
-        if (*it < current * 0.999) {
-          target = *it;
-          break;
-        }
-      }
-    }
-    zoom_to(target, anchor);
   }
 
 protected:
-  void paintEvent(QPaintEvent*) override {
-    QPainter painter(this);
-    painter.fillRect(rect(), QColor(34, 36, 40));
+  void paint_backdrop(QPainter& painter) override { painter.fillRect(rect(), QColor(34, 36, 40)); }
+
+  void paint_content(QPainter& painter, const QRectF& image_rect) override {
     if (full_.isNull() || fit_converted_.isNull()) {
       return;
     }
@@ -182,9 +111,7 @@ protected:
     if (z <= 0.0) {
       return;
     }
-    const QPointF widget_center(width() / 2.0, height() / 2.0);
-    const QPointF top_left = widget_center - QPointF(pan_center_.x() * z, pan_center_.y() * z);
-    const QRectF image_rect(top_left, QSizeF(full_.width() * z, full_.height() * z));
+    const QPointF top_left = image_rect.topLeft();
     const auto fit_scale = full_.width() > 0 ? static_cast<double>(fit_source_.width()) / full_.width() : 1.0;
 
     bool drew_exact = false;
@@ -219,82 +146,7 @@ protected:
     painter.drawRect(image_rect.adjusted(-1.0, -1.0, 0.0, 0.0));
   }
 
-  void resizeEvent(QResizeEvent* event) override {
-    QWidget::resizeEvent(event);
-    clamp_pan();
-    publish_zoom_state();
-  }
-
-  void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      panning_ = true;
-      pan_press_position_ = event->position();
-      pan_press_center_ = pan_center_;
-      setCursor(Qt::ClosedHandCursor);
-      event->accept();
-      return;
-    }
-    QWidget::mousePressEvent(event);
-  }
-
-  void mouseMoveEvent(QMouseEvent* event) override {
-    if (panning_ && (event->buttons() & Qt::LeftButton) != 0) {
-      const auto z = zoom();
-      if (z > 0.0) {
-        pan_center_ = pan_press_center_ - (event->position() - pan_press_position_) / z;
-        clamp_pan();
-        update();
-      }
-      event->accept();
-      return;
-    }
-    QWidget::mouseMoveEvent(event);
-  }
-
-  void mouseReleaseEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton && panning_) {
-      panning_ = false;
-      setCursor(Qt::OpenHandCursor);
-      event->accept();
-      return;
-    }
-    QWidget::mouseReleaseEvent(event);
-  }
-
-  void mouseDoubleClickEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      // Double-click toggles between fit and 100%.
-      if (fit_mode_) {
-        zoom_to(1.0, event->position());
-      } else {
-        zoom_to_fit();
-      }
-      event->accept();
-      return;
-    }
-    QWidget::mouseDoubleClickEvent(event);
-  }
-
-  void wheelEvent(QWheelEvent* event) override {
-    const auto delta = event->angleDelta().y();
-    if (delta == 0) {
-      event->ignore();
-      return;
-    }
-    zoom_step(delta > 0 ? 1 : -1, event->position());
-    event->accept();
-  }
-
 private:
-  [[nodiscard]] double fit_zoom() const {
-    if (full_.isNull() || full_.width() <= 0 || full_.height() <= 0 || width() <= 0 || height() <= 0) {
-      return 1.0;
-    }
-    const auto scale = std::min(static_cast<double>(width()) / full_.width(),
-                                static_cast<double>(height()) / full_.height());
-    return std::clamp(scale, 0.01, kMaxPreviewZoom);
-  }
-
   [[nodiscard]] QRect visible_document_rect(QPointF top_left, double z) const {
     const auto x0 = static_cast<int>(std::floor(-top_left.x() / z));
     const auto y0 = static_cast<int>(std::floor(-top_left.y() / z));
@@ -323,47 +175,12 @@ private:
     return window;
   }
 
-  void clamp_pan() {
-    if (full_.isNull()) {
-      return;
-    }
-    const auto z = zoom();
-    if (z <= 0.0) {
-      return;
-    }
-    const auto clamp_axis = [](double center, double visible, double total) {
-      if (visible >= total) {
-        return total / 2.0;
-      }
-      return std::clamp(center, visible / 2.0, total - visible / 2.0);
-    };
-    pan_center_.setX(clamp_axis(pan_center_.x(), width() / z, full_.width()));
-    pan_center_.setY(clamp_axis(pan_center_.y(), height() / z, full_.height()));
-  }
-
-  void publish_zoom_state() {
-    // Exposed as dynamic properties so tests (and the zoom label) can read the
-    // state without the class being visible outside this translation unit.
-    setProperty("previewZoomPercent", static_cast<int>(std::lround(zoom() * 100.0)));
-    setProperty("previewFitMode", fit_mode_);
-    if (zoom_changed_) {
-      zoom_changed_();
-    }
-  }
-
   QImage full_;
   QImage fit_source_;
   QImage fit_converted_;
   QImage window_converted_;
   QRect window_rect_;
   WindowConverter convert_window_;
-  std::function<void()> zoom_changed_;
-  QPointF pan_center_;
-  QPointF pan_press_position_;
-  QPointF pan_press_center_;
-  double zoom_{1.0};
-  bool fit_mode_{true};
-  bool panning_{false};
 };
 
 }  // namespace

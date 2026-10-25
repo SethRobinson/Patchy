@@ -1,5 +1,7 @@
 #include "core/blend_math.hpp"
 
+#include "core/splitmix64.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -354,13 +356,6 @@ double catmull_rom(double p0, double p1, double p2, double p3, double t) {
 double gradient_segment_ease(double t, std::uint16_t smoothness) {
   const double eased = catmull_rom(0.0, 0.0, 1.0, 1.0, t);
   return t + (eased - t) * (static_cast<double>(smoothness) / 4096.0);
-}
-
-std::uint64_t splitmix64(std::uint64_t value) {
-  value += 0x9e3779b97f4a7c15ULL;
-  value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
-  value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
-  return value ^ (value >> 31U);
 }
 
 // Clean-room noise gradient model, fitted black-box to the rendered output of

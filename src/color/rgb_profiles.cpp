@@ -13,6 +13,8 @@
 #define CMS_NO_REGISTER_KEYWORD 1
 #include "lcms2.h"
 
+#include "color/lcms_intent.hpp"
+
 namespace patchy {
 namespace {
 
@@ -196,20 +198,6 @@ bool is_srgb(cmsContext context, cmsHPROFILE profile) {
     }
   }
   return named_srgb || has_srgb_tone_curves(profile, 0.004);
-}
-
-cmsUInt32Number lcms_intent(RenderingIntent intent) noexcept {
-  switch (intent) {
-    case RenderingIntent::Perceptual:
-      return INTENT_PERCEPTUAL;
-    case RenderingIntent::RelativeColorimetric:
-      return INTENT_RELATIVE_COLORIMETRIC;
-    case RenderingIntent::Saturation:
-      return INTENT_SATURATION;
-    case RenderingIntent::AbsoluteColorimetric:
-      return INTENT_ABSOLUTE_COLORIMETRIC;
-  }
-  return INTENT_RELATIVE_COLORIMETRIC;
 }
 
 }  // namespace

@@ -1,5 +1,7 @@
 #include "core/brush_dynamics.hpp"
 
+#include "core/splitmix64.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -90,11 +92,11 @@ void BrushDynamicsRng::seed(std::uint32_t value) noexcept {
 }
 
 std::uint64_t BrushDynamicsRng::next_u64() noexcept {
+  // splitmix64 advances the state by the golden-ratio increment and mixes the
+  // new state; the stream is pinned by the brush dynamics pixel tests.
+  const auto seed = state;
   state += 0x9E3779B97F4A7C15ULL;
-  auto z = state;
-  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-  z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-  return z ^ (z >> 31);
+  return splitmix64(seed);
 }
 
 double BrushDynamicsRng::next_unit() noexcept {

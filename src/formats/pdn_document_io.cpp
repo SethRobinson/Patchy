@@ -8,6 +8,7 @@
 #include "formats/miniz/miniz.h"
 #include "formats/nrbf_reader.hpp"
 #include "formats/stb/stb_image.h"
+#include "support/byte_order.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -80,11 +81,6 @@ void trace(const std::string& message) {
   if (trace_enabled()) {
     std::fprintf(stderr, "[pdn] %s\n", message.c_str());
   }
-}
-
-[[nodiscard]] std::uint32_t read_u32_be(std::span<const std::uint8_t> bytes, std::size_t at) {
-  return (static_cast<std::uint32_t>(bytes[at]) << 24U) | (static_cast<std::uint32_t>(bytes[at + 1]) << 16U) |
-         (static_cast<std::uint32_t>(bytes[at + 2]) << 8U) | static_cast<std::uint32_t>(bytes[at + 3]);
 }
 
 [[nodiscard]] std::vector<std::uint8_t> decode_base64(std::string_view text) {

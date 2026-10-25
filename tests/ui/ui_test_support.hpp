@@ -7,6 +7,7 @@
 
 #include "core/layer.hpp"
 #include "core/smart_object.hpp"
+#include "ui/alpha_row_bands.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/localization.hpp"
 #include "ui/theme_manager.hpp"
@@ -592,14 +593,11 @@ QColor canvas_pixel_center(patchy::ui::CanvasWidget& canvas, QPoint document_poi
 
 std::optional<QRect> dark_document_bounds(patchy::ui::CanvasWidget& canvas, QRect document_rect);
 
-struct AlphaRowBand {
-  int top{0};
-  int bottom{0};
-};
-
-std::vector<AlphaRowBand> alpha_row_bands(const patchy::PixelBuffer& pixels);
-
-int alpha_row_band_span(const std::vector<AlphaRowBand>& bands);
+// The production row-band measure (ui/alpha_row_bands.hpp): the tests measure
+// the same bands MainWindow scores text re-renders with, never a copy.
+using patchy::ui::AlphaRowBand;
+using patchy::ui::alpha_row_bands;
+using patchy::ui::alpha_row_band_span;
 
 std::optional<QRect> alpha_pixel_bounds_in_rows(const patchy::PixelBuffer& pixels, int top, int bottom);
 

@@ -1,11 +1,12 @@
 #include "core/pattern_resource.hpp"
 
 #include "core/vector_shape.hpp"
+#include "support/byte_order.hpp"
+#include "support/random_uuid.hpp"
 
 #include <algorithm>
 #include <bit>
 #include <cstdint>
-#include <random>
 
 namespace patchy {
 
@@ -23,11 +24,7 @@ void append_referenced_id(std::vector<std::string>& ids, const std::string& id) 
 }
 
 double read_big_endian_double(const std::uint8_t* bytes) noexcept {
-  std::uint64_t bits = 0;
-  for (int i = 0; i < 8; ++i) {
-    bits = (bits << 8U) | bytes[i];
-  }
-  return std::bit_cast<double>(bits);
+  return std::bit_cast<double>(read_u64_be(bytes));
 }
 
 void write_big_endian_double(std::uint8_t* bytes, double value) noexcept {
@@ -124,21 +121,7 @@ void collect_referenced_pattern_resources(const Layer& layer, const PatternStore
 }
 
 std::string generate_pattern_uuid() {
-  static std::mt19937_64 engine{std::random_device{}()};
-  const auto hex_digits = "0123456789abcdef";
-  // Randomness here never feeds pixel output, so the cross-toolchain render
-  // determinism rule does not apply (same as generate_smart_object_uuid).
-  std::string uuid;
-  uuid.reserve(36);
-  for (const int group : {8, 4, 4, 4, 12}) {
-    if (!uuid.empty()) {
-      uuid.push_back('-');
-    }
-    for (int i = 0; i < group; ++i) {
-      uuid.push_back(hex_digits[engine() & 0xFU]);
-    }
-  }
-  return uuid;
+  return generate_random_uuid(RandomUuidShape::PlainHex);
 }
 
 std::array<double, 2> layer_effects_reference_point(const Layer& layer) noexcept {

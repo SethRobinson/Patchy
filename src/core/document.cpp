@@ -1,6 +1,7 @@
 #include "core/document.hpp"
 
 #include "core/layer_render_utils.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_depth.hpp"
 #include "support/translate_noop.hpp"
 
@@ -444,31 +445,15 @@ std::size_t Document::maximum_saved_channel_count(bool includes_merged_transpare
 }
 
 Layer* Document::find_layer_recursive(std::vector<Layer>& layers, LayerId id) noexcept {
-  // A lookup must not count as a mutation: descending through the non-const
-  // children() accessor bumped every visited layer's revisions on every
-  // find_layer call (thousands of spurious bumps per frame), defeating the
-  // revision-keyed thumbnail and style-mask caches. Walk const, cast the hit.
-  for (auto& layer : layers) {
-    if (layer.id() == id) {
-      return &layer;
-    }
-    if (const auto* found = find_layer_recursive(std::as_const(layer).children(), id)) {
-      return const_cast<Layer*>(found);
-    }
-  }
-  return nullptr;
+  // A lookup must not count as a mutation: find_layer_in_tree walks the const
+  // children() accessor and casts the hit, so no visited layer's revisions bump
+  // (descending non-const defeated the revision-keyed thumbnail and style-mask
+  // caches with thousands of spurious bumps per frame).
+  return find_layer_in_tree(layers, id);
 }
 
 const Layer* Document::find_layer_recursive(const std::vector<Layer>& layers, LayerId id) const noexcept {
-  for (const auto& layer : layers) {
-    if (layer.id() == id) {
-      return &layer;
-    }
-    if (auto* found = find_layer_recursive(layer.children(), id)) {
-      return found;
-    }
-  }
-  return nullptr;
+  return find_layer_in_tree(layers, id);
 }
 
 bool Document::remove_layer_recursive(std::vector<Layer>& layers, LayerId id) noexcept {

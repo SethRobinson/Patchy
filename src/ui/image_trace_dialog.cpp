@@ -6,6 +6,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/zoomable_image_preview.hpp"
 #include "ui/localization.hpp"
 
 #include <QCheckBox>
@@ -23,19 +24,15 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QMessageBox>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
-#include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
-#include <QWheelEvent>
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
@@ -48,8 +45,6 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr double kMaxPreviewZoom = 16.0;
-constexpr double kMinPreviewZoom = 0.0625;
 constexpr int kPreviewDebounceMs = 150;
 constexpr std::size_t kLargeTraceAnchors = 20000;
 constexpr std::size_t kLargeTraceLayers = 2000;
@@ -101,23 +96,22 @@ ImageTraceOptions make_preset(Mode mode, int colors, int threshold, int paths, i
 
 // Zoomable, pannable view of the rendered trace over a transparency
 // checkerboard. Fit-to-window by default; the zoom buttons, mouse wheel, and
-// double-click zoom, dragging pans.
-class TracePreviewWidget final : public QWidget {
+// double-click zoom, dragging pans (ZoomableImagePreview). The widget paints
+// its own result image and anchor marks inside the preview's content hook.
+class TracePreviewWidget final : public ZoomableImagePreview {
 public:
-  explicit TracePreviewWidget(QWidget* parent, QSize document_size) : QWidget(parent), document_size_(document_size) {
+  explicit TracePreviewWidget(QWidget* parent, QSize document_size) : ZoomableImagePreview(parent) {
     setObjectName(QStringLiteral("imageTracePreview"));
     setMinimumSize(420, 320);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    // Keyboard focus stays with the dialog's controls; the preview is mouse-only.
+    setFocusPolicy(Qt::NoFocus);
     refresh_cursor();
-    setToolTip(QObject::tr("Drag to pan. The mouse wheel zooms."));
-    pan_center_ = QPointF(document_size_.width() / 2.0, document_size_.height() / 2.0);
+    set_logical_size(document_size);
   }
-
-  void set_zoom_changed_callback(std::function<void()> callback) { zoom_changed_ = std::move(callback); }
 
   void set_rendered(QImage image) {
     rendered_ = std::move(image);
-    publish_zoom_state();
+    publish_state();
     update();
   }
 
@@ -138,8 +132,6 @@ public:
   }
 
   [[nodiscard]] bool has_rendered() const noexcept { return !rendered_.isNull(); }
-  [[nodiscard]] double zoom() const { return fit_mode_ ? fit_zoom() : zoom_; }
-  [[nodiscard]] bool fit_mode() const noexcept { return fit_mode_; }
 
   // The arrow-plus-hourglass cursor while a trace runs; panning still works.
   void set_busy(bool busy) {
@@ -149,69 +141,21 @@ public:
     busy_ = busy;
     refresh_cursor();
   }
-  void refresh_cursor() {
-    setCursor(busy_ ? Qt::BusyCursor : panning_ ? Qt::ClosedHandCursor : Qt::OpenHandCursor);
-  }
-
-  void zoom_to_fit() {
-    fit_mode_ = true;
-    pan_center_ = QPointF(document_size_.width() / 2.0, document_size_.height() / 2.0);
-    publish_zoom_state();
-    update();
-  }
-
-  void zoom_to(double factor, std::optional<QPointF> anchor = std::nullopt) {
-    const auto previous_zoom = zoom();
-    const auto bounded = std::clamp(factor, std::min(fit_zoom(), kMinPreviewZoom), kMaxPreviewZoom);
-    const QPointF widget_center(width() / 2.0, height() / 2.0);
-    if (anchor.has_value() && previous_zoom > 0.0) {
-      const QPointF document_point = pan_center_ + (*anchor - widget_center) / previous_zoom;
-      pan_center_ = document_point - (*anchor - widget_center) / bounded;
-    }
-    fit_mode_ = false;
-    zoom_ = bounded;
-    clamp_pan();
-    publish_zoom_state();
-    update();
-  }
-
-  void zoom_step(int direction, std::optional<QPointF> anchor = std::nullopt) {
-    static constexpr std::array<double, 15> kSteps = {kMinPreviewZoom, 0.125, 0.25, 1.0 / 3.0, 0.5,
-                                                      2.0 / 3.0,       1.0,   1.5,  2.0,       3.0,
-                                                      4.0,             6.0,   8.0,  12.0,      kMaxPreviewZoom};
-    const auto current = zoom();
-    double target = current;
-    if (direction > 0) {
-      target = kMaxPreviewZoom;
-      for (const auto step : kSteps) {
-        if (step > current * 1.001) {
-          target = step;
-          break;
-        }
-      }
-    } else {
-      target = std::min(fit_zoom(), kMinPreviewZoom);
-      for (auto it = kSteps.rbegin(); it != kSteps.rend(); ++it) {
-        if (*it < current * 0.999) {
-          target = *it;
-          break;
-        }
-      }
-    }
-    zoom_to(target, anchor);
-  }
+  void refresh_cursor() { setCursor(interaction_cursor(panning())); }
 
 protected:
-  void paintEvent(QPaintEvent*) override {
-    QPainter painter(this);
-    painter.fillRect(rect(), theme().canvas_backdrop);
+  [[nodiscard]] QCursor interaction_cursor(bool is_panning) const override {
+    return busy_ ? Qt::BusyCursor : is_panning ? Qt::ClosedHandCursor : Qt::OpenHandCursor;
+  }
+
+  void paint_backdrop(QPainter& painter) override { painter.fillRect(rect(), theme().canvas_backdrop); }
+
+  void paint_content(QPainter& painter, const QRectF& image_rect) override {
     const auto z = zoom();
-    if (z <= 0.0 || document_size_.isEmpty()) {
+    if (z <= 0.0) {
       return;
     }
-    const QPointF widget_center(width() / 2.0, height() / 2.0);
-    const QPointF top_left = widget_center - QPointF(pan_center_.x() * z, pan_center_.y() * z);
-    const QRectF image_rect(top_left, QSizeF(document_size_.width() * z, document_size_.height() * z));
+    const QPointF top_left = image_rect.topLeft();
     // The transparency checkerboard depicts alpha (deliberately not a theme
     // role, docs/ui-conventions.md).
     painter.save();
@@ -256,115 +200,10 @@ protected:
     painter.drawRect(image_rect.adjusted(-1.0, -1.0, 0.0, 0.0));
   }
 
-  void resizeEvent(QResizeEvent* event) override {
-    QWidget::resizeEvent(event);
-    clamp_pan();
-    publish_zoom_state();
-  }
-
-  void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      panning_ = true;
-      pan_press_position_ = event->position();
-      pan_press_center_ = pan_center_;
-      refresh_cursor();
-      event->accept();
-      return;
-    }
-    QWidget::mousePressEvent(event);
-  }
-
-  void mouseMoveEvent(QMouseEvent* event) override {
-    if (panning_ && (event->buttons() & Qt::LeftButton) != 0) {
-      const auto z = zoom();
-      if (z > 0.0) {
-        pan_center_ = pan_press_center_ - (event->position() - pan_press_position_) / z;
-        clamp_pan();
-        update();
-      }
-      event->accept();
-      return;
-    }
-    QWidget::mouseMoveEvent(event);
-  }
-
-  void mouseReleaseEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton && panning_) {
-      panning_ = false;
-      refresh_cursor();
-      event->accept();
-      return;
-    }
-    QWidget::mouseReleaseEvent(event);
-  }
-
-  void mouseDoubleClickEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      if (fit_mode_) {
-        zoom_to(1.0, event->position());
-      } else {
-        zoom_to_fit();
-      }
-      event->accept();
-      return;
-    }
-    QWidget::mouseDoubleClickEvent(event);
-  }
-
-  void wheelEvent(QWheelEvent* event) override {
-    const auto delta = event->angleDelta().y();
-    if (delta == 0) {
-      event->ignore();
-      return;
-    }
-    zoom_step(delta > 0 ? 1 : -1, event->position());
-    event->accept();
-  }
-
 private:
-  [[nodiscard]] double fit_zoom() const {
-    if (document_size_.isEmpty() || width() <= 0 || height() <= 0) {
-      return 1.0;
-    }
-    const auto scale = std::min(static_cast<double>(width()) / document_size_.width(),
-                                static_cast<double>(height()) / document_size_.height());
-    return std::clamp(scale, 0.01, kMaxPreviewZoom);
-  }
-
-  void clamp_pan() {
-    const auto z = zoom();
-    if (z <= 0.0) {
-      return;
-    }
-    const auto clamp_axis = [](double center, double visible, double total) {
-      if (visible >= total) {
-        return total / 2.0;
-      }
-      return std::clamp(center, visible / 2.0, total - visible / 2.0);
-    };
-    pan_center_.setX(clamp_axis(pan_center_.x(), width() / z, document_size_.width()));
-    pan_center_.setY(clamp_axis(pan_center_.y(), height() / z, document_size_.height()));
-  }
-
-  void publish_zoom_state() {
-    setProperty("previewZoomPercent", static_cast<int>(std::lround(zoom() * 100.0)));
-    setProperty("previewFitMode", fit_mode_);
-    if (zoom_changed_) {
-      zoom_changed_();
-    }
-  }
-
-  QSize document_size_;
   QImage rendered_;
   QVector<QPointF> anchors_;
   bool show_anchors_{false};
-  std::function<void()> zoom_changed_;
-  QPointF pan_center_;
-  QPointF pan_press_position_;
-  QPointF pan_press_center_;
-  double zoom_{1.0};
-  bool fit_mode_{true};
-  bool panning_{false};
   bool busy_{false};
 };
 

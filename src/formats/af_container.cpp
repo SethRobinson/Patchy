@@ -1,6 +1,7 @@
 #include "formats/af_container_internal.hpp"
 
 #include "formats/binary_le.hpp"
+#include "support/byte_order.hpp"
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include "formats/miniz/miniz.h"
 #include "formats/zstd/zstd.h"
@@ -99,12 +100,12 @@ void undo_tile_interleave(std::vector<std::uint8_t>& bytes) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Affinity preview image is not a PNG"));
     }
   }
-  const auto read_be32 = [&reader]() {
-    std::uint32_t value = 0;
-    for (int i = 0; i < 4; ++i) {
-      value = (value << 8U) | reader.read_u8();
-    }
-    return value;
+  // PNG fields are big-endian inside the little-endian container; skip()
+  // raises the reader's truncation error when four bytes are not left.
+  const auto read_be32 = [&reader, png]() {
+    const auto at = reader.position();
+    reader.skip(4);
+    return read_u32_be(png, at);
   };
 
   std::int32_t width = 0;
