@@ -448,28 +448,40 @@
         <translation>불투명도:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>이전 레이어를 사용하여 클리핑 마스크 만들기</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>현재 모드에는 중립 색상이 없습니다</translation>
+        <source>White</source>
+        <translation>흰색</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>중립 색상으로 채우기(흰색)</translation>
+        <source>Black</source>
+        <translation>검정</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>중립 색상으로 채우기(검정)</translation>
+        <source>50% gray</source>
+        <translation>50% 회색</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>중립 색상으로 채우기(50% 회색)</translation>
+        <source>Clip to the layer below</source>
+        <translation>아래 레이어에 클리핑</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>중립 색상</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>이 모드에서 이미지를 바꾸지 않는 색상으로 새 레이어를 채웁니다</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>이 모드에는 중립 색상이 없습니다</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>채우기:</translation>
     </message>
 </context>
 <context>

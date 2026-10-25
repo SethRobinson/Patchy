@@ -448,28 +448,40 @@
         <translation>Непрозрачность:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Использовать предыдущий слой для создания обтравочной маски</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Обтравить новый слой по слою под ним</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Для текущего режима нет нейтрального цвета</translation>
+        <source>White</source>
+        <translation>Белый</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Залить нейтральным цветом (белый)</translation>
+        <source>Black</source>
+        <translation>Черный</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Залить нейтральным цветом (черный)</translation>
+        <source>50% gray</source>
+        <translation>50% серого</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Залить нейтральным цветом (50% серого)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Обтравка по слою ниже</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Нейтральный цвет</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Залить новый слой цветом, который не меняет изображение в этом режиме</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>У этого режима нет нейтрального цвета</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Заливка:</translation>
     </message>
 </context>
 <context>

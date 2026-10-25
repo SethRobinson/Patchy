@@ -448,28 +448,40 @@
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>下のレイヤーでクリッピングマスクを作成</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>現在のモードにはニュートラルカラーがありません</translation>
+        <source>White</source>
+        <translation>白</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>ニュートラルカラーで塗りつぶす（白）</translation>
+        <source>Black</source>
+        <translation>黒</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>ニュートラルカラーで塗りつぶす（黒）</translation>
+        <source>50% gray</source>
+        <translation>50% グレー</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>ニュートラルカラーで塗りつぶす（50% グレー）</translation>
+        <source>Clip to the layer below</source>
+        <translation>下のレイヤーにクリップ</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>ニュートラルカラー</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>このモードで画像を変えない色で新規レイヤーを塗りつぶします</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>このモードにはニュートラルカラーがありません</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>塗り:</translation>
     </message>
 </context>
 <context>

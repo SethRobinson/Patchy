@@ -448,28 +448,40 @@
         <translation>Opacité :</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Utiliser le calque précédent pour créer un masque d&apos;écrêtage</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Aucune couleur neutre pour le mode actuel</translation>
+        <source>White</source>
+        <translation>Blanc</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Remplir avec la couleur neutre (blanc)</translation>
+        <source>Black</source>
+        <translation>Noir</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Remplir avec la couleur neutre (noir)</translation>
+        <source>50% gray</source>
+        <translation>Gris 50 %</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Remplir avec la couleur neutre (gris 50 %)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Écrêter sur le calque inférieur</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Couleur neutre</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Remplir le nouveau calque avec la couleur qui laisse l&apos;image inchangée dans ce mode</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Ce mode n&apos;a pas de couleur neutre</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Remplissage :</translation>
     </message>
 </context>
 <context>

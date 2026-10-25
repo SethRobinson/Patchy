@@ -448,28 +448,40 @@
         <translation>Deckkraft:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Vorherige Ebene als Schnittmaske verwenden</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Die neue Ebene an der Ebene darunter beschneiden</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Für den aktuellen Modus gibt es keine neutrale Farbe</translation>
+        <source>White</source>
+        <translation>Weiß</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Mit neutraler Farbe füllen (Weiß)</translation>
+        <source>Black</source>
+        <translation>Schwarz</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Mit neutraler Farbe füllen (Schwarz)</translation>
+        <source>50% gray</source>
+        <translation>50 % Grau</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Mit neutraler Farbe füllen (50 % Grau)</translation>
+        <source>Clip to the layer below</source>
+        <translation>An der Ebene darunter beschneiden</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Neutrale Farbe</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Die neue Ebene mit der Farbe füllen, die das Bild in diesem Modus unverändert lässt</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Dieser Modus hat keine neutrale Farbe</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Füllen:</translation>
     </message>
 </context>
 <context>
