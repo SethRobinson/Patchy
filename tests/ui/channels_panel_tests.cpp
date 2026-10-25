@@ -247,6 +247,23 @@ void ui_channels_panel_targets_and_alpha_edits() {
   click_saved_eye();
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
   CHECK(panel->row_eye(4) == std::optional<bool>(false));
+  // A color eye while the saved channel shows alone: the colors come back under it, and
+  // it stays selected, now as an overlay.
+  {
+    const auto red_eye = panel->eye_rect(1).center();
+    send_mouse(*channels->viewport(), QEvent::MouseButtonPress, red_eye, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*channels->viewport(), QEvent::MouseMove, red_eye + QPoint(2, 1), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*channels->viewport(), QEvent::MouseButtonRelease, red_eye + QPoint(2, 1), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+  }
+  CHECK(channels->currentRow() == 4);
+  CHECK(canvas->active_document_channel_id() == alpha_id);
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Overlay);
+  CHECK(panel->row_eye(0) == std::optional<bool>(true));
+  CHECK(panel->row_eye(4) == std::optional<bool>(true));
+  click_saved_eye();
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
 
   const auto composite_before = patchy::Compositor{}.flatten_rgb8(active_document);
   canvas->set_primary_color(Qt::white);
@@ -1068,10 +1085,12 @@ void ui_channel_eyes_view_mask_shortcuts_and_thumbnails() {
   CHECK(eyes() == QStringLiteral("0100"));
   CHECK(canvas->layer_edit_target() == Target::ComponentRed);
 
-  // Showing Green again: Red and Green in color with blue zeroed, Red still targeted.
+  // Showing Green again: Red and Green in color with blue zeroed, and the composite is the
+  // target again (Red was targeted only because it was the one left).
   click_channel_eye(*panel, *channels, 2);
   CHECK(eyes() == QStringLiteral("0110"));
-  CHECK(canvas->layer_edit_target() == Target::ComponentRed);
+  CHECK(canvas->layer_edit_target() == Target::Content);
+  CHECK(channels->currentRow() == 0);
   CHECK(color_close(shown(green_stripe), QColor(30, 180, 0), 2));
   CHECK(color_close(shown(blue_stripe), QColor(40, 70, 0), 2));
   CHECK(chip->isVisible() && chip->text().contains(QStringLiteral("Red, Green")));
@@ -1154,6 +1173,133 @@ void ui_channel_eyes_view_mask_shortcuts_and_thumbnails() {
   QApplication::processEvents();
   const auto inverted = wait_for_channel_thumbnail(*panel, 1, previous_key);
   CHECK(std::abs(thumbnail_point(inverted, 0.2).red() - 55) <= 8);
+}
+
+// An eye click the way a hand makes it: the pointer moves a pixel or two while the button
+// is down (Seth's #412 follow-up: that move selected the row whose eye was clicked).
+void click_channel_eye_with_jitter(patchy::ui::ChannelPanel& panel, QListWidget& channels, int row) {
+  const auto rect = panel.eye_rect(row);
+  CHECK(!rect.isEmpty());
+  const auto point = rect.center();
+  send_mouse(*channels.viewport(), QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*channels.viewport(), QEvent::MouseMove, point + QPoint(1, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*channels.viewport(), QEvent::MouseMove, point + QPoint(2, 1), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*channels.viewport(), QEvent::MouseButtonRelease, point + QPoint(2, 1), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// GitHub issue 412 follow-up (docs/channels.md, "Channel visibility"): an eye click changes
+// what shows and never selects its own row or a hidden channel; the selection moves only
+// when the target stops being valid.
+void ui_channel_eye_clicks_never_select_hidden() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(photo.string()));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  show_channels_tab(window);
+  auto* panel = window.findChild<patchy::ui::ChannelPanel*>(QStringLiteral("channelPanel"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(panel != nullptr && channels != nullptr);
+  if (panel == nullptr || channels == nullptr) {
+    return;
+  }
+  using Target = patchy::ui::CanvasWidget::LayerEditTarget;
+  const auto eyes = [panel] {
+    QString text;
+    for (int row = 0; row < 4; ++row) {
+      text += panel->row_eye(row).value_or(false) ? QLatin1Char('1') : QLatin1Char('0');
+    }
+    return text;
+  };
+  const auto state = [&] { return eyes() + QLatin1Char('/') + QString::number(channels->currentRow()); };
+  int current_changes = 0;
+  QObject::connect(channels, &QListWidget::currentRowChanged, channels, [&current_changes] { ++current_changes; });
+
+  // Seth's sequence: hide Blue, then Green, then show them again.
+  click_channel_eye_with_jitter(*panel, *channels, 3);
+  CHECK(state() == QStringLiteral("0110/0"));
+  CHECK(canvas->layer_edit_target() == Target::Content);
+  click_channel_eye_with_jitter(*panel, *channels, 2);
+  CHECK(state() == QStringLiteral("0100/1"));  // Red is the one left, so it is the target
+  CHECK(canvas->layer_edit_target() == Target::ComponentRed);
+  click_channel_eye_with_jitter(*panel, *channels, 2);
+  CHECK(state() == QStringLiteral("0110/0"));  // two again: back to the composite target
+  CHECK(canvas->layer_edit_target() == Target::Content);
+  CHECK(canvas->channel_view().visible == 0b011);
+  save_widget_artifact("issue_412_fu_after_panel_two_visible", *panel);
+  click_channel_eye_with_jitter(*panel, *channels, 3);
+  CHECK(state() == QStringLiteral("1111/0"));
+
+  // Other orders never land on a hidden channel or on the row whose eye was clicked.
+  for (int first = 1; first <= 3; ++first) {
+    for (int second = 1; second <= 3; ++second) {
+      if (first == second) {
+        continue;
+      }
+      require_hotkey_action(window, QStringLiteral("channel.view_composite"))->trigger();
+      QApplication::processEvents();
+      click_channel_eye_with_jitter(*panel, *channels, first);
+      CHECK(channels->currentRow() == 0);
+      click_channel_eye_with_jitter(*panel, *channels, second);
+      const int left = 6 - first - second;
+      CHECK(channels->currentRow() == left);
+      CHECK(panel->row_eye(left) == std::optional<bool>(true));
+      CHECK(panel->row_eye(first) == std::optional<bool>(false));
+      CHECK(panel->row_eye(second) == std::optional<bool>(false));
+      // The last one cannot be hidden, and showing one again returns to the composite target.
+      click_channel_eye_with_jitter(*panel, *channels, left);
+      CHECK(channels->currentRow() == left);
+      click_channel_eye_with_jitter(*panel, *channels, first);
+      CHECK(channels->currentRow() == 0);
+      CHECK(panel->row_eye(first) == std::optional<bool>(true));
+      CHECK(panel->row_eye(left) == std::optional<bool>(true));
+    }
+  }
+
+  // A channel picked by its row (or Ctrl+3 to Ctrl+5) stays the target while eyes add or
+  // remove other channels; the selection never jumps on the way.
+  require_hotkey_action(window, QStringLiteral("channel.view_first"))->trigger();
+  QApplication::processEvents();
+  CHECK(state() == QStringLiteral("0100/1"));
+  current_changes = 0;
+  click_channel_eye_with_jitter(*panel, *channels, 3);
+  CHECK(state() == QStringLiteral("0101/1"));
+  click_channel_eye_with_jitter(*panel, *channels, 3);
+  CHECK(state() == QStringLiteral("0100/1"));
+  click_channel_eye_with_jitter(*panel, *channels, 2);
+  CHECK(state() == QStringLiteral("0110/1"));
+  CHECK(current_changes == 0);
+  // Hiding the targeted channel moves the target to the one left showing.
+  click_channel_eye_with_jitter(*panel, *channels, 1);
+  CHECK(state() == QStringLiteral("0010/2"));
+
+  // Clicking a hidden channel's row shows it, alone, and targets it.
+  channels->setCurrentRow(3);
+  QApplication::processEvents();
+  CHECK(state() == QStringLiteral("0001/3"));
+  CHECK(canvas->layer_edit_target() == Target::ComponentBlue);
+
+  // Shortcuts after a partial hide: Ctrl+2 restores every channel; Ctrl+4 shows Green alone.
+  require_hotkey_action(window, QStringLiteral("channel.view_composite"))->trigger();
+  QApplication::processEvents();
+  click_channel_eye_with_jitter(*panel, *channels, 1);
+  CHECK(state() == QStringLiteral("0011/0"));
+  require_hotkey_action(window, QStringLiteral("channel.view_second"))->trigger();
+  QApplication::processEvents();
+  CHECK(state() == QStringLiteral("0010/2"));
+  require_hotkey_action(window, QStringLiteral("channel.view_composite"))->trigger();
+  QApplication::processEvents();
+  CHECK(state() == QStringLiteral("1111/0"));
+  // The Composite eye restores everything from any partial view.
+  click_channel_eye_with_jitter(*panel, *channels, 2);
+  click_channel_eye_with_jitter(*panel, *channels, 1);
+  CHECK(state() == QStringLiteral("0001/3"));
+  click_channel_eye_with_jitter(*panel, *channels, 0);
+  CHECK(state() == QStringLiteral("1111/0"));
+  CHECK(canvas->layer_edit_target() == Target::Content);
 }
 
 // Issue shots for GitHub issue 412 on a color photo: the panel's eyes and thumbnails, and
@@ -1286,6 +1432,7 @@ std::vector<patchy::test::TestCase> channels_panel_tests() {
       {"ui_channel_rows_become_new_layers", ui_channel_rows_become_new_layers},
       {"ui_channel_eyes_view_mask_shortcuts_and_thumbnails", ui_channel_eyes_view_mask_shortcuts_and_thumbnails},
       {"ui_channel_view_issue_412_shots", ui_channel_view_issue_412_shots},
+      {"ui_channel_eye_clicks_never_select_hidden", ui_channel_eye_clicks_never_select_hidden},
       {"ui_non_psd_save_warns_before_discarding_channels",
        ui_non_psd_save_warns_before_discarding_channels},
       {"ui_save_layered_flat_format_routes_to_save_as_with_psd_default",
