@@ -13,6 +13,7 @@
 #include <QSizeGrip>
 
 #include <exception>
+#include <initializer_list>
 #include <limits>
 #include <optional>
 
@@ -182,6 +183,10 @@ UnitIntSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, c
                                            UnitIntSpinBox::ContextProvider provider = {}, int spin_width = 72,
                                            int row_spacing = -1, bool step_buttons = false,
                                            SliderCurve curve = SliderCurve::Linear);
+// Gives the label column of every form the width of the widest label among them, so the
+// fields of forms stacked in separate group boxes start at one x (the Develop Raw and
+// Camera Raw Filter control columns, GitHub issue 392).
+void align_form_label_columns(std::initializer_list<QFormLayout*> forms);
 // Moves a popup (already resized to its final size) directly below `anchor`:
 // clamps it inside the screen's available horizontal range and flips it above
 // the anchor when it would run past the bottom. Call before show().
