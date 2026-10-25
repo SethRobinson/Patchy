@@ -42,7 +42,10 @@ function Get-PatchyLockPath([bool]$Windows, $Remote) {
 # Both short ssh calls below send keepalives: a connection that drops mid-command otherwise
 # leaves ssh waiting forever, and the run never releases the host (a Linux host, October 24, 2026:
 # a release run sat 22 minutes on the lock release). Four missed 15 s probes end it.
-$PatchySshQuick = @('-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4')
+# -n: neither call reads stdin. With the connection alive and the lock already removed, the
+# Linux release run still sat 36 minutes in this call (October 26, 2026); Windows ssh can stay
+# blocked reading an inherited stdin pipe after the remote command exits.
+$PatchySshQuick = @('-n', '-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4')
 
 function Get-PatchyRemoteBuildState([string]$RemoteHost, [bool]$Windows) {
   if ($Windows) {
