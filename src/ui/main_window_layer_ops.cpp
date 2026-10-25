@@ -1414,7 +1414,7 @@ void MainWindow::warp_transform_active_layer() {
 namespace {
 
 // Whether a new layer inserted above `anchor` (insert_layer_after_anchor) has a layer
-// below it to clip to: the New Layer dialog's "Use Previous Layer" option.
+// below it to clip to: the New Layer dialog's "Clip to the layer below" option.
 bool new_layer_has_clip_base(const Document& document, std::optional<LayerId> anchor) {
   if (!anchor.has_value()) {
     return false;
@@ -3516,11 +3516,17 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (item != nullptr) {
     if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
       const auto global = layer_list_->viewport()->mapToGlobal(position);
-      // The row's eye opens Photoshop's short color menu (GitHub issue 276).
-      if (auto* eye = row_widget->findChild<QWidget*>(QStringLiteral("layerVisibilityCheck"));
-          eye != nullptr && eye->isVisible() && eye->rect().contains(eye->mapFromGlobal(global))) {
-        show_layer_eye_color_menu(global);
-        return;
+      // The eye column of the main row (the eye and the color-label strip left of it) opens
+      // the eye menu (GitHub issues 276 and 407).
+      auto* eye = row_widget->findChild<QWidget*>(QStringLiteral("layerVisibilityCheck"));
+      auto* main_row = row_widget->findChild<QWidget*>(QStringLiteral("layerMainRow"));
+      if (eye != nullptr && eye->isVisible() && main_row != nullptr) {
+        const auto local = main_row->mapFromGlobal(global);
+        const auto eye_right = eye->mapTo(main_row, QPoint(eye->width(), 0)).x();
+        if (main_row->rect().contains(local) && local.x() < eye_right) {
+          show_layer_eye_color_menu(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()), global);
+          return;
+        }
       }
       for (auto* entry_row : row_widget->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
         if (!entry_row->isVisible() || !entry_row->rect().contains(entry_row->mapFromGlobal(global))) {
@@ -3917,17 +3923,51 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
 }
 
-void MainWindow::show_layer_eye_color_menu(QPoint global_position) {
-  // None, then the seven colors: the Layer > Color actions, so a pick labels every selected
-  // layer in one undo step (set_selected_layers_color).
+void MainWindow::show_layer_eye_color_menu(LayerId id, QPoint global_position) {
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("layerEyeColorMenu"));
+  // Visibility for the row under the pointer (#407), outside history like the eye itself. The
+  // picks run deferred and only on the same document: a group's change rebuilds the rows,
+  // including the eye this menu opened from.
+  if (const auto* layer = std::as_const(document()).find_layer(id); layer != nullptr) {
+    const auto session_id = session().session_id;
+    const auto deferred = [this, session_id](std::function<void()> apply) {
+      QTimer::singleShot(0, this, [this, session_id, apply = std::move(apply)] {
+        if (has_active_document() && session().session_id == session_id) {
+          apply();
+        }
+      });
+    };
+    const bool visible = layer->visible();
+    auto* toggle = menu.addAction(visible ? tr("Hide This Layer") : tr("Show This Layer"));
+    toggle->setObjectName(QStringLiteral("layerEyeToggleThisAction"));
+    connect(toggle, &QAction::triggered, this,
+            [this, deferred, id, visible] { deferred([this, id, visible] { set_layer_visibility(id, !visible); }); });
+    auto* others = menu.addAction(tr("Show/Hide All Other Layers"));
+    others->setObjectName(QStringLiteral("layerEyeIsolateAction"));
+    connect(others, &QAction::triggered, this,
+            [this, deferred, id] { deferred([this, id] { isolate_layer_visibility(id); }); });
+    menu.addSeparator();
+    auto* show_all = menu.addAction(tr("Show All Layers"));
+    show_all->setObjectName(QStringLiteral("layerEyeShowAllAction"));
+    connect(show_all, &QAction::triggered, this,
+            [this, deferred] { deferred([this] { set_all_layers_visible(true); }); });
+    auto* hide_all = menu.addAction(tr("Hide All Layers"));
+    hide_all->setObjectName(QStringLiteral("layerEyeHideAllAction"));
+    connect(hide_all, &QAction::triggered, this,
+            [this, deferred] { deferred([this] { set_all_layers_visible(false); }); });
+    menu.addSeparator();
+  }
+  // None, then the seven colors: the Layer > Color actions, so a pick labels every selected
+  // layer in one undo step (set_selected_layers_color).
   populate_layer_color_actions(&menu);
   refresh_layer_color_action_states();
   // The swatches name the colors, as in Photoshop's eye menu; the row menu hides the shared
   // actions' icons (hide_menu_action_icons), so show them again here.
   for (auto* action : menu.actions()) {
-    action->setIconVisibleInMenu(true);
+    if (!action->icon().isNull()) {
+      action->setIconVisibleInMenu(true);
+    }
   }
   menu.exec(global_position);
 }

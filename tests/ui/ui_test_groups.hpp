@@ -34,6 +34,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests();
 std::vector<patchy::test::TestCase> deep_operation_audit_tests();
 std::vector<patchy::test::TestCase> group_transform_tests();
 std::vector<patchy::test::TestCase> channels_panel_tests();
+std::vector<patchy::test::TestCase> camera_raw_filter_tests();
 std::vector<patchy::test::TestCase> camera_raw_heif_tests();
 std::vector<patchy::test::TestCase> layer_mask_tests();
 std::vector<patchy::test::TestCase> pen_tablet_input_tests();

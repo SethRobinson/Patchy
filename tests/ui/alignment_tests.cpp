@@ -9,11 +9,13 @@
 #include <QFrame>
 #include <QIcon>
 #include <QImage>
+#include <QPainter>
 #include <QPixmap>
 #include <algorithm>
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
@@ -487,6 +489,25 @@ void ui_layer_distribute_requires_three_units_and_spaces_evenly() {
     CHECK(actions.contains(require_action(scene.window, "layerAlignToCanvasAction")));
     CHECK(!actions.contains(require_action(scene.window, "layerDistributeLeftAction")));
   }
+  // GitHub issue 405: the enabled Align and Distribute buttons in both schemes, cropped
+  // from the first Align button to the gear menu button.
+  auto* options_bar = scene.window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* first_align = scene.window.findChild<QToolButton*>(QStringLiteral("moveAlignLeftButton"));
+  CHECK(options_bar != nullptr && first_align != nullptr && more_button != nullptr);
+  if (options_bar != nullptr && first_align != nullptr && more_button != nullptr) {
+    const auto align_distribute_strip = [&] {
+      QApplication::processEvents();
+      const QPoint top_left = first_align->mapTo(options_bar, QPoint(0, 0));
+      const QPoint bottom_right =
+          more_button->mapTo(options_bar, QPoint(more_button->width(), more_button->height()));
+      const QRect crop = QRect(top_left, bottom_right).adjusted(-6, -3, 6, 3).intersected(options_bar->rect());
+      return options_bar->grab(crop).toImage();
+    };
+    const QImage dark_strip = align_distribute_strip();
+    ColorSchemeRestorer restore_scheme(patchy::ui::ColorSchemePreference::Light);
+    const QImage light_strip = align_distribute_strip();
+    save_stacked_artifact("ui_issue_405_align_distribute", {dark_strip, light_strip});
+  }
   // The buttons follow their action's enabled state: two units cannot distribute.
   select_layers(*scene.layer_list, {QStringLiteral("A"), QStringLiteral("B")});
   QApplication::processEvents();
@@ -609,6 +630,66 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
     for (std::size_t j = i + 1; j < glyphs.size(); ++j) {
       CHECK(glyphs[i] != glyphs[j]);
     }
+  }
+  // GitHub issue 405: the fourteen glyphs side by side at the options bar's 18 px size,
+  // rendered for 100%, 150% and 200% display scaling, one row per scale and scheme.
+  {
+    std::vector<QAction*> glyph_actions;
+    for (const auto* name : align_names) {
+      if (auto* action = require_action(window, name); !action->icon().isNull()) {
+        glyph_actions.push_back(action);
+      }
+    }
+    for (const auto* name : distribute_names) {
+      glyph_actions.push_back(require_action(window, name));
+    }
+    CHECK(glyph_actions.size() == 14U);
+    // The glyphs sit on whole device pixels at every scale: each pixel is fully
+    // inked or fully clear, never a half-covered antialiased edge.
+    for (const qreal ratio : {1.0, 1.25, 1.5, 2.0}) {
+      for (auto* action : glyph_actions) {
+        const QImage glyph =
+            action->icon().pixmap(QSize(18, 18), ratio).toImage().convertToFormat(QImage::Format_ARGB32);
+        int partial = 0;
+        int inked = 0;
+        for (int y = 0; y < glyph.height(); ++y) {
+          for (int x = 0; x < glyph.width(); ++x) {
+            const int alpha = qAlpha(glyph.pixel(x, y));
+            partial += alpha != 0 && alpha != 255 ? 1 : 0;
+            inked += alpha == 255 ? 1 : 0;
+          }
+        }
+        if (partial != 0 || inked == 0) {
+          std::fprintf(stderr, "  %s at %.2fx: %d partial, %d inked pixels\n",
+                       qPrintable(action->objectName()), ratio, partial, inked);
+        }
+        CHECK(glyph.width() == qRound(18 * ratio));
+        CHECK(partial == 0 && inked > 0);
+      }
+    }
+    const auto glyph_rows = [&] {
+      QList<QImage> rows;
+      for (const qreal ratio : {1.0, 1.5, 2.0}) {
+        const int cell = qRound(18 * ratio) + 8;
+        QImage row(static_cast<int>(glyph_actions.size()) * cell, cell, QImage::Format_ARGB32_Premultiplied);
+        row.fill(patchy::ui::theme().options_bar_bg);
+        QPainter painter(&row);
+        for (std::size_t i = 0; i < glyph_actions.size(); ++i) {
+          QImage glyph = glyph_actions[i]->icon().pixmap(QSize(18, 18), ratio).toImage();
+          glyph.setDevicePixelRatio(1.0);
+          painter.drawImage(QPoint(static_cast<int>(i) * cell + 4, 4), glyph);
+        }
+        painter.end();
+        rows.push_back(row);
+      }
+      return rows;
+    };
+    QList<QImage> sheet = glyph_rows();
+    {
+      ColorSchemeRestorer restore_scheme(patchy::ui::ColorSchemePreference::Light);
+      sheet.append(glyph_rows());
+    }
+    save_stacked_artifact("ui_issue_405_align_distribute_glyphs", sheet);
   }
   // GitHub issue 211: a separator sets Auto-Nest Layers apart from the buttons before it,
   // on the Move bar (the gear menu button) and on the Artboard bar (Add Artboard).

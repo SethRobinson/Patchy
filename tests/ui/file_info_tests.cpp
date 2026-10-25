@@ -139,6 +139,10 @@ std::string title_of(const patchy::DocumentFileInfo& info) {
   return md::read_fields(info).title;
 }
 
+std::string creator_tool_of(const patchy::DocumentFileInfo& info) {
+  return md::read_fields(info).creator_tool;
+}
+
 void ui_file_info_opens_views_edits_and_undoes() {
   const auto path = write_tagged_jpeg();
   patchy::ui::MainWindow window;
@@ -304,7 +308,11 @@ void ui_file_info_strip_and_export_policies() {
   const auto target = artifact_dir() + QStringLiteral("/stripped.jpg");
   CHECK(MainWindowTestAccess::save_document_to_path(window, target, patchy::ui::ImageSaveOptions{}));
   const auto stripped = md::extract_file_info_from_path(patchy::ui::to_filesystem_path(target));
-  CHECK(stripped.exif == nullptr && stripped.xmp == nullptr && stripped.iptc == nullptr);
+  // Only the JPEG save stamp comes back (docs/file-info.md, "Save stamp"): no EXIF, no IPTC,
+  // and nothing of the stripped XMP.
+  CHECK(stripped.exif == nullptr && stripped.iptc == nullptr);
+  CHECK(creator_tool_of(stripped).rfind("Patchy ", 0) == 0U);
+  CHECK(title_of(stripped).empty() && md::read_fields(stripped).authors.empty());
   CHECK(stripped.source_icc != nullptr);
   MainWindowTestAccess::undo(window);
   QApplication::processEvents();
@@ -753,6 +761,109 @@ void ui_psd_save_writes_metadata_and_thumbnail() {
   CHECK(!psd_thumbnail(stripped).isNull());
 }
 
+// Issues 418 and 419 (decided October 25, 2026): with Saved metadata Basic, a new document's
+// JPEG Save As records itself as a PSD save does: the XMP stamp with dc:format image/jpeg, a
+// minimal EXIF block and an EXIF thumbnail of the saved image. After Strip All Metadata the
+// next save writes the XMP stamp but no EXIF and so no thumbnail. Saves
+// after-new-jpeg-metadata.png (All Metadata) and after-new-jpeg-thumbnail.png (Embedded
+// Thumbnails, from the reopened file) into test-artifacts/file-info.
+void ui_jpeg_save_as_stamps_a_new_document() {
+  patchy::ui::set_stored_save_metadata_mode(patchy::ui::SaveMetadataMode::Basic);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 640, 480);
+  QApplication::processEvents();
+  {
+    auto& pixels = MainWindowTestAccess::document(window).layers().front().pixels();
+    const auto channels = static_cast<std::size_t>(pixels.format().channels);
+    auto bytes = pixels.data();
+    for (int y = 0; y < pixels.height(); ++y) {
+      for (int x = 0; x < pixels.width(); ++x) {
+        auto* pixel = bytes.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(pixels.width()) +
+                                      static_cast<std::size_t>(x)) * channels;
+        pixel[0] = static_cast<std::uint8_t>(x * 255 / 639);
+        pixel[1] = static_cast<std::uint8_t>(y * 255 / 479);
+        pixel[2] = 160;
+        if (channels == 4U) {
+          pixel[3] = 255;
+        }
+      }
+    }
+  }
+  const auto path = artifact_dir() + QStringLiteral("/new-document.jpg");
+  QFile::remove(path);
+  // A new document can hold more than one layer: the JPEG is then a flattened copy.
+  CHECK(MainWindowTestAccess::save_document_to_path_flatten_confirmed(window, path, patchy::ui::ImageSaveOptions{}));
+  const auto saved = md::extract_file_info_from_path(patchy::ui::to_filesystem_path(path));
+  CHECK(saved.xmp != nullptr && saved.exif != nullptr);
+  if (saved.xmp == nullptr || saved.exif == nullptr) {
+    return;
+  }
+  const auto packet = md::parse_xmp(*saved.xmp).value_or(md::XmpPacket{});
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool").rfind("Patchy ", 0) == 0U);
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate").size() == 25U);
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "InstanceID").rfind("xmp.iid:", 0) == 0U);
+  CHECK(packet.find(md::xmp_ns::kXmpMM, "History") != nullptr);
+  CHECK(packet.text(md::xmp_ns::kDc, "format") == "image/jpeg");
+  CHECK(packet.text(md::xmp_ns::kPhotoshop, "ColorMode") == "3");
+  CHECK(ifd0_text(saved, md::exif_tag::kSoftware).rfind("Patchy ", 0) == 0U);
+  CHECK(ifd0_text(saved, md::exif_tag::kDateTime).size() == 19U);
+  CHECK(exif_number(saved, md::IfdKind::Ifd0, md::exif_tag::kOrientation) == 1U);
+  CHECK(exif_number(saved, md::IfdKind::Exif, md::exif_tag::kPixelXDimension) == 640U);
+  CHECK(exif_number(saved, md::IfdKind::Exif, md::exif_tag::kPixelYDimension) == 480U);
+  const auto stream = md::parse_tiff(*saved.exif);
+  CHECK(stream.has_value() && !stream->thumbnail.empty() && stream->find(md::IfdKind::Ifd1) != nullptr);
+  if (stream && !stream->thumbnail.empty()) {
+    const auto image = QImage::fromData(QByteArray(reinterpret_cast<const char*>(stream->thumbnail.data()),
+                                                   static_cast<qsizetype>(stream->thumbnail.size())),
+                                        "JPG");
+    CHECK(image.size() == QSize(160, 120));
+  }
+  CHECK(!QImage(path).isNull());
+  capture_all_metadata(window, "file-info/after-new-jpeg-metadata",
+                       {QStringLiteral("EXIF IFD0"), QStringLiteral("EXIF Exif"), QStringLiteral("EXIF IFD1 (thumbnail)"),
+                        QStringLiteral("XMP xmp"), QStringLiteral("XMP dc"), QStringLiteral("XMP photoshop"),
+                        QStringLiteral("XMP xmpMM")});
+
+  // The reopened file shows its thumbnail on File Info's Embedded Thumbnails page.
+  MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  bool shown = false;
+  QTimer::singleShot(0, [&shown] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    if (dialog == nullptr) {
+      patchy::test::report_failure("new JPEG: no File Info dialog");
+      return;
+    }
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+    for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+      if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoThumbnailsPage")) {
+        categories->setCurrentRow(row);
+        shown = true;
+      }
+    }
+    dialog->resize(dialog->width(), std::max(dialog->height(), 640));
+    QApplication::processEvents();
+    if (shown) {
+      save_widget_artifact("file-info/after-new-jpeg-thumbnail", *dialog);
+    }
+    dialog->reject();
+  });
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shown);
+
+  // Strip All Metadata: the next Save As writes the XMP stamp but no EXIF, so no thumbnail.
+  patchy::metadata::strip_metadata(MainWindowTestAccess::document(window), true);
+  const auto stripped_path = artifact_dir() + QStringLiteral("/stripped-new.jpg");
+  QFile::remove(stripped_path);
+  CHECK(MainWindowTestAccess::save_document_to_path_flatten_confirmed(window, stripped_path,
+                                                                      patchy::ui::ImageSaveOptions{}));
+  const auto stripped = md::extract_file_info_from_path(patchy::ui::to_filesystem_path(stripped_path));
+  CHECK(stripped.exif == nullptr);
+  CHECK(stripped.xmp != nullptr);
+}
+
 // Issue 419: a JPEG save that writes EXIF puts a thumbnail of the saved image in IFD1.
 void ui_jpeg_save_writes_an_exif_thumbnail() {
   patchy::ui::MainWindow window;
@@ -815,6 +926,16 @@ void ui_file_info_privacy_notice_can_be_hidden() {
     expect(hide != nullptr && !hide->isHidden(), "Don't Show Again is not shown");
     if (auto* row = dialog.findChild<QWidget*>(QStringLiteral("fileInfoPrivacyBannerRow"))) {
       QApplication::processEvents();
+      // The button sits inside the bar, as far from its right edge as from its top and bottom.
+      if (hide != nullptr) {
+        const auto box = hide->geometry();
+        const int right = row->width() - (box.x() + box.width());
+        const int top = box.y();
+        const int bottom = row->height() - (box.y() + box.height());
+        expect(box.x() >= 0 && right >= 0 && top >= 0 && bottom >= 0, "Don't Show Again is outside the bar");
+        expect(std::abs(top - bottom) <= 1, "Don't Show Again is not centered vertically");
+        expect(std::abs(right - top) <= 1, "Don't Show Again's right gap differs from its top gap");
+      }
       save_widget_artifact("file-info/notice-shown", *row);
     }
     if (hide != nullptr) {
@@ -1129,6 +1250,7 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
       {"ui_psd_save_writes_metadata_and_thumbnail", ui_psd_save_writes_metadata_and_thumbnail},
       {"ui_jpeg_save_writes_an_exif_thumbnail", ui_jpeg_save_writes_an_exif_thumbnail},
+      {"ui_jpeg_save_as_stamps_a_new_document", ui_jpeg_save_as_stamps_a_new_document},
       {"ui_file_info_privacy_notice_can_be_hidden", ui_file_info_privacy_notice_can_be_hidden},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
       {"ui_document_tab_scan_for_watermarks", ui_document_tab_scan_for_watermarks},

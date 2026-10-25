@@ -82,6 +82,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <functional>
 #include <memory>
@@ -2922,6 +2923,82 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
   } else {
     registry.apply(*normalized, layer->pixels());
   }
+  note_pixels_changed(session_id, before_bounds);
+  return true;
+}
+
+bool ScriptEngineHost::apply_camera_raw_filter_to_layer(std::int64_t session_id, LayerId layer_id,
+                                                        const QJSValue& settings) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  PhotoDevelopParams params;
+  if (!settings.isUndefined() && !settings.isNull()) {
+    if (!settings.isObject()) {
+      throw_js_error(tr("applyCameraRawFilter: pass an object of settings."));
+      return false;
+    }
+    // Script names are permanent API identifiers (docs/scripting.md).
+    const std::array<std::pair<QLatin1String, double PhotoDevelopParams::*>, 8> fields = {{
+        {QLatin1String("temperature"), &PhotoDevelopParams::temperature},
+        {QLatin1String("tint"), &PhotoDevelopParams::tint},
+        {QLatin1String("exposure"), &PhotoDevelopParams::exposure_ev},
+        {QLatin1String("contrast"), &PhotoDevelopParams::contrast},
+        {QLatin1String("highlights"), &PhotoDevelopParams::highlights},
+        {QLatin1String("shadows"), &PhotoDevelopParams::shadows},
+        {QLatin1String("saturation"), &PhotoDevelopParams::saturation},
+        {QLatin1String("vibrance"), &PhotoDevelopParams::vibrance},
+    }};
+    QJSValueIterator it(settings);
+    while (it.hasNext()) {
+      it.next();
+      const auto field = std::find_if(fields.begin(), fields.end(),
+                                      [&](const auto& candidate) { return candidate.first == it.name(); });
+      if (field == fields.end()) {
+        throw_js_error(tr("applyCameraRawFilter: unknown setting %1.").arg(it.name()));
+        return false;
+      }
+      const auto value = it.value();
+      if (!value.isNumber() || !std::isfinite(value.toNumber())) {
+        throw_js_error(tr("applyCameraRawFilter: %1 must be a number.").arg(it.name()));
+        return false;
+      }
+      params.*(field->second) = value.toNumber();
+    }
+  }
+  params = normalize_photo_develop_params(params);
+  auto* layer = session->document.find_layer(layer_id);
+  if (layer == nullptr) {
+    throw_js_error(tr("The layer no longer exists."));
+    return false;
+  }
+  if (!editable_rgb_layer_any_depth(layer)) {
+    throw_js_error(tr("applyCameraRawFilter needs an RGB pixel layer."));
+    return false;
+  }
+  if (layer_is_smart_object(*layer)) {
+    throw_js_error(QCoreApplication::translate(
+        "patchy::ui::MainWindow", "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return false;
+  }
+  if (std::as_const(*layer).pixels().empty() || PhotoDeveloper(params).is_identity()) {
+    return true;  // nothing to change
+  }
+  if (!prepare_mutation(session_id)) {
+    return false;
+  }
+  const auto before_bounds = to_qrect(layer_render_bounds(std::as_const(*layer)));
+  FilterSelection selection;
+  if (auto* canvas = session_canvas(session_id); canvas != nullptr && canvas->has_selection()) {
+    // Like the menu command: limited to the selection, its soft edges blended by coverage.
+    selection = filter_selection(*canvas);
+  }
+  auto pixels = std::as_const(*layer).pixels();
+  apply_camera_raw_filter_to_pixels(pixels, std::as_const(*layer).bounds(), selection, params);
+  layer->set_pixels(std::move(pixels));
   note_pixels_changed(session_id, before_bounds);
   return true;
 }

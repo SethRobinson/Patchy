@@ -2,7 +2,10 @@
 
 #include "core/document.hpp"
 
+#include <QIcon>
 #include <QPixmap>
+#include <QRect>
+#include <QSize>
 #include <QWidget>
 
 #include <functional>
@@ -48,11 +51,20 @@ public:
     QString name;
     QPixmap thumbnail;
     bool overlay{false};
+    // The row's eye (docs/channels.md, "Channel visibility"): on, off, or none (Quick Mask).
+    // Saved channels show their overlay state.
+    std::optional<bool> eye;
   };
 
   using TargetCallback = std::function<void(RowKind, ChannelId, bool overlay)>;
   using LoadSelectionCallback = std::function<void(RowKind, ChannelId)>;
   using ReorderCallback = std::function<void(std::vector<ChannelId>)>;
+  // The eye of a Composite, component or ink plate row was clicked.
+  using EyeCallback = std::function<void(RowKind)>;
+
+  // Width of the eye column at the left of each row's icon.
+  static constexpr int kEyeColumnWidth = 22;
+  static constexpr QSize kThumbnailSize{42, 30};
 
   explicit ChannelPanel(QWidget* parent = nullptr);
 
@@ -67,6 +79,15 @@ public:
   void set_target_callback(TargetCallback callback);
   void set_load_selection_callback(LoadSelectionCallback callback);
   void set_reorder_callback(ReorderCallback callback);
+  void set_eye_callback(EyeCallback callback);
+  // Replaces the thumbnail of a derived row (Composite, a component, an ink plate) in
+  // place, without rebuilding the list.
+  void set_row_thumbnail(RowKind kind, const QPixmap& thumbnail);
+  // The eye hit area of a row in list viewport coordinates (empty without an eye).
+  [[nodiscard]] QRect eye_rect(int row) const;
+  // A row's eye state (none for Quick Mask) and thumbnail, as shown.
+  [[nodiscard]] std::optional<bool> row_eye(int row) const;
+  [[nodiscard]] QPixmap row_thumbnail(int row) const;
 
   [[nodiscard]] std::optional<Row> selected_row() const;
   [[nodiscard]] std::vector<ChannelId> saved_channel_order() const;
@@ -78,10 +99,18 @@ protected:
 private:
   static constexpr int kKindRole = Qt::UserRole + 1;
   static constexpr int kChannelIdRole = Qt::UserRole + 2;
+  static constexpr int kThumbnailRole = Qt::UserRole + 3;
+  // -1: no eye, 0: off, 1: on.
+  static constexpr int kEyeRole = Qt::UserRole + 4;
+
+  [[nodiscard]] QIcon row_icon(const QPixmap& thumbnail, int eye) const;
+  void refresh_row_icons();
+  // A press in a row's eye column: true when it was handled.
+  bool handle_eye_press(QPoint viewport_position);
+  void toggle_saved_channel_overlay(QListWidgetItem* item);
 
   [[nodiscard]] Row row_from_item(const QListWidgetItem* item) const;
   void handle_current_item_changed(QListWidgetItem* current);
-  void handle_item_changed(QListWidgetItem* item);
   void handle_rows_moved();
   void show_context_menu(const QPoint& position);
   void refresh_action_states();
@@ -99,6 +128,9 @@ private:
   TargetCallback target_callback_;
   LoadSelectionCallback load_selection_callback_;
   ReorderCallback reorder_callback_;
+  EyeCallback eye_callback_;
+  bool eye_mouse_press_{false};
+  QListWidgetItem* reselect_item_{nullptr};
   bool updating_{false};
   bool ctrl_load_mouse_press_{false};
   bool document_available_{false};

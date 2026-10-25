@@ -617,10 +617,10 @@ void ui_move_options_bar_groups_its_controls() {
         QStringLiteral("moveAlignLeftButton"),         QStringLiteral("moveAlignHCenterButton"),
         QStringLiteral("moveAlignRightButton"),        QStringLiteral("moveAlignTopButton"),
         QStringLiteral("moveAlignVCenterButton"),      QStringLiteral("moveAlignBottomButton"),
-        QStringLiteral("|"),                           QStringLiteral("moveDistributeLeftButton"),
-        QStringLiteral("moveDistributeHCenterButton"), QStringLiteral("moveDistributeRightButton"),
-        QStringLiteral("moveDistributeTopButton"),     QStringLiteral("moveDistributeVCenterButton"),
-        QStringLiteral("moveDistributeBottomButton"),  QStringLiteral("moveAlignMoreButton"),
+        QStringLiteral("|"),                           QStringLiteral("moveDistributeTopButton"),
+        QStringLiteral("moveDistributeVCenterButton"), QStringLiteral("moveDistributeBottomButton"),
+        QStringLiteral("moveDistributeLeftButton"),    QStringLiteral("moveDistributeHCenterButton"),
+        QStringLiteral("moveDistributeRightButton"),   QStringLiteral("moveAlignMoreButton"),
         QStringLiteral("|"),                           QStringLiteral("moveShowTransformControlsCheck"),
         QStringLiteral("moveSnapCheck"),               QStringLiteral("artboardAutoNestCheck")};
     const auto tokens = row_tokens(false);

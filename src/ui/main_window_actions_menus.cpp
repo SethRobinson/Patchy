@@ -1756,6 +1756,22 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(filter_gallery_action, &QAction::triggered, this, [this] { visual_filter_gallery_dialog(); });
   register_document_action(filter_gallery_action);
 
+  // Develop Raw's tone and color controls on any pixel layer (GitHub issue 392).
+  auto* camera_raw_filter_action = filter_menu->addAction(tr("Camera &Raw Filter..."));
+  camera_raw_filter_action->setObjectName(QStringLiteral("filterCameraRawFilterAction"));
+  camera_raw_filter_action->setProperty("patchy.channelViewBlocked", true);
+  camera_raw_filter_action->setIcon(simple_icon(QStringLiteral("RAW")));
+  camera_raw_filter_action->setStatusTip(tr("Adjust white balance, exposure, tone and color of the active layer"));
+  bind_action_text(camera_raw_filter_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Camera &Raw Filter..."));
+  bind_translated_status_tip(camera_raw_filter_action,
+                             "Adjust white balance, exposure, tone and color of the active layer");
+  apply_bound_translation(camera_raw_filter_action);
+  refresh_action_tooltip(camera_raw_filter_action);
+  register_hotkey(camera_raw_filter_action, "filter.camera_raw_filter",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A));
+  connect(camera_raw_filter_action, &QAction::triggered, this, [this] { camera_raw_filter_dialog(); });
+  register_document_action(camera_raw_filter_action);
+
   auto* liquify_action = filter_menu->addAction(tr("&Liquify..."));
   liquify_action->setObjectName(QStringLiteral("filterLiquifyAction"));
   liquify_action->setProperty("patchy.channelViewBlocked", true);

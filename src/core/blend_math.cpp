@@ -1,5 +1,6 @@
 #include "core/blend_math.hpp"
 #include "core/gimp_blend_modes.hpp"
+#include "core/krita_blend_modes.hpp"
 
 #include "core/splitmix64.hpp"
 
@@ -204,6 +205,17 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) - static_cast<int>(src) + 128, 0, 255));
     case BlendMode::GrainMerge:
       return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) + static_cast<int>(src) - 128, 0, 255));
+    // Krita's own modes (core/krita_blend_modes.cpp).
+    case BlendMode::SoftLightSvg:
+    case BlendMode::AdditiveSubtractive:
+    case BlendMode::ArcTangent:
+    case BlendMode::GeometricMean:
+    case BlendMode::Allanon:
+    case BlendMode::Parallel:
+    case BlendMode::HardOverlay:
+    case BlendMode::Interpolation:
+    case BlendMode::EasyDodge:
+      return krita_blend_channel8(src, dst, mode);
     // GIMP's color-model modes run in blend_rgb (gimp_blend_unit), never per channel.
     case BlendMode::HsvHue:
     case BlendMode::HsvSaturation:
@@ -742,7 +754,7 @@ bool layers_use_gimp_blend_modes(const std::vector<Layer>& layers) noexcept {
 }
 
 bool blend_mode_is_non_photoshop(BlendMode mode) noexcept {
-  return blend_mode_is_paint_dot_net_only(mode) || blend_mode_is_gimp_only(mode);
+  return blend_mode_is_paint_dot_net_only(mode) || blend_mode_is_gimp_only(mode) || blend_mode_is_krita_only(mode);
 }
 
 bool blend_mode_has_special_fill(BlendMode mode) noexcept {

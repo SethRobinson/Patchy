@@ -338,6 +338,15 @@ Paint.NET's Multiply, Screen and Overlay round where the Photoshop-calibrated ke
 
 Seventeen modes exist for GIMP .xcf import: Grain Extract and Grain Merge (byte kernels in blend_math.cpp), GIMP's HSV, HSL and LCh color-model modes, Luminance, Luma Darken/Lighten Only, and Multiply, Addition, Subtract and Divide in linear light (`core/gimp_blend_modes.cpp`, run per pixel from `blend_rgb` and `blend_rgb_deep`). Their formulas and calibration are in [xcf.md](xcf.md#gimps-own-modes). They follow every rule of the Paint.NET modes above: no blend menu lists them (`set_non_photoshop_blend_modes_offered`), 8 and 16-bit only, permanent script ids (see [scripting-api-changes.md](scripting-api-changes.md)), and PSD, layered TIFF and Aseprite saves write them as Normal or bake them. OpenRaster bakes them like any mode it has no name for.
 
+## Krita modes
+
+Nine modes exist for Krita .kra import, per-channel kernels in `core/krita_blend_modes.cpp`: Soft
+Light (SVG) (the W3C formula, Krita's "Soft Light"), Additive-Subtractive, Arc Tangent, Geometric
+Mean, Allanon, Parallel, Hard Overlay, Interpolation and Easy Dodge, each measured on Krita 5.3's
+render of all 65536 8-bit pairs (formulas: [kra.md](kra.md#blend-modes)). They follow every rule of
+the Paint.NET and GIMP modes above. OpenRaster writes them under Krita's names
+(`krita:soft_light_svg` and so on), with its save warning for Krita names.
+
 ## Layered saves
 
 `src/formats/layered_blend_support.{hpp,cpp}` (Qt-free) knows which modes each layered save format stores (`layered_format_stores_blend_mode`):

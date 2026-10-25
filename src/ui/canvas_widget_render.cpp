@@ -1031,6 +1031,18 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     }
   }
   if (!curves_clipping_mode_.has_value()) {
+    if (channel_view_.group == ChannelViewGroup::Color && channel_view_visible_count(channel_view_) == 2) {
+      // Channel visibility (docs/channels.md): two of Red, Green and Blue shown zero the
+      // third over the drawn frame, so the cost follows the exposed screen area and every
+      // render path (stroke patches, drag previews) is covered.
+      painter.save();
+      painter.setCompositionMode(QPainter::CompositionMode_Multiply);
+      const auto shown = [this](int index) {
+        return channel_view_shows(channel_view_, ChannelViewGroup::Color, index) ? 255 : 0;
+      };
+      painter.fillRect(target_rect.intersected(QRectF(exposed_rect)), QColor(shown(0), shown(1), shown(2)));
+      painter.restore();
+    }
     draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
   }
   painter.restore();
@@ -2870,6 +2882,49 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
         plate_inks_source_key_ = render_cache_.cacheKey();
         plate_inks_space_ = space;
       }
+      if (channel_view_.group == ChannelViewGroup::Ink && channel_view_visible_count(channel_view_) > 1) {
+        // Several plates shown: each visible ink alone on paper, multiplied, the way New
+        // Layer from Channel Color stacks them (docs/channels.md, "Channel visibility").
+        if (plate_ink_colors_space_ != space) {
+          for (std::size_t ink_plate = 0; ink_plate < plate_ink_colors_.size(); ++ink_plate) {
+            for (std::size_t level = 0; level < 256; ++level) {
+              CmykPercent ink;
+              const auto percent = static_cast<double>(level) * 100.0 / 255.0;
+              (ink_plate == 0   ? ink.cyan
+               : ink_plate == 1 ? ink.magenta
+               : ink_plate == 2 ? ink.yellow
+                                : ink.black) = percent;
+              const auto color = space->rgb_from_cmyk(ink);
+              plate_ink_colors_[ink_plate][level] = qRgb(color.red, color.green, color.blue);
+            }
+          }
+          plate_ink_colors_space_ = space;
+        }
+        for (const auto& rect : document_region) {
+          for (int y = rect.top(); y <= rect.bottom(); ++y) {
+            const auto* inks = plate_inks_.data() + static_cast<std::size_t>(y) * width * 4U;
+            auto* row = reinterpret_cast<QRgb*>(mask_display_image_.scanLine(y));
+            for (int x = rect.left(); x <= rect.right(); ++x) {
+              int red = 255;
+              int green = 255;
+              int blue = 255;
+              for (int ink_plate = 0; ink_plate < 4; ++ink_plate) {
+                if (!channel_view_shows(channel_view_, ChannelViewGroup::Ink, ink_plate)) {
+                  continue;
+                }
+                const auto ink = plate_ink_colors_[static_cast<std::size_t>(ink_plate)]
+                                                  [inks[static_cast<std::size_t>(x) * 4U +
+                                                        static_cast<std::size_t>(ink_plate)]];
+                red = (red * qRed(ink) + 127) / 255;
+                green = (green * qGreen(ink) + 127) / 255;
+                blue = (blue * qBlue(ink) + 127) / 255;
+              }
+              row[x] = qRgb(red, green, blue);
+            }
+          }
+        }
+        return;
+      }
       const std::size_t plate = layer_edit_target_ == LayerEditTarget::ComponentCyan      ? 0
                                 : layer_edit_target_ == LayerEditTarget::ComponentMagenta ? 1
                                 : layer_edit_target_ == LayerEditTarget::ComponentYellow  ? 2
@@ -2998,7 +3053,9 @@ void CanvasWidget::draw_mask_display_overlay(QPainter& painter, const QRectF& ta
     if (active_document_channel_const() == nullptr) {
       return;
     }
-  } else if (!is_component_preview(layer_edit_target_)) {
+  } else if (!is_component_preview(layer_edit_target_) ||
+             (!is_cmyk_plate(layer_edit_target_) && channel_view_visible_count(channel_view_) > 1)) {
+    // Several color channels shown draw the composite with the hidden one zeroed instead.
     return;
   }
 

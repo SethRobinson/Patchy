@@ -4443,6 +4443,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(mask_edit_mode_chip_, &QToolButton::clicked, this, [this] {
     if (canvas_ != nullptr && canvas_->quick_mask_active()) {
       toggle_quick_mask_mode();
+    } else if (canvas_ != nullptr && (CanvasWidget::is_component_preview(canvas_->layer_edit_target()) ||
+                                      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Content &&
+                                       !channel_view_is_composite(canvas_->channel_view())))) {
+      // A view of some color channels: back to all of them.
+      set_channel_edit_target(ChannelPanel::RowKind::Composite, 0, false, true);
     } else {
       set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true);
     }
@@ -5927,6 +5932,17 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   // A Move-tool right-click on any other active leaf layer (pixel, text, smart
   // object): Free Transform, as the shape section offers it.
   canvas->set_layer_context_actions_callback([this] { return QList<QAction*>{free_transform_action_}; });
+  // A path-tool right-click on a path: the Paths panel's commands for that path
+  // (GitHub issue 396; docs/vector-commands.md, "Path context menu").
+  canvas->set_path_context_actions_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return QList<QAction*>{};
+    }
+    target_canvas_path_in_paths_panel();
+    return QList<QAction*>{path_make_selection_action_, nullptr, path_fill_action_, path_stroke_action_,
+                           nullptr, path_simplify_action_, nullptr, path_duplicate_action_,
+                           path_delete_action_};
+  });
   canvas->set_vector_preview_status_callback([this, canvas](QString message, bool notice) {
     if (canvas == canvas_) {
       refresh_vector_preview_action();
@@ -5975,6 +5991,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       pending_layer_thumbnail_refresh_ = false;
     }
     refresh_layer_thumbnails();
+    schedule_derived_channel_thumbnails();
     // Visibility changes come from many places (eyes, Alt-click solo, undo, scripts).
     refresh_merge_visible_action_state();
   });

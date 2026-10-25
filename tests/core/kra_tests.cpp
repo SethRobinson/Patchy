@@ -5,7 +5,11 @@
 #include "color/color_management.hpp"
 #include "color/rgb_profiles.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/blend_math.hpp"
+#include "core/blend_math_deep.hpp"
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
+#include "core/krita_blend_modes.hpp"
 #include "core/document_channel.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/document_flatten.hpp"
@@ -726,6 +730,82 @@ void kra_reads_corpus_if_available() {
   CHECK(failures == 0);
 }
 
+
+// Krita's own blend modes (docs/kra.md "Blend modes"): sampled pairs read off Krita 5.3's
+// render tables (layer s, backdrop d, Krita's result), the byte kernel exact and the deep
+// kernel within a level; every pair of each mode when the local tables are present.
+void kra_krita_blend_modes_match_krita() {
+  struct Sample {
+    BlendMode mode;
+    std::array<std::array<int, 3>, 7> pairs;
+  };
+  const Sample samples[] = {
+      {BlendMode::SoftLightSvg, {{{0, 0, 0}, {255, 0, 0}, {200, 40, 74}, {30, 160, 114}, {128, 128, 128}, {255, 255, 255}, {90, 250, 249}}}},
+      {BlendMode::AdditiveSubtractive, {{{0, 0, 0}, {255, 0, 255}, {200, 40, 125}, {30, 160, 115}, {128, 128, 0}, {255, 255, 0}, {90, 250, 101}}}},
+      {BlendMode::ArcTangent, {{{0, 0, 0}, {255, 0, 255}, {200, 40, 223}, {30, 160, 30}, {128, 128, 128}, {255, 255, 128}, {90, 250, 56}}}},
+      {BlendMode::GeometricMean, {{{0, 0, 0}, {255, 0, 0}, {200, 40, 89}, {30, 160, 69}, {128, 128, 128}, {255, 255, 255}, {90, 250, 150}}}},
+      {BlendMode::Allanon, {{{0, 0, 0}, {255, 0, 127}, {200, 40, 119}, {30, 160, 94}, {128, 128, 127}, {255, 255, 254}, {90, 250, 169}}}},
+      {BlendMode::Parallel, {{{0, 0, 0}, {255, 0, 0}, {200, 40, 66}, {30, 160, 50}, {128, 128, 128}, {255, 255, 255}, {90, 250, 132}}}},
+      {BlendMode::HardOverlay, {{{0, 0, 0}, {255, 0, 0}, {200, 40, 92}, {30, 160, 37}, {128, 128, 128}, {255, 255, 255}, {90, 250, 176}}}},
+      {BlendMode::Interpolation, {{{0, 0, 0}, {255, 0, 128}, {200, 40, 121}, {30, 160, 93}, {128, 128, 128}, {255, 255, 255}, {90, 250, 163}}}},
+      {BlendMode::EasyDodge, {{{0, 0, 0}, {255, 0, 255}, {200, 40, 168}, {30, 160, 166}, {128, 128, 178}, {255, 255, 255}, {90, 250, 252}}}},
+  };
+  for (const auto& sample : samples) {
+    CHECK(patchy::blend_mode_is_krita_only(sample.mode) && patchy::blend_mode_is_non_photoshop(sample.mode));
+    CHECK(!patchy::blend_mode_supported_at_depth(sample.mode, BitDepth::Float32));
+    CHECK(patchy::blend_mode_supported_at_depth(sample.mode, BitDepth::UInt16));
+    for (const auto& [s, d, expected] : sample.pairs) {
+      const auto byte = [](int v) { return static_cast<std::uint8_t>(v); };
+      const auto out = patchy::blend_rgb({byte(s), byte(s), byte(s)}, {byte(d), byte(d), byte(d)}, sample.mode);
+      if (out[0] != expected) {
+        std::cout << "  mode " << static_cast<int>(sample.mode) << " s " << s << " d " << d << ": " << int(out[0])
+                  << " vs Krita's " << expected << "\n";
+      }
+      CHECK(out[0] == expected);
+      const auto deep = patchy::blend_rgb_deep({static_cast<float>(s), static_cast<float>(s), static_cast<float>(s)},
+                                               {static_cast<float>(d), static_cast<float>(d), static_cast<float>(d)},
+                                               sample.mode, patchy::DeepDomain::Encoded);
+      CHECK(std::abs(deep[0] - static_cast<float>(expected)) <= 1.0F);
+    }
+  }
+  // The whole function against Krita's own table: local-test-fixtures/kra-mode-tables/<id>.png,
+  // Krita's merged image of make_kra_fixtures.py's table-<id> document (top half opaque).
+  const std::pair<const char*, BlendMode> tables[] = {
+      {"soft_light_svg", BlendMode::SoftLightSvg}, {"additive_subtractive", BlendMode::AdditiveSubtractive},
+      {"arc_tangent", BlendMode::ArcTangent},       {"geometric_mean", BlendMode::GeometricMean},
+      {"allanon", BlendMode::Allanon},              {"parallel", BlendMode::Parallel},
+      {"hard_overlay", BlendMode::HardOverlay},     {"interpolation", BlendMode::Interpolation},
+      {"easy_dodge", BlendMode::EasyDodge},
+  };
+  for (const auto& [id, mode] : tables) {
+    const auto path = patchy::test::local_format_fixture_path("kra-mode-tables", std::string(id) + ".png");
+    if (!std::filesystem::exists(path)) {
+      continue;
+    }
+    const auto png = decode_png(patchy::test::read_binary_file(path));
+    CHECK(png.has_value() && png->width() == 256 && png->height() >= 256);
+    if (!png.has_value()) {
+      continue;
+    }
+    int off = 0;
+    int worst = 0;
+    for (int d = 0; d < 256; ++d) {
+      for (int s = 0; s < 256; ++s) {
+        const auto out = patchy::blend_rgb({static_cast<std::uint8_t>(s), static_cast<std::uint8_t>(s),
+                                            static_cast<std::uint8_t>(s)},
+                                           {static_cast<std::uint8_t>(d), static_cast<std::uint8_t>(d),
+                                            static_cast<std::uint8_t>(d)},
+                                           mode);
+        const int delta = std::abs(static_cast<int>(out[0]) - static_cast<int>(png->pixel(s, d)[0]));
+        off += delta > 0 ? 1 : 0;
+        worst = std::max(worst, delta);
+      }
+    }
+    std::cout << "  " << id << ": " << off << " of 65536 pairs differ from Krita, worst " << worst << "\n";
+    CHECK(worst <= 1 && off <= 100);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> kra_tests() {
@@ -737,5 +817,6 @@ std::vector<patchy::test::TestCase> kra_tests() {
       {"kra_reader_refuses_hostile_and_broken_files", kra_reader_refuses_hostile_and_broken_files},
       {"kra_reads_krita_fixtures_if_available", kra_reads_krita_fixtures_if_available},
       {"kra_reads_corpus_if_available", kra_reads_corpus_if_available},
+      {"kra_krita_blend_modes_match_krita", kra_krita_blend_modes_match_krita},
   };
 }

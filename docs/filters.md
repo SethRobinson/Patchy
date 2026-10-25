@@ -72,11 +72,11 @@ The catalog generates dialog controls; existing Qt object names such as `filterA
 
 `practical_minimum`/`practical_maximum` may narrow a linked slider without narrowing the semantic range; every spin box (gallery included), normalization, recipes, and persistence keep `minimum`/`maximum`. `FilterParameterPresentation` roles (an enum; not persisted, never replacing the parameter key or value) select specialized UI/render behavior: never key off parameter key, label, unit, or filter ID instead. The center, tilt width, and iris dimension roles drive the padding remaps under Spatial scaling and bounds.
 
-Only eight catalog filter IDs are hotkey command IDs: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. Liquify uses `filter.liquify` (Ctrl+Shift+X). A catalog refactor must not silently add or remove commands.
+Only eight catalog filter IDs are hotkey command IDs: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. Liquify uses `filter.liquify` (Ctrl+Shift+X), Camera Raw Filter `filter.camera_raw_filter` (Ctrl+Shift+A). A catalog refactor must not silently add or remove commands.
 
 Catalog names are canonical English translation sources (`QObject` context); submenu and status text keep the `MainWindow` context.
 
-Liquify (Filter menu, below Filter Gallery) is outside this catalog (`docs/liquify.md`).
+Camera Raw Filter and Liquify (Filter menu, in that order below Filter Gallery) are outside this catalog ([camera-raw.md](camera-raw.md#camera-raw-filter), `docs/liquify.md`).
 
 ## Bit depth
 

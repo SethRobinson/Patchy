@@ -1305,6 +1305,15 @@ std::string_view blend_mode_descriptor_value(BlendMode mode) {
     case BlendMode::LinearAddition:
     case BlendMode::LinearSubtract:
     case BlendMode::LinearDivide:
+    case BlendMode::SoftLightSvg:
+    case BlendMode::AdditiveSubtractive:
+    case BlendMode::ArcTangent:
+    case BlendMode::GeometricMean:
+    case BlendMode::Allanon:
+    case BlendMode::Parallel:
+    case BlendMode::HardOverlay:
+    case BlendMode::Interpolation:
+    case BlendMode::EasyDodge:
       return "normal";
   }
   return "normal";

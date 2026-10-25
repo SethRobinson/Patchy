@@ -2635,12 +2635,28 @@ void MainWindow::simplify_target_path() {
     options.snap_curves_to_lines = snap->isChecked();
     return options;
   };
+  // A path with nothing to remove at this tolerance stays as it is ("never
+  // worse"), so the readout says whether a larger tolerance would help or the
+  // path is already as simple as Simplify makes it (GitHub issue 396: a
+  // 4-anchor shape looked like a dialog that did nothing).
+  const auto no_change_hint = [&](const PathSimplifyOptions& options, std::size_t anchors_before) {
+    auto loosest = options;
+    loosest.tolerance = tolerance->maximum();
+    const bool larger_helps = loosest.tolerance > options.tolerance &&
+                              simplify_vector_path(original, loosest).anchors_after < anchors_before;
+    return larger_helps ? tr("Raise Tolerance to remove points.") : tr("This path has no points to remove.");
+  };
   const auto apply_preview = [&] {
-    const auto result = simplify_vector_path(original, current_options());
+    const auto options = current_options();
+    const auto result = simplify_vector_path(original, options);
     canvas_->replace_path_edit_target(result.path, result.changed_groups);
-    readout->setText(tr("Anchors: %1 -> %2")
-                         .arg(static_cast<qulonglong>(result.anchors_before))
-                         .arg(static_cast<qulonglong>(result.anchors_after)));
+    auto text = tr("Anchors: %1 -> %2")
+                    .arg(static_cast<qulonglong>(result.anchors_before))
+                    .arg(static_cast<qulonglong>(result.anchors_after));
+    if (result.anchors_after >= result.anchors_before) {
+      text += QLatin1Char('\n') + no_change_hint(options, result.anchors_before);
+    }
+    readout->setText(text);
     refresh_paths_panel();
     refresh_layer_thumbnails();
   };
@@ -2660,8 +2676,12 @@ void MainWindow::simplify_target_path() {
   settings.setValue(QLatin1String(kSimplifyToleranceKey), final_options.tolerance);
   settings.setValue(QLatin1String(kSimplifyCornerKey), static_cast<int>(final_options.corner_angle_degrees));
   settings.setValue(QLatin1String(kSimplifySnapKey), final_options.snap_curves_to_lines);
-  push_undo_snapshot(tr("Simplify path"));
   const auto result = simplify_vector_path(original, final_options);
+  if (result.anchors_after >= result.anchors_before) {
+    statusBar()->showMessage(no_change_hint(final_options, result.anchors_before));  // no empty undo entry
+    return;
+  }
+  push_undo_snapshot(tr("Simplify path"));
   canvas_->replace_path_edit_target(result.path, result.changed_groups);
   refresh_paths_panel();
   refresh_layer_thumbnails();

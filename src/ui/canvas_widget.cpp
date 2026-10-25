@@ -387,6 +387,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
           ? layer_edit_target_
           : LayerEditTarget::Content;
   const auto restore_channel_display_mode = mask_display_mode_;
+  const auto restore_channel_view = preserve_frame_for_same_size ? channel_view_ : composite_channel_view();
   cancel_free_transform();
   if (warping_layer_) {
     reset_warp_state();
@@ -439,6 +440,9 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
       mask_display_mode_ = restore_channel_display_mode;
     }
   }
+  channel_view_ = layer_edit_target_ == LayerEditTarget::DocumentChannel
+                      ? composite_channel_view()
+                      : channel_view_for_target(restore_channel_view, channel_view_target_for(layer_edit_target_));
   if (!preserve_frame) {
     render_cache_ = QImage();
     render_cache_diagnostics_ = {};
@@ -649,6 +653,9 @@ void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
     mask_display_image_revision_ = 0;
   }
   layer_edit_target_ = target;
+  channel_view_ = target == LayerEditTarget::DocumentChannel
+                      ? composite_channel_view()
+                      : channel_view_for_target(channel_view_, channel_view_target_for(target));
   drop_point_selection_if_target_changed();
   if (target != LayerEditTarget::DocumentChannel) {
     active_document_channel_id_ = 0;
@@ -686,6 +693,7 @@ void CanvasWidget::set_document_channel_edit_target(ChannelId id, MaskDisplayMod
     clear_smart_filter_mask_edit_target();
   }
   layer_edit_target_ = LayerEditTarget::DocumentChannel;
+  channel_view_ = composite_channel_view();
   active_document_channel_id_ = id;
   mask_display_mode_ = mode == MaskDisplayMode::None ? MaskDisplayMode::Grayscale : mode;
   mask_display_image_ = QImage();
@@ -704,6 +712,63 @@ void CanvasWidget::set_component_channel_preview(LayerEditTarget component) {
     return;
   }
   set_layer_edit_target(component);
+}
+
+void CanvasWidget::set_channel_view(ChannelView view) {
+  if (view.visible == 0 || (view.visible & ~channel_view_all_bits(view.group)) != 0 || view == channel_view_) {
+    return;
+  }
+  channel_view_ = view;
+  if (is_component_preview(layer_edit_target_)) {
+    mask_display_image_ = QImage();
+    mask_display_image_revision_ = 0;
+  }
+  update();
+}
+
+ChannelView CanvasWidget::channel_view() const noexcept {
+  return channel_view_;
+}
+
+ChannelViewTarget CanvasWidget::channel_view_target_for(LayerEditTarget target) noexcept {
+  switch (target) {
+    case LayerEditTarget::ComponentRed:
+      return channel_view_target(ChannelViewGroup::Color, 0);
+    case LayerEditTarget::ComponentGreen:
+      return channel_view_target(ChannelViewGroup::Color, 1);
+    case LayerEditTarget::ComponentBlue:
+      return channel_view_target(ChannelViewGroup::Color, 2);
+    case LayerEditTarget::ComponentCyan:
+      return channel_view_target(ChannelViewGroup::Ink, 0);
+    case LayerEditTarget::ComponentMagenta:
+      return channel_view_target(ChannelViewGroup::Ink, 1);
+    case LayerEditTarget::ComponentYellow:
+      return channel_view_target(ChannelViewGroup::Ink, 2);
+    case LayerEditTarget::ComponentBlack:
+      return channel_view_target(ChannelViewGroup::Ink, 3);
+    case LayerEditTarget::Content:
+    case LayerEditTarget::Mask:
+    case LayerEditTarget::VectorMask:
+    case LayerEditTarget::DocumentChannel:
+    case LayerEditTarget::SmartFilterMask:
+      break;
+  }
+  return composite_channel_target();
+}
+
+CanvasWidget::LayerEditTarget CanvasWidget::layer_edit_target_for(ChannelViewTarget target) noexcept {
+  if (target.composite) {
+    return LayerEditTarget::Content;
+  }
+  if (target.group == ChannelViewGroup::Color) {
+    return target.index == 0   ? LayerEditTarget::ComponentRed
+           : target.index == 1 ? LayerEditTarget::ComponentGreen
+                               : LayerEditTarget::ComponentBlue;
+  }
+  return target.index == 0   ? LayerEditTarget::ComponentCyan
+         : target.index == 1 ? LayerEditTarget::ComponentMagenta
+         : target.index == 2 ? LayerEditTarget::ComponentYellow
+                             : LayerEditTarget::ComponentBlack;
 }
 
 std::optional<ChannelId> CanvasWidget::active_document_channel_id() const noexcept {

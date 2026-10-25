@@ -3,6 +3,7 @@
 #include "core/document_path.hpp"
 
 #include <QPixmap>
+#include <QString>
 #include <QWidget>
 
 #include <functional>
@@ -17,6 +18,18 @@ class QObject;
 class QPoint;
 
 namespace patchy::ui {
+
+// Why each Paths panel row command would refuse right now (a translated status
+// sentence; empty = it would run). The host's own checks, so the panel greys
+// out a command instead of letting it be clicked only to refuse (GitHub issue
+// 396).
+struct PathCommandRefusals {
+  QString fill;
+  QString stroke;
+  QString make_selection;
+  QString duplicate;
+  QString remove;
+};
 
 // The Paths dock (tabified with Channels): saved paths, the work path (italic,
 // sorted last), and a transient row for the active layer's shape or vector
@@ -46,6 +59,7 @@ public:
   using SaveWorkPathCallback = std::function<void()>;
   using LoadSelectionCallback = std::function<void(RowKind, DocumentPathId)>;
   using ReorderCallback = std::function<void(std::vector<DocumentPathId>)>;
+  using CommandRefusalsProvider = std::function<PathCommandRefusals()>;
 
   explicit PathsPanel(QWidget* parent = nullptr);
 
@@ -60,6 +74,12 @@ public:
   void set_save_work_path_callback(SaveWorkPathCallback callback);
   void set_load_selection_callback(LoadSelectionCallback callback);
   void set_reorder_callback(ReorderCallback callback);
+  void set_command_refusals_provider(CommandRefusalsProvider provider);
+  // Re-reads the provider and the selected row into the commands' enabled
+  // state and disabled reasons (kActionDisabledReasonProperty). Call when
+  // what the provider checks changes (the active layer, its locks) and right
+  // before a menu shows the commands.
+  void refresh_action_states();
 
   [[nodiscard]] std::optional<Row> selected_row() const;
   // Starts an inline rename of the saved path's row (used right after the work
@@ -82,7 +102,6 @@ private:
   void handle_rows_moved();
   [[nodiscard]] std::vector<DocumentPathId> saved_path_order() const;
   void show_context_menu(const QPoint& position);
-  void refresh_action_states();
 
   QListWidget* list_{nullptr};
   QAction* new_path_action_{nullptr};
@@ -100,6 +119,7 @@ private:
   SaveWorkPathCallback save_work_path_callback_;
   LoadSelectionCallback load_selection_callback_;
   ReorderCallback reorder_callback_;
+  CommandRefusalsProvider command_refusals_provider_;
   std::vector<Row> committed_rows_;
   bool updating_{false};
   bool document_available_{false};

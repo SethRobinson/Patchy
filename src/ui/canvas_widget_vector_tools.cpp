@@ -19,6 +19,7 @@
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_types.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
@@ -1011,8 +1012,13 @@ void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
     return;
   }
   cancel_path_transform();
+  const auto* previous_target = path_edit_target_path();
   active_document_path_ = id;
-  clear_path_edit_selection();
+  // Targeting the path the tools already edit (the work path they fell back
+  // to) keeps its point selection.
+  if (path_edit_target_path() != previous_target) {
+    clear_path_edit_selection();
+  }
   update();
 }
 
@@ -2648,6 +2654,13 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
       path_transform_active_) {
     return false;
   }
+  if (path_edit_target_path() == nullptr) {
+    return false;
+  }
+  // The host's path commands, fetched first: the host may target this path in
+  // the Paths panel so the commands that act on the panel's row are enabled.
+  const auto host_actions =
+      path_context_actions_callback_ ? path_context_actions_callback_() : QList<QAction*>{};
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
     return false;
@@ -2663,6 +2676,7 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
 
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("canvasPathContextMenu"));
+  install_disabled_reason_tooltips(menu);  // why a host command is greyed out
   const auto add_edit_action = [this, &menu, hit](const QString& text, const char* object_name,
                                                   bool enabled, PenHoverAction action) {
     auto* menu_action = menu.addAction(text);
@@ -2704,6 +2718,20 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
   transform_action->setObjectName(QStringLiteral("pathMenuFreeTransformAction"));
   transform_action->setEnabled(select_tool && !path->subpaths.empty());
   connect(transform_action, &QAction::triggered, this, [this] { begin_path_transform(); });
+  // The Paths panel's own QActions, so hotkeys and enable state stay in step;
+  // nullptr is a separator.
+  bool host_section_open = false;
+  for (auto* action : host_actions) {
+    if (action == nullptr) {
+      host_section_open = false;
+    } else if (action->isVisible()) {
+      if (!host_section_open) {
+        menu.addSeparator();
+        host_section_open = true;
+      }
+      menu.addAction(action);
+    }
+  }
   menu.exec(global_position);
   update_tool_cursor();
   update();

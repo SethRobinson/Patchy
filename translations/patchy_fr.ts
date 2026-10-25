@@ -448,28 +448,40 @@
         <translation>Opacité :</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Utiliser le calque précédent pour créer un masque d&apos;écrêtage</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Aucune couleur neutre pour le mode actuel</translation>
+        <source>White</source>
+        <translation>Blanc</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Remplir avec la couleur neutre (blanc)</translation>
+        <source>Black</source>
+        <translation>Noir</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Remplir avec la couleur neutre (noir)</translation>
+        <source>50% gray</source>
+        <translation>Gris 50 %</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Remplir avec la couleur neutre (gris 50 %)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Écrêter sur le calque inférieur</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Couleur neutre</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Remplir le nouveau calque avec la couleur qui laisse l&apos;image inchangée dans ce mode</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Ce mode n&apos;a pas de couleur neutre</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Remplissage :</translation>
     </message>
 </context>
 <context>
@@ -12570,6 +12582,130 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Image GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 colonnes</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 colonnes</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 colonnes</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Grille 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Grille 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Grille 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 colonnes, gouttière de 20 px</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Filtre Camera Raw</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>Neutraliser la couleur moyenne du calque</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>Réchauffe ou refroidit le calque. 0 conserve ses couleurs.</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>Décale le calque vers le magenta ou le vert. 0 conserve ses couleurs.</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>Calque : %1 x %2, %3 bits par couche</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>S&apos;applique à l&apos;intérieur de la sélection.</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>Le profil, le dématriçage et la réduction du bruit exigent les données brutes du capteur : ils se trouvent dans Développer le RAW à l&apos;ouverture d&apos;un fichier raw d&apos;appareil photo.</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>Désactivez pour comparer avec le calque avant le filtre</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>Affinage...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>Mise à jour de l&apos;aperçu rapide...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>Maj-clic neutralise la couleur moyenne. %ALT%-clic la réinitialise.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>Application...</translation>
+    </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>Lumière tamisée (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>Additif-soustractif</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>Arc tangente</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>Moyenne géométrique</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>Parallèle</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>Incrustation dure</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Interpolation</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>Densité douce -</translation>
+    </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>les données vectorielles ne sont pas du SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>les formes ont été mises à l’échelle du canevas</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>les données vectorielles ne contiennent aucun dessin</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14344,10 +14480,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>Sélectionnez pour un affichage en niveaux de gris. Cochez pour afficher une incrustation colorée.</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>%CTRL%+clic pour charger cette couche comme sélection.</translation>
     </message>
@@ -14398,6 +14530,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%-clic charge comme sélection les zones sans encre de cette plaque.</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>Sélectionnez pour un affichage en niveaux de gris. Cliquez sur l&apos;œil pour afficher une incrustation colorée.</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>Afficher ou masquer cette couche en incrustation colorée</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>Afficher toutes les couches de couleur</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>Afficher ou masquer cette couche. Au moins une couche reste visible.</translation>
     </message>
 </context>
 <context>
@@ -23612,10 +23760,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Taille écran</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Taille de l&apos;échantillon :</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Échantillon ponctuel</translation>
     </message>
@@ -25422,6 +25566,114 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Afficher l&apos;avis des Informations sur le fichier concernant les données que vous ne souhaitez peut-être pas partager</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Calque :</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Gouttière :</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Marge supérieure :</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Inférieure :</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Marge gauche :</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Droite :</translation>
+    </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Filtre Camera &amp;Raw...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>Ajuster la balance des blancs, l&apos;exposition, les tons et la couleur du calque actif</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Filtre Camera Raw</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>Affichage des couches : %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>Affichage des couches : %1 (cliquez pour quitter)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>Cliquez pour afficher de nouveau toutes les couches de couleur.</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>Afficher la couche composite</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>Afficher la couche rouge ou cyan</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>Afficher la couche verte ou magenta</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>Afficher la couche bleue ou jaune</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>Afficher la couche noire</translation>
+    </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>Augmentez la tolérance pour supprimer des points.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>Ce tracé n&apos;a aucun point à supprimer.</translation>
+    </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Masquer ce calque</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Afficher ce calque</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Afficher/masquer tous les autres calques</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Afficher tous les calques</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Masquer tous les calques</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Tous les calques affichés</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Tous les calques masqués</translation>
     </message>
 </context>
 <context>
@@ -27391,6 +27643,22 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye : width et height doivent valoir au moins 1.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter : passez un objet de réglages.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter : réglage inconnu %1.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter : %1 doit être un nombre.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter nécessite un calque de pixels RVB.</translation>
     </message>
 </context>
 <context>

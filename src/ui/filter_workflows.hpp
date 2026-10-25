@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
+#include "core/photo_develop.hpp"
 #include "core/smart_filter.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/canvas_types.hpp"
@@ -259,5 +260,9 @@ void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const Filt
                                     HueSaturationSettings settings, const FilterProgress* progress = nullptr);
 void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
                                    ColorBalanceSettings settings, const FilterProgress* progress = nullptr);
+// Filter > Camera Raw Filter (docs/camera-raw.md): PhotoDeveloper on every selected pixel at
+// the buffer's own depth, a soft selection blended by its coverage; alpha is left untouched.
+void apply_camera_raw_filter_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
+                                       const PhotoDevelopParams& params, const FilterProgress* progress = nullptr);
 
 }  // namespace patchy::ui

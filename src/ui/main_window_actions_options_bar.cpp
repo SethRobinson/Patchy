@@ -518,16 +518,25 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   }
   // The six feature Distribute commands follow as buttons, like Photoshop's bar
-  // (GitHub issue 172); the two spacing modes stay in the gear menu below.
+  // (GitHub issue 172), vertical modes first in Photoshop's order (GitHub issue 405);
+  // the two spacing modes stay in the gear menu below.
   add_option_separator({CanvasTool::Move});
   {
-    const char* const distribute_button_names[] = {"moveDistributeLeftButton",   "moveDistributeHCenterButton",
-                                                   "moveDistributeRightButton",  "moveDistributeTopButton",
-                                                   "moveDistributeVCenterButton", "moveDistributeBottomButton"};
-    for (std::size_t i = 0; i < std::size(distribute_button_names); ++i) {
-      if (layer_distribute_actions_[i] != nullptr) {
-        add_option_action_mirror(layer_distribute_actions_[i], QLatin1String(distribute_button_names[i]),
-                                 {CanvasTool::Move});
+    struct DistributeButton {
+      DistributeMode mode;
+      const char* object_name;
+    };
+    const DistributeButton distribute_buttons[] = {
+        {DistributeMode::Top, "moveDistributeTopButton"},
+        {DistributeMode::VerticalCenter, "moveDistributeVCenterButton"},
+        {DistributeMode::Bottom, "moveDistributeBottomButton"},
+        {DistributeMode::Left, "moveDistributeLeftButton"},
+        {DistributeMode::HorizontalCenter, "moveDistributeHCenterButton"},
+        {DistributeMode::Right, "moveDistributeRightButton"},
+    };
+    for (const auto& button : distribute_buttons) {
+      if (auto* action = layer_distribute_actions_[static_cast<std::size_t>(button.mode)]; action != nullptr) {
+        add_option_action_mirror(action, QLatin1String(button.object_name), {CanvasTool::Move});
       }
     }
   }
@@ -3247,10 +3256,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                   QStringLiteral("eyedropperSetsBackgroundButton"), true);
   add_option_separator({CanvasTool::Eyedropper});
 
-  // Photoshop's Eyedropper options (GitHub issue 151): Sample Size averages a
-  // square around the click, Sample picks from the merged document or the
-  // active layer alone. The paint tools' Alt eyedropper uses the same settings.
-  add_option_label(QT_TR_NOOP("Sample Size:"), {CanvasTool::Eyedropper});
+  // Photoshop's Eyedropper options (GitHub issue 151): Size averages a square
+  // around the click, Layer picks from the merged document or the active layer
+  // alone (labels shortened in GitHub issue 409). The paint tools' Alt
+  // eyedropper uses the same settings.
+  add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Eyedropper});
   eyedropper_sample_size_combo_ = new QComboBox(toolbar);
   eyedropper_sample_size_combo_->setObjectName(QStringLiteral("eyedropperSampleSizeCombo"));
   static constexpr std::array<int, 7> kEyedropperSampleSizes{1, 3, 5, 11, 31, 51, 101};
@@ -3280,7 +3290,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     save_tool_settings();
   });
 
-  add_option_label(QT_TR_NOOP("Sample:"), {CanvasTool::Eyedropper});
+  add_option_label(QT_TR_NOOP("Layer:"), {CanvasTool::Eyedropper});
   eyedropper_sample_layers_combo_ = new QComboBox(toolbar);
   eyedropper_sample_layers_combo_->setObjectName(QStringLiteral("eyedropperSampleLayersCombo"));
   // Item data is the settings token (GitHub issue 321); the language refresh below

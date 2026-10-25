@@ -7,6 +7,7 @@
 #include "color/color_management.hpp"
 
 #include "core/artboard.hpp"
+#include "core/channel_view.hpp"
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/layer_alignment.hpp"
@@ -286,6 +287,13 @@ public:
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
   void set_document_channel_edit_target(ChannelId id, MaskDisplayMode mode = MaskDisplayMode::Grayscale);
   void set_component_channel_preview(LayerEditTarget component);
+  // The color channels the canvas shows (docs/channels.md, "Channel visibility"): a view
+  // mask over the cached composite, never pixels. Target changes keep it consistent
+  // through channel_view_for_target.
+  void set_channel_view(ChannelView view);
+  [[nodiscard]] ChannelView channel_view() const noexcept;
+  [[nodiscard]] static ChannelViewTarget channel_view_target_for(LayerEditTarget target) noexcept;
+  [[nodiscard]] static LayerEditTarget layer_edit_target_for(ChannelViewTarget target) noexcept;
   [[nodiscard]] std::optional<ChannelId> active_document_channel_id() const noexcept;
   [[nodiscard]] bool editing_document_channel() const noexcept;
   [[nodiscard]] bool document_channel_is_editable() const noexcept;
@@ -1396,6 +1404,11 @@ public:
   // Move outline of the active layer that is not a shape or a group (Free
   // Transform); same contract.
   void set_layer_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // The path commands the host appends to the path tools' right-click menu
+  // (Fill Path, Stroke Path, Make Selection, ...; GitHub issue 396); same
+  // contract. Called while the menu is built, so the host may target the
+  // menu's path in the Paths panel first.
+  void set_path_context_actions_callback(std::function<QList<QAction*>()> callback);
   // Blocking refusals (the tool action did NOT happen) report through this
   // callback so the host can present them as errors; unset, they fall back to
   // the plain status callback.
@@ -2968,6 +2981,10 @@ private:
   std::vector<std::uint8_t> plate_inks_;
   qint64 plate_inks_source_key_{0};
   std::shared_ptr<const CmykWorkingSpace> plate_inks_space_;
+  ChannelView channel_view_{};
+  // Each plate's ink alone on paper per ink level, for views of several plates.
+  std::array<std::array<QRgb, 256>, 4> plate_ink_colors_{};
+  std::shared_ptr<const CmykWorkingSpace> plate_ink_colors_space_;
   QColor primary_color_{Qt::black};
   QColor secondary_color_{Qt::white};
   // Palette-mode snap cache; rebuilt lazily when the document palette changes
@@ -3882,6 +3899,7 @@ private:
   std::function<QList<QAction*>()> zoom_tool_context_actions_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;
   std::function<QList<QAction*>()> layer_context_actions_callback_;
+  std::function<QList<QAction*>()> path_context_actions_callback_;
   bool vector_preview_enabled_{false};
   std::optional<std::pair<LayerId, QTransform>> vector_preview_transform_key_;
   // The transform scene's document, kept for the pixel grid's tones: the render cache still

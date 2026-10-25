@@ -89,7 +89,9 @@ const ThemePalette& dark_palette() {
       // Tool palette.
       .tool_palette_bg = rgb(0x535353),
       .tool_palette_border = rgb(0x202020),
-      .tool_palette_separator = rgb(0x616161),
+      // The group separators must read at a glance against the palette (GitHub issue
+      // 406) while staying quieter than the near-white tool icons.
+      .tool_palette_separator = rgb(0x969696),
 
       // Options bar.
       .options_bar_bg = rgb(0x3d3d3d),
@@ -666,6 +668,9 @@ const ThemePalette& light_palette() {
     light.field_inset_border = rgb(0xc6c6c6);
     light.toolbar_border = rgb(0xcbcbcb);
     light.tool_palette_border = rgb(0xa9a9a9);
+    // The flip lands the separator on the surface band, where a 1 px line all but
+    // disappears (issue 406); a mid gray still stays well short of the icons.
+    light.tool_palette_separator = rgb(0x8c8c8c);
     light.panel_border_strong = rgb(0xcdcdcd);
     light.panel_title_border_bottom = rgb(0xd5d6d8);
     light.list_surface_border = rgb(0xd9d9d9);

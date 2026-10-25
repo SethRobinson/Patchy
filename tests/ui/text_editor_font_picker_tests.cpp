@@ -32,6 +32,7 @@
 #include <QDropEvent>
 #include <QFile>
 #include <QFileInfo>
+#include <QFocusEvent>
 #include <QFont>
 #include <QFontComboBox>
 #include <QFontDatabase>
@@ -42,6 +43,7 @@
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTextFragment>
+#include <QSignalBlocker>
 #include <QSizeGrip>
 #include <QMouseEvent>
 #include <QMimeData>
@@ -820,6 +822,86 @@ void ui_text_font_picker_popup_filters_and_commits() {
   CHECK(find_font_picker_popup() == nullptr);
   CHECK(picker->currentFont().family() == QStringLiteral("Verdana"));
   CHECK(font_changes == 1);
+}
+
+// GitHub issue 416: the closed font box showed the END of a long family name ("...ew Roman")
+// because QLineEdit::setText parks the cursor at the end. Every way the name lands (code
+// setting it under a signal blocker as a layer switch does, a popup pick, focus leaving after
+// typing) must leave the start of the name visible; typing itself keeps its cursor.
+void ui_text_font_picker_shows_name_from_start() {
+  register_test_fonts(TestFontRole::TimesNewRoman);
+  register_test_fonts(TestFontRole::Verdana);
+  const auto family = QStringLiteral("Times New Roman");
+  if (!QFontDatabase::families().contains(family)) {
+    patchy::test::skip("Times New Roman unavailable on this machine");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  CHECK(picker != nullptr);
+  auto* edit = picker->lineEdit();
+  CHECK(edit != nullptr);
+  // Narrow enough that the name cannot fit, so a scrolled field really hides its start.
+  picker->setFixedWidth(100);
+  QApplication::processEvents();
+  CHECK(edit->fontMetrics().horizontalAdvance(family) > edit->contentsRect().width());
+
+  const auto shows_start = [edit, &family] {
+    edit->grab();  // QLineEdit settles its horizontal scroll while painting
+    return edit->text() == family && edit->cursorPosition() == 0 &&
+           edit->inputMethodQuery(Qt::ImCursorRectangle).toRect().center().x() < edit->width() / 3;
+  };
+
+  // Set by code under a signal blocker, as the options bar does when the active layer changes.
+  {
+    const QSignalBlocker blocker(picker);
+    picker->setCurrentFont(QFont(QStringLiteral("Verdana")));
+    picker->setCurrentFont(QFont(family));
+  }
+  QApplication::processEvents();
+  if (auto* bar = picker->parentWidget(); bar != nullptr) {
+    // Issue shot: the Font label, the font box and the style box.
+    QRect area = picker->geometry().adjusted(-48, -4, 4, 4);
+    if (const auto* style = bar->findChild<QComboBox*>(QStringLiteral("textStyleCombo")); style != nullptr) {
+      area = area.united(style->geometry().adjusted(0, -4, 4, 4));
+    }
+    save_image_artifact("issue416_font_box", bar->grab(area.intersected(bar->rect())).toImage());
+  }
+  CHECK(shows_start());
+
+  // Typing keeps the cursor after what was typed; focus leaving shows the start again.
+  edit->setFocus(Qt::OtherFocusReason);
+  edit->selectAll();
+  QTest::keyClicks(edit, QStringLiteral("Ti"));
+  QApplication::processEvents();
+  CHECK(edit->cursorPosition() == 2);
+  picker->setCurrentFont(QFont(family));
+  edit->setCursorPosition(edit->text().size());
+  QFocusEvent focus_out(QEvent::FocusOut, Qt::TabFocusReason);
+  QApplication::sendEvent(picker, &focus_out);
+  QApplication::processEvents();
+  CHECK(shows_start());
+
+  // A pick from the popup.
+  {
+    const QSignalBlocker blocker(picker);
+    picker->setCurrentFont(QFont(QStringLiteral("Verdana")));
+  }
+  picker->showPopup();
+  QApplication::processEvents();
+  auto* popup = find_font_picker_popup();
+  CHECK(popup != nullptr);
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  CHECK(search != nullptr);
+  QTest::keyClicks(search, family);
+  QApplication::processEvents();
+  QTest::keyClick(search, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(find_font_picker_popup() == nullptr);
+  CHECK(picker->currentFont().family() == family);
+  CHECK(shows_start());
 }
 
 void ui_text_font_picker_rows_render_in_their_own_font() {
@@ -2334,7 +2416,8 @@ void ui_text_placeholder_survives_panels_and_warp() {
 }
 
 // GitHub issue 173: Preferences > Tools > "Use Esc to commit text" (input/escapeCommitsText,
-// default off). Off, Esc cancels the session; on, Esc commits it like Ctrl+Enter.
+// default on since issue 415: a clean profile shows it ticked). On, Esc commits the session like
+// Ctrl+Enter; off, Esc cancels it.
 void ui_text_escape_commits_preference() {
   SettingsValueRestorer restore_escape(QStringLiteral("input/escapeCommitsText"));
   {
@@ -2392,22 +2475,8 @@ void ui_text_escape_commits_preference() {
     CHECK(patchy::ui::app_settings().value(QStringLiteral("input/escapeCommitsText"), !on).toBool() == on);
   };
 
-  // Default off: Esc cancels and the provisional layer goes away.
+  // Default on (the key is absent): Esc commits the typed text.
   const auto before_cancel = layer_count();
-  {
-    auto* editor = open_point_text_session(window, *canvas, QPoint(40, 60));
-    const bool opened = editor != nullptr;
-    if (opened) {
-      editor->setPlainText(QStringLiteral("Dropped"));
-      send_key(*editor, Qt::Key_Escape);
-      process_events_for(100);
-    }
-    CHECK(opened);
-  }
-  CHECK(live_editor() == nullptr);
-  CHECK(layer_count() == before_cancel);
-
-  set_preference(true);
   {
     auto* editor = open_point_text_session(window, *canvas, QPoint(40, 160));
     const bool opened = editor != nullptr;
@@ -2437,12 +2506,13 @@ void ui_text_escape_commits_preference() {
   CHECK(live_editor() == nullptr);
   CHECK(layer_count() == before_cancel + 1);
 
+  // Off (the dialog showed the default ticked): Esc cancels and the provisional layer goes away.
   set_preference(false);
   {
     auto* editor = open_point_text_session(window, *canvas, QPoint(40, 360));
     const bool opened = editor != nullptr;
     if (opened) {
-      editor->setPlainText(QStringLiteral("Dropped again"));
+      editor->setPlainText(QStringLiteral("Dropped"));
       send_key(*editor, Qt::Key_Escape);
       process_events_for(100);
     }
@@ -2450,6 +2520,22 @@ void ui_text_escape_commits_preference() {
   }
   CHECK(live_editor() == nullptr);
   CHECK(layer_count() == before_cancel + 1);
+
+  // And on again: Esc commits.
+  set_preference(true);
+  {
+    auto* editor = open_point_text_session(window, *canvas, QPoint(40, 60));
+    const bool opened = editor != nullptr;
+    if (opened) {
+      editor->setPlainText(QStringLiteral("Kept again"));
+      send_key(*editor, Qt::Key_Escape);
+      process_events_for(150);
+    }
+    CHECK(opened);
+  }
+  CHECK(live_editor() == nullptr);
+  CHECK(layer_count() == before_cancel + 2);
+  CHECK(active_layer_text(window) == QStringLiteral("Kept again"));
 }
 
 // GitHub issue 387: re-opening a text layer and committing it with nothing changed adds no
@@ -3357,6 +3443,7 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
       {"ui_text_tool_click_creates_provisional_layer", ui_text_tool_click_creates_provisional_layer},
       {"ui_text_options_bar_accept_cancel_buttons", ui_text_options_bar_accept_cancel_buttons},
       {"ui_text_font_picker_popup_filters_and_commits", ui_text_font_picker_popup_filters_and_commits},
+      {"ui_text_font_picker_shows_name_from_start", ui_text_font_picker_shows_name_from_start},
       {"ui_text_font_picker_rows_render_in_their_own_font", ui_text_font_picker_rows_render_in_their_own_font},
       {"ui_text_font_picker_preview_shows_supported_scripts", ui_text_font_picker_preview_shows_supported_scripts},
       {"ui_text_font_picker_popup_resizes_and_persists", ui_text_font_picker_popup_resizes_and_persists},
