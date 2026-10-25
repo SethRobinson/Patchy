@@ -19,6 +19,7 @@
 #include <QStringList>
 #include <QWidget>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -46,6 +47,10 @@ struct PanelSpec {
   int expanded_maximum_height{QWIDGETSIZE_MAX};
   // The height an expand asks for (0: the floor).
   int preferred_height{0};
+  // When set and above 0, the height an expand asks for is the title row (and tab bar)
+  // plus what it returns, in place of preferred_height: a panel sized to its content
+  // (the Color panel's slider views). Asked each time, so it sees the current style.
+  std::function<int()> preferred_content_height;
 };
 
 class PanelColumn final : public QWidget {
@@ -104,6 +109,11 @@ public:
   int lower_floors(int excess, int keep = 48);
   // Puts every section's floor back to its spec (Reset Panels, a taller screen).
   void restore_floors();
+  // The panel's preferred height changed (its preferred_content_height answers
+  // differently). When the panel is open, expanded and in front, its section takes the
+  // new height at once: a shorter one hands the difference to its neighbors, a taller
+  // one takes it from them down to their floors.
+  void refit_panel_height(const QString& id);
 
   // The sections top to bottom, each named by its first panel's id (the tab group by
   // its first tab, "layersDock" until its tabs move), closed sections included.
@@ -179,6 +189,7 @@ private:
   void apply_section_state(Section& section);
   void update_section_visibility(Section& section);
   void grant_preferred_height(Section& section);
+  void fit_section_to_preferred(Section& section);
   void settle_sizes(const Section& changed);
   [[nodiscard]] int collapsed_height(const Section& section) const;
   [[nodiscard]] int section_floor(const Section& section) const;

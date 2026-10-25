@@ -567,7 +567,9 @@ int PanelColumn::section_floor(const Section& section) const {
 int PanelColumn::section_preferred(const Section& section) const {
   const auto& spec = section.front()->spec;
   const auto floor = std::max(section_floor(section), section.widget->minimumSizeHint().height());
-  return std::clamp(std::max(spec.preferred_height, floor), floor, spec.expanded_maximum_height);
+  const auto content = spec.preferred_content_height ? spec.preferred_content_height() : 0;
+  const auto preferred = content > 0 ? collapsed_height(section) + content : spec.preferred_height;
+  return std::clamp(std::max(preferred, floor), floor, spec.expanded_maximum_height);
 }
 
 void PanelColumn::apply_section_state(Section& section) {
@@ -637,6 +639,38 @@ void PanelColumn::grant_preferred_height(Section& section) {
     }
   }
   splitter_->setSizes(sizes);
+}
+
+void PanelColumn::refit_panel_height(const QString& id) {
+  auto* target = page(id);
+  auto* section = section_of(id);
+  if (target == nullptr || section == nullptr) {
+    return;
+  }
+  if (section->expanded && section->front() == target && section->widget->isVisibleTo(this)) {
+    fit_section_to_preferred(*section);
+  }
+}
+
+void PanelColumn::fit_section_to_preferred(Section& section) {
+  if (!isVisible() || preferred_heights_pending_) {
+    return;
+  }
+  const auto sizes = splitter_->sizes();
+  const auto index = section_index(&section);
+  if (index < 0 || index >= sizes.size()) {
+    return;
+  }
+  const auto want = section_preferred(section);
+  if (sizes[index] <= want) {
+    grant_preferred_height(section);
+    return;
+  }
+  // Shorter: capped at its new height for one settle, the section hands the difference
+  // to the nearest expanded sections as a collapse does.
+  section.widget->setMaximumHeight(want);
+  settle_sizes(section);
+  section.widget->setMaximumHeight(section.front()->spec.expanded_maximum_height);
 }
 
 void PanelColumn::settle_sizes(const Section& changed) {

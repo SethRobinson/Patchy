@@ -1,23 +1,37 @@
 #pragma once
 
 // The right column's Color panel (docs/right-docks.md, "Color panel"; GitHub issue 365):
-// the foreground/background pair with its swap and default glyphs, a saturation/value
-// field and a hue strip. The field shows the foreground color. A click or drag sets the
-// foreground; with Alt (Option on macOS) held at the press it sets the background, for
-// the whole drag, as the Pick tool's Alt-click does. MainWindow applies each pick and
-// pushes every color change back through set_colors.
+// the foreground/background pair with its swap and default glyphs, and one of three
+// views picked from the menu button under the pair (GitHub issue 404): the Hue Cube (a
+// saturation/value field and a hue strip), RGB Sliders or HSB Sliders. Every view shows
+// and edits the foreground. In the cube a click or drag sets the foreground; with Alt
+// (Option on macOS) held at the press it sets the background, for the whole drag, as the
+// Pick tool's Alt-click does. A slider or its number sets the foreground. MainWindow
+// applies each pick and pushes every color change back through set_colors.
 
 #include "ui/color_field_widgets.hpp"
 
 #include <QColor>
+#include <QString>
 #include <QWidget>
 
+#include <array>
+#include <optional>
+
 class QAction;
+class QActionGroup;
 class QEvent;
+class QLabel;
+class QMenu;
+class QSpinBox;
+class QStackedWidget;
+class QToolButton;
+class QVBoxLayout;
 
 namespace patchy::ui {
 
 class BackgroundPickCursor;
+class ColorChannelTrack;
 class ColorWellSwatch;
 class ColorWellGlyphButton;
 
@@ -25,10 +39,27 @@ class ColorDockPanel final : public QWidget, public HsvFieldSource {
   Q_OBJECT
 
 public:
+  enum class View { HueCube, RgbSliders, HsbSliders };
+  Q_ENUM(View)
+  // Red, Green and Blue are 0..255, Hue 0..359 degrees, Saturation and Brightness
+  // 0..100 percent.
+  enum class Channel { Red, Green, Blue, Hue, Saturation, Brightness };
+
   ColorDockPanel(QAction* swap_colors, QAction* default_colors, QWidget* parent = nullptr);
 
   // Shows the current pair. Cheap: it stores the colors and repaints only what changed.
   void set_colors(QColor foreground, QColor background);
+
+  [[nodiscard]] View view() const noexcept { return view_; }
+  // Shows `view` and checks its menu entry; emits view_changed when it changes.
+  void set_view(View view);
+  // The settings value for a view ("hueCube", "rgbSliders", "hsbSliders"; persisted,
+  // never renamed) and back (nullopt for anything else).
+  [[nodiscard]] static QString view_token(View view);
+  [[nodiscard]] static std::optional<View> view_from_token(const QString& token);
+  // The panel's height for the current view, margins included, when the view has a
+  // natural height (the slider views); 0 for the Hue Cube, which fills what it gets.
+  [[nodiscard]] int fitted_height() const;
 
   [[nodiscard]] ColorWellSwatch* foreground_chip() const noexcept { return foreground_chip_; }
   [[nodiscard]] ColorWellSwatch* background_chip() const noexcept { return background_chip_; }
@@ -36,6 +67,21 @@ public:
   [[nodiscard]] HueSliderWidget* hue_strip() const noexcept { return hue_strip_; }
   [[nodiscard]] BackgroundPickCursor* field_cursor() const noexcept { return field_cursor_; }
   [[nodiscard]] BackgroundPickCursor* hue_strip_cursor() const noexcept { return hue_strip_cursor_; }
+  [[nodiscard]] QToolButton* view_button() const noexcept { return view_button_; }
+  [[nodiscard]] QAction* view_action(View view) const;
+  [[nodiscard]] QWidget* channel_track(Channel channel) const;
+  [[nodiscard]] QSpinBox* channel_spin(Channel channel) const;
+
+  // The foreground in a channel's own range, as its slider and number show it.
+  [[nodiscard]] int channel_value(Channel channel) const;
+  [[nodiscard]] static int channel_maximum(Channel channel);
+  // The color a channel's track shows at `level`, the other channels held.
+  [[nodiscard]] QColor channel_color(Channel channel, int level) const;
+  // Sets one channel of the foreground and emits the pick.
+  void set_channel(Channel channel, int level);
+  // A press on a channel track: until its release the canvas's answer does not move it.
+  void begin_channel_drag();
+  void end_channel_drag();
 
   // HsvFieldSource: the foreground's hue, saturation and value.
   [[nodiscard]] int hue() const override { return hue_; }
@@ -47,28 +93,49 @@ public:
   void set_hue_from_point(QPoint point, QSize size) override;
 
 signals:
-  // A pick in the field or the hue strip, on the press and on every move of its drag.
+  // A pick in the field, the hue strip or a slider, on the press and on every move of
+  // its drag, and a number edit.
   void color_picked(QColor color, bool background);
+  // The user (or set_view) picked another view.
+  void view_changed(patchy::ui::ColorDockPanel::View view);
 
 protected:
   void changeEvent(QEvent* event) override;
 
 private:
+  static constexpr int kChannelCount = 6;
+
+  QWidget* build_slider_page(Channel first);
   void retranslate();
   void adopt_foreground(QColor color);
+  void produce_foreground(QColor color);
+  void refresh_channel_views();
   void emit_pick(QColor color);
 
   ColorWellSwatch* foreground_chip_{nullptr};
   ColorWellSwatch* background_chip_{nullptr};
   ColorWellGlyphButton* swap_{nullptr};
   ColorWellGlyphButton* default_{nullptr};
+  QVBoxLayout* well_column_{nullptr};
+  QToolButton* view_button_{nullptr};
+  QMenu* view_menu_{nullptr};
+  QActionGroup* view_group_{nullptr};
+  std::array<QAction*, 3> view_actions_{};
+  QStackedWidget* views_{nullptr};
   ColorPlaneWidget* field_{nullptr};
   HueSliderWidget* hue_strip_{nullptr};
   BackgroundPickCursor* field_cursor_{nullptr};
   BackgroundPickCursor* hue_strip_cursor_{nullptr};
+  std::array<QLabel*, kChannelCount> channel_labels_{};
+  std::array<ColorChannelTrack*, kChannelCount> channel_tracks_{};
+  std::array<QSpinBox*, kChannelCount> channel_spins_{};
+  View view_{View::HueCube};
   int hue_{0};
   int saturation_{0};
   int value_{0};
+  // The foreground as RGB: the RGB sliders edit it directly, never through HSV, whose
+  // 8-bit round trip can move a channel by one.
+  QColor rgb_{Qt::black};
   // The foreground this panel last produced: when the canvas hands the same color
   // back, the field keeps its own hue and saturation rather than re-deriving them
   // through RGB, which would move the crosshair under the pointer.

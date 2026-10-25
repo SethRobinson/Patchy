@@ -14371,6 +14371,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>클릭하거나 드래그하여 전경색을 설정합니다. %ALT%-클릭하거나 %ALT%-드래그하여 배경색을 설정합니다.</translation>
     </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>색상 패널 보기</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>색조 큐브</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>RGB 슬라이더</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>HSB 슬라이더</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>빨간색</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>녹색</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>파란색</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>색조</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>채도</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>밝기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

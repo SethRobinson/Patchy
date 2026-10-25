@@ -14371,6 +14371,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>按一下或拖曳可設定前景色。按住 %ALT% 按一下或按住 %ALT% 拖曳可設定背景色。</translation>
     </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>顏色面板檢視</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>色相立方體</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>RGB 滑桿</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>HSB 滑桿</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>紅</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>綠</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>藍</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>色相</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>飽和度</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>亮度</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

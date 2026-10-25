@@ -14406,6 +14406,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Fai clic o trascina per impostare il colore di primo piano. %ALT%+clic o %ALT%+trascina per impostare il colore di sfondo.</translation>
     </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>Vista del pannello Colore</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>Cubo tonalità</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>Cursori RGB</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>Cursori HSB</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Rosso</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Verde</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Blu</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>Tonalità</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Saturazione</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>Luminosità</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

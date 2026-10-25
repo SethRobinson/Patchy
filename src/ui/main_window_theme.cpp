@@ -144,14 +144,16 @@ QString photoshop_style_template() {
     }
     /* min-width: the generic QToolButton rule's 26 px content minimum made the gear
        button 37 px wide for a 16 px glyph (GitHub issue 364 needed the room). */
-    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"] {
+    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"],
+    QToolButton#colorPanelViewButton {
       padding: 2px 3px;
       min-width: 16px;
       min-height: 20px;
       max-height: 20px;
     }
     QToolButton#brushSmoothingOptionsButton::menu-indicator,
-    QToolButton[optionsBarMenuButton="true"]::menu-indicator {
+    QToolButton[optionsBarMenuButton="true"]::menu-indicator,
+    QToolButton#colorPanelViewButton::menu-indicator {
       width: 0;
     }
     QToolButton#brushDynamicsButton[dynamicsActive="true"] {

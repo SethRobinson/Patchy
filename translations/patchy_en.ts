@@ -14390,6 +14390,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Color panel view</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

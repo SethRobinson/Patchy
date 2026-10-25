@@ -14441,6 +14441,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните с %ALT% или перетащите с %ALT%, чтобы задать цвет фона.</translation>
     </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>Вид панели «Цвет»</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>Куб цветового тона</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>Слайдеры RGB</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>Слайдеры HSB</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Красный</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Зеленый</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Синий</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>Цветовой тон</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Насыщенность</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>Яркость</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

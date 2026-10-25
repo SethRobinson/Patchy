@@ -3,7 +3,8 @@
 // background for the whole drag, the panel follows color changes made elsewhere, the
 // Window menu and patchy.ui reach it, and a saved layout from before it keeps its panels.
 // Alt over the field, the hue strip or a Palette swatch shows the background cursor, and an
-// Alt-click on a Palette swatch sets the background.
+// Alt-click on a Palette swatch sets the background. The view menu switches to RGB or HSB
+// sliders, which set the foreground, follow it, and are remembered (GitHub issue 404).
 #include "core/document.hpp"
 #include "core/palette_presets.hpp"
 #include "ui/app_settings.hpp"
@@ -26,9 +27,13 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QSplitter>
+#include <QToolButton>
 #include <QStatusBar>
 #include <QWidget>
+#include <algorithm>
+#include <cmath>
 #include <memory>
 #include <vector>
 #include "scripting_test_support.hpp"
@@ -629,6 +634,304 @@ void ui_color_picker_background_window_alt_click_is_a_plain_click() {
   QApplication::processEvents();
 }
 
+using View = ColorDockPanel::View;
+using Channel = ColorDockPanel::Channel;
+const QString kColorPanelViewKey = QStringLiteral("colorPanel/view");
+
+// The value a click at `x` on a channel track sets.
+int track_value_at(QWidget& track, Channel channel, int x) {
+  return patchy::ui::rounded_scaled_channel(std::clamp(x, 0, track.width() - 1), std::max(1, track.width() - 1),
+                                            ColorDockPanel::channel_maximum(channel));
+}
+
+int checked_view_count(const ColorDockPanel& panel) {
+  int checked = 0;
+  for (const auto view : {View::HueCube, View::RgbSliders, View::HsbSliders}) {
+    checked += panel.view_action(view)->isChecked() ? 1 : 0;
+  }
+  return checked;
+}
+
+int percent_of(int byte_value) { return static_cast<int>(std::lround(byte_value * 100.0 / 255.0)); }
+
+void ui_color_panel_view_menu_switches_views() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::app_settings().remove(kColorPanelViewKey);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* panel = open_color_panel(window);
+  auto* column = MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (panel == nullptr || column == nullptr) {
+    return;
+  }
+  // The Hue Cube is the default, with the menu button under the pair.
+  CHECK(panel->view() == View::HueCube);
+  CHECK(panel->view_action(View::HueCube)->isChecked());
+  CHECK(checked_view_count(*panel) == 1);
+  auto* button = panel->view_button();
+  CHECK(button->isVisible() && button->isEnabled());
+  CHECK(button->popupMode() == QToolButton::InstantPopup);
+  CHECK(button->menu() != nullptr);
+  if (button->menu() != nullptr) {
+    const auto entries = button->menu()->actions();
+    CHECK(entries.size() == 3);
+    if (entries.size() == 3) {
+      CHECK(entries[0]->text() == QStringLiteral("Hue Cube"));
+      CHECK(entries[1]->text() == QStringLiteral("RGB Sliders"));
+      CHECK(entries[2]->text() == QStringLiteral("HSB Sliders"));
+    }
+  }
+  // The button sits below the well, inside the panel.
+  auto* well = panel->findChild<QWidget*>(QStringLiteral("colorPanelWell"));
+  CHECK(well != nullptr && button->geometry().top() >= well->geometry().bottom());
+  CHECK(panel->rect().contains(button->geometry()));
+  auto* section = column->section_widget(kColorPanel);
+  const int cube_height = section->height();
+  // A strong color, so every track shows a range.
+  click(*panel->hue_strip(), QPoint(panel->hue_strip()->width() / 2, panel->hue_strip()->height() / 2));
+  click(*panel->field(), QPoint(panel->field()->width() * 4 / 5, panel->field()->height() / 5));
+
+  // RGB Sliders: three rows of track and number, the cube hidden, and the section shorter.
+  panel->view_action(View::RgbSliders)->trigger();
+  QApplication::processEvents();
+  CHECK(panel->view() == View::RgbSliders);
+  CHECK(checked_view_count(*panel) == 1);
+  CHECK(!panel->field()->isVisible());
+  for (const auto channel : {Channel::Red, Channel::Green, Channel::Blue}) {
+    CHECK(panel->channel_track(channel)->isVisible());
+    CHECK(panel->channel_spin(channel)->isVisible());
+    CHECK(panel->channel_spin(channel)->maximum() == 255);
+  }
+  CHECK(!panel->channel_track(Channel::Hue)->isVisible());
+  const int rgb_height = section->height();
+  CHECK(rgb_height < cube_height);
+  // The rows fit: the last number box ends inside the panel.
+  auto* blue = panel->channel_spin(Channel::Blue);
+  CHECK(blue->mapTo(panel, QPoint(0, blue->height())).y() <= panel->height());
+  save_widget_artifact("ui_color_panel_rgb_sliders", *section);
+
+  // HSB Sliders: degrees and percent.
+  panel->view_action(View::HsbSliders)->trigger();
+  QApplication::processEvents();
+  CHECK(panel->view() == View::HsbSliders);
+  CHECK(checked_view_count(*panel) == 1);
+  CHECK(panel->channel_track(Channel::Hue)->isVisible());
+  CHECK(!panel->channel_track(Channel::Red)->isVisible());
+  CHECK(panel->channel_spin(Channel::Hue)->maximum() == 359);
+  CHECK(panel->channel_spin(Channel::Saturation)->maximum() == 100);
+  CHECK(panel->channel_spin(Channel::Brightness)->maximum() == 100);
+  CHECK(section->height() < cube_height);
+  save_widget_artifact("ui_color_panel_hsb_sliders", *section);
+
+  // Back to the cube: it takes its preferred height back.
+  panel->view_action(View::HueCube)->trigger();
+  QApplication::processEvents();
+  CHECK(panel->view() == View::HueCube);
+  CHECK(panel->field()->isVisible() && panel->hue_strip()->isVisible());
+  CHECK(section->height() > rgb_height);
+  save_widget_artifact("ui_color_panel_hue_cube", *section);
+}
+
+void ui_color_panel_sliders_set_foreground() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  panel->set_view(View::RgbSliders);
+  QApplication::processEvents();
+  const auto background = canvas->secondary_color();
+
+  // A click on the red track sets red only.
+  auto* red = panel->channel_track(Channel::Red);
+  const int red_x = red->width() * 3 / 4;
+  const int red_value = track_value_at(*red, Channel::Red, red_x);
+  click(*red, QPoint(red_x, red->height() / 2));
+  CHECK(canvas->primary_color().rgb() == QColor(red_value, 0, 0).rgb());
+  CHECK(panel->channel_spin(Channel::Red)->value() == red_value);
+  CHECK(canvas->secondary_color().rgb() == background.rgb());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Foreground color changed"));
+  // A drag follows the pointer.
+  const int drag_x = red->width() / 4;
+  send_mouse(*red, QEvent::MouseButtonPress, QPoint(red->width() / 2, 4), Qt::LeftButton, Qt::LeftButton,
+             Qt::NoModifier);
+  send_mouse(*red, QEvent::MouseMove, QPoint(drag_x, 4), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*red, QEvent::MouseButtonRelease, QPoint(drag_x, 4), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  const int dragged = track_value_at(*red, Channel::Red, drag_x);
+  CHECK(canvas->primary_color().red() == dragged);
+  // A number sets its channel.
+  panel->channel_spin(Channel::Green)->setValue(200);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(dragged, 200, 0).rgb());
+  panel->channel_spin(Channel::Blue)->setValue(40);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(dragged, 200, 40).rgb());
+  CHECK(canvas->secondary_color().rgb() == background.rgb());
+  // The cube shows the same foreground, to its 8-bit HSV's precision.
+  const auto cube = QColor::fromHsv(panel->hue(), panel->saturation(), panel->value());
+  CHECK(std::abs(cube.red() - dragged) <= 2 && std::abs(cube.green() - 200) <= 2 && std::abs(cube.blue() - 40) <= 2);
+
+  // HSB: the hue track turns the hue, keeping saturation and brightness.
+  panel->set_view(View::HsbSliders);
+  QApplication::processEvents();
+  panel->channel_spin(Channel::Saturation)->setValue(80);
+  panel->channel_spin(Channel::Brightness)->setValue(60);
+  QApplication::processEvents();
+  auto* hue = panel->channel_track(Channel::Hue);
+  const int hue_x = hue->width() / 3;
+  const int hue_value = track_value_at(*hue, Channel::Hue, hue_x);
+  click(*hue, QPoint(hue_x, hue->height() / 2));
+  const auto saturation = panel->saturation();
+  const auto value = panel->value();
+  CHECK(canvas->primary_color().rgb() == QColor::fromHsv(hue_value, saturation, value).rgb());
+  CHECK(panel->channel_spin(Channel::Hue)->value() == hue_value);
+  CHECK(panel->channel_spin(Channel::Saturation)->value() == 80);
+  CHECK(panel->channel_spin(Channel::Brightness)->value() == 60);
+  // Saturation 0 gives a gray and keeps the hue; back up, the same hue returns.
+  panel->channel_spin(Channel::Saturation)->setValue(0);
+  QApplication::processEvents();
+  const auto gray = canvas->primary_color();
+  CHECK(gray.red() == gray.green() && gray.green() == gray.blue());
+  CHECK(panel->channel_spin(Channel::Hue)->value() == hue_value);
+  panel->channel_spin(Channel::Saturation)->setValue(80);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor::fromHsv(hue_value, saturation, value).rgb());
+  // Brightness 0 gives black and keeps hue and saturation.
+  panel->channel_spin(Channel::Brightness)->setValue(0);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(Qt::black).rgb());
+  CHECK(panel->channel_spin(Channel::Hue)->value() == hue_value);
+  CHECK(panel->channel_spin(Channel::Saturation)->value() == 80);
+  panel->channel_spin(Channel::Brightness)->setValue(60);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor::fromHsv(hue_value, saturation, value).rgb());
+  // An RGB edit that lands on a gray keeps the hue too.
+  panel->set_view(View::RgbSliders);
+  QApplication::processEvents();
+  panel->channel_spin(Channel::Red)->setValue(90);
+  panel->channel_spin(Channel::Green)->setValue(90);
+  QApplication::processEvents();
+  const auto hue_before_gray = panel->hue();
+  panel->channel_spin(Channel::Blue)->setValue(90);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(90, 90, 90).rgb());
+  CHECK(panel->hue() == hue_before_gray);
+  CHECK(canvas->secondary_color().rgb() == background.rgb());
+}
+
+void ui_color_panel_sliders_follow_color_changes_elsewhere() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  panel->set_view(View::RgbSliders);
+  QApplication::processEvents();
+  const auto shows = [&](QColor color) {
+    return panel->channel_spin(Channel::Red)->value() == color.red() &&
+           panel->channel_spin(Channel::Green)->value() == color.green() &&
+           panel->channel_spin(Channel::Blue)->value() == color.blue();
+  };
+  int picks = 0;
+  QObject::connect(panel, &ColorDockPanel::color_picked, panel, [&picks] { ++picks; });
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shows(QColor(Qt::black)));
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(Qt::white).rgb());
+  CHECK(shows(QColor(Qt::white)));
+  // A pick in the Foreground Color window moves the sliders.
+  panel->foreground_chip()->click();
+  QApplication::processEvents();
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr && dialog->isVisible());
+  if (dialog != nullptr) {
+    auto* plane = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPlane"));
+    auto* hue_slider = dialog->findChild<QWidget*>(QStringLiteral("patchyHueSlider"));
+    CHECK(plane != nullptr && hue_slider != nullptr);
+    if (plane != nullptr && hue_slider != nullptr) {
+      click(*hue_slider, QPoint(4, hue_slider->height() / 3));
+      click(*plane, QPoint(plane->width() * 2 / 3, plane->height() / 3));
+      CHECK(canvas->primary_color().rgb() != QColor(Qt::white).rgb());
+      CHECK(shows(canvas->primary_color()));
+      panel->set_view(View::HsbSliders);
+      QApplication::processEvents();
+      const auto picked = canvas->primary_color();
+      CHECK(panel->channel_spin(Channel::Hue)->value() == picked.hsvHue());
+      CHECK(panel->channel_spin(Channel::Saturation)->value() == percent_of(picked.hsvSaturation()));
+      CHECK(panel->channel_spin(Channel::Brightness)->value() == percent_of(picked.value()));
+    }
+    dialog->close();
+    QApplication::processEvents();
+  }
+  // Showing a color is never a pick of its own: no feedback loop.
+  CHECK(picks == 0);
+  // A pick in the cube shows in the sliders.
+  panel->set_view(View::HueCube);
+  QApplication::processEvents();
+  click(*panel->field(), QPoint(panel->field()->width() / 2, panel->field()->height() / 2));
+  CHECK(picks == 1);
+  panel->set_view(View::RgbSliders);
+  QApplication::processEvents();
+  CHECK(shows(canvas->primary_color()));
+}
+
+void ui_color_panel_view_persists() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::app_settings().remove(kColorPanelViewKey);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* panel = open_color_panel(window);
+    if (panel == nullptr) {
+      return;
+    }
+    panel->view_action(View::HsbSliders)->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::app_settings().value(kColorPanelViewKey).toString() == QStringLiteral("hsbSliders"));
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    MainWindowTestAccess::show_panel(window, kColorPanel);
+    QApplication::processEvents();
+    auto* panel = window.findChild<ColorDockPanel*>(QStringLiteral("colorPanel"));
+    CHECK(panel != nullptr);
+    if (panel == nullptr) {
+      return;
+    }
+    CHECK(panel->view() == View::HsbSliders);
+    CHECK(panel->view_action(View::HsbSliders)->isChecked());
+    CHECK(checked_view_count(*panel) == 1);
+    CHECK(!panel->field()->isVisible());
+    CHECK(panel->channel_track(Channel::Hue)->isVisible());
+    // Opened in a slider view, the panel is shorter than the cube's preferred height.
+    auto* column = MainWindowTestAccess::panel_column(window);
+    CHECK(column != nullptr && column->section_widget(kColorPanel)->height() < 170);
+    panel->view_action(View::RgbSliders)->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::app_settings().value(kColorPanelViewKey).toString() == QStringLiteral("rgbSliders"));
+  }
+  // An unknown value opens the Hue Cube.
+  patchy::ui::app_settings().setValue(kColorPanelViewKey, QStringLiteral("cmykSliders"));
+  {
+    patchy::ui::MainWindow window;
+    auto* panel = window.findChild<ColorDockPanel*>(QStringLiteral("colorPanel"));
+    CHECK(panel != nullptr && panel->view() == View::HueCube);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> color_dock_panel_tests() {
@@ -645,5 +948,10 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
        ui_color_picker_foreground_window_alt_pick_sets_background},
       {"ui_color_picker_background_window_alt_click_is_a_plain_click",
        ui_color_picker_background_window_alt_click_is_a_plain_click},
+      {"ui_color_panel_view_menu_switches_views", ui_color_panel_view_menu_switches_views},
+      {"ui_color_panel_sliders_set_foreground", ui_color_panel_sliders_set_foreground},
+      {"ui_color_panel_sliders_follow_color_changes_elsewhere",
+       ui_color_panel_sliders_follow_color_changes_elsewhere},
+      {"ui_color_panel_view_persists", ui_color_panel_view_persists},
   };
 }
