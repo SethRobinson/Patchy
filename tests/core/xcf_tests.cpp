@@ -507,14 +507,17 @@ void xcf_reads_every_precision() {
     layer.drawable = precision_drawable(spec.bytes, put, rgba);
     image.layers.push_back(layer);
     const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
-    CHECK(document.color_state().bit_depth == spec.depth);
+    // The web build opens 32-bit files at 16 bits (depth_supported_on_platform).
+    const auto opened =
+        patchy::depth_supported_on_platform(spec.depth) ? spec.depth : patchy::BitDepth::UInt16;
+    CHECK(document.color_state().bit_depth == opened);
     const auto& layer_pixels = std::as_const(document.layers()[0]).pixels();
-    CHECK(layer_pixels.format().bit_depth == spec.depth);
+    CHECK(layer_pixels.format().bit_depth == opened);
     const auto loaded = patchy::load_pixel(layer_pixels.format(), layer_pixels.pixel(1, 1));
     // Expected on the deep scale: encoded for 8/16 bits, linear for 32.
     for (int c = 0; c < 3; ++c) {
       double expected = rgba[static_cast<std::size_t>(c)];
-      if (spec.depth == patchy::BitDepth::Float32) {
+      if (opened == patchy::BitDepth::Float32) {
         expected = spec.linear ? expected : patchy::srgb_decode(expected);
       } else {
         expected = spec.linear ? patchy::srgb_encode(expected) : expected;
@@ -1162,7 +1165,8 @@ void xcf_corpus_opens_if_available() {
     const auto start = std::chrono::steady_clock::now();
     std::vector<std::string> notices;
     std::string outcome;
-    auto relative = std::filesystem::relative(item.path(), dir).generic_string();
+    // lexically_relative: relative() goes through weakly_canonical, which fails under wasm NODERAWFS.
+    auto relative = item.path().lexically_relative(dir).generic_string();
     std::string render_name;
     for (std::size_t i = 0; i < relative.size(); ++i) {
       render_name += relative[i] == '/' ? std::string("__") : std::string(1, relative[i]);

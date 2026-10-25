@@ -198,6 +198,8 @@ Against Krita's merged image unless noted.
 
 - Structure at 8, 16, half and float bits, grayscale, masks, channel flags, clone and file
   layers, guides, the ClayRGB profile, the 3000 x 2000 canvas: mean 0.06 or less, worst 1.
+  The web build opens the linear-light 16-bit and float fixtures at 16 bits, where overlaps
+  blend in gamma space (`gray-u16` mean 2.2, worst 22); the test reports those, unbounded.
 - CMYK: mean 4.1, worst 91. Krita blends in CMYK, Patchy in RGB after converting each layer.
 - Layer styles (`psd-*`, against Patchy's render of the source PSD): 0.00 for drop and inner
   shadows, glows, bevels, satin, pattern overlay, strokes and global light; gradient overlay

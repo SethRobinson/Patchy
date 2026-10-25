@@ -673,7 +673,12 @@ void kra_reads_krita_fixtures_if_available() {
     for (const auto& notice : notices) {
       std::cout << "      " << notice << "\n";
     }
-    if (const auto found = limits.find(stem); found != limits.end()) {
+    // The web build opens linear-light files at 16 bits (depth_supported_on_platform), where
+    // overlapping layers blend in gamma space rather than Krita's linear light: the native
+    // limits do not apply to them there (docs/kra.md "Measured differences").
+    const bool capped_to_sixteen = !patchy::depth_supported_on_platform(patchy::BitDepth::Float32) &&
+                                   read.color_state().bit_depth == patchy::BitDepth::UInt16;
+    if (const auto found = limits.find(stem); found != limits.end() && !capped_to_sixteen) {
       const auto& measured = found->second.against_psd ? against_psd : difference;
       CHECK(measured.compared);
       CHECK(measured.mean <= found->second.mean);
