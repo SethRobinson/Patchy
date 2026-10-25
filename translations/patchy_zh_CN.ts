@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>将新图层剪贴到下方图层</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>当前模式没有中性色</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>填充中性色（白色）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>填充中性色（黑色）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>填充中性色（50% 灰色）</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25007,6 +25023,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>存为正常</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>已添加隐藏选区的图层蒙版</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>已添加隐藏图层的图层蒙版。用白色绘制可显示。</translation>
     </message>
 </context>
 <context>

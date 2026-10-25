@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Recortar a nova camada na camada abaixo</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Não existe cor neutra para o modo atual</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Preencher com cor neutra (branco)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Preencher com cor neutra (preto)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Preencher com cor neutra (cinza 50%)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25080,6 +25096,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Save as Normal</source>
         <translation>Salvar como Normal</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Adicionada máscara de camada que esconde a seleção</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Adicionada máscara de camada que esconde a camada. Pinte de branco para revelar.</translation>
     </message>
 </context>
 <context>

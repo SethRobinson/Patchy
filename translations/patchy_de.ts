@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Die neue Ebene an der Ebene darunter beschneiden</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Für den aktuellen Modus gibt es keine neutrale Farbe</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Mit neutraler Farbe füllen (Weiß)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Mit neutraler Farbe füllen (Schwarz)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Mit neutraler Farbe füllen (50 % Grau)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25080,6 +25096,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Save as Normal</source>
         <translation>Als Normal speichern</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Ebenenmaske hinzugefügt, die die Auswahl ausblendet</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Ebenenmaske hinzugefügt, die die Ebene ausblendet. Malen Sie mit Weiß zum Einblenden.</translation>
     </message>
 </context>
 <context>

@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>현재 모드에는 중립 색상이 없습니다</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>중립 색상으로 채우기(흰색)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>중립 색상으로 채우기(검정)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>중립 색상으로 채우기(50% 회색)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25007,6 +25023,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>표준으로 저장</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>선택 영역을 숨기는 레이어 마스크를 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>레이어를 숨기는 레이어 마스크를 추가했습니다. 흰색으로 칠하면 드러납니다.</translation>
     </message>
 </context>
 <context>

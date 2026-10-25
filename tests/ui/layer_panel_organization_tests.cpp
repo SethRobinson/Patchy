@@ -10,6 +10,7 @@
 #include "core/vector_shape.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/pixel_depth.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -2141,6 +2142,83 @@ void ui_layer_add_mask_button_tracks_selection_and_adds_mask() {
   lock_all->click();
   QApplication::processEvents();
   CHECK(!mask_button->isEnabled());
+}
+
+// GitHub issue 400: Alt-click on the footer's Add Layer Mask button adds a hide-all mask, or
+// with a selection a mask that hides the selection; a plain click still reveals. One undo step.
+void ui_layer_add_mask_button_alt_click_hides_all_or_selection() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::Document document(40, 30, patchy::PixelFormat::rgba8());
+  const auto layer_id =
+      document.add_pixel_layer("Paint", solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(220, 90, 40))).id();
+  document.set_active_layer(layer_id);
+  auto&& [window, fixture_canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Alt Mask"));
+  QApplication::processEvents();
+  auto* mask_button = window.findChild<QPushButton*>(QStringLiteral("layerAddMaskButton"));
+  CHECK(mask_button != nullptr);
+  if (mask_button == nullptr) {
+    return;
+  }
+  const auto& doc = std::as_const(Access::document(window));
+  const auto mask_value = [&doc, layer_id](int x, int y) {
+    const auto& mask = *doc.find_layer(layer_id)->mask();
+    const auto local_x = x - mask.bounds.x;
+    const auto local_y = y - mask.bounds.y;
+    if (local_x < 0 || local_y < 0 || local_x >= mask.pixels.width() || local_y >= mask.pixels.height()) {
+      return static_cast<int>(mask.default_color);
+    }
+    return static_cast<int>(std::lround(patchy::coverage_at(mask.pixels, local_x, local_y) * 255.0F));
+  };
+  const auto has_mask = [&doc, layer_id] {
+    const auto* layer = doc.find_layer(layer_id);
+    return layer != nullptr && layer->mask().has_value();
+  };
+  CHECK(mask_button->isEnabled());
+
+  // Alt-click, no selection: hide all.
+  const auto history = Access::active_session_undo_depth(window);
+  QTest::mouseClick(mask_button, Qt::LeftButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(has_mask());
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+  if (has_mask()) {
+    CHECK(doc.find_layer(layer_id)->mask()->default_color == 0);
+    CHECK(mask_value(0, 0) == 0 && mask_value(20, 15) == 0 && mask_value(39, 29) == 0);
+  }
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(!has_mask());
+
+  // A plain click after it reveals all, as before.
+  QTest::mouseClick(mask_button, Qt::LeftButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(has_mask());
+  if (has_mask()) {
+    CHECK(doc.find_layer(layer_id)->mask()->default_color == 255);
+    CHECK(mask_value(0, 0) == 255 && mask_value(20, 15) == 255);
+  }
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(!has_mask());
+
+  // Alt-click with a selection: the selection is hidden, the rest revealed.
+  patchy::PixelBuffer coverage(doc.width(), doc.height(), patchy::PixelFormat::gray8());
+  coverage.clear(0);
+  const QRect selected(10, 8, 12, 9);
+  for (int y = selected.top(); y <= selected.bottom(); ++y) {
+    std::memset(coverage.pixel(selected.left(), y), 255, static_cast<std::size_t>(selected.width()));
+  }
+  require_canvas(window)->apply_grayscale_to_selection(coverage);
+  QApplication::processEvents();
+  QTest::mouseClick(mask_button, Qt::LeftButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(has_mask());
+  if (has_mask()) {
+    CHECK(mask_value(15, 12) == 0 && mask_value(10, 8) == 0 && mask_value(21, 16) == 0);
+    CHECK(mask_value(9, 8) == 255 && mask_value(22, 16) == 255 && mask_value(0, 0) == 255 &&
+          mask_value(39, 29) == 255);
+  }
 }
 
 // GitHub issue 94: the Layers panel footer's Layer Styles button. Its menu holds
@@ -5232,6 +5310,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_action_buttons_accept_multiselect_drops", ui_layer_action_buttons_accept_multiselect_drops},
       {"ui_layer_add_mask_button_tracks_selection_and_adds_mask",
        ui_layer_add_mask_button_tracks_selection_and_adds_mask},
+      {"ui_layer_add_mask_button_alt_click_hides_all_or_selection",
+       ui_layer_add_mask_button_alt_click_hides_all_or_selection},
       {"ui_layer_styles_button_tracks_selection_and_lists_effects",
        ui_layer_styles_button_tracks_selection_and_lists_effects},
       {"ui_layer_styles_menu_entry_opens_dialog_on_effect", ui_layer_styles_menu_entry_opens_dialog_on_effect},

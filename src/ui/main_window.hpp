@@ -1467,7 +1467,8 @@ private:
   [[nodiscard]] QSize current_artboard_size() const;
   void layer_via_copy();
   void layer_via_cut();
-  void add_layer_mask();
+  // `hide` (the footer button's Alt-click, #400): hide all, or hide the selection.
+  void add_layer_mask(bool hide = false);
   // Whether Add Layer Mask would do something right now: one eligible
   // (pixel/adjustment/group, pixels unlocked) layer, with no mask yet or a
   // selection to build one from. Drives the Layers panel footer button.

@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Обтравить новый слой по слою под ним</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Для текущего режима нет нейтрального цвета</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Залить нейтральным цветом (белый)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Залить нейтральным цветом (черный)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Залить нейтральным цветом (50% серого)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25153,6 +25169,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>Сохранить как «Обычный»</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Добавлена маска слоя, скрывающая выделение.</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Добавлена маска слоя, скрывающая слой. Закрасьте белым, чтобы показать.</translation>
     </message>
 </context>
 <context>

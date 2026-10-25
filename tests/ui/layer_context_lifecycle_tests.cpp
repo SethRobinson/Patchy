@@ -5,6 +5,7 @@
 #include "ui/main_window_shared.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/new_document_dialog.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -28,6 +29,7 @@
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFocusEvent>
+#include <QFormLayout>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFileInfo>
@@ -3934,6 +3936,242 @@ void ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing() {
   CHECK(std::as_const(doc).layers().front().name() == "Layer 1");
 }
 
+// GitHub issue 408: Alt-click on the Layers footer's New Layer button opens the New Layer
+// dialog; a plain click still adds a layer at once.
+void ui_new_layer_button_alt_click_opens_new_layer_dialog() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  CHECK(new_button != nullptr);
+  if (new_button == nullptr) {
+    return;
+  }
+  const auto& doc = std::as_const(Access::document(window));
+  const auto layers_before = doc.layers().size();
+  const auto reject_unexpected_dialog = [](bool& unexpected) {
+    unexpected = false;
+    QTimer::singleShot(0, [&unexpected] {
+      if (auto* dialog = find_top_level_dialog(QStringLiteral("newLayerDialog")); dialog != nullptr) {
+        unexpected = true;
+        dialog->reject();
+      }
+    });
+  };
+
+  bool unexpected_dialog = false;
+  reject_unexpected_dialog(unexpected_dialog);
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(!unexpected_dialog);
+  CHECK(doc.layers().size() == layers_before + 1U);
+
+  const auto history = Access::active_session_undo_depth(window);
+  bool seen = false;
+  drive_new_layer_dialog(
+      [](QDialog& dialog) {
+        auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
+        CHECK(name != nullptr);
+        if (name != nullptr) {
+          name->setText(QStringLiteral("From Alt"));
+        }
+        click_dialog_ok(dialog);
+      },
+      seen);
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(seen);
+  CHECK(doc.layers().size() == layers_before + 2U);
+  CHECK(doc.layers().back().name() == "From Alt");
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+
+  // Cancel adds nothing, and the next plain click is plain again.
+  seen = false;
+  drive_new_layer_dialog([](QDialog& dialog) { dialog.reject(); }, seen);
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(seen);
+  CHECK(doc.layers().size() == layers_before + 2U);
+  reject_unexpected_dialog(unexpected_dialog);
+  new_button->click();
+  QApplication::processEvents();
+  CHECK(!unexpected_dialog);
+  CHECK(doc.layers().size() == layers_before + 3U);
+}
+
+// GitHub issue 410: the clipping option sits under Name and "Fill with neutral color" under
+// Mode, both in the field column; the fill's label and enabled state follow the mode.
+void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  const auto& doc = std::as_const(Access::document(window));
+  const auto layers_before = doc.layers().size();
+  bool seen = false;
+  drive_new_layer_dialog(
+      [](QDialog& dialog) {
+        auto* form = dialog.findChild<QFormLayout*>();
+        auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
+        auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
+        auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("newLayerModeCombo"));
+        auto* neutral = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerNeutralFillCheck"));
+        CHECK(form != nullptr && name != nullptr && clip != nullptr && mode != nullptr && neutral != nullptr);
+        if (form == nullptr || name == nullptr || clip == nullptr || mode == nullptr || neutral == nullptr) {
+          dialog.reject();
+          return;
+        }
+        const auto position = [form](QWidget* widget) {
+          int row = -1;
+          QFormLayout::ItemRole role = QFormLayout::SpanningRole;
+          form->getWidgetPosition(widget, &row, &role);
+          return std::pair{row, role};
+        };
+        const auto [name_row, name_role] = position(name);
+        const auto [clip_row, clip_role] = position(clip);
+        const auto [mode_row, mode_role] = position(mode);
+        const auto [neutral_row, neutral_role] = position(neutral);
+        CHECK(name_row == 0 && clip_row == 1 && clip_role == QFormLayout::FieldRole);
+        CHECK(neutral_row == mode_row + 1 && neutral_role == QFormLayout::FieldRole);
+        CHECK(name_role == QFormLayout::FieldRole && mode_role == QFormLayout::FieldRole);
+        CHECK(form->labelForField(clip) == nullptr && form->labelForField(neutral) == nullptr);
+        // Lined up with the fields, not the labels.
+        CHECK(clip->mapTo(&dialog, QPoint()).x() == name->mapTo(&dialog, QPoint()).x());
+        CHECK(neutral->mapTo(&dialog, QPoint()).x() == mode->mapTo(&dialog, QPoint()).x());
+
+        const QString white = QStringLiteral("Fill with neutral color (white)");
+        const QString black = QStringLiteral("Fill with neutral color (black)");
+        const QString gray = QStringLiteral("Fill with neutral color (50% gray)");
+        const QString none = QStringLiteral("No neutral color exists for current mode");
+        // Normal has no neutral color.
+        CHECK(!neutral->isEnabled() && !neutral->isChecked());
+        CHECK(neutral->text() == none);
+        const std::array<std::pair<patchy::BlendMode, QString>, 26> expected{{
+            {patchy::BlendMode::Darken, white},       {patchy::BlendMode::Multiply, white},
+            {patchy::BlendMode::ColorBurn, white},    {patchy::BlendMode::LinearBurn, white},
+            {patchy::BlendMode::DarkerColor, white},  {patchy::BlendMode::Divide, white},
+            {patchy::BlendMode::Lighten, black},      {patchy::BlendMode::Screen, black},
+            {patchy::BlendMode::ColorDodge, black},   {patchy::BlendMode::LinearDodge, black},
+            {patchy::BlendMode::LighterColor, black}, {patchy::BlendMode::Difference, black},
+            {patchy::BlendMode::Exclusion, black},    {patchy::BlendMode::Subtract, black},
+            {patchy::BlendMode::Overlay, gray},       {patchy::BlendMode::SoftLight, gray},
+            {patchy::BlendMode::HardLight, gray},     {patchy::BlendMode::VividLight, gray},
+            {patchy::BlendMode::LinearLight, gray},   {patchy::BlendMode::PinLight, gray},
+            {patchy::BlendMode::HardMix, none},       {patchy::BlendMode::Normal, none},
+            {patchy::BlendMode::Dissolve, none},      {patchy::BlendMode::Hue, none},
+            {patchy::BlendMode::Luminosity, none},    {patchy::BlendMode::Color, none},
+        }};
+        for (const auto& [blend, label] : expected) {
+          const auto index = mode->findData(static_cast<int>(blend));
+          CHECK(index >= 0);
+          mode->setCurrentIndex(index);
+          CHECK(neutral->text() == label);
+          CHECK(neutral->isEnabled() == (label != none));
+        }
+        int offered = 0;
+        for (int index = 0; index < mode->count(); ++index) {
+          if (mode->itemData(index).isValid()) {
+            mode->setCurrentIndex(index);
+            offered += neutral->isEnabled() ? 1 : 0;
+          }
+        }
+        CHECK(offered == 20);
+
+        mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Overlay)));
+        neutral->setChecked(true);
+        for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+          ColorSchemeRestorer restore(scheme);
+          QApplication::processEvents();
+          save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "issue410_new_layer_dialog_dark"
+                                                                                 : "issue410_new_layer_dialog_light",
+                               dialog);
+        }
+        // A checked fill is not applied once the mode has none.
+        mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Hue)));
+        CHECK(!neutral->isEnabled());
+        click_dialog_ok(dialog);
+      },
+      seen);
+  require_action(window, "layerNewWithDialogAction")->trigger();
+  QApplication::processEvents();
+  CHECK(seen);
+  CHECK(doc.layers().size() == layers_before + 1U);
+  const auto& added = doc.layers().back();
+  CHECK(added.blend_mode() == patchy::BlendMode::Hue);
+  CHECK(patchy::pixel_alpha_at(added.pixels(), 0, 0) == 0.0F);
+}
+
+// GitHub issue 410: the neutral fill lands in the new layer, in the same undo step, at the
+// document's depth: 50% gray is 128 in 8 bits, the 16-bit midpoint, and 0.5 linear in 32 bits.
+void ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::set_deep_editing_override(true);
+  struct Case {
+    patchy::BlendMode mode;
+    float expected;  // the deep scale in the depth's own domain (load_pixel)
+  };
+  const auto add_filled_layer = [](patchy::ui::MainWindow& window, patchy::BlendMode blend) {
+    bool seen = false;
+    drive_new_layer_dialog(
+        [blend](QDialog& dialog) {
+          auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("newLayerModeCombo"));
+          auto* neutral = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerNeutralFillCheck"));
+          CHECK(mode != nullptr && neutral != nullptr);
+          if (mode == nullptr || neutral == nullptr) {
+            dialog.reject();
+            return;
+          }
+          mode->setCurrentIndex(mode->findData(static_cast<int>(blend)));
+          CHECK(neutral->isEnabled());
+          neutral->setChecked(true);
+          click_dialog_ok(dialog);
+        },
+        seen);
+    require_action(window, "layerNewWithDialogAction")->trigger();
+    QApplication::processEvents();
+    CHECK(seen);
+  };
+  const std::array<std::pair<const char*, patchy::BitDepth>, 3> depths{{
+      {nullptr, patchy::BitDepth::UInt8},
+      {"imageMode16BitAction", patchy::BitDepth::UInt16},
+      {"imageMode32BitAction", patchy::BitDepth::Float32},
+  }};
+  for (const auto& [mode_action, expected_depth] : depths) {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    if (mode_action != nullptr) {
+      require_action(window, mode_action)->trigger();
+      QApplication::processEvents();
+    }
+    const auto& doc = std::as_const(Access::document(window));
+    const auto depth = doc.color_state().bit_depth;
+    CHECK(depth == expected_depth);
+    const float gray = depth == patchy::BitDepth::UInt8 ? 128.0F : 127.5F;
+    const std::array<Case, 3> cases{{{patchy::BlendMode::Overlay, gray},
+                                     {patchy::BlendMode::Multiply, 255.0F},
+                                     {patchy::BlendMode::Screen, 0.0F}}};
+    for (const auto& item : cases) {
+      const auto layers_before = doc.layers().size();
+      const auto history = Access::active_session_undo_depth(window);
+      add_filled_layer(window, item.mode);
+      CHECK(doc.layers().size() == layers_before + 1U);
+      CHECK(Access::active_session_undo_depth(window) == history + 1);
+      const auto& added = doc.layers().back();
+      CHECK(added.blend_mode() == item.mode);
+      CHECK(added.pixels().format().bit_depth == depth);
+      CHECK(added.pixels().width() == doc.width() && added.pixels().height() == doc.height());
+      for (const auto& [x, y] : {std::pair{0, 0}, std::pair{doc.width() - 1, doc.height() - 1}}) {
+        const auto pixel = patchy::load_pixel(added.pixels().format(), added.pixels().pixel(x, y));
+        CHECK(std::abs(pixel[0] - item.expected) < 0.01F);
+        CHECK(std::abs(pixel[1] - item.expected) < 0.01F);
+        CHECK(std::abs(pixel[2] - item.expected) < 0.01F);
+        CHECK(pixel[3] == 255.0F);
+      }
+      // One step: undo takes the filled layer away whole.
+      Access::undo(window);
+      QApplication::processEvents();
+      CHECK(doc.layers().size() == layers_before);
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 // GitHub issues 275 and 294: the new commands and the dialog follow a language switch.
 void ui_new_layer_dialog_and_merge_visible_retranslate() {
   LanguageRestorer language;
@@ -4247,6 +4485,11 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing",
        ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing},
       {"ui_new_layer_dialog_and_merge_visible_retranslate", ui_new_layer_dialog_and_merge_visible_retranslate},
+      {"ui_new_layer_button_alt_click_opens_new_layer_dialog", ui_new_layer_button_alt_click_opens_new_layer_dialog},
+      {"ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode",
+       ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode},
+      {"ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth",
+       ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth},
       {"ui_merge_down_into_position_locked_background_works",
        ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},

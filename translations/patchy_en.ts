@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -24998,6 +25014,14 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Save as Normal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Przytnij nową warstwę do warstwy pod nią</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Dla bieżącego trybu nie ma koloru neutralnego</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Wypełnij kolorem neutralnym (biały)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Wypełnij kolorem neutralnym (czarny)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Wypełnij kolorem neutralnym (szary 50%)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25153,6 +25169,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Save as Normal</source>
         <translation>Zapisz jako Zwykły</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Dodano maskę warstwy ukrywającą zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Dodano maskę warstwy ukrywającą warstwę. Pomaluj kolorem białym, aby odsłonić.</translation>
     </message>
 </context>
 <context>

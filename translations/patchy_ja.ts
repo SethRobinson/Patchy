@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>現在のモードにはニュートラルカラーがありません</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>ニュートラルカラーで塗りつぶす（白）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>ニュートラルカラーで塗りつぶす（黒）</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>ニュートラルカラーで塗りつぶす（50% グレー）</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25007,6 +25023,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Save as Normal</source>
         <translation>通常として保存</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>選択範囲を非表示にするレイヤーマスクを追加しました</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>レイヤーを非表示にするレイヤーマスクを追加しました。白で塗ると表示されます。</translation>
     </message>
 </context>
 <context>

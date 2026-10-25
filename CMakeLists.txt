@@ -1270,6 +1270,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/localization.cpp
       src/ui/memory_info.hpp
       src/ui/memory_info.cpp
+      src/ui/click_modifier_recorder.hpp
       src/ui/modifier_names.hpp
       src/ui/modifier_names.cpp
       src/ui/markdown_viewer_dialog.hpp

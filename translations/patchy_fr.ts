@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Aucune couleur neutre pour le mode actuel</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Remplir avec la couleur neutre (blanc)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Remplir avec la couleur neutre (noir)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Remplir avec la couleur neutre (gris 50 %)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25080,6 +25096,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Save as Normal</source>
         <translation>Enregistrer en Normal</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Masque de fusion ajouté qui masque la sélection</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Masque de fusion ajouté qui masque le calque. Peignez en blanc pour faire apparaître.</translation>
     </message>
 </context>
 <context>

@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Recortar la nueva capa con la capa inferior</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>No existe un color neutro para el modo actual</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Rellenar con color neutro (blanco)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Rellenar con color neutro (negro)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Rellenar con color neutro (gris al 50%)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25080,6 +25096,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Save as Normal</source>
         <translation>Guardar como Normal</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Máscara de capa añadida que oculta la selección</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Máscara de capa añadida que oculta la capa. Pinte con blanco para mostrar.</translation>
     </message>
 </context>
 <context>

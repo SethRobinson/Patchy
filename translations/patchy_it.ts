@@ -455,6 +455,22 @@
         <source>Clip the new layer to the layer below it</source>
         <translation>Ritaglia il nuovo livello sul livello sottostante</translation>
     </message>
+    <message>
+        <source>No neutral color exists for current mode</source>
+        <translation>Non esiste un colore neutro per il metodo corrente</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (white)</source>
+        <translation>Riempi con colore neutro (bianco)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (black)</source>
+        <translation>Riempi con colore neutro (nero)</translation>
+    </message>
+    <message>
+        <source>Fill with neutral color (50% gray)</source>
+        <translation>Riempi con colore neutro (grigio 50%)</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -25080,6 +25096,14 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Save as Normal</source>
         <translation>Salva come Normale</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the selection</source>
+        <translation>Maschera di livello aggiunta che nasconde la selezione</translation>
+    </message>
+    <message>
+        <source>Added layer mask hiding the layer. Paint with white to reveal.</source>
+        <translation>Maschera di livello aggiunta che nasconde il livello. Dipingi con il bianco per mostrare.</translation>
     </message>
 </context>
 <context>

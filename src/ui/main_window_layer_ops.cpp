@@ -1427,6 +1427,29 @@ bool new_layer_has_clip_base(const Document& document, std::optional<LayerId> an
   return location.has_value() && effective_clip_base(*location->siblings, location->index) != nullptr;
 }
 
+// The New Layer dialog's neutral fill (#410) at the document's depth: 50% gray is 128 in
+// 8 bits, the exact midpoint in 16 bits and 0.5 linear in 32 bits, where most modes blend
+// linear light (docs/high-bit-depth.md), so it stays the no-op its mode needs.
+PixelBuffer neutral_fill_pixels(std::int32_t width, std::int32_t height, BitDepth depth, NeutralFillColor color) {
+  const auto format = with_bit_depth(PixelFormat::rgba8(), depth);
+  if (depth == BitDepth::UInt8) {
+    const int value = color == NeutralFillColor::White ? 255 : color == NeutralFillColor::Black ? 0 : 128;
+    return make_solid_pixels(width, height, QColor(value, value, value, 255), format);
+  }
+  const float value = color == NeutralFillColor::White   ? kDeepScale
+                      : color == NeutralFillColor::Black ? 0.0F
+                                                         : kDeepScale / 2.0F;
+  PixelBuffer pixels(width, height, format);
+  std::vector<float> row(static_cast<std::size_t>(std::max(0, width)) * 4U, value);
+  for (std::size_t i = 3; i < row.size(); i += 4U) {
+    row[i] = kDeepScale;
+  }
+  for (std::int32_t y = 0; y < height && width > 0; ++y) {
+    store_rgba_row(pixels, y, 0, width, deep_domain_for(depth), row);
+  }
+  return pixels;
+}
+
 }  // namespace
 
 void MainWindow::add_layer(const NewLayerSettings* settings) {
@@ -1439,9 +1462,12 @@ void MainWindow::add_layer(const NewLayerSettings* settings) {
   }
 
   push_undo_snapshot(tr("New layer"));
+  const auto depth = std::as_const(doc).color_state().bit_depth;
   auto layer_pixels =
-      make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0),
-                        with_bit_depth(PixelFormat::rgba8(), std::as_const(doc).color_state().bit_depth));
+      settings != nullptr && settings->neutral_fill.has_value()
+          ? neutral_fill_pixels(doc.width(), doc.height(), depth, *settings->neutral_fill)
+          : make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0),
+                              with_bit_depth(PixelFormat::rgba8(), depth));
   Layer layer(doc.allocate_layer_id(), name.toStdString(), std::move(layer_pixels));
   const auto layer_id = layer.id();
   layer.set_opacity(settings != nullptr ? settings->opacity : 1.0F);
@@ -1628,7 +1654,7 @@ void MainWindow::layer_via_cut() {
   statusBar()->showMessage(tr("Cut selection to a new layer"));
 }
 
-void MainWindow::add_layer_mask() {
+void MainWindow::add_layer_mask(bool hide) {
   if (canvas_ == nullptr) {
     return;
   }
@@ -1661,22 +1687,32 @@ void MainWindow::add_layer_mask() {
   push_undo_snapshot(tr("Add layer mask"));
   const auto before = layer_render_bounds(*layer);
   if (from_selection) {
-    auto mask_pixels = coverage_at_document_depth(doc, selection_mask_pixels(*canvas_, selection_rect));
-    layer->set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
+    auto coverage = selection_mask_pixels(*canvas_, selection_rect);
+    if (hide) {
+      for (std::int32_t y = 0; y < coverage.height(); ++y) {
+        for (auto& value : coverage.row(y)) {
+          value = static_cast<std::uint8_t>(255 - value);
+        }
+      }
+    }
+    layer->set_mask(LayerMask{to_core_rect(selection_rect), coverage_at_document_depth(doc, std::move(coverage)),
+                              static_cast<std::uint8_t>(hide ? 255 : 0), false});
   } else {
+    const auto fill = static_cast<std::uint8_t>(hide ? 0 : 255);
     PixelBuffer mask_pixels(doc.width(), doc.height(), PixelFormat::gray8());
-    mask_pixels.clear(255);
+    mask_pixels.clear(fill);
     layer->set_mask(LayerMask{Rect{0, 0, doc.width(), doc.height()},
-                              coverage_at_document_depth(doc, std::move(mask_pixels)), 255, false});
+                              coverage_at_document_depth(doc, std::move(mask_pixels)), fill, false});
   }
   const auto after = layer_render_bounds(*layer);
   canvas_->invalidate_mask_display();
   canvas_->document_changed(to_qrect(unite_rect(before, after)));
   refresh_layer_list();
   set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
-  statusBar()->showMessage(from_selection
-                               ? tr("Added layer mask from selection")
-                               : tr("Added layer mask. Paint with black to hide and white to reveal."));
+  statusBar()->showMessage(from_selection ? (hide ? tr("Added layer mask hiding the selection")
+                                                  : tr("Added layer mask from selection"))
+                                          : (hide ? tr("Added layer mask hiding the layer. Paint with white to reveal.")
+                                                  : tr("Added layer mask. Paint with black to hide and white to reveal.")));
 }
 
 bool MainWindow::can_add_layer_mask() const {

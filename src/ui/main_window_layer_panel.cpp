@@ -36,6 +36,7 @@
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
+#include "ui/click_modifier_recorder.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/localization.hpp"
@@ -193,29 +194,10 @@ int layer_tree_indent_width(int depth) {
   return std::max(0, depth) * kLayerChildIndent;
 }
 
-constexpr const char* kLastClickModifiersProperty = "patchyLastClickModifiers";
-
 // What a disclosure-arrow click toggles: the folder alone, the folder and its
 // nested folders (Alt), or every folder in the document (Ctrl+Alt, Photoshop's
 // binding).
 enum class LayerFolderToggleScope { Single, Branch, All };
-
-// QToolButton::clicked carries no modifiers, and QApplication::keyboardModifiers()
-// can lag the event stream, so record the folded modifiers off the button's own
-// mouse events for the clicked handler to read.
-class ClickModifierRecorder final : public QObject {
-public:
-  using QObject::QObject;
-
-protected:
-  bool eventFilter(QObject* watched, QEvent* event) override {
-    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
-      watched->setProperty(kLastClickModifiersProperty,
-                           static_cast<QMouseEvent*>(event)->modifiers().toInt());
-    }
-    return QObject::eventFilter(watched, event);
-  }
-};
 
 class LayerTreeIndentWidget final : public QWidget {
 public:
@@ -1712,13 +1694,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                   "Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)"))
             : resolve_modifier_names(QObject::tr(
                   "Expand folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)")));
-    disclosure->installEventFilter(new ClickModifierRecorder(disclosure));
+    record_click_modifiers(disclosure);
     QObject::connect(disclosure, &QToolButton::clicked, row,
                      [parent, disclosure, id = layer.id(),
                       toggle_group_expanded = std::move(toggle_group_expanded)] {
-      const auto modifiers = static_cast<Qt::KeyboardModifiers>(
-          disclosure->property(kLastClickModifiersProperty).toInt());
-      disclosure->setProperty(kLastClickModifiersProperty, {});
+      const auto modifiers = take_click_modifiers(disclosure);
       if (toggle_group_expanded) {
         const auto scope = (modifiers & Qt::ControlModifier) != 0 && (modifiers & Qt::AltModifier) != 0
                                ? LayerFolderToggleScope::All
