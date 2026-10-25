@@ -8,6 +8,7 @@
 
 #include "core/artboard.hpp"
 #include "core/channel_view.hpp"
+#include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/layer_alignment.hpp"
@@ -400,6 +401,40 @@ public:
   [[nodiscard]] std::vector<GradientStop> effective_gradient_stops() const;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
+  // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings").
+  // Each canvas keeps kCloneSourceSlotCount sources; the active one is what Alt-click
+  // sets and strokes sample. Clone and the Healing Brush share them; the scale and
+  // rotation apply to the Clone Stamp only.
+  static constexpr int kCloneSourceSlotCount = 4;
+  struct CloneSourceSlot {
+    bool set{false};
+    QPoint point{};
+    // Source minus destination. Fixed for later strokes once set while Aligned.
+    QPoint offset{};
+    bool offset_set{false};
+    patchy::CloneSourceTransform transform{};
+  };
+  [[nodiscard]] int clone_source_slot() const noexcept { return clone_source_slot_; }
+  void set_clone_source_slot(int slot);
+  // The active slot's state (live), or another slot's as last stored.
+  [[nodiscard]] CloneSourceSlot clone_source_slot_state(int slot) const;
+  // Alt-click's source pick, also for scripts and tests: ignored outside the document.
+  void set_clone_source(QPoint point);
+  // Fixes the active source's offset for the next strokes (they keep it while Aligned).
+  void set_clone_source_offset(QPoint offset);
+  void set_clone_source_transform(const patchy::CloneSourceTransform& transform);
+  [[nodiscard]] patchy::CloneSourceTransform clone_source_transform() const noexcept {
+    return clone_source_transform_;
+  }
+  // The source preview under the brush while hovering (Clone and Healing).
+  void set_clone_overlay_shown(bool shown);
+  [[nodiscard]] bool clone_overlay_shown() const noexcept { return clone_overlay_shown_; }
+  void set_clone_overlay_opacity(int percent);
+  [[nodiscard]] int clone_overlay_opacity() const noexcept { return clone_overlay_opacity_; }
+  // Runs after any change to the sources, the active slot, an offset or the transform.
+  void set_clone_source_changed_callback(std::function<void()> callback) {
+    clone_source_changed_callback_ = std::move(callback);
+  }
   void set_pattern_stamp_pattern(std::optional<PatternResource> pattern);
   [[nodiscard]] const std::optional<PatternResource>& pattern_stamp_pattern() const noexcept;
   void set_pattern_stamp_aligned(bool aligned) noexcept;
@@ -2010,7 +2045,13 @@ private:
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] PixelBuffer retouch_source_deep();
-  void set_clone_source(QPoint point);
+  void notify_clone_source_changed();
+  // The clone source overlay (GitHub issue 424): whether it draws now, its widget rect
+  // around the hovered brush, the drawing, and a repaint of where it was last drawn.
+  [[nodiscard]] bool clone_overlay_active() const;
+  [[nodiscard]] QRect clone_overlay_widget_rect() const;
+  void draw_clone_source_overlay(QPainter& painter) const;
+  void invalidate_clone_overlay();
   // Clone and Healing cursor feedback (GitHub issue 380): Alt shows the source cursor,
   // Ctrl the temporary Move, and a press that would be refused (no source yet, no
   // editable pixel layer) the not-allowed cursor; while painting, a small crosshair marks
@@ -3528,6 +3569,18 @@ private:
   bool clone_source_set_{false};
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};
+  // Clone source settings (GitHub issue 424). The active slot's values live in the
+  // clone_source_* members above; the array keeps the others.
+  patchy::CloneSourceTransform clone_source_transform_{};
+  int clone_source_slot_{0};
+  std::array<CloneSourceSlot, kCloneSourceSlotCount> clone_source_slots_{};
+  // The stroke in flight's destination-to-source mapping, built at the press (identity
+  // for the Healing Brush).
+  patchy::CloneSourceMapping clone_stroke_mapping_{};
+  bool clone_overlay_shown_{false};
+  int clone_overlay_opacity_{50};
+  mutable QRect clone_overlay_drawn_rect_{};
+  std::function<void()> clone_source_changed_callback_;
   std::optional<PatternResource> pattern_stamp_pattern_;
   bool pattern_stamp_aligned_{true};
   std::optional<QPoint> pattern_stamp_origin_;

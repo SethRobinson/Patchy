@@ -14544,6 +14544,101 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>來源:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>點:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>偏移量:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>在筆刷右側多遠處取樣來源</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>在筆刷下方多遠處取樣來源</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>縮放:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>仿製內容的大小</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>旋轉:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>依順時針方向旋轉仿製內容</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>重設</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>回到 100% 和 0 度</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>顯示疊加</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>繪畫前在筆刷下預覽來源</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>來源疊加的不透明度</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>來源 %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>來源 %1: 未設定</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>未設定: 按住 %ALT% 並按一下畫布</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>對齊已關閉: 每一筆都從來源點開始。</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>下一筆將設定偏移量。</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>縮放和旋轉適用於仿製印章。</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25687,6 +25782,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Delete the preset &quot;%1&quot;?</source>
         <translation>要刪除預設集「%1」嗎？</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>仿製來源設定: 來源、偏移量、縮放、旋轉和疊加</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>仿製來源</translation>
     </message>
 </context>
 <context>

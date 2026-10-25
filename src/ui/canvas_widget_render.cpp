@@ -1106,6 +1106,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_drag_size_readout(painter);
   draw_transform_drag_readout(painter);
   draw_text_rect_preview(painter);
+  draw_clone_source_overlay(painter);
   if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && painting_ &&
       retouch_source_indicator_.has_value()) {
     // While painting, a small crosshair follows the point the stroke samples (GitHub

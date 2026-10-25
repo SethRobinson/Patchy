@@ -735,6 +735,17 @@ void MainWindow::install_window_panel_entries() {
     });
     window_panel_actions_.push_back(action);
   }
+  // Clone Source (GitHub issue 424) is the Clone Stamp's gear popup, not a panel of the
+  // column: the entry opens it (docs/healing.md "Clone source settings").
+  window_clone_source_action_ = new QAction(window_menu);
+  window_clone_source_action_->setObjectName(QStringLiteral("windowCloneSourceAction"));
+  window_clone_source_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(window_clone_source_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clone Source"));
+  register_hotkey(window_clone_source_action_, "window.clone_source", QKeySequence());
+  // Once the Window menu has closed, so its popup does not take the new one down with it.
+  connect(window_clone_source_action_, &QAction::triggered, this,
+          [this] { QTimer::singleShot(0, this, [this] { show_clone_source_popup(); }); });
+  window_panel_actions_.push_back(window_clone_source_action_);
   for (const auto* toolbar_name : {"toolPalette", "Options"}) {
     if (auto* toolbar = findChild<QToolBar*>(QLatin1String(toolbar_name)); toolbar != nullptr) {
       window_panel_actions_.push_back(toolbar->toggleViewAction());

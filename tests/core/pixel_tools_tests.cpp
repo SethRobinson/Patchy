@@ -1,4 +1,5 @@
 #include <string_view>
+#include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/palette.hpp"
@@ -1533,9 +1534,100 @@ void resample_method_ids_round_trip() {
   CHECK(!patchy::parse_resample_method("nearestNeighbor").has_value());
   CHECK(!patchy::parse_resample_method("").has_value());
 }
+
+// Clone source transform (GitHub issue 424): at 100% and 0 degrees the mapping is the
+// plain offset, whole pixels with no bilinear fraction.
+void clone_source_identity_mapping_is_the_plain_offset() {
+  for (const auto& transform : {patchy::CloneSourceTransform{}, patchy::CloneSourceTransform{100.0, 360.0},
+                                patchy::CloneSourceTransform{100.0, -0.0}}) {
+    CHECK(transform.is_identity());
+    const patchy::CloneSourceMapping mapping(40, 12, -25, 7, transform);
+    CHECK(mapping.identity());
+    for (std::int32_t y = -3; y < 30; y += 4) {
+      for (std::int32_t x = -5; x < 80; x += 7) {
+        const auto q8 = mapping.map_q8(x, y);
+        CHECK(q8[0] == static_cast<std::int64_t>(x - 25) * 256);
+        CHECK(q8[1] == static_cast<std::int64_t>(y + 7) * 256);
+        const auto nearest = mapping.map_nearest(x, y);
+        CHECK(nearest[0] == x - 25 && nearest[1] == y + 7);
+      }
+    }
+  }
+  CHECK((!patchy::CloneSourceTransform{50.0, 0.0}.is_identity()));
+  CHECK((!patchy::CloneSourceTransform{100.0, 15.0}.is_identity()));
+  // Out-of-range values clamp and fold.
+  const auto folded = patchy::CloneSourceTransform{1000.0, 270.0}.normalized();
+  CHECK(folded.scale_percent == patchy::CloneSourceTransform::kMaxScalePercent);
+  CHECK(folded.rotation_degrees == -90.0);
+}
+
+// Scale and rotation turn about the source point: the destination anchor (source minus
+// offset) samples the source point itself, and a step away from it is divided by the
+// scale and turned back by the rotation. Quarter turns map whole pixels exactly.
+void clone_source_mapping_scales_and_rotates_about_the_source_point() {
+  // 200%: two destination pixels per source pixel.
+  const patchy::CloneSourceMapping doubled(10, 10, 20, 0, patchy::CloneSourceTransform{200.0, 0.0});
+  CHECK(!doubled.identity());
+  CHECK((doubled.map_q8(-10, 10) == std::array<std::int64_t, 2>{10 * 256, 10 * 256}));
+  CHECK((doubled.map_q8(-8, 10) == std::array<std::int64_t, 2>{11 * 256, 10 * 256}));
+  CHECK((doubled.map_q8(-9, 11) == std::array<std::int64_t, 2>{10 * 256 + 128, 10 * 256 + 128}));
+  // 50%: every other source pixel.
+  const patchy::CloneSourceMapping halved(10, 10, 0, 0, patchy::CloneSourceTransform{50.0, 0.0});
+  CHECK((halved.map_q8(13, 9) == std::array<std::int64_t, 2>{16 * 256, 8 * 256}));
+  // 90 degrees clockwise: a destination step right samples a source step up (the content
+  // turns clockwise, so what was above the source point lands to its right).
+  const patchy::CloneSourceMapping turned(10, 10, 0, 0, patchy::CloneSourceTransform{100.0, 90.0});
+  CHECK((turned.map_q8(11, 10) == std::array<std::int64_t, 2>{10 * 256, 9 * 256}));
+  CHECK((turned.map_q8(10, 11) == std::array<std::int64_t, 2>{11 * 256, 10 * 256}));
+  CHECK((turned.map_nearest(13, 12) == std::array<std::int32_t, 2>{12, 7}));
+  const patchy::CloneSourceMapping half_turn(10, 10, 5, 5, patchy::CloneSourceTransform{100.0, 180.0});
+  CHECK((half_turn.map_q8(6, 2) == std::array<std::int64_t, 2>{9 * 256, 13 * 256}));
+  // A free angle: the anchor still samples the source point, and the step lands on the
+  // circle of the same radius (Q8 rounding within one step).
+  const patchy::CloneSourceMapping angled(50, 50, 0, 0, patchy::CloneSourceTransform{100.0, 30.0});
+  CHECK((angled.map_q8(50, 50) == std::array<std::int64_t, 2>{50 * 256, 50 * 256}));
+  const auto step = angled.map_q8(60, 50);
+  const auto ux = static_cast<double>(step[0]) / 256.0 - 50.0;
+  const auto uy = static_cast<double>(step[1]) / 256.0 - 50.0;
+  CHECK(std::abs(ux - 10.0 * std::cos(30.0 * 3.14159265358979323846 / 180.0)) < 0.01);
+  CHECK(std::abs(uy + 10.0 * std::sin(30.0 * 3.14159265358979323846 / 180.0)) < 0.01);
+}
+
+// The bilinear sample: whole positions read the pixel unchanged, a half step averages in
+// premultiplied form (a transparent neighbor adds no color), and positions whose nearest
+// pixel is outside the source give no taps.
+void clone_source_bilinear_sample_is_premultiplied_and_bounded() {
+  // 2 x 1: opaque red, then transparent green.
+  const std::array<std::uint8_t, 8> pixels = {200, 40, 20, 255, 0, 255, 0, 0};
+  const auto whole = patchy::clone_source_taps(0, 0, 2, 1);
+  CHECK(whole.has_value());
+  if (whole.has_value()) {
+    CHECK((patchy::sample_clone_source_rgba8(pixels.data(), 8, *whole) ==
+           std::array<std::uint8_t, 4>{200, 40, 20, 255}));
+  }
+  const auto half = patchy::clone_source_taps(128, 0, 2, 1);
+  CHECK(half.has_value());
+  if (half.has_value()) {
+    CHECK(half->x0 == 0 && half->x1 == 1 && half->wx == 128 && half->y0 == 0 && half->y1 == 0);
+    CHECK((patchy::sample_clone_source_rgba8(pixels.data(), 8, *half) ==
+           std::array<std::uint8_t, 4>{200, 40, 20, 128}));
+  }
+  // The last column's right neighbor clamps to the edge.
+  const auto edge = patchy::clone_source_taps(256 + 64, 0, 2, 1);
+  CHECK(edge.has_value() && edge->x0 == 1 && edge->x1 == 1);
+  CHECK(!patchy::clone_source_taps(-129, 0, 2, 1).has_value());
+  CHECK(patchy::clone_source_taps(-128, 0, 2, 1).has_value());
+  CHECK(!patchy::clone_source_taps(2 * 256 - 128, 0, 2, 1).has_value());
+  CHECK(!patchy::clone_source_taps(0, 0, 0, 0).has_value());
+}
 }
 std::vector<patchy::test::TestCase> pixel_tools_tests() {
   return {
+      {"clone_source_identity_mapping_is_the_plain_offset", clone_source_identity_mapping_is_the_plain_offset},
+      {"clone_source_mapping_scales_and_rotates_about_the_source_point",
+       clone_source_mapping_scales_and_rotates_about_the_source_point},
+      {"clone_source_bilinear_sample_is_premultiplied_and_bounded",
+       clone_source_bilinear_sample_is_premultiplied_and_bounded},
       {"resample_nearest_replicates_pixels_at_every_depth", resample_nearest_replicates_pixels_at_every_depth},
       {"resample_bilinear_enlargement_matches_clamped_edge_ramp",
        resample_bilinear_enlargement_matches_clamped_edge_ramp},

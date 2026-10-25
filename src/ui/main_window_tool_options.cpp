@@ -26,6 +26,7 @@
 #include <QComboBox>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/clone_source_panel.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/options_flow_layout.hpp"
 
@@ -2250,6 +2251,12 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
+  current_clone_overlay_shown_ =
+      settings.value(QStringLiteral("tools/cloneOverlay"), current_clone_overlay_shown_).toBool();
+  current_clone_overlay_opacity_ = std::clamp(
+      settings.value(QStringLiteral("tools/cloneOverlayOpacity"), current_clone_overlay_opacity_).toInt(), 1, 100);
+  canvas_->set_clone_overlay_shown(current_clone_overlay_shown_);
+  canvas_->set_clone_overlay_opacity(current_clone_overlay_opacity_);
   {
     // The retouch Sample choice (GitHub issue 382); before it, a bool that still maps on
     // first read (true All Layers, false Current Layer).
@@ -2661,6 +2668,51 @@ void MainWindow::sync_retouch_sample_controls_from_canvas() {
   }
 }
 
+void MainWindow::refresh_clone_source_panel() {
+  if (clone_source_panel_ == nullptr) {
+    return;
+  }
+  CloneSourcePanel::State state;
+  state.overlay_shown = current_clone_overlay_shown_;
+  state.overlay_opacity = current_clone_overlay_opacity_;
+  if (canvas_ != nullptr && has_active_document()) {
+    state.has_document = true;
+    state.slot = canvas_->clone_source_slot();
+    for (int slot = 0; slot < CloneSourcePanel::kSlotCount; ++slot) {
+      const auto source = canvas_->clone_source_slot_state(slot);
+      state.slot_set[static_cast<std::size_t>(slot)] = source.set;
+      state.slot_point[static_cast<std::size_t>(slot)] = source.point;
+    }
+    const auto active = canvas_->clone_source_slot_state(state.slot);
+    state.offset = active.offset;
+    state.offset_set = active.offset_set;
+    state.transform = active.transform;
+    state.aligned = canvas_->clone_aligned();
+    state.transform_applies = canvas_->tool() != CanvasTool::Healing;
+  }
+  clone_source_panel_->set_state(state);
+}
+
+void MainWindow::show_clone_source_popup() {
+  if (clone_source_menu_ == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  // The settings belong to the Clone Stamp and the Healing Brush: from any other tool the
+  // entry picks the Clone Stamp, so the gear the popup hangs from is on the bar.
+  if (canvas_->tool() != CanvasTool::Clone && canvas_->tool() != CanvasTool::Healing) {
+    activate_tool(CanvasTool::Clone);
+  }
+  refresh_clone_source_panel();
+  QPoint anchor;
+  if (clone_source_options_button_ != nullptr && clone_source_options_button_->isVisible()) {
+    anchor = clone_source_options_button_->mapToGlobal(QPoint(0, clone_source_options_button_->height()));
+  } else {
+    // A hidden options bar: under the canvas's top-left corner.
+    anchor = canvas_->mapToGlobal(QPoint(12, 12));
+  }
+  clone_source_menu_->popup(anchor);
+}
+
 QString MainWindow::retouch_sample_info_text() const {
   if (canvas_ == nullptr) {
     return {};
@@ -2748,6 +2800,8 @@ void MainWindow::save_tool_settings() const {
   // must not leak them into later windows.
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
+  settings.setValue(QStringLiteral("tools/cloneOverlay"), current_clone_overlay_shown_);
+  settings.setValue(QStringLiteral("tools/cloneOverlayOpacity"), current_clone_overlay_opacity_);
   settings.setValue(QStringLiteral("tools/retouchSampleLayers"),
                     QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())));
   // Older builds read only the bool: Current & Below reads there as All Layers.
@@ -3626,6 +3680,7 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
   }
+  refresh_clone_source_panel();
   sync_retouch_sample_controls_from_canvas();
   if (mixer_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(mixer_sample_all_layers_check_);

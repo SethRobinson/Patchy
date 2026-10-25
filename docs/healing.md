@@ -35,6 +35,15 @@ GitHub issue 380, Clone and Healing Brush (`retouch_source_tool_active()`), from
 
 `ui_healing_brush_cursor_feedback_and_ctrl_move` pins every state and the Ctrl drag.
 
+## Clone source settings
+
+GitHub issue 424. A gear after Aligned on the Clone Stamp and Healing Brush bars (`cloneSourceOptionsButton`, menu `cloneSourceMenu`) holds `CloneSourcePanel` (src/ui/clone_source_panel.hpp). Window > Clone Source (`windowCloneSourceAction`, hotkey id `window.clone_source`) picks the Clone Stamp from any other tool and opens the same popup. It is not a column panel: that would need a hidden-by-default panel and a saved-layout migration.
+- **Slots.** Each canvas keeps four sources (`CanvasWidget::kCloneSourceSlotCount`): point, offset, whether the offset is fixed, transform. Alt-click sets the active one; a switch stores the live slot and loads the other. Per document, session only. Sources come from the document's own snapshot, so there are no cross-document sources.
+- **Offset** is source minus destination. A typed one (Aligned on, source set) is fixed for the next strokes (`set_clone_source_offset`); with Aligned off every press resets it, so the fields are off.
+- **Scale and rotation** (10 to 400%, -180 to 180 degrees, positive clockwise) turn the source about the source point. `core/clone_source_transform.hpp` maps a destination pixel to a Q8 source position in integer math (Q24 inverse matrix, quarter turns exact); the stamp samples it bilinear in premultiplied form (`sample_clone_source_rgba8`, the deep stamp in float) and skips positions whose nearest pixel is outside, as it skips an out-of-canvas offset. The mapping is built at the press (`clone_stroke_mapping_`). At 100% and 0 degrees `CloneSourceMapping::identity()` keeps the plain offset read, byte-identical (`ui_clone_source_identity_transform_keeps_stroke_bytes`). The Healing Brush always samples untransformed: its cleared source is the plain Alt-click offset ([legal-constraints.md](legal-constraints.md)), so a transformed healing source needs its own check.
+- **Overlay.** Show overlay (off by default) and its opacity (`tools/cloneOverlay`, `tools/cloneOverlayOpacity`, every canvas) draw the displayed composite (`render_cache_`) through the next stroke's mapping under the hovered brush, clipped to the footprint and the canvas (`draw_clone_source_overlay`). Only the source rect under the brush is drawn and a move repaints the old and new overlay rects. Hidden while painting or panning.
+- Tests: `clone_source_*` (core) and `ui_clone_source_*`.
+
 ## Spot Healing
 
 Spot Healing removes a blemish with no source pick: the drag accumulates a soft procedural footprint (doc-sized Grayscale8, stamped as brush_coverage capsules, shown as a translucent trail like Quick Select's) and the heal runs once on release in `finish_spot_heal_stroke()`. Escape cancels the footprint before anything is written; `begin_edit` is deferred to release, so a canceled stroke leaves no history entry (a press-time `can_begin_pixel_edit` precheck still reports refusals immediately).

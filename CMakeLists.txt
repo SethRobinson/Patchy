@@ -168,6 +168,7 @@ add_library(patchy_core
   src/core/resample.cpp
   src/core/document_path.cpp
   src/core/heal_membrane.cpp
+  src/core/clone_source_transform.cpp
   src/core/image_trace.cpp
   src/core/layer.cpp
   src/core/smart_filter_schema.cpp
@@ -1212,6 +1213,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/background_pick_cursor.cpp
       src/ui/color_dock_panel.hpp
       src/ui/color_dock_panel.cpp
+      src/ui/clone_source_panel.hpp
+      src/ui/clone_source_panel.cpp
       src/ui/color_field_widgets.hpp
       src/ui/color_field_widgets.cpp
       src/ui/compatibility_report.cpp
@@ -2405,6 +2408,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/gmic_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/color_dock_panel_tests.cpp
+      tests/ui/clone_source_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
       tests/ui/rgb_profile_tests.cpp

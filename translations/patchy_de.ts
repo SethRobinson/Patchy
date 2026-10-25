@@ -14579,6 +14579,101 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>Quellen:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>Punkt:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>Versatz:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>Wie weit rechts vom Pinsel die Quelle aufgenommen wird</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>Wie weit unter dem Pinsel die Quelle aufgenommen wird</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>Skalierung:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>Größe des kopierten Inhalts</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>Drehung:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>Dreht den kopierten Inhalt im Uhrzeigersinn</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>Zurück auf 100 % und 0 Grad</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>Überlagerung anzeigen</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Zeigt die Quelle unter dem Pinsel, bevor Sie malen</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Deckkraft:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>Deckkraft der Quellüberlagerung</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>Quelle %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>Quelle %1: nicht festgelegt</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>Nicht festgelegt: %ALT%-Klick auf die Arbeitsfläche</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>Ausgerichtet ist aus: Jeder Strich beginnt am Quellpunkt.</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>Ihr nächster Strich legt den Versatz fest.</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>Skalierung und Drehung gelten für den Kopierstempel.</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25760,6 +25855,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Delete the preset &quot;%1&quot;?</source>
         <translation>Vorgabe &quot;%1&quot; löschen?</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung und Überlagerung</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Kopierquelle</translation>
     </message>
 </context>
 <context>

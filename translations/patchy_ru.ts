@@ -14614,6 +14614,101 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CloneSourcePanel</name>
+    <message>
+        <source>Sources:</source>
+        <translation>Источники:</translation>
+    </message>
+    <message>
+        <source>Point:</source>
+        <translation>Точка:</translation>
+    </message>
+    <message>
+        <source>Offset:</source>
+        <translation>Сдвиг:</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>How far right of the brush the source is sampled</source>
+        <translation>Насколько правее кисти берется источник</translation>
+    </message>
+    <message>
+        <source>How far below the brush the source is sampled</source>
+        <translation>Насколько ниже кисти берется источник</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>Масштаб:</translation>
+    </message>
+    <message>
+        <source>Size of the cloned content</source>
+        <translation>Размер клонируемого содержимого</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>Поворот:</translation>
+    </message>
+    <message>
+        <source>Turns the cloned content clockwise</source>
+        <translation>Поворачивает клонируемое содержимое по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Сбросить</translation>
+    </message>
+    <message>
+        <source>Back to 100% and 0 degrees</source>
+        <translation>Вернуть 100% и 0 градусов</translation>
+    </message>
+    <message>
+        <source>Show overlay</source>
+        <translation>Показывать наложение</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Показывает источник под кистью до начала рисования</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Непрозрачность:</translation>
+    </message>
+    <message>
+        <source>Opacity of the source overlay</source>
+        <translation>Непрозрачность наложения источника</translation>
+    </message>
+    <message>
+        <source>Source %1: %2, %3</source>
+        <translation>Источник %1: %2, %3</translation>
+    </message>
+    <message>
+        <source>Source %1: not set</source>
+        <translation>Источник %1: не задан</translation>
+    </message>
+    <message>
+        <source>Not set: %ALT%-click the canvas</source>
+        <translation>Не задан: щелкните холст с %ALT%</translation>
+    </message>
+    <message>
+        <source>Aligned is off: every stroke starts at the source point.</source>
+        <translation>Выравнивание выключено: каждый мазок начинается с точки источника.</translation>
+    </message>
+    <message>
+        <source>Your next stroke sets the offset.</source>
+        <translation>Следующий мазок задаст сдвиг.</translation>
+    </message>
+    <message>
+        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <translation>Масштаб и поворот применяются к Штампу.</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
@@ -25833,6 +25928,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Delete the preset &quot;%1&quot;?</source>
         <translation>Удалить предустановку «%1»?</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
+        <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот и наложение</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Источник клонирования</translation>
     </message>
 </context>
 <context>

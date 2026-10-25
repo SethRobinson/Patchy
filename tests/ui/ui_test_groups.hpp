@@ -81,6 +81,7 @@ std::vector<patchy::test::TestCase> mcp_tests();
 std::vector<patchy::test::TestCase> unicode_path_tests();
 std::vector<patchy::test::TestCase> history_panel_tests();
 std::vector<patchy::test::TestCase> color_dock_panel_tests();
+std::vector<patchy::test::TestCase> clone_source_tests();
 std::vector<patchy::test::TestCase> history_stroke_patch_tests();
 std::vector<patchy::test::TestCase> file_info_tests();
 std::vector<patchy::test::TestCase> rgb_profile_ui_tests();
