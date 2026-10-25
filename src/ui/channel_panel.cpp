@@ -109,6 +109,43 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
     }
   }
   const QSignalBlocker blocker(list_);
+  bool same_rows = list_->count() == static_cast<int>(rows.size());
+  for (int index = 0; same_rows && index < list_->count(); ++index) {
+    const auto* item = list_->item(index);
+    same_rows = static_cast<RowKind>(item->data(kKindRole).toInt()) == rows[static_cast<std::size_t>(index)].kind &&
+                static_cast<ChannelId>(item->data(kChannelIdRole).toULongLong()) ==
+                    rows[static_cast<std::size_t>(index)].id;
+  }
+  if (same_rows) {
+    QListWidgetItem* current = nullptr;
+    for (int index = 0; index < list_->count(); ++index) {
+      auto* item = list_->item(index);
+      const auto& row = rows[static_cast<std::size_t>(index)];
+      const bool saved = row.kind == RowKind::Alpha || row.kind == RowKind::Spot;
+      const int eye = saved ? (row.overlay ? 1 : 0) : row.eye.has_value() ? (*row.eye ? 1 : 0) : -1;
+      if (item->text() != row.name) {
+        item->setText(row.name);
+      }
+      const auto old_thumbnail = item->data(kThumbnailRole).value<QPixmap>();
+      if (item->data(kEyeRole).toInt() != eye || old_thumbnail.cacheKey() != row.thumbnail.cacheKey()) {
+        item->setData(kThumbnailRole, row.thumbnail);
+        item->setData(kEyeRole, eye);
+        item->setIcon(row_icon(row.thumbnail, eye));
+      }
+      if (selected.has_value() && selected->kind == row.kind && selected->id == row.id) {
+        current = item;
+      }
+    }
+    if (current == nullptr && list_->count() > 0) {
+      current = list_->item(0);
+    }
+    if (list_->currentItem() != current) {
+      list_->setCurrentItem(current);
+    }
+    updating_ = false;
+    refresh_action_states();
+    return;
+  }
   list_->clear();
   QListWidgetItem* selected_item = nullptr;
   for (auto& row : rows) {
@@ -366,7 +403,14 @@ bool ChannelPanel::eventFilter(QObject* watched, QEvent* event) {
         return true;
       }
     }
+    if (event->type() == QEvent::MouseMove && (eye_mouse_press_ || ctrl_load_mouse_press_)) {
+      // The list's drag selection would select the row under the pointer, the row whose
+      // eye was just clicked, on the smallest move while the button is held.
+      event->accept();
+      return true;
+    }
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
+      eye_mouse_press_ = false;
       const auto* mouse_event = static_cast<QMouseEvent*>(event);
       if (mouse_event->button() == Qt::LeftButton &&
           (mouse_event->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) == 0 &&

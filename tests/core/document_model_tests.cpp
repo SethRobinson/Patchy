@@ -276,11 +276,12 @@ void channel_view_eyes_follow_the_composite_rules() {
   const auto still_red = patchy::toggle_channel_eye(red_only.view, red_only.target, color, 0);
   CHECK(still_red.view == red_only.view);
   CHECK(still_red.target == red_only.target);
-  // Red targeted, Green shown too: the target stays on Red.
+  // Red became the target only because it was left: showing Green again returns to the
+  // composite target.
   const auto red_green = patchy::toggle_channel_eye(red_only.view, red_only.target, color, 1);
   CHECK(red_green.view.visible == 0b011);
-  CHECK(red_green.target == patchy::channel_view_target(color, 0));
-  // Hiding the targeted Red moves the target to the channel left.
+  CHECK(red_green.target.composite);
+  // Hiding Red leaves Green, which becomes the target.
   const auto green_only = patchy::toggle_channel_eye(red_green.view, red_green.target, color, 0);
   CHECK(green_only.view.visible == 0b010);
   CHECK(green_only.target == patchy::channel_view_target(color, 1));
@@ -316,6 +317,48 @@ void channel_view_eyes_follow_the_composite_rules() {
   CHECK(patchy::channel_view_for_target(red_green.view, patchy::channel_view_target(color, 1)) == red_green.view);
   CHECK(patchy::channel_view_for_target(red_green.view, patchy::channel_view_target(color, 2)) ==
         patchy::single_channel_view(color, 2));
+
+  // Seth's sequence (October 25, 2026): from the composite hide Blue, then Green. Red is the
+  // one channel left and becomes the target; showing Green again returns to the composite
+  // target with Red and Green showing, and showing Blue returns to the composite.
+  const auto hide_blue = patchy::toggle_channel_eye(start.view, start.target, color, 2);
+  const auto hide_green = patchy::toggle_channel_eye(hide_blue.view, hide_blue.target, color, 1);
+  CHECK(hide_green.target == patchy::channel_view_target(color, 0));
+  CHECK(hide_green.view.composite_target_on_reshow);
+  const auto reshow_green = patchy::toggle_channel_eye(hide_green.view, hide_green.target, color, 1);
+  CHECK(reshow_green.view.visible == 0b011);
+  CHECK(reshow_green.target.composite);
+  CHECK(!reshow_green.view.composite_target_on_reshow);
+  const auto reshow_blue = patchy::toggle_channel_eye(reshow_green.view, reshow_green.target, color, 2);
+  CHECK(reshow_blue.view == patchy::composite_channel_view());
+  CHECK(reshow_blue.target.composite);
+  // Showing Blue instead of Green after the two hides also returns to the composite target.
+  const auto red_blue = patchy::toggle_channel_eye(hide_green.view, hide_green.target, color, 2);
+  CHECK(red_blue.view.visible == 0b101);
+  CHECK(red_blue.target.composite);
+  // Hiding in the other order (Red, then Green) leaves Blue targeted, never a hidden channel.
+  const auto hide_red = patchy::toggle_channel_eye(start.view, start.target, color, 0);
+  CHECK(hide_red.target.composite);
+  const auto blue_left = patchy::toggle_channel_eye(hide_red.view, hide_red.target, color, 1);
+  CHECK(blue_left.target == patchy::channel_view_target(color, 2));
+  // An eye click never targets the channel it hid or a hidden channel.
+  for (int first = 0; first < 3; ++first) {
+    for (int second = 0; second < 3; ++second) {
+      const auto hide_first = patchy::toggle_channel_eye(start.view, start.target, color, first);
+      const auto hide_second = patchy::toggle_channel_eye(hide_first.view, hide_first.target, color, second);
+      for (const auto& step : {hide_first, hide_second}) {
+        CHECK(step.target.composite || patchy::channel_view_shows(step.view, step.target.group, step.target.index));
+      }
+    }
+  }
+  // A channel picked by its row stays the target when a second channel is shown.
+  const auto picked = patchy::select_single_channel(color, 1);
+  const auto picked_plus = patchy::toggle_channel_eye(picked.view, picked.target, color, 2);
+  CHECK(picked_plus.view.visible == 0b110);
+  CHECK(picked_plus.target == patchy::channel_view_target(color, 1));
+  // The other target changes drop the reshow flag of a composite-targeted color view.
+  CHECK(!patchy::channel_view_for_target(reshow_green.view, patchy::composite_channel_target())
+             .composite_target_on_reshow);
 }
 
 void document_channels_validate_crud_revisions_and_cow() {

@@ -352,6 +352,22 @@ void MainWindow::toggle_channel_eye(ChannelPanel::RowKind kind) {
   if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
     return;
   }
+  const auto target = canvas_->layer_edit_target();
+  // A saved channel shown alone hides the color channels. An eye click changes what shows,
+  // not what is targeted: the colors come back under the saved channel, which stays
+  // selected as an overlay.
+  if (!canvas_->quick_mask_active() && target == CanvasWidget::LayerEditTarget::DocumentChannel &&
+      canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::Overlay) {
+    if (const auto id = canvas_->active_document_channel_id(); id.has_value()) {
+      const auto* channel = std::as_const(document()).find_channel(*id);
+      if (channel != nullptr) {
+        set_channel_edit_target(channel->kind() == DocumentChannelKind::Spot ? ChannelPanel::RowKind::Spot
+                                                                             : ChannelPanel::RowKind::Alpha,
+                                *id, true, true);
+        return;
+      }
+    }
+  }
   if (kind == ChannelPanel::RowKind::Composite) {
     apply_channel_view_change(select_composite_channel());
     return;
@@ -360,16 +376,9 @@ void MainWindow::toggle_channel_eye(ChannelPanel::RowKind kind) {
   if (!channel.has_value()) {
     return;
   }
-  const auto target = canvas_->layer_edit_target();
-  // A saved channel shown alone hides the color channels: an eye shows that one again.
-  const bool saved_channel_alone = !canvas_->quick_mask_active() &&
-                                   target == CanvasWidget::LayerEditTarget::DocumentChannel &&
-                                   canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::Overlay;
-  apply_channel_view_change(saved_channel_alone
-                                ? select_single_channel(channel->first, channel->second)
-                                : patchy::toggle_channel_eye(canvas_->channel_view(),
-                                                             CanvasWidget::channel_view_target_for(target), channel->first,
-                                                             channel->second));
+  apply_channel_view_change(patchy::toggle_channel_eye(canvas_->channel_view(),
+                                                       CanvasWidget::channel_view_target_for(target),
+                                                       channel->first, channel->second));
 }
 
 void MainWindow::show_channel_by_shortcut(int slot) {
@@ -397,12 +406,10 @@ void MainWindow::apply_channel_view_change(ChannelViewChange change) {
     return;
   }
   const auto current = canvas_->layer_edit_target();
-  const bool saved_channel_alone = current == CanvasWidget::LayerEditTarget::DocumentChannel &&
-                                   canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::Overlay;
-  // A composite target leaves a component or a saved channel shown alone; a layer, a mask
-  // or a saved channel overlay stays targeted (painting goes on with a channel hidden).
+  // A composite target leaves a component or plate view; a layer, a mask or a saved
+  // channel overlay stays targeted (painting goes on with a channel hidden).
   if (change.target.composite) {
-    if (CanvasWidget::is_component_preview(current) || saved_channel_alone) {
+    if (CanvasWidget::is_component_preview(current)) {
       set_channel_edit_target(ChannelPanel::RowKind::Composite, 0, false, false);
     }
   } else if (CanvasWidget::layer_edit_target_for(change.target) != current) {

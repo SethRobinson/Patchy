@@ -15,6 +15,9 @@ struct ChannelView {
   ChannelViewGroup group{ChannelViewGroup::Color};
   // One bit per channel of the group; never zero.
   std::uint8_t visible{0b111};
+  // Eye clicks narrowed a composite-targeted view to one channel, which then became the
+  // target: showing another color channel again returns the target to the composite.
+  bool composite_target_on_reshow{false};
 
   friend constexpr bool operator==(const ChannelView&, const ChannelView&) = default;
 };
@@ -90,11 +93,16 @@ struct ChannelViewChange {
   return {composite_channel_view(), composite_channel_target()};
 }
 
-// Clicking the eye of channel `index` of `group`. The last visible channel stays on;
-// turning every channel on returns to the composite; one channel left becomes the target.
-// With two or more of the group showing, the target stays when it is still shown (a
-// composite target too, for Color: painting continues with a channel hidden from view),
-// otherwise it moves to the first visible channel.
+// Clicking the eye of channel `index` of `group` changes what shows, never what is
+// targeted unless the target stops being valid:
+// - The last visible channel stays on. Turning every channel on returns to the composite.
+// - One channel left becomes the target (a single channel is a read-only view). When the
+//   composite was targeted, showing a second color channel again returns to it.
+// - With two or more showing, the target stays when it is still shown, a composite target
+//   included for Color (painting continues with a channel hidden from view). Ink plates
+//   are read-only views, so a composite or hidden plate target moves to the first
+//   visible plate.
+// - The other group's eyes show off; clicking one shows that channel alone.
 [[nodiscard]] constexpr ChannelViewChange toggle_channel_eye(ChannelView view, ChannelViewTarget target,
                                                              ChannelViewGroup group, int index) noexcept {
   if (index < 0 || index >= channel_view_group_size(group)) {
@@ -103,7 +111,7 @@ struct ChannelViewChange {
   const auto bit = static_cast<std::uint8_t>(1U << static_cast<unsigned>(index));
   if (channel_view_is_composite(view)) {
     // Every eye shows on: start from all of this group.
-    view = {group, channel_view_all_bits(group)};
+    view = {group, channel_view_all_bits(group), false};
   } else if (view.group != group) {
     // This group's eyes all show off: the click turns this one on alone.
     return select_single_channel(group, index);
@@ -120,7 +128,12 @@ struct ChannelViewChange {
     return select_composite_channel();
   }
   if (channel_view_visible_count(view) == 1) {
+    view.composite_target_on_reshow = view.composite_target_on_reshow || target.composite;
     return {view, channel_view_target(group, channel_view_first_visible(view))};
+  }
+  if (group == ChannelViewGroup::Color && view.composite_target_on_reshow) {
+    view.composite_target_on_reshow = false;
+    return {view, composite_channel_target()};
   }
   const bool keep_channel_target = !target.composite && channel_view_shows(view, target.group, target.index);
   const bool keep_composite_target = target.composite && group == ChannelViewGroup::Color;
@@ -135,8 +148,9 @@ struct ChannelViewChange {
 // resets anything else; a channel target keeps a view that shows it, otherwise shows it alone.
 [[nodiscard]] constexpr ChannelView channel_view_for_target(ChannelView view, ChannelViewTarget target) noexcept {
   if (target.composite) {
-    return view.group == ChannelViewGroup::Color && channel_view_visible_count(view) >= 2 ? view
-                                                                                         : composite_channel_view();
+    return view.group == ChannelViewGroup::Color && channel_view_visible_count(view) >= 2
+               ? ChannelView{view.group, view.visible, false}
+               : composite_channel_view();
   }
   return channel_view_shows(view, target.group, target.index) ? view
                                                               : single_channel_view(target.group, target.index);
