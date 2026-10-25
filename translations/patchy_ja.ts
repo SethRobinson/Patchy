@@ -25280,6 +25280,34 @@ The open document keeps its blend modes either way.</source>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>共有したくない可能性のある情報についてのファイル情報の通知を表示する</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>このレイヤーを非表示</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>このレイヤーを表示</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>他のすべてのレイヤーを表示/非表示</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>すべてのレイヤーを表示</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>すべてのレイヤーを非表示</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>すべてのレイヤーを表示しました</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>すべてのレイヤーを非表示にしました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

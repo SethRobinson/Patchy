@@ -25272,6 +25272,34 @@ The open document keeps its blend modes either way.</source>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

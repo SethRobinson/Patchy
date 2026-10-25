@@ -25353,6 +25353,34 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostrar o aviso de Informações do arquivo sobre dados que você talvez não queira compartilhar</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Ocultar esta camada</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Mostrar esta camada</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Mostrar/ocultar todas as outras camadas</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Mostrar todas as camadas</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Ocultar todas as camadas</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Todas as camadas mostradas</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Todas as camadas ocultas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

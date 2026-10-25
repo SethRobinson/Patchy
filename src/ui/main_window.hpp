@@ -1889,11 +1889,15 @@ private:
   void set_layer_visibility_from_item(QListWidgetItem* item);
   void set_layer_visibility(LayerId id, bool visible);
   void isolate_layer_visibility(LayerId id);
+  // Show All Layers / Hide All Layers from the eye menu (#407): every layer at every depth,
+  // outside history like an eye click.
+  void set_all_layers_visible(bool visible);
   void sync_layer_row_visibility_indicators();
   void show_layer_context_menu(QPoint position);
-  // The Background's shorter row menu (GitHub issue 274) and the eye's color menu (issue 276).
+  // The Background's shorter row menu (GitHub issue 274) and the eye column's menu: visibility
+  // entries for `id` (#407), then the color labels (issue 276).
   void show_background_context_menu(QPoint global_position);
-  void show_layer_eye_color_menu(QPoint global_position);
+  void show_layer_eye_color_menu(LayerId id, QPoint global_position);
   // Layers panel thumbnail size (GitHub issue 386): the Thumbnail Size submenu at the end of the
   // layer context menus, its radio actions, and the setter that saves and rebuilds the rows.
   void add_layer_thumbnail_size_menu(QMenu* menu);

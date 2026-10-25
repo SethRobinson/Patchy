@@ -3670,6 +3670,32 @@ void MainWindow::isolate_layer_visibility(LayerId id) {
   statusBar()->showMessage(tr("Hid other layers"));
 }
 
+void MainWindow::set_all_layers_visible(bool visible) {
+  if (!has_active_document()) {
+    return;
+  }
+  bool changed = false;
+  // Mutations go through find_layer: mutable children() bumps revisions.
+  const std::function<void(const std::vector<Layer>&)> apply = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.visible() != visible) {
+        document().find_layer(layer.id())->set_visible(visible);
+        changed = true;
+      }
+      apply(layer.children());
+    }
+  };
+  apply(std::as_const(document()).layers());
+  if (changed) {
+    // Not undoable, like an eye click, but a save writes it.
+    mark_session_modified(session());
+    canvas_->document_changed();
+    refresh_layer_list();
+    refresh_layer_controls();
+  }
+  statusBar()->showMessage(visible ? tr("Showed all layers") : tr("Hid all layers"));
+}
+
 // Cheap in-place sync of every row's check state and eye button with the document, for
 // animation-preview playback: refresh_layer_list()'s full rebuild is far too heavy to run
 // per frame. Group-child dimming and thumbnails are left alone; the full refresh that

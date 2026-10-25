@@ -25280,6 +25280,34 @@ The open document keeps its blend modes either way.</source>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>显示文件简介中有关您可能不想分享的信息的提示</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>隐藏此图层</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>显示此图层</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>显示/隐藏所有其他图层</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>显示所有图层</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>隐藏所有图层</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>已显示所有图层</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>已隐藏所有图层</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

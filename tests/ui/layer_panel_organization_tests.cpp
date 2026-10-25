@@ -2918,7 +2918,8 @@ void ui_layer_eye_right_click_opens_color_menu() {
           if (action->objectName() == QLatin1String(pick)) {
             chosen = action;
           }
-          if (!action->isSeparator() && action->objectName() != QStringLiteral("layerColorNoneAction") &&
+          if (action->objectName().startsWith(QStringLiteral("layerColor")) &&
+              action->objectName() != QStringLiteral("layerColorNoneAction") &&
               (action->icon().isNull() || !action->isIconVisibleInMenu())) {
             seen.second.push_back(QStringLiteral("no swatch"));
           }
@@ -2950,7 +2951,10 @@ void ui_layer_eye_right_click_opens_color_menu() {
   const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   const auto seen = right_click_eye("Middle", "layerColorRedAction");
   CHECK(seen.first == QStringLiteral("layerEyeColorMenu"));
-  CHECK(seen.second == (QStringList{QStringLiteral("layerColorNoneAction"), QStringLiteral("-"),
+  CHECK(seen.second == (QStringList{QStringLiteral("layerEyeToggleThisAction"), QStringLiteral("layerEyeIsolateAction"),
+                                    QStringLiteral("-"), QStringLiteral("layerEyeShowAllAction"),
+                                    QStringLiteral("layerEyeHideAllAction"), QStringLiteral("-"),
+                                    QStringLiteral("layerColorNoneAction"), QStringLiteral("-"),
                                     QStringLiteral("layerColorRedAction"), QStringLiteral("layerColorOrangeAction"),
                                     QStringLiteral("layerColorYellowAction"), QStringLiteral("layerColorGreenAction"),
                                     QStringLiteral("layerColorBlueAction"), QStringLiteral("layerColorVioletAction"),
@@ -5334,6 +5338,158 @@ void ui_layer_clip_badge_arrow_points_down() {
   }
 }
 
+// Right-clicks `target` at `local` and picks the action named `pick` from the menu that
+// opens (empty: close it). Returns the menu's objectName and the picked action's text;
+// the menu's deferred handlers have run when it returns.
+std::pair<QString, QString> right_click_and_pick(QWidget& target, QPoint local, const char* pick,
+                                                 const std::string& artifact = {}) {
+  std::pair<QString, QString> seen;
+  QTimer::singleShot(0, [&seen, pick, artifact] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || !menu->isVisible()) {
+        continue;
+      }
+      seen.first = menu->objectName();
+      QAction* chosen = nullptr;
+      for (auto* action : menu->actions()) {
+        if (pick != nullptr && action->objectName() == QLatin1String(pick)) {
+          chosen = action;
+        }
+      }
+      if (chosen != nullptr) {
+        seen.second = chosen->text();
+        menu->setActiveAction(chosen);
+        if (!artifact.empty()) {
+          save_widget_artifact(artifact, *menu);
+        }
+        QTest::keyClick(menu, Qt::Key_Return);
+      } else {
+        menu->close();
+      }
+      return;
+    }
+  });
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, local, target.mapToGlobal(local));
+  QApplication::sendEvent(&target, &context_event);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  return seen;
+}
+
+// GitHub issue 407 follow-up: the eye column's right-click menu sets this layer, all
+// other layers (the Alt-click isolate, restored by a second use), or every layer, groups
+// included, outside history.
+void ui_layer_eye_menu_sets_this_other_and_all_layers() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document);
+
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Eye Menu"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto pick_on_eye = [&](const char* row_name, const char* pick, const std::string& artifact = {}) {
+    layer_list->scrollToItem(require_layer_item(*layer_list, QString::fromLatin1(row_name)));
+    QApplication::processEvents();
+    auto* eye = layer_row_eye_button(*layer_list, QString::fromLatin1(row_name));
+    CHECK(eye != nullptr);
+    return right_click_and_pick(*eye, eye->rect().center(), pick, artifact);
+  };
+
+  // This layer: the label follows the state.
+  auto seen = pick_on_eye("Top Layer", "layerEyeToggleThisAction");
+  CHECK(seen.first == QStringLiteral("layerEyeColorMenu"));
+  CHECK(seen.second == QStringLiteral("Hide This Layer"));
+  CHECK(!document_layer_visible(doc, ids.top));
+  CHECK(document_layer_visible(doc, ids.background));
+  seen = pick_on_eye("Top Layer", "layerEyeToggleThisAction");
+  CHECK(seen.second == QStringLiteral("Show This Layer"));
+  CHECK(document_layer_visible(doc, ids.top));
+
+  // A group: its own flag only, the children keep theirs and their eyes disable.
+  seen = pick_on_eye("Folder", "layerEyeToggleThisAction");
+  CHECK(seen.second == QStringLiteral("Hide This Layer"));
+  CHECK(!document_layer_visible(doc, ids.folder));
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(!layer_row_eye_button(*layer_list, QStringLiteral("Child A"))->isEnabled());
+  (void)pick_on_eye("Folder", "layerEyeToggleThisAction");
+  CHECK(document_layer_visible(doc, ids.folder));
+  CHECK(layer_row_eye_button(*layer_list, QStringLiteral("Child A"))->isEnabled());
+
+  // All other layers, then the same entry again restores the earlier state.
+  seen = pick_on_eye("Top Layer", "layerEyeIsolateAction");
+  CHECK(seen.second == QStringLiteral("Show/Hide All Other Layers"));
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(!document_layer_visible(doc, ids.background));
+  CHECK(!document_layer_visible(doc, ids.folder));
+  CHECK(!document_layer_visible(doc, ids.child_a));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hid other layers"));
+  (void)pick_on_eye("Top Layer", "layerEyeIsolateAction");
+  CHECK(document_layer_visible(doc, ids.background));
+  CHECK(document_layer_visible(doc, ids.folder));
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Restored layer visibility"));
+
+  // Hide All Layers hides every layer at every depth; Show All Layers shows them all,
+  // the child that started hidden included.
+  seen = pick_on_eye("Child A", "layerEyeHideAllAction");
+  CHECK(seen.second == QStringLiteral("Hide All Layers"));
+  for (const auto id : {ids.top, ids.folder, ids.child_a, ids.child_b, ids.background}) {
+    CHECK(!document_layer_visible(doc, id));
+  }
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hid all layers"));
+  seen = pick_on_eye("Background", "layerEyeShowAllAction", "ui_layer_eye_menu_issue_407");
+  CHECK(seen.second == QStringLiteral("Show All Layers"));
+  for (const auto id : {ids.top, ids.folder, ids.child_a, ids.child_b, ids.background}) {
+    CHECK(document_layer_visible(doc, id));
+  }
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Showed all layers"));
+  // Like eye clicks, none of it is history.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+}
+
+// The eye menu opens from the eye and from the color-label strip left of it; the rest of
+// the row keeps the layer menu.
+void ui_layer_eye_menu_opens_from_eye_column_only() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document);
+  document.find_layer(ids.top)->set_color_label(patchy::kLayerColorRed);
+
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Eye Menu Column"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Top Layer")));
+  CHECK(row != nullptr);
+  auto* main_row = row->findChild<QWidget*>(QStringLiteral("layerMainRow"));
+  auto* strip = row->findChild<QWidget*>(QStringLiteral("layerRowColorStrip"));
+  CHECK(main_row != nullptr && strip != nullptr);
+
+  // The color strip at the row's left edge.
+  const auto strip_point = strip->geometry().center();
+  auto seen = right_click_and_pick(*main_row, strip_point, "layerEyeToggleThisAction");
+  CHECK(seen.first == QStringLiteral("layerEyeColorMenu"));
+  CHECK(!document_layer_visible(doc, ids.top));
+
+  // The name and the thumbnail keep the layer menu.
+  row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Top Layer")));
+  auto* name = row->findChild<QWidget*>(QStringLiteral("layerRowName"));
+  auto* thumbnail = row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(name != nullptr && thumbnail != nullptr);
+  seen = right_click_and_pick(*name, name->rect().center(), nullptr);
+  CHECK(seen.first == QStringLiteral("layerContextMenu"));
+  seen = right_click_and_pick(*thumbnail, thumbnail->rect().center(), nullptr);
+  CHECK(seen.first == QStringLiteral("layerContextMenu"));
+  CHECK(!document_layer_visible(doc, ids.top));
+}
+
 void ui_layer_eye_sweep_survives_folder_row_rebuild() {
   EnvironmentVariableRestorer restore_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
   EnvironmentVariableRestorer restore_threshold{"PATCHY_PROCESSING_OVERLAY_MIN_PIXELS"};
@@ -5765,6 +5921,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_eye_sweep_autoscrolls_past_the_list_edge", ui_layer_eye_sweep_autoscrolls_past_the_list_edge},
       {"ui_layer_eye_sweep_issue_407_shots", ui_layer_eye_sweep_issue_407_shots},
       {"ui_layer_clip_badge_arrow_points_down", ui_layer_clip_badge_arrow_points_down},
+      {"ui_layer_eye_menu_sets_this_other_and_all_layers", ui_layer_eye_menu_sets_this_other_and_all_layers},
+      {"ui_layer_eye_menu_opens_from_eye_column_only", ui_layer_eye_menu_opens_from_eye_column_only},
       {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
       {"ui_move_auto_select_click_keeps_existing_layer_rows",
        ui_move_auto_select_click_keeps_existing_layer_rows},
