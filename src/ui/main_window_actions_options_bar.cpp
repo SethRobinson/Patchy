@@ -518,16 +518,25 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   }
   // The six feature Distribute commands follow as buttons, like Photoshop's bar
-  // (GitHub issue 172); the two spacing modes stay in the gear menu below.
+  // (GitHub issue 172), vertical modes first in Photoshop's order (GitHub issue 405);
+  // the two spacing modes stay in the gear menu below.
   add_option_separator({CanvasTool::Move});
   {
-    const char* const distribute_button_names[] = {"moveDistributeLeftButton",   "moveDistributeHCenterButton",
-                                                   "moveDistributeRightButton",  "moveDistributeTopButton",
-                                                   "moveDistributeVCenterButton", "moveDistributeBottomButton"};
-    for (std::size_t i = 0; i < std::size(distribute_button_names); ++i) {
-      if (layer_distribute_actions_[i] != nullptr) {
-        add_option_action_mirror(layer_distribute_actions_[i], QLatin1String(distribute_button_names[i]),
-                                 {CanvasTool::Move});
+    struct DistributeButton {
+      DistributeMode mode;
+      const char* object_name;
+    };
+    const DistributeButton distribute_buttons[] = {
+        {DistributeMode::Top, "moveDistributeTopButton"},
+        {DistributeMode::VerticalCenter, "moveDistributeVCenterButton"},
+        {DistributeMode::Bottom, "moveDistributeBottomButton"},
+        {DistributeMode::Left, "moveDistributeLeftButton"},
+        {DistributeMode::HorizontalCenter, "moveDistributeHCenterButton"},
+        {DistributeMode::Right, "moveDistributeRightButton"},
+    };
+    for (const auto& button : distribute_buttons) {
+      if (auto* action = layer_distribute_actions_[static_cast<std::size_t>(button.mode)]; action != nullptr) {
+        add_option_action_mirror(action, QLatin1String(button.object_name), {CanvasTool::Move});
       }
     }
   }

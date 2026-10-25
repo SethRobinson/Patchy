@@ -626,10 +626,11 @@ QIcon align_edge_icon(AlignEdge edge) {
 
 QIcon distribute_mode_icon(DistributeMode mode) {
   // Drawn in a 22-unit square for the horizontal modes and transposed for the
-  // vertical ones. Feature modes: three bars of different length whose left
-  // edges, centers, or right edges sit on three evenly spaced anchor lines.
-  // Spacing modes: three bars of different width with two equal gaps, each
-  // gap marked by a short span underneath.
+  // vertical ones, with align_edge_icon's ink, 1.6-unit anchor lines and bar
+  // proportions so the two button groups read as one set (GitHub issue 405).
+  // Feature modes: two bars of different length, each with its own anchor line
+  // at the edge or center the command spaces evenly. Spacing modes: three bars
+  // with two equal gaps, each gap underlined.
   const bool vertical = mode == DistributeMode::Top || mode == DistributeMode::VerticalCenter ||
                         mode == DistributeMode::Bottom || mode == DistributeMode::VerticalSpacing;
   auto glyph = [mode, vertical](QPainter& painter, const QColor& ink) {
@@ -637,39 +638,46 @@ QIcon distribute_mode_icon(DistributeMode mode) {
     if (vertical) {
       painter.setTransform(QTransform(0.0, 1.0, 1.0, 0.0, 0.0, 0.0), true);
     }
+    const QPen line_pen(ink, 1.6, Qt::SolidLine, Qt::FlatCap);
     painter.setPen(Qt::NoPen);
     painter.setBrush(ink);
     if (mode == DistributeMode::HorizontalSpacing || mode == DistributeMode::VerticalSpacing) {
-      constexpr double kLefts[] = {2.0, 8.6, 16.6};
-      constexpr double kWidths[] = {3.0, 4.6, 3.4};
-      constexpr double kGap = 3.4;
+      constexpr double kWidth = 3.6;
+      constexpr double kGap = 3.7;
+      constexpr double kLengths[] = {12.0, 7.0, 10.0};
       for (int i = 0; i < 3; ++i) {
-        painter.drawRect(QRectF(kLefts[i], 3.0, kWidths[i], 11.0));
+        const double left = 2.5 + i * (kWidth + kGap);
+        painter.drawRect(QRectF(left, 9.0 - kLengths[i] / 2.0, kWidth, kLengths[i]));
       }
-      painter.setPen(QPen(ink, 1.2, Qt::SolidLine, Qt::FlatCap));
+      painter.setPen(line_pen);
       for (int i = 0; i < 2; ++i) {
-        const double start = kLefts[i] + kWidths[i];
-        painter.drawLine(QPointF(start, 18.0), QPointF(start + kGap, 18.0));
-        painter.drawLine(QPointF(start, 16.2), QPointF(start, 19.8));
-        painter.drawLine(QPointF(start + kGap, 16.2), QPointF(start + kGap, 19.8));
+        const double start = 2.5 + kWidth + i * (kWidth + kGap);
+        painter.drawLine(QPointF(start, 18.5), QPointF(start + kGap, 18.5));
       }
       return;
     }
-    constexpr double kAnchors[] = {4.0, 11.0, 18.0};
-    constexpr double kLengths[] = {9.0, 13.0, 7.0};
-    constexpr double kThickness = 2.8;
-    for (int i = 0; i < 3; ++i) {
-      double left = kAnchors[i] - kThickness / 2.0;
+    constexpr double kThickness = 3.6;
+    constexpr double kLengths[] = {12.0, 7.0};
+    double anchors[] = {6.5, 15.5};
+    if (mode == DistributeMode::Left || mode == DistributeMode::Top) {
+      anchors[0] = 4.0;
+      anchors[1] = 13.0;
+    } else if (mode == DistributeMode::Right || mode == DistributeMode::Bottom) {
+      anchors[0] = 9.0;
+      anchors[1] = 18.0;
+    }
+    for (int i = 0; i < 2; ++i) {
+      double left = anchors[i] - kThickness / 2.0;
       if (mode == DistributeMode::Left || mode == DistributeMode::Top) {
-        left = kAnchors[i] + 0.8;
+        left = anchors[i] + 1.0;
       } else if (mode == DistributeMode::Right || mode == DistributeMode::Bottom) {
-        left = kAnchors[i] - 0.8 - kThickness;
+        left = anchors[i] - 1.0 - kThickness;
       }
       painter.drawRect(QRectF(left, 11.0 - kLengths[i] / 2.0, kThickness, kLengths[i]));
     }
-    painter.setPen(QPen(ink, 1.2, Qt::SolidLine, Qt::FlatCap));
-    for (const double anchor : kAnchors) {
-      painter.drawLine(QPointF(anchor, 2.0), QPointF(anchor, 20.0));
+    painter.setPen(line_pen);
+    for (const double anchor : anchors) {
+      painter.drawLine(QPointF(anchor, 2.5), QPointF(anchor, 19.5));
     }
   };
   return themed_glyph_icon(QStringLiteral("distribute-mode-%1").arg(static_cast<int>(mode)), 22.0,
