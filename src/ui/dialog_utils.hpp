@@ -199,10 +199,15 @@ void refresh_cursor_under_pointer();
 // covers the box; on Wayland Qt cannot see where the window is, so that menu ran off the top
 // of the screen and its first rows could not be reached (GitHub issue 271). This gives `combo`
 // the scrolling list form on every style: at most kLongListPopupRows rows, opened below the
-// box (above it near the screen's bottom). Call it on every long list picker.
-// Test: ui_shape_pattern_list_popup_fits_the_screen.
+// box (above it near the screen's bottom). Call it on every long list picker. The open list
+// always stays inside the screen's available area (fit_combo_popup_to_screen), scrolling when
+// the rows do not fit; blend mode lists pass a larger `max_rows` (GitHub issue 414).
+// Tests: ui_shape_pattern_list_popup_fits_the_screen, ui_blend_mode_lists_fit_a_small_screen.
 inline constexpr int kLongListPopupRows = 14;
-void use_scrolling_list_popup(QComboBox& combo);
+void use_scrolling_list_popup(QComboBox& combo, int max_rows = kLongListPopupRows);
+// Moves and shortens `combo`'s open list window `popup` so it sits inside the available
+// geometry of the combo's screen: below the box, else above it, else on the taller side.
+void fit_combo_popup_to_screen(const QComboBox& combo, QWidget& popup);
 // For a dialog whose pages scroll (GitHub issue 92): a combo box, spin box or slider inside
 // a scroll area under `root` ignores the mouse wheel unless it holds keyboard focus (a click
 // or Tab; their focus policy drops from WheelFocus to StrongFocus), so a wheel that passes

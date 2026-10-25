@@ -14105,6 +14105,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>赤目修正: 赤い領域が選択範囲の外にあります</translation>
     </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>選択範囲が空です。</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>ワープはレイヤー全体に適用されます。先にこの変形を確定してください。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

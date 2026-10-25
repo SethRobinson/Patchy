@@ -901,6 +901,10 @@ public:
   // True while the session transforms a flattened target set (a selected folder
   // or a multi-selection) instead of one layer. Warp refuses such sessions.
   [[nodiscard]] bool free_transform_is_multi_target() const noexcept;
+  // True while a single-layer session transforms the selected pixels only (GitHub
+  // issue 399): the selection was lifted out of the layer, the commit composites the
+  // transformed pixels back and the selection follows. Warp refuses such sessions.
+  [[nodiscard]] bool free_transform_floats_selection() const noexcept;
   // Warp Transform: a 4x4 Bezier control cage over the layer (Photoshop's warp
   // tool). Smart objects commit non-destructively (warp metadata + regenerated
   // SoLd); plain pixel layers bake destructively; text layers are refused.
@@ -1225,6 +1229,10 @@ public:
   [[nodiscard]] QRect fill_active_layer_mask(QColor color);
   [[nodiscard]] QRect clear_active_layer_mask();
   [[nodiscard]] PixelBuffer selection_as_grayscale() const;
+  // The selection's coverage over `rect` (document space) as a gray8 plane, 0 outside it.
+  [[nodiscard]] PixelBuffer selection_coverage_buffer(QRect rect) const;
+  // Replaces the selection with a gray8 coverage plane over `bounds` (no history entry).
+  void set_selection_from_coverage(QRect bounds, const PixelBuffer& coverage);
   void replace_selection_from_grayscale(const PixelBuffer& pixels, QString history_label);
   // Apply under a caller-owned history transaction (native script batches).
   void apply_grayscale_to_selection(const PixelBuffer& pixels);
@@ -3720,6 +3728,36 @@ private:
   // while transforming_layer_: transform_layer_id_ has a value XOR
   // transform_targets_ is non-empty; the single-layer path never reads these.
   std::vector<TransformTarget> transform_targets_;
+  // Free Transform of the selected pixels (GitHub issue 399; docs/free-transform.md,
+  // "Transforming the selected pixels"). Set while the single-layer session floats
+  // the selection: transform_source_image_ is `floating` and transform_original_rect_
+  // its document rect. The document is untouched until commit; previews render from
+  // floating_selection_preview_document(), whose layer holds `remainder`.
+  struct TransformFloatingSelection {
+    PixelBuffer remainder;  // the layer's pixels with the selection lifted, over the layer bounds
+    Rect remainder_bounds{};
+    QImage floating;
+    // The whole selection's coverage at session start (gray8 over the selection
+    // bounds): the commit maps it through the session delta so the selection follows.
+    PixelBuffer coverage;
+    Rect coverage_bounds{};
+    // Transparency lock or Background: the hole fills with the background color and
+    // the commit keeps the layer's alpha and bounds.
+    bool preserve_alpha{false};
+  };
+  std::optional<TransformFloatingSelection> transform_floating_;
+  // The document rect a Free Transform of `layer` would float: the selection bounds
+  // clipped to the layer's opaque pixels (empty when they do not meet). Nullopt when
+  // the session takes the whole layer (no selection, Quick Mask, a mask or channel
+  // edit target, text, shape and smart object layers). Bounded per call: the
+  // selection's stored bounds and the revision-keyed alpha-bounds cache.
+  [[nodiscard]] std::optional<QRect> floating_selection_rect_for_layer(const Layer& layer) const;
+  // Lifts the selection out of `layer` for a session over `floating_rect`; reports
+  // the refusal (locked pixels, nothing selected on the layer) and returns nullopt.
+  [[nodiscard]] std::optional<TransformFloatingSelection> lift_floating_selection(const Layer& layer,
+                                                                                QRect floating_rect);
+  [[nodiscard]] Document floating_selection_preview_document() const;
+  void commit_free_transform_floating();
   std::vector<LayerId> transform_mask_only_ids_;
   std::vector<LayerId> transform_session_root_ids_;
   // One composited snapshot of only the target subtree (non-target

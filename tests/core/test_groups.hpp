@@ -62,6 +62,7 @@ std::vector<patchy::test::TestCase> af_format_tests();
 std::vector<patchy::test::TestCase> pdn_tests();
 std::vector<patchy::test::TestCase> composite_corpus_tests();
 std::vector<patchy::test::TestCase> translation_marker_tests();
+std::vector<patchy::test::TestCase> floating_selection_tests();
 std::vector<patchy::test::TestCase> atomic_write_recovery_tests();
 std::vector<patchy::test::TestCase> pixel_depth_tests();
 std::vector<patchy::test::TestCase> psd_deep_io_tests();

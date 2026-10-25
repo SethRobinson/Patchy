@@ -192,6 +192,7 @@ int main(int argc, char** argv) {
            pdn_tests,
            composite_corpus_tests,
            translation_marker_tests,
+           floating_selection_tests,
            atomic_write_recovery_tests,
            pixel_depth_tests,
            psd_deep_io_tests,

@@ -14140,6 +14140,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Red Eye: the red area is outside the selection</source>
         <translation>Yeux rouges : la zone rouge est hors de la sélection</translation>
     </message>
+    <message>
+        <source>The selected area is empty.</source>
+        <translation>La zone sélectionnée est vide.</translation>
+    </message>
+    <message>
+        <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation>La déformation s&apos;applique à tout le calque. Appliquez d&apos;abord cette transformation.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
