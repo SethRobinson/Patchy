@@ -688,13 +688,16 @@ std::vector<std::string> extract_engine_font_names(std::span<const std::uint8_t>
 // ResolvedPhotoshopFont moved to the public psd/psd_text_runs.hpp (the .af
 // importer shares the heuristic resolver).
 
-#ifdef _WIN32
-
+// ASCII letters and digits lowercased, every non-ASCII byte kept as it is. Localized names are
+// often all CJK (DingMao's Chinese family name, KeYan's only family name): dropping their bytes
+// compacted both to the empty key, so the first such font answered for every other one (GitHub
+// issue 413).
 std::string compact_font_key(std::string_view value) {
   std::string compact;
   compact.reserve(value.size());
   for (const auto ch : ascii_lower_copy(std::string(value))) {
-    if (std::isalnum(static_cast<unsigned char>(ch)) != 0) {
+    const auto byte = static_cast<unsigned char>(ch);
+    if (byte >= 0x80U || std::isalnum(byte) != 0) {
       compact.push_back(ch);
     }
   }
@@ -712,12 +715,21 @@ std::string compact_font_key_with_bt_suffix(std::string key) {
 }
 
 bool font_names_match(std::string_view lhs, std::string_view rhs) {
+  if (lhs.empty() || rhs.empty()) {
+    return false;
+  }
   const auto lhs_compact = compact_font_key(lhs);
   const auto rhs_compact = compact_font_key(rhs);
-  return ascii_lower_copy(std::string(lhs)) == ascii_lower_copy(std::string(rhs)) ||
-         lhs_compact == rhs_compact ||
-         compact_font_key_with_bt_suffix(lhs_compact) == compact_font_key_with_bt_suffix(rhs_compact);
+  if (ascii_lower_copy(std::string(lhs)) == ascii_lower_copy(std::string(rhs))) {
+    return true;
+  }
+  // Names made only of punctuation and spaces say nothing: their empty keys must not match.
+  return !lhs_compact.empty() && !rhs_compact.empty() &&
+         (lhs_compact == rhs_compact ||
+          compact_font_key_with_bt_suffix(lhs_compact) == compact_font_key_with_bt_suffix(rhs_compact));
 }
+
+#ifdef _WIN32
 
 // Whether bold + italic can already say everything this face name says. Such a face is never
 // recorded as a style and never baked into the family (main_window.cpp's
@@ -904,24 +916,151 @@ bool directwrite_font_names_match(std::string_view lhs, std::string_view rhs) {
 
 namespace {
 
-std::optional<ResolvedPhotoshopFont> registry_resolved_photoshop_font(std::string_view font_name);
-
-std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::string_view font_name) {
-  const auto wide_name = wide_from_utf8(font_name);
-  if (wide_name.empty()) {
-    return std::nullopt;
+// Every locale's string of `strings` (UTF-8, empty ones dropped).
+std::vector<std::string> directwrite_strings_in_every_locale(IDWriteLocalizedStrings* strings) {
+  std::vector<std::string> values;
+  if (strings == nullptr) {
+    return values;
   }
+  const auto count = strings->GetCount();
+  for (UINT32 index = 0; index < count; ++index) {
+    UINT32 length = 0;
+    if (FAILED(strings->GetStringLength(index, &length)) || length == 0) {
+      continue;
+    }
+    std::wstring value(static_cast<std::size_t>(length) + 1U, L'\0');
+    if (FAILED(strings->GetString(index, value.data(), length + 1U))) {
+      continue;
+    }
+    value.resize(length);
+    if (auto utf8 = utf8_from_wide(value); !utf8.empty()) {
+      values.push_back(std::move(utf8));
+    }
+  }
+  return values;
+}
 
+void append_directwrite_info_strings_in_every_locale(IDWriteFont* font, DWRITE_INFORMATIONAL_STRING_ID id,
+                                                     std::vector<std::string>& names) {
+  Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> strings;
+  BOOL exists = FALSE;
+  if (SUCCEEDED(font->GetInformationalStrings(id, &strings, &exists)) && exists && strings) {
+    for (auto& value : directwrite_strings_in_every_locale(strings.Get())) {
+      names.push_back(std::move(value));
+    }
+  }
+}
+
+// Every family name `font` goes by, in every locale its name table carries: DirectWrite's own
+// family, the WIN32 (GDI) family and the typographic family. Font databases list a face under
+// the name for the USER'S locale, so a Chinese Windows shows DingMao.ttf as its Chinese
+// typographic family, a name the en-us strings the rest of this file reads never contain
+// (GitHub issue 413).
+std::vector<std::string> directwrite_family_names_in_every_locale(IDWriteFont* font) {
+  std::vector<std::string> names;
+  Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
+  if (SUCCEEDED(font->GetFontFamily(&font_family)) && font_family) {
+    Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> family_names;
+    if (SUCCEEDED(font_family->GetFamilyNames(&family_names)) && family_names) {
+      names = directwrite_strings_in_every_locale(family_names.Get());
+    }
+  }
+  append_directwrite_info_strings_in_every_locale(font, DWRITE_INFORMATIONAL_STRING_WIN32_FAMILY_NAMES, names);
+  append_directwrite_info_strings_in_every_locale(font, DWRITE_INFORMATIONAL_STRING_PREFERRED_FAMILY_NAMES, names);
+  return names;
+}
+
+Microsoft::WRL::ComPtr<IDWriteFontCollection> directwrite_system_font_collection() {
   Microsoft::WRL::ComPtr<IDWriteFactory> factory;
   if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
                                  reinterpret_cast<IUnknown**>(factory.GetAddressOf())))) {
-    return std::nullopt;
+    return {};
   }
   Microsoft::WRL::ComPtr<IDWriteFontCollection> collection;
   if (FAILED(factory->GetSystemFontCollection(&collection)) || !collection) {
-    return std::nullopt;
+    return {};
   }
+  return collection;
+}
 
+}  // namespace
+
+// The installed face named by `name` in ANY locale: a full name in any language (one face, the
+// best answer), else a family name in any language (directwrite_family_names_in_every_locale),
+// where the face whose face name or WIN32 subfamily is `style` wins, then the face whose weight
+// and slope say what bold/italic say, then the family's first face. Null when nothing carries
+// the name. Callers ask the en-us lookups first; this finds a face by the localized family name
+// Qt's database shows on a non-English Windows. Shared with the writer (psd_text_write.cpp).
+Microsoft::WRL::ComPtr<IDWriteFont> directwrite_font_for_localized_name(IDWriteFontCollection* collection,
+                                                                        std::string_view name,
+                                                                        std::string_view style, bool bold,
+                                                                        bool italic) {
+  if (collection == nullptr || name.empty()) {
+    return {};
+  }
+  Microsoft::WRL::ComPtr<IDWriteFont> style_match;
+  Microsoft::WRL::ComPtr<IDWriteFont> flags_match;
+  Microsoft::WRL::ComPtr<IDWriteFont> first_match;
+  const auto family_count = collection->GetFontFamilyCount();
+  for (UINT32 family_index = 0; family_index < family_count; ++family_index) {
+    Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
+    if (FAILED(collection->GetFontFamily(family_index, &font_family)) || !font_family) {
+      continue;
+    }
+    const auto font_count = font_family->GetFontCount();
+    for (UINT32 font_index = 0; font_index < font_count; ++font_index) {
+      Microsoft::WRL::ComPtr<IDWriteFont> font;
+      if (FAILED(font_family->GetFont(font_index, &font)) || !font ||
+          font->GetSimulations() != DWRITE_FONT_SIMULATIONS_NONE) {
+        continue;
+      }
+      std::vector<std::string> full_names;
+      append_directwrite_info_strings_in_every_locale(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME, full_names);
+      if (std::any_of(full_names.begin(), full_names.end(),
+                      [name](const std::string& candidate) { return font_names_match(candidate, name); })) {
+        return font;
+      }
+      const auto families = directwrite_family_names_in_every_locale(font.Get());
+      if (!std::any_of(families.begin(), families.end(),
+                       [name](const std::string& candidate) { return font_names_match(candidate, name); })) {
+        continue;
+      }
+      if (!style.empty() && !style_match) {
+        std::vector<std::string> faces;
+        Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> face_names;
+        if (SUCCEEDED(font->GetFaceNames(&face_names)) && face_names) {
+          faces = directwrite_strings_in_every_locale(face_names.Get());
+        }
+        append_directwrite_info_strings_in_every_locale(font.Get(), DWRITE_INFORMATIONAL_STRING_WIN32_SUBFAMILY_NAMES,
+                                                        faces);
+        if (std::any_of(faces.begin(), faces.end(),
+                        [style](const std::string& candidate) { return font_names_match(candidate, style); })) {
+          style_match = font;
+        }
+      }
+      const bool face_bold = font->GetWeight() >= DWRITE_FONT_WEIGHT_SEMI_BOLD;
+      const bool face_italic = font->GetStyle() != DWRITE_FONT_STYLE_NORMAL;
+      if (!flags_match && face_bold == bold && face_italic == italic) {
+        flags_match = font;
+      }
+      if (!first_match) {
+        first_match = font;
+      }
+    }
+  }
+  return style_match ? style_match : flags_match ? flags_match : first_match;
+}
+
+namespace {
+
+std::optional<ResolvedPhotoshopFont> registry_resolved_photoshop_font(std::string_view font_name);
+
+ResolvedPhotoshopFont directwrite_resolved_font(IDWriteFont* font, const std::string& family);
+
+// The face whose en-us PostScript name, full name or family + face is `font_name`, with the
+// en-us family it belongs to.
+std::optional<std::pair<Microsoft::WRL::ComPtr<IDWriteFont>, std::string>> directwrite_font_for_name(
+    IDWriteFontCollection* collection, std::string_view font_name) {
   const auto family_count = collection->GetFontFamilyCount();
   for (UINT32 family_index = 0; family_index < family_count; ++family_index) {
     Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
@@ -975,90 +1114,137 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
       if (std::any_of(candidates.begin(), candidates.end(), [font_name](const std::string& candidate) {
             return font_names_match(candidate, font_name);
           })) {
-        const auto weight = font->GetWeight();
-        const bool italic = font->GetStyle() != DWRITE_FONT_STYLE_NORMAL;
-        // The face name as the font itself declares it, but ONLY when bold+italic cannot already
-        // say it. Recording "Italic" or "Bold" too would push almost every imported layer onto
-        // runs v5 for no gain and move the byte-stability canaries; the style column exists for
-        // the faces the flags cannot name (Demi, Book, Black, Condensed Light).
-        const auto declared_style = [&font]() -> std::string {
-          Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> names;
-          if (FAILED(font->GetFaceNames(&names)) || !names) {
-            return {};
-          }
-          const auto face = directwrite_localized_string(names.Get());
-          if (!face.has_value()) {
-            return {};
-          }
-          auto value = utf8_from_wide(*face);
-          if (face_name_is_flag_expressible(value)) {
-            return {};
-          }
-          return value;
-        }();
-        // Only Regular (400) and Bold (700) survive being flattened into a family plus a bold
-        // flag. Every weight between them loses its face that way: Demi/Semi (600) flattened
-        // onto the family's BOLD face, which renders visibly heavier and taller than Photoshop
-        // (ITC Lubalin Graph Demi measured 995x868 against Photoshop's own 982x826 on the
-        // entry_poster.psd body copy). Keep the real face, and do NOT also set the bold flag:
-        // the name already carries the weight, and Qt would synthesise bold on top of it.
-        // Black/Heavy faces (weight >= 800) keep the face name the same way ("Arial Black" ->
-        // family "Arial", style "Black", ~15% wider than the Bold face it used to flatten to)
-        // and additionally keep the bold flag, so an uninstalled face still falls back to Bold.
-        // They used to return DirectWrite's FULL_NAME string early instead, which skipped the
-        // GDI-name normalization below: Futura Extra Black BT (a legacy face DirectWrite names
-        // by its full name) came back as the family "Futura Extra Black BT", a name no font
-        // database lists, so an unchanged edit of such a layer re-rendered in a substitute.
-        //
-        // Use "family + face" rather than the FULL_NAME string: that is the name Qt gives such a
-        // face when it splits it into its own family ("ITC Lubalin Graph Demi"), whereas
-        // FULL_NAME can be the PostScript-style name ("LubalinGraphITCbyBT-Demi"), which matches
-        // nothing in the font database and falls through to a substitute.
-        //
-        // Gate on declared_style, not on the raw face name: a face whose name the flags CAN
-        // express must never be baked into the family, whatever weight it declares. Bookman Old
-        // Style ships its whole family at weight 500, so "BookmanOldStyle-Italic" used to come
-        // back as family "Bookman Old Style Italic" - a name the font database cannot list
-        // faces for, which emptied the style picker and diverted Bold/Italic to faux.
-        const bool heavy = weight >= DWRITE_FONT_WEIGHT_EXTRA_BOLD;
-        auto resolved = weight != DWRITE_FONT_WEIGHT_NORMAL && weight != DWRITE_FONT_WEIGHT_BOLD &&
-                                !declared_style.empty()
-                            ? ResolvedPhotoshopFont{family + ' ' + declared_style, declared_style, heavy, italic}
-                            : ResolvedPhotoshopFont{family, declared_style,
-                                                    weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};
-        // Qt's Windows font database lists the GDI (name-table family/subfamily) names, which are
-        // DirectWrite's WIN32 informational strings, not the weight-stretch-style family and face
-        // DirectWrite derives. The two agree for most fonts, and for a face like Franklin Gothic
-        // Demi the derived "family + face" IS the GDI family. When they disagree nothing
-        // downstream can find the derived name: Balmoral LET (an old TrueType font whose only face
-        // is "Plain" at OS/2 weight class 5) is DirectWrite family "Balmoral LET Plain" with a
-        // synthesized "Medium" face, so the derived name "Balmoral LET Plain Medium" raised the
-        // missing-font prompt for an installed font; Franklin Gothic Medium is DirectWrite family
-        // "Franklin Gothic" + face "Medium" at weight 400, so it came back as the nonexistent family
-        // "Franklin Gothic". Store the WIN32 family instead, with the WIN32 subfamily as the face
-        // when the flags cannot express it; the flags then follow that subfamily's own words.
-        if (const auto win32_family =
-                directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_WIN32_FAMILY_NAMES);
-            win32_family.has_value() && !font_names_match(*win32_family, resolved.family)) {
-          const auto win32_face =
-              directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_WIN32_SUBFAMILY_NAMES)
-                  .value_or(std::string());
-          const auto face_key = ascii_lower_copy(win32_face);
-          resolved.family = *win32_family;
-          resolved.style = face_name_is_flag_expressible(win32_face) ? std::string() : win32_face;
-          // Black and Heavy count as bold, as the renderer's own style-flag reading does
-          // (text_style_flags_for_name), so the uninstalled fallback of such a face stays Bold.
-          resolved.bold = face_key.find("bold") != std::string::npos ||
-                          face_key.find("black") != std::string::npos ||
-                          face_key.find("heavy") != std::string::npos;
-          resolved.italic = italic || face_key.find("italic") != std::string::npos ||
-                            face_key.find("oblique") != std::string::npos;
-        }
-        return resolved;
+        return std::pair{font, family};
       }
     }
   }
   return std::nullopt;
+}
+
+std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::string_view font_name) {
+  if (wide_from_utf8(font_name).empty()) {
+    return std::nullopt;
+  }
+  const auto collection = directwrite_system_font_collection();
+  if (!collection) {
+    return std::nullopt;
+  }
+  if (const auto found = directwrite_font_for_name(collection.Get(), font_name); found.has_value()) {
+    return directwrite_resolved_font(found->first.Get(), found->second);
+  }
+  return std::nullopt;
+}
+
+// A name only a non-English name record carries (directwrite_font_for_localized_name), resolved
+// like any other face: the reader stores the en-us names the rest of this file reads, so a
+// document reads the same on every system.
+std::optional<ResolvedPhotoshopFont> directwrite_localized_resolved_photoshop_font(std::string_view font_name) {
+  const auto collection = directwrite_system_font_collection();
+  if (!collection) {
+    return std::nullopt;
+  }
+  const auto font = directwrite_font_for_localized_name(collection.Get(), font_name, {}, false, false);
+  if (!font) {
+    return std::nullopt;
+  }
+  Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
+  Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> family_names;
+  if (FAILED(font->GetFontFamily(&font_family)) || !font_family ||
+      FAILED(font_family->GetFamilyNames(&family_names)) || !family_names) {
+    return std::nullopt;
+  }
+  const auto localized_family = directwrite_localized_string(family_names.Get());
+  if (!localized_family.has_value()) {
+    return std::nullopt;
+  }
+  const auto family = utf8_from_wide(*localized_family);
+  if (family.empty()) {
+    return std::nullopt;
+  }
+  return directwrite_resolved_font(font.Get(), family);
+}
+
+ResolvedPhotoshopFont directwrite_resolved_font(IDWriteFont* font, const std::string& family) {
+  const auto weight = font->GetWeight();
+  const bool italic = font->GetStyle() != DWRITE_FONT_STYLE_NORMAL;
+  // The face name as the font itself declares it, but ONLY when bold+italic cannot already
+  // say it. Recording "Italic" or "Bold" too would push almost every imported layer onto
+  // runs v5 for no gain and move the byte-stability canaries; the style column exists for
+  // the faces the flags cannot name (Demi, Book, Black, Condensed Light).
+  const auto declared_style = [&font]() -> std::string {
+    Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> names;
+    if (FAILED(font->GetFaceNames(&names)) || !names) {
+      return {};
+    }
+    const auto face = directwrite_localized_string(names.Get());
+    if (!face.has_value()) {
+      return {};
+    }
+    auto value = utf8_from_wide(*face);
+    if (face_name_is_flag_expressible(value)) {
+      return {};
+    }
+    return value;
+  }();
+  // Only Regular (400) and Bold (700) survive being flattened into a family plus a bold
+  // flag. Every weight between them loses its face that way: Demi/Semi (600) flattened
+  // onto the family's BOLD face, which renders visibly heavier and taller than Photoshop
+  // (ITC Lubalin Graph Demi measured 995x868 against Photoshop's own 982x826 on the
+  // entry_poster.psd body copy). Keep the real face, and do NOT also set the bold flag:
+  // the name already carries the weight, and Qt would synthesise bold on top of it.
+  // Black/Heavy faces (weight >= 800) keep the face name the same way ("Arial Black" ->
+  // family "Arial", style "Black", ~15% wider than the Bold face it used to flatten to)
+  // and additionally keep the bold flag, so an uninstalled face still falls back to Bold.
+  // They used to return DirectWrite's FULL_NAME string early instead, which skipped the
+  // GDI-name normalization below: Futura Extra Black BT (a legacy face DirectWrite names
+  // by its full name) came back as the family "Futura Extra Black BT", a name no font
+  // database lists, so an unchanged edit of such a layer re-rendered in a substitute.
+  //
+  // Use "family + face" rather than the FULL_NAME string: that is the name Qt gives such a
+  // face when it splits it into its own family ("ITC Lubalin Graph Demi"), whereas
+  // FULL_NAME can be the PostScript-style name ("LubalinGraphITCbyBT-Demi"), which matches
+  // nothing in the font database and falls through to a substitute.
+  //
+  // Gate on declared_style, not on the raw face name: a face whose name the flags CAN
+  // express must never be baked into the family, whatever weight it declares. Bookman Old
+  // Style ships its whole family at weight 500, so "BookmanOldStyle-Italic" used to come
+  // back as family "Bookman Old Style Italic" - a name the font database cannot list
+  // faces for, which emptied the style picker and diverted Bold/Italic to faux.
+  const bool heavy = weight >= DWRITE_FONT_WEIGHT_EXTRA_BOLD;
+  auto resolved = weight != DWRITE_FONT_WEIGHT_NORMAL && weight != DWRITE_FONT_WEIGHT_BOLD &&
+                          !declared_style.empty()
+                      ? ResolvedPhotoshopFont{family + ' ' + declared_style, declared_style, heavy, italic}
+                      : ResolvedPhotoshopFont{family, declared_style,
+                                              weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};
+  // Qt's Windows font database lists the GDI (name-table family/subfamily) names, which are
+  // DirectWrite's WIN32 informational strings, not the weight-stretch-style family and face
+  // DirectWrite derives. The two agree for most fonts, and for a face like Franklin Gothic
+  // Demi the derived "family + face" IS the GDI family. When they disagree nothing
+  // downstream can find the derived name: Balmoral LET (an old TrueType font whose only face
+  // is "Plain" at OS/2 weight class 5) is DirectWrite family "Balmoral LET Plain" with a
+  // synthesized "Medium" face, so the derived name "Balmoral LET Plain Medium" raised the
+  // missing-font prompt for an installed font; Franklin Gothic Medium is DirectWrite family
+  // "Franklin Gothic" + face "Medium" at weight 400, so it came back as the nonexistent family
+  // "Franklin Gothic". Store the WIN32 family instead, with the WIN32 subfamily as the face
+  // when the flags cannot express it; the flags then follow that subfamily's own words.
+  if (const auto win32_family =
+          directwrite_font_info_string(font, DWRITE_INFORMATIONAL_STRING_WIN32_FAMILY_NAMES);
+      win32_family.has_value() && !font_names_match(*win32_family, resolved.family)) {
+    const auto win32_face =
+        directwrite_font_info_string(font, DWRITE_INFORMATIONAL_STRING_WIN32_SUBFAMILY_NAMES)
+            .value_or(std::string());
+    const auto face_key = ascii_lower_copy(win32_face);
+    resolved.family = *win32_family;
+    resolved.style = face_name_is_flag_expressible(win32_face) ? std::string() : win32_face;
+    // Black and Heavy count as bold, as the renderer's own style-flag reading does
+    // (text_style_flags_for_name), so the uninstalled fallback of such a face stays Bold.
+    resolved.bold = face_key.find("bold") != std::string::npos ||
+                    face_key.find("black") != std::string::npos ||
+                    face_key.find("heavy") != std::string::npos;
+    resolved.italic = italic || face_key.find("italic") != std::string::npos ||
+                      face_key.find("oblique") != std::string::npos;
+  }
+  return resolved;
 }
 
 std::string trim_ascii_whitespace(std::string value) {
@@ -1156,11 +1342,37 @@ void set_photoshop_font_resolver(PhotoshopFontResolver resolver) {
 
 std::optional<ResolvedPhotoshopFont> installed_font_for_name(std::string_view name) {
 #ifdef _WIN32
-  return directwrite_resolved_photoshop_font(name);
+  if (auto resolved = directwrite_resolved_photoshop_font(name); resolved.has_value()) {
+    return resolved;
+  }
+  return directwrite_localized_resolved_photoshop_font(name);
 #else
   (void)name;
   return std::nullopt;
 #endif
+}
+
+std::vector<std::string> installed_font_family_names(std::string_view name) {
+#ifdef _WIN32
+  const auto collection = directwrite_system_font_collection();
+  if (!collection || wide_from_utf8(name).empty()) {
+    return {};
+  }
+  Microsoft::WRL::ComPtr<IDWriteFont> font;
+  if (auto found = directwrite_font_for_name(collection.Get(), name); found.has_value()) {
+    font = std::move(found->first);
+  } else {
+    font = directwrite_font_for_localized_name(collection.Get(), name, {}, false, false);
+  }
+  return font ? directwrite_family_names_in_every_locale(font.Get()) : std::vector<std::string>{};
+#else
+  (void)name;
+  return {};
+#endif
+}
+
+bool photoshop_font_names_match(std::string_view lhs, std::string_view rhs) {
+  return font_names_match(lhs, rhs);
 }
 
 ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
@@ -1169,6 +1381,9 @@ ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
     return *resolved;
   }
   if (const auto resolved = registry_resolved_photoshop_font(font_name); resolved.has_value()) {
+    return *resolved;
+  }
+  if (const auto resolved = directwrite_localized_resolved_photoshop_font(font_name); resolved.has_value()) {
     return *resolved;
   }
 #else
