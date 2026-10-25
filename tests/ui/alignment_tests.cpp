@@ -9,6 +9,7 @@
 #include <QFrame>
 #include <QIcon>
 #include <QImage>
+#include <QPainter>
 #include <QPixmap>
 #include <algorithm>
 #include <atomic>
@@ -487,6 +488,25 @@ void ui_layer_distribute_requires_three_units_and_spaces_evenly() {
     CHECK(actions.contains(require_action(scene.window, "layerAlignToCanvasAction")));
     CHECK(!actions.contains(require_action(scene.window, "layerDistributeLeftAction")));
   }
+  // GitHub issue 405: the enabled Align and Distribute buttons in both schemes, cropped
+  // from the first Align button to the gear menu button.
+  auto* options_bar = scene.window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* first_align = scene.window.findChild<QToolButton*>(QStringLiteral("moveAlignLeftButton"));
+  CHECK(options_bar != nullptr && first_align != nullptr && more_button != nullptr);
+  if (options_bar != nullptr && first_align != nullptr && more_button != nullptr) {
+    const auto align_distribute_strip = [&] {
+      QApplication::processEvents();
+      const QPoint top_left = first_align->mapTo(options_bar, QPoint(0, 0));
+      const QPoint bottom_right =
+          more_button->mapTo(options_bar, QPoint(more_button->width(), more_button->height()));
+      const QRect crop = QRect(top_left, bottom_right).adjusted(-6, -3, 6, 3).intersected(options_bar->rect());
+      return options_bar->grab(crop).toImage();
+    };
+    const QImage dark_strip = align_distribute_strip();
+    ColorSchemeRestorer restore_scheme(patchy::ui::ColorSchemePreference::Light);
+    const QImage light_strip = align_distribute_strip();
+    save_stacked_artifact("ui_issue_405_align_distribute", {dark_strip, light_strip});
+  }
   // The buttons follow their action's enabled state: two units cannot distribute.
   select_layers(*scene.layer_list, {QStringLiteral("A"), QStringLiteral("B")});
   QApplication::processEvents();
@@ -609,6 +629,17 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
     for (std::size_t j = i + 1; j < glyphs.size(); ++j) {
       CHECK(glyphs[i] != glyphs[j]);
     }
+  }
+  // GitHub issue 405: the fourteen glyphs side by side at the options bar's 18 px size.
+  {
+    QImage sheet(static_cast<int>(glyphs.size()) * 24, 24, QImage::Format_ARGB32_Premultiplied);
+    sheet.fill(patchy::ui::theme().options_bar_bg);
+    QPainter painter(&sheet);
+    for (std::size_t i = 0; i < glyphs.size(); ++i) {
+      painter.drawImage(QPoint(static_cast<int>(i) * 24 + 3, 3), glyphs[i]);
+    }
+    painter.end();
+    save_stacked_artifact("ui_issue_405_align_distribute_glyphs", {sheet});
   }
   // GitHub issue 211: a separator sets Auto-Nest Layers apart from the buttons before it,
   // on the Move bar (the gear menu button) and on the Artboard bar (Add Artboard).
