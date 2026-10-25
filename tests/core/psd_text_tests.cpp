@@ -22,6 +22,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <filesystem>
@@ -2293,6 +2294,63 @@ void psd_text_engine_data_resolves_hyphenated_font_family_names() {
         std::string::npos);
 }
 
+// GitHub issue 413: the font-name comparison dropped every non-ASCII character, so DingMao's
+// Chinese family name and KeYan's (the only family name that font has) both compacted to the
+// empty key and a layer set in DingMao came back in KeYan. Spelled as UTF-8 escapes.
+void psd_text_font_names_keep_non_ascii_characters() {
+  using patchy::psd::photoshop_font_names_match;
+  const std::string dingmao = "\xe4\xb8\x81\xe5\x8d\xaf\xe7\x82\xb9\xe9\x98\xb5\xe4\xbd\x93";
+  const std::string keyan = "\xe5\x8f\xaf\xe7\x9b\x90\xe5\x8f\xaf\xe7\x94\x9c\xe5\x8f\xaf\xe7\x88\xb1\xe4\xbd\x93";
+  CHECK(!photoshop_font_names_match(dingmao, keyan));
+  CHECK(photoshop_font_names_match(dingmao, dingmao));
+  CHECK(!photoshop_font_names_match(dingmao + " 9px", "Some Font 9px"));
+  CHECK(photoshop_font_names_match(dingmao + " 9px", dingmao + "9PX"));
+  CHECK(!photoshop_font_names_match(dingmao, dingmao + " 9px"));
+  // Names with nothing to compare match nothing, not each other.
+  CHECK(!photoshop_font_names_match("", ""));
+  CHECK(!photoshop_font_names_match("-", " "));
+  // The ASCII rules stay: case, spaces and hyphens are ignored, and a BT suffix may move.
+  CHECK(photoshop_font_names_match("DinkieBitmap 9pxDemo", "DinkieBitmap-9pxDemo"));
+  CHECK(photoshop_font_names_match("Arial-BoldMT", "arialboldmt"));
+  CHECK(photoshop_font_names_match("Futura BT Bold Condensed", "Futura Bold Condensed BT"));
+}
+
+// The same bug end to end: a PSD naming a font by an all-CJK name the machine lacks keeps that
+// name. Before the fix the resolver answered with the first installed font whose names were
+// all CJK (on the reporter's machine KeYan for a layer set in DingMao).
+void psd_text_engine_data_keeps_an_uninstalled_cjk_font_name() {
+  const std::string text = "Type\r";
+  const auto text_literal = engine_utf16be_literal(text);
+  // U+6D4B U+8BD5 U+4F53 U+7532 U+4E59: no UTF-16 byte is a bracket, a parenthesis or a
+  // backslash, which the engine-data scanner would read as structure.
+  const std::u16string font_name = u"\u6d4b\u8bd5\u4f53\u7532\u4e59";
+  std::string font_literal = "(\xFE\xFF";
+  for (const auto unit : font_name) {
+    font_literal.push_back(static_cast<char>((unit >> 8U) & 0xFFU));
+    font_literal.push_back(static_cast<char>(unit & 0xFFU));
+  }
+  font_literal.push_back(')');
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 72 "
+      "/FauxBold false /FauxItalic false /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> "
+      ">> >> >> ] /RunLengthArray [ 5 ] >> /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& metadata = read.layers().front().metadata();
+  std::printf("  stored family:");
+  for (const auto byte : metadata.at(patchy::kLayerMetadataTextFont)) {
+    std::printf(" %02x", static_cast<unsigned>(static_cast<unsigned char>(byte)));
+  }
+  std::printf("\n");
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "\xe6\xb5\x8b\xe8\xaf\x95\xe4\xbd\x93\xe7\x94\xb2\xe4\xb9\x99");
+}
+
 void psd_writer_emits_photoshop_text_line_breaks() {
   patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -3093,6 +3151,9 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",
        psd_text_engine_data_resolves_hyphenated_font_family_names},
+      {"psd_text_font_names_keep_non_ascii_characters", psd_text_font_names_keep_non_ascii_characters},
+      {"psd_text_engine_data_keeps_an_uninstalled_cjk_font_name",
+       psd_text_engine_data_keeps_an_uninstalled_cjk_font_name},
       {"psd_writer_emits_photoshop_text_line_breaks",
        psd_writer_emits_photoshop_text_line_breaks},
       {"psd_writer_emits_v2_paragraph_layout",

@@ -1,6 +1,7 @@
 // The on-canvas text edit session: the layer transform it carries through entry and commit
-// (GitHub issue 373), the caret against the drawn line (384), the text box outline (385, 371)
-// and the options-bar size round trip (371). The reporter's sample is a local fixture
+// (GitHub issue 373), the caret against the drawn line (384), the text box outline (385, 371),
+// the options-bar size round trip (371), a held Enter and the wheel over the box (413) and Esc
+// on the untouched placeholder (415). The reporter's sample is a local fixture
 // (local-test-fixtures/psd/text-rotate-issue373.psd); the committed-fixture tests build the
 // same shapes from photoshop-text-box-auto-leading.psd so they run everywhere.
 #include "core/layer_metadata.hpp"
@@ -25,6 +26,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QPolygonF>
+#include <QScrollBar>
 #include <QWidget>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -633,10 +635,191 @@ void ui_text_caret_spans_the_drawn_line() {
   commit_session(*session.canvas);
 }
 
+// A new session at (60, 60) of a 2000 x 2000 document, so the view can scroll both ways.
+QTextEdit* open_new_text_session(SessionWindow& session, const QString& title) {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(2000, 2000, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  open_document(session, std::move(document), title);
+  session.window.resize(1200, 800);
+  require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::add_text_at(session.window, QPoint(60, 60));
+  QApplication::processEvents();
+  process_events_for(300);
+  return live_editor(*session.canvas);
+}
+
+void ui_text_held_enter_relayouts_each_repeat() {
+  // GitHub issue 413: holding Enter repeats faster than the 33 ms preview debounce, so every
+  // repeat pushed the preview back and the glyphs stayed where they were while the caret and
+  // the box moved on. Each repeat now draws at once: Enter at the start of the line moves the
+  // drawn text down a line per repeat, and the caret keeps its place against the ink.
+  SessionWindow session;
+  auto* editor = open_new_text_session(session, QStringLiteral("Held Enter"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->textCursor().insertText(QStringLiteral("./text"));  // replaces the selected placeholder
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::Start);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  process_events_for(300);
+  auto previous_ink = preview_ink_canvas_rect(session, *editor);
+  const auto first_caret = caret_canvas_polygon(*session.canvas, *editor).boundingRect();
+  CHECK(previous_ink.has_value());
+  CHECK(!first_caret.isEmpty());
+  if (!previous_ink.has_value() || first_caret.isEmpty()) {
+    commit_session(*session.canvas);
+    return;
+  }
+  const double ink_below_caret = previous_ink->top() - first_caret.top();
+  for (int repeat = 1; repeat <= 6; ++repeat) {
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"), true);
+    QApplication::sendEvent(editor, &press);
+    QApplication::processEvents();  // no wait: the repeat must already be drawn
+    const auto blocks = editor->document()->blockCount();
+    const bool pending = editor->property("patchy.textPreviewPending").toBool();
+    const auto ink = preview_ink_canvas_rect(session, *editor);
+    const auto caret = caret_canvas_polygon(*session.canvas, *editor).boundingRect();
+    std::printf("  repeat %d: %d lines, preview pending %d, ink top %d, caret top %.1f\n", repeat, blocks,
+                pending ? 1 : 0, ink.has_value() ? ink->top() : -1, caret.top());
+    CHECK(blocks == repeat + 1);
+    CHECK(!pending);
+    CHECK(ink.has_value());
+    if (!ink.has_value()) {
+      break;
+    }
+    CHECK(ink->top() > previous_ink->top());
+    CHECK(std::abs((ink->top() - caret.top()) - ink_below_caret) <= 2.0);
+    previous_ink = ink;
+  }
+  commit_session(*session.canvas);
+}
+
+void ui_text_wheel_over_the_editor_moves_the_canvas() {
+  // GitHub issue 413: with the pointer inside the text box the wheel did nothing (only Alt+wheel
+  // zoomed). It now does exactly what it does over the rest of the canvas: each step is sent
+  // once over empty canvas and once over the box, and both must move the view the same way
+  // (plain wheel up and down, Ctrl+wheel sideways, Alt+wheel and wheel-zoom mode zoom), with
+  // the box following.
+  SessionWindow session;
+  auto* editor = open_new_text_session(session, QStringLiteral("Wheel Over Text"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  auto* canvas = session.canvas;
+  canvas->set_zoom(0.5);
+  QApplication::processEvents();
+  process_events_for(300);
+  const auto origin = [&] { return canvas->widget_position_for_document_point(QPoint(0, 0)); };
+  const auto inside = [&] { return editor->viewport()->rect().center(); };
+  const QPoint outside(canvas->width() - 40, canvas->height() - 40);
+  CHECK(!editor->geometry().contains(outside));
+  canvas->set_wheel_zooms(false);  // pans move the view the same distance wherever the pointer is
+
+  for (const auto modifiers : {Qt::KeyboardModifiers(Qt::NoModifier), Qt::KeyboardModifiers(Qt::ControlModifier)}) {
+    const auto label = modifiers == Qt::NoModifier ? "plain" : "Ctrl";
+    auto before = origin();
+    send_wheel(*canvas, outside, -120, modifiers);
+    QApplication::processEvents();
+    const auto on_canvas = origin() - before;
+    before = origin();
+    const auto box_before = editor->geometry().topLeft();
+    send_wheel(*editor->viewport(), inside(), -120, modifiers);
+    QApplication::processEvents();
+    const auto on_box = origin() - before;
+    const auto box_moved = editor->geometry().topLeft() - box_before;
+    std::printf("  %s wheel: over canvas (%d,%d), over the box (%d,%d), box moved (%d,%d)\n", label, on_canvas.x(),
+                on_canvas.y(), on_box.x(), on_box.y(), box_moved.x(), box_moved.y());
+    CHECK(!on_canvas.isNull());
+    CHECK(on_box == on_canvas);
+    CHECK(std::abs(box_moved.x() - on_box.x()) <= 1 && std::abs(box_moved.y() - on_box.y()) <= 1);
+    CHECK(editor->verticalScrollBar()->value() == 0);
+  }
+
+  // Zooms anchor at the pointer, so only the factor compares.
+  for (const bool wheel_zooms : {false, true}) {
+    canvas->set_wheel_zooms(wheel_zooms);
+    const auto modifiers = wheel_zooms ? Qt::KeyboardModifiers(Qt::NoModifier) : Qt::KeyboardModifiers(Qt::AltModifier);
+    auto zoom_before = canvas->zoom();
+    send_wheel(*canvas, outside, 120, modifiers);
+    QApplication::processEvents();
+    const auto canvas_factor = canvas->zoom() / zoom_before;
+    zoom_before = canvas->zoom();
+    send_wheel(*editor, inside(), 120, modifiers);
+    QApplication::processEvents();
+    process_events_for(100);
+    const auto box_factor = canvas->zoom() / zoom_before;
+    std::printf("  %s: zoom x%.3f over canvas, x%.3f over the box\n", wheel_zooms ? "wheel-zoom mode" : "Alt+wheel",
+                canvas_factor, box_factor);
+    CHECK(canvas_factor > 1.0);
+    CHECK(std::abs(box_factor - canvas_factor) < 0.001);
+    CHECK(live_editor(*canvas) == editor);
+  }
+  commit_session(*canvas);
+}
+
+void ui_text_escape_drops_the_untouched_placeholder() {
+  // GitHub issue 415: Esc on a new session still showing the "Type" placeholder leaves no
+  // layer and no undo step, also with "Use Esc to commit text" on; Esc after typing keeps its
+  // usual meaning (cancel, or commit with the preference on).
+  for (const bool escape_commits : {false, true}) {
+    SessionWindow session;
+    auto* editor = open_new_text_session(session, QStringLiteral("Escape Placeholder"));
+    patchy::ui::MainWindowTestAccess::set_escape_commits_text(session.window, escape_commits);
+    auto& document = patchy::ui::MainWindowTestAccess::document(session.window);
+    auto* undo_action = require_action_by_text(session.window, QStringLiteral("Undo"));
+    const auto layer_count = [&] { return std::as_const(document).layers().size(); };
+    // open_new_text_session's document starts with no layers (the open session adds its
+    // provisional layer and the preview).
+    const std::size_t layers_before = 0;
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    CHECK(editor->toPlainText() == QStringLiteral("Type"));
+    send_key(*editor, Qt::Key_Escape);
+    process_events_for(150);
+    std::printf("  Esc commits %d, placeholder: session open %d, layers %zu (before %zu), undo %d\n",
+                escape_commits ? 1 : 0, live_editor(*session.canvas) != nullptr ? 1 : 0, layer_count(),
+                layers_before, undo_action->isEnabled() ? 1 : 0);
+    CHECK(live_editor(*session.canvas) == nullptr);
+    CHECK(layer_count() == layers_before);
+    CHECK(!undo_action->isEnabled());
+
+    require_action_by_text(session.window, QStringLiteral("Type"))->trigger();
+    patchy::ui::MainWindowTestAccess::add_text_at(session.window, QPoint(60, 200));
+    QApplication::processEvents();
+    process_events_for(200);
+    editor = live_editor(*session.canvas);
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    editor->textCursor().insertText(QStringLiteral("Typed"));
+    QApplication::processEvents();
+    send_key(*editor, Qt::Key_Escape);
+    process_events_for(250);
+    std::printf("  Esc commits %d, typed text: layers %zu, undo %d\n", escape_commits ? 1 : 0, layer_count(),
+                undo_action->isEnabled() ? 1 : 0);
+    CHECK(live_editor(*session.canvas) == nullptr);
+    CHECK(layer_count() == layers_before + (escape_commits ? 1U : 0U));
+    CHECK(undo_action->isEnabled() == escape_commits);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_canvas_session_tests() {
   return {
+      {"ui_text_held_enter_relayouts_each_repeat", ui_text_held_enter_relayouts_each_repeat},
+      {"ui_text_wheel_over_the_editor_moves_the_canvas", ui_text_wheel_over_the_editor_moves_the_canvas},
+      {"ui_text_escape_drops_the_untouched_placeholder", ui_text_escape_drops_the_untouched_placeholder},
       {"ui_text_box_outline_shows_on_unrotated_text", ui_text_box_outline_shows_on_unrotated_text},
       {"ui_text_caret_spans_the_drawn_line", ui_text_caret_spans_the_drawn_line},
       {"ui_text_size_points_round_trip_at_common_resolutions", ui_text_size_points_round_trip_at_common_resolutions},

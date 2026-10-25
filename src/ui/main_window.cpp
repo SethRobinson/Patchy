@@ -101,6 +101,7 @@
 #include <QPoint>
 #include <QPointF>
 #include <QPointer>
+#include <QPointingDevice>
 #include <QPolygon>
 #include <QPolygonF>
 #include <QPushButton>
@@ -301,6 +302,10 @@ constexpr auto kTextFlowBox = "box";
 constexpr int kTextEditorCaretWidth = 3;
 constexpr int kTextEditorPreviewDelayMs = 33;
 constexpr int kExpensiveTextEditorPreviewDelayMs = 200;
+// Set by the event filter for an auto-repeated key: the edit it makes previews at once.
+constexpr auto kTextEditorPreviewNowProperty = "patchy.textPreviewNow";
+// When the oldest edit the preview has not drawn yet happened (text_editor_preview_clock_ms).
+constexpr auto kTextEditorPreviewPendingSinceProperty = "patchy.textPreviewPendingSinceMs";
 constexpr int kTextEditorCaretBlinkSpeedMultiplier = 3;
 constexpr int kMinimumTextEditorCaretBlinkPhaseMs = 80;
 
@@ -571,6 +576,23 @@ void reset_text_editor_scroll(QTextEdit* editor) {
       bar->setValue(0);
     }
   }
+}
+
+qint64 text_editor_preview_clock_ms() {
+  static const QElapsedTimer clock = [] {
+    QElapsedTimer started;
+    started.start();
+    return started;
+  }();
+  return clock.elapsed();
+}
+
+// A NEW session still showing the "Type" placeholder nobody has typed over or restyled. Esc
+// drops such a session even when Esc commits text: there is nothing of the user's to keep
+// (GitHub issue 415).
+bool text_editor_shows_untouched_placeholder(const QTextEdit& editor, const QString& placeholder) {
+  return editor.property(kTextEditorProvisionalLayerProperty).isValid() &&
+         !editor.property(kTextEditorChangedProperty).toBool() && editor.toPlainText() == placeholder;
 }
 
 
@@ -5039,9 +5061,14 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       if (editor->property("patchy.editingLayerId").isValid()) {
         layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
       }
+      // A held key (Enter, Backspace, a letter) repeats about as fast as the preview debounce, so
+      // every repeat used to push the preview back and the glyphs froze while the caret and the
+      // box moved on (GitHub issue 413). The edit a repeat makes previews at once.
+      editor->setProperty(kTextEditorPreviewNowProperty, key_event->isAutoRepeat());
       if (key_event->key() == Qt::Key_Escape) {
         // Preferences > Tools "Use Esc to commit text" (GitHub issue 173); off, Esc cancels.
-        if (escape_commits_text_) {
+        // An untouched placeholder is dropped either way (issue 415).
+        if (escape_commits_text_ && !text_editor_shows_untouched_placeholder(*editor, tr("Type"))) {
           commit_text_editor(editor,
                              QPoint(editor->property("patchy.documentTextX").toInt(),
                                     editor->property("patchy.documentTextY").toInt()),
@@ -5171,37 +5198,31 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     }
   }
 
-  if (auto* editor = qobject_cast<QTextEdit*>(watched);
-      editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor") &&
-      event->type() == QEvent::Wheel) {
-    auto* wheel_event = static_cast<QWheelEvent*>(event);
-    const auto wheel_delta = !wheel_event->pixelDelta().isNull() ? wheel_event->pixelDelta() : wheel_event->angleDelta();
-    const auto primary_delta = wheel_delta.y() != 0 ? wheel_delta.y() : wheel_delta.x();
-    if (canvas_ != nullptr && primary_delta != 0 && (wheel_event->modifiers() & Qt::AltModifier) != 0) {
-      canvas_->zoom_at_widget_point(canvas_->mapFromGlobal(wheel_event->globalPosition().toPoint()),
-                                    CanvasWidget::wheel_zoom_factor(*wheel_event));
-      refresh_document_info();
+  // The wheel over the inline editor (its frame or its viewport) navigates the canvas exactly as
+  // it does anywhere else: scroll, Ctrl/Shift sideways, Alt and wheel-zoom mode zoom (GitHub
+  // issue 413). QTextEdit would otherwise scroll its own document inside the box, and Ctrl+wheel
+  // would zoom the editor's font.
+  if (event->type() == QEvent::Wheel && canvas_ != nullptr) {
+    QTextEdit* wheel_editor = qobject_cast<QTextEdit*>(watched);
+    if (wheel_editor == nullptr) {
+      if (auto* viewport = qobject_cast<QWidget*>(watched); viewport != nullptr) {
+        wheel_editor = qobject_cast<QTextEdit*>(viewport->parentWidget());
+      }
     }
-    reset_text_editor_scroll(editor);
-    wheel_event->accept();
-    return true;
-  }
-  if (auto* viewport = qobject_cast<QWidget*>(watched);
-      viewport != nullptr && viewport->parentWidget() != nullptr &&
-      viewport->parentWidget()->objectName() == QStringLiteral("inlineTextEditor") &&
-      event->type() == QEvent::Wheel) {
-    auto* editor = qobject_cast<QTextEdit*>(viewport->parentWidget());
-    auto* wheel_event = static_cast<QWheelEvent*>(event);
-    const auto wheel_delta = !wheel_event->pixelDelta().isNull() ? wheel_event->pixelDelta() : wheel_event->angleDelta();
-    const auto primary_delta = wheel_delta.y() != 0 ? wheel_delta.y() : wheel_delta.x();
-    if (canvas_ != nullptr && primary_delta != 0 && (wheel_event->modifiers() & Qt::AltModifier) != 0) {
-      canvas_->zoom_at_widget_point(canvas_->mapFromGlobal(wheel_event->globalPosition().toPoint()),
-                                    CanvasWidget::wheel_zoom_factor(*wheel_event));
+    if (wheel_editor != nullptr && wheel_editor->objectName() == QStringLiteral("inlineTextEditor")) {
+      auto* wheel_event = static_cast<QWheelEvent*>(event);
+      const auto global = wheel_event->globalPosition();
+      QWheelEvent forwarded(canvas_->mapFromGlobal(global), global, wheel_event->pixelDelta(),
+                            wheel_event->angleDelta(), wheel_event->buttons(), wheel_event->modifiers(),
+                            wheel_event->phase(), wheel_event->inverted(), wheel_event->source(),
+                            wheel_event->pointingDevice() != nullptr ? wheel_event->pointingDevice()
+                                                                     : QPointingDevice::primaryPointingDevice());
+      QApplication::sendEvent(canvas_, &forwarded);
+      reset_text_editor_scroll(wheel_editor);
       refresh_document_info();
+      wheel_event->accept();
+      return true;
     }
-    reset_text_editor_scroll(editor);
-    wheel_event->accept();
-    return true;
   }
 
   if (canvas_ != nullptr) {
@@ -6835,7 +6856,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
             if (*committed || editor == nullptr) {
               return;
             }
-            if (escape_commits_text_) {
+            if (escape_commits_text_ && !text_editor_shows_untouched_placeholder(*editor, tr("Type"))) {
               commit();
               return;
             }
@@ -10591,13 +10612,30 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   editor->setProperty(kTextEditorPreviewGenerationProperty, generation);
   const auto expensive_preview = editor->property(kTextEditorPreviewExpensiveProperty).toBool();
   const auto transformed_preview = editor->property(kTextEditorTransformedOverlayProperty).toBool();
+  const auto slow_preview = expensive_preview && !transformed_preview;
+  if (!slow_preview && editor->property(kTextEditorPreviewNowProperty).toBool()) {
+    // An auto-repeated key (see eventFilter): draw this edit now, so the glyphs keep up with the
+    // caret and the box while the key is held. The bumped generation retires queued previews.
+    editor->setProperty(kTextEditorPreviewNowProperty, false);
+    editor->setProperty("patchy.textPreviewPending", false);
+    update_text_editor_preview(editor);
+    return;
+  }
   // An expensive style (a wide glow, a big shadow) is re-rendered on a longer debounce, but the
   // LAST good preview keeps drawing until the new one is ready. This used to tear the preview
   // layer out and let the editor widget paint raw glyphs for the whole delay, so every keystroke
   // on styled text flashed between two different rasterizations.
+  // The delay counts from the oldest edit not drawn yet, never from the latest one: typing
+  // faster than the delay must not hold the preview back until the typing stops.
+  const auto now = text_editor_preview_clock_ms();
+  if (!editor->property("patchy.textPreviewPending").toBool() ||
+      !editor->property(kTextEditorPreviewPendingSinceProperty).isValid()) {
+    editor->setProperty(kTextEditorPreviewPendingSinceProperty, now);
+  }
+  const auto pending_for = now - editor->property(kTextEditorPreviewPendingSinceProperty).toLongLong();
+  const auto delay = slow_preview ? kExpensiveTextEditorPreviewDelayMs : kTextEditorPreviewDelayMs;
   editor->setProperty("patchy.textPreviewPending", true);
-  QTimer::singleShot(expensive_preview && !transformed_preview ? kExpensiveTextEditorPreviewDelayMs
-                                                               : kTextEditorPreviewDelayMs,
+  QTimer::singleShot(static_cast<int>(std::clamp<qint64>(delay - pending_for, 0, delay)),
                      editor,
                      [this, editor = QPointer<QTextEdit>(editor), generation] {
     if (editor == nullptr) {

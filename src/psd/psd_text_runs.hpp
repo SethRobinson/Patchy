@@ -14,6 +14,7 @@
 #include <string>
 #include <cmath>
 #include <string_view>
+#include <vector>
 
 namespace patchy::psd {
 
@@ -136,5 +137,19 @@ void set_photoshop_font_resolver(PhotoshopFontResolver resolver);
 // std::nullopt elsewhere and for names no installed font carries. Each call scans the system
 // font collection, so callers cache per name.
 std::optional<ResolvedPhotoshopFont> installed_font_for_name(std::string_view name);
+
+// Every family name the face installed_font_for_name finds goes by, in every language its name
+// table carries (DirectWrite's family, the GDI family and the typographic family). Qt's Windows
+// database lists a face under its name for the user's locale (DingMao.ttf is a Chinese family
+// on a Chinese Windows, "DinkieBitmap" elsewhere), so the text engine tries each of these
+// against the database when the reader's en-us name is not listed (GitHub issue 413). Windows
+// only; empty elsewhere and for names no installed font carries.
+std::vector<std::string> installed_font_family_names(std::string_view name);
+
+// The reader's font-name comparison: ASCII case and punctuation are ignored, every non-ASCII
+// character counts, and a name with nothing left to compare matches nothing. Two all-CJK
+// family names once both compacted to the empty key, so any one of them stood in for the
+// others (GitHub issue 413).
+bool photoshop_font_names_match(std::string_view lhs, std::string_view rhs);
 
 }  // namespace patchy::psd
