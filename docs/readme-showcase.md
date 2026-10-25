@@ -83,6 +83,9 @@ settings; it never changes the user's theme.
 The Layered Imports scene imports six actual files through Files as Layers and
 places each imported group inside its own artboard. A 3 x 2 grid
 uses 640 x 480 boards: an 80-pixel format label above a 640 x 400 artwork area.
+Above the grid, a 256-pixel introduction uses loose editable text and shapes:
+"Why settle for only .psd?", the import explanation, a mint accent, and a
+"6 FORMATS / 1 FILE" badge. It is part of the document, not a screenshot overlay.
 The imported layer stacks remain editable, unlocked and scaled to fit without
 flattening; the original files are never modified.
 An imported leaf's offset locates the original canvas, since Files as Layers
@@ -102,7 +105,8 @@ them through the same reader as the fixtures. ORA lettering becomes pixels;
 the TIFF keeps text and shapes; Aseprite uses nearest-neighbor enlargement.
 
 The scene checks each import has multiple children and the result has exactly
-six top-level artboards. Label strips are added after import. The PDN fixture's
+six top-level artboards plus the introduction group. Label strips are added
+after import. The PDN fixture's
 `Xor checks` calibration overlay is hidden but retained. Only the
 Layers/Channels/Paths dock stays open. Generated sources and logs remain under
 `build/opt-dev/readme-shot-layered_import`.

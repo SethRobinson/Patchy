@@ -5,7 +5,7 @@
 // PSD, Affinity and PDN use existing showcase/calibration fixtures. ORA, layered
 // TIFF and Aseprite sources are authored below in the driver's scratch directory,
 // saved in their real formats, then read back through Files as Layers. No source
-// fixture is overwritten. Only the presentation labels are added after import.
+// fixture is overwritten. Presentation labels and the introduction are added after import.
 
 var out = patchy.args.out;
 var photo = patchy.args.photo;
@@ -132,7 +132,8 @@ formats.forEach(function (format) {
   original.close();
 });
 
-var doc = app.newDocument(2048, 1024);
+var headerHeight = 256;
+var doc = app.newDocument(2048, 1024 + headerHeight);
 var anchor = doc.activeLayer;
 anchor.visible = false;
 var boards = [];
@@ -158,7 +159,7 @@ formats.forEach(function (format, index) {
     });
   }
   var x = (index % 3) * 704;
-  var y = Math.floor(index / 3) * 544;
+  var y = headerHeight + Math.floor(index / 3) * 544;
   var scale = Math.min(640 / format.width, 400 / format.height);
   var left = x + (640 - format.width * scale) / 2;
   var top = y + 80 + (400 - format.height * scale) / 2;
@@ -192,9 +193,28 @@ formats.forEach(function (format, index) {
     color: '#ffffff', x: x + 25, y: y + 52, box: {width: 590, height: 27}});
   doc.moveLayers([band, label, detail], {parentId: board.id});
 });
+// Loose document layers above the six artboards form the introduction. These
+// are real editable text and shapes, not an overlay added to the screenshot.
+doc.activeLayer = anchor;
+var accent = doc.addShape('Introduction accent',
+  {type: 'rectangle', x: 0, y: 0, width: 112, height: 6}, {fill: '#95d6c3'});
+var eyebrow = doc.addTextLayer('LAYERED IMPORTS', {font: 'Segoe UI', bold: true, size: 24,
+  color: '#a8bbc8', x: 0, y: 20, box: {width: 1400, height: 36}});
+var headline = doc.addTextLayer([
+  {text: 'Why settle for only ', color: '#f3ede2'},
+  {text: '.psd?', color: '#95d6c3'}
+], {font: 'Arial Black', size: 80, x: 0, y: 60, box: {width: 2048, height: 110}});
+var explanation = doc.addTextLayer('Import all these layered formats into the same file!',
+  {font: 'Segoe UI', size: 34, color: '#d4dee5', x: 3, y: 178,
+    box: {width: 2040, height: 55}});
+var badge = doc.addShape('Format count badge',
+  {type: 'roundedRectangle', x: 1660, y: 20, width: 388, height: 56, radius: 28}, {fill: '#163d44'});
+var badgeText = doc.addTextLayer('6 FORMATS  /  1 FILE', {font: 'Segoe UI', bold: true, size: 26,
+  color: '#95d6c3', x: 1660, y: 29, align: 'center', box: {width: 388, height: 42}});
+doc.groupLayers([accent, eyebrow, headline, explanation, badge, badgeText], 'Showcase introduction');
 anchor.remove();
-if (doc.artboards.length !== 6 || doc.layers.length !== 6) {
-  throw new Error('expected exactly six top-level artboards');
+if (doc.artboards.length !== 6 || doc.layers.length !== 7) {
+  throw new Error('expected six top-level artboards and the introduction group');
 }
 doc.fitCanvasToArtboards();
 doc.activeLayer = boards[5];
