@@ -1896,21 +1896,25 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
     # Test translation units the translation checker and the UI suite both need, compiled
     # once (ui_test_support.cpp alone is about 50 s). The harness body with <windows.h> and the
     # MainWindowTestAccess bodies live here too, so editing an accessor recompiles one object.
-    add_library(patchy_ui_test_shared OBJECT
-      tests/test_harness.cpp
-      tests/ui/ui_test_support.cpp
-      tests/ui/ui_test_access.cpp
-      tests/ui/localization_tests.cpp
-      tests/ui/translation_runtime_tests.cpp
-    )
-    target_include_directories(patchy_ui_test_shared PRIVATE tests)
-    target_link_libraries(patchy_ui_test_shared PRIVATE patchy_ui Qt6::Test)
-    target_compile_definitions(patchy_ui_test_shared PRIVATE
-      PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-      PATCHY_LUPDATE_MANIFEST="${PATCHY_LUPDATE_MANIFEST}"
-      PATCHY_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}")
-    patchy_configure_target(patchy_ui_test_shared)
-    target_compile_options(patchy_ui_test_shared PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+    # Only the targets that link it build it: the wasm site (no checker, tests off) has no
+    # QProcess for localization_tests.cpp.
+    if(NOT EMSCRIPTEN OR PATCHY_BUILD_TESTS)
+      add_library(patchy_ui_test_shared OBJECT
+        tests/test_harness.cpp
+        tests/ui/ui_test_support.cpp
+        tests/ui/ui_test_access.cpp
+        tests/ui/localization_tests.cpp
+        tests/ui/translation_runtime_tests.cpp
+      )
+      target_include_directories(patchy_ui_test_shared PRIVATE tests)
+      target_link_libraries(patchy_ui_test_shared PRIVATE patchy_ui Qt6::Test)
+      target_compile_definitions(patchy_ui_test_shared PRIVATE
+        PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+        PATCHY_LUPDATE_MANIFEST="${PATCHY_LUPDATE_MANIFEST}"
+        PATCHY_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}")
+      patchy_configure_target(patchy_ui_test_shared)
+      target_compile_options(patchy_ui_test_shared PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+    endif()
     if(NOT EMSCRIPTEN)
       # This small runner is a required build tool, independent of PATCHY_BUILD_TESTS.
       # It shares the actual checks with the UI suite and has private temporary settings.
