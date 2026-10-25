@@ -2253,6 +2253,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(clear_selected_guides_action, &QAction::triggered, this, [this] { clear_selected_guides(); });
   connect(clear_guides_action, &QAction::triggered, this, [this] { clear_guides(); });
   for (auto* action : {zoom_in, zoom_out, fit_on_screen, fill_screen, zoom_reset, zoom_200, view_extras_action_,
+                       show_menu->menuAction(), show_selection_edges_action, extras_options_action,
                        view_rulers_action_,
                        view_grid_action_, view_guides_action_, view_snap_action_, view_lock_guides_action_,
                        snap_to_menu->menuAction(), view_snap_guides_action_, view_snap_grid_action_,
