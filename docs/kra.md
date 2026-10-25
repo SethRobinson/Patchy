@@ -124,15 +124,35 @@ Masks and selections are one byte per pixel.
 Krita's ids (`compositeop`) map to Patchy's: `normal`, `multiply`, `screen`, `overlay`,
 `darken`, `lighten`, `dodge` (Color Dodge), `burn` (Color Burn), `hard_light`, `diff`,
 `color`, `hue`, `saturation`, `luminize` (Luminosity), `add` and `linear_dodge` (Linear
-Dodge), `xor` and `negation` (Paint.NET's formulas exactly), and every id OpenRaster's table
-knows as `krita:<id>` ([ora.md](ora.md)). Near modes, with a notice: `soft_light_svg`
-(Krita's menu "Soft Light", the W3C formula: up to 17 levels from Photoshop's where the
-backdrop is below a quarter), `reflect` and `glow` (Paint.NET's, within 11 levels),
-`luminosity_sai` (SAI's Luminosity/Shine adds the layer times its alpha: Linear Dodge wherever
-the sum stays below white). Krita 5.3 accepts 125 ids; they were found by rendering each
-candidate against the Normal fallback it uses for unknown ids. Unknown ones open as Normal
-with a notice. Krita's HSV, HSL, HSI and HSY hue, saturation and color modes are not
-Python's colorsys formulas (measured), so GIMP's HSV modes do not stand in for them.
+Dodge), `xor` and `negation` (Paint.NET's formulas exactly), `grain_merge` and
+`grain_extract` (GIMP's, within 0.5), and every id OpenRaster's table knows as
+`krita:<id>` ([ora.md](ora.md)). Krita 5.3 accepts 125 ids; they were found by rendering
+each candidate against the Normal fallback it uses for unknown ids.
+
+Krita's own modes that Patchy has as modes of its own ([blend-modes.md](blend-modes.md#krita-modes),
+`core/krita_blend_modes.cpp`), with s the layer and d the backdrop in 0..1, each checked on
+Krita's render of all 65536 8-bit pairs:
+
+| Krita id | Patchy mode | Formula | 8-bit match |
+|---|---|---|---|
+| `soft_light_svg` (menu "Soft Light") | Soft Light (SVG) | W3C: Photoshop's below s = 0.5; above, d + (2s - 1)(D - d), D = ((16d - 12)d + 4)d for d <= 0.25, else sqrt(d) | 1 pair off by 1 |
+| `additive_subtractive` | Additive-Subtractive | abs(sqrt(d) - sqrt(s)) | 2 pairs off by 1 |
+| `arc_tangent` | Arc Tangent | 2 atan(s/d)/pi; d = 0 gives 1, or 0 when s = 0 | exact |
+| `geometric_mean` | Geometric Mean | sqrt(s d) | exact |
+| `allanon` | Allanon | (s + d)/2; on bytes (s + d) x 127/255, floored | exact |
+| `parallel` | Parallel | 2/(1/s + 1/d), 0 when either is 0; on bytes the reciprocals 65025/x rounded, the quotient floored | exact |
+| `hard overlay` | Hard Overlay | 2sd below s = 0.5, else d/(2 - 2s); s = 1 gives 1 (0 over a black backdrop); floored | exact |
+| `interpolation` | Interpolation | 0.5 - cos(pi s)/4 - cos(pi d)/4, 0 for two blacks | 86 pairs off by 1 |
+| `easy dodge` | Easy Dodge | d^((1 - s) x 1.04), 1 at s = 1 | exact |
+
+Like Paint.NET's and GIMP's modes they are 8 and 16-bit only: in a 32-bit document a layer
+using one takes the nearest Photoshop mode (Soft Light for `soft_light_svg`) or Normal, with a
+notice, and so do `xor`, `negation`, `reflect`, `glow` and the grain modes. Near modes, with a
+notice: `reflect` and `glow` (Paint.NET's, within 11 levels), `luminosity_sai` (SAI's
+Luminosity/Shine adds the layer times its alpha: Linear Dodge wherever the sum stays below
+white). Unknown ids open as Normal with a notice. Krita's HSV, HSL, HSI and HSY hue,
+saturation and color modes are not Python's colorsys formulas (measured), so GIMP's HSV
+modes do not stand in for them.
 
 ## Filters
 

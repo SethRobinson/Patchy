@@ -146,6 +146,7 @@ add_library(patchy_core
   src/core/splitmix64.hpp
   src/core/blend_math_deep.cpp
   src/core/gimp_blend_modes.cpp
+  src/core/krita_blend_modes.cpp
   src/core/brush_dynamics.cpp
   src/core/paint_mode.cpp
   src/core/brush_tip.cpp

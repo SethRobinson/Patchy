@@ -236,6 +236,24 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Subtract (Linear)");
     case BlendMode::LinearDivide:
       return QObject::tr("Divide (Linear)");
+    case BlendMode::SoftLightSvg:
+      return QObject::tr("Soft Light (SVG)");
+    case BlendMode::AdditiveSubtractive:
+      return QObject::tr("Additive-Subtractive");
+    case BlendMode::ArcTangent:
+      return QObject::tr("Arc Tangent");
+    case BlendMode::GeometricMean:
+      return QObject::tr("Geometric Mean");
+    case BlendMode::Allanon:
+      return QObject::tr("Allanon");
+    case BlendMode::Parallel:
+      return QObject::tr("Parallel");
+    case BlendMode::HardOverlay:
+      return QObject::tr("Hard Overlay");
+    case BlendMode::Interpolation:
+      return QObject::tr("Interpolation");
+    case BlendMode::EasyDodge:
+      return QObject::tr("Easy Dodge");
   }
   return QObject::tr("Normal");
 }
@@ -279,6 +297,15 @@ constexpr std::array kNonPhotoshopBlendModes = {
     BlendMode::LinearAddition,
     BlendMode::LinearSubtract,
     BlendMode::LinearDivide,
+    BlendMode::SoftLightSvg,
+    BlendMode::AdditiveSubtractive,
+    BlendMode::ArcTangent,
+    BlendMode::GeometricMean,
+    BlendMode::Allanon,
+    BlendMode::Parallel,
+    BlendMode::HardOverlay,
+    BlendMode::Interpolation,
+    BlendMode::EasyDodge,
 };
 
 // Behind and Clear are not BlendMode values; their item data sits past the enum.

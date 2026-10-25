@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-25 (additive): blend mode ids `soft-light-svg`, `additive-subtractive`, `arc-tangent`,
+`geometric-mean`, `allanon`, `parallel`, `hard-overlay`, `interpolation` and `easy-dodge` (Krita's
+modes, for .kra files, [kra.md](kra.md)), appended in that order after GIMP's to the permanent list
+for `layer.blendMode` and stroke `mode`. 8 and 16-bit documents only; a PSD save writes them as
+`normal` or bakes them. Pinned by `ui_script_krita_blend_mode_ids`.
 2026-10-25 (additive): blend mode ids `grain-extract`, `grain-merge`, `hsv-hue`, `hsv-saturation`,
 `hsl-color`, `hsv-value`, `lch-hue`, `lch-chroma`, `lch-color`, `lch-lightness`, `luminance`,
 `luma-darken-only`, `luma-lighten-only`, `linear-multiply`, `linear-addition`, `linear-subtract` and

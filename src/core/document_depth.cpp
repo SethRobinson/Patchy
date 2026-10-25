@@ -161,6 +161,15 @@ bool blend_mode_supported_at_depth(BlendMode mode, BitDepth depth) noexcept {
     case BlendMode::LinearAddition:
     case BlendMode::LinearSubtract:
     case BlendMode::LinearDivide:
+    case BlendMode::SoftLightSvg:
+    case BlendMode::AdditiveSubtractive:
+    case BlendMode::ArcTangent:
+    case BlendMode::GeometricMean:
+    case BlendMode::Allanon:
+    case BlendMode::Parallel:
+    case BlendMode::HardOverlay:
+    case BlendMode::Interpolation:
+    case BlendMode::EasyDodge:
       return false;
     default:
       return true;

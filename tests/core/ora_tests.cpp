@@ -834,6 +834,15 @@ const char* blend_mode_label(BlendMode mode) {
     case BlendMode::LinearAddition: return "linear-addition";
     case BlendMode::LinearSubtract: return "linear-subtract";
     case BlendMode::LinearDivide: return "linear-divide";
+    case BlendMode::SoftLightSvg: return "soft-light-svg";
+    case BlendMode::AdditiveSubtractive: return "additive-subtractive";
+    case BlendMode::ArcTangent: return "arc-tangent";
+    case BlendMode::GeometricMean: return "geometric-mean";
+    case BlendMode::Allanon: return "allanon";
+    case BlendMode::Parallel: return "parallel";
+    case BlendMode::HardOverlay: return "hard-overlay";
+    case BlendMode::Interpolation: return "interpolation";
+    case BlendMode::EasyDodge: return "easy-dodge";
   }
   return "unknown";
 }

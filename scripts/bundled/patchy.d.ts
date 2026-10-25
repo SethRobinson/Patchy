@@ -45,7 +45,9 @@
 // and "xor" (for .pdn files), and GIMP's "grain-extract", "grain-merge", "hsv-hue",
 // "hsv-saturation", "hsl-color", "hsv-value", "lch-hue", "lch-chroma", "lch-color",
 // "lch-lightness", "luminance", "luma-darken-only", "luma-lighten-only", "linear-multiply",
-// "linear-addition", "linear-subtract" and "linear-divide" (for .xcf files): 8 and 16-bit
+// "linear-addition", "linear-subtract" and "linear-divide" (for .xcf files), and Krita's
+// "soft-light-svg", "additive-subtractive", "arc-tangent", "geometric-mean", "allanon",
+// "parallel", "hard-overlay", "interpolation" and "easy-dodge" (for .kra files): 8 and 16-bit
 // documents only, not offered in Patchy's blend menus, and a PSD save writes them as
 // "normal" or bakes them (save option unsupportedBlendModes).
 // Brush Mode ids (stroke `mode`): every blend mode id except "pass-through", plus

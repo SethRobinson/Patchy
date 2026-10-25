@@ -106,6 +106,15 @@ constexpr std::array kReadOps = {
     CompositeOp{"krita:dissolve", BlendMode::Dissolve},
     CompositeOp{"krita:darker color", BlendMode::DarkerColor},
     CompositeOp{"krita:lighter color", BlendMode::LighterColor},
+    CompositeOp{"krita:soft_light_svg", BlendMode::SoftLightSvg},
+    CompositeOp{"krita:additive_subtractive", BlendMode::AdditiveSubtractive},
+    CompositeOp{"krita:arc_tangent", BlendMode::ArcTangent},
+    CompositeOp{"krita:geometric_mean", BlendMode::GeometricMean},
+    CompositeOp{"krita:allanon", BlendMode::Allanon},
+    CompositeOp{"krita:parallel", BlendMode::Parallel},
+    CompositeOp{"krita:hard overlay", BlendMode::HardOverlay},
+    CompositeOp{"krita:interpolation", BlendMode::Interpolation},
+    CompositeOp{"krita:easy dodge", BlendMode::EasyDodge},
     // Drawpile's own extension names (seen in its test recordings).
     CompositeOp{"svg:-dp-divide", BlendMode::Divide},
     CompositeOp{"svg:-dp-minus", BlendMode::Subtract},
@@ -184,6 +193,24 @@ struct WriteOp {
       return WriteOp{"krita:darker color", true};
     case BlendMode::LighterColor:
       return WriteOp{"krita:lighter color", true};
+    case BlendMode::SoftLightSvg:
+      return WriteOp{"krita:soft_light_svg", true};
+    case BlendMode::AdditiveSubtractive:
+      return WriteOp{"krita:additive_subtractive", true};
+    case BlendMode::ArcTangent:
+      return WriteOp{"krita:arc_tangent", true};
+    case BlendMode::GeometricMean:
+      return WriteOp{"krita:geometric_mean", true};
+    case BlendMode::Allanon:
+      return WriteOp{"krita:allanon", true};
+    case BlendMode::Parallel:
+      return WriteOp{"krita:parallel", true};
+    case BlendMode::HardOverlay:
+      return WriteOp{"krita:hard overlay", true};
+    case BlendMode::Interpolation:
+      return WriteOp{"krita:interpolation", true};
+    case BlendMode::EasyDodge:
+      return WriteOp{"krita:easy dodge", true};
     case BlendMode::Reflect:
     case BlendMode::Glow:
     case BlendMode::Negation:
