@@ -31,7 +31,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `plugin_dialog.png` | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
 | `object_select.png` | `scripts/dev/readme-shots/object-select.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped in the script; needs the High Quality model (the script downloads it when missing) |
 | `artboards.png` | `scripts/dev/readme-shots/artboards.js`, with isolated Light settings | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
-| `layered_import.png` | `scripts/dev/readme-shots/layered-import.js` | Generated OpenRaster poster using the existing CC0 city photograph, plus the self-authored, Paint.NET-saved `test-fixtures/pdn/demo.pdn` |
+| `layered_import.png` | `scripts/dev/readme-shots/layered-import.js` | Existing local `psd/mow_master.psd` and `af-spike/corpus/tips.af`; committed `test-fixtures/pdn/demo.pdn`; generated ORA, layered TIFF, and Aseprite files |
 | `smart_objects.png` (gallery only) | `shot_readme_smart_objects` | Local PSD fixtures used by the existing scene |
 | `vector_tools.png` | `shot_readme_vector_tools` | Generated vector artwork with gradient fill, rounded corners, and a dashed pattern stroke |
 | `warp_text.png` | `shot_readme_warp_text` | Generated editable type; Japanese-capable font required |
@@ -57,8 +57,8 @@ The separate Levels, brush-dynamics, shape-appearance, and Affinity images are r
 from the gallery. Their existing scenes remain regression coverage; the driver
 does not publish those artifacts. Brush dynamics are described with brush tips.
 Long Shadow and Smart Objects remain in the gallery; the README's feature cards use
-Layer Styles and Object Selection instead. Every image is the same width. Eight
-feature cards sit in pairs; Layered Imports is centered in the final row.
+Layer Styles and Object Selection instead. Eight feature cards sit in pairs;
+the six-artboard Layered Imports capture spans the final row so its labels read.
 
 The Object Selection scene crops the Havana street photo to its lower half and runs
 `doc.selection.objectSelect` with one loose box around the vintage car, on the High
@@ -80,18 +80,32 @@ The Artboards capture runs with `ColorScheme = 'light'`
 in the driver's scene definition. The driver writes only that run's isolated
 settings; it never changes the user's theme.
 
-The Layered Imports scene writes a 640 x 400 OpenRaster poster in its scratch
-folder, then reads that file and the Paint.NET landscape through Files as Layers.
-Its heading and format list cover PSD/PSB, Affinity, OpenRaster, Paint.NET,
-layered TIFF, Aseprite, SVG, and PDF; the two pictured examples are ORA and PDN.
-It checks that both imports produce groups with multiple children, places them
-side by side, and exposes their real layer stacks. The ORA lettering becomes
-pixel layers, as the format requires. Each outer group uses Normal to isolate its
-blend stack from the presentation background. The PDN calibration fixture's
-`Xor checks` overlay is hidden for the composition, but remains in the stack;
-the other imported visibility, opacity, and blend settings are retained.
-Only the Layers/Channels/Paths dock stays open so both imported stacks fit.
-The source ORA and logs remain under `build/opt-dev/readme-shot-layered_import`.
+The Layered Imports scene imports six actual files through Files as Layers and
+places each imported group inside its own artboard. A 3 x 2 grid
+uses 640 x 480 boards: an 80-pixel format label above a 640 x 400 artwork area.
+The imported layer stacks remain editable, unlocked and scaled to fit without
+flattening; the original files are never modified.
+An imported leaf's offset locates the original canvas, since Files as Layers
+centers content bounds, including off-canvas content. A vector mask on the
+imported group preserves that source canvas crop; labels sit outside the mask.
+PSD/PSB uses the existing `local-test-fixtures/psd/mow_master.psd` game artwork;
+Affinity uses `local-test-fixtures/af-spike/corpus/tips.af`, the old Affinity
+showcase's game tips. Those local sources remain untracked; a missing source
+skips the scene in a full run and fails an explicitly selected run.
+
+The other boards use the existing Paint.NET-saved `test-fixtures/pdn/demo.pdn`
+landscape and three script-authored sources: an OpenRaster city poster using
+the existing CC0 photograph, a layered TIFF abstract print design with text and
+shapes, and a 64 x 40 Aseprite space scene with separate stars, planet, and ship
+layers. The script writes those formats in its scratch folder, then imports
+them through the same reader as the fixtures. ORA lettering becomes pixels;
+the TIFF keeps text and shapes; Aseprite uses nearest-neighbor enlargement.
+
+The scene checks each import has multiple children and the result has exactly
+six top-level artboards. Label strips are added after import. The PDN fixture's
+`Xor checks` calibration overlay is hidden but retained. Only the
+Layers/Channels/Paths dock stays open. Generated sources and logs remain under
+`build/opt-dev/readme-shot-layered_import`.
 
 The G'MIC scene opens the real Filter Library (scripts cannot open it) with the right half
 of the street photo selected, picks Rodilius with Lighter strokes, waits for the full-quality
