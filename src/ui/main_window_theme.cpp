@@ -370,16 +370,18 @@ QString photoshop_style_template() {
       width: 10px;
       margin: -5px 0;
     }
+    /* No vertical padding: the button is then as tall as the bar's fields (26 px
+       with the border) and its text sits on their text line (GitHub issue 409). */
     QToolBar#Options QPushButton {
       min-height: 24px;
       max-height: 24px;
       background: @options_button_bg;
       border: 1px solid @field_inset_border;
       border-top-color: @field_bevel_top;
-      padding: 1px 7px;
+      padding: 0 7px;
     }
     QToolBar#Options QPushButton[optionsSessionButton="true"] {
-      padding: 1px 2px; /* the 20px session icons need the width the default 7px padding eats */
+      padding: 0 2px; /* the 20px session icons need the width the default 7px padding eats */
     }
     QToolBar#Options QPushButton:checked {
       background: @accent_checked_bg;
