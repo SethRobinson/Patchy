@@ -22,5 +22,6 @@ void apply_natural_profile(std::array<std::uint16_t, 3>& rgb,
 using patchy::ToneParams;
 using patchy::apply_color;
 using patchy::build_tone_lut;
+using patchy::tone_curve_value;
 
 }  // namespace patchy::raw

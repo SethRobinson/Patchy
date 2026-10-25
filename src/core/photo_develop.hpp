@@ -33,6 +33,11 @@ struct ToneParams {
   }
 };
 
+// The composed shadows -> highlights -> contrast curve at one value in [0, 1]. The lookup
+// table below samples exactly this; the Develop Raw dialog's Shift-click auto values model
+// the Tone sliders with it.
+[[nodiscard]] double tone_curve_value(double x, const ToneParams& params);
+
 // The composed shadows -> highlights -> contrast curve on gamma-encoded sRGB values as a
 // 16-bit lookup table. Neutral parameters produce an exact identity table.
 [[nodiscard]] std::array<std::uint16_t, 65536> build_tone_lut(const ToneParams& params);

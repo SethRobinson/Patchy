@@ -4,6 +4,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/raw_develop_dialog.hpp"
+#include "filters/auto_levels_math.hpp"
 #include "ui/raw_develop_histogram.hpp"
 #include "ui/raw_develop_settings.hpp"
 #include "ui/script_engine.hpp"
@@ -1341,55 +1342,66 @@ void ui_raw_histogram_regions_and_auto_values() {
   CHECK(strided.luminance[90] == strided.samples);
 
   // Empty and flat histograms have no automatic value.
-  CHECK(!raw_auto_exposure_ev({}, 0.0));
-  CHECK(!raw_auto_contrast(raw_test_luminance_histogram({{128, 5000}}), 0.0));
+  const RawToneModel neutral(patchy::raw::RenderingProfile::Neutral, patchy::raw::kProcessingVersion);
+  const RawToneModel natural(patchy::raw::RenderingProfile::Natural, patchy::raw::kProcessingVersion);
+  CHECK(!raw_auto_tone({}, neutral));
+  CHECK(!raw_auto_tone(raw_test_luminance_histogram({{128, 5000}}), neutral));
 
-  // A dark, flat image: brighter, more contrast, a deeper black point, no highlight push.
-  const auto dark = raw_test_luminance_histogram({{20, 1000}, {30, 3000}, {45, 4000}, {60, 2000}});
-  const auto dark_ev = raw_auto_exposure_ev(dark, 0.25);
-  CHECK(dark_ev && *dark_ev > 0.25 && *dark_ev <= 3.0);
-  CHECK(raw_auto_exposure_ev(dark, 2.9) == 3.0);
-  CHECK(raw_auto_contrast(dark, 10.0) == 100.0);
-  const auto dark_shadows = raw_auto_shadows(dark, 0.0);
-  CHECK(dark_shadows && *dark_shadows < 0.0);
-  CHECK(raw_auto_highlights(dark, 5.0) == 5.0);
+  // The model: neutral sliders pass values through either profile; Exposure brightens and darkens,
+  // and LibRaw's highlight shoulder keeps +1 EV from clipping a value a plain gain would clip.
+  for (const double x : {0.0, 0.1, 0.5, 0.9, 1.0}) {
+    CHECK(std::abs(neutral.map(x, {}) - x) < 1e-9);
+    CHECK(std::abs(natural.map(x, {}) - x) < 1.0 / 255.0);
+  }
+  CHECK(neutral.map(0.3, {1.0, 0.0, 0.0, 0.0}) > 0.3 && neutral.map(0.3, {-1.0, 0.0, 0.0, 0.0}) < 0.3);
+  CHECK(RawToneModel::expose(0.8, 1.0) < 1.0);
+  CHECK(std::abs(RawToneModel::expose(0.2, 1.0) - 0.2) > 0.05);
 
-  // Clipped whites: darker exposure and a full Highlights pull-back.
-  const auto blown = raw_test_luminance_histogram({{120, 3000}, {170, 3000}, {200, 3000}, {255, 1000}});
-  const auto blown_ev = raw_auto_exposure_ev(blown, 0.0);
-  CHECK(blown_ev && *blown_ev < 0.0);
-  CHECK(raw_auto_highlights(blown, 0.0) == -100.0);
-  // A bright scene that does not clip keeps its exposure.
-  const auto snow = raw_test_luminance_histogram({{150, 3000}, {200, 4000}, {240, 3000}});
-  CHECK(raw_auto_exposure_ev(snow, 0.5) == 0.5);
-  // Whites that stop short of white are carried up.
-  const auto highlights_short = raw_auto_highlights(snow, 0.0);
-  CHECK(highlights_short && *highlights_short > 0.0);
+  // A full-range image needs nothing.
+  const auto full = raw_test_luminance_histogram({{0, 20}, {40, 1000}, {128, 3000}, {200, 2000}, {255, 20}});
+  CHECK(raw_auto_tone(full, natural) == RawToneAutoValues{});
 
-  // Crushed blacks open up; a full-range image keeps its contrast.
-  const auto crushed = raw_test_luminance_histogram({{0, 1000}, {60, 3000}, {128, 3000}, {255, 30}, {250, 3000}});
-  const auto crushed_shadows = raw_auto_shadows(crushed, 0.0);
-  CHECK(crushed_shadows && *crushed_shadows > 0.0);
-  CHECK(raw_auto_contrast(crushed, 25.0) == 25.0);
+  // A dark, narrow image: the four values together carry its clip points to black and white,
+  // like Auto Tone, in the sliders' own steps; the same baseline always gives the same values.
+  const auto dark = raw_test_luminance_histogram({{10, 1000}, {60, 3000}, {120, 4000}, {190, 2000}});
+  for (const auto* model : {&neutral, &natural}) {
+    const auto values = raw_auto_tone(dark, *model);
+    CHECK(values.has_value());
+    std::cout << "  dark auto: " << values->exposure_ev << " EV, contrast " << values->contrast << ", highlights "
+              << values->highlights << ", shadows " << values->shadows << ", maps 10/120/190 to "
+              << model->map(10.0 / 255.0, *values) * 255.0 << "/" << model->map(120.0 / 255.0, *values) * 255.0
+              << "/" << model->map(190.0 / 255.0, *values) * 255.0 << '\n';
+    CHECK(values->exposure_ev > 0.0 && values->exposure_ev <= 3.0);
+    CHECK(std::abs(values->exposure_ev * 100.0 - std::round(values->exposure_ev * 100.0)) < 1e-9);
+    CHECK(values->contrast == std::round(values->contrast) && std::abs(values->contrast) <= 100.0);
+    CHECK(model->map(10.0 / 255.0, *values) < 0.1);
+    CHECK(model->map(190.0 / 255.0, *values) > 0.9);
+    CHECK(raw_auto_tone(dark, *model) == values);
+  }
 }
 
 void ui_raw_dialog_histogram_drag_and_modifier_clicks() {
   using namespace patchy::ui;
   const auto path = write_raw_dng_fixture(QStringLiteral("raw_histogram_controls.dng"));
-  // A horizontal ramp, so the histogram spans the tones and every auto value exists.
+  // A dark horizontal ramp, so the histogram spans the shadows and every auto value moves.
   patchy::test::SyntheticDngOptions ramp;
   ramp.horizontal_ramp = true;
+  ramp.red_value = ramp.green_value = ramp.blue_value = 3000;
   const auto ramp_bytes = patchy::test::synthetic_bayer_dng(128, 96, ramp);
   raw_test_write(path, QByteArray(reinterpret_cast<const char*>(ramp_bytes.data()),
                                   static_cast<qsizetype>(ramp_bytes.size())));
   bool checked = false;
+  int stage = 0;
+  int auto_exposure = 0;
+  int auto_contrast = 0;
   CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
     if (checked) return;
     auto* histogram = static_cast<RawHistogramWidget*>(dialog.findChild<QWidget*>(QStringLiteral("rawHistogram")));
     auto* region_label = dialog.findChild<QLabel*>(QStringLiteral("rawHistogramRegionLabel"));
     CHECK(histogram != nullptr && region_label != nullptr);
-    if (!dialog.property("rawPreviewAccurate").toBool() || !histogram->histogram()) return;
-    checked = true;
+    if (!dialog.property("rawPreviewAccurate").toBool() || !histogram->histogram() ||
+        dialog.property("rawAutoMeasuring").toBool())
+      return;
     CHECK(histogram->property("rawHistogramSamples").toULongLong() == 128ULL * 96ULL);
     auto* exposure = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
     auto* contrast = dialog.findChild<QSlider*>(QStringLiteral("rawContrastSlider"));
@@ -1403,15 +1415,49 @@ void ui_raw_dialog_histogram_drag_and_modifier_clicks() {
       send_mouse(widget, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, modifiers);
     };
 
-    // Shift-click: the auto value measured from the histogram on screen (rendered at 0).
-    const auto measured = *histogram->histogram();
-    const auto auto_ev = raw_auto_exposure_ev(measured, 0.0);
-    const auto auto_contrast = raw_auto_contrast(measured, 0.0);
-    CHECK(auto_ev.has_value() && auto_contrast.has_value());
+    // Shift-click gives one auto value, measured from the develop with the Tone sliders at their
+    // defaults: it repeats after the preview refreshes, whatever the slider held before.
+    auto* contrast_label = raw_test_row_label(dialog, QObject::tr("Contrast:"));
+    if (stage == 0) {
+      click(*exposure, Qt::ShiftModifier);
+      CHECK(!dialog.property("rawAutoMeasuring").toBool());  // the default preview was the baseline
+      auto_exposure = exposure->value();
+      CHECK(auto_exposure > 0);
+      click(*contrast_label, Qt::ShiftModifier);
+      auto_contrast = contrast->value();
+      stage = 1;
+      return;
+    }
+    if (stage == 1) {
+      click(*exposure, Qt::ShiftModifier);
+      CHECK(exposure->value() == auto_exposure);
+      click(*contrast_label, Qt::ShiftModifier);
+      CHECK(contrast->value() == auto_contrast);
+      exposure->setValue(200);
+      stage = 2;
+      return;
+    }
+    if (stage == 2 || stage == 3) {
+      click(*exposure, Qt::ShiftModifier);
+      CHECK(exposure->value() == auto_exposure);
+      if (stage == 2) {
+        exposure->setValue(-200);
+        stage = 3;
+        return;
+      }
+      // A setting outside the Tone sliders changes the baseline: it is measured again first.
+      saturation->setValue(40);
+      exposure->setValue(-200);
+      click(*exposure, Qt::ShiftModifier);
+      CHECK(dialog.property("rawAutoMeasuring").toBool() && exposure->value() == -200);
+      stage = 4;
+      return;
+    }
+    const auto remeasured = exposure->value();
+    CHECK(remeasured != -200 && std::abs(remeasured - auto_exposure) <= 40);
     click(*exposure, Qt::ShiftModifier);
-    CHECK(exposure->value() == static_cast<int>(std::lround(*auto_ev * 100.0)));
-    click(*raw_test_row_label(dialog, QObject::tr("Contrast:")), Qt::ShiftModifier);
-    CHECK(contrast->value() == static_cast<int>(std::lround(*auto_contrast)));
+    CHECK(exposure->value() == remeasured && !dialog.property("rawAutoMeasuring").toBool());
+    checked = true;
     // No automatic value: Shift-click leaves Saturation and Brightness alone.
     saturation->setValue(30);
     click(*saturation, Qt::ShiftModifier);
@@ -1605,6 +1651,96 @@ void ui_raw_dialog_issue_shots_if_available() {
   CHECK(QFileInfo::exists(sidecar) == had_sidecar);
 }
 
+// Shift-click on all four Tone sliders against Image > Adjustments > Auto Tone on the default
+// develop of a real photo (GitHub issue 394); prints the numbers. Skipped without the fixture.
+void ui_raw_auto_tone_matches_image_auto_tone_if_available() {
+  using namespace patchy::ui;
+  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300354.arw";
+  if (!std::filesystem::exists(source)) {
+    patchy::test::skip("optional fixture missing: local-test-fixtures/raw/sony_fx30_fx300354.arw");
+  }
+  const auto file = raw_test_bytes(to_qstring(source));
+  patchy::raw::DevelopSession session(std::vector<std::uint8_t>(file.begin(), file.end()));
+  patchy::raw::DevelopOptions draft;
+  draft.quality = patchy::raw::DevelopQuality::Draft;
+  const patchy::raw::DevelopParams defaults;
+  const auto base = session.develop(defaults, draft);
+  const auto values = raw_auto_tone(raw_preview_histogram(base.rgb, base.width, base.height),
+                                    RawToneModel(defaults.profile, defaults.processing_version));
+  CHECK(values.has_value());
+
+  // Auto Tone: each channel's 0.1% clip points stretched to 0 and 255.
+  auto auto_toned = base.rgb;
+  const auto pixel_count = static_cast<std::uint64_t>(base.width) * static_cast<std::uint64_t>(base.height);
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    patchy::AutoLevelsHistogram counts{};
+    for (std::size_t index = channel; index < base.rgb.size(); index += 3) ++counts[base.rgb[index]];
+    const auto record = patchy::auto_levels_clip_scan(counts, pixel_count);
+    const auto lut = record ? patchy::auto_levels_lut(*record) : patchy::auto_levels_identity_lut();
+    for (std::size_t index = channel; index < auto_toned.size(); index += 3) auto_toned[index] = lut[auto_toned[index]];
+  }
+
+  auto params = defaults;
+  params.exposure_ev = values->exposure_ev;
+  params.contrast = values->contrast;
+  params.highlights = values->highlights;
+  params.shadows = values->shadows;
+  const auto shifted = session.develop(params, draft);
+
+  struct Stats {
+    double mean;
+    int black;
+    int white;
+    std::array<int, 3> percentiles;
+  };
+  const auto stats_of = [](const std::vector<std::uint8_t>& rgb, int width, int height) {
+    const auto histogram = raw_preview_histogram(rgb, width, height);
+    std::uint64_t weighted = 0;
+    for (std::size_t code = 0; code < 256; ++code) weighted += code * histogram.luminance[code];
+    const auto clip = patchy::auto_levels_clip_scan(histogram.luminance, histogram.samples);
+    Stats stats{static_cast<double>(weighted) / static_cast<double>(histogram.samples), clip ? clip->black_input : 0,
+                clip ? clip->white_input : 255, {}};
+    const std::array<double, 3> shares = {0.10, 0.50, 0.90};
+    for (std::size_t index = 0; index < shares.size(); ++index) {
+      std::uint64_t cumulative = 0;
+      int code = 0;
+      for (; code < 255; ++code) {
+        cumulative += histogram.luminance[static_cast<std::size_t>(code)];
+        if (static_cast<double>(cumulative) >= shares[index] * static_cast<double>(histogram.samples)) break;
+      }
+      stats.percentiles[index] = code;
+    }
+    return stats;
+  };
+  const auto print = [](const char* name, const Stats& stats) {
+    std::cout << "  " << name << ": mean " << stats.mean << ", clip black/white " << stats.black << "/" << stats.white
+              << ", p10/p50/p90 " << stats.percentiles[0] << "/" << stats.percentiles[1] << "/"
+              << stats.percentiles[2] << '\n';
+  };
+  const auto default_stats = stats_of(base.rgb, base.width, base.height);
+  const auto auto_tone_stats = stats_of(auto_toned, base.width, base.height);
+  const auto shifted_stats = stats_of(shifted.rgb, shifted.width, shifted.height);
+  std::cout << "  Shift-click values: Exposure " << values->exposure_ev << " EV, Contrast " << values->contrast
+            << ", Highlights " << values->highlights << ", Shadows " << values->shadows << '\n';
+  print("default develop", default_stats);
+  print("Auto Tone", auto_tone_stats);
+  print("Shift-click all four", shifted_stats);
+  CHECK(std::abs(shifted_stats.mean - auto_tone_stats.mean) < 25.0);
+  CHECK(std::abs(shifted_stats.white - auto_tone_stats.white) <= 25);
+  CHECK(std::abs(shifted_stats.percentiles[1] - auto_tone_stats.percentiles[1]) <= 25);
+
+  const auto to_image = [](const std::vector<std::uint8_t>& rgb, int width, int height) {
+    QImage image(width, height, QImage::Format_RGB888);
+    for (int y = 0; y < height; ++y)
+      std::memcpy(image.scanLine(y), rgb.data() + static_cast<std::size_t>(y) * width * 3,
+                  static_cast<std::size_t>(width) * 3);
+    return image.scaledToWidth(640, Qt::SmoothTransformation);
+  };
+  save_stacked_artifact("issue_394_auto_tone_parity",
+                        {to_image(base.rgb, base.width, base.height), to_image(auto_toned, base.width, base.height),
+                         to_image(shifted.rgb, shifted.width, shifted.height)});
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
@@ -1634,6 +1770,7 @@ std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
       {"ui_raw_dialog_histogram_drag_and_modifier_clicks", ui_raw_dialog_histogram_drag_and_modifier_clicks},
       {"ui_raw_dialog_zoom_controls_and_scrubby_zoom", ui_raw_dialog_zoom_controls_and_scrubby_zoom},
       {"ui_raw_dialog_issue_shots_if_available", ui_raw_dialog_issue_shots_if_available},
+      {"ui_raw_auto_tone_matches_image_auto_tone_if_available", ui_raw_auto_tone_matches_image_auto_tone_if_available},
       {"ui_flat_save_of_layered_document_warns_and_saves_copy",
        ui_flat_save_of_layered_document_warns_and_saves_copy},
   };

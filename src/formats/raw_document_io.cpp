@@ -17,8 +17,6 @@ namespace patchy::raw {
 namespace {
 
 // LibRaw's supported linear exposure-shift range (0.25 = 2 stops darker, 8 = 3 lighter).
-constexpr double kMinExposureShift = 0.25;
-constexpr double kMaxExposureShift = 8.0;
 constexpr int kDraftLongEdge = 1280;
 
 DevelopParams draft_decode_key(DevelopParams params) {
@@ -289,7 +287,7 @@ struct DevelopSession::Impl {
     output.exp_correc = std::abs(params.exposure_ev) > 1e-3 ? 1 : 0;
     output.exp_shift = static_cast<float>(shift);
     // Keep some highlight detail when pushing exposure up; no effect when darkening.
-    output.exp_preser = 0.8f;
+    output.exp_preser = static_cast<float>(kExposureHighlightPreservation);
 
     output.highlight = libraw_highlight_for(params.highlight_recovery);
     output.no_auto_bright = params.auto_brighten ? 0 : 1;
