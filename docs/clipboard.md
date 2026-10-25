@@ -46,6 +46,9 @@ makes an invisible layer (`ui_copy_over_transparent_pixels_refuses_and_keeps_the
 `ui_copy_over_artboard_paper_refuses_but_copy_merged_copies_it`). Layer via Copy/Cut find
 the selected pixel layers anywhere in the tree and insert directly above the topmost one,
 on its artboard or in its folder (`ui_layer_via_copy_finds_a_layer_on_an_artboard`).
+With no selection Layer via Copy (Ctrl+J) is Duplicate Layer, as in Photoshop: text, shape,
+Smart Object, adjustment and group layers keep their kind (#401,
+`ui_layer_via_copy_without_selection_duplicates_the_layer`).
 
 ## Platforms
 
