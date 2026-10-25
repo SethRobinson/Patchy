@@ -14620,10 +14620,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните с %ALT% или перетащите с %ALT%, чтобы задать цвет фона.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Вид панели «Цвет»</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Куб цветового тона</translation>
     </message>
@@ -14688,6 +14684,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brightness</source>
         <translation>Яркость</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Настройки панели «Цвет»</translation>
     </message>
 </context>
 <context>

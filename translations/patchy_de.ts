@@ -14585,10 +14585,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Klicken oder ziehen, um die Vordergrundfarbe festzulegen. Mit %ALT%-Klick oder %ALT%-Ziehen die Hintergrundfarbe festlegen.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Ansicht des Farbbedienfelds</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Farbtonwürfel</translation>
     </message>
@@ -14653,6 +14649,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Brightness</source>
         <translation>Helligkeit</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Einstellungen des Farbbedienfelds</translation>
     </message>
 </context>
 <context>

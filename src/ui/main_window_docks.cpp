@@ -809,14 +809,6 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
       panel_column_->set_panel_visible(id, false);
     }
   });
-  // The Color panel's views, as its own menu button lists them (GitHub issue 404).
-  if (panel_id == QStringLiteral("colorDock") && color_dock_panel_ != nullptr) {
-    menu.addSeparator();
-    for (const auto view : {ColorDockPanel::View::HueCube, ColorDockPanel::View::RgbSliders,
-                            ColorDockPanel::View::HsbSliders}) {
-      menu.addAction(color_dock_panel_->view_action(view));
-    }
-  }
   menu.addSeparator();
   sort_window_panel_entries();
   for (auto* action : sorted_window_panel_actions()) {
@@ -2095,7 +2087,8 @@ void MainWindow::create_color_dock(std::vector<PanelSpec>& specs) {
                             .content = color_dock_panel_,
                             .expanded_maximum_height = kColorDockMaximumHeight,
                             .preferred_height = kColorDockPreferredHeight,
-                            .preferred_content_height = [panel = color_dock_panel_] { return panel->fitted_height(); }});
+                            .preferred_content_height = [panel = color_dock_panel_] { return panel->fitted_height(); },
+                            .header_widget = color_dock_panel_->settings_button()});
 }
 
 void MainWindow::apply_color_panel_pick(QColor color, bool background) {

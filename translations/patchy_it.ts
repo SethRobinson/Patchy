@@ -14585,10 +14585,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Fai clic o trascina per impostare il colore di primo piano. %ALT%+clic o %ALT%+trascina per impostare il colore di sfondo.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Vista del pannello Colore</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Cubo tonalità</translation>
     </message>
@@ -14653,6 +14649,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Brightness</source>
         <translation>Luminosità</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Impostazioni del pannello Colore</translation>
     </message>
 </context>
 <context>

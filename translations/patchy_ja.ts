@@ -14550,10 +14550,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>クリックまたはドラッグで描画色を設定します。%ALT% クリックまたは %ALT% ドラッグで背景色を設定します。</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>カラーパネルの表示</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>色相キューブ</translation>
     </message>
@@ -14618,6 +14614,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brightness</source>
         <translation>明るさ</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>カラーパネルの設定</translation>
     </message>
 </context>
 <context>

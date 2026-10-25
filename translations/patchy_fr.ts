@@ -14585,10 +14585,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Cliquez ou faites glisser pour définir la couleur de premier plan. %ALT%-clic ou %ALT%-glisser pour définir la couleur d&apos;arrière-plan.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Affichage du panneau Couleur</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Cube de teinte</translation>
     </message>
@@ -14653,6 +14649,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Brightness</source>
         <translation>Luminosité</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Paramètres du panneau Couleur</translation>
     </message>
 </context>
 <context>

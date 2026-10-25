@@ -20,6 +20,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QColor>
+#include <QContextMenuEvent>
 #include <QDataStream>
 #include <QDialog>
 #include <QEnterEvent>
@@ -29,6 +30,8 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QTabBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QStatusBar>
 #include <QWidget>
@@ -665,11 +668,12 @@ void ui_color_panel_view_menu_switches_views() {
   if (panel == nullptr || column == nullptr) {
     return;
   }
-  // The Hue Cube is the default, with the menu button under the pair.
+  // The Hue Cube is the default; the gear at the right end of the panel's title row lists
+  // the views.
   CHECK(panel->view() == View::HueCube);
   CHECK(panel->view_action(View::HueCube)->isChecked());
   CHECK(checked_view_count(*panel) == 1);
-  auto* button = panel->view_button();
+  auto* button = panel->settings_button();
   CHECK(button->isVisible() && button->isEnabled());
   CHECK(button->popupMode() == QToolButton::InstantPopup);
   CHECK(button->menu() != nullptr);
@@ -682,18 +686,54 @@ void ui_color_panel_view_menu_switches_views() {
       CHECK(entries[2]->text() == QStringLiteral("HSB Sliders"));
     }
   }
-  // The button sits below the well, inside the panel.
-  auto* well = panel->findChild<QWidget*>(QStringLiteral("colorPanelWell"));
-  CHECK(well != nullptr && button->geometry().top() >= well->geometry().bottom());
-  CHECK(panel->rect().contains(button->geometry()));
+  CHECK(button->toolTip() == QStringLiteral("Color panel settings"));
+  // In the Color panel's own title row, below the tab bar, at its right end; the row keeps
+  // the height of the other title rows.
+  auto* title = window.findChild<QWidget*>(QStringLiteral("colorDockTitle"));
+  CHECK(title != nullptr && button->parentWidget() == title);
+  if (title != nullptr) {
+    CHECK(button->geometry().right() >= title->width() - 12);
+    CHECK(title->rect().contains(button->geometry()));
+    auto* palette_title = window.findChild<QWidget*>(QStringLiteral("paletteDockTitle"));
+    CHECK(palette_title != nullptr && title->sizeHint().height() == palette_title->sizeHint().height());
+  }
+  auto* tabs = column->tab_bar(kColorPanel);
+  CHECK(tabs != nullptr && !tabs->isAncestorOf(button));
+  // Nothing is left under the pair, and the right-click menu no longer lists the views.
+  CHECK(!panel->isAncestorOf(button));
+  CHECK(panel->findChild<QWidget*>(QStringLiteral("colorPanelViewButton")) == nullptr);
+  if (title != nullptr) {
+    bool saw_menu = false;
+    QTimer::singleShot(0, [&] {
+      auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+      CHECK(menu != nullptr);
+      if (menu == nullptr) {
+        return;
+      }
+      saw_menu = true;
+      CHECK(menu->objectName() == QStringLiteral("panelHeaderMenu"));
+      for (const auto view : {View::HueCube, View::RgbSliders, View::HsbSliders}) {
+        CHECK(!menu->actions().contains(panel->view_action(view)));
+      }
+      menu->close();
+    });
+    const QPoint position(title->width() / 3, title->height() / 2);
+    QContextMenuEvent event(QContextMenuEvent::Mouse, position, title->mapToGlobal(position));
+    QApplication::sendEvent(title, &event);
+    QApplication::processEvents();
+    CHECK(saw_menu);
+  }
   auto* section = column->section_widget(kColorPanel);
   const int cube_height = section->height();
   // A strong color, so every track shows a range.
   click(*panel->hue_strip(), QPoint(panel->hue_strip()->width() / 2, panel->hue_strip()->height() / 2));
   click(*panel->field(), QPoint(panel->field()->width() * 4 / 5, panel->field()->height() / 5));
 
-  // RGB Sliders: three rows of track and number, the cube hidden, and the section shorter.
-  panel->view_action(View::RgbSliders)->trigger();
+  // RGB Sliders, picked from the gear's menu: three rows of track and number, the cube
+  // hidden, and the section shorter.
+  if (button->menu() != nullptr && button->menu()->actions().size() == 3) {
+    button->menu()->actions()[1]->trigger();
+  }
   QApplication::processEvents();
   CHECK(panel->view() == View::RgbSliders);
   CHECK(checked_view_count(*panel) == 1);

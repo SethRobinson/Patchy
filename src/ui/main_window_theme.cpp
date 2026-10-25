@@ -148,17 +148,27 @@ QString photoshop_style_template() {
     }
     /* min-width: the generic QToolButton rule's 26 px content minimum made the gear
        button 37 px wide for a 16 px glyph (GitHub issue 364 needed the room). */
-    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"],
-    QToolButton#colorPanelViewButton {
+    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"] {
       padding: 2px 3px;
       min-width: 16px;
       min-height: 20px;
       max-height: 20px;
     }
     QToolButton#brushSmoothingOptionsButton::menu-indicator,
-    QToolButton[optionsBarMenuButton="true"]::menu-indicator,
-    QToolButton#colorPanelViewButton::menu-indicator {
+    QToolButton[optionsBarMenuButton="true"]::menu-indicator {
       width: 0;
+    }
+    /* The Color panel's settings gear sits in its 18 px title row (GitHub issue 404). */
+    QToolButton#colorPanelSettingsButton {
+      padding: 0;
+      min-width: 18px;
+      max-width: 18px;
+      min-height: 18px;
+      max-height: 18px;
+    }
+    QToolButton#colorPanelSettingsButton::menu-indicator {
+      width: 0;
+      image: none;
     }
     QToolButton#brushDynamicsButton[dynamicsActive="true"] {
       border-color: @accent_border_bright;
