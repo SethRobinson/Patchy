@@ -12348,10 +12348,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>일부 레이어는 GIMP의 합성 방식대로 아래 레이어가 있는 곳에만 보입니다. 그 레이어에 대한 클리핑 마스크로 열렸습니다.</translation>
     </message>
     <message>
-        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
-        <translation>GIMP의 가우시안 흐림 레이어 효과를 해당 레이어의 픽셀에 적용했습니다.</translation>
-    </message>
-    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP의 지우기 또는 분할 모드 레이어는 마스크가 되었습니다. 각 레이어 아래의 레이어들은 그 이름의 그룹에 들어 있고, 지우던 곳이 마스크됩니다.</translation>
     </message>
@@ -12446,6 +12442,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>GIMP 이미지</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림과 레벨, 색조-채도, 채도 감소 같은 색상 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
     </message>
 </context>
 <context>

@@ -806,6 +806,114 @@ void xcf_reads_channels_selection_paths_guides_and_metadata() {
   CHECK(document.file_info().text.size() == 1 && document.file_info().text[0].value == "A GIMP comment");
 }
 
+[[nodiscard]] builder::Property filter_argument(const std::string& name, std::uint32_t type,
+                                               const std::vector<std::uint8_t>& data) {
+  builder::Bytes b;
+  b.string(name);
+  b.u32(type);
+  b.append(data);
+  return builder::Property{builder::kFilterArgument, b.data, std::nullopt};
+}
+
+[[nodiscard]] std::vector<std::uint8_t> u32_bytes(std::uint32_t value) {
+  builder::Bytes b;
+  b.u32(value);
+  return b.data;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> f32_bytes(float value) {
+  builder::Bytes b;
+  b.f32(value);
+  return b.data;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> config_bytes(const std::string& text) {
+  builder::Bytes b;
+  b.u32(static_cast<std::uint32_t>(text.size()));
+  b.append(std::vector<std::uint8_t>(text.begin(), text.end()));
+  return b.data;
+}
+
+// GIMP 3 layer effects: color filters bake into the pixels with GIMP's formulas, a drop
+// shadow becomes a layer style, the rest is left out with a notice.
+void xcf_layer_effects_bake_or_become_styles() {
+  builder::Image image;
+  image.version = 22;
+  image.width = 4;
+  image.height = 2;
+  const auto layer_with = [&](const std::string& name, builder::Effect effect) {
+    auto layer = pixel_layer(name, builder::solid(4, 2, {200, 100, 50, 255}));
+    layer.effects.push_back(std::move(effect));
+    return layer;
+  };
+  builder::Effect desaturate{"Average", "gimp:desaturate", {filter_argument("mode", 5, u32_bytes(2))}};
+  builder::Effect invert{"Invert", "gegl:invert-gamma", {}};
+  builder::Effect half_invert{"Half invert", "gegl:invert-gamma", {builder::prop_f32(builder::kFloatOpacity, 0.5F)}};
+  builder::Effect levels{"Levels", "gimp:levels",
+                         {filter_argument("config", 6,
+                                          config_bytes("(trc perceptual)\n(channel value)\n(low-input 0.2)\n"
+                                                       "(high-input 0.8)\n(gamma 1)\n(low-output 0)\n(high-output 1)\n"))}};
+  builder::Effect posterize{"Posterize", "gimp:posterize", {filter_argument("levels", 1, u32_bytes(2))}};
+  builder::Effect shadow{"Shadow", "gegl:dropshadow",
+                         {filter_argument("x", 3, f32_bytes(3.0F)), filter_argument("y", 3, f32_bytes(4.0F)),
+                          filter_argument("radius", 3, f32_bytes(2.0F))}};
+  builder::Effect bloom{"Bloom", "gegl:bloom", {}};
+  image.layers = {layer_with("desaturate", desaturate), layer_with("invert", invert),
+                  layer_with("half invert", half_invert), layer_with("levels", levels),
+                  layer_with("posterize", posterize), layer_with("shadow", shadow), layer_with("bloom", bloom)};
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  const auto px = [&](const char* name) { return rgba_at(*find_named(document.layers(), name), 1, 1); };
+  const auto near = [](std::uint8_t value, int expected) { return std::abs(static_cast<int>(value) - expected) <= 1; };
+  CHECK(near(px("desaturate")[0], 117) && near(px("desaturate")[1], 117) && near(px("desaturate")[2], 117));
+  CHECK(near(px("invert")[0], 55) && near(px("invert")[1], 155) && near(px("invert")[2], 205));
+  // Half opacity mixes in linear light: brighter than the display-value midpoint.
+  const auto half = px("half invert");
+  CHECK(half[0] > 140 && half[0] < 160);
+  CHECK(near(px("levels")[0], 248) && px("levels")[2] == 0);
+  CHECK(px("posterize")[0] == 255 && px("posterize")[1] == 0 && px("posterize")[2] == 0);
+  const auto* shadowed = find_named(document.layers(), "shadow");
+  CHECK(shadowed->layer_style().drop_shadows.size() == 1);
+  CHECK(std::abs(shadowed->layer_style().drop_shadows[0].distance - 5.0F) < 1e-4F);
+  CHECK(std::abs(shadowed->layer_style().drop_shadows[0].size - 6.0F) < 1e-4F);
+  CHECK(px("bloom")[0] == 200);
+  const auto has = [&](std::string_view text) {
+    return std::any_of(notices.begin(), notices.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
+  };
+  CHECK(has("were applied"));
+  CHECK(has("no Patchy equivalent"));
+}
+
+// GIMP's renders of each color filter on the 4096-color sweep
+// (scripts/dev/xcf/make_effect_fixtures.py) against Patchy's baked result.
+void xcf_effect_fixtures_match_gimp_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf" / "effects";
+  patchy::test::skip_unless_exists(dir / "posterize.xcf");
+  std::vector<std::string> failures;
+  for (const auto& item : std::filesystem::directory_iterator(dir)) {
+    if (item.path().extension() != ".xcf") {
+      continue;
+    }
+    const auto stem = item.path().stem().string();
+    std::vector<std::string> notices;
+    const auto document = patchy::xcf::DocumentIo::read_file(item.path(), &notices);
+    const auto difference = compare_with_png(composite_rgba8(document), dir / (stem + ".png"));
+    CHECK(difference.has_value());
+    const bool applied = std::any_of(notices.begin(), notices.end(),
+                                     [](const std::string& n) { return n.find("were applied") != std::string::npos; });
+    std::cout << "  " << std::left << std::setw(26) << stem << " mean " << std::fixed << std::setprecision(3)
+              << difference->mean << "  worst " << difference->worst << (applied ? "" : "  (not applied)") << "\n";
+    // Colorize with lightness and Color Balance are left out or uncalibrated.
+    if (applied && stem != "colorize-2" && (difference->mean > 0.6 || difference->worst > 4)) {
+      failures.push_back(stem);
+    }
+  }
+  for (const auto& failure : failures) {
+    std::cout << "  FAIL " << failure << "\n";
+  }
+  CHECK(failures.empty());
+}
+
 // GIMP's own .xcf.gz, .xcf.bz2 and .xcf.xz of one small image (test-fixtures/xcf).
 void xcf_unwraps_gzip_bzip2_and_xz() {
   const auto plain = read_bytes(patchy::test::committed_format_fixture_path("xcf", "compressed.xcf"));
@@ -1128,6 +1236,8 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_text_layers_open_as_editable_text_over_gimps_raster", xcf_text_layers_open_as_editable_text_over_gimps_raster},
       {"xcf_floating_selection_opens_above_its_layer", xcf_floating_selection_opens_above_its_layer},
       {"xcf_reads_channels_selection_paths_guides_and_metadata", xcf_reads_channels_selection_paths_guides_and_metadata},
+      {"xcf_layer_effects_bake_or_become_styles", xcf_layer_effects_bake_or_become_styles},
+      {"xcf_effect_fixtures_match_gimp_if_available", xcf_effect_fixtures_match_gimp_if_available},
       {"xcf_unwraps_gzip_bzip2_and_xz", xcf_unwraps_gzip_bzip2_and_xz},
       {"xcf_hostile_input_never_crashes", xcf_hostile_input_never_crashes},
       {"xcf_registry_sniff_and_open_by_content", xcf_registry_sniff_and_open_by_content},

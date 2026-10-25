@@ -12348,10 +12348,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>部分圖層只在其下方圖層所在之處顯示（與 GIMP 的合成方式一致），已作為該圖層的剪裁遮色片開啟。</translation>
     </message>
     <message>
-        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
-        <translation>GIMP 的高斯模糊圖層效果已套用到其圖層的像素上。</translation>
-    </message>
-    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP 擦除或分割模式的圖層已變為遮色片：每個圖層下方的圖層都放入以其命名的群組中，並在其擦除之處加以遮蓋。</translation>
     </message>
@@ -12446,6 +12442,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>GIMP 影像</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy 能夠重現的 GIMP 圖層效果（高斯模糊，以及色階、色相-飽和度、去色等顏色濾鏡）已套用到其圖層的像素上。</translation>
     </message>
 </context>
 <context>

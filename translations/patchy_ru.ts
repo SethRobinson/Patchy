@@ -12418,10 +12418,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Некоторые слои видны только там, где есть слой под ними, как их составляет GIMP; они открыты как обтравочные маски на нём.</translation>
     </message>
     <message>
-        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
-        <translation>Эффекты слоя «Гауссово размытие» GIMP применены к пикселям их слоёв.</translation>
-    </message>
-    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Слои в режиме «Стирание» или «Разделение» GIMP превращены в маски: слои под каждым из них помещены в группу с его именем, замаскированную там, где он стирал.</translation>
     </message>
@@ -12516,6 +12512,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>Изображение GIMP</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие» и цветовые фильтры, такие как «Уровни», «Тон-Насыщенность» и «Обесцвечивание»), применены к пикселям их слоёв.</translation>
     </message>
 </context>
 <context>

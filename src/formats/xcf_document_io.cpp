@@ -1530,7 +1530,9 @@ enum class Notice : std::uint8_t {
           "masks on it.");
     case Notice::EffectsBaked:
       return PATCHY_TRANSLATE_NOOP(
-          "QObject", "GIMP's Gaussian Blur layer effects were applied to their layers' pixels.");
+          "QObject",
+          "GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation "
+          "and Desaturate) were applied to their layers' pixels.");
     case Notice::EraseAsMask:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
@@ -1970,6 +1972,386 @@ void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuf
   layer.set_bounds(Rect{bounds.x - pad, bounds.y - pad, width, height});
 }
 
+// --- GIMP's color filters, baked ----------------------------------------------------------
+//
+// Point operations on one pixel: `rgb` holds display-encoded values in 0..1 (and may leave
+// that range; the store clamps). Their formulas were fitted on GIMP 3.2's renders of the
+// 4096-color sweep (scripts/dev/xcf/fit_effects.py; docs/xcf.md, "Layer effects").
+using PointOperation = std::function<void(float* rgb)>;
+
+constexpr float kLumaRed = 0.2225045F;  // the D50 sRGB luminance row GIMP's luma and luminance use
+constexpr float kLumaGreen = 0.7168786F;
+constexpr float kLumaBlue = 0.0606169F;
+
+[[nodiscard]] float decode_unit(float encoded) noexcept {
+  return static_cast<float>(srgb_decode(std::clamp(encoded, 0.0F, 1.0F)));
+}
+
+[[nodiscard]] float encode_unit(float linear) noexcept {
+  return static_cast<float>(srgb_encode(std::clamp(linear, 0.0F, 1.0F)));
+}
+
+// The text of a GimpConfig argument (type 6: u32 length, then the serialized forms).
+[[nodiscard]] std::string config_text(const EffectRecord& effect) {
+  const auto* argument = find_argument(effect, "config");
+  if (argument == nullptr || argument->type != 6 || argument->data.size() < 4) {
+    return {};
+  }
+  const std::size_t length = (static_cast<std::size_t>(argument->data[0]) << 24U) |
+                             (static_cast<std::size_t>(argument->data[1]) << 16U) |
+                             (static_cast<std::size_t>(argument->data[2]) << 8U) | argument->data[3];
+  const auto available = std::min(length, argument->data.size() - 4);
+  return std::string(reinterpret_cast<const char*>(argument->data.data()) + 4, available);
+}
+
+[[nodiscard]] double config_number(const std::vector<std::pair<std::string, std::string>>& forms, std::size_t from,
+                                   std::string_view key, double fallback) {
+  for (std::size_t i = from; i < forms.size(); ++i) {
+    if (i > from && (forms[i].first == "range" || forms[i].first == "channel")) {
+      break;
+    }
+    if (forms[i].first == key) {
+      char* end = nullptr;
+      const double value = std::strtod(forms[i].second.c_str(), &end);
+      return end != forms[i].second.c_str() && std::isfinite(value) ? value : fallback;
+    }
+  }
+  return fallback;
+}
+
+void rgb_to_hsl(const float* rgb, float& h, float& s, float& l) {
+  const float maximum = std::max({rgb[0], rgb[1], rgb[2]});
+  const float minimum = std::min({rgb[0], rgb[1], rgb[2]});
+  l = (maximum + minimum) / 2.0F;
+  h = 0.0F;
+  s = 0.0F;
+  if (maximum == minimum) {
+    return;
+  }
+  const float range = maximum - minimum;
+  s = l <= 0.5F ? range / (maximum + minimum) : range / (2.0F - maximum - minimum);
+  const float rc = (maximum - rgb[0]) / range;
+  const float gc = (maximum - rgb[1]) / range;
+  const float bc = (maximum - rgb[2]) / range;
+  if (rgb[0] == maximum) {
+    h = bc - gc;
+  } else if (rgb[1] == maximum) {
+    h = 2.0F + rc - bc;
+  } else {
+    h = 4.0F + gc - rc;
+  }
+  h /= 6.0F;
+  h -= std::floor(h);
+}
+
+[[nodiscard]] float hsl_component(float m1, float m2, float hue) noexcept {
+  hue -= std::floor(hue);
+  if (hue < 1.0F / 6.0F) return m1 + (m2 - m1) * hue * 6.0F;
+  if (hue < 0.5F) return m2;
+  if (hue < 2.0F / 3.0F) return m1 + (m2 - m1) * (2.0F / 3.0F - hue) * 6.0F;
+  return m1;
+}
+
+void hsl_to_rgb(float h, float s, float l, float* rgb) {
+  if (s <= 0.0F) {
+    rgb[0] = rgb[1] = rgb[2] = l;
+    return;
+  }
+  const float m2 = l <= 0.5F ? l * (1.0F + s) : l + s - l * s;
+  const float m1 = 2.0F * l - m2;
+  rgb[0] = hsl_component(m1, m2, h + 1.0F / 3.0F);
+  rgb[1] = hsl_component(m1, m2, h);
+  rgb[2] = hsl_component(m1, m2, h - 1.0F / 3.0F);
+}
+
+// One levels section (GIMP's value or color channel), in the space the caller chose.
+[[nodiscard]] float apply_levels(float value, double low_in, double high_in, double gamma, double low_out,
+                                 double high_out, bool clamp_in, bool clamp_out) {
+  const double span = high_in - low_in;
+  double v = std::abs(span) > 1e-9 ? (value - low_in) / span : (value >= high_in ? 1.0 : 0.0);
+  if (clamp_in) {
+    v = std::clamp(v, 0.0, 1.0);
+  }
+  // Values below the input black stay linear: a power has no real result there.
+  if (v > 0.0 && gamma > 0.0) {
+    v = std::pow(v, 1.0 / gamma);
+  }
+  v = low_out + (high_out - low_out) * v;
+  if (clamp_out) {
+    v = std::clamp(v, 0.0, 1.0);
+  }
+  return static_cast<float>(v);
+}
+
+// A filter setting: its own argument, or the first form of that name in the filter's
+// GimpConfig argument (GIMP stores some filters' settings only there).
+[[nodiscard]] double effect_number(const EffectRecord& effect, std::string_view name, double fallback) {
+  if (const auto direct = float_argument(effect, name)) {
+    return *direct;
+  }
+  const auto forms = detail::parse_config_forms(config_text(effect));
+  return config_number(forms, 0, name, fallback);
+}
+
+// The point operation for a GIMP filter, or nothing when Patchy cannot reproduce it.
+[[nodiscard]] std::optional<PointOperation> point_operation(const EffectRecord& effect) {
+  const auto& op = effect.operation;
+  if (op == "gegl:invert-gamma" || op == "gimp:invert") {
+    return PointOperation([](float* rgb) {
+      for (int c = 0; c < 3; ++c) rgb[c] = 1.0F - rgb[c];
+    });
+  }
+  if (op == "gegl:invert-linear") {
+    return PointOperation([](float* rgb) {
+      for (int c = 0; c < 3; ++c) rgb[c] = encode_unit(1.0F - decode_unit(rgb[c]));
+    });
+  }
+  if (op == "gimp:desaturate") {
+    const auto mode = enum_argument(effect, "mode").value_or(3);
+    if (mode > 4) {
+      return std::nullopt;
+    }
+    return PointOperation([mode](float* rgb) {
+      float gray = 0.0F;
+      switch (mode) {
+        case 0:  // lightness (HSL)
+          gray = (std::max({rgb[0], rgb[1], rgb[2]}) + std::min({rgb[0], rgb[1], rgb[2]})) / 2.0F;
+          break;
+        case 1:  // luma, on display values
+          gray = kLumaRed * rgb[0] + kLumaGreen * rgb[1] + kLumaBlue * rgb[2];
+          break;
+        case 2:  // average
+          gray = (rgb[0] + rgb[1] + rgb[2]) / 3.0F;
+          break;
+        case 3:  // luminance, in linear light
+          gray = encode_unit(kLumaRed * decode_unit(rgb[0]) + kLumaGreen * decode_unit(rgb[1]) +
+                             kLumaBlue * decode_unit(rgb[2]));
+          break;
+        default:  // value
+          gray = std::max({rgb[0], rgb[1], rgb[2]});
+          break;
+      }
+      rgb[0] = rgb[1] = rgb[2] = gray;
+    });
+  }
+  if (op == "gimp:threshold") {
+    if (enum_argument(effect, "channel").value_or(0) != 0) {
+      return std::nullopt;  // only the value channel was calibrated
+    }
+    const auto low = static_cast<float>(float_argument(effect, "low").value_or(0.5));
+    const auto high = static_cast<float>(float_argument(effect, "high").value_or(1.0));
+    return PointOperation([low, high](float* rgb) {
+      const float value = std::max({rgb[0], rgb[1], rgb[2]});
+      const float out = value >= low && value <= high ? 1.0F : 0.0F;
+      rgb[0] = rgb[1] = rgb[2] = out;
+    });
+  }
+  if (op == "gimp:posterize") {
+    const auto levels = std::clamp(float_argument(effect, "levels").value_or(3.0), 2.0, 256.0);
+    const auto steps = static_cast<float>(levels - 1.0);
+    return PointOperation([steps](float* rgb) {
+      for (int c = 0; c < 3; ++c) rgb[c] = std::round(std::clamp(rgb[c], 0.0F, 1.0F) * steps) / steps;
+    });
+  }
+  if (op == "gimp:brightness-contrast") {
+    const double half = std::clamp(effect_number(effect, "brightness", 0.0), -1.0, 1.0) / 2.0;
+    const double slant = std::tan((std::clamp(effect_number(effect, "contrast", 0.0), -1.0, 1.0) + 1.0) *
+                                  3.14159265358979323846 / 4.0);
+    return PointOperation([half, slant](float* rgb) {
+      for (int c = 0; c < 3; ++c) {
+        double v = decode_unit(rgb[c]);
+        v = half >= 0.0 ? half + (1.0 - half) * v : v * (1.0 + half);
+        v = (v - 0.5) * slant + 0.5;
+        rgb[c] = encode_unit(static_cast<float>(v));
+      }
+    });
+  }
+  if (op == "gimp:hue-saturation") {
+    const auto forms = detail::parse_config_forms(config_text(effect));
+    double hue = 0.0;
+    double saturation = 0.0;
+    double lightness = 0.0;
+    for (std::size_t i = 0; i < forms.size(); ++i) {
+      if (forms[i].first != "range") {
+        continue;
+      }
+      const double h = config_number(forms, i, "hue", 0.0);
+      const double sat = config_number(forms, i, "saturation", 0.0);
+      const double l = config_number(forms, i, "lightness", 0.0);
+      if (forms[i].second == "all") {
+        hue = h;
+        saturation = sat;
+        lightness = l;
+      } else if (std::abs(h) > 1e-9 || std::abs(sat) > 1e-9 || std::abs(l) > 1e-9) {
+        return std::nullopt;  // per-hue ranges were not calibrated
+      }
+    }
+    return PointOperation([hue, saturation, lightness](float* rgb) {
+      float h = 0.0F;
+      float s = 0.0F;
+      float l = 0.0F;
+      float clamped[3] = {std::clamp(rgb[0], 0.0F, 1.0F), std::clamp(rgb[1], 0.0F, 1.0F), std::clamp(rgb[2], 0.0F, 1.0F)};
+      rgb_to_hsl(clamped, h, s, l);
+      h = static_cast<float>(h + hue / 2.0);
+      h -= std::floor(h);
+      s = static_cast<float>(std::clamp(s * (1.0 + saturation), 0.0, 1.0));
+      l = static_cast<float>(lightness < 0.0 ? l * (1.0 + lightness) : l + (1.0 - l) * lightness);
+      hsl_to_rgb(h, s, l, rgb);
+    });
+  }
+  if (op == "gimp:colorize") {
+    const auto hue = static_cast<float>(float_argument(effect, "hue").value_or(0.5));
+    const auto saturation = static_cast<float>(float_argument(effect, "saturation").value_or(0.5));
+    const auto lightness = static_cast<float>(float_argument(effect, "lightness").value_or(0.0));
+    return PointOperation([hue, saturation, lightness](float* rgb) {
+      float l = kLumaRed * decode_unit(rgb[0]) + kLumaGreen * decode_unit(rgb[1]) + kLumaBlue * decode_unit(rgb[2]);
+      l = lightness > 0.0F ? l * (1.0F - lightness) + lightness : l * (1.0F + lightness);
+      float linear[3];
+      hsl_to_rgb(hue, saturation, l, linear);
+      for (int c = 0; c < 3; ++c) rgb[c] = encode_unit(linear[c]);
+    });
+  }
+  if (op == "gimp:levels") {
+    const auto forms = detail::parse_config_forms(config_text(effect));
+    if (forms.empty()) {
+      return std::nullopt;
+    }
+    bool linear = true;
+    bool clamp_in = false;
+    bool clamp_out = false;
+    struct Section {
+      double low_in{0.0};
+      double high_in{1.0};
+      double gamma{1.0};
+      double low_out{0.0};
+      double high_out{1.0};
+    };
+    std::map<std::string, Section> sections;
+    for (std::size_t i = 0; i < forms.size(); ++i) {
+      if (forms[i].first == "trc") {
+        linear = forms[i].second == "linear";
+      } else if (forms[i].first == "clamp-input") {
+        clamp_in = forms[i].second == "yes";
+      } else if (forms[i].first == "clamp-output") {
+        clamp_out = forms[i].second == "yes";
+      } else if (forms[i].first == "channel") {
+        sections[forms[i].second] = Section{config_number(forms, i, "low-input", 0.0),
+                                            config_number(forms, i, "high-input", 1.0),
+                                            config_number(forms, i, "gamma", 1.0),
+                                            config_number(forms, i, "low-output", 0.0),
+                                            config_number(forms, i, "high-output", 1.0)};
+      }
+    }
+    return PointOperation([sections, linear, clamp_in, clamp_out](float* rgb) {
+      for (int c = 0; c < 3; ++c) {
+        float v = linear ? decode_unit(rgb[c]) : rgb[c];
+        static constexpr const char* kChannels[3] = {"red", "green", "blue"};
+        for (const char* name : {"value", kChannels[c]}) {
+          if (const auto found = sections.find(name); found != sections.end()) {
+            const auto& section = found->second;
+            v = apply_levels(v, section.low_in, section.high_in, section.gamma, section.low_out, section.high_out,
+                             clamp_in, clamp_out);
+          }
+        }
+        rgb[c] = linear ? encode_unit(v) : v;
+      }
+    });
+  }
+  if (op == "gegl:exposure") {
+    const auto black = float_argument(effect, "black-level").value_or(0.0);
+    const auto gain = std::pow(2.0, float_argument(effect, "exposure").value_or(0.0)) /
+                      std::max(1e-6, 1.0 - black);
+    return PointOperation([black, gain](float* rgb) {
+      for (int c = 0; c < 3; ++c) rgb[c] = encode_unit(static_cast<float>((decode_unit(rgb[c]) - black) * gain));
+    });
+  }
+  if (op == "gegl:mono-mixer") {
+    double red = float_argument(effect, "red").value_or(0.333);
+    double green = float_argument(effect, "green").value_or(0.333);
+    double blue = float_argument(effect, "blue").value_or(0.333);
+    if (enum_argument(effect, "preserve-luminosity").value_or(0) != 0) {
+      const double sum = red + green + blue;
+      if (std::abs(sum) > 1e-9) {
+        red /= sum;
+        green /= sum;
+        blue /= sum;
+      }
+    }
+    return PointOperation([red, green, blue](float* rgb) {
+      const auto gray = encode_unit(static_cast<float>(red * decode_unit(rgb[0]) + green * decode_unit(rgb[1]) +
+                                                       blue * decode_unit(rgb[2])));
+      rgb[0] = rgb[1] = rgb[2] = gray;
+    });
+  }
+  return std::nullopt;
+}
+
+// Applies a point operation to the layer's pixels, mixed with the original in linear light
+// by the effect's opacity and selection mask, as GIMP mixes a filter.
+void bake_point_operation(Layer& layer, const EffectRecord& effect, const PixelBuffer* mask,
+                          const PointOperation& operation) {
+  auto& pixels = layer.pixels();
+  const auto format = pixels.format();
+  const bool linear_domain = format.bit_depth == BitDepth::Float32;
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const float opacity = std::clamp(effect.opacity, 0.0F, 1.0F);
+  auto bytes = pixels.data();
+  const auto stride = pixels.stride_bytes();
+  run_in_parallel(static_cast<std::size_t>(pixels.height()), [&](std::size_t row) {
+    const auto y = static_cast<std::int32_t>(row);
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      float amount = opacity;
+      if (mask != nullptr) {
+        amount *= x < mask->width() && y < mask->height() ? coverage_at(*mask, x, y) : 0.0F;
+      }
+      if (amount <= 0.0F) {
+        continue;
+      }
+      auto* px = bytes.data() + static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * pixel_bytes;
+      auto value = load_pixel(format, px);
+      float rgb[3];
+      float original[3];
+      for (int c = 0; c < 3; ++c) {
+        const float unit = value[static_cast<std::size_t>(c)] / 255.0F;
+        original[c] = linear_domain ? unit : decode_fast(unit);
+        rgb[c] = linear_domain ? encode_unit(unit) : unit;
+      }
+      operation(rgb);
+      for (int c = 0; c < 3; ++c) {
+        const float filtered = decode_fast(std::clamp(rgb[c], 0.0F, 1.0F));
+        const float mixed = original[c] + (filtered - original[c]) * amount;
+        value[static_cast<std::size_t>(c)] = (linear_domain ? mixed : encode_fast(mixed)) * 255.0F;
+      }
+      store_pixel(format, px, value);
+    }
+  });
+}
+
+[[nodiscard]] std::optional<PixelBuffer> effect_mask(Build& build, const EffectRecord& effect, const Layer& layer) {
+  if (effect.region != 0 || effect.mask == 0) {
+    return std::nullopt;
+  }
+  try {
+    auto channel = read_channel(build.reader, effect.mask);
+    const auto& source = std::as_const(layer).pixels();
+    if (channel.width == static_cast<std::uint32_t>(source.width()) &&
+        channel.height == static_cast<std::uint32_t>(source.height())) {
+      auto mask = decode_coverage_drawable(build.reader, channel, build.image_layout.precision.component,
+                                           BitDepth::UInt8, build.compression, build.stats);
+      // An empty mask is "no selection" when the effect was made: it applies everywhere.
+      const auto bytes = std::as_const(mask).data();
+      if (std::any_of(bytes.begin(), bytes.end(), [](std::uint8_t value) { return value != 0; })) {
+        return mask;
+      }
+      return std::nullopt;
+    }
+    trace("an effect mask's size differs from its layer; the effect applies everywhere");
+  } catch (const ImportError& error) {
+    trace(std::string("effect mask: ") + error.what());
+  }
+  return std::nullopt;
+}
+
 void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
   // GIMP lists a layer's effects top first, like its filter stack; the bottom one runs first.
   for (auto it = record.effects.rbegin(); it != record.effects.rend(); ++it) {
@@ -1988,25 +2370,22 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
         clear_layer_text_metadata(layer);
         build.notices.insert(Notice::TextModified);
       }
-      std::optional<PixelBuffer> mask;
-      if (effect.region == 0 && effect.mask != 0) {
-        try {
-          auto channel = read_channel(build.reader, effect.mask);
-          const auto& source = std::as_const(layer).pixels();
-          if (channel.width == static_cast<std::uint32_t>(source.width()) &&
-              channel.height == static_cast<std::uint32_t>(source.height())) {
-            mask = decode_coverage_drawable(build.reader, channel, build.image_layout.precision.component,
-                                            BitDepth::UInt8, build.compression, build.stats);
-          } else {
-            trace("an effect mask's size differs from its layer; the effect applies everywhere");
-          }
-        } catch (const ImportError& error) {
-          trace(std::string("effect mask: ") + error.what());
-        }
-      }
+      const auto mask = effect_mask(build, effect, layer);
       bake_gaussian_blur(layer, effect, mask.has_value() ? &*mask : nullptr);
       build.notices.insert(Notice::EffectsBaked);
       continue;
+    }
+    if (layer.kind() == LayerKind::Pixel) {
+      if (const auto operation = point_operation(effect)) {
+        if (layer_is_text(layer)) {
+          clear_layer_text_metadata(layer);
+          build.notices.insert(Notice::TextModified);
+        }
+        const auto mask = effect_mask(build, effect, layer);
+        bake_point_operation(layer, effect, mask.has_value() ? &*mask : nullptr, *operation);
+        build.notices.insert(Notice::EffectsBaked);
+        continue;
+      }
     }
     trace("effect " + effect.operation + " on layer '" + record.name + "' is not applied");
     build.notices.insert(Notice::EffectsNotApplied);

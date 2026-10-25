@@ -12383,10 +12383,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Algunas capas solo se ven donde está la capa de debajo, como las compone GIMP; se abrieron como máscaras de recorte sobre ella.</translation>
     </message>
     <message>
-        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
-        <translation>Los efectos de capa Desenfoque gaussiano de GIMP se aplicaron a los píxeles de sus capas.</translation>
-    </message>
-    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Las capas en modo Borrar o Dividir de GIMP se convirtieron en máscaras: las capas de debajo de cada una están en un grupo con su nombre, enmascarado donde borraba.</translation>
     </message>
@@ -12481,6 +12477,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>Imagen de GIMP</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Los efectos de capa de GIMP que Patchy puede reproducir (Desenfoque gaussiano y filtros de color como Niveles, Tono-Saturación y Desaturar) se aplicaron a los píxeles de sus capas.</translation>
     </message>
 </context>
 <context>

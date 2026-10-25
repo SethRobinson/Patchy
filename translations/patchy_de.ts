@@ -12383,10 +12383,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Einige Ebenen erscheinen nur dort, wo die Ebene darunter ist, so wie GIMP sie zusammensetzt; sie wurden als Schnittmasken auf ihr geöffnet.</translation>
     </message>
     <message>
-        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
-        <translation>Die GIMP-Ebeneneffekte Gaußscher Weichzeichner wurden auf die Pixel ihrer Ebenen angewendet.</translation>
-    </message>
-    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Ebenen im GIMP-Modus Radieren oder Teilen wurden zu Masken: Die Ebenen darunter liegen jeweils in einer nach ihr benannten Gruppe, die dort maskiert ist, wo sie radiert hat.</translation>
     </message>
@@ -12481,6 +12477,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>GIMP-Bild</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>GIMP-Ebeneneffekte, die Patchy nachbilden kann (Gaußscher Weichzeichner und Farbfilter wie Tonwertkorrektur, Farbton/Sättigung und Entsättigen), wurden auf die Pixel ihrer Ebenen angewendet.</translation>
     </message>
 </context>
 <context>

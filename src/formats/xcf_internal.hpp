@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace patchy::xcf::detail {
@@ -39,6 +40,10 @@ inline constexpr std::uint64_t kMaxUnwrappedBytes = 16ULL << 30U;
 [[nodiscard]] std::vector<std::uint8_t> decompress_bzip2(std::span<const std::uint8_t> bytes, std::uint64_t limit);
 [[nodiscard]] std::vector<std::uint8_t> decompress_xz(std::span<const std::uint8_t> bytes, std::uint64_t limit);
 [[nodiscard]] std::vector<std::uint8_t> decompress_gzip(std::span<const std::uint8_t> bytes, std::uint64_t limit);
+
+// The top-level (key value) forms of a serialized GimpConfig, in order: ("range", "all"),
+// ("hue", "0.25"), ... A value that is itself a list comes back empty.
+[[nodiscard]] std::vector<std::pair<std::string, std::string>> parse_config_forms(std::string_view text);
 
 // What the text mapping needs from the reader.
 struct TextLayerContext {

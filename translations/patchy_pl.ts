@@ -12418,10 +12418,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Niektóre warstwy są widoczne tylko tam, gdzie jest warstwa pod nimi, tak jak składa je GIMP; otwarto je jako maski przycinające na niej.</translation>
     </message>
     <message>
-        <source>GIMP&apos;s Gaussian Blur layer effects were applied to their layers&apos; pixels.</source>
-        <translation>Efekty warstw Rozmycie gaussowskie GIMP zastosowano do pikseli ich warstw.</translation>
-    </message>
-    <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>Warstwy w trybie Wymazywanie lub Rozdzielanie GIMP stały się maskami: warstwy pod każdą z nich są w grupie nazwanej jej nazwą, zamaskowanej tam, gdzie wymazywała.</translation>
     </message>
@@ -12516,6 +12512,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>GIMP Image</source>
         <translation>Obraz GIMP</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie i filtry koloru, takie jak Poziomy, Barwa-Nasycenie i Desaturacja), zastosowano do pikseli ich warstw.</translation>
     </message>
 </context>
 <context>

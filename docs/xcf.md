@@ -157,11 +157,26 @@ a few pixels of GIMP's (`ui_xcf_text_layers_stay_editable`); its glyphs are Patc
   size three times its radius plus the grow radius (spread from the grow share), Normal, half
   its opacity, its color. The factors were fitted on effects.xcf (mean 0.9 levels in the
   shadow area): GEGL composites the shadow in linear light.
-- `gegl:gaussian-blur` is applied to the layer's pixels (notice): premultiplied linear
-  light, clamp or transparent edges, the layer grown when clip-extent is off, the effect's
-  opacity and its selection mask when its region is the selection. Sigmas over 3 use three
-  box passes. Within about six levels of GIMP's own blur.
-- Everything else (brightness-contrast, hue-saturation, colorize, noise, bloom, ...) is
+- `gegl:gaussian-blur` is applied to the layer's pixels: premultiplied linear light, clamp or
+  transparent edges, the layer grown when clip-extent is off. Sigmas over 3 use three box
+  passes. Within about six levels of GIMP's own blur.
+- Color filters are applied to the pixels with formulas fitted on GIMP 3.2's renders of a
+  4096-color sweep (`scripts/dev/xcf/make_effect_fixtures.py`, `fit_effects.py`; worst
+  difference 1 level unless noted): `gegl:invert-gamma` (1 - x) and `invert-linear`;
+  `gimp:desaturate` (lightness and average on display values, luma with the D50 Y weights on
+  display values, luminance in linear light, value); `gimp:threshold` on the value channel;
+  `gimp:posterize`; `gimp:brightness-contrast` (in linear light: brightness/2 lifts toward
+  white or scales toward black, then contrast pivots at 0.5 with slope tan((c + 1) pi / 4));
+  `gimp:hue-saturation` with only the master range set (HSL on display values: hue in half
+  turns, saturation scaled by 1 + s, lightness toward white or black); `gimp:colorize`
+  (linear luminance as HSL lightness in linear light; the lightness setting is unverified);
+  `gimp:levels` (value then color channels, in linear light or display values by its trc,
+  values below the input black kept linear rather than raised to the gamma; worst 2);
+  `gegl:exposure` (worst 2) and `gegl:mono-mixer` in linear light.
+- Every applied effect mixes with the original in linear light by the effect's opacity and,
+  when its region is the selection, by its mask (when that mask has the layer's size; an empty one, no selection at the time, means the whole layer). One
+  notice covers them. Text layers lose their text when an effect changes their pixels.
+- Everything else (per-range hue-saturation, color balance, curves, noise, bloom, ...) is
   left out with a notice; hidden effects are ignored.
 
 ## Other content
@@ -200,8 +215,13 @@ backdrop under masks).
 OpenGameArt and Wikimedia Commons, versions 0 to 23, plain and wrapped, every precision and
 color mode, up to 6692 x 3000. `gimp-renders/` holds GIMP 3.2's render of each. The October
 25, 2026 run: 77 open, 2 refused (files a third-party library rewrote; GIMP refuses them
-too); against GIMP, 59 within a mean of 1 level, the rest explained by effects Patchy leaves
-out (bloom, noise, hue-saturation) and linear-light compositing of faded layers.
+too). Against GIMP's renders (profiled images converted to sRGB on both sides): 65 within a
+mean of 1 level, 5 within 3, 5 within 6, and 2 beyond: a file whose filters Patchy leaves
+out (bloom, shift, canvas texture) and a semi-transparent texture over a background, where
+GIMP's linear-light mixing differs by 17 levels on average. The rest of the differences are
+the same linear-light mixing of faded layers and soft edges, and random noise filters.
+Found and fixed on the corpus: GIMP's own test files ending a tile list early, effect masks
+that are empty when no selection existed, and wrapped files that sniffed as damaged.
 
 ## Tests
 

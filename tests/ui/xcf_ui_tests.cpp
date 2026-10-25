@@ -12,6 +12,7 @@
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
+#include "scripting_test_support.hpp"
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
 
@@ -155,6 +156,23 @@ void ui_xcf_text_layers_stay_editable() {
                     [](const patchy::Layer& layer) { return patchy::layer_is_text(layer); }));
 }
 
+// Scripts open GIMP files like the Open command, and read what the import approximated.
+void ui_script_opens_xcf_files() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = temp.filePath(QStringLiteral("modes.xcf"));
+  CHECK(QFile::copy(committed_xcf_fixture("modes.xcf"), path));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto source = QStringLiteral(R"JS(
+    var doc = app.open('%PATH%');
+    if (doc.layers.length < 2) throw new Error('layers: ' + doc.layers.length);
+    if (doc.importNotes.length < 1) throw new Error('no import notes');
+  )JS");
+  source.replace(QStringLiteral("%PATH%"), QDir::fromNativeSeparators(path));
+  CHECK(patchy::test::ui::scripting_support::run_script(window, source));
+}
+
 // For the card: GIMP's text and structure files as Patchy shows them (local fixtures).
 void ui_xcf_review_capture() {
   for (const char* name : {"text.xcf", "groups.xcf"}) {
@@ -178,6 +196,7 @@ std::vector<patchy::test::TestCase> xcf_ui_tests() {
       {"ui_xcf_files_open_by_name_compressed_name_and_content", ui_xcf_files_open_by_name_compressed_name_and_content},
       {"ui_xcf_gimp_modes_show_in_the_layers_panel", ui_xcf_gimp_modes_show_in_the_layers_panel},
       {"ui_xcf_text_layers_stay_editable", ui_xcf_text_layers_stay_editable},
+      {"ui_script_opens_xcf_files", ui_script_opens_xcf_files},
       {"ui_xcf_review_capture", ui_xcf_review_capture},
   };
 }

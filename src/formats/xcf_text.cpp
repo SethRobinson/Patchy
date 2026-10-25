@@ -585,6 +585,27 @@ struct FontChoice {
 
 }  // namespace
 
+std::vector<std::pair<std::string, std::string>> parse_config_forms(std::string_view text) {
+  std::vector<std::pair<std::string, std::string>> forms;
+  try {
+    Parser parser(text);
+    for (const auto& form : parser.parse_all()) {
+      if (!form.list || form.items.empty() || form.items[0].list) {
+        continue;
+      }
+      std::string value;
+      if (form.items.size() >= 2 && !form.items[1].list) {
+        value = form.items[1].atom;
+      }
+      forms.emplace_back(form.items[0].atom, std::move(value));
+    }
+  } catch (const ImportError& error) {
+    trace(std::string("filter config: ") + error.what());
+    forms.clear();
+  }
+  return forms;
+}
+
 TextParasite parse_text_parasite(std::string_view text) {
   TextParasite parasite;
   Parser parser(text);
