@@ -2914,7 +2914,7 @@ void MainWindow::load_pen_input_settings() {
   show_transform_drag_values_ = settings.value(QStringLiteral("view/showTransformValues"), true).toBool();
   snap_transforms_to_pixel_grid_ =
       settings.value(QStringLiteral("input/snapTransformsToPixelGrid"), true).toBool();
-  escape_commits_text_ = settings.value(QStringLiteral("input/escapeCommitsText"), false).toBool();
+  escape_commits_text_ = settings.value(QStringLiteral("input/escapeCommitsText"), true).toBool();
   apply_pen_input_settings(canvas_);
 }
 

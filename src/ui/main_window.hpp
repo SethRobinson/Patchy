@@ -3399,8 +3399,9 @@ private:
   // pixels (Photoshop's default). Persisted identifier.
   bool snap_transforms_to_pixel_grid_{true};
   // input/escapeCommitsText: Esc applies a text edit instead of canceling it (Photoshop's
-  // "Use ESC key to commit text", GitHub issue 173). Persisted identifier.
-  bool escape_commits_text_{false};
+  // "Use ESC key to commit text", GitHub issue 173). On by default (issue 415). Persisted
+  // identifier.
+  bool escape_commits_text_{true};
   bool zoom_layer_thumbnails_to_content_{true};
   // view/layerThumbnailSize (kLayerThumbnailSizeSettingsKey). Persisted identifier.
   LayerThumbnailSize layer_thumbnail_size_{kDefaultLayerThumbnailSize};
