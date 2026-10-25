@@ -9,7 +9,7 @@
 
 // Maps a gradient's document-space geometry onto Patchy's calibrated GdFl model
 // (angle + scale + center offsets against a reference box; span = the center chord
-// of the aligned bounds, docs/vector-tools.md "GdFl gradient fill geometry").
+// of the aligned bounds, docs/vector-psd-encodings.md "GdFl gradient fill geometry").
 // Shared by the SVG and PDF importers so both formats place gradients identically.
 
 namespace patchy::formats {

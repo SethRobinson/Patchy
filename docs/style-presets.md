@@ -1,6 +1,6 @@
 # Layer style presets, the Styles page, and .asl interchange
 
-Deep reference for the layer-style preset system: the Styles page in the Layer Style dialog, the persistent StyleLibrary, the Style Manager, the built-in presets, and the Photoshop `.asl` codec. The blendOptions calibration notes live in docs/ps-compat.md ("Style presets and .asl files").
+Deep reference for the layer-style preset system: the Styles page in the Layer Style dialog, the persistent StyleLibrary, the Style Manager, the built-in presets, and the Photoshop `.asl` codec. The blendOptions calibration notes live in docs/psd-layer-styles.md ("Style presets and .asl").
 
 ## Surfaces
 

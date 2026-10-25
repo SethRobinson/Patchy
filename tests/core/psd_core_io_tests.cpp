@@ -3647,7 +3647,7 @@ void psd_issue_242_slices_sample_round_trips_if_available() {
   CHECK(!patchy::psd::find_image_resource_payload(reread.metadata().raw_psd_image_resources, 1050).has_value());
 }
 
-// Photoshop annotations (GitHub issue 258, docs/ps-compat.md "Annotations"): the notes live in
+// Photoshop annotations (GitHub issue 258, docs/ps-compat.md "Slices and annotations"): the notes live in
 // the document-global 'Anno' tagged block {u16 major 2, u16 minor 1, u32 count, records}.
 // Patchy has no Note tool, so the block rides the generic unknown-global preserve path and
 // must come back byte for byte after an edit and a save. The sample is ag-psd's

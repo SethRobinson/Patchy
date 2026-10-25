@@ -53,13 +53,13 @@ cmake --preset mac-release      # or linux-release
 cmake --build --preset mac-release
 ```
 
-### Qt version status (researched October 9, 2026)
+### Qt version status
 
 The desktop presets pin Qt 6.8.3, the last open-source 6.8 release (6.8.4 and later
 are commercial-only). The wasm presets use 6.10.3 and the Flatpak builds against the
-KDE 6.11 runtime, so the code already compiles on 6.10 and 6.11. Facts for the next
-desktop bump (decision, October 9, 2026: stay on 6.8.3 and go straight to 6.12 once the
-separate Qt PDF 6.140.x package is downloadable for Windows, mac and Linux; skip 6.11):
+KDE 6.11 runtime, so the code already compiles on 6.10 and 6.11. Decision (October 9,
+2026): stay on 6.8.3 and go straight to 6.12 once the separate Qt PDF 6.140.x package is
+downloadable for Windows, mac and Linux; skip 6.11. Facts for that bump:
 
 - Qt 6.11 (patches end around March 2027) needs macOS 13+; Qt 6.12 LTS (open-source
   patches only until 6.13, about April 2027) needs macOS 14.4+ and Xcode 16, and is the
@@ -124,7 +124,7 @@ AGENTS.md gives the handoff command and the short rules; these are the details b
 
 CMakeLists.txt owns the MSVC Release codegen flags (`/Zi /GL` on compiles, `/DEBUG:FULL /INCREMENTAL:NO /LTCG` on links), so every configure emits `patchy.pdb` (for symbolizing WER dumps from `%LOCALAPPDATA%\CrashDumps`) and link-time optimized binaries. Never hand-edit `build\release\CMakeCache.txt`. To symbolize a dump from an older build, rebuild that commit in a temporary worktree; full links reproduce the binary layout.
 
-Executables that never ship link with `/LTCG:INCREMENTAL`: the translation checker (`patchy` and `patchy-mcp` link only after it has linked and passed, [localization.md](localization.md)) and the test programs `patchy_core_tests`, `patchy_ui_visual_tests`, `patchy_perf_tests` and `patchy_curves_clipping_preview_tests`. Their objects stay `/GL`, so the tests still run link-time optimized code. The linker keeps its codegen state in `<target>.iobj`/`.ipdb` (0.4 to 0.9 GB each beside the exe) and regenerates only changed functions; a missing `.iobj` or changed link flags mean one full link. Measured on the dev box (October 19, 2026), `--target patchy` after a one-line `patchy_ui` edit took 223.7 s before and 166.1 s after (checker link 103 s to 42 s). Shipped binaries (`patchy`, `patchy-mcp`, the plug-in hosts) keep full `/LTCG`. `/DEBUG:FASTLINK` on the checker saved only about 4 s and was not kept.
+Executables that never ship link with `/LTCG:INCREMENTAL`: the translation checker (`patchy` and `patchy-mcp` link only after it has linked and passed, [localization.md](localization.md)) and the test programs `patchy_core_tests`, `patchy_ui_visual_tests`, `patchy_perf_tests` and `patchy_curves_clipping_preview_tests`. Their objects stay `/GL`, so the tests still run link-time optimized code. The linker keeps its codegen state in `<target>.iobj`/`.ipdb` (0.4 to 0.9 GB each beside the exe) and regenerates only changed functions; a missing `.iobj` or changed link flags mean one full link. On the dev box, `--target patchy` after a one-line `patchy_ui` edit dropped from about 224 s to 166 s (checker link 103 s to 42 s). Shipped binaries (`patchy`, `patchy-mcp`, the plug-in hosts) keep full `/LTCG`. `/DEBUG:FASTLINK` on the checker saved only about 4 s and was not kept.
 
 ## Incremental development builds
 
@@ -139,15 +139,53 @@ the targets you will run while iterating: `--target patchy_ui_visual_tests`,
 `opt-dev-no-pch` uses its own directory and sets `PATCHY_USE_PCH=OFF` for include
 hygiene checks and timing comparisons.
 
-Why not `release` for development: its links, not the compiles, dominate. Measured
-October 2026 on the dev box with full LTCG everywhere, a change touching
-`main_window.hpp` and `canvas_widget.hpp` compiled about 130 files in 90 s, then linked
-`patchy_ui_visual_tests.exe` in 606 s, `patchy_perf_tests.exe` 545 s, `patchy-mcp.exe`
-433 s, `patchy_translation_checks.exe` 199 s and `patchy.exe` 166 s, in parallel for
-about 12 minutes. The test programs now link with incremental LTCG (above); on the
-32-thread offload host (October 22, 2026) a one-line `patchy_ui` edit still relinked the
-UI suite in 502 s while `patchy-mcp` took 1081 s for its full LTCG link. A merge-queue
-batch's `patchy.exe` LTCG link took many minutes and about 10 GB (October 23, 2026).
+Why not `release` for development: its links, not the compiles, dominate. With full LTCG a
+header change recompiles about 130 files in 90 s and then links the five executables in
+parallel for about 12 minutes (`patchy_ui_visual_tests.exe` alone about 10 minutes, and a
+`patchy.exe` LTCG link can take many minutes and about 10 GB); incremental LTCG on the test
+programs (above) roughly halves their relinks but a one-line `patchy_ui` edit still relinks
+the UI suite in about 8 minutes on the offload host.
+
+### Compile-time profile
+
+Measured from `build\opt-dev\.ninja_log` on October 25, 2026 (last entry per output, end
+minus start; a full opt-dev build is 1,508 outputs and about 143 CPU-minutes). Compare
+files with it, not absolute times: 20 jobs ran in parallel.
+
+| Group | TUs | CPU s | per TU |
+|---|---|---|---|
+| tests/ui | 129 | 2550 | 19.8 |
+| src/ui | 259 | 1973 | 7.6 |
+| tests/core (no PCH before this date) | 75 | 1685 | 22.5 |
+| vendored libjxl | 182 | 404 | 2.2 |
+| src/formats (own) | 60 | 382 | 6.4 |
+| src/psd | 29 | 299 | 10.3 |
+| src/render | 6 | 206 | 34.3 |
+
+Where the time goes, and what the build does about it:
+
+- Precompiled headers: `patchy_enable_ui_pch` (stable Qt and standard headers) covers
+  `patchy_ui`, the UI test targets, the shared test objects and `patchy_perf_tests`;
+  `patchy_enable_core_pch` (standard library only) covers `patchy_core_tests`. Project
+  headers never go in a PCH: an edit would invalidate every TU.
+- `patchy_ui_test_shared` is an OBJECT library of the test TUs both `patchy_translation_checks`
+  and `patchy_ui_visual_tests` need (`ui_test_support.cpp` alone is about 50 s), so they
+  compile once. `tests/test_harness.cpp` holds the one `<windows.h>` the harness needs.
+- `tests/ui/ui_test_access.cpp` holds the `MainWindowTestAccess` bodies: the header is
+  included by 103 UI test TUs, so an inline accessor edit used to recompile all of them.
+- AUTOUIC is off (no `.ui` files) and AUTOMOC is off for the Qt-free core suite. The two
+  largest Q_OBJECT classes include their own `moc_<name>.cpp` at the end of their source
+  file, so a `main_window.hpp` or `canvas_widget.hpp` edit no longer rebuilds the shared
+  `mocs_compilation.cpp` (36 s opt-dev, 64 s release) as well.
+- `render/layer_compositor.hpp` (about 4,600 lines of templates over a `Target` type) is
+  instantiated in full by each of its 13 includers: `ui/image_document_io.cpp` 121 s,
+  `render/compositor.cpp` 68 s, `render/native_duotone.cpp` 57 s for 147 lines. The fix
+  (`extern template`, merged Target classes) is in [refactor-backlog.md](refactor-backlog.md).
+- `ui/appearance_properties.cpp` takes about 100 s for 440 lines of generic-lambda field
+  registration; also in the backlog.
+- Incremental cost: `main_window.hpp` reaches 161 TUs and `canvas_widget.hpp` 173, and they
+  change in a fifth and a tenth of all commits. The growth rule in
+  [code-organization.md](code-organization.md) keeps new state out of them.
 
 ### Remote iteration: one target, opt-dev
 
@@ -163,12 +201,10 @@ scripts\remote\remote-build.ps1 -Target windows -WindowsHost <host> -Preset opt-
   -BuildTarget patchy_ui_visual_tests -TestFilter ui_palette
 ```
 
-Measured on the 16-thread offload host (October 19, 2026) after a one-line change to a
-`patchy_ui` source, end to end including the snapshot push and the filtered suites: the
-default full `release` build took 1164 s, `-Preset opt-dev -BuildTarget
-patchy_ui_visual_tests` 96 s, and 79 s once reconfiguring stopped rewriting the codec
-headers (below). The first opt-dev build in a host's work tree is a full compile of that
-suite (462 s). The default preset stays `release`, so pass `-Preset opt-dev` for
+On the 16-thread offload host a one-line `patchy_ui` change costs about 20 minutes end to
+end as a full `release` build and about 80 s as `-Preset opt-dev -BuildTarget
+patchy_ui_visual_tests` (the first opt-dev build in a host's work tree compiles the whole
+suite, about 8 minutes). The default preset stays `release`, so pass `-Preset opt-dev` for
 development runs; LTCG-only warnings and failures are a release-day concern.
 
 Every remote run reconfigures (`cmake --preset`), so a file the configure step generates

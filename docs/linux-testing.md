@@ -91,3 +91,19 @@ Source changes the first SDK compile of the tests needed: a missing `<algorithm>
 include, two GCC 15 `-Warray-bounds` false positives in test helpers (fixed by reserving
 the vector up front), and `QImage::mirrored`, deprecated from Qt 6.9 (its replacement
 `flipped` does not exist in 6.8.3, so tests call a version-checked helper).
+
+## Foreign drags and the KDE rig (GitHub issue 62)
+
+On Wayland the old dock column dragged its panels with a real `QDrag`, so every enabled `acceptDrops` widget under the cursor saw drag events that carried no layers. The panels no longer float or drag, but any foreign drag (a file manager's, another app's) still reaches those widgets the same way.
+
+**Never repolish a widget from inside its own event filter.** `installEventFilter` puts a filter ahead of those already installed, and KDE's Breeze style installs filters in `polish()`. A filter that calls `style()->unpolish/polish` on the watched widget is moved behind Qt's loop cursor and runs again for the same event; done unconditionally it never ends (issue 62: the layer action buttons' drag filter froze the Flatpak on KDE). Change the property only when it differs and repolish one event-loop hop later (`handle_layer_action_button_drag_event`; `ui_layer_action_button_foreign_drag_never_repolishes_in_filter` stands a filter-installing proxy style in for Breeze). It needs Breeze (the Flatpak's KDE runtime, `XDG_CURRENT_DESKTOP=KDE`) and enabled buttons (a document open). KWin's "not responding" kill sends SIGABRT: that coredump is a hang.
+
+KDE rig on the Linux build host, with no root and no desktop control:
+
+- KWin: a private apt configuration (own `Dir::State`, `Dir::Cache`, empty status file, the host's Ubuntu keyring) pointed at a newer Ubuntu series downloads `kwin-wayland`, `qt6-wayland` and `plasma-wayland-protocols` plus dependencies; `dpkg-deb -x` each into a prefix. Run it through the prefix's own loader: `<prefix>/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 --library-path <prefix libs> <prefix>/usr/bin/kwin_wayland --virtual --width 1600 --height 1000 --socket <name> --no-lockscreen --no-global-shortcuts --no-kactivities` under `dbus-run-session`, with `QT_PLUGIN_PATH`, `XDG_DATA_DIRS`, `XKB_CONFIG_ROOT` pointing into the prefix and `KWIN_FORCE_OWN_QPA=1` (the loader hides the executable name), `KWIN_COMPOSE=Q`, `KWIN_WAYLAND_NO_PERMISSION_CHECKS=1`, private `XDG_CONFIG_HOME`.
+- Input: a client of `org_kde_kwin_fake_input` (authenticate, `pointer_motion_absolute`, `button` 272); a few dozen lines of Python over the Wayland socket are enough. Releasing happens when the client disconnects, so keep one process per gesture.
+- App: `WAYLAND_DISPLAY=<name> flatpak run --user --env=XDG_CURRENT_DESKTOP=KDE --env=PATCHY_SETTINGS_DIR=/tmp/x --env=PATCHY_NO_SINGLE_INSTANCE=1 com.rtsoft.patchy <image>`. Add `--devel --command=gdb` for stacks (SIGINT the app's host PID to sample), or `--command=<host build>/patchy --env=LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu` to run a fresh host build on the runtime's Qt (Breeze loads). `WAYLAND_DEBUG=1` traces the protocol; `patchy --screenshot` captures a native instance.
+
+GNOME variant: `gnome-shell --headless --wayland --no-x11 --unsafe-mode --virtual-monitor 1600x1000 --wayland-display <name>` under `dbus-run-session` (without `--no-x11` the shell deadlocks in PulseAudio's X11 lookup), driven via `org.gnome.Mutter.RemoteDesktop` and `org.gnome.Shell.Eval`/`Screenshot`. Script: `scripts/dev/wayland-gnome/gnome-rig.sh`. `start-shell` publishes `WAYLAND_DISPLAY` to the rig bus before the shell activates the portals (docs/wayland.md).
+
+Stop every rig process by the PID recorded at launch. A name-based kill (`pgrep -n -x gnome-shell`) once took down the host's own desktop shell.

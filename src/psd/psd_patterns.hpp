@@ -12,7 +12,7 @@
 // each block holds one or more patterns as {length, version=1, image mode, point,
 // unicode name, pascal-string id, [indexed color table], Virtual Memory Array List},
 // 4-byte padded per pattern. Layout pinned against Photoshop 2026 (27.8) captures —
-// see docs/ps-compat.md "Pattern data blocks". Color channels occupy the first VMA
+// see docs/psd-layer-styles.md "Pattern data blocks". Color channels occupy the first VMA
 // slots; the pattern's transparency plane lives in the LAST slot (max channels + 2
 // slots total; PS declares 24 max channels regardless of mode).
 //

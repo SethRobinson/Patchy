@@ -124,7 +124,7 @@ The angle dial syncs with the numeric controls; its hand wraps but Twirl keeps t
 Overlay controls:
 
 - Radial Blur, Twirl, Pinch/Bloat, and Lens Vignette declare `center_x`/`center_y` with the center roles: a draggable crosshair (values quantize to the declared step). Twirl and Pinch/Bloat also mark integer `radius` as `EffectRadiusPercent`, adding a draggable radius circle. Drags update overlay and values at once; a size-changing center proxy is adopted only on release, so it cannot jump under the pointer.
-- Tilt-Shift Blur adds center, rotation and width handles: a filled dot per focus boundary and a hollow dot per full-blur boundary, with no line or bar along either boundary (Apple US 8971623, docs/patent-research-audit.md item 3, Seth's decision of 2026-10-20). The overlay clips inside the image perimeter, including tiny, rotated and panned previews. `ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks` pins both. Width edits stay symmetric; rendering waits for release.
+- Tilt-Shift Blur adds center, rotation and width handles: a filled dot per focus boundary and a hollow dot per full-blur boundary, with no line or bar along either boundary (Apple US 8971623, docs/patent-research-audit.md section 3, decided 2026-10-20). The overlay clips inside the image perimeter, including tiny, rotated and panned previews. `ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks` pins both. Width edits stay symmetric; rendering waits for release.
 - Iris Blur uses the center and angle roles (crosshair and dial); Width, Height and Focus stay numeric. No editable iris boundary widget and no multiple pins: the one ellipse is edited numerically and makes one scalar blend mask (docs/patent-research.md).
 
 Preview pipeline:
@@ -149,30 +149,7 @@ Object names: `filterDialogPreview` (a `ZoomableImagePreview`; `filterDialogRend
 
 Proxies scale only pixel-distance parameters. Version-1 spatial keys are the catalog parameters declared `FilterSpatialScale::Pixels` (pinned by the catalog test). Angles, percentages, samples, intensity, detail, seed and colors never scale. Scaling returns a normalized copy.
 
-Ranges (`min..max`, practical slider limits in parentheses), growth, and translation support ("supp"); defaults are in the ID list above; unlisted filters neither grow nor advertise fixed support:
-
-```text
-box_blur  radius int 1..2000 px (to 100); grows by radius; supp = radius
-gaussian_blur  radius 0.1..1000 px (to 100); grows/supp ceil(3*radius)
-sharpen, sharpen_more, sharpen_edges, edge_detect  supp 1 px
-blur, blur_more  grows 1 px; supp 1 px
-motion_blur  angle -360..360 deg (-180..180), distance 1..2000 px (1..64, PS max); grows by distance;
-             supp distance+1 (+1 covers bilinear taps); kernels in smart-filters-native.md
-radial_blur  amount 0..100, samples, center; growth notes below; supp none
-add_noise  amount 0.1..400 % (to 100), seed 0..999999999; bounds/alpha byte-identical; no growth/supp
-unsharp_mask  amount 1..500 %, radius 0.1..1000 px (to 100), threshold 0..255; no growth; supp ceil(3*radius)
-high_pass  radius 0.1..1000 px (to 100); bounds/alpha kept; supp 3*radius
-median  radius 1..500 px (full range); bounds kept; supp none
-dust_and_scratches  radius int 1..500 (full range, PS dialog max), threshold 0..255; bounds/alpha kept; supp none
-surface_blur  radius 1..100 px, 0.01 steps (to 25), threshold 2..255; grows <= effective radius; supp none
-lens_blur  radius 0..100 px (to 50), blades 3..8, curvature 0..100 %, rotation -180..180 deg; supp none
-iris_blur  blur 0..500 px (to 50), center 0..100 %, angle -180..180 deg, width/height 1..200 % of input
-           W/H, focus 0..100 % of ellipse radius; Lens Blur's growth; supp none
-tilt_shift_blur  blur 0..500 px (to 50), center/focus_half_width/transition_width %; grows <= ceil(blur); supp none
-plastic_wrap  highlight_strength 0..20, detail 1..15, smoothness 1..15; bounds/alpha byte-exact; supp none
-emboss  angle -360..360 deg (-180..180), height 1..100 px (1..24), amount 0..500 % (0..300; native minimum 1)
-clouds  fills_entire_canvas; no margin, no supp, never grown by the registry (UI embed below)
-```
+Ranges, practical slider limits, growth margins and translation support ("supp") per filter are declared in the typed catalog in `src/filters/filter_engine.cpp` ("Typed catalog ranges") and pinned by the catalog tests; unlisted filters neither grow nor advertise fixed support. Motion Blur's kernels are in [smart-filters-native.md](smart-filters-native.md); Radial Blur's growth and the Clouds embedding are below.
 
 Calibration notes:
 
@@ -184,7 +161,7 @@ Calibration notes:
 - Median, Dust & Scratches, and Surface Blur give transparent pixels the straight RGB of the nearest visible source anywhere in the input, so these, the ellipse/band blurs, Plastic Wrap and Add Noise advertise no finite support and render selected applications with full-layer context. Surface Blur alpha-trims after padding.
 - Lens Blur: one deterministic supersampled aperture kernel on premultiplied RGBA (curvature blends the polygon toward a circle); radius 0 is an exact identity; large radii run fixed-point downsample/convolve/upsample stages on a grid anchored to the whole input, a factor-aligned margin alpha-trimmed after.
 - Iris Blur: one fixed round aperture blur, premultiplied-blended with the original through one smooth elliptical mask; Focus interior sharp, outside the ellipse fully blurred; blur 0 exact identity. No depth inference, highlight detection, per-pixel kernels, or combined blur patterns.
-- Tilt-Shift Blur: angle 0 means horizontal focus lines; focus band sharp, cubic transition, full blur beyond the dashed boundaries; blur 0 exact identity; alpha-trimmed after padding.
+- Tilt-Shift Blur: angle 0 means horizontal focus lines; focus band sharp, cubic transition, full blur beyond the transition boundaries; blur 0 exact identity; alpha-trimmed after padding.
 - Plastic Wrap: one fixed integer height-field formula (smoothed alpha-weighted luminance, gradients, constant-direction relief plus ridge highlights on the original RGB); alpha weighting gives isolated artwork contour relief. Dimensionless, no thumbnail scaling.
 
 When rendering expands an RGBA layer the registry pads every side first, so centers are remapped to the padded buffer, per axis:

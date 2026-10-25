@@ -1,7 +1,7 @@
 # Linked smart object ground-truth capture: drives Adobe Photoshop over COM to place SVG and PNG
 # files as linked (and, for comparison, embedded) smart objects, saves each case as a PSD, and
 # records what Photoshop's Action Manager reports for every placed layer. The findings this
-# produced are recorded in docs/smart-objects.md ("Place Linked ground truth").
+# produced are recorded in docs/smart-objects-ground-truth.md ("Place Linked ground truth").
 #
 #   powershell -Command "& scripts\dev\smart-objects\ps-capture-linked.ps1 -OutDir local-test-fixtures\psd\ps2026_linked -Svg a.svg -Svg2 b.svg -Png c.png"
 #

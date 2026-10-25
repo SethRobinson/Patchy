@@ -31,7 +31,7 @@ headless-stale ([ps-compat.md](ps-compat.md)).
   layer at density 60% + feather 1.5 px (parameters + baked -2, flags 0x18).
 - photoshop-both-masks-params.psd/bmp: raster mask + vector mask with its own
   density/feather on one layer: the 48-byte section, -2 as Photoshop's
-  combined render, the painted mask in -3 (layout in vector-tools.md,
+  combined render, the painted mask in -3 (layout in vector-psd-encodings.md,
   "Vector masks on layers").
 - photoshop-vector-mask-feather.psd/bmp: vector feather 4 (path on the
   canvas corner) and 8.

@@ -52,7 +52,7 @@ Relevant public records:
 - `liquify_strokes_and_render_are_pinned` (every tool, RGBA with zero and partial alpha, RGB, scaled, capped-grid and one-pixel outputs)
 - `liquify_reconstruct_by_amount_respects_freeze`
 - `ui_liquify_undo_redo_steps_strokes_and_restore`, `ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window`, `ui_liquify_rate_and_pen_pressure`, `ui_liquify_mesh_preview_toggle_and_reconstruct_amount`, and `ui_liquify_dialog_captures_in_both_schemes` (issue shots in `test-artifacts/liquify`)
-- `patchy_perf_tests liquifydrag`: dialog open, each Warp move plus its preview repaint at the default and the largest brush, and Apply on 4000x3000 and 6000x4000 layers, then the proxy's per-stroke and per-render cost. Ceilings: frame median under 10 ms, Apply under 400 ms. October 2026 on studiomac (M2 Ultra): frames 15 to 18 ms and Apply 0.47 s / 0.95 s before #296, 2 to 4 ms and 14 / 20 ms after.
+- `patchy_perf_tests liquifydrag`: dialog open, each Warp move plus its preview repaint at the default and the largest brush, and Apply on 4000x3000 and 6000x4000 layers, then the proxy's per-stroke and per-render cost. Ceilings: frame median under 10 ms, Apply under 400 ms. October 2026 on an Apple silicon Mac: frames 15 to 18 ms and Apply 0.47 s / 0.95 s before #296, 2 to 4 ms and 14 / 20 ms after.
 - `ui_filter_catalog_and_menu_contracts_are_stable`
 - `ui_liquify_dialog_exposes_manual_tools_and_brush_controls`
 - `ui_liquify_action_applies_selection_as_one_undo_step`

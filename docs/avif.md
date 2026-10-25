@@ -60,9 +60,8 @@ extension, macOS ImageIO) and never in the AppImage.
   `orientation_applied` reach File Info; the writer branch in `write_flat_image_file`
   (`image_format_preserves_alpha` and the metadata carriers list include `avif`); the
   extensions sit in the Windows "Open with" list.
-- `image_open_diagnosis` no longer has an `AvifNeedsSystemDecoder` reason: a damaged `.avif`
-  keeps the decoder's own message, and AVIF bytes under another extension get the rename
-  hint.
+- `image_open_diagnosis` has no AVIF-specific reason: a damaged `.avif` keeps the decoder's
+  own message, and AVIF bytes under another extension get the rename hint.
 
 ## What the reader does
 

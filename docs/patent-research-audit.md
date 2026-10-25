@@ -194,21 +194,16 @@ image" describes the drawing correctly, no more. Published earlier work describi
 interfaces (Instagram, Snapseed and TiltShift Generator before 2012-03-06) is noted in the main
 record.
 
-**Alternative design recorded (not made).** Draw no boundary marks at all:
-delete `draw_boundary` and its two calls, keep the filled focus-handle dots and the hollow
-transition-handle dots already drawn at the same points, the rotation handle line (it passes
-through the location rather than lying to one side of it, so it is not a flanking line) and the
-center crosshair. Dots are not lines and divide nothing. Effort: small (about 20 lines in
-zoomable_image_preview.cpp; the pinned tests `ui_filter_gallery_tilt_shift_overlay_uses_grip_bars`
-and `ui_filter_gallery_tilt_shift_grips_never_span_the_visible_image` become one "no boundary
-marks" test; the README Tilt-Shift screenshot is re-shot). Usability cost: the band's edges are
-shown only by the handle dots and by the preview blur itself. Alternative: keep the bars, with a
-re-check at 2032-12-26. Decision (2026-10-20): B, draw no boundary marks; implemented the same
-day: `draw_boundary` removed from
-`draw_tilt_shift_overlay`, the two grip tests merged into
-`ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks`.
+**Decision (2026-10-20): draw no boundary marks.** The boundary drawing and its two calls were
+removed from `draw_tilt_shift_overlay` (zoomable_image_preview.cpp); the filled focus-handle dots,
+the hollow transition-handle dots at the same points, the rotation handle line (it passes through
+the location rather than lying to one side of it, so it is not a flanking line) and the center
+crosshair remain. Dots are not lines and divide nothing. The two grip tests became
+`ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks`; the README Tilt-Shift screenshot was
+re-shot. Usability cost: the band's edges show only through the handle dots and the preview blur.
+Alternative not taken: keep the bars, with a re-check at 2032-12-26.
 
-## 6. Status sweep of application-number and "pending" entries
+## 4. Status sweep of application-number and "pending" entries
 
 - **US 2022/0207115 A1** granted as **US 11914681 B2** on 2024-02-27 (Adobe, application
   17/138,237, filed 2020-12-30, Active, adjusted expiry 2041-11-20). Independent claims 1, 9 and 16:

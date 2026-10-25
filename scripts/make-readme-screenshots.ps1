@@ -1,6 +1,6 @@
 # Regenerates the README marketing screenshots.
 #
-# Two pipelines (docs/testing.md "README screenshots"):
+# Two pipelines (docs/readme-showcase.md "README screenshots"):
 #
 # 1. Script-driven scenes ($jsScenes below): a fresh unattended patchy.exe runs a
 #    scripts\dev\readme-shots\*.js scene through --run-script on the REAL windows

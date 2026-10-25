@@ -152,7 +152,47 @@ settings, a separate process, pinned 96-DPI geometry, and bounded plug-in window
 Only task-owned processes may be stopped after a timeout. Never close a user's
 documents or attach this capture workflow to an unrelated running instance.
 
-See [testing.md](testing.md#readme-screenshots) for capture conventions, fixture
-requirements, and the separate Mehdi plug-in recipe. The photograph's source and
+Capture conventions, fixture requirements, and the separate Mehdi plug-in recipe are in
+"README screenshots: capture conventions" below. The photograph's source and
 license are recorded in [NOTICE-THIRD-PARTY.md](../NOTICE-THIRD-PARTY.md).
 
+## README screenshots: capture conventions
+
+`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/`. The current
+showcase, per-image inputs, and regeneration commands are listed in
+[readme-showcase.md](readme-showcase.md). KPT is an explicit driver scene
+(`-Scene plugin_kpt5`, or `-IncludeLegacyPlugins` for a full run) using an isolated
+portable host and fixture copy; it combines direct Patchy and plug-in window captures.
+Two pipelines:
+
+- **Script-driven scenes** (`scripts/dev/readme-shots/*.js`, listed in the driver's
+  `$jsScenes` table): a fresh unattended `patchy.exe --run-script` run stages the UI with the
+  `patchy.ui` staging APIs on the REAL windows platform, so every installed font renders
+  (offscreen enumerates none). The driver pins DPI (`QT_ENABLE_HIGHDPI_SCALING=0`,
+  `QT_FONT_DPI=96`), sets `PATCHY_NO_SINGLE_INSTANCE=1`, and isolates settings with
+  `PATCHY_SETTINGS_DIR`, so a run never touches the user's Patchy state. The window shows
+  on screen for a few seconds per scene.
+- **Offscreen test scenes** (everything not yet migrated): the `shot_readme_*` scenes in
+  `patchy_ui_visual_tests` run offscreen and their artifacts are copied out. New scenes should
+  be authored as scripts in the first pipeline; the remaining test scenes migrate over time and
+  stay in the suite as regression smoke tests either way (the driver skips copying a test
+  artifact whose scene has a script-driven owner). Scenes that picture a modal dialog the
+  scripting surface cannot open stay here permanently: `shot_readme_image_trace` captures the
+  Trace Image to Shapes dialog, which `layer.traceToShapes` bypasses and `app.runCommand`
+  would block a script on; `shot_readme_long_shadow` opens the Layer Style dialog
+  beside generated editable text with a live continuous shadow.
+
+`scripts/dev/readme-shots/plugin-dialog.js` (driver scene `plugin_dialog`) produces
+`docs/images/screenshots/plugin_dialog.png`, the dialog of a third-party 8bf plug-in
+(Mehdi's Absolute Color from `local-test-fixtures/photoshop-plugins/mehdi`) captured through
+`layer.applyPlugin(id, {captureDialog})` on Windows. The plug-in is not committed, so the
+driver skips the scene with a `[SKIP]` line where that folder is missing; its window-targeted
+capture and automatic dialog answers are authorized Patchy automation, not desktop control.
+
+Both pipelines round the corners of the window they captured, because DWM rounds Patchy's
+frameless windows in the compositor and a `QWidget::grab()` is therefore square. The offscreen
+side does it in `save_readme_shot` and `draw_readme_overlay` (which also rounds the shadow it
+fakes under a composited dialog); the driver does it to the script-driven PNGs in
+`Set-RoundedWindowCorners`. Both use 8 px, `DWMWCP_ROUND`'s radius at 96 DPI, and leave the
+corner pixels transparent so a shot reads as a window on a light or dark page. Change the
+radius in both places or the two pipelines drift.

@@ -1316,7 +1316,7 @@ void adjustment_hue_saturation_colorize_matches_photoshop_reference() {
 void adjustment_hue_saturation_master_matches_photoshop_reference() {
   // Every expected triple below is Photoshop 2026's own render of the same
   // input under the same sliders, read off the byte-patched hue2 probe sweep
-  // described in docs/ps-compat.md "Hue/Saturation master".
+  // described in docs/adjustments-calibration.md "Hue/Saturation master".
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::HueSaturation;
   // Stale colorize values must be ignored while colorize is OFF.
@@ -1685,7 +1685,7 @@ void psd_photoshop_hue_saturation_master_fixture_matches_render() {
   const auto flat = patchy::Compositor{}.flatten_rgb8(document);
   const auto metrics = rgb_diff_metrics(reference, flat);
   // The calibration envelope: no probed pixel anywhere in the sweep is off by
-  // more than 2/255 (docs/ps-compat.md "Hue/Saturation master").
+  // more than 2/255 (docs/adjustments-calibration.md "Hue/Saturation master").
   CHECK(metrics.max_channel_delta <= 2);
   CHECK(metrics.mean_abs_channel_delta <= 0.5);
 }
@@ -2480,7 +2480,7 @@ void adjustment_brightness_contrast_math_lut_and_metadata_round_trip() {
 
 void adjustment_modern_brightness_contrast_matches_photoshop_captures() {
   // Pinned against the July 2026 Photoshop 2026 COM ramp captures behind the
-  // calibrated modern model (docs/ps-compat.md "Modern Brightness/Contrast";
+  // calibrated modern model (docs/adjustments-calibration.md "Modern Brightness/Contrast";
   // capture PNGs/TIFFs live machine-local in local-test-fixtures/ps-bc-captures).
   // The (63, -12) capture below is EonKun Goodboy Chest.psd's exact setting and
   // matched byte-for-byte, so it pins full equality; the spot grid across both

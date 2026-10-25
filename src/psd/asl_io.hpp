@@ -18,7 +18,7 @@
 // The 'Lefx' object matches the lfx2 root descriptor, so its conversion is
 // shared with the PSD reader/writer (psd/psd_layer_effects.hpp). Layout and the
 // populated blendOptions shape are pinned against Photoshop 2026 captures
-// (docs/ps-compat.md "Style presets and .asl").
+// (docs/psd-layer-styles.md "Style presets and .asl").
 namespace patchy {
 class CmykToRgbTransform;
 }

@@ -3,19 +3,71 @@
 This file lists current, verified cleanup opportunities. Completed work and refactor
 chronology do not belong here. Before taking an item, confirm it still exists with a
 repository-wide search and read the area-specific documentation linked from
-`AGENTS.md`.
+`AGENTS.md`. The weekly health check (last run October 25, 2026) re-verifies every entry.
 
 All work here is behavior-preserving unless an entry explicitly identifies a bug.
 Preserve test registration order, persisted identifiers, serialization bytes,
 translation contexts, widget object names, deterministic rendering, and byte-stability
 canaries.
 
+## Build time
+
+Measured from `build\opt-dev\.ninja_log` (October 25, 2026): a full opt-dev build is about
+143 CPU-minutes, half of it test translation units. The reasons and the cheap fixes already
+made are in [building.md](building.md) ("Compile-time profile").
+
+- `render/layer_compositor.hpp` (about 4600 lines, 2850 of them template bodies over a
+  `Target` type, 1100 non-template inline bodies, no `extern template`) is instantiated in
+  full by each of its 13 includers for their own local Target class: `ui/image_document_io.cpp`
+  (121 s), `render/compositor.cpp`, `render/native_duotone.cpp` (147 lines, 57 s),
+  `formats/bmp_document_io.cpp`, `formats/document_flatten.cpp`. `bmp_document_io.cpp`'s
+  `Rgba8RenderTarget` is method-for-method `document_flatten.cpp`'s `Rgba8FlattenTarget` minus
+  an origin offset, and its `Rgb8RenderTarget` largely matches `compositor.cpp`'s
+  `Rgb8PixelBufferTarget`. Merge the Target classes, add `extern template` declarations with
+  one explicit-instantiation TU per Target, move the cold non-template helpers to a `.cpp`, and
+  give `formats/ora_document_io.cpp` (which uses only `layer_knockout_mode`) a small header.
+  Output is pinned by the compositor canaries and the composite corpus digests.
+- `ui/appearance_properties.cpp` takes about 100 s for 440 lines: 112 `*_FIELD` macro
+  expansions, each a generic lambda with `if constexpr (requires ...)` probes inside
+  `add_effects<auto Member>`. Replace them with one templated member-pointer helper driven by a
+  per-effect constexpr field table. Property keys are persisted identifiers.
+- The builder functions over 1000 lines (`build_options_bar` 3860, `request_layer_style_settings`
+  2761, `build_menu_bar_actions` 2331, `show_preferences` 1983, `request_visual_filter_gallery`
+  1664, `request_shape_appearance_settings` 1497, `make_layer_row_widget` 1225 with about 30
+  defaulted `std::function` parameters, `CanvasWidget::mousePressEvent` 1110) inflate optimized
+  compile times and are hard to review. Split along their existing comment sections; keep
+  object names, translation contexts and registration order.
+- Build caching: no compiler launcher and every preset has its own binary directory, so the
+  vendored codecs (about 825 CPU-seconds) recompile per preset. Options: sccache with `/Z7`
+  for opt-dev (`/Zi` is set at the top of `CMakeLists.txt`), or a shared prebuilt install of the
+  vendored static libraries. Seth's call.
+- The translation gates run on every build (`patchy_check_translation_catalogs` depends on every
+  Patchy source, about 2.6 s opt-dev; the runtime gate relinks and reruns after any `patchy_ui`
+  change, about 11.5 s opt-dev, 56 s release). Whether opt-dev may defer them is Seth's call.
+- `patchy-mcp` recompiles `app/mcp_server.cpp` and `app/mcp_stdio.cpp` (only `main.cpp` needs
+  its own define); they could be shared objects.
+- Qt umbrella includes are clean, but `<filesystem>` reaches 404 of 683 TUs through
+  `color/color_management.hpp`, `formats/bmp_document_io.hpp` and `ui/image_save_options.hpp`
+  (which includes the whole `formats/dds_document_io.hpp` and `rttex_document_io.hpp` for option
+  enums). `ui/dialog_utils.hpp` includes `<QSizeGrip>` and `<QMessageBox>` for `VisibleSizeGrip`
+  and a few callers; a separate header would take them out of 121 TUs.
+
 ## Test infrastructure
 
 - Add a `PATCHY_TEST(fn)`-style registration helper to remove the duplicated test name
   and function entries.
-- Share the runner loop used by the core, UI, performance, and curves-clipping test
-  binaries. Keep each suite's registration order and filtering behavior unchanged.
+- `run_test_suite` (tests/test_harness.hpp) now drives the core and UI mains; the perf,
+  curves-clipping and translation-check mains still have their own loops, and the crash
+  handlers in `tests/core/main.cpp` and `tests/ui/main.cpp` are copies. Share them without
+  changing registration order or filtering.
+- 25 test files define their own `make_*`/`solid_*` document and layer helpers although
+  `tests/core/core_test_support.hpp` provides `solid_rgba`; `MainWindow window` plus
+  `show_window` plus `require_canvas` is repeated about a thousand times across 103 UI test
+  files. A shown-window fixture would cover most of it. `tests/synthetic_dng.hpp` is included
+  by 92 test TUs and unused in about 50; 7 core tests include `stb_image.h` without decoding.
+- A test copies production code: `alpha_row_bands`/`alpha_row_band_span` from
+  `ui/main_window.cpp` into `tests/ui/ui_test_support.cpp`. Expose the real functions through a
+  header instead.
 
 ## Repeated implementation
 
@@ -48,6 +100,14 @@ canaries.
   16-bit conversion intentionally differs from `deep_sample_to_byte`.
 - `psd_smart_objects.cpp` has its own Pascal-string reader. Its unpadded form is the
   shared reader with `padded_multiple=1`.
+- Byte-order helpers: `psd::BigEndianReader/Writer` exist, yet `read_u32_be` is hand-rolled in
+  `formats/heif_document_io_linux.cpp`, `heif_document_io_wasm.cpp`, `image_density_probe.cpp`
+  and `pdn_document_io.cpp`, `append_be32`/`append_chunk` in `apng_writer.cpp` and
+  `pdf_png_writer.cpp`, and about 25 files shift bytes by hand. A header-only
+  `support/byte_order.hpp` would replace them. UTF-16 surrogate decoding appears five times
+  (`formats/metadata/exif_tags.cpp`, `metadata_containers.cpp`, `psd/psd_io_common.cpp` twice,
+  `psd_descriptor.cpp`, `psd_text_read.cpp`). The Linux and wasm HEIF readers share the lcms
+  transform setup; Windows HEIF and JXR share the WIC colour transform.
 - PSD `document_alpha_mask_layer` resembles
   `core/layer_render_utils::document_alpha_rgba8`, but their predicates differ. Diff
   the preconditions before sharing code.
@@ -55,8 +115,28 @@ canaries.
   it. Verify encoded bytes before changing the path.
 - BMP and UI dots-per-meter conversion use different 72 and 300 PPI fallbacks. Share
   them only through an explicit fallback parameter.
-- The brush paper-chip thumbnail is drawn in two places. Replace the paired "keep in
-  sync" implementations with one helper.
+- The brush paper-chip thumbnail is drawn in two places (`brush_tip_library.cpp`,
+  `brush_tip_picker.cpp`). Replace the paired "keep in sync" implementations with one helper.
+
+### Core helpers
+
+- `brush_coverage` is verbatim in `core/pixel_tools.cpp` and `ui/canvas_widget_shared.cpp`
+  (painting is pinned by `tool_write_paths_digest_baseline`).
+- `generate_pattern_uuid` (`core/pattern_resource.cpp`) and `generate_smart_object_uuid`
+  (`core/smart_object.cpp`) are identical and each keeps an unsynchronized function-local
+  `static std::mt19937_64`; the af/pdf/svg/asl/pat readers and the UI call them, so two
+  concurrent imports race. **Bug.** One shared, mutex-guarded generator.
+- `clamp_byte` has a private copy in `core/pixel_tools.cpp` beside the public
+  `core/blend_math.hpp` one, plus int/int64/double variants in `filters/builtin_filters.cpp`,
+  `filters/smart_filter_table_render.cpp` and `ui/filter_preview_proxy.cpp`; `splitmix64` is
+  defined in `core/blend_math.cpp`, `core/exemplar_inpaint.cpp` and
+  `filters/smart_filter_table_render.cpp` with identical constants (one constexpr function
+  keeps the output); `Document::find_layer_recursive` duplicates `layer_tree.cpp`'s
+  `find_layer_in_tree`; `normalized_rect` lives in both `core/pixel_tools.cpp` and
+  `core/rect_utils.cpp`; `lcms_intent` is defined twice inside `patchy_color`;
+  `parse_double_token` appears in `core/smart_object.cpp` and `core/text_warp.cpp`.
+- Tool-classification switches with overlapping case lists sit in `canvas_widget_events.cpp`
+  (twice) and `canvas_widget_shared.cpp`.
 
 ### MainWindow and CanvasWidget
 
@@ -68,9 +148,11 @@ canaries.
   `cubic_tap_weight`; only the loops remain separate.
 - Share the destructive-adjustment guard, apply, and restore phases, the Smart Filter
   command guard preambles, and the remaining progress-dialog implementations through
-  `main_window_shared`.
-- Promote the busy-progress-dialog pattern used by `main_window.cpp` and
-  `main_window_palette.cpp` to `main_window_shared`.
+  `main_window_shared` (22 `QProgressDialog` sites, 8 of them in `main_window_files.cpp`).
+- Promote the busy-progress-dialog pattern used by `main_window.cpp`,
+  `main_window_palette.cpp` and `main_window_layer_ops.cpp` to `main_window_shared`.
+- The model-download progress lambda is duplicated between `main_window_ai_selection.cpp` and
+  `main_window_watermarks.cpp`.
 - Consider small parameterized helpers for the undo/redo pair, horizontal/vertical
   flip pair, fill/clear ladder, view-menu checkbox sync, and Smart Object
   relink/replace and update/embed preambles.
@@ -79,10 +161,21 @@ canaries.
 - `layer_style_dialog.cpp` still repeats blend-mode rows and picker wiring that was not
   covered by `RgbColorRowWidgets`.
 - Canvas selection growth and select-similar share a preamble. The canvas also repeats
-  arrow-key delta handling, move-session reset, guide snapping, and component-channel
-  checks.
-- `qimage_from_pixel_buffer` still uses per-pixel `setPixelColor`. Treat a scanline
-  rewrite as a pinned-output performance change.
+  arrow-key delta handling, move-session reset, guide snapping, component-channel checks,
+  handle-resize rectangle math (`canvas_widget_artboard.cpp`, `canvas_widget_crop.cpp`,
+  `canvas_widget_selection.cpp`) and the lock-transparent pixel write path
+  (`canvas_widget_patch_tool.cpp`, `canvas_widget_spot_healing.cpp`, twice in
+  `canvas_widget_brush.cpp`; painting is byte-pinned).
+- Two zoom/pan preview widgets, `TracePreviewWidget` (`image_trace_dialog.cpp`) and
+  `ConvertPreviewWidget` (`palette_convert_dialog.cpp`), share zoom, mouse and paint code
+  beside the existing `ui/zoomable_image_preview.hpp`. Pan mouse handling is also repeated in
+  `pattern_manager_dialog.cpp` and `tile_preview_window.cpp`; the panel list plus action-bar
+  setup in `channel_panel.cpp` and `paths_panel.cpp`; JSON sidecar load/save in
+  `pattern_library.cpp` and `style_library.cpp`; `QIconEngine::paint` mode handling in
+  `action_icons.cpp` and `icon_theme.cpp`; the filter overlay `sync_role` blocks and zoom
+  buttons in `filter_workflows.cpp` and `visual_filter_gallery_dialog.cpp`.
+- Seven direct `QFileDialog::getExistingDirectory` calls bypass the `dialog_utils.hpp`
+  file-dialog wrappers.
 
 ## Structural extractions
 
@@ -100,6 +193,14 @@ canaries.
 - `color_panel.cpp` uses function-local static registries to connect every picker to
   MainWindow palette mode. Clearing the hooks is order-dependent if multiple windows
   coexist.
+- Unguarded mutable statics beside mutex-guarded caches in `text_font_service.cpp`
+  (`covered`, `loaded`, `attempted`); PDF saves draw text on a worker thread. Also check
+  `user_fonts.cpp`, `font_face_name_index.cpp`, `main_window_theme.cpp`, `sound_effects.cpp`.
+- 29 `catch (...)` sites in `src` swallow errors with no diagnostic (`canvas_widget_render.cpp`,
+  `canvas_widget_selection.cpp`, `main_window_tool_options.cpp`, `layer_merge.cpp`,
+  `main_window_vector.cpp`, `vector_preview_renderer.cpp`, `canvas_widget_move.cpp`,
+  `main_window_watermarks.cpp`, `app/mcp_server.cpp`, ...). Add a debug log or catch
+  `std::exception` first.
 - PSD import copies preserved tagged blocks, including potentially large Smart Object
   data. Use mutable ownership carefully to remove the copies.
 - `estimate_text_size_from_alpha` uses a revision-bumping pixel accessor on a local
@@ -114,6 +215,10 @@ canaries.
   stack plus the pass-through silhouette flatten. A `LayerStyleRenderCache`-style
   cache keyed on the group's `content_revision()` needs a guarantee that every
   child mutation path bumps the ancestor revision first.
+- Likely unused includes (confirm with the `opt-dev-no-pch` preset): `canvas_widget_events.cpp`
+  includes `ui/tool_cursors.hpp`; `psd/psd_document_io.cpp` includes `render/compositor.hpp` and
+  `core/style_contour.hpp`; `ui/script_api.cpp` includes `formats/apng_writer.hpp`;
+  `main_window_files.cpp` includes `core/layer_metadata.hpp` and `core/psd_source_colors.hpp`.
 
 ## Longer-term design
 
@@ -122,8 +227,8 @@ canaries.
   document, render, save, and per-session history modules. Preserve the distinct editor
   settings conversions and canvas/session destruction order.
 - The options bar's `current_*` mirrors indicate a missing tool-options model.
-- Canvas callback fields could become a clearer single-listener interface or Qt
-  signals.
+- Canvas callback fields (56 `std::function` members on `CanvasWidget`) could become a
+  clearer single-listener interface or Qt signals.
 - The `qimage_from_document_rect*` overload family and `RenderedDocumentPatch` could
   use request and result types in a small header.
 - Replace ambiguous boolean parameters such as `flatten_confirmed` and pixel-tool
@@ -133,8 +238,12 @@ canaries.
 
 - `patchy_color` is referenced before its target definition. CMake accepts this, but
   the ordering is easy to break during target reorganization.
-- The absolute VS 18 cmake.exe path is hardcoded in five places (the AGENTS.md
-  handoff command, `scripts/run-tests.ps1`, `scripts/make-readme-screenshots.ps1`,
-  `scripts/release/build-release.bat`, and `scripts/release/build-wasm.bat`), against
-  the vs-env.bat single-owner principle; make-readme-screenshots.ps1 and the AGENTS.md
-  command have no fallback to a PATH `cmake`.
+- `cmake/patchy_gmic.cmake` sets C++17 for the vendored G'MIC target, but it links `patchy_psd`
+  PUBLIC and `patchy_configure_target` adds PUBLIC `cxx_std_20`, so `gmic.cpp` compiles as C++20.
+  Make the compile feature PRIVATE (or link only the zlib shim's needs) and verify the C++17
+  build, or document that C++20 is intentional.
+- The absolute VS 18 cmake.exe path is hardcoded in `scripts/make-readme-screenshots.ps1`,
+  `scripts/release/build-release.bat` (with a PATH fallback), `scripts/release/build-wasm.bat`,
+  `scripts/run-tests.ps1` and the AGENTS.md handoff command, against the vs-env.bat single-owner
+  principle. A bare `cmake` is not a safe fallback on the dev box: a MinGW cmake precedes the
+  VS one on PATH even inside the VS environment; resolve it through vswhere like vs-env.bat.

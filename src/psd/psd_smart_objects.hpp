@@ -90,7 +90,7 @@ struct SmartFilterDescriptorEdit {
 // (placement.placed_type 1: SVG) follow Photoshop's vector shape instead: no compInfo,
 // and the warp bounds hold `vector_bounds` (left, top, right, bottom), the artwork's
 // unscaled placement rectangle in document space (the quad's own bounding box when
-// null). See "Place Linked ground truth" in docs/smart-objects.md.
+// null). See "Place Linked ground truth" in docs/smart-objects-ground-truth.md.
 [[nodiscard]] std::vector<std::uint8_t> author_placed_layer_sold_payload(
     const SmartObjectPlacement& placement, std::string_view placed_uuid,
     const SmartFilterStack* smart_filters = nullptr, const std::array<double, 4>* vector_bounds = nullptr);
