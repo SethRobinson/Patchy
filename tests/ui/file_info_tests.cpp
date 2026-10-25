@@ -42,6 +42,8 @@
 #include "invisible_watermark_reference.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/file_info_dialog.hpp"
+#include "ui/image_document_io.hpp"
+#include "ui/save_metadata_settings.hpp"
 #include <QPushButton>
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
@@ -582,6 +584,261 @@ void ui_file_info_shows_the_psd_save_stamp() {
   CHECK(show_file_info_and_capture(window, QStringLiteral("after-photoshop-file"), true).startsWith(QStringLiteral("Adobe Photoshop")));
 }
 
+// The JFIF image in image resource 1036 of a read PSD, or a null image.
+QImage psd_thumbnail(const patchy::Document& document, QSize* header_size = nullptr) {
+  for (const auto& [id, payload] : document.file_info().psd_resources) {
+    if (id != 1036 || !payload || payload->size() <= 28U) {
+      continue;
+    }
+    const auto u32 = [&payload](std::size_t at) {
+      return static_cast<int>((std::uint32_t{(*payload)[at]} << 24U) | (std::uint32_t{(*payload)[at + 1]} << 16U) |
+                              (std::uint32_t{(*payload)[at + 2]} << 8U) | std::uint32_t{(*payload)[at + 3]});
+    };
+    if (header_size != nullptr) {
+      *header_size = QSize(u32(4), u32(8));
+    }
+    return QImage::fromData(QByteArray(reinterpret_cast<const char*>(payload->data()) + 28,
+                                       static_cast<qsizetype>(payload->size() - 28U)),
+                            "JPG");
+  }
+  return {};
+}
+
+std::uint32_t exif_number(const patchy::DocumentFileInfo& info, md::IfdKind kind, std::uint16_t tag) {
+  const auto stream = info.exif ? md::parse_tiff(*info.exif) : std::nullopt;
+  const auto* ifd = stream ? stream->find(kind) : nullptr;
+  const auto* entry = ifd != nullptr ? ifd->find(tag) : nullptr;
+  return entry != nullptr ? stream->unsigned_value(*entry).value_or(0U) : 0U;
+}
+
+// File Info > All Metadata for the active document, cut to `groups` (expanded), saved as
+// test-artifacts/<name>.png.
+void capture_all_metadata(patchy::ui::MainWindow& window, const std::string& name, const QStringList& groups) {
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    if (dialog == nullptr) {
+      patchy::test::report_failure(name + ": no File Info dialog");
+      return;
+    }
+    dialog->resize(std::max(dialog->width(), 1180), std::max(dialog->height(), 980));
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+    for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+      if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoAllMetadataPage")) {
+        categories->setCurrentRow(row);
+      }
+    }
+    QApplication::processEvents();
+    auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
+    if (tree == nullptr) {
+      patchy::test::report_failure(name + ": no All Metadata tree");
+      dialog->reject();
+      return;
+    }
+    for (int index = 0; index < tree->topLevelItemCount(); ++index) {
+      auto* group = tree->topLevelItem(index);
+      group->setHidden(!groups.contains(group->text(0)));
+      group->setExpanded(true);
+    }
+    tree->resizeColumnToContents(0);
+    tree->resizeColumnToContents(1);
+    tree->clearSelection();
+    tree->setCurrentItem(nullptr);
+    tree->scrollToTop();
+    QApplication::processEvents();
+    save_widget_artifact(name, *tree);
+    dialog->reject();
+  });
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+}
+
+void fill_first_layer(patchy::Document& document, std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
+  auto& pixels = document.layers().front().pixels();
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  auto bytes = pixels.data();
+  for (std::size_t at = 0; at + channels <= bytes.size(); at += channels) {
+    bytes[at] = red;
+    bytes[at + 1] = green;
+    bytes[at + 2] = blue;
+    if (channels == 4U) {
+      bytes[at + 3] = 255;
+    }
+  }
+}
+
+// Issues 418 and 419: a new document's PSD save carries what a Photoshop document does:
+// dc:format, photoshop:ColorMode and an EXIF block (Software, DateTime, size, resolution,
+// color space), and a thumbnail of the image as saved (resource 1036, at most 160 pixels).
+// A later save writes a new thumbnail and a new instance; a file with another thumbnail
+// gets the current one; after Strip All Metadata no EXIF comes back. Saves the decoded
+// thumbnails (thumbnail-*.png) into test-artifacts/file-info.
+void ui_psd_save_writes_metadata_and_thumbnail() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 640, 480);
+  QApplication::processEvents();
+  fill_first_layer(MainWindowTestAccess::document(window), 30, 90, 200);
+  const auto path = artifact_dir() + QStringLiteral("/new-document-metadata.psd");
+  QFile::remove(path);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, path));
+  const auto first = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  CHECK(first.file_info().xmp != nullptr && first.file_info().exif != nullptr);
+  if (first.file_info().xmp == nullptr) {
+    return;
+  }
+  const auto packet = md::parse_xmp(*first.file_info().xmp).value_or(md::XmpPacket{});
+  CHECK(packet.text(md::xmp_ns::kDc, "format") == "application/vnd.adobe.photoshop");
+  CHECK(packet.text(md::xmp_ns::kPhotoshop, "ColorMode") == "3");
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool").rfind("Patchy ", 0) == 0U);
+  CHECK(ifd0_text(first.file_info(), md::exif_tag::kSoftware).rfind("Patchy ", 0) == 0U);
+  CHECK(ifd0_text(first.file_info(), md::exif_tag::kDateTime).size() == 19U);
+  CHECK(exif_number(first.file_info(), md::IfdKind::Ifd0, md::exif_tag::kOrientation) == 1U);
+  CHECK(exif_number(first.file_info(), md::IfdKind::Exif, md::exif_tag::kPixelXDimension) == 640U);
+  CHECK(exif_number(first.file_info(), md::IfdKind::Exif, md::exif_tag::kPixelYDimension) == 480U);
+  QSize header;
+  const auto thumbnail = psd_thumbnail(first, &header);
+  CHECK(!thumbnail.isNull() && thumbnail.size() == QSize(160, 120) && header == QSize(160, 120));
+  CHECK(thumbnail.pixelColor(80, 60).blue() > 170 && thumbnail.pixelColor(80, 60).red() < 60);
+  thumbnail.save(artifact_dir() + QStringLiteral("/thumbnail-new-document.png"));
+  capture_all_metadata(window, "file-info/after-new-document-metadata",
+                       {QStringLiteral("EXIF IFD0"), QStringLiteral("EXIF Exif"), QStringLiteral("XMP xmp"),
+                        QStringLiteral("XMP dc"), QStringLiteral("XMP photoshop"), QStringLiteral("XMP xmpMM")});
+
+  // Edited and saved again: a new thumbnail, a new instance, the same creation record.
+  fill_first_layer(MainWindowTestAccess::document(window), 220, 40, 30);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, path));
+  const auto second = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  const auto again = md::parse_xmp(*second.file_info().xmp).value_or(md::XmpPacket{});
+  CHECK(again.text(md::xmp_ns::kXmp, "CreateDate") == packet.text(md::xmp_ns::kXmp, "CreateDate"));
+  CHECK(again.text(md::xmp_ns::kXmpMM, "InstanceID") != packet.text(md::xmp_ns::kXmpMM, "InstanceID"));
+  const auto resaved = psd_thumbnail(second);
+  CHECK(!resaved.isNull() && resaved.pixelColor(80, 60).red() > 180 && resaved.pixelColor(80, 60).blue() < 80);
+
+  // A file whose thumbnail shows another image (as a Photoshop file edited elsewhere does):
+  // the save replaces it with the image as it is now.
+  auto stale_source = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  QImage old_picture(160, 120, QImage::Format_RGB888);
+  old_picture.fill(QColor(20, 160, 60));
+  const auto old_jfif = patchy::ui::encode_thumbnail_jpeg(old_picture);
+  auto& resources = stale_source.file_info().psd_resources;
+  std::erase_if(resources, [](const auto& resource) { return resource.first == 1036; });
+  resources.emplace_back(std::uint16_t{1036}, patchy::make_metadata_bytes(patchy::psd::thumbnail_resource(160, 120, old_jfif)));
+  const auto stale_path = artifact_dir() + QStringLiteral("/old-thumbnail.psd");
+  {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(stale_source);
+    QFile file(stale_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  const auto before = psd_thumbnail(patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(stale_path)));
+  CHECK(!before.isNull() && before.pixelColor(80, 60).green() > 120);
+  before.save(artifact_dir() + QStringLiteral("/thumbnail-before.png"));
+  MainWindowTestAccess::open_document_path(window, stale_path);
+  QApplication::processEvents();
+  const auto after_path = artifact_dir() + QStringLiteral("/old-thumbnail-resaved.psd");
+  QFile::remove(after_path);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, after_path));
+  const auto after = psd_thumbnail(patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(after_path)));
+  CHECK(!after.isNull() && after.pixelColor(80, 60).red() > 180 && after.pixelColor(80, 60).green() < 90);
+  after.save(artifact_dir() + QStringLiteral("/thumbnail-after.png"));
+
+  // Strip All Metadata: the next save records the XMP stamp and the thumbnail, no EXIF.
+  patchy::metadata::strip_metadata(MainWindowTestAccess::document(window), true);
+  const auto stripped_path = artifact_dir() + QStringLiteral("/stripped.psd");
+  QFile::remove(stripped_path);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, stripped_path));
+  const auto stripped = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(stripped_path));
+  CHECK(stripped.file_info().exif == nullptr);
+  CHECK(stripped.file_info().xmp != nullptr);
+  CHECK(!psd_thumbnail(stripped).isNull());
+}
+
+// Issue 419: a JPEG save that writes EXIF puts a thumbnail of the saved image in IFD1.
+void ui_jpeg_save_writes_an_exif_thumbnail() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, write_tagged_jpeg());
+  QApplication::processEvents();
+  const auto target = artifact_dir() + QStringLiteral("/thumbnail.jpg");
+  QFile::remove(target);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, target, patchy::ui::ImageSaveOptions{}));
+  const auto saved = md::extract_file_info_from_path(patchy::ui::to_filesystem_path(target));
+  const auto stream = saved.exif ? md::parse_tiff(*saved.exif) : std::nullopt;
+  CHECK(stream.has_value() && !stream->thumbnail.empty());
+  if (stream && !stream->thumbnail.empty()) {
+    const auto image = QImage::fromData(QByteArray(reinterpret_cast<const char*>(stream->thumbnail.data()),
+                                                   static_cast<qsizetype>(stream->thumbnail.size())),
+                                        "JPG");
+    CHECK(!image.isNull() && image.width() <= 160 && image.height() <= 160);
+    CHECK(stream->find(md::IfdKind::Ifd1) != nullptr);
+  }
+  CHECK(md::summarize_camera(saved).has_location());
+  CHECK(!QImage(target).isNull());
+}
+
+// Issue 417: File Info's privacy notice has Don't Show Again, which turns it off for every
+// document until Preferences turns it back on. Saves notice-shown.png and notice-hidden.png
+// into test-artifacts/file-info.
+void ui_file_info_privacy_notice_can_be_hidden() {
+  patchy::ui::set_stored_show_file_info_privacy_notice(true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, write_tagged_jpeg());
+  QApplication::processEvents();
+  const auto open_and = [&window](const std::function<void(QDialog&)>& inspect) {
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+      if (dialog == nullptr) {
+        patchy::test::report_failure("privacy notice: no File Info dialog");
+        return;
+      }
+      inspect(*dialog);
+      inspected = true;
+      dialog->reject();
+    });
+    require_action(window, "fileInfoAction")->trigger();
+    QApplication::processEvents();
+    if (!inspected) {
+      patchy::test::report_failure("privacy notice: the dialog was not inspected");
+    }
+  };
+  const auto expect = [](bool ok, const char* what) {
+    if (!ok) {
+      patchy::test::report_failure(std::string("privacy notice: ") + what);
+    }
+  };
+  open_and([&expect](QDialog& dialog) {
+    auto* banner = dialog.findChild<QLabel*>(QStringLiteral("fileInfoPrivacyBanner"));
+    auto* hide = dialog.findChild<QPushButton*>(QStringLiteral("fileInfoHidePrivacyNoticeButton"));
+    expect(banner != nullptr && !banner->isHidden(), "the notice is not shown");
+    expect(hide != nullptr && !hide->isHidden(), "Don't Show Again is not shown");
+    if (auto* row = dialog.findChild<QWidget*>(QStringLiteral("fileInfoPrivacyBannerRow"))) {
+      QApplication::processEvents();
+      save_widget_artifact("file-info/notice-shown", *row);
+    }
+    if (hide != nullptr) {
+      hide->click();
+    }
+    QApplication::processEvents();
+    expect(banner == nullptr || banner->isHidden(), "the notice stays after Don't Show Again");
+  });
+  CHECK(!patchy::ui::stored_show_file_info_privacy_notice());
+  open_and([&expect](QDialog& dialog) {
+    auto* banner = dialog.findChild<QLabel*>(QStringLiteral("fileInfoPrivacyBanner"));
+    expect(banner != nullptr && banner->isHidden(), "the notice is back on the next open");
+    dialog.resize(dialog.width(), std::max(dialog.height(), 640));
+    QApplication::processEvents();
+    save_widget_artifact("file-info/notice-hidden", dialog);
+  });
+  // The Preferences checkbox writes the same setting.
+  patchy::ui::set_stored_show_file_info_privacy_notice(true);
+  open_and([&expect](QDialog& dialog) {
+    auto* banner = dialog.findChild<QLabel*>(QStringLiteral("fileInfoPrivacyBanner"));
+    expect(banner != nullptr && !banner->isHidden(), "the notice does not come back");
+  });
+}
+
 QImage rgb_qimage(const std::vector<std::uint8_t>& rgb, int width, int height) {
   QImage image(width, height, QImage::Format_RGB888);
   for (int y = 0; y < height; ++y) {
@@ -870,6 +1127,9 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_psd_save_stamps_dates_and_creator", ui_psd_save_stamps_dates_and_creator},
       {"ui_psd_save_updates_exif_and_instance_id", ui_psd_save_updates_exif_and_instance_id},
       {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
+      {"ui_psd_save_writes_metadata_and_thumbnail", ui_psd_save_writes_metadata_and_thumbnail},
+      {"ui_jpeg_save_writes_an_exif_thumbnail", ui_jpeg_save_writes_an_exif_thumbnail},
+      {"ui_file_info_privacy_notice_can_be_hidden", ui_file_info_privacy_notice_can_be_hidden},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
       {"ui_document_tab_scan_for_watermarks", ui_document_tab_scan_for_watermarks},
   };

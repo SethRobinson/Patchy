@@ -54,7 +54,8 @@ struct SaveMetadataScope {
     for (const auto* key :
          {patchy::ui::kSaveMetadataModeSettingKey, patchy::ui::kSaveMetadataNameSettingKey,
           patchy::ui::kSaveMetadataCopyrightSettingKey, patchy::ui::kSaveMetadataEmailSettingKey,
-          patchy::ui::kSaveMetadataWebsiteSettingKey, patchy::ui::kSaveMetadataAskSettingKey}) {
+          patchy::ui::kSaveMetadataWebsiteSettingKey, patchy::ui::kSaveMetadataAskSettingKey,
+          patchy::ui::kFileInfoPrivacyNoticeSettingKey}) {
       settings.remove(QLatin1String(key));
     }
   }
@@ -180,6 +181,12 @@ void ui_save_metadata_preferences_page_persists() {
     CHECK(copyright->text() == QStringLiteral("© %1 Ann Example").arg(QDate::currentDate().year()));
     email->setText(QStringLiteral("ann@example.com"));
     CHECK(ask->isChecked());
+    // Issue 417: File Info's privacy notice, on by default.
+    auto* notice = dialog.findChild<QCheckBox*>(QStringLiteral("preferencesFileInfoPrivacyNoticeCheck"));
+    CHECK(notice != nullptr && notice->isChecked());
+    if (notice != nullptr) {
+      notice->setChecked(false);
+    }
     dialog.resize(dialog.width(), std::max(dialog.height(), 860));
     QApplication::processEvents();
     capture_widget_artifact("ui_preferences_metadata_and_watermarks", dialog);
@@ -189,6 +196,7 @@ void ui_save_metadata_preferences_page_persists() {
   CHECK(stored.name == QStringLiteral("Ann Example"));
   CHECK(stored.email == QStringLiteral("ann@example.com"));
   CHECK(stored.ask);
+  CHECK(!patchy::ui::stored_show_file_info_privacy_notice());
   CHECK(run_script(window, QStringLiteral(R"JS(
 var p = app.saveMetadataPreferences;
 if (p.mode !== "personal" || p.name !== "Ann Example" || p.email !== "ann@example.com" || p.askBeforeAdding !== true)
@@ -216,6 +224,7 @@ void ui_save_metadata_modes_for_psd_and_jpeg() {
   new_document(window, QStringLiteral("None"));
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/none.psd")));
   CHECK(saved_info(dir + QStringLiteral("/none.psd")).xmp == nullptr);  // no save stamp at all
+  CHECK(saved_info(dir + QStringLiteral("/none.psd")).exif == nullptr);
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/none.jpg")));
   CHECK(saved_info(dir + QStringLiteral("/none.jpg")).xmp == nullptr);
 
