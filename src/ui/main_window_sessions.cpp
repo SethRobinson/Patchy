@@ -519,6 +519,10 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
     // Per-canvas state; the handler is on triggered, so this sync cannot re-apply it.
     tiling_mode_action_->setChecked(canvas_->tiling_preview_enabled());
   }
+  if (view_extras_action_ != nullptr) {
+    // Per-canvas state, like Seamless Tiling; the handler is on triggered.
+    view_extras_action_->setChecked(canvas_->extras_visible());
+  }
   canvas_->refresh_info_display();
   update_undo_redo_actions();
   update_document_action_state();

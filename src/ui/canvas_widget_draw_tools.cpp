@@ -921,7 +921,7 @@ QRect CanvasWidget::move_snap_guides_widget_rect() const {
 }
 
 void CanvasWidget::draw_move_snap_guides(QPainter& painter) const {
-  if (!moving_layer_ || document_ == nullptr ||
+  if (!moving_layer_ || document_ == nullptr || !extra_shown(ViewExtra::SmartGuides) ||
       (!snap_match_draws_line(move_snap_x_) && !snap_match_draws_line(move_snap_y_))) {
     return;
   }

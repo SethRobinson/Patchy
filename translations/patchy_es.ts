@@ -12706,6 +12706,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>the vector data has no drawing</source>
         <translation>los datos vectoriales no contienen ningún dibujo</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>Bordes de selección</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>Trazado de destino (puntos de ancla y contorno)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>Contornos de capa con la herramienta Mover</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>Guías</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>Líneas de alineación al mover</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>Cuadrícula de píxeles</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>Nombres de mesas de trabajo</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>Mostrar opciones de extras</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>Vista &gt; Extras muestra y oculta los elementos marcados aquí.
+El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13769,22 +13807,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>No se puede pintar sobre las capas de forma. Rasterice la capa para editar sus píxeles.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>Mostrando los bordes de la selección y los puntos de trazado</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>Ocultando los bordes de la selección y los puntos de trazado</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>Mostrando los bordes de la selección</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>Ocultando los bordes de la selección</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>Nueva guía</translation>
     </message>
@@ -14476,6 +14498,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>La deformación actúa sobre toda la capa. Aplique primero esta transformación.</translation>
     </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>Mostrando extras</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>Ocultando extras</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -14553,6 +14583,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Haga clic o arrastre para definir el color frontal. Haga %ALT%+clic o %ALT%+arrastrar para definir el color de fondo.</translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>Vista del panel Color</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>Cubo de tono</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>Reguladores RGB</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>Reguladores HSB</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Rojo</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Verde</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Azul</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>Tono</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Saturación</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>Brillo</translation>
     </message>
 </context>
 <context>
@@ -15428,10 +15528,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>&amp;Píxeles reales</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>Mostrar &amp;bordes de selección</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25604,6 +25700,22 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Hid all layers</source>
         <translation>Todas las capas ocultadas</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>&amp;Extras</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>Mo&amp;strar</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>&amp;Bordes de selección</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>Mostrar opciones de &amp;extras...</translation>
     </message>
     <message>
         <source>Save Preset...</source>

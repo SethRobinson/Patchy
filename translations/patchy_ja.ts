@@ -12671,6 +12671,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>the vector data has no drawing</source>
         <translation>ベクターデータに描画がありません</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>選択範囲の境界</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>ターゲットパス（アンカーポイントとアウトライン）</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>移動ツールのレイヤーの輪郭</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>ガイド</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>移動中の整列ライン</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>ピクセルグリッド</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>アートボード名</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>エクストラオプションを表示</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>表示 &gt; エクストラは、ここでチェックした項目を表示または非表示にします。
+各項目の表示設定もそのまま適用されます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13578,22 +13616,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>前の選択範囲を再選択しました</translation>
     </message>
     <message>
-        <source>Showing selection edges</source>
-        <translation>選択範囲の境界を表示しています</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>選択範囲の境界を非表示にしています</translation>
-    </message>
-    <message>
-        <source>Showing selection edges and path points</source>
-        <translation>選択範囲の境界とパスのポイントを表示しています</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>選択範囲の境界とパスのポイントを非表示にしています</translation>
-    </message>
-    <message>
         <source>Expanded selection by %1 px</source>
         <translation>選択範囲を %1 px 拡張しました</translation>
     </message>
@@ -14441,6 +14463,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>ワープはレイヤー全体に適用されます。先にこの変形を確定してください。</translation>
     </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>エクストラを表示しています</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>エクストラを非表示にしています</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -14518,6 +14548,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>クリックまたはドラッグで描画色を設定します。%ALT% クリックまたは %ALT% ドラッグで背景色を設定します。</translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>カラーパネルの表示</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>色相キューブ</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>RGB スライダー</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>HSB スライダー</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>赤</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>緑</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>青</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>色相</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>彩度</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>明るさ</translation>
     </message>
 </context>
 <context>
@@ -16190,10 +16290,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>実際のピクセル(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>選択範囲の境界を表示(&amp;E)</translation>
     </message>
     <message>
         <source>&amp;Scripting Guide</source>
@@ -25531,6 +25627,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Hid all layers</source>
         <translation>すべてのレイヤーを非表示にしました</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>エクストラ(&amp;E)</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>表示・非表示(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>選択範囲の境界(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>エクストラオプションを表示(&amp;E)...</translation>
     </message>
     <message>
         <source>Save Preset...</source>

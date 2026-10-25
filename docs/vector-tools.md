@@ -134,9 +134,10 @@ Anchors/handles stay path-tool-only. A drawn layer-owned outline follows its
 layer's Move drag or Free Transform preview
 ([interactive-previews.md](interactive-previews.md)). View > Show Target Path
 (Ctrl+Shift+H, view.target_path, not persisted) hides the overlay without
-touching targeting; a path-transform session always draws its box. Ctrl+H
-(view.selection_edges) hides it with the selection edges; a new selection
-re-shows both (ui_ctrl_h_hides_path_points_with_selection_edges). The context menu's
+touching targeting; a path-transform session always draws its box. View >
+Extras (Ctrl+H, view.selection_edges) hides it while Show Extras Options ticks
+Target path ([view-navigation.md](view-navigation.md#extras-view--extras-ctrlh);
+ui_ctrl_h_hides_path_points_with_selection_edges). The context menu's
 Clipping Path entry makes ONE saved path the document clipping path
 (resource 2999; name underlines). Work-path draws and layer activation
 auto-select/target their rows; activating a layer with its own path drops a

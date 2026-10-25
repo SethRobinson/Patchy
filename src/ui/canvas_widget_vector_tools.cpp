@@ -1419,7 +1419,7 @@ QTransform CanvasWidget::layer_preview_transform(LayerId id) const {
 
 QRectF CanvasWidget::path_overlay_preview_document_rect() const {
   if ((!moving_layer_ && !transforming_layer_) || path_transform_active_ ||
-      !target_path_visible_ || !selection_edges_visible_ || pen_session_active_ ||
+      !target_path_visible_ || !extra_shown(ViewExtra::TargetPath) || pen_session_active_ ||
       document_ == nullptr) {
     return {};
   }
@@ -2796,8 +2796,8 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   if (!target_path_visible_) {
     return;  // View > Show > Target Path is off
   }
-  if (!selection_edges_visible_) {
-    return;  // Ctrl+H (Photoshop's Extras toggle) hides the points and outline too
+  if (!extra_shown(ViewExtra::TargetPath)) {
+    return;  // View > Extras (Ctrl+H) hides the points and outline while it covers them
   }
   // A targeted Paths-panel row draws its outline with other tools too (a shape
   // layer's own path only under the shape tools, GitHub issue 238); anchors,

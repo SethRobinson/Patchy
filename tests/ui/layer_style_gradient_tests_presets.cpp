@@ -22,6 +22,7 @@
 #include "ui/theme_manager.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/view_extras.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>
@@ -1526,6 +1527,8 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
         solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(150, 110, 70, 255)));
     camera_raw_request.bounds = patchy::Rect::from_size(48, 36);
     (void)patchy::ui::run_camera_raw_filter_dialog(nullptr, camera_raw_request);
+    grab_dialog(QStringLiteral("viewExtrasOptionsDialog"), "view_extras_options");
+    (void)patchy::ui::request_view_extras_options(nullptr, patchy::ui::kAllViewExtras);
     grab_dialog(QStringLiteral("patchySplashScreen"), "about");
     patchy::ui::show_about_splash();
     // The color picker is a top-level widget, not a dialog.
@@ -1537,7 +1540,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     picker.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 14);
+  CHECK(captured == 16);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

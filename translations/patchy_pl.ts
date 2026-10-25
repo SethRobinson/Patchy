@@ -12741,6 +12741,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>the vector data has no drawing</source>
         <translation>dane wektorowe nie zawierają rysunku</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>Krawędzie zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>Ścieżka docelowa (punkty kontrolne i kontur)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>Obrysy warstw przy narzędziu Przesuwanie</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>Prowadnice</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>Linie wyrównania podczas przesuwania</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>Siatka pikseli</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>Nazwy obszarów roboczych</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>Opcje dodatków</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>Widok &gt; Dodatki pokazuje i ukrywa zaznaczone tu elementy.
+Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13812,22 +13850,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Warstwy kształtów nie mogą być malowane. Rasteryzuj warstwę, aby edytować jej piksele.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>Pokazywanie krawędzi zaznaczenia i punktów ścieżki</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>Ukrywanie krawędzi zaznaczenia i punktów ścieżki</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>Pokazywanie krawędzi zaznaczenia</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>Ukrywanie krawędzi zaznaczenia</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>Nowa prowadnica</translation>
     </message>
@@ -14511,6 +14533,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>Wypaczenie działa na całą warstwę. Najpierw zastosuj to przekształcenie.</translation>
     </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>Dodatki są widoczne</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>Dodatki są ukryte</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -14588,6 +14618,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Kliknij lub przeciągnij, aby ustawić kolor narzędzia. Kliknij z %ALT% lub przeciągnij z %ALT%, aby ustawić kolor tła.</translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>Widok panelu Kolor</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>Kostka barwy</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>Suwaki RGB</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>Suwaki HSB</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Czerwony</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Zielony</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Niebieski</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>Barwa</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Nasycenie</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>Jasność</translation>
     </message>
 </context>
 <context>
@@ -15604,10 +15704,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>&amp;Rzeczywiste piksele</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>Pokaż &amp;krawędzie zaznaczenia</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25677,6 +25773,22 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Hid all layers</source>
         <translation>Ukryto wszystkie warstwy</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>&amp;Dodatki</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>P&amp;okaż</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>&amp;Krawędzie zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>Opcje &amp;dodatków...</translation>
     </message>
     <message>
         <source>Save Preset...</source>

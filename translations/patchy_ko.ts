@@ -12671,6 +12671,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>the vector data has no drawing</source>
         <translation>벡터 데이터에 그림이 없습니다</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>선택 영역 가장자리</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>대상 패스(기준점 및 윤곽선)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>이동 도구의 레이어 윤곽선</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>안내선</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>이동 중 정렬선</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>픽셀 격자</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>대지 이름</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>표시자 옵션 표시</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>보기 &gt; 표시자는 여기에서 선택한 항목을 표시하거나 숨깁니다.
+각 항목의 보기 설정도 그대로 적용됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13742,22 +13780,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>모양 레이어는 칠할 수 없습니다. 레이어를 래스터화하여 픽셀을 편집합니다.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>선택 가장자리 및 패스 점 표시</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>선택 가장자리 및 패스 점 숨기기</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>선택 가장자리 표시</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>선택 가장자리 숨기기</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>새로운 안내선</translation>
     </message>
@@ -14441,6 +14463,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>뒤틀기는 레이어 전체에 적용됩니다. 먼저 이 변형을 적용하세요.</translation>
     </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>표시자를 표시합니다</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>표시자를 숨깁니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -14518,6 +14548,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>클릭하거나 드래그하여 전경색을 설정합니다. %ALT%-클릭하거나 %ALT%-드래그하여 배경색을 설정합니다.</translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>색상 패널 보기</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>색조 큐브</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>RGB 슬라이더</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>HSB 슬라이더</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>빨간색</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>녹색</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>파란색</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>색조</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>채도</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>밝기</translation>
     </message>
 </context>
 <context>
@@ -15532,10 +15632,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>실제 픽셀(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>선택 영역 가장자리 표시(&amp;E)</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25531,6 +25627,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Hid all layers</source>
         <translation>모든 레이어를 숨겼습니다</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>표시자(&amp;E)</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>표시(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>선택 영역 가장자리(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>표시자 옵션 표시(&amp;E)...</translation>
     </message>
     <message>
         <source>Save Preset...</source>

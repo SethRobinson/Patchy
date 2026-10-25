@@ -180,7 +180,7 @@ void CanvasWidget::prepare_vector_preview() {
   // rect only (the grid shows at deep zoom, where that rect is small).
   std::shared_ptr<const Document> grid_source;
   QRect grid_rect;
-  if (vector_preview_transform_document_ && pixel_grid_visible_ && uses_deep_zoom_pixel_renderer(view_zoom())) {
+  if (vector_preview_transform_document_ && pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid) && uses_deep_zoom_pixel_renderer(view_zoom())) {
     const auto left = static_cast<int>(std::floor(-view.offset.x() / view.scale));
     const auto top = static_cast<int>(std::floor(-view.offset.y() / view.scale));
     const auto right = static_cast<int>(std::ceil((view.pixels.width() - view.offset.x()) / view.scale));
@@ -246,7 +246,7 @@ bool CanvasWidget::draw_vector_preview(QPainter& painter, QRect exposed_rect) {
   // the current view's cell edges: so View > Pixel Grid shows with the sharp view, during
   // a zoom while the old frame is mapped, and before a new frame lands. One grid-only
   // raster write per exposed device pixel, the same bound as the composite's own blit.
-  if (pixel_grid_visible_ && uses_deep_zoom_pixel_renderer(view_zoom())) {
+  if (pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid) && uses_deep_zoom_pixel_renderer(view_zoom())) {
     if (vector_preview_transform_key_.has_value()) {
       // A Free Transform frame: the render cache still holds the layer where it was, so the
       // grid takes its tones from the frame's own document.

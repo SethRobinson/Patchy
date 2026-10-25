@@ -1184,7 +1184,7 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
   // comes back, moved with them, at commit (or unchanged at cancel).
   const bool hidden_by_transform = free_transform_floats_selection();
   if (!quick_mask_active_ && !selection_.isEmpty() &&
-      selection_edges_visible_ && !hidden_by_crop && !hidden_by_transform) {
+      selection_edges_drawn() && !hidden_by_crop && !hidden_by_transform) {
     ensure_selection_outline_screen_path();
     if (!selection_outline_screen_paths_.marching.isEmpty()) {
       stroke_marching_ants(painter, selection_outline_screen_paths_.marching, selection_dash_offset_);
@@ -1604,7 +1604,7 @@ void CanvasWidget::apply_marquee_resize_rect(QRect rect) {
 
 void CanvasWidget::draw_marquee_resize_handles(QPainter& painter) const {
   const auto rect = resizable_marquee_rect();
-  if (!rect.has_value() || !selection_edges_visible_) {
+  if (!rect.has_value() || !selection_edges_drawn()) {
     return;
   }
   draw_transform_handle_squares(painter, QRectF(*rect), 0.0, /*include_rotate=*/false);

@@ -152,6 +152,8 @@ constexpr int kPaletteDockPreferredHeight = 320;
 // The Color panel stays compact: a short field reads fine and leaves the height to Layers.
 constexpr int kColorDockPreferredHeight = 170;
 constexpr int kColorDockMaximumHeight = 280;
+// The Color panel's view (ColorDockPanel::view_token; GitHub issue 404). Never renamed.
+constexpr char kColorPanelViewKey[] = "colorPanel/view";
 
 // The Layers panel rows that wrap instead of clipping (GitHub issues 96 and 199).
 // Each reports two widths: minimumSize() is the narrowest width it fits whole,
@@ -807,6 +809,14 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
       panel_column_->set_panel_visible(id, false);
     }
   });
+  // The Color panel's views, as its own menu button lists them (GitHub issue 404).
+  if (panel_id == QStringLiteral("colorDock") && color_dock_panel_ != nullptr) {
+    menu.addSeparator();
+    for (const auto view : {ColorDockPanel::View::HueCube, ColorDockPanel::View::RgbSliders,
+                            ColorDockPanel::View::HsbSliders}) {
+      menu.addAction(color_dock_panel_->view_action(view));
+    }
+  }
   menu.addSeparator();
   sort_window_panel_entries();
   for (auto* action : sorted_window_panel_actions()) {
@@ -2067,12 +2077,25 @@ void MainWindow::create_color_dock(std::vector<PanelSpec>& specs) {
   connect(color_dock_panel_->background_chip(), &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   register_document_widget(color_dock_panel_);
   color_dock_panel_->set_colors(foreground_color_, background_color_);
+  if (const auto view = ColorDockPanel::view_from_token(
+          app_settings().value(QString::fromLatin1(kColorPanelViewKey)).toString())) {
+    color_dock_panel_->set_view(*view);
+  }
+  // The slider views ask for their own height, the cube for the spec's; a view picked
+  // while the panel is open and in front resizes it at once.
+  connect(color_dock_panel_, &ColorDockPanel::view_changed, this, [this](ColorDockPanel::View view) {
+    app_settings().setValue(QString::fromLatin1(kColorPanelViewKey), ColorDockPanel::view_token(view));
+    if (panel_column_ != nullptr) {
+      panel_column_->refit_panel_height(QStringLiteral("colorDock"));
+    }
+  });
   specs.push_back(PanelSpec{.id = QStringLiteral("colorDock"),
                             .object_prefix = QStringLiteral("color"),
                             .title = tr("Color"),
                             .content = color_dock_panel_,
                             .expanded_maximum_height = kColorDockMaximumHeight,
-                            .preferred_height = kColorDockPreferredHeight});
+                            .preferred_height = kColorDockPreferredHeight,
+                            .preferred_content_height = [panel = color_dock_panel_] { return panel->fitted_height(); }});
 }
 
 void MainWindow::apply_color_panel_pick(QColor color, bool background) {

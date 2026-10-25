@@ -107,7 +107,10 @@ struct ActionBuildContext {
   QAction* fill_screen{nullptr};
   QAction* zoom_reset{nullptr};
   QAction* zoom_200{nullptr};
-  QAction* selection_edges_action{nullptr};
+  QAction* extras_action{nullptr};
+  QMenu* show_menu{nullptr};
+  QAction* show_selection_edges_action{nullptr};
+  QAction* extras_options_action{nullptr};
   QAction* target_path_action{nullptr};
   QAction* tile_preview_action{nullptr};
   QMenu* snap_to_menu{nullptr};

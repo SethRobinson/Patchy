@@ -12671,6 +12671,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>the vector data has no drawing</source>
         <translation>向量資料中沒有繪圖</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>選取範圍邊緣</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>目標路徑（錨點和外框）</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>移動工具下的圖層外框</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>參考線</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>移動時的對齊線</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>像素格線</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>工作區域名稱</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>顯示額外選項</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>檢視 &gt; 額外內容會顯示或隱藏此處勾選的項目。
+每個項目自己的檢視設定仍然適用。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13734,22 +13772,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>形狀圖層無法繪製。請點陣化該圖層以編輯其像素。</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>顯示選取範圍邊緣和路徑點</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>隱藏選取範圍邊緣和路徑點</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>顯示選取範圍邊緣</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>隱藏選取範圍邊緣</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>新增參考線</translation>
     </message>
@@ -14441,6 +14463,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>彎曲作用於整個圖層。請先套用此變形。</translation>
     </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>正在顯示額外內容</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>正在隱藏額外內容</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -14518,6 +14548,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>按一下或拖曳可設定前景色。按住 %ALT% 按一下或按住 %ALT% 拖曳可設定背景色。</translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>顏色面板檢視</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>色相立方體</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>RGB 滑桿</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>HSB 滑桿</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>紅</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>綠</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>藍</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>色相</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>飽和度</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>亮度</translation>
     </message>
 </context>
 <context>
@@ -15392,10 +15492,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>實際像素(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>顯示選取範圍邊緣(&amp;E)</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25531,6 +25627,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Hid all layers</source>
         <translation>已隱藏所有圖層</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>額外內容(&amp;E)</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>顯示(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>選取範圍邊緣(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>顯示額外選項(&amp;E)...</translation>
     </message>
     <message>
         <source>Save Preset...</source>

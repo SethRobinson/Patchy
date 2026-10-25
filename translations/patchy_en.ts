@@ -12690,6 +12690,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>the vector data has no drawing</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13753,22 +13790,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14460,6 +14481,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Showing extras</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -14536,6 +14565,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brightness</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -15411,10 +15510,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>&amp;Actual Pixels</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -25522,6 +25617,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Hid all layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

@@ -1223,6 +1223,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/file_info_dialog.cpp
       src/ui/convert_profile_dialog.hpp
       src/ui/convert_profile_dialog.cpp
+      src/ui/view_extras.hpp
+      src/ui/view_extras.cpp
       src/ui/document_float_window.hpp
       src/ui/document_float_window.cpp
       src/ui/edit_conversions.cpp
