@@ -114,24 +114,14 @@ copy /Y "%REPO%\scripts\wasm\memsoak.js" "%SITE_DIR%\memsoak.js" >nul || goto fa
 echo Precompressing site assets...
 rem Brotli/gzip variants beside the identity files; the staged .htaccess
 rem rewrites to them for clients that accept the encoding. The emsdk-bundled
-rem node runs the compressor (no extra tool dependency); the scripts glob the
-rem single node directory the SDK keeps (see docs/wasm.md).
-rem Pick a node dir that actually contains bin\node.exe: newer emsdk node
-rem packages (24.x) put node.exe at the directory root, and a second version
-rem directory appears whenever an alternate emsdk release was provisioned, so
-rem a blind last-directory glob can land on a layout without bin\. A checkout
-rem whose only node is the root layout (the Windows offload host) uses that.
+rem node runs the compressor (no extra tool dependency). scripts\wasm\find-node.ps1
+rem is the shared rule for locating it (the activated NODE_JS in .emscripten,
+rem then either node directory layout; docs/wasm.md "Node resolution"). It prints
+rem the path alone on stdout and nothing when no node is installed.
 set "NODE_EXE="
-for /d %%D in ("%REPO%\.deps\emsdk\node\*") do (
-  if exist "%%D\bin\node.exe" set "NODE_EXE=%%D\bin\node.exe"
-)
+for /f "usebackq delims=" %%N in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\wasm\find-node.ps1"`) do set "NODE_EXE=%%N"
 if not defined NODE_EXE (
-  for /d %%D in ("%REPO%\.deps\emsdk\node\*") do (
-    if exist "%%D\node.exe" set "NODE_EXE=%%D\node.exe"
-  )
-)
-if not defined NODE_EXE (
-  echo No node.exe was found under .deps\emsdk\node.
+  echo No node.exe was found under .deps\emsdk\node. Run: pwsh -File scripts\wasm\setup-emsdk.ps1
   goto fail
 )
 "%NODE_EXE%" "%REPO%\scripts\wasm\precompress-site.mjs" "%SITE_DIR%" || goto fail

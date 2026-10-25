@@ -12,12 +12,13 @@ $TestJs = Join-Path $BuildDir 'patchy_core_tests.js'
 if (-not (Test-Path $TestJs)) {
   throw "patchy_core_tests.js was not found; build the wasm-core preset first (see docs/wasm.md)"
 }
-$NodeExe = Get-ChildItem (Join-Path $RepoRoot '.deps\emsdk\node\*\bin\node.exe') | Select-Object -First 1
-if (-not $NodeExe) { throw "The emsdk-bundled node was not found; run scripts\wasm\setup-emsdk.ps1 first" }
+# find-node.ps1 is the shared resolution rule (docs/wasm.md "Node resolution");
+# it throws when no emsdk node is installed.
+$NodeExe = & (Join-Path $PSScriptRoot 'find-node.ps1') -RepoRoot $RepoRoot
 
 Push-Location $BuildDir
 try {
-  & $NodeExe.FullName $TestJs @args
+  & $NodeExe $TestJs @args
   exit $LASTEXITCODE
 }
 finally {

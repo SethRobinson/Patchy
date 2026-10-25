@@ -15,7 +15,8 @@ $BuildDir = Join-Path $RepoRoot 'build\wasm-release'
 if (-not (Test-Path (Join-Path $BuildDir 'patchy.html'))) {
   throw "patchy.html was not found; build the wasm-release preset first (see docs/wasm.md)"
 }
-$NodeExe = Get-ChildItem (Join-Path $RepoRoot '.deps\emsdk\node\*\bin\node.exe') | Select-Object -First 1
-if (-not $NodeExe) { throw "The emsdk-bundled node was not found; run scripts\wasm\setup-emsdk.ps1 first" }
+# find-node.ps1 is the shared resolution rule (docs/wasm.md "Node resolution");
+# it throws when no emsdk node is installed.
+$NodeExe = & (Join-Path $PSScriptRoot 'find-node.ps1') -RepoRoot $RepoRoot
 
-& $NodeExe.FullName (Join-Path $PSScriptRoot 'serve.mjs') $BuildDir $Port @Flags
+& $NodeExe (Join-Path $PSScriptRoot 'serve.mjs') $BuildDir $Port @Flags

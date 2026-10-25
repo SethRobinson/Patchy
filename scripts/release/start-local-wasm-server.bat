@@ -18,8 +18,10 @@ if not exist build\package\wasm-site\index.html (
   echo build\package\wasm-site is missing - run scripts\release\build-wasm.bat first.
   goto fail
 )
+rem find-node.ps1 is the shared rule for locating the emsdk node (docs/wasm.md
+rem "Node resolution"); it prints the path alone, nothing when none is installed.
 set "NODE_EXE="
-for /d %%D in (.deps\emsdk\node\*) do if exist "%%D\bin\node.exe" set "NODE_EXE=%%D\bin\node.exe"
+for /f "usebackq delims=" %%N in (`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\wasm\find-node.ps1`) do set "NODE_EXE=%%N"
 if not defined NODE_EXE (
   echo The emsdk-bundled node was not found. Run: pwsh -File scripts\wasm\setup-emsdk.ps1
   goto fail

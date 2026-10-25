@@ -27,9 +27,19 @@ pwsh -File scripts\wasm\setup-emsdk.ps1
 Clones or updates `.deps\emsdk` (gitignored), then installs and activates
 Qt-supported Emscripten 4.0.7. `-EmsdkVersion` selects another version;
 activation replaces `upstream/`, so serialize versions and restore 4.0.7
-afterward. Tests use bundled node 22.16.0. The scripts glob
-`.deps\emsdk\node\*\bin\node.exe`; exactly one must match (newer node
-packages omit `bin\`).
+afterward.
+
+**Node resolution.** The tests and local servers run on the node that emsdk
+bundles: 4.0.7 installs node 24.19.0 as `.deps\emsdk\node\24.19.0_64bit\node.exe`
+(the 22.x and older packages sat under `<version>\bin\`). Every script locates
+it through `scripts\wasm\find-node.ps1`, the single rule: the `NODE_JS` line of
+`.deps\emsdk\.emscripten` (what `emsdk activate` chose), else the newest
+`node\<version>_64bit\` holding `node.exe` at its root or under `bin\`. Never add
+another glob. ctest cannot call a script, so the wasm-core preset pins the same
+file as a literal `CMAKE_CROSSCOMPILING_EMULATOR`; `setup-emsdk.ps1` ends by
+comparing that path with the activated node and fails on a mismatch, so a new
+emsdk node version shows up on the first provisioning run. Fix by editing the
+preset and the version named here.
 
 ## Configure and build (wasm-core)
 

@@ -49,13 +49,30 @@ Write-Host "== Versions =="
 $EmsdkEnv = Join-Path $EmsdkDir 'emsdk_env.bat'
 cmd /s /c "call `"$EmsdkEnv`" >nul 2>&1 && emcc --version"
 if ($LASTEXITCODE -ne 0) { throw "emcc verification failed" }
-# The bundled node is what runs the test suite (and what the wasm-core preset
-# pins as CMAKE_CROSSCOMPILING_EMULATOR); report the activated one from
-# .emscripten, not whichever directory listing happens to sort first.
+# The bundled node is what runs the test suite and the local servers. Resolve it
+# the way every wasm script does (find-node.ps1 reads the activated NODE_JS from
+# .emscripten; docs/wasm.md "Node resolution") rather than trusting a directory
+# listing: an alternate emsdk release leaves a second node directory behind.
 $EmscriptenConfig = Join-Path $EmsdkDir '.emscripten'
 $NodeLine = (Get-Content $EmscriptenConfig | Where-Object { $_ -match '^NODE_JS' } | Select-Object -First 1)
 Write-Host "activated node config: $NodeLine"
-$NodeExe = Get-ChildItem (Join-Path $EmsdkDir 'node\*\bin\node.exe') | Select-Object -First 1
-if (-not $NodeExe) { throw "bundled node was not found under .deps\emsdk\node" }
-Write-Host "bundled node $((& $NodeExe.FullName --version))"
+$NodeExe = & (Join-Path $PSScriptRoot 'find-node.ps1') -RepoRoot $RepoRoot
+Write-Host "bundled node $((& $NodeExe --version)) at $NodeExe"
+
+# ctest cannot call a script, so the wasm-core preset pins the same node as a
+# literal CMAKE_CROSSCOMPILING_EMULATOR path. A new emsdk release that bundles
+# another node (4.0.7 moved from 22.16.0 under bin\ to 24.19.0 at the directory
+# root) would otherwise leave ctest pointing at a file no fresh machine has.
+$Presets = Get-Content (Join-Path $RepoRoot 'CMakePresets.json') -Raw | ConvertFrom-Json
+$WasmCore = $Presets.configurePresets | Where-Object { $_.name -eq 'wasm-core' } | Select-Object -First 1
+if (-not $WasmCore) { throw "CMakePresets.json has no wasm-core configure preset" }
+$Emulator = $WasmCore.cacheVariables.CMAKE_CROSSCOMPILING_EMULATOR
+if (-not $Emulator) { throw "the wasm-core preset sets no CMAKE_CROSSCOMPILING_EMULATOR" }
+$EmulatorPath = [IO.Path]::GetFullPath($Emulator.Replace('${sourceDir}', $RepoRoot))
+if ($EmulatorPath -ne [IO.Path]::GetFullPath($NodeExe)) {
+  throw ("CMakePresets.json wasm-core pins CMAKE_CROSSCOMPILING_EMULATOR to `"$Emulator`", but emsdk " +
+    "$EmsdkVersion activated `"$NodeExe`". Point the preset at the activated node (keep the " +
+    '${sourceDir} prefix) and update the node version in docs/wasm.md "Node resolution".')
+}
+Write-Host "wasm-core preset emulator matches the activated node"
 Write-Host "== wasm toolchain setup complete =="
