@@ -30,6 +30,8 @@
 #include "ui/qt_paths.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "ui/modifier_names.hpp"
+#include "ui/theme_palette.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -45,6 +47,9 @@
 #include <QTest>
 #include <QToolButton>
 #include <QLabel>
+#include <QAction>
+#include <QPainter>
+#include <QStatusBar>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QCheckBox>
@@ -657,6 +662,229 @@ void ui_healing_brush_cursor_feedback_and_ctrl_move() {
   document.clear_active_layer();
   hover(QPoint(20, 16));
   CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+}
+
+// Picking a painting tool puts its gestures in the status bar (GitHub issues 421, 423): what a
+// drag does and the tool's own Alt click first, then the shared Shift, Ctrl and Alt+right-drag
+// gestures, with the platform's modifier names.
+void ui_paint_tool_hints_name_shared_gestures() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1500, 780);
+  QApplication::processEvents();
+  struct ToolHint {
+    const char* action;
+    const char* prefix;
+  };
+  const std::array<ToolHint, 13> tools{{
+      {"toolBrushAction", "Brush: drag to paint, %1+click picks a color."},
+      {"toolCloneAction", "Clone Stamp: %1+click sets the source, then drag to paint the clone."},
+      {"toolMixerBrushAction", "Mixer Brush: drag to paint"},
+      {"toolPatternStampAction", "Pattern Stamp: drag to paint with the pattern."},
+      {"toolEraserAction", "Eraser: drag to erase."},
+      {"toolHealingBrushAction", "Healing Brush: %1+click sets the source"},
+      {"toolSpotHealingAction", "Spot Healing: drag over a spot"},
+      {"toolSmudgeAction", "Smudge: drag"},
+      {"toolDodgeAction", "Dodge: drag"},
+      {"toolBurnAction", "Burn: drag"},
+      {"toolSpongeAction", "Sponge: drag"},
+      {"toolBlurAction", "Blur: drag"},
+      {"toolSharpenAction", "Sharpen: drag"},
+  }};
+  const auto alt = patchy::ui::alt_key_name();
+  const auto ctrl = patchy::ui::ctrl_key_name();
+  QList<QImage> strips;
+  std::vector<QString> messages;
+  for (const auto& tool : tools) {
+    auto* action = window.findChild<QAction*>(QString::fromLatin1(tool.action));
+    messages.push_back(action == nullptr ? QString() : (action->trigger(), window.statusBar()->currentMessage()));
+    std::cout << tool.action << ": " << messages.back().toStdString() << std::endl;
+    if (strips.size() < 2) {
+      strips << window.statusBar()->grab().toImage();
+    }
+  }
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  save_stacked_artifact("issue421_paint_tool_status_hints", strips);
+  for (std::size_t index = 0; index < tools.size(); ++index) {
+    const auto& tool = tools[index];
+    const auto& message = messages[index];
+    CHECK(message.startsWith(QString::fromLatin1(tool.prefix).arg(alt)));
+    CHECK(message.contains(QStringLiteral("Shift+click draws a straight line from the last stroke.")));
+    CHECK(message.contains(ctrl + QStringLiteral("+click selects the layer under the pointer, ") + ctrl +
+                           QStringLiteral("+drag moves the layer")));
+    CHECK(message.contains(alt + QStringLiteral("+right-drag changes size and softness.")));
+    CHECK(!message.contains(QLatin1Char('%')));
+  }
+}
+
+// Every painting tool's Ctrl (GitHub issues 380, 421, 423): a Ctrl+click that never drags
+// selects the topmost layer with a visible pixel under the pointer and paints nothing, a
+// Ctrl+click on empty space keeps the selection, and a Ctrl+drag still moves the selected layer.
+void ui_paint_tools_ctrl_click_selects_layer_ctrl_drag_moves() {
+  patchy::Document document(64, 32, patchy::PixelFormat::rgba8());
+  auto back = solid_pixels(64, 32, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(back, QRect(0, 0, 32, 32), QColor(200, 200, 200));
+  const auto back_id = document.add_pixel_layer("Back", std::move(back)).id();
+  auto dot = solid_pixels(64, 32, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(dot, QRect(8, 8, 8, 8), QColor(40, 80, 160));
+  const auto dot_id = document.add_pixel_layer("Dot", std::move(dot)).id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(512, 256);
+  canvas.set_document(&document);
+  canvas.set_brush_size(4);
+  canvas.set_brush_opacity(100);
+  canvas.set_primary_color(QColor(255, 0, 0));
+  canvas.set_snap_enabled(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint document_point) { return canvas.widget_position_for_document_point(document_point); };
+  const auto ctrl_click = [&](QPoint document_point) {
+    send_mouse(canvas, QEvent::MouseButtonPress, at(document_point), Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, at(document_point), Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier);
+    QApplication::processEvents();
+  };
+  const auto active = [&document] { return std::as_const(document).active_layer_id(); };
+  const auto pixel_red = [&document](patchy::LayerId id, int x, int y) {
+    return std::as_const(document).find_layer(id)->pixels().pixel(x, y)[0];
+  };
+  for (const auto tool : {patchy::ui::CanvasTool::Brush, patchy::ui::CanvasTool::Clone,
+                          patchy::ui::CanvasTool::PatternStamp, patchy::ui::CanvasTool::Eraser,
+                          patchy::ui::CanvasTool::Dodge}) {
+    canvas.set_tool(tool);
+    document.set_active_layer(back_id);
+    canvas.set_selected_layer_ids({back_id});
+    QApplication::processEvents();
+    ctrl_click(QPoint(12, 12));
+    CHECK(active() == dot_id);
+    CHECK(pixel_red(dot_id, 12, 12) == 40U);
+    CHECK(pixel_red(back_id, 12, 12) == 200U);
+    ctrl_click(QPoint(48, 16));  // nothing visible there: the selection stays
+    CHECK(active() == dot_id);
+    ctrl_click(QPoint(24, 20));
+    CHECK(active() == back_id);
+    CHECK(pixel_red(back_id, 24, 20) == 200U);
+  }
+
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  send_key_press(canvas, Qt::Key_Control);
+  CHECK(canvas.cursor().shape() == Qt::SizeAllCursor);
+  send_key_release(canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas.cursor().shape() != Qt::SizeAllCursor);
+  const auto bounds_before = std::as_const(document).find_layer(back_id)->bounds();
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(20, 16)), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(26, 16)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(30, 16)), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(30, 16)), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  const auto bounds_after = std::as_const(document).find_layer(back_id)->bounds();
+  CHECK(bounds_after.x == bounds_before.x + 10);
+  CHECK(bounds_after.y == bounds_before.y);
+  CHECK(active() == back_id);
+}
+
+// The Alt+right-drag size readout sits in the canvas HUD pill (GitHub issue 422), the
+// selection size readout's look: the row just inside the pill's top edge, below the disc, is
+// the HUD fill over the white artwork.
+void ui_brush_adjust_readout_is_a_hud_pill() {
+  patchy::Document document(200, 200, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(200, 200, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(20);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_view_zoom_centered(1.0);
+  QApplication::processEvents();
+  const QPoint origin(210, 130);
+  send_mouse(canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(20, 0), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas.brush_size() == 60);
+  const auto image = canvas.grab().toImage();
+  save_widget_artifact("issue422_brush_adjust_readout_pill", canvas);
+  // Radius 30, the pill's top edge 8 px below the disc, its fill one row further down.
+  const auto fill = image.pixelColor(origin + QPoint(0, 30 + 8 + 1));
+  const auto hud = patchy::ui::theme().canvas_hud_bg;
+  std::cout << "readout fill " << fill.red() << "," << fill.green() << "," << fill.blue() << " hud " << hud.red()
+            << "," << hud.green() << "," << hud.blue() << std::endl;
+  CHECK(std::abs(fill.red() - hud.red()) <= 24);
+  CHECK(std::abs(fill.green() - hud.green()) <= 24);
+  CHECK(std::abs(fill.blue() - hud.blue()) <= 24);
+  send_mouse(canvas, QEvent::MouseButtonRelease, origin + QPoint(20, 0), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(canvas.brush_size() == 60);
+}
+
+// The + at the center of the painting tools' cursors is a light core in a dark outline
+// (GitHub issue 425), on soft brushes too (it used to take the dashed softness ring's faint
+// blue): visible on light and dark artwork.
+void ui_brush_cursor_center_cross_is_two_tone() {
+  patchy::Document document(64, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Photo", solid_pixels(64, 32, patchy::PixelFormat::rgba8(), QColor(230, 230, 230)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(512, 256);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_view_zoom_centered(1.0);
+  QApplication::processEvents();
+  const auto at = [&canvas](QPoint document_point) { return canvas.widget_position_for_document_point(document_point); };
+  QList<QImage> cursors;
+  std::vector<QPoint> hotspots;
+  for (const auto tool : {patchy::ui::CanvasTool::Clone, patchy::ui::CanvasTool::Brush,
+                          patchy::ui::CanvasTool::Dodge}) {
+    canvas.set_tool(tool);
+    canvas.set_brush_size(40);
+    canvas.set_brush_softness(50);
+    if (tool == patchy::ui::CanvasTool::Clone) {
+      send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(8, 8)), Qt::LeftButton, Qt::LeftButton,
+                 Qt::AltModifier);
+      send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(8, 8)), Qt::LeftButton, Qt::NoButton,
+                 Qt::AltModifier);
+    }
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(40, 16)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+    cursors << canvas.cursor().pixmap().toImage().convertToFormat(QImage::Format_ARGB32);
+    hotspots.push_back(canvas.cursor().hotSpot());
+  }
+  QImage sheet(cursors.front().width() * 3 * 4, cursors.front().height() * 4, QImage::Format_ARGB32);
+  sheet.fill(QColor(230, 230, 230));
+  QPainter painter(&sheet);
+  for (int index = 0; index < cursors.size(); ++index) {
+    painter.drawImage(QRect(index * cursors.front().width() * 4, 0, cursors[index].width() * 4,
+                            cursors[index].height() * 4),
+                      cursors[index]);
+  }
+  painter.end();
+  save_image_artifact("issue425_brush_cursor_center_cross", sheet);
+  for (std::size_t index = 0; index < hotspots.size(); ++index) {
+    const auto& image = cursors[static_cast<int>(index)];
+    const auto hot = hotspots[index];
+    const auto light = [&image](QPoint point) {
+      const auto color = image.pixelColor(point);
+      return color.alpha() >= 240 && color.red() >= 230 && color.green() >= 230 && color.blue() >= 230;
+    };
+    const auto dark = [&image](QPoint point) {
+      const auto color = image.pixelColor(point);
+      return color.alpha() >= 200 && color.red() <= 40 && color.green() <= 40 && color.blue() <= 40;
+    };
+    CHECK(light(hot));
+    CHECK(light(hot + QPoint(4, 0)));
+    CHECK(light(hot + QPoint(0, -4)));
+    CHECK(dark(hot + QPoint(5, 0)));
+    CHECK(dark(hot + QPoint(0, 5)));
+    CHECK(dark(hot + QPoint(2, 1)));
+    CHECK(dark(hot + QPoint(-1, -2)));
+  }
 }
 
 // The pre-382 Sample All Layers bool still decides the first launch after the update:
@@ -2028,6 +2256,11 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_retouch_healing_test_psd_round_trips", ui_retouch_healing_test_psd_round_trips},
       {"ui_healing_brush_heals_a_spot_wider_than_the_ring", ui_healing_brush_heals_a_spot_wider_than_the_ring},
       {"ui_healing_brush_cursor_feedback_and_ctrl_move", ui_healing_brush_cursor_feedback_and_ctrl_move},
+      {"ui_paint_tool_hints_name_shared_gestures", ui_paint_tool_hints_name_shared_gestures},
+      {"ui_paint_tools_ctrl_click_selects_layer_ctrl_drag_moves",
+       ui_paint_tools_ctrl_click_selects_layer_ctrl_drag_moves},
+      {"ui_brush_adjust_readout_is_a_hud_pill", ui_brush_adjust_readout_is_a_hud_pill},
+      {"ui_brush_cursor_center_cross_is_two_tone", ui_brush_cursor_center_cross_is_two_tone},
       {"ui_healing_mode_option_persists_and_reaches_new_documents",
        ui_healing_mode_option_persists_and_reaches_new_documents},
       {"ui_spot_healing_click_heals_blemish_on_release", ui_spot_healing_click_heals_blemish_on_release},

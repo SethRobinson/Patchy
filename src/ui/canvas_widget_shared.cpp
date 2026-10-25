@@ -17,14 +17,17 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QColor>
 #include <QImage>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QPoint>
 #include <QPointF>
 #include <QRect>
+#include <QRectF>
 #include <QRegion>
 #include <QSize>
 #include <QSysInfo>
@@ -1071,6 +1074,49 @@ bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept {
     default:
       return false;
   }
+}
+
+bool tool_has_ctrl_temporary_move(CanvasTool tool) noexcept {
+  return tool_uses_brush_footprint_cursor(tool);
+}
+
+void paint_brush_center_cross(QPainter& painter, QPoint center) {
+  // Filled whole-pixel bars, never antialiased lines: a 1 px line on an integer
+  // coordinate smears over two half-bright pixels and fades into light artwork.
+  constexpr int kArm = 4;
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  const QColor outline(20, 23, 28, 220);
+  const QColor core(245, 248, 252);
+  painter.fillRect(QRect(center.x() - kArm - 1, center.y() - 1, 2 * kArm + 3, 3), outline);
+  painter.fillRect(QRect(center.x() - 1, center.y() - kArm - 1, 3, 2 * kArm + 3), outline);
+  painter.fillRect(QRect(center.x() - kArm, center.y(), 2 * kArm + 1, 1), core);
+  painter.fillRect(QRect(center.x(), center.y() - kArm, 1, 2 * kArm + 1), core);
+  painter.restore();
+}
+
+namespace {
+constexpr int kHudPillPadX = 6;
+constexpr int kHudPillPadY = 3;
+}  // namespace
+
+QSize canvas_hud_pill_size(const QFontMetrics& metrics, const QString& text) {
+  return QSize(metrics.horizontalAdvance(text) + 2 * kHudPillPadX, metrics.height() + 2 * kHudPillPadY);
+}
+
+void paint_canvas_hud_pill(QPainter& painter, const QRect& pill, const QString& text) {
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  QPainterPath panel_path;
+  panel_path.addRoundedRect(QRectF(pill), 4.0, 4.0);
+  auto hud_fill = theme().canvas_hud_bg;
+  hud_fill.setAlpha(236);
+  painter.fillPath(panel_path, hud_fill);
+  painter.setPen(QPen(theme().canvas_hud_border, 1.0));
+  painter.drawPath(panel_path);
+  painter.setPen(theme().canvas_hud_text);
+  painter.drawText(pill.adjusted(kHudPillPadX, 0, -kHudPillPadX, 0), Qt::AlignLeft | Qt::AlignVCenter, text);
+  painter.restore();
 }
 
 bool tool_paints_with_brush_tip(CanvasTool tool) noexcept {

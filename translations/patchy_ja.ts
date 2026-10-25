@@ -25688,6 +25688,62 @@ The open document keeps its blend modes either way.</source>
         <source>Delete the preset &quot;%1&quot;?</source>
         <translation>プリセット「%1」を削除しますか?</translation>
     </message>
+    <message>
+        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
+        <translation>ブラシ: ドラッグで描画、%ALT%+クリックで色を取得します。</translation>
+    </message>
+    <message>
+        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
+        <translation>ミキサーブラシ: ドラッグで描画し、既存の色と混ぜ合わせます。%ALT%+クリックで色を取得します。</translation>
+    </message>
+    <message>
+        <source>Pattern Stamp: drag to paint with the pattern.</source>
+        <translation>パターンスタンプ: ドラッグでパターンを描画します。</translation>
+    </message>
+    <message>
+        <source>Eraser: drag to erase.</source>
+        <translation>消しゴム: ドラッグで消去します。</translation>
+    </message>
+    <message>
+        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
+        <translation>コピースタンプ: %ALT%+クリックでソースを設定し、ドラッグでクローンを描画します。</translation>
+    </message>
+    <message>
+        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
+        <translation>修復ブラシ: %ALT%+クリックでソースを設定し、修復する範囲をドラッグします。</translation>
+    </message>
+    <message>
+        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
+        <translation>スポット修復: 傷の上をドラッグすると、周囲から修復します。</translation>
+    </message>
+    <message>
+        <source>Smudge: drag to smear the pixels.</source>
+        <translation>指先: ドラッグでピクセルをこすります。</translation>
+    </message>
+    <message>
+        <source>Dodge: drag to lighten.</source>
+        <translation>覆い焼き: ドラッグで明るくします。</translation>
+    </message>
+    <message>
+        <source>Burn: drag to darken.</source>
+        <translation>焼き込み: ドラッグで暗くします。</translation>
+    </message>
+    <message>
+        <source>Sponge: drag to change the saturation.</source>
+        <translation>スポンジ: ドラッグで彩度を変更します。</translation>
+    </message>
+    <message>
+        <source>Blur: drag to soften detail.</source>
+        <translation>ぼかし: ドラッグでディテールをぼかします。</translation>
+    </message>
+    <message>
+        <source>Sharpen: drag to sharpen detail.</source>
+        <translation>シャープ: ドラッグでディテールをシャープにします。</translation>
+    </message>
+    <message>
+        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
+        <translation>Shift+クリックで前回のストロークから直線を描きます。%CTRL%+クリックでポインターの下のレイヤーを選択、%CTRL%+ドラッグでレイヤーを移動、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

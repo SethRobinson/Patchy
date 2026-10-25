@@ -232,7 +232,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
-                                                  tool_ == CanvasTool::Text || retouch_source_tool_active() ||
+                                                  tool_ == CanvasTool::Text || tool_has_ctrl_temporary_move(tool_) ||
                                                   transforming_layer_ ||
                                                   path_transform_active_ || tool_ == CanvasTool::PathSelect ||
                                                   tool_ == CanvasTool::DirectSelect || shape_tool_active())))) {
@@ -295,12 +295,12 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // click would select (GitHub issue 73); refresh the outline from the
         // folded modifiers at the last pointer position, no motion needed.
         update_move_hover_outline(last_mouse_position_, modifiers);
-      } else if ((key_event->key() == Qt::Key_Alt || key_event->key() == Qt::Key_Control) &&
-                 retouch_source_tool_active()) {
-        // Clone and Healing (GitHub issue 380): Alt shows the source cursor and Ctrl the
-        // temporary Move, from the folded modifiers with a stationary pointer; a stroke or
-        // a Ctrl drag in progress keeps its cursor.
-        if (!painting_ && !move_drag_pending_ && !moving_layer_) {
+      } else if ((key_event->key() == Qt::Key_Alt && retouch_source_tool_active()) ||
+                 (key_event->key() == Qt::Key_Control && tool_has_ctrl_temporary_move(tool_))) {
+        // Ctrl is every painting tool's temporary Move and Alt Clone's and Healing's source
+        // cursor (GitHub issues 380, 421), from the folded modifiers with a stationary
+        // pointer; a stroke or a Ctrl drag in progress keeps its cursor.
+        if (!painting_ && !move_drag_pending_ && !moving_layer_ && !paint_ctrl_click_.has_value()) {
           retouch_cursor_modifier_override_ = modifiers;
           update_tool_cursor();
           retouch_cursor_modifier_override_.reset();
@@ -946,12 +946,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
-  // Ctrl is Clone's and Healing's temporary Move (GitHub issue 380), read from this
-  // press's own modifiers: the drag moves the selected layers like the Move tool with
-  // Auto-Select off. Ctrl on a ruler guide already went to the guide drag above.
-  if (event->button() == Qt::LeftButton && retouch_source_tool_active() && !painting_ &&
+  // Ctrl is the painting tools' temporary Move (GitHub issues 380, 421, 423), read from
+  // this press's own modifiers: a drag moves the selected layers like the Move tool with
+  // Auto-Select off, a click that never drags selects the layer under the pointer. Ctrl
+  // on a ruler guide already went to the guide drag above.
+  if (event->button() == Qt::LeftButton && tool_has_ctrl_temporary_move(tool_) && !painting_ &&
       event->modifiers().testFlag(Qt::ControlModifier) && !event->modifiers().testFlag(Qt::AltModifier)) {
-    begin_retouch_temporary_move(event, document_point);
+    begin_paint_temporary_move(event, document_point);
     event->accept();
     return;
   }
@@ -1808,6 +1809,20 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  if (paint_ctrl_click_.has_value() && !move_drag_pending_ && !moving_layer_) {
+    // A painting tool's Ctrl press with nothing it could move: dragging says why once
+    // and the release selects nothing.
+    if ((event->buttons() & Qt::LeftButton) == 0) {
+      paint_ctrl_click_.reset();
+    } else if ((event->pos() - paint_ctrl_click_->widget_point).manhattanLength() >=
+               QApplication::startDragDistance()) {
+      paint_ctrl_click_.reset();
+      report_paint_temporary_move_refused();
+    }
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
   if (!panning_ && (event->buttons() & Qt::RightButton) != 0 && (event->buttons() & Qt::LeftButton) == 0) {
     // A held right button drives nothing but the context click: crossing the
     // drag threshold retires it, even if the pointer returns to its starting
@@ -2109,6 +2124,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       old_transform_controls_rect = move_transform_controls_rect();
       move_drag_pending_ = false;
       moving_layer_ = true;
+      paint_ctrl_click_.reset();  // a painting tool's Ctrl press became a move
       move_readout_base_rect_ = moving_layers_readout_base_rect();
       if (move_press_reused_retained_caches_) {
         ++render_cache_diagnostics_.move_preview_cache_reuses;
@@ -2478,7 +2494,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         if (tool_ == CanvasTool::Text) {
           text_ctrl_cursor_override_ = event->modifiers().testFlag(Qt::ControlModifier);
         }
-        if (retouch_source_tool_active()) {
+        if (tool_has_ctrl_temporary_move(tool_)) {
           retouch_cursor_modifier_override_ = event->modifiers();
         }
         update_tool_cursor();
@@ -2541,9 +2557,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
-  // A Clone/Healing Ctrl+drag (GitHub issue 380) gets its tool cursor back after the commit.
-  const bool ends_retouch_move =
-      retouch_source_tool_active() && (move_drag_pending_ || moving_layer_) && event->button() == Qt::LeftButton;
+  // A painting tool's Ctrl+drag or Ctrl+click (GitHub issues 380, 423) gets its tool cursor
+  // back after the commit.
+  const bool ends_retouch_move = tool_has_ctrl_temporary_move(tool_) &&
+                                 (move_drag_pending_ || moving_layer_ || paint_ctrl_click_.has_value()) &&
+                                 event->button() == Qt::LeftButton;
   const auto restore_retouch_cursor = qScopeGuard([this, ends_retouch_move, modifiers = event->modifiers()] {
     if (ends_retouch_move) {
       retouch_cursor_modifier_override_ = modifiers;
@@ -2864,6 +2882,18 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     finish_move_layer_selection(event);
     event->accept();
     return;
+  }
+
+  if (paint_ctrl_click_.has_value() && event->button() == Qt::LeftButton) {
+    // A painting tool's Ctrl+click that never dragged selects the layer under the
+    // pointer (GitHub issue 423); the pending move below then ends as a plain click.
+    const auto click_point = paint_ctrl_click_->document_point;
+    paint_ctrl_click_.reset();
+    select_paint_layer_at(click_point);
+    if (!move_drag_pending_) {
+      event->accept();
+      return;
+    }
   }
 
   if (move_drag_pending_) {
@@ -4448,6 +4478,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   drawing_shape_ = dragging_text_rect_ = dragging_text_entry_selection_ = false;
   shape_press_adds_to_shape_ = shape_temp_path_select_ = false;
   move_drag_pending_ = moving_layer_ = false;
+  paint_ctrl_click_.reset();
   // After the move state above is cleared, so a resumed text session starts from a quiet canvas.
   const auto finish_text_move = qScopeGuard([this] { finish_text_layer_move(); });
   moving_layers_.clear();
@@ -4756,25 +4787,46 @@ bool CanvasWidget::begin_edit(QString label) {
   return true;
 }
 
-void CanvasWidget::begin_retouch_temporary_move(QMouseEvent* event, QPoint document_point) {
+void CanvasWidget::begin_paint_temporary_move(QMouseEvent* event, QPoint document_point) {
   if (document_ == nullptr) {
     return;
   }
+  // Until it drags, the press is a click that selects the layer under the pointer
+  // (the release), so nothing to move is reported only once it drags.
+  paint_ctrl_click_ = PaintCtrlClick{document_point, event->pos()};
+  setCursor(Qt::SizeAllCursor);
   select_only_layer_if_none_active();
   const auto layer_ids = movable_layer_ids();
-  if (layer_ids.empty()) {
-    const auto& document = std::as_const(*document_);
-    const auto* active =
-        document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id()) : nullptr;
-    if (active != nullptr && layer_effectively_locks_position(*active)) {
-      report_status_error(tr("Layer position is locked."));
-    } else {
-      report_status_error(tr("Click an editable layer to move"));
-    }
+  if (!layer_ids.empty()) {
+    begin_move_drag(layer_ids, document_point, event->pos());
+  }
+}
+
+void CanvasWidget::report_paint_temporary_move_refused() {
+  const auto& document = std::as_const(*document_);
+  const auto* active =
+      document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id()) : nullptr;
+  if (active != nullptr && layer_effectively_locks_position(*active)) {
+    report_status_error(tr("Layer position is locked."));
+  } else {
+    report_status_error(tr("Click an editable layer to move"));
+  }
+}
+
+void CanvasWidget::select_paint_layer_at(QPoint document_point) {
+  // The topmost layer with a visible pixel under the pointer, the Move tool's
+  // precise pick; a position lock does not matter (the layer is selected to be
+  // painted, not moved). Empty space keeps the selection.
+  const auto* hit = topmost_visible_move_layer_at(document_point);
+  if (hit == nullptr) {
     return;
   }
-  begin_move_drag(layer_ids, document_point, event->pos());
-  setCursor(Qt::SizeAllCursor);
+  const auto id = hit->id();
+  if (selected_layer_ids_.size() == 1U && selected_layer_ids_.front() == id &&
+      std::as_const(*document_).active_layer_id() == id) {
+    return;
+  }
+  request_layer_selection({id}, id);
 }
 
 bool CanvasWidget::can_begin_pixel_edit(bool report) {

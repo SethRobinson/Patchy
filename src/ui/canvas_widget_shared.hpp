@@ -13,10 +13,13 @@
 #include "ui/canvas_widget.hpp"
 
 #include <QColor>
+#include <QFontMetrics>
 #include <QImage>
 #include <QPoint>
 #include <QRect>
 #include <QRegion>
+#include <QSize>
+#include <QString>
 
 #include <array>
 #include <cstdint>
@@ -291,6 +294,22 @@ bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept;
 // procedurally, so its outline stays the procedural circle even while a tip is
 // selected. Shared by the cursors and brush TUs.
 bool tool_paints_with_brush_tip(CanvasTool tool) noexcept;
+
+// Painting tools where Ctrl (Command on macOS) is the temporary Move (GitHub issues
+// 380, 421, 423): Ctrl+drag moves the selected layers, a Ctrl+click that never drags
+// selects the layer under the pointer. The footprint-cursor tools.
+bool tool_has_ctrl_temporary_move(CanvasTool tool) noexcept;
+
+// The small + at the center of the brush cursors and the overlay outline: a dark
+// outline around a light core, crisp on whole pixels, so it reads on any artwork
+// (GitHub issue 425). Tool cursor colors, exempt from the theme roles.
+void paint_brush_center_cross(QPainter& painter, QPoint center);
+
+// The canvas HUD pill (the drag size readout's look, GitHub issues 142 and 422):
+// one line of text on the HUD fill and border, theme roles only. The pill is the
+// text plus its padding; the caller places it.
+QSize canvas_hud_pill_size(const QFontMetrics& metrics, const QString& text);
+void paint_canvas_hud_pill(QPainter& painter, const QRect& pill, const QString& text);
 
 // PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr (the
 // PATCHY_REV_TRACE pattern): run the real app with it set to attribute slow

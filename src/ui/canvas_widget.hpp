@@ -1841,6 +1841,8 @@ private:
   [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
                                               bool skip_locked) const noexcept;
   [[nodiscard]] Layer* topmost_move_layer_at(QPoint document_point, bool skip_locked) const noexcept;
+  // Only the first, pixel-precise pass of topmost_move_layer_at, locked layers included.
+  [[nodiscard]] Layer* topmost_visible_move_layer_at(QPoint document_point) const noexcept;
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
   void activate_layer(Layer& layer);
   void request_layer_selection(std::vector<LayerId> layer_ids, LayerId active_id);
@@ -2024,7 +2026,12 @@ private:
   [[nodiscard]] bool retouch_press_would_refuse() const;
   void set_retouch_source_indicator(std::optional<QPoint> document_point);
   [[nodiscard]] QRect retouch_source_indicator_widget_rect(QPoint document_point) const;
-  void begin_retouch_temporary_move(QMouseEvent* event, QPoint document_point);
+  // Every painting tool's Ctrl (GitHub issues 380, 421, 423): the press starts the
+  // temporary Move of the selected layers; a release that never dragged selects the
+  // topmost layer with a visible pixel under the pointer instead.
+  void begin_paint_temporary_move(QMouseEvent* event, QPoint document_point);
+  void report_paint_temporary_move_refused();
+  void select_paint_layer_at(QPoint document_point);
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_stamp_segment(QPoint from, QPoint to);
@@ -3546,6 +3553,12 @@ private:
   QRect healing_stroke_footprint_;
   // The folded modifiers of the key event being handled, for the Clone/Healing cursor.
   std::optional<Qt::KeyboardModifiers> retouch_cursor_modifier_override_;
+  // A painting tool's Ctrl press that has not dragged yet (begin_paint_temporary_move).
+  struct PaintCtrlClick {
+    QPoint document_point;
+    QPoint widget_point;
+  };
+  std::optional<PaintCtrlClick> paint_ctrl_click_;
   // The document point the Clone/Healing stroke samples now (drawn while painting).
   std::optional<QPoint> retouch_source_indicator_;
   // Shared by Clone, Healing, Spot Healing, and Patch (GitHub issue 382): All

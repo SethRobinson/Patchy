@@ -395,6 +395,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   cancel_move_layer_selection();
   move_drag_pending_ = false;
   moving_layer_ = false;
+  paint_ctrl_click_.reset();
   moving_layers_.clear();
   move_readout_base_rect_.reset();
   drag_readout_dirty_rect_ = QRect();
@@ -543,6 +544,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     cancel_move_layer_selection();
     move_drag_pending_ = false;
     moving_layer_ = false;
+    paint_ctrl_click_.reset();
     moving_layers_.clear();
     move_readout_base_rect_.reset();
     drag_readout_dirty_rect_ = QRect();
@@ -591,6 +593,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     cancel_move_layer_selection();
     move_drag_pending_ = false;
     moving_layer_ = false;
+    paint_ctrl_click_.reset();
     moving_layers_.clear();
     move_readout_base_rect_.reset();
     drag_readout_dirty_rect_ = QRect();
@@ -1917,6 +1920,14 @@ Layer* CanvasWidget::topmost_move_layer_at(QPoint document_point, bool skip_lock
   }
   return const_cast<Layer*>(topmost_move_layer_at_recursive(document.layers(), document_point, skip_locked,
                                                             move_layer_rect_contains_document_point));
+}
+
+Layer* CanvasWidget::topmost_visible_move_layer_at(QPoint document_point) const noexcept {
+  if (document_ == nullptr) {
+    return nullptr;
+  }
+  return const_cast<Layer*>(topmost_move_layer_at_recursive(std::as_const(*document_).layers(), document_point,
+                                                            false, move_layer_contains_document_point));
 }
 
 Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept {
