@@ -9,6 +9,7 @@
 #include "core/artboard.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/vector_shape.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
@@ -2784,6 +2785,108 @@ void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
   save_widget_artifact("ui_layer_via_copy_cut", window);
 }
 
+// GitHub issue 401: with nothing selected, Layer Via Copy (Ctrl+J) is Duplicate Layer, as in
+// Photoshop: a text or shape layer's copy stays text or a shape and gets the "copy" name, a multi-layer
+// selection duplicates every layer, and each is one undo step. With a selection it still copies
+// the selected pixels to a new pixel layer.
+void ui_layer_via_copy_without_selection_duplicates_the_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document source(200, 160, format);
+  source.add_pixel_layer("Paint", solid_pixels(200, 160, format, QColor(20, 120, 220)));
+  const auto paint_id = source.layers().back().id();
+  patchy::Layer text_layer(source.allocate_layer_id(), "Text: Title", patchy::LayerKind::Text);
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Title";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  const auto text_id = text_layer.id();
+  source.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(source), QStringLiteral("Via copy kinds"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
+       canvas->widget_position_for_document_point(QPoint(140, 120)));
+  QApplication::processEvents();
+  const auto shape_id = std::as_const(Access::document(window)).active_layer_id().value_or(0);
+  const auto* shape = std::as_const(Access::document(window)).find_layer(shape_id);
+  CHECK(shape != nullptr && patchy::layer_is_vector_shape(*shape));
+  if (shape == nullptr) {
+    return;
+  }
+  const auto shape_name = shape->name();
+  CHECK(!canvas->selected_document_rect().has_value());
+
+  const auto via_copy = [&window] {
+    require_action(window, "layerViaCopyAction")->trigger();
+    QApplication::processEvents();
+  };
+  for (const auto source_id : {text_id, shape_id}) {
+    Access::select_layers(window, {source_id}, source_id);
+    QApplication::processEvents();
+    const auto& document = std::as_const(Access::document(window));
+    const auto* original = document.find_layer(source_id);
+    CHECK(original != nullptr);
+    if (original == nullptr) {
+      continue;
+    }
+    const auto kind = original->kind();
+    const auto expected_name = original->name() + " copy";
+    const auto depth = Access::active_session_undo_depth(window);
+    via_copy();
+    const auto copy_id = document.active_layer_id().value_or(0);
+    CHECK(copy_id != source_id);
+    const auto* copy = document.find_layer(copy_id);
+    CHECK(copy != nullptr);
+    if (copy != nullptr) {
+      CHECK(copy->kind() == kind);
+      CHECK(copy->name() == expected_name);
+      CHECK(source_id == text_id ? patchy::layer_is_text(*copy) : patchy::layer_is_vector_shape(*copy));
+    }
+    CHECK(Access::active_session_undo_depth(window) == depth + 1U);
+    Access::undo(window);
+    QApplication::processEvents();
+    CHECK(document.find_layer(copy_id) == nullptr);
+    CHECK(document.find_layer(source_id) != nullptr);
+  }
+
+  // Both selected: both duplicated, as Duplicate Layer does, in one step.
+  Access::select_layers(window, {text_id, shape_id}, shape_id);
+  QApplication::processEvents();
+  const auto depth = Access::active_session_undo_depth(window);
+  via_copy();
+  {
+    const auto& document = std::as_const(Access::document(window));
+    const auto ids = Access::selected_layer_ids(window);
+    CHECK(ids.size() == 2U);
+    for (const auto id : ids) {
+      CHECK(id != text_id && id != shape_id);
+      const auto* copy = document.find_layer(id);
+      CHECK(copy != nullptr && (patchy::layer_is_text(*copy) || patchy::layer_is_vector_shape(*copy)));
+      CHECK(copy != nullptr && (copy->name() == "Text: Title copy" || copy->name() == shape_name + " copy"));
+    }
+    CHECK(Access::active_session_undo_depth(window) == depth + 1U);
+  }
+  Access::undo(window);
+  QApplication::processEvents();
+
+  // With a selection: the selected pixels on a new pixel layer, as before.
+  Access::select_layers(window, {paint_id}, paint_id);
+  QApplication::processEvents();
+  select_document_rect(*canvas, QSize(200, 160), QRect(10, 10, 60, 40));
+  via_copy();
+  const auto& document = std::as_const(Access::document(window));
+  const auto* pixel_copy = document.find_layer(document.active_layer_id().value_or(0));
+  CHECK(pixel_copy != nullptr && pixel_copy->id() != paint_id);
+  if (pixel_copy != nullptr) {
+    CHECK(pixel_copy->kind() == patchy::LayerKind::Pixel && !patchy::layer_is_vector_shape(*pixel_copy));
+    CHECK(pixel_copy->name() == "Layer Via Copy");
+    CHECK(pixel_copy->bounds() == (patchy::Rect{10, 10, 60, 40}));
+  }
+}
+
 void ui_free_transform_drag_proxy_engages_above_threshold() {
   // A half-opacity layer whose transformed area crosses the unstyled
   // kTransformProxyAreaThreshold (4 Mpx): the handle drag must latch onto the
@@ -3284,6 +3387,8 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
        ui_transform_controls_finish_on_tool_layer_and_duplicate_changes},
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
+      {"ui_layer_via_copy_without_selection_duplicates_the_layer",
+       ui_layer_via_copy_without_selection_duplicates_the_layer},
       {"ui_free_transform_drag_proxy_engages_above_threshold",
        ui_free_transform_drag_proxy_engages_above_threshold},
       {"ui_free_transform_drag_small_doc_stays_live", ui_free_transform_drag_small_doc_stays_live},

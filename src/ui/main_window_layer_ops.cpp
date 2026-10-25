@@ -1583,6 +1583,12 @@ void MainWindow::layer_via_copy() {
   }
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
+  // With no selection Photoshop's Layer Via Copy is Duplicate Layer: text, shape, Smart
+  // Object, adjustment and group layers keep their kind, masks and effects (#401).
+  if (!canvas_->selected_document_rect().has_value()) {
+    duplicate_layers(ids);
+    return;
+  }
   const auto payload = collect_layer_copy_pixels(document(), ids, *canvas_);
   if (!payload.has_value()) {
     statusBar()->showMessage(tr("Nothing visible to copy to a new layer"));
