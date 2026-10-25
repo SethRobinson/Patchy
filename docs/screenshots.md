@@ -109,4 +109,8 @@ Click any image to inspect it at full size. These are captures of the real edito
       <br><sub>Scripts ask with real options dialogs; the same script runs unattended from the command line with the same defaults</sub>
     </td>
 </tr>
+<tr>
+<td align="center" valign="top" width="50%"><a href="images/screenshots/layered_import.png"><img src="images/screenshots/layered_import.png" width="430" alt="OpenRaster city poster and Paint.NET landscape imported into one document, with both layer stacks expanded"></a><br><sub>Layered imports: OpenRaster folders and pixel layers beside Paint.NET layers with their names, visibility, opacity, and blend modes</sub></td>
+<td align="center" valign="top" width="50%"><a href="images/screenshots/light_theme.png"><img src="images/screenshots/light_theme.png" width="430" alt="The car-weekend artboard document in Patchy's Light theme, with the Post artboard selected and its properties open"></a><br><sub>Light theme, shown with the same artboard document as the Dark capture above. Dark, Light, seven other bundled themes, and custom theme files are available</sub></td>
+</tr>
 </table>

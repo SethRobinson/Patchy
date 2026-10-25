@@ -86,7 +86,7 @@
 
 ## Platforms, privacy, and interface
 
-- Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak and AppImage) builds
+- Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon), Linux (Flatpak and AppImage), and a browser build. The [platform support table](../README.md#platform-support) lists differences in bit depth, formats, plug-ins, device access, and automation
 - Built with C++ and Qt for a native desktop experience, with CPU rendering. Large documents, high bit depths, and Object Selection need more memory and processing time
 - No telemetry, tracking, or image uploads. Optional update checks contact GitHub; one-click updates on Windows and the Linux AppImage and Object Selection's optional High Quality model download files when requested. Settings live in a plain local file, and the installer leaves your default file associations unchanged
 - Rearrange sidebar panels into tab groups, drag tabs out or reorder them, and collapse panels to save space. The Color panel edits foreground and background colors; the Layers panel previews blend modes while browsing and offers four thumbnail sizes

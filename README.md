@@ -134,6 +134,10 @@ See it in action.  Click an image for the full-size capture.
     <td valign="top" width="50%"><a href="docs/images/screenshots/artboards.png"><img src="docs/images/screenshots/artboards.png" width="460" alt="One document holding four artboards for a car-weekend campaign: a white story, a black banner, a cream post selected with the Artboard tool, and a transparent icon, with the Properties panel showing the post's position, size and background."></a><br><strong>Every size in one document</strong><br>Artboards keep a story, banner, post and icon side by side, each with its own size and background. Export them to separate files or PDF pages.</td>
     <td valign="top" width="50%"><a href="docs/images/screenshots/gmic.png"><img src="docs/images/screenshots/gmic.png" width="460" alt="The G'MIC Filter Library with Rodilius selected among the Artistic filters, its settings beside the list, and a live preview on the right half of a Havana street photo, with the original on the left."></a><br><strong>Nearly 400 G'MIC filters</strong><br>Browse the G'MIC library, adjust the settings, and watch the result render live on your canvas. Here Rodilius runs inside a selection, with the original photo on the left.</td>
   </tr>
+  <tr>
+    <td valign="top" width="50%"><a href="docs/images/screenshots/layered_import.png"><img src="docs/images/screenshots/layered_import.png" width="460" alt="An OpenRaster city poster and a Paint.NET landscape imported side by side, with their pixel layers, nested folder, opacity, and blend modes visible in the Layers panel."></a><br><strong>Bring your layers with you</strong><br>OpenRaster and Paint.NET artwork keeps its layer stacks. Affinity, layered TIFF, and Aseprite are supported too, with <a href="docs/features.md#layered-format-interchange">format-specific limits</a>.</td>
+    <td valign="top" width="50%"><a href="docs/images/screenshots/light_theme.png"><img src="docs/images/screenshots/light_theme.png" width="460" alt="Patchy's Light theme showing the car-weekend artboards, the Layers panel, and Artboard properties."></a><br><strong>A lighter workspace</strong><br>The same editor and artboards in Light. Choose Dark, Light, seven other bundled themes, or import your own color scheme.</td>
+  </tr>
 </table>
 
 [See the full gallery](docs/screenshots.md) for painting, palette mode, seamless textures, Camera Raw, long shadows, scripting, and more.
@@ -163,6 +167,33 @@ runs the same editor locally through WebAssembly. Desktop builds have more memor
 available and add printing, scanner/camera import, and command-line automation.
 Optional update checks contact GitHub, as do the one-click updates (Windows and the Linux AppImage) and Object Selection's High Quality model, each downloaded only if you ask for it. Twelve interface languages, dark and light
 schemes, and importable themes are included.
+
+## Platform support
+
+The desktop and browser builds share the editor, with these differences:
+
+| Capability | Windows | macOS | Linux | Browser |
+| --- | --- | --- | --- | --- |
+| Available build | x64 | Apple Silicon | x86-64, Flatpak / AppImage | WebAssembly |
+| 8-bit and 16-bit editing | Yes | Yes | Yes | Yes |
+| 32-bit HDR editing | Yes | Yes | Yes | Opens converted to 16-bit |
+| PSD/PSB, Affinity, OpenRaster, Paint.NET, layered TIFF, Aseprite | Yes | Yes | Yes | Yes |
+| PDF import / export | Both | Both | Both | Export only |
+| G'MIC Filter Library | Yes | Yes | Yes | No |
+| Photoshop filter plug-ins (.8bf) | 32-bit and 64-bit | No | No | No |
+| AVIF import / export | Both | Both | Both | No |
+| JPEG XR import / export | Both | No | No | No |
+| HEIC/HEIF import | With OS codecs | With OS decoder | With system decoder | With browser HEVC support |
+| Printing | Yes | Yes | Yes | No |
+| Scanner / camera acquisition | Both, via WIA | Scanners | No | No |
+| Built-in JavaScript editor | Yes | Yes | Yes | Yes |
+| Command line and local MCP connector | Yes | Yes | Yes | No |
+
+Format support does not imply every source feature stays editable; see the
+[format limits](docs/features.md#layered-format-interchange) and
+[current limitations](docs/features.md#current-status). PDF import requires Qt PDF
+when building a custom desktop version. HEIC/HEIF availability depends on the
+[installed decoder](docs/heif.md). The browser build also has tighter memory limits.
 
 ## PSD compatibility, measured
 
