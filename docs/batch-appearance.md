@@ -90,6 +90,19 @@ The dialogs are `shape_appearance_dialog.*` and `layer_style_dialog.*`.
 Structural operations retain their position relative to parameter edits. Dialog synchronization never
 captures user intent. Single-layer dialog callers remain supported.
 
+Property keys (`fill.kind`, `drop_shadows.0.opacity`, `bevels.0.contour.enabled`)
+are persisted identifiers; their order within a property list is part of the
+edit-capture contract. Registration is type-erased: a `Locator` finds a field's
+bytes (an owner such as a paint of one kind, an effect slot or a Bevel
+sub-option, then `field_of<&Owner::member>`), and a per-type `ValueOps` table
+supplies equality, copy and assignment, so the property machinery instantiates
+a few times per Settings type rather than once per field. Each effect type
+lists its members explicitly in key order. Keep it that way: a generic lambda
+per field made the file compile in 40 s alone and 100 s inside a parallel
+build on MSVC (the second-slowest unit in the project). Add a new field to the
+matching per-type list, never a probe over all effect types, and never a
+closure per field.
+
 Previews start from each target's baseline. Shape raster batches use the
 existing background worker and generation checks, publish completed results
 together, reject superseded work, and reuse completed rasters on acceptance.
