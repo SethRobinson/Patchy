@@ -12554,6 +12554,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>GIMP Image</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25272,6 +25320,18 @@ The open document keeps its blend modes either way.</source>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27239,6 +27299,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>redEye: width and height must be at least 1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

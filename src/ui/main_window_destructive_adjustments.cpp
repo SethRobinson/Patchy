@@ -17,6 +17,7 @@
 #include "core/palette.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/camera_raw_filter_dialog.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_geometry.hpp"
 
@@ -581,6 +582,66 @@ void MainWindow::color_balance_dialog() {
     return;
   }
   apply_color_balance_adjustment(*settings);
+}
+
+// Filter > Camera Raw Filter (GitHub issue 392; docs/camera-raw.md): the dialog previews in
+// its own window and returns the filtered layer, applied as one undo step.
+void MainWindow::camera_raw_filter_dialog() {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& doc = document();
+  select_only_layer_if_none_active();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (!editable_rgb_layer_any_depth(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  if (layer_is_smart_object(*layer)) {
+    show_status_error(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return;
+  }
+  if (layer_id_locks_image_pixels(*active)) {
+    show_status_error(tr("Layer pixels are locked."));
+    return;
+  }
+  if (!prompt_rasterize_procedural_layer(*active, tr("Camera Raw Filter"), false)) {
+    return;
+  }
+  layer = doc.find_layer(*active);
+  if (!editable_rgb_layer_any_depth(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  const auto active_id = *active;
+  CameraRawFilterRequest request;
+  request.source = std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
+  request.bounds = layer->bounds();
+  request.selection = filter_selection(*canvas_);
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto outcome = run_camera_raw_filter_dialog(this, request);
+  preview_edit_lock.release();
+  if (!outcome.has_value()) {
+    statusBar()->showMessage(tr("Cancelled %1").arg(tr("Camera Raw Filter")));
+    return;
+  }
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr || outcome->pixels == nullptr) {
+    return;
+  }
+  push_undo_snapshot(tr("Camera Raw Filter"));
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  set_layer_pixels_preserving_origin(*layer, *outcome->pixels, request.bounds);
+  canvas_->document_changed(to_qrect(request.bounds));
+  statusBar()->showMessage(tr("Applied %1").arg(tr("Camera Raw Filter")));
 }
 
 }  // namespace patchy::ui

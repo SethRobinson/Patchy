@@ -151,6 +151,9 @@ public:
   Q_INVOKABLE void fill(const QString& color);
   Q_INVOKABLE void fillRect(int x, int y, int width, int height, const QString& color);
   Q_INVOKABLE void applyFilter(const QString& filterId, const QJSValue& params = QJSValue());
+  // Filter > Camera Raw Filter with {temperature, tint, exposure, contrast, highlights,
+  // shadows, saturation, vibrance}; missing ones stay neutral, unknown names throw.
+  Q_INVOKABLE void applyCameraRawFilter(const QJSValue& settings = QJSValue());
   // Runs a legacy Photoshop plug-in (an id from patchy.plugins.list()) on this
   // layer, limited to the document selection. Options {dialog, captureDialog}:
   // dialog false skips the plug-in's own settings dialog and reuses its last

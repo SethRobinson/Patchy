@@ -53,6 +53,7 @@ std::vector<patchy::test::TestCase> pipl_tests();
 std::vector<patchy::test::TestCase> vector_shape_tests();
 std::vector<patchy::test::TestCase> vector_raster_tests();
 std::vector<patchy::test::TestCase> image_trace_tests();
+std::vector<patchy::test::TestCase> photo_develop_tests();
 std::vector<patchy::test::TestCase> photo_divide_tests();
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests();
 std::vector<patchy::test::TestCase> svg_tests();

@@ -1293,6 +1293,7 @@ private:
   bool prompt_rasterize_procedural_layer(LayerId layer_id, const QString& operation_name,
                                          bool offer_convert_to_smart_object);
   void liquify_dialog();
+  void camera_raw_filter_dialog();
   void convert_for_smart_filters();
   void gaussian_smart_filter_dialog(
       LayerId layer_id,
