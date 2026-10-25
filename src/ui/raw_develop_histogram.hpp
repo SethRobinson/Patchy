@@ -34,6 +34,16 @@ inline constexpr std::uint64_t kRawHistogramMaxSamples = 1U << 20U;
 [[nodiscard]] RawPreviewHistogram raw_preview_histogram(std::span<const std::uint8_t> interleaved_rgb, int width,
                                                         int height);
 
+// The bins the histogram widget draws (GitHub issue 393): every interior bin
+// (1 to 254) smoothed with a fixed Gaussian (sigma 3 bins) over interior bins
+// only, so an 8-bit source stretched by an adjustment, which leaves empty
+// codes between full ones (or doubled ones when compressed), draws as a
+// continuous curve instead of a comb. Sigma 3 flattens the comb of stretches
+// up to about 1.6x while keeping features a few percent of the range wide. Bins 0 and 255 keep their own counts and never spread into their
+// neighbours: clipping spikes stay as they are. Display only; the auto values
+// read the counted histogram.
+[[nodiscard]] RawPreviewHistogram raw_histogram_display_bins(const RawPreviewHistogram& histogram);
+
 // The histogram's tone regions, left to right. The dialog has no Blacks or
 // Whites control, so Blacks folds into Shadows and Whites into Highlights,
 // the nearest controls it has.
@@ -145,6 +155,8 @@ private:
   void publish_state();
 
   std::optional<RawPreviewHistogram> histogram_;
+  // raw_histogram_display_bins of histogram_, made once per set_histogram.
+  std::optional<RawPreviewHistogram> display_;
   RawHistogramRegion hovered_{RawHistogramRegion::None};
   RawHistogramRegion dragging_{RawHistogramRegion::None};
   double press_x_{0.0};

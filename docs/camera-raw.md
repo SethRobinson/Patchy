@@ -181,7 +181,10 @@ receive the same scaling fix with alpha and overlay coordinates intact.
 Histogram (GitHub issue 393; `raw_develop_histogram.{hpp,cpp}`): the worker counts R, G, B and
 integer 30/59/11 luminance of every completed develop (`Completion::histogram`) on a stride
 bounded by `kRawHistogramMaxSamples`, so a full-resolution accurate preview costs at most about a
-million reads and painting never touches pixels. Bars use the Levels/Curves display ceiling. The
+million reads and painting never touches pixels. The widget draws `raw_histogram_display_bins`: interior bins smoothed by a Gaussian (sigma 3 bins) over
+interior bins only, bins 0 and 255 untouched, so an 8-bit source stretched by the Camera Raw Filter
+draws no comb while clipping spikes stay; channels are antialiased filled curves through the bin
+centres with the Levels/Curves display ceiling. Auto values read the counted bins. The
 R/G/B fills are fixed data colors like the Curves histogram; the backdrop, frame, region highlight
 and luminance outline are theme roles. Regions, as plot-width fractions: Shadows 0 to 0.30,
 Exposure 0.30 to 0.65, Highlights 0.65 to 1. There is no Blacks or Whites slider, so Blacks folds

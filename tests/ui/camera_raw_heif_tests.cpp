@@ -1333,6 +1333,46 @@ QLabel* raw_test_row_label(QDialog& dialog, const QString& text) {
   return nullptr;
 }
 
+// Interior bins that are empty between two filled ones: the comb a stretched 8-bit source leaves.
+int raw_test_isolated_empty_bins(const std::array<std::uint32_t, 256>& bins) {
+  int count = 0;
+  for (std::size_t bin = 1; bin < 255; ++bin)
+    if (bins[bin] == 0 && bins[bin - 1] > 0 && bins[bin + 1] > 0) ++count;
+  return count;
+}
+
+void ui_raw_histogram_display_bins_close_comb_gaps() {
+  using namespace patchy::ui;
+  // An 8-bit gray ramp stretched by 1.6 (an exposure push on 8-bit data) leaves every
+  // third or so output code empty, with clipped pixels at both ends.
+  std::vector<std::uint8_t> rgb;
+  for (int source = 0; source < 160; ++source) {
+    const auto code = static_cast<std::uint8_t>(std::lround(source * 1.6));
+    for (int copy = 0; copy < 100; ++copy) rgb.insert(rgb.end(), {code, code, code});
+  }
+  for (int copy = 0; copy < 3000; ++copy) rgb.insert(rgb.end(), {0, 0, 0});
+  for (int copy = 0; copy < 5000; ++copy) rgb.insert(rgb.end(), {255, 255, 255});
+  const auto counted = raw_preview_histogram(rgb, static_cast<int>(rgb.size() / 3), 1);
+  CHECK(raw_test_isolated_empty_bins(counted.green) > 40);
+  const auto display = raw_histogram_display_bins(counted);
+  CHECK(display.samples == counted.samples);
+  for (const auto* bins : {&display.red, &display.green, &display.blue, &display.luminance}) {
+    CHECK(raw_test_isolated_empty_bins(*bins) == 0);
+    // Even across the ramp: every bin within 15% of the ramp's mean (the comb's own
+    // swing is 100%).
+    double mean = 0.0;
+    for (std::size_t bin = 12; bin < 243; ++bin) mean += (*bins)[bin];
+    mean /= 231.0;
+    for (std::size_t bin = 12; bin < 243; ++bin)
+      CHECK(std::abs((*bins)[bin] - mean) <= mean * 0.15);
+    // Clipping spikes keep their counts and do not bleed into their neighbours.
+    CHECK((*bins)[0] == 3100 && (*bins)[255] == 5000);
+    CHECK((*bins)[1] < 200 && (*bins)[254] < 200);
+  }
+  // The counted histogram stays as counted: the auto values read it, not the display.
+  CHECK(counted.green[0] == 3100 && counted.green[255] == 5000);
+}
+
 void ui_raw_histogram_regions_and_auto_values() {
   using namespace patchy::ui;
   using Region = RawHistogramRegion;
@@ -1786,6 +1826,63 @@ void ui_raw_auto_tone_matches_image_auto_tone_if_available() {
                          to_image(shifted.rgb, shifted.width, shifted.height)});
 }
 
+// The histogram on a real photo at the default develop and at +1 EV, rendered at a 150% display
+// scale (issue 393's combing report came from such a screen). Skipped without the fixture.
+void ui_raw_dialog_histogram_shots_if_available() {
+  using namespace patchy::ui;
+  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300354.arw";
+  if (!std::filesystem::exists(source)) {
+    patchy::test::skip("optional fixture missing: local-test-fixtures/raw/sony_fx30_fx300354.arw");
+  }
+  const auto path = to_qstring(source);
+  const auto sidecar = raw_develop_settings_path(path);
+  const auto had_sidecar = QFileInfo::exists(sidecar);
+  const auto render_scaled = [](QWidget& widget) {
+    constexpr qreal kScale = 1.5;
+    QImage image(widget.size() * kScale, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(kScale);
+    image.fill(Qt::transparent);
+    widget.render(&image);
+    image.setDevicePixelRatio(1.0);
+    return image;
+  };
+  QList<QImage> strips;
+  QSize dialog_histogram_size;
+  int stage = 0;
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* histogram = static_cast<RawHistogramWidget*>(dialog.findChild<QWidget*>(QStringLiteral("rawHistogram")));
+    if (stage >= 2 || !dialog.property("rawPreviewAccurate").toBool() || !histogram->histogram()) return;
+    dialog_histogram_size = histogram->size();
+    strips.push_back(render_scaled(*histogram));
+    const auto display = raw_histogram_display_bins(*histogram->histogram());
+    for (const auto* bins : {&display.red, &display.green, &display.blue, &display.luminance})
+      CHECK(raw_test_isolated_empty_bins(*bins) == 0);
+    if (stage == 0) {
+      dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(100);
+      stage = 1;
+      return;
+    }
+    stage = 2;
+    dialog.reject();
+  }));
+  CHECK(stage == 2 && strips.size() == 2 && !dialog_histogram_size.isEmpty());
+  {
+    std::vector<std::uint8_t> rgb;
+    for (int level = 0; level < 160; ++level) {
+      const auto code = static_cast<std::uint8_t>(std::lround(level * 1.6));
+      const auto count = 40 + static_cast<int>(60.0 * std::sin(level / 159.0 * 3.14159));
+      for (int copy = 0; copy < count; ++copy)
+        rgb.insert(rgb.end(), {code, static_cast<std::uint8_t>(std::min(255, code + 9)), static_cast<std::uint8_t>(code * 0.9)});
+    }
+    RawHistogramWidget stretched;
+    stretched.resize(dialog_histogram_size);
+    stretched.set_histogram(raw_preview_histogram(rgb, static_cast<int>(rgb.size() / 3), 1));
+    strips.push_back(render_scaled(stretched));
+  }
+  save_stacked_artifact("issue_393_histogram", strips);
+  CHECK(QFileInfo::exists(sidecar) == had_sidecar);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
@@ -1815,6 +1912,8 @@ std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
       {"ui_raw_dialog_histogram_drag_and_modifier_clicks", ui_raw_dialog_histogram_drag_and_modifier_clicks},
       {"ui_raw_dialog_zoom_controls_and_scrubby_zoom", ui_raw_dialog_zoom_controls_and_scrubby_zoom},
       {"ui_raw_dialog_issue_shots_if_available", ui_raw_dialog_issue_shots_if_available},
+      {"ui_raw_dialog_histogram_shots_if_available", ui_raw_dialog_histogram_shots_if_available},
+      {"ui_raw_histogram_display_bins_close_comb_gaps", ui_raw_histogram_display_bins_close_comb_gaps},
       {"ui_raw_auto_tone_matches_image_auto_tone_if_available", ui_raw_auto_tone_matches_image_auto_tone_if_available},
       {"ui_flat_save_of_layered_document_warns_and_saves_copy",
        ui_flat_save_of_layered_document_warns_and_saves_copy},
