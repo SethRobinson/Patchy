@@ -7117,10 +7117,6 @@ Mixed selection</source>
         <translation>BMP の RGB レンダーターゲットには RGB8 ピクセルが必要です。</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>BMP の RGBA レンダーターゲットには RGBA8 ピクセルが必要です。</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>空の BMP 画像は書き込めません。</translation>
     </message>

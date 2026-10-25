@@ -6,7 +6,7 @@
 #include "formats/binary_le.hpp"
 #include "formats/format_file_io.hpp"
 #include "formats/palette_io.hpp"
-#include "render/layer_compositor.hpp"
+#include "render/composite_targets.hpp"
 #include "render/native_cmyk.hpp"
 #include "support/translate_noop.hpp"
 
@@ -372,208 +372,6 @@ struct BmpHeader {
   return document;
 }
 
-class Rgb8RenderTarget {
-public:
-  explicit Rgb8RenderTarget(PixelBuffer& destination, float initial_alpha)
-      : destination_(destination),
-        alpha_(static_cast<std::size_t>(destination.width()) * static_cast<std::size_t>(destination.height()),
-               clamp_unit(initial_alpha)) {
-    if (destination_.format() != PixelFormat::rgb8()) {
-      throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "BMP RGB render target requires RGB8 pixels"));
-    }
-  }
-
-  void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
-    alpha = clamp_unit(alpha);
-    if (alpha <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-
-    auto* dst = destination_.pixel(x, y);
-    auto& destination_alpha =
-        alpha_[static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) +
-               static_cast<std::size_t>(x)];
-    const std::array<std::uint8_t, 3> source_rgb{color.red, color.green, color.blue};
-    const std::array<std::uint8_t, 3> destination_rgb{dst[0], dst[1], dst[2]};
-    const auto blended = composite_blended_rgb(source_rgb, destination_rgb, mode, alpha, destination_alpha);
-    dst[0] = blended[0];
-    dst[1] = blended[1];
-    dst[2] = blended[2];
-    destination_alpha = alpha + destination_alpha * (1.0F - alpha);
-  }
-
-  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color,
-                                    float source_coverage, float fill_opacity, float layer_opacity,
-                                    BlendMode mode) {
-    if (source_coverage <= 0.0F || fill_opacity <= 0.0F || layer_opacity <= 0.0F || x < 0 || y < 0 ||
-        x >= destination_.width() || y >= destination_.height()) return;
-    auto* dst = destination_.pixel(x, y);
-    auto& destination_alpha = alpha_[static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) +
-                                     static_cast<std::size_t>(x)];
-    const auto result = composite_special_fill_rgb(
-        {color.red, color.green, color.blue}, {dst[0], dst[1], dst[2]}, mode, source_coverage,
-        fill_opacity, layer_opacity, destination_alpha);
-    dst[0] = result.color[0]; dst[1] = result.color[1]; dst[2] = result.color[2];
-    destination_alpha = result.alpha;
-  }
-
-  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
-    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return {};
-    }
-    const auto index =
-        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
-    const auto* pixel = destination_.pixel(x, y);
-    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]}, alpha_[index]};
-  }
-
-  // Direct overwrite for render_detail::fade_toward_snapshot (pass-through
-  // group opacity); source-over cannot reduce coverage.
-  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
-    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-    auto* dst = destination_.pixel(x, y);
-    dst[0] = color.red;
-    dst[1] = color.green;
-    dst[2] = color.blue;
-    alpha_[static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) +
-           static_cast<std::size_t>(x)] = clamp_unit(alpha);
-  }
-
-  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
-    amount = clamp_unit(amount);
-    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-    const auto index =
-        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
-    if (alpha_[index] <= 0.0F) {
-      return;
-    }
-    auto* dst = destination_.pixel(x, y);
-    const auto adjusted = apply_adjustment_to_color(RgbColor{dst[0], dst[1], dst[2]}, settings);
-    dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
-    dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
-    dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
-  }
-
-  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount) {
-    amount = clamp_unit(amount);
-    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-    const auto index =
-        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
-    if (alpha_[index] <= 0.0F) {
-      return;
-    }
-    auto* dst = destination_.pixel(x, y);
-    dst[0] = clamp_byte(static_cast<float>(lut.red[dst[0]]) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
-    dst[1] =
-        clamp_byte(static_cast<float>(lut.green[dst[1]]) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
-    dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
-  }
-
-private:
-  PixelBuffer& destination_;
-  std::vector<float> alpha_;
-};
-
-class Rgba8RenderTarget {
-public:
-  explicit Rgba8RenderTarget(PixelBuffer& destination) : destination_(destination) {
-    if (destination_.format() != PixelFormat::rgba8()) {
-      throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "BMP RGBA render target requires RGBA8 pixels"));
-    }
-  }
-
-  void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
-    alpha = clamp_unit(alpha);
-    if (alpha <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-
-    auto* dst = destination_.pixel(x, y);
-    const auto destination_alpha = static_cast<float>(dst[3]) / 255.0F;
-    const std::array<std::uint8_t, 3> source_rgb{color.red, color.green, color.blue};
-    const std::array<std::uint8_t, 3> destination_rgb{dst[0], dst[1], dst[2]};
-    const auto blended = composite_blended_rgb(source_rgb, destination_rgb, mode, alpha, destination_alpha);
-    dst[0] = blended[0];
-    dst[1] = blended[1];
-    dst[2] = blended[2];
-    dst[3] = clamp_byte((alpha + destination_alpha * (1.0F - alpha)) * 255.0F);
-  }
-
-  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color,
-                                    float source_coverage, float fill_opacity, float layer_opacity,
-                                    BlendMode mode) {
-    if (source_coverage <= 0.0F || fill_opacity <= 0.0F || layer_opacity <= 0.0F || x < 0 || y < 0 ||
-        x >= destination_.width() || y >= destination_.height()) return;
-    auto* dst = destination_.pixel(x, y);
-    const auto result = composite_special_fill_rgb(
-        {color.red, color.green, color.blue}, {dst[0], dst[1], dst[2]}, mode, source_coverage,
-        fill_opacity, layer_opacity, static_cast<float>(dst[3]) / 255.0F);
-    dst[0] = result.color[0]; dst[1] = result.color[1]; dst[2] = result.color[2];
-    dst[3] = clamp_byte(result.alpha * 255.0F);
-  }
-
-  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
-    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return {};
-    }
-    const auto* pixel = destination_.pixel(x, y);
-    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]},
-                                          static_cast<float>(pixel[3]) / 255.0F};
-  }
-
-  // Direct overwrite for render_detail::fade_toward_snapshot (pass-through
-  // group opacity); source-over cannot reduce coverage.
-  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
-    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-    auto* dst = destination_.pixel(x, y);
-    dst[0] = color.red;
-    dst[1] = color.green;
-    dst[2] = color.blue;
-    dst[3] = clamp_byte(clamp_unit(alpha) * 255.0F);
-  }
-
-  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
-    amount = clamp_unit(amount);
-    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-    auto* dst = destination_.pixel(x, y);
-    if (dst[3] == 0) {
-      return;
-    }
-    const auto adjusted = apply_adjustment_to_color(RgbColor{dst[0], dst[1], dst[2]}, settings);
-    dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
-    dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
-    dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
-  }
-
-  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount) {
-    amount = clamp_unit(amount);
-    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
-      return;
-    }
-    auto* dst = destination_.pixel(x, y);
-    if (dst[3] == 0) {
-      return;
-    }
-    dst[0] = clamp_byte(static_cast<float>(lut.red[dst[0]]) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
-    dst[1] =
-        clamp_byte(static_cast<float>(lut.green[dst[1]]) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
-    dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
-  }
-
-private:
-  PixelBuffer& destination_;
-};
-
 [[nodiscard]] PixelBuffer render_rgb8_on_white(const Document& document) {
   if (const auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
     PixelBuffer output(native->width(), native->height(), PixelFormat::rgb8());
@@ -592,7 +390,7 @@ private:
     // Photoshop leaves visible over transparency.
     PixelBuffer rgba(document.width(), document.height(), PixelFormat::rgba8());
     rgba.clear(0);
-    Rgba8RenderTarget rgba_target(rgba);
+    Rgba8PixelBufferTarget rgba_target(rgba);
     const auto canvas = Rect::from_size(document.width(), document.height());
     render_detail::composite_layers(rgba_target, document.layers(), canvas, nullptr, true, nullptr,
                                     &document.metadata().patterns);
@@ -614,7 +412,7 @@ private:
 
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
   output.clear(255);
-  Rgb8RenderTarget target(output, 1.0F);
+  Rgb8PerPixelTarget target(output, 1.0F);
   const auto canvas = Rect::from_size(document.width(), document.height());
   render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
                                   &document.metadata().patterns);
@@ -635,7 +433,7 @@ private:
   }
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgba8());
   output.clear(0);
-  Rgba8RenderTarget target(output);
+  Rgba8PixelBufferTarget target(output);
   const auto canvas = Rect::from_size(document.width(), document.height());
   render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
                                   &document.metadata().patterns);

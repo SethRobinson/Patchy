@@ -215,6 +215,15 @@ include(cmake/patchy_ai.cmake)
 
 add_library(patchy_render
   src/render/compositor.cpp
+  src/render/composite_targets.hpp
+  src/render/layer_compositor.hpp
+  src/render/layer_compositor.cpp
+  src/render/layer_compositor_deep.cpp
+  src/render/layer_compositor_isolated.cpp
+  src/render/layer_compositor_rgb8.cpp
+  src/render/layer_compositor_rgb8_per_pixel.cpp
+  src/render/layer_compositor_rgba8.cpp
+  src/render/layer_knockout.hpp
   src/render/layer_render_facade.cpp
   src/render/layer_render_facade.hpp
   src/render/layer_render_types.hpp
@@ -1238,6 +1247,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/hotkey_registry.hpp
       src/ui/hotkey_registry.cpp
       src/ui/image_document_io.cpp
+      src/ui/layer_compositor_qimage.cpp
+      src/ui/qimage_composite_target.hpp
       src/ui/alpha_row_bands.hpp
       src/ui/alpha_row_bands.cpp
       src/ui/image_trace_dialog.hpp

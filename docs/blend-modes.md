@@ -122,9 +122,9 @@ every blend-if, masked, non-pass-through, or faded group through it
   opacity is an alpha multiply on the merged result.
 - **Every compositor target must implement `store_color`** (direct overwrite
   of straight color + coverage) alongside `composite_color`/`sample_color`:
-  Rgb8PixelBufferTarget, QImageCompositeTarget, the two BMP render targets,
-  Rgba8FlattenTarget, IsolatedClipGroupTarget, and the forwarding
-  GroupMaskedTarget.
+  Rgb8PixelBufferTarget, Rgba8PixelBufferTarget and Rgb8PerPixelTarget
+  (render/composite_targets.hpp), QImageCompositeTarget, IsolatedClipGroupTarget,
+  and the forwarding GroupMaskedTarget.
 - **Styled groups render their layer effects** (the calibrated rules live in
   docs/ps-compat.md "Layer effects on GROUPS"). A non-pass-through
   styled group routes its flattened `IsolatedClipGroupTarget` content through

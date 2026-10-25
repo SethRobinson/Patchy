@@ -1643,10 +1643,6 @@
         <translation>Cel renderowania BMP RGB wymaga pikseli RGB8</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>Cel renderowania BMP RGBA wymaga pikseli RGBA8</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>Nie można zapisać pustego obrazu BMP</translation>
     </message>

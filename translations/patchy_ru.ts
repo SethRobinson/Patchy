@@ -1643,10 +1643,6 @@
         <translation>Для цели рендеринга BMP RGB требуются пиксели RGB8.</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>Для цели рендеринга BMP RGBA требуются пиксели RGBA8.</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>Невозможно записать пустое изображение BMP.</translation>
     </message>

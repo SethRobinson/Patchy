@@ -1639,10 +1639,6 @@
         <translation>La cible de rendu BMP RVB requiert des pixels RGB8</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>La cible de rendu BMP RVBA requiert des pixels RGBA8</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>Impossible d&apos;écrire une image BMP vide</translation>
     </message>

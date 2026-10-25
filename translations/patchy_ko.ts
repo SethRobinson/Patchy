@@ -1643,10 +1643,6 @@
         <translation>BMP RGB 렌더 타겟에는 RGB8 픽셀이 필요합니다.</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>BMP RGBA 렌더 타겟에는 RGBA8 픽셀이 필요합니다.</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>빈 BMP 이미지를 쓸 수 없습니다.</translation>
     </message>

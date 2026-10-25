@@ -26,7 +26,7 @@
 #include "formats/svg_xml.hpp"
 #include "formats/vector_export_plan.hpp"
 #include "render/compositor.hpp"
-#include "render/layer_compositor.hpp"
+#include "render/layer_knockout.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>

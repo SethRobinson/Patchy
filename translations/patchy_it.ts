@@ -1639,10 +1639,6 @@
         <translation>La destinazione di rendering BMP RGB richiede pixel RGB8</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>La destinazione di rendering BMP RGBA richiede pixel RGBA8</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>Impossibile scrivere un&apos;immagine BMP vuota</translation>
     </message>

@@ -1639,10 +1639,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation type="unfinished"></translation>
     </message>

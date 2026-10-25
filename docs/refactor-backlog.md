@@ -192,6 +192,15 @@ made are in [building.md](building.md) ("Compile-time profile").
 - `VisibleSizeGrip` (dialog_utils.cpp) paints a hardcoded light gray, chosen for the
   Dark scheme; it is not scheme-aware, so its strokes can lose contrast on Light's
   pale popups. Route the color through a theme role.
+- `Rgb8PerPixelTarget` (the BMP RGB writer) is `Rgb8PixelBufferTarget` without the
+  `composite_blended_row` row kernel and the strip origin (render/composite_targets.hpp;
+  method bodies otherwise identical, October 2026). Merging them routes BMP RGB export
+  through the row kernel, whose byte identity with the general loop is pinned only by the
+  PSD merged image and the composite corpus flatten digests. Pin BMP export bytes for a
+  layered document with masks and non-Normal modes first, then drop the per-pixel class
+  and its instantiation TU. native_cmyk's `NativeTarget` stays TU-local and still
+  instantiates `composite_pixel_layer` itself; a header plus instantiation TU would cut
+  that TU the same way.
 - Styled groups have no UI render cache: every
   repaint re-flattens the group's children and re-runs the effect passes
   (`composite_document_layer` routes styled groups through `composite_layer`).

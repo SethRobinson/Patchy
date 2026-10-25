@@ -1639,10 +1639,6 @@
         <translation>BMP RGB 渲染目标需要 RGB8 像素</translation>
     </message>
     <message>
-        <source>BMP RGBA render target requires RGBA8 pixels</source>
-        <translation>BMP RGBA 渲染目标需要 RGBA8 像素</translation>
-    </message>
-    <message>
         <source>Cannot write an empty BMP image</source>
         <translation>无法写入空的 BMP 图像</translation>
     </message>
