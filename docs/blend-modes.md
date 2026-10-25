@@ -341,14 +341,11 @@ Seventeen modes exist for GIMP .xcf import: Grain Extract and Grain Merge (byte 
 ## Krita modes
 
 Nine modes exist for Krita .kra import, per-channel kernels in `core/krita_blend_modes.cpp`: Soft
-Light (SVG) (the W3C formula, Krita's menu "Soft Light"), Additive-Subtractive, Arc Tangent,
-Geometric Mean, Allanon, Parallel, Hard Overlay, Interpolation and Easy Dodge. Each was measured on
-Krita 5.3's render of all 65536 8-bit layer and backdrop pairs (the `table-*` fixtures of
-`scripts/dev/kra/make_kra_fixtures.py`); formulas and results are in [kra.md](kra.md#blend-modes).
-They follow every rule of the Paint.NET and GIMP modes above: no blend menu lists them, 8 and 16-bit
-only, permanent script ids, and PSD, layered TIFF and Aseprite saves write them as Normal or bake
-them. OpenRaster writes them under Krita's names (`krita:soft_light_svg` and so on), which only
-Krita reads, with the save warning OpenRaster gives for Krita names.
+Light (SVG) (the W3C formula, Krita's "Soft Light"), Additive-Subtractive, Arc Tangent, Geometric
+Mean, Allanon, Parallel, Hard Overlay, Interpolation and Easy Dodge, each measured on Krita 5.3's
+render of all 65536 8-bit pairs (formulas: [kra.md](kra.md#blend-modes)). They follow every rule of
+the Paint.NET and GIMP modes above. OpenRaster writes them under Krita's names
+(`krita:soft_light_svg` and so on), with its save warning for Krita names.
 
 ## Layered saves
 

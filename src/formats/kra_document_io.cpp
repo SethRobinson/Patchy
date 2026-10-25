@@ -14,6 +14,7 @@
 
 #include "color/color_management.hpp"
 #include "color/rgb_profiles.hpp"
+#include "core/blend_math.hpp"
 #include "core/document_channel.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
@@ -217,11 +218,15 @@ constexpr std::array kApproximateOps = {
   if (!exact.has_value()) {
     exact = ora::detail::blend_mode_from_composite_op("krita:" + std::string(id));
   }
-  if (exact.has_value() && blend_mode_supported_at_depth(*exact, depth)) {
+  // Photoshop's own modes keep rendering at any depth here, as Krita draws them.
+  const auto usable = [depth](BlendMode mode) {
+    return !blend_mode_is_non_photoshop(mode) || blend_mode_supported_at_depth(mode, depth);
+  };
+  if (exact.has_value() && usable(*exact)) {
     return exact;
   }
   for (const auto& entry : kApproximateOps) {
-    if (entry.id == id && blend_mode_supported_at_depth(entry.mode, depth)) {
+    if (entry.id == id && usable(entry.mode)) {
       approximate = true;
       return entry.mode;
     }
