@@ -25529,6 +25529,34 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>This path has no points to remove.</source>
         <translation>Questo tracciato non ha punti da rimuovere.</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Nascondi questo livello</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Mostra questo livello</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Mostra/nascondi tutti gli altri livelli</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Mostra tutti i livelli</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Nascondi tutti i livelli</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Tutti i livelli mostrati</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Tutti i livelli nascosti</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

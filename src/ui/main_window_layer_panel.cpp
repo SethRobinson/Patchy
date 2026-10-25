@@ -285,6 +285,19 @@ protected:
   }
 };
 
+// The clipping badge (#397): as wide as the content thumbnail so it centers on the base
+// row's thumbnail. The size lives in the hints because style-sheet polish resets the
+// minimum that setFixedSize sets (the QSS gives it min-width 0 so Small's 22 px fits).
+class LayerClipBadgeButton final : public QToolButton {
+public:
+  LayerClipBadgeButton(QSize size, QWidget* parent) : QToolButton(parent), size_(size) { setFixedSize(size); }
+  [[nodiscard]] QSize sizeHint() const override { return size_; }
+  [[nodiscard]] QSize minimumSizeHint() const override { return size_; }
+
+private:
+  QSize size_;
+};
+
 // The eye's in-place update (set_layer_visibility) dims or restores a row's badges
 // without rebuilding the row.
 void set_layer_row_badges_dimmed(QWidget* row, bool dimmed) {
@@ -1656,28 +1669,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
   layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
 
-  if (clipped) {
-    auto* clip_badge = new QToolButton(row);
-    clip_badge->setObjectName(QStringLiteral("layerClippingBadgeButton"));
-    clip_badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    clip_badge->setIcon(simple_icon(QStringLiteral("clip"), &ThemePalette::layer_clip_badge));
-    clip_badge->setIconSize(QSize(20, 20));
-    clip_badge->setFixedSize(24, 24);
-    clip_badge->setFocusPolicy(Qt::NoFocus);
-    clip_badge->setToolTip(QObject::tr("Clipped to the layer below. Click to release."));
-    clip_badge->setEnabled(ancestors_visible && layer.visible());
-    if (list_parent != nullptr) {
-      clip_badge->installEventFilter(list_parent);
-    }
-    QObject::connect(clip_badge, &QToolButton::clicked, row, [parent, id = layer.id(), toggle_clipping] {
-      if (toggle_clipping) {
-        // Deferred: the handler rebuilds the layer rows, deleting this button.
-        QTimer::singleShot(0, parent, [id, toggle_clipping] { toggle_clipping(id); });
-      }
-    });
-    layout->addWidget(clip_badge, 0, Qt::AlignVCenter);
-  }
-
   const auto is_group = layer.kind() == LayerKind::Group;
   if (is_group) {
     auto* disclosure = new QToolButton(row);
@@ -1719,6 +1710,29 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // nothing renders one; the mask tiles stay at the Small size there.
   const auto content_tile = layer_thumbnail_tile_size(thumbnail_size);
   const auto mask_tile = layer_mask_thumbnail_tile_size(thumbnail_size);
+  if (clipped) {
+    // As wide as the content thumbnail and in its slot (after the folder arrow's
+    // spacer), so the arrow centers on the base row's thumbnail below (#397).
+    auto* clip_badge = new LayerClipBadgeButton(QSize(content_tile > 0 ? content_tile + 2 : 24, 24), row);
+    clip_badge->setObjectName(QStringLiteral("layerClippingBadgeButton"));
+    clip_badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    clip_badge->setIcon(simple_icon(QStringLiteral("clip"), &ThemePalette::layer_clip_badge));
+    clip_badge->setIconSize(QSize(20, 20));
+    clip_badge->setFocusPolicy(Qt::NoFocus);
+    clip_badge->setToolTip(QObject::tr("Clipped to the layer below. Click to release."));
+    clip_badge->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      clip_badge->installEventFilter(list_parent);
+    }
+    QObject::connect(clip_badge, &QToolButton::clicked, row, [parent, id = layer.id(), toggle_clipping] {
+      if (toggle_clipping) {
+        // Deferred: the handler rebuilds the layer rows, deleting this button.
+        QTimer::singleShot(0, parent, [id, toggle_clipping] { toggle_clipping(id); });
+      }
+    });
+    layout->addWidget(clip_badge, 0, Qt::AlignVCenter);
+  }
+
   QLabel* thumbnail = nullptr;
   if (content_tile > 0) {
     thumbnail = new QLabel(row);
@@ -3655,6 +3669,32 @@ void MainWindow::isolate_layer_visibility(LayerId id) {
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Hid other layers"));
+}
+
+void MainWindow::set_all_layers_visible(bool visible) {
+  if (!has_active_document()) {
+    return;
+  }
+  bool changed = false;
+  // Mutations go through find_layer: mutable children() bumps revisions.
+  const std::function<void(const std::vector<Layer>&)> apply = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.visible() != visible) {
+        document().find_layer(layer.id())->set_visible(visible);
+        changed = true;
+      }
+      apply(layer.children());
+    }
+  };
+  apply(std::as_const(document()).layers());
+  if (changed) {
+    // Not undoable, like an eye click, but a save writes it.
+    mark_session_modified(session());
+    canvas_->document_changed();
+    refresh_layer_list();
+    refresh_layer_controls();
+  }
+  statusBar()->showMessage(visible ? tr("Showed all layers") : tr("Hid all layers"));
 }
 
 // Cheap in-place sync of every row's check state and eye button with the document, for

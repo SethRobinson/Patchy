@@ -25602,6 +25602,34 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>This path has no points to remove.</source>
         <translation>Ta ścieżka nie ma punktów do usunięcia.</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Ukryj tę warstwę</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Pokaż tę warstwę</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Pokaż/ukryj wszystkie inne warstwy</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Pokaż wszystkie warstwy</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Ukryj wszystkie warstwy</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Pokazano wszystkie warstwy</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Ukryto wszystkie warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

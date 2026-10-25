@@ -206,15 +206,17 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
     painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);
     painter.drawLine(QPointF(13.0, 16.0), QPointF(19.0, 16.0));
   } else if (text == QStringLiteral("clip")) {
-    // Clipping mask: a bent arrow turning down onto the base layer's top edge,
-    // pointing at the layer below that the row clips to (#397).
-    QPainterPath arrow(QPointF(9.0, 8.5));
-    arrow.lineTo(15.5, 8.5);
-    arrow.quadTo(QPointF(20.0, 8.5), QPointF(20.0, 13.0));
-    arrow.lineTo(20.0, 20.5);
+    // Clipping mask: a bent arrow coming in from the right and turning down onto
+    // the base layer's top edge, pointing at the layer below that the row clips
+    // to (#397). The ink is centered so the row badge centers on the base row's
+    // thumbnail.
+    QPainterPath arrow(QPointF(23.0, 8.5));
+    arrow.lineTo(16.5, 8.5);
+    arrow.quadTo(QPointF(12.0, 8.5), QPointF(12.0, 13.0));
+    arrow.lineTo(12.0, 20.5);
     painter.drawPath(arrow);
-    painter.drawLine(QPointF(20.0, 20.5), QPointF(16.5, 17.0));
-    painter.drawLine(QPointF(20.0, 20.5), QPointF(23.5, 17.0));
+    painter.drawLine(QPointF(12.0, 20.5), QPointF(15.5, 17.0));
+    painter.drawLine(QPointF(12.0, 20.5), QPointF(8.5, 17.0));
     painter.drawLine(QPointF(7.0, 24.5), QPointF(25.0, 24.5));
   } else if (text == QStringLiteral("default")) {
     painter.setBrush(Qt::black);

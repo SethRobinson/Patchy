@@ -25529,6 +25529,34 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>This path has no points to remove.</source>
         <translation>Dieser Pfad hat keine Punkte, die entfernt werden können.</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Diese Ebene ausblenden</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Diese Ebene einblenden</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Alle anderen Ebenen ein-/ausblenden</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Alle Ebenen einblenden</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Alle Ebenen ausblenden</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Alle Ebenen eingeblendet</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Alle Ebenen ausgeblendet</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

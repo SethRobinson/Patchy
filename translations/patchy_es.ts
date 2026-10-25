@@ -25529,6 +25529,34 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>This path has no points to remove.</source>
         <translation>Este trazado no tiene puntos que eliminar.</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Ocultar esta capa</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Mostrar esta capa</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Mostrar u ocultar todas las demás capas</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Mostrar todas las capas</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Ocultar todas las capas</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Todas las capas mostradas</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Todas las capas ocultadas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

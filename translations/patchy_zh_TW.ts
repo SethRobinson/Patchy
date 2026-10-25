@@ -25456,6 +25456,34 @@ The open document keeps its blend modes either way.</source>
         <source>This path has no points to remove.</source>
         <translation>此路徑沒有可刪除的點。</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>隱藏此圖層</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>顯示此圖層</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>顯示/隱藏所有其他圖層</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>顯示所有圖層</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>隱藏所有圖層</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>已顯示所有圖層</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>已隱藏所有圖層</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

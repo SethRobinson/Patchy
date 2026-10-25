@@ -25529,6 +25529,34 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>This path has no points to remove.</source>
         <translation>Ce tracé n&apos;a aucun point à supprimer.</translation>
     </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Masquer ce calque</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Afficher ce calque</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Afficher/masquer tous les autres calques</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Afficher tous les calques</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Masquer tous les calques</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Tous les calques affichés</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Tous les calques masqués</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
