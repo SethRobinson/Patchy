@@ -76,7 +76,15 @@ int FlowLayout::heightForWidth(int width) const {
 
 void FlowLayout::setGeometry(const QRect& rect) {
   QLayout::setGeometry(rect);
-  do_layout(rect, false, nullptr);
+  if (!center_rows_) {
+    do_layout(rect, false, nullptr);
+    return;
+  }
+  // The bar can be taller than the live row (its minimum height, or another tool's
+  // taller row reserved): split the spare height evenly above and below.
+  const int needed = do_layout(QRect(rect.x(), rect.y(), rect.width(), 0), true, nullptr).height;
+  const int offset = std::max(0, (rect.height() - needed) / 2);
+  do_layout(rect.translated(0, offset), false, nullptr);
 }
 
 QSize FlowLayout::sizeHint() const {
@@ -146,6 +154,20 @@ FlowLayout::Flow FlowLayout::do_layout(const QRect& rect, bool test_only,
   int y = effective.y();
   int line_height = 0;
   int lines = 0;
+  // The current line's items and their places, set once the line's height is known.
+  struct Placed {
+    QLayoutItem* item;
+    QPoint origin;
+    QSize size;
+  };
+  std::vector<Placed> line;
+  const auto place_line = [&] {
+    for (const auto& placed : line) {
+      const int dy = center_rows_ ? (line_height - placed.size.height()) / 2 : 0;
+      placed.item->setGeometry(QRect(placed.origin + QPoint(0, dy), placed.size));
+    }
+    line.clear();
+  };
   for (auto* item : items_) {
     QWidget* widget = item->widget();
     if (include != nullptr) {
@@ -158,6 +180,7 @@ FlowLayout::Flow FlowLayout::do_layout(const QRect& rect, bool test_only,
     const QSize hint = flow_item_size(item);
     int next_x = x + hint.width() + horizontal_spacing_;
     if (next_x - horizontal_spacing_ > effective.right() + 1 && line_height > 0) {
+      place_line();
       x = effective.x();
       y = y + line_height + vertical_spacing_;
       next_x = x + hint.width() + horizontal_spacing_;
@@ -165,11 +188,12 @@ FlowLayout::Flow FlowLayout::do_layout(const QRect& rect, bool test_only,
       ++lines;
     }
     if (!test_only) {
-      item->setGeometry(QRect(QPoint(x, y), hint));
+      line.push_back({item, QPoint(x, y), hint});
     }
     x = next_x;
     line_height = std::max(line_height, hint.height());
   }
+  place_line();
   if (line_height > 0) {
     ++lines;
   }

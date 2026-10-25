@@ -342,6 +342,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   auto* options_flow = new FlowLayout(options_content, 4, 4);
   // Side padding so the first control does not butt against the window edge.
   options_flow->setContentsMargins(6, 3, 0, 3);
+  // Controls sit on the middle of the strip, the same gap above and below (GitHub issue 409).
+  options_flow->set_center_rows(true);
   options_content->setLayout(options_flow);
   toolbar->addWidget(options_content);
   options_flow_container_ = options_content;

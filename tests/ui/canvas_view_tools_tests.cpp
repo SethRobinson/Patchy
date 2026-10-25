@@ -450,6 +450,84 @@ void ui_options_bar_keeps_one_height_across_tools() {
   }
 }
 
+// GitHub issue 409 follow-up: every tool's controls sit on the middle of the Options
+// strip, the gap from the strip's top to the controls equal to the gap below them, and
+// the strip itself sits evenly in the toolbar. Each control is centered on its row
+// (a 24 px label on a 26 px field's line), in both schemes, at 1366 px.
+void ui_options_bar_controls_sit_centered_on_the_strip() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const char* scheme_name = scheme == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    const auto tools = options_bar_test_tool_actions(window);
+    CHECK(tools.size() >= 30);
+    // Every tool is measured and printed before the checks, so one run lists them all.
+    int uneven = 0;
+    int off_middle = 0;
+    int wrapped = 0;
+    for (auto* action : tools) {
+      action->trigger();
+      QApplication::processEvents();
+      process_events_for(20);
+      int top = std::numeric_limits<int>::max();
+      int bottom = 0;
+      std::vector<QWidget*> visible;
+      for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+        if (child->isVisible()) {
+          visible.push_back(child);
+          top = std::min(top, child->y());
+          bottom = std::max(bottom, child->y() + child->height());
+        }
+      }
+      if (visible.empty()) {
+        continue;
+      }
+      const int above = top;
+      const int below = options->height() - bottom;
+      const int strip_above = options->y();
+      const int strip_below = options_bar->height() - (options->y() + options->height());
+      std::printf("  %s %-28s strip %d px, controls %d px: gap above %d, below %d; strip in bar %d / %d\n",
+                  scheme_name, qPrintable(action->objectName()), options->height(), bottom - top, above, below,
+                  strip_above, strip_below);
+      uneven += above != below || strip_above != strip_below ? 1 : 0;
+      wrapped += options_row_extent(*options).second != 1 ? 1 : 0;
+      // Doubled coordinates: a control's middle against the row's, within half a pixel.
+      for (auto* child : visible) {
+        const int off_center = std::abs((2 * child->y() + child->height()) - (top + bottom));
+        if (off_center > 1 || child->height() > 26) {
+          std::fprintf(stderr, "  %s %s: %s (%d px tall at y %d; row %d..%d)\n",
+                       scheme_name, qPrintable(action->objectName()),
+                       qPrintable(!child->objectName().isEmpty() ? child->objectName()
+                                                                 : QString::fromLatin1(child->metaObject()->className())),
+                       child->height(), child->y(), top, bottom);
+        }
+        off_middle += off_center > 1 ? 1 : 0;
+      }
+    }
+    CHECK(uneven == 0);
+    CHECK(off_middle == 0);
+    CHECK(wrapped == 0);
+    // The status bar's zoom group sits evenly too.
+    auto* zoom_controls = window.findChild<QWidget*>(QStringLiteral("statusZoomControls"));
+    CHECK(zoom_controls != nullptr);
+    if (zoom_controls != nullptr) {
+      const int status_height = window.statusBar()->height();
+      const int zoom_above = zoom_controls->y();
+      const int zoom_below = status_height - (zoom_controls->y() + zoom_controls->height());
+      std::printf("  %s status bar %d px, zoom group %d px: gap above %d, below %d\n", scheme_name, status_height,
+                  zoom_controls->height(), zoom_above, zoom_below);
+      CHECK(zoom_above == zoom_below);
+    }
+  }
+}
+
 // The active tool's controls left to right, one token each: "|" for a separator, a
 // label's text, a mode button's action name, otherwise the widget's object name.
 std::vector<QString> options_row_tokens(QWidget& options) {
@@ -9286,6 +9364,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
+      {"ui_options_bar_controls_sit_centered_on_the_strip", ui_options_bar_controls_sit_centered_on_the_strip},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
