@@ -623,7 +623,11 @@ add_library(patchy_formats
   src/formats/metadata/metadata_view.cpp
   src/formats/metadata/tiff_ifd.cpp
   src/formats/metadata/xmp.cpp
+  src/formats/kra_document_io.cpp
+  src/formats/kra_layers.cpp
+  src/formats/kra_tiles.cpp
   src/formats/ora_document_io.cpp
+  src/formats/zip_entry_reader.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/pdn_document_io.cpp
@@ -2155,6 +2159,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/adjustments_curves_tests.cpp
     tests/core/af_tests.cpp
     tests/core/pdn_tests.cpp
+    tests/core/kra_tests.cpp
     tests/core/brush_engine_tests.cpp
     tests/core/composite_corpus_tests.cpp
     tests/core/compositor_blend_if_tests.cpp

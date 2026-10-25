@@ -47,6 +47,7 @@
 #include "core/layer_tree.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/layered_blend_support.hpp"
+#include "formats/kra_document_io.hpp"
 #include "formats/ora_document_io.hpp"
 #include "formats/exr_document_io.hpp"
 #include "formats/hdr_document_io.hpp"
@@ -681,6 +682,9 @@ const QList<FileFormatEntry>& file_format_entries() {
                     false});
     // Paint.NET documents open read-only too (docs/pdn-format.md).
     list.push_back({QT_TRANSLATE_NOOP("QObject", "Paint.NET Image"), {QStringLiteral("pdn")}, {}, false, false});
+    // Krita documents open read-only (docs/kra.md); .krz is the same container.
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "Krita Document"), {QStringLiteral("kra"), QStringLiteral("krz")},
+                    {}, false, false});
     // HEIF/HEIC is decode-only like camera raw (platform codecs never encode for us and
     // Patchy must not ship an HEVC encoder), so its entry is read-only too. Where no
     // decoder exists at all (an AppImage on a machine without libheif) the row is left out
@@ -1246,6 +1250,10 @@ bool is_svg_extension(const QString& extension) {
   return extension == QStringLiteral("svg") || extension == QStringLiteral("svgz");
 }
 
+bool is_kra_extension(const QString& extension) {
+  return extension == QStringLiteral("kra") || extension == QStringLiteral("krz");
+}
+
 // Whether an animated GIF export would have at least one frame (visible top-level layers
 // become the frames).
 bool has_visible_top_level_layer(const Document& document) {
@@ -1684,6 +1692,16 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     opened = std::move(result.document);
     orientation_applied = true;
     if (!settings.notice.isEmpty()) import_notices.push_back(settings.notice);
+  } else if (is_kra_extension(extension)) {
+    // Krita documents read here rather than through the registry row: the reader needs the
+    // file's folder for file layers (docs/kra.md).
+    std::vector<std::string> notices;
+    opened = kra::DocumentIo::read(read_all_file_bytes(path), &notices,
+                                   to_filesystem_path(QFileInfo(path).absolutePath()));
+    for (const auto& notice : notices) {
+      import_notices.push_back(translated_file_message(notice));
+    }
+    decode_pending_svg_images(opened.layers(), import_notices);
   } else if (const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
              handler != nullptr) {
     try {
@@ -1762,13 +1780,14 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
         QObject::tr("The 32-bit image was converted to 16 bits per channel: the web version edits up to 16."));
   }
   if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension) &&
-      extension != QStringLiteral("ora")) {
+      extension != QStringLiteral("ora") && !is_kra_extension(extension)) {
     promote_flat_alpha_to_layer_mask(opened);
   }
   capture_file_info(opened, path, pixels_in_source_space, orientation_applied);
   convert_opened_rgb_profile(opened, import_notices, cmyk_source);
-  // OpenRaster records the selected layer; it stays selected unless it is a group.
-  const auto* file_selected = extension == QStringLiteral("ora") && opened.active_layer_id().has_value()
+  // OpenRaster and Krita record the selected layer; it stays selected unless it is a group.
+  const auto* file_selected = (extension == QStringLiteral("ora") || is_kra_extension(extension)) &&
+                                      opened.active_layer_id().has_value()
                                   ? std::as_const(opened).find_layer(*opened.active_layer_id())
                                   : nullptr;
   if (file_selected != nullptr && file_selected->kind() != LayerKind::Group) {

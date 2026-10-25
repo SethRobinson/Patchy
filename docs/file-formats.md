@@ -25,7 +25,7 @@ Desktop file drops copy the accepted local paths and queue processing on the mai
 
 ## Per-format catalogue
 
-Everything reads and writes except camera raw, HEIF/HEIC, .af, .pdn and portable anymaps (read-only); JPEG XR reads and writes on Windows only. Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
+Everything reads and writes except camera raw, HEIF/HEIC, .af, .pdn, .kra and portable anymaps (read-only); JPEG XR reads and writes on Windows only. Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
 
 - PSD/PSB: PSB section below plus [ps-compat.md](ps-compat.md); 16/32-bit files open at their depth while deep editing is on ([high-bit-depth.md](high-bit-depth.md)), else convert to 8-bit (section below). An unnamed layer record takes Photoshop's display name: "Layer N" (N counts ordinary layers from the bottom, 1-based), or "Background" for a bottom record with no transparency channel.
 - BMP: includes 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
@@ -58,6 +58,10 @@ Read-only importer; registry id `patchy.formats.af`, sniff on magic `00 FF 4B 41
 ## .pdn (Paint.NET)
 
 Read-only importer; registry id `patchy.formats.pdn`, sniff on `PDN3`; header-less 1.x/2.x files open by extension. Format record: [pdn-format.md](pdn-format.md).
+
+## .kra (Krita)
+
+Read-only importer; registry id `patchy.formats.kra`, sniff on the stored `mimetype` entry holding `application/x-krita` at byte 30; the filter row "Krita Document" claims `.kra` and `.krz`. The open path calls the reader with the file's folder (file layers load from it) instead of the registry row. Format record: [kra.md](kra.md).
 
 ## PDF
 

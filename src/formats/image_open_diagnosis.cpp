@@ -56,6 +56,7 @@ using namespace std::string_view_literals;
   if (ext == "avif" || ext == "avifs") return "avif";
   if (ext == "psd" || ext == "psb") return "psd";
   if (ext == "jp2" || ext == "j2k" || ext == "jpx" || ext == "jpf") return "jp2";
+  if (ext == "kra" || ext == "krz") return "kra";
   return ext;
 }
 
@@ -105,6 +106,10 @@ struct Detected {
   // OpenRaster: a zip whose first entry is the stored "mimetype" (docs/ora.md).
   if (bytes_at(bytes, 0, "PK\x03\x04") && bytes_at(bytes, 30, "mimetypeimage/openraster")) {
     return Detected{"OpenRaster", "ora", "ora"};
+  }
+  // Krita: the same layout with its own mimetype (docs/kra.md).
+  if (bytes_at(bytes, 0, "PK\x03\x04") && bytes_at(bytes, 30, "mimetypeapplication/x-krita")) {
+    return Detected{"Krita", "kra", "kra"};
   }
   if (bytes_at(bytes, 0, "PK\x03\x04")) return Detected{"ZIP archive", "", "zip"};
   if (bytes_at(bytes, 0, "Rar!")) return Detected{"RAR archive", "", "rar"};
