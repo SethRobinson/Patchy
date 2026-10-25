@@ -5,7 +5,7 @@ yellow tile, which fills the canvas edge to edge so taskbar and launcher icons
 are as large as their neighbors. Desktop window icons, the welcome
 panel, Help > About, Linux launchers, macOS bundles, and the web loading screen
 use this source. It keeps its authored colors in both interface themes. The
-flat and outline SVGs and wordmark study board remain design source material.
+flat and outline SVGs remain design source material.
 
 `patchy-icon-ios-folded.svg` has an opaque square background for browser and
 home-screen icons whose platform supplies the outer shape. Its export is an
