@@ -448,28 +448,40 @@
         <translation>Opacidade:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Usar camada anterior para criar máscara de recorte</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Recortar a nova camada na camada abaixo</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Não existe cor neutra para o modo atual</translation>
+        <source>White</source>
+        <translation>Branco</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Preencher com cor neutra (branco)</translation>
+        <source>Black</source>
+        <translation>Preto</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Preencher com cor neutra (preto)</translation>
+        <source>50% gray</source>
+        <translation>Cinza 50%</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Preencher com cor neutra (cinza 50%)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Recortar na camada abaixo</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Cor neutra</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Preencher a nova camada com a cor que deixa a imagem inalterada neste modo</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Este modo não tem cor neutra</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Preenchimento:</translation>
     </message>
 </context>
 <context>

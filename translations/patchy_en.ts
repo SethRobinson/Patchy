@@ -448,27 +448,39 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
+        <source>White</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
+        <source>Black</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
+        <source>50% gray</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
+        <source>Clip to the layer below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

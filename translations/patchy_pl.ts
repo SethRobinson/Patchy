@@ -448,28 +448,40 @@
         <translation>Krycie:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Użyj poprzedniej warstwy do utworzenia maski przycinającej</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Przytnij nową warstwę do warstwy pod nią</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Dla bieżącego trybu nie ma koloru neutralnego</translation>
+        <source>White</source>
+        <translation>Biały</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Wypełnij kolorem neutralnym (biały)</translation>
+        <source>Black</source>
+        <translation>Czarny</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Wypełnij kolorem neutralnym (czarny)</translation>
+        <source>50% gray</source>
+        <translation>Szary 50%</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Wypełnij kolorem neutralnym (szary 50%)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Przytnij do warstwy poniżej</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Kolor neutralny</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Wypełnij nową warstwę kolorem, który w tym trybie nie zmienia obrazu</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Ten tryb nie ma koloru neutralnego</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Wypełnienie:</translation>
     </message>
 </context>
 <context>

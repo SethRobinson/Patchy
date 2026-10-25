@@ -448,28 +448,40 @@
         <translation>Opacidad:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Usar la capa anterior para crear una máscara de recorte</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Recortar la nueva capa con la capa inferior</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>No existe un color neutro para el modo actual</translation>
+        <source>White</source>
+        <translation>Blanco</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Rellenar con color neutro (blanco)</translation>
+        <source>Black</source>
+        <translation>Negro</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Rellenar con color neutro (negro)</translation>
+        <source>50% gray</source>
+        <translation>Gris al 50%</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Rellenar con color neutro (gris al 50%)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Recortar a la capa inferior</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Color neutro</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Rellenar la nueva capa con el color que deja la imagen sin cambios en este modo</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Este modo no tiene color neutro</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Relleno:</translation>
     </message>
 </context>
 <context>

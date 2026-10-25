@@ -448,28 +448,40 @@
         <translation>Opacità:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Usa livello precedente per creare maschera di ritaglio</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Ritaglia il nuovo livello sul livello sottostante</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Non esiste un colore neutro per il metodo corrente</translation>
+        <source>White</source>
+        <translation>Bianco</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Riempi con colore neutro (bianco)</translation>
+        <source>Black</source>
+        <translation>Nero</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Riempi con colore neutro (nero)</translation>
+        <source>50% gray</source>
+        <translation>Grigio 50%</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Riempi con colore neutro (grigio 50%)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Ritaglia sul livello sottostante</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Colore neutro</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Riempi il nuovo livello con il colore che lascia l&apos;immagine invariata in questo metodo</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Questo metodo non ha un colore neutro</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Riempimento:</translation>
     </message>
 </context>
 <context>

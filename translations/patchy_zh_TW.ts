@@ -448,28 +448,40 @@
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>使用上一個圖層建立剪裁遮色片</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>將新圖層剪裁至下方圖層</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>目前模式沒有中性色</translation>
+        <source>White</source>
+        <translation>白色</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>填滿中性色（白色）</translation>
+        <source>Black</source>
+        <translation>黑色</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>填滿中性色（黑色）</translation>
+        <source>50% gray</source>
+        <translation>50% 灰色</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>填滿中性色（50% 灰色）</translation>
+        <source>Clip to the layer below</source>
+        <translation>剪裁至下方圖層</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>中性色</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>以在此模式下不改變影像的顏色填滿新圖層</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>此模式沒有中性色</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>填滿:</translation>
     </message>
 </context>
 <context>
