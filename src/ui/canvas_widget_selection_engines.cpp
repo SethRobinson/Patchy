@@ -525,9 +525,7 @@ QCursor CanvasWidget::quick_select_cursor(SelectionMode mode) const {
   painter.setPen(QPen(QColor(255, 255, 255), 1));
   painter.drawEllipse(center, std::max(1, radius - 1), std::max(1, radius - 1));
   if (mode == SelectionMode::Replace) {
-    painter.setPen(QPen(QColor(255, 255, 255), 1));
-    painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
-    painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+    paint_brush_center_cross(painter, center);
   } else {
     paint_selection_mode_badge(painter, mode, QPointF(center));
   }

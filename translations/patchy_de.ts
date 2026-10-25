@@ -25529,6 +25529,62 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>This path has no points to remove.</source>
         <translation>Dieser Pfad hat keine Punkte, die entfernt werden können.</translation>
     </message>
+    <message>
+        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
+        <translation>Pinsel: Ziehen zum Malen, %ALT%+Klick nimmt eine Farbe auf.</translation>
+    </message>
+    <message>
+        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
+        <translation>Mischpinsel: Ziehen zum Malen und Vermischen mit den vorhandenen Farben, %ALT%+Klick nimmt eine Farbe auf.</translation>
+    </message>
+    <message>
+        <source>Pattern Stamp: drag to paint with the pattern.</source>
+        <translation>Musterstempel: Ziehen zum Malen mit dem Muster.</translation>
+    </message>
+    <message>
+        <source>Eraser: drag to erase.</source>
+        <translation>Radiergummi: Ziehen zum Radieren.</translation>
+    </message>
+    <message>
+        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
+        <translation>Kopierstempel: %ALT%+Klick legt die Quelle fest, dann ziehen, um den Klon zu malen.</translation>
+    </message>
+    <message>
+        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
+        <translation>Reparatur-Pinsel: %ALT%+Klick legt die Quelle fest, dann über den zu reparierenden Bereich ziehen.</translation>
+    </message>
+    <message>
+        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
+        <translation>Bereichsreparatur: Über eine Stelle ziehen, um sie aus ihrer Umgebung zu reparieren.</translation>
+    </message>
+    <message>
+        <source>Smudge: drag to smear the pixels.</source>
+        <translation>Wischfinger: Ziehen zum Verwischen der Pixel.</translation>
+    </message>
+    <message>
+        <source>Dodge: drag to lighten.</source>
+        <translation>Abwedler: Ziehen zum Aufhellen.</translation>
+    </message>
+    <message>
+        <source>Burn: drag to darken.</source>
+        <translation>Nachbelichter: Ziehen zum Abdunkeln.</translation>
+    </message>
+    <message>
+        <source>Sponge: drag to change the saturation.</source>
+        <translation>Schwamm: Ziehen zum Ändern der Sättigung.</translation>
+    </message>
+    <message>
+        <source>Blur: drag to soften detail.</source>
+        <translation>Weichzeichner: Ziehen zum Weichzeichnen von Details.</translation>
+    </message>
+    <message>
+        <source>Sharpen: drag to sharpen detail.</source>
+        <translation>Scharfzeichner: Ziehen zum Schärfen von Details.</translation>
+    </message>
+    <message>
+        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
+        <translation>Umschalt+Klick zeichnet eine gerade Linie vom letzten Strich. %CTRL%+Klick wählt die Ebene unter dem Zeiger, %CTRL%+Ziehen verschiebt die Ebene, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -29,7 +29,7 @@ An explicit-source pixel tool: Alt-click picks a source in the gesture snapshot;
 GitHub issue 380, Clone and Healing Brush (`retouch_source_tool_active()`), from the folded modifiers of the event handled (`retouch_cursor_modifier_override_`):
 
 - **Alt**: the source cursor (`build_retouch_source_cursor`, the source marker's ring and crosshair; hotspot 12, 12).
-- **Ctrl**: the temporary Move. Four-way arrow while held; a Ctrl press (`begin_retouch_temporary_move`) drags the selected layers like Move with Auto-Select off (`begin_move_drag`). Ctrl on a ruler guide still drags the guide.
+- **Ctrl**: the temporary Move, shared by every painting tool ([brushes.md](brushes.md), "Painting tool modifiers"). Ctrl on a ruler guide still drags the guide.
 - **Not allowed** (`Qt::ForbiddenCursor`) where a press would be refused (`retouch_press_would_refuse`): no source yet, a grayscale channel target, or no unlocked pixel layer active. On artboard documents only the missing source counts (a press can retarget to the clicked artboard's layer).
 - **While painting**: a small crosshair at the point the stroke samples (`retouch_source_indicator_`, set by `clone_brush_segment`) replaces the Alt-click marker.
 

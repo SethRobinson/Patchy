@@ -749,10 +749,7 @@ void CanvasWidget::draw_drag_size_readout(QPainter& painter) const {
   // A HUD pill just below-right of the pointer, the Free Transform readout's
   // look: the bare outlined text 16/24 px away vanished on busy artwork
   // (GitHub issue 142).
-  constexpr int kPadX = 6;
-  constexpr int kPadY = 3;
-  QRect pill(anchor + QPoint(12, 14),
-             QSize(metrics.horizontalAdvance(readout) + 2 * kPadX, metrics.height() + 2 * kPadY));
+  QRect pill(anchor + QPoint(12, 14), canvas_hud_pill_size(metrics, readout));
   const int left = rulers_visible_ ? kLeftRulerWidth : 0;
   const int top = rulers_visible_ ? kTopRulerHeight : 0;
   const QRect bounds(left, top, std::max(1, width() - left), std::max(1, height() - top));
@@ -768,18 +765,7 @@ void CanvasWidget::draw_drag_size_readout(QPainter& painter) const {
   if (pill.top() < bounds.top() + 4) {
     pill.moveTop(bounds.top() + 4);
   }
-  painter.save();
-  painter.setRenderHint(QPainter::Antialiasing, true);
-  QPainterPath panel_path;
-  panel_path.addRoundedRect(QRectF(pill), 4.0, 4.0);
-  auto hud_fill = theme().canvas_hud_bg;
-  hud_fill.setAlpha(236);
-  painter.fillPath(panel_path, hud_fill);
-  painter.setPen(QPen(theme().canvas_hud_border, 1.0));
-  painter.drawPath(panel_path);
-  painter.setPen(theme().canvas_hud_text);
-  painter.drawText(pill.adjusted(kPadX, 0, -kPadX, 0), Qt::AlignLeft | Qt::AlignVCenter, readout);
-  painter.restore();
+  paint_canvas_hud_pill(painter, pill, readout);
 }
 
 QRect CanvasWidget::drag_readout_widget_rect() const {

@@ -584,9 +584,7 @@ bool CanvasWidget::apply_brush_tip_cursor() {
   painter.setRenderHint(QPainter::Antialiasing, false);
   const QPoint center(extent / 2, extent / 2);
   painter.drawImage(QPoint(center.x() - outline.width() / 2, center.y() - outline.height() / 2), outline);
-  painter.setPen(QPen(QColor(255, 255, 255), 1));
-  painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
-  painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+  paint_brush_center_cross(painter, center);
   painter.end();
   setCursor(QCursor(pixmap, center.x(), center.y()));
   return true;
@@ -713,9 +711,7 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
       draw_footprint(std::max(1.0, radius - edge_width));
     }
   }
-  painter.setPen(QPen(QColor(255, 255, 255), 1));
-  painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
-  painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+  paint_brush_center_cross(painter, center);
   painter.restore();
 }
 
@@ -856,21 +852,29 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
 }
 
 void CanvasWidget::draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const {
+  // The drag size readout's HUD pill, centered just below the disc and kept in
+  // view (GitHub issue 422: outlined text alone vanished on busy artwork).
   const auto readout = tr("Size: %1 px  Soft: %2%").arg(brush_size_).arg(brush_softness_);
-  const auto metrics = painter.fontMetrics();
-  const auto text_width = metrics.horizontalAdvance(readout);
-  QPointF text_position(center.x() - static_cast<double>(text_width) / 2.0,
-                        center.y() + radius + static_cast<double>(metrics.ascent()) + 8.0);
-  text_position.setX(std::clamp(text_position.x(), 4.0, std::max(4.0, static_cast<double>(width() - text_width - 4))));
-  text_position.setY(std::clamp(text_position.y(), static_cast<double>(metrics.ascent()) + 4.0,
-                                std::max(static_cast<double>(metrics.ascent()) + 4.0,
-                                         static_cast<double>(height()) - static_cast<double>(metrics.descent()) - 4.0)));
-  painter.setPen(QColor(20, 23, 28, 220));
-  for (const auto& offset : {QPointF(-1.0, 0.0), QPointF(1.0, 0.0), QPointF(0.0, -1.0), QPointF(0.0, 1.0)}) {
-    painter.drawText(text_position + offset, readout);
+  const auto size = canvas_hud_pill_size(painter.fontMetrics(), readout);
+  QRect pill(QPoint(static_cast<int>(std::lround(center.x())) - size.width() / 2,
+                    static_cast<int>(std::lround(center.y() + radius)) + 8),
+             size);
+  const int left = rulers_visible_ ? kLeftRulerWidth : 0;
+  const int top = rulers_visible_ ? kTopRulerHeight : 0;
+  const QRect bounds(left, top, std::max(1, width() - left), std::max(1, height() - top));
+  if (pill.right() > bounds.right() - 4) {
+    pill.moveRight(bounds.right() - 4);
   }
-  painter.setPen(QColor(245, 248, 252));
-  painter.drawText(text_position, readout);
+  if (pill.bottom() > bounds.bottom() - 4) {
+    pill.moveBottom(bounds.bottom() - 4);
+  }
+  if (pill.left() < bounds.left() + 4) {
+    pill.moveLeft(bounds.left() + 4);
+  }
+  if (pill.top() < bounds.top() + 4) {
+    pill.moveTop(bounds.top() + 4);
+  }
+  paint_canvas_hud_pill(painter, pill, readout);
 }
 
 void CanvasWidget::clear_brush_stroke_tracking() noexcept {

@@ -235,9 +235,9 @@ void ui_path_tools_show_activation_hints_and_tooltips() {
   CHECK(window.statusBar()->currentMessage() ==
         QStringLiteral("Add Anchor Point: click a path segment to insert a point."));
   // Tools without a hint keep showing their name.
-  require_action(window, "toolBrushAction")->trigger();
+  require_action(window, "toolGradientAction")->trigger();
   QApplication::processEvents();
-  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Gradient"));
 
   // Tooltips name the gestures; flyout buttons copy their default action's.
   CHECK(require_action(window, "toolPenAction")

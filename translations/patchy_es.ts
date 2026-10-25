@@ -25529,6 +25529,62 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>This path has no points to remove.</source>
         <translation>Este trazado no tiene puntos que eliminar.</translation>
     </message>
+    <message>
+        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
+        <translation>Pincel: arrastre para pintar, %ALT%+clic toma un color.</translation>
+    </message>
+    <message>
+        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
+        <translation>Pincel mezclador: arrastre para pintar y mezclar con los colores que ya hay, %ALT%+clic toma un color.</translation>
+    </message>
+    <message>
+        <source>Pattern Stamp: drag to paint with the pattern.</source>
+        <translation>Tampón de motivo: arrastre para pintar con el motivo.</translation>
+    </message>
+    <message>
+        <source>Eraser: drag to erase.</source>
+        <translation>Borrador: arrastre para borrar.</translation>
+    </message>
+    <message>
+        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
+        <translation>Tampón de clonar: %ALT%+clic define el origen, después arrastre para pintar el clon.</translation>
+    </message>
+    <message>
+        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
+        <translation>Pincel corrector: %ALT%+clic define el origen, después arrastre sobre la zona que desea corregir.</translation>
+    </message>
+    <message>
+        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
+        <translation>Corrector puntual: arrastre sobre una mancha para corregirla a partir de su entorno.</translation>
+    </message>
+    <message>
+        <source>Smudge: drag to smear the pixels.</source>
+        <translation>Dedo: arrastre para difuminar los píxeles.</translation>
+    </message>
+    <message>
+        <source>Dodge: drag to lighten.</source>
+        <translation>Sobreexponer: arrastre para aclarar.</translation>
+    </message>
+    <message>
+        <source>Burn: drag to darken.</source>
+        <translation>Subexponer: arrastre para oscurecer.</translation>
+    </message>
+    <message>
+        <source>Sponge: drag to change the saturation.</source>
+        <translation>Esponja: arrastre para cambiar la saturación.</translation>
+    </message>
+    <message>
+        <source>Blur: drag to soften detail.</source>
+        <translation>Desenfocar: arrastre para suavizar los detalles.</translation>
+    </message>
+    <message>
+        <source>Sharpen: drag to sharpen detail.</source>
+        <translation>Enfocar: arrastre para enfocar los detalles.</translation>
+    </message>
+    <message>
+        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
+        <translation>Mayús+clic traza una línea recta desde el último trazo. %CTRL%+clic selecciona la capa bajo el puntero, %CTRL%+arrastrar mueve la capa, %ALT%+arrastrar con el botón derecho cambia el tamaño y la suavidad.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

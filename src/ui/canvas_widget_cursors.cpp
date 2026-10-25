@@ -437,19 +437,24 @@ void CanvasWidget::update_tool_cursor() {
         eyedropper_target_is_background(alt_held ? Qt::KeyboardModifiers(Qt::AltModifier) : Qt::NoModifier)));
     return;
   }
+  if (tool_has_ctrl_temporary_move(tool_) && !painting_) {
+    // Every painting tool's temporary Move under Ctrl (GitHub issues 380, 421), checked
+    // before the Alt eyedropper: Ctrl+Alt is not the Move.
+    const auto modifiers = retouch_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
+    if (moving_layer_ || move_drag_pending_ || paint_ctrl_click_.has_value() ||
+        ((modifiers & Qt::ControlModifier) != 0 && (modifiers & Qt::AltModifier) == 0)) {
+      setCursor(Qt::SizeAllCursor);
+      return;
+    }
+  }
   if (alt_held && tool_uses_alt_left_for_color_pick(tool_)) {
     setCursor(eyedropper_cursor());
     return;
   }
   if (retouch_source_tool_active() && !painting_) {
-    // Clone and Healing (GitHub issue 380): the temporary Move under Ctrl, the source
-    // cursor under Alt, and the not-allowed cursor where a press would be refused.
+    // Clone and Healing (GitHub issue 380): the source cursor under Alt, and the
+    // not-allowed cursor where a press would be refused.
     const auto modifiers = retouch_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
-    if (moving_layer_ || move_drag_pending_ ||
-        ((modifiers & Qt::ControlModifier) != 0 && (modifiers & Qt::AltModifier) == 0)) {
-      setCursor(Qt::SizeAllCursor);
-      return;
-    }
     if ((modifiers & Qt::AltModifier) != 0) {
       static const QCursor source_cursor = build_retouch_source_cursor();
       setCursor(source_cursor);
@@ -557,8 +562,7 @@ void CanvasWidget::update_tool_cursor() {
       painter.drawRect(pixel_rect);
       painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
       painter.drawRect(pixel_rect.adjusted(1, 1, -1, -1));
-      painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
-      painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+      paint_brush_center_cross(painter, center);
       painter.end();
       cache_brush_cursor(true, pixel_extent, extent, QCursor(pixmap, center.x(), center.y()));
       return;
@@ -599,8 +603,8 @@ void CanvasWidget::update_tool_cursor() {
       painter.setPen(softness_pen);
       draw_footprint(inner_radius);
     }
-    painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
-    painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+    // Drawn after the dashed softness ring, it used to take that pen's faint blue.
+    paint_brush_center_cross(painter, center);
     painter.end();
     cache_brush_cursor(false, diameter, extent, QCursor(pixmap, center.x(), center.y()));
     return;
