@@ -197,6 +197,7 @@ add_library(patchy_core
   src/core/spot_heal.cpp
   src/core/red_eye.cpp
   src/core/exemplar_inpaint.cpp
+  src/core/floating_selection.cpp
   src/core/stroke_stabilizer.cpp
   src/core/style_contour.cpp
   src/core/style_presets.cpp
@@ -2223,6 +2224,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
     tests/core/translation_marker_tests.cpp
+    tests/core/floating_selection_tests.cpp
     tests/core/ai_selection_tests.cpp
     tests/core/gmic_tests.cpp
     tests/core/tiff_layers_tests.cpp
@@ -2303,6 +2305,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/move_transform_zones_tests.cpp
       tests/ui/free_transform_distort_tests.cpp
+      tests/ui/free_transform_selection_tests.cpp
       tests/ui/alignment_tests.cpp
       tests/ui/selection_marquee_lasso_tests.cpp
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp

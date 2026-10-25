@@ -422,6 +422,8 @@ interface PatchyLayer {
    * objects keep the result as a perspective placement; type layers take only a
    * parallelogram (rasterize first for perspective) and throw otherwise. A group
    * transforms its contents. `interpolation` defaults to the Free Transform setting.
+   * With a selection on a pixel layer only the selected pixels transform: the box is the
+   * selection bounds clipped to the layer's pixels, and the selection follows them.
    * Throws while a transform is pending in that document.
    */
   transform(options: {
