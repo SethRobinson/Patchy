@@ -8,7 +8,7 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
+#include <QPolygonF>
 
 #include <algorithm>
 #include <cmath>
@@ -54,6 +54,36 @@ RawPreviewHistogram raw_preview_histogram(std::span<const std::uint8_t> interlea
     }
   }
   return histogram;
+}
+
+RawPreviewHistogram raw_histogram_display_bins(const RawPreviewHistogram& histogram) {
+  constexpr int kReach = 9;
+  constexpr double kSigma = 3.0;
+  std::array<double, 2 * kReach + 1> kernel{};
+  for (int tap = -kReach; tap <= kReach; ++tap)
+    kernel[static_cast<std::size_t>(tap + kReach)] = std::exp(-(tap * tap) / (2.0 * kSigma * kSigma));
+  RawPreviewHistogram display;
+  display.samples = histogram.samples;
+  const auto smooth = [&](const std::array<std::uint32_t, 256>& bins, std::array<std::uint32_t, 256>& out) {
+    out.front() = bins.front();
+    out.back() = bins.back();
+    for (int bin = 1; bin < 255; ++bin) {
+      double sum = 0.0;
+      double weight = 0.0;
+      for (int tap = -kReach; tap <= kReach; ++tap) {
+        const auto source = bin + tap;
+        if (source < 1 || source > 254) continue;
+        sum += kernel[static_cast<std::size_t>(tap + kReach)] * bins[static_cast<std::size_t>(source)];
+        weight += kernel[static_cast<std::size_t>(tap + kReach)];
+      }
+      out[static_cast<std::size_t>(bin)] = static_cast<std::uint32_t>(std::lround(sum / weight));
+    }
+  };
+  smooth(histogram.red, display.red);
+  smooth(histogram.green, display.green);
+  smooth(histogram.blue, display.blue);
+  smooth(histogram.luminance, display.luminance);
+  return display;
 }
 
 std::pair<double, double> raw_histogram_region_span(RawHistogramRegion region) {
@@ -328,6 +358,8 @@ QRect RawHistogramWidget::plot_rect() const { return rect().adjusted(1, 1, -1, -
 
 void RawHistogramWidget::set_histogram(std::optional<RawPreviewHistogram> histogram) {
   histogram_ = std::move(histogram);
+  display_.reset();
+  if (histogram_) display_ = raw_histogram_display_bins(*histogram_);
   publish_state();
   update();
 }
@@ -436,15 +468,7 @@ void RawHistogramWidget::paintEvent(QPaintEvent*) {
     painter.fillRect(QRect(left, plot.top(), right - left, plot.height()), highlight);
   }
 
-  if (histogram_ && histogram_->samples > 0 && plot.width() > 0) {
-    const auto width = plot.width();
-    const auto column_count = [&](const std::array<std::uint32_t, 256>& bins, int x) {
-      const auto first = std::clamp((x * 256) / width, 0, 255);
-      const auto last = std::clamp(((x + 1) * 256) / width, first + 1, 256);
-      std::uint32_t count = 0;
-      for (int bin = first; bin < last; ++bin) count = std::max(count, bins[static_cast<std::size_t>(bin)]);
-      return count;
-    };
+  if (display_ && display_->samples > 0 && plot.width() > 0) {
     const auto ceiling_for = [](const std::array<std::uint32_t, 256>& bins) {
       std::uint64_t total = 0;
       std::uint64_t non_empty = 0;
@@ -454,10 +478,24 @@ void RawHistogramWidget::paintEvent(QPaintEvent*) {
       }
       return histogram_display_ceiling(total, non_empty);
     };
-    const auto bar_height = [&](std::uint32_t count, double ceiling) {
-      if (count == 0 || !(ceiling > 0.0)) return 0;
-      return std::max(1, static_cast<int>(std::lround(histogram_display_fraction(count, ceiling) *
-                                                      static_cast<double>(plot.height() - 1))));
+    // One antialiased curve per channel through the bin centres. Bins 0 and 255
+    // are drawn one bin wide at the edges, so a clipping spike reads as a bar.
+    const auto bin_width = static_cast<double>(plot.width()) / 256.0;
+    const auto baseline = static_cast<double>(plot.bottom()) + 1.0;
+    const auto curve_for = [&](const std::array<std::uint32_t, 256>& bins) {
+      const auto ceiling = ceiling_for(bins);
+      const auto top = [&](int bin) {
+        const auto count = bins[static_cast<std::size_t>(bin)];
+        if (count == 0 || !(ceiling > 0.0)) return baseline;
+        return baseline - std::max(1.0, histogram_display_fraction(count, ceiling) *
+                                            static_cast<double>(plot.height() - 1));
+      };
+      QPolygonF curve;
+      curve.reserve(260);
+      curve << QPointF(plot.left(), top(0)) << QPointF(plot.left() + bin_width, top(0));
+      for (int bin = 1; bin < 255; ++bin) curve << QPointF(plot.left() + (bin + 0.5) * bin_width, top(bin));
+      curve << QPointF(plot.left() + plot.width() - bin_width, top(255)) << QPointF(plot.left() + plot.width(), top(255));
+      return curve;
     };
     // The channel colors depict the channels themselves, like the Curves and
     // Levels histograms; they are data, not chrome, so they stay fixed.
@@ -465,29 +503,21 @@ void RawHistogramWidget::paintEvent(QPaintEvent*) {
       const std::array<std::uint32_t, 256>* bins;
       QColor color;
     };
-    const std::array<Channel, 3> channels = {{{&histogram_->red, QColor(230, 60, 60, 95)},
-                                              {&histogram_->green, QColor(60, 200, 90, 95)},
-                                              {&histogram_->blue, QColor(70, 120, 240, 95)}}};
-    painter.setRenderHint(QPainter::Antialiasing, false);
-    for (const auto& channel : channels) {
-      const auto ceiling = ceiling_for(*channel.bins);
-      for (int x = 0; x < width; ++x) {
-        const auto height = bar_height(column_count(*channel.bins, x), ceiling);
-        if (height > 0) painter.fillRect(QRect(plot.left() + x, plot.bottom() - height + 1, 1, height), channel.color);
-      }
-    }
-    const auto luminance_ceiling = ceiling_for(histogram_->luminance);
-    QPainterPath outline;
-    outline.moveTo(plot.left(), plot.bottom() + 1);
-    for (int x = 0; x < width; ++x) {
-      const auto top = plot.bottom() + 1 - bar_height(column_count(histogram_->luminance, x), luminance_ceiling);
-      outline.lineTo(plot.left() + x, top);
-      outline.lineTo(plot.left() + x + 1, top);
-    }
-    outline.lineTo(plot.left() + width, plot.bottom() + 1);
+    const std::array<Channel, 3> channels = {{{&display_->red, QColor(230, 60, 60, 95)},
+                                              {&display_->green, QColor(60, 200, 90, 95)},
+                                              {&display_->blue, QColor(70, 120, 240, 95)}}};
     painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::NoPen);
+    for (const auto& channel : channels) {
+      auto area = curve_for(*channel.bins);
+      area.prepend(QPointF(plot.left(), baseline));
+      area << QPointF(plot.left() + plot.width(), baseline);
+      painter.setBrush(channel.color);
+      painter.drawPolygon(area);
+    }
+    painter.setBrush(Qt::NoBrush);
     painter.setPen(QPen(palette.text_secondary, 1.0));
-    painter.drawPath(outline);
+    painter.drawPolyline(curve_for(display_->luminance));
   }
 
   painter.setRenderHint(QPainter::Antialiasing, false);

@@ -9,6 +9,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/raw_develop_histogram.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -16,6 +17,8 @@
 
 #include <QDialog>
 #include <QKeySequence>
+#include <QList>
+#include <QImage>
 #include <QLabel>
 #include <QPoint>
 #include <QPushButton>
@@ -26,6 +29,7 @@
 #include <array>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <optional>
 
@@ -239,11 +243,68 @@ void ui_camera_raw_filter_script_and_selection() {
   CHECK(after[0] == before[0] * 2.0F && after[1] == before[1] * 2.0F && after[2] == before[2] * 2.0F);
 }
 
+// The histogram of an 8-bit photo in the Camera Raw Filter, at the defaults and after an
+// exposure and contrast push, which stretches the 8-bit levels (issue 393's comb). Rendered at
+// a 150% display scale; the drawn bins have no empty level between two filled ones.
+void ui_camera_raw_filter_histogram_draws_without_comb() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
+  auto* action = require_action(window, "filterCameraRawFilterAction");
+  const auto isolated_empty = [](const std::array<std::uint32_t, 256>& bins) {
+    int count = 0;
+    for (std::size_t bin = 1; bin < 255; ++bin)
+      if (bins[bin] == 0 && bins[bin - 1] > 0 && bins[bin + 1] > 0) ++count;
+    return count;
+  };
+  auto strips = std::make_shared<QList<QImage>>();
+  auto counted_gaps = std::make_shared<int>(0);
+  auto stage = std::make_shared<int>(0);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [stage, strips, counted_gaps, isolated_empty] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("cameraRawFilterDialog"));
+    if (dialog == nullptr) return false;
+    auto* histogram = static_cast<patchy::ui::RawHistogramWidget*>(
+        dialog->findChild<QWidget*>(QStringLiteral("cameraRawFilterHistogram")));
+    if (histogram == nullptr || !histogram->histogram() ||
+        !dialog->property("cameraRawFilterPreviewAccurate").toBool()) {
+      return false;
+    }
+    constexpr qreal kScale = 1.5;
+    QImage image(histogram->size() * kScale, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(kScale);
+    image.fill(Qt::transparent);
+    histogram->render(&image);
+    image.setDevicePixelRatio(1.0);
+    strips->push_back(image);
+    const auto display = patchy::ui::raw_histogram_display_bins(*histogram->histogram());
+    for (const auto* bins : {&display.red, &display.green, &display.blue, &display.luminance})
+      CHECK(isolated_empty(*bins) == 0);
+    if (*stage == 0) {
+      dialog->findChild<QSlider*>(QStringLiteral("cameraRawFilterExposureSlider"))->setValue(60);
+      dialog->findChild<QSlider*>(QStringLiteral("cameraRawFilterContrastSlider"))->setValue(30);
+      *stage = 1;
+      return false;
+    }
+    *counted_gaps = isolated_empty(histogram->histogram()->green);
+    *stage = 2;
+    QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+    return true;
+  };
+  drive_dialog(step);
+  action->trigger();
+  CHECK(*stage == 2 && strips->size() == 2);
+  std::cout << "  counted green histogram after the push: " << *counted_gaps << " empty levels between filled ones\n";
+  save_stacked_artifact("issue_393_camera_raw_filter_histogram", *strips);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> camera_raw_filter_tests() {
   return {
       {"ui_camera_raw_filter_dialog_applies_one_undo_step", ui_camera_raw_filter_dialog_applies_one_undo_step},
       {"ui_camera_raw_filter_script_and_selection", ui_camera_raw_filter_script_and_selection},
+      {"ui_camera_raw_filter_histogram_draws_without_comb", ui_camera_raw_filter_histogram_draws_without_comb},
   };
 }
