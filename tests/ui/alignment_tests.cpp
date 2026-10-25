@@ -15,6 +15,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
@@ -630,16 +631,65 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
       CHECK(glyphs[i] != glyphs[j]);
     }
   }
-  // GitHub issue 405: the fourteen glyphs side by side at the options bar's 18 px size.
+  // GitHub issue 405: the fourteen glyphs side by side at the options bar's 18 px size,
+  // rendered for 100%, 150% and 200% display scaling, one row per scale and scheme.
   {
-    QImage sheet(static_cast<int>(glyphs.size()) * 24, 24, QImage::Format_ARGB32_Premultiplied);
-    sheet.fill(patchy::ui::theme().options_bar_bg);
-    QPainter painter(&sheet);
-    for (std::size_t i = 0; i < glyphs.size(); ++i) {
-      painter.drawImage(QPoint(static_cast<int>(i) * 24 + 3, 3), glyphs[i]);
+    std::vector<QAction*> glyph_actions;
+    for (const auto* name : align_names) {
+      if (auto* action = require_action(window, name); !action->icon().isNull()) {
+        glyph_actions.push_back(action);
+      }
     }
-    painter.end();
-    save_stacked_artifact("ui_issue_405_align_distribute_glyphs", {sheet});
+    for (const auto* name : distribute_names) {
+      glyph_actions.push_back(require_action(window, name));
+    }
+    CHECK(glyph_actions.size() == 14U);
+    // The glyphs sit on whole device pixels at every scale: each pixel is fully
+    // inked or fully clear, never a half-covered antialiased edge.
+    for (const qreal ratio : {1.0, 1.25, 1.5, 2.0}) {
+      for (auto* action : glyph_actions) {
+        const QImage glyph =
+            action->icon().pixmap(QSize(18, 18), ratio).toImage().convertToFormat(QImage::Format_ARGB32);
+        int partial = 0;
+        int inked = 0;
+        for (int y = 0; y < glyph.height(); ++y) {
+          for (int x = 0; x < glyph.width(); ++x) {
+            const int alpha = qAlpha(glyph.pixel(x, y));
+            partial += alpha != 0 && alpha != 255 ? 1 : 0;
+            inked += alpha == 255 ? 1 : 0;
+          }
+        }
+        if (partial != 0 || inked == 0) {
+          std::fprintf(stderr, "  %s at %.2fx: %d partial, %d inked pixels\n",
+                       qPrintable(action->objectName()), ratio, partial, inked);
+        }
+        CHECK(glyph.width() == qRound(18 * ratio));
+        CHECK(partial == 0 && inked > 0);
+      }
+    }
+    const auto glyph_rows = [&] {
+      QList<QImage> rows;
+      for (const qreal ratio : {1.0, 1.5, 2.0}) {
+        const int cell = qRound(18 * ratio) + 8;
+        QImage row(static_cast<int>(glyph_actions.size()) * cell, cell, QImage::Format_ARGB32_Premultiplied);
+        row.fill(patchy::ui::theme().options_bar_bg);
+        QPainter painter(&row);
+        for (std::size_t i = 0; i < glyph_actions.size(); ++i) {
+          QImage glyph = glyph_actions[i]->icon().pixmap(QSize(18, 18), ratio).toImage();
+          glyph.setDevicePixelRatio(1.0);
+          painter.drawImage(QPoint(static_cast<int>(i) * cell + 4, 4), glyph);
+        }
+        painter.end();
+        rows.push_back(row);
+      }
+      return rows;
+    };
+    QList<QImage> sheet = glyph_rows();
+    {
+      ColorSchemeRestorer restore_scheme(patchy::ui::ColorSchemePreference::Light);
+      sheet.append(glyph_rows());
+    }
+    save_stacked_artifact("ui_issue_405_align_distribute_glyphs", sheet);
   }
   // GitHub issue 211: a separator sets Auto-Nest Layers apart from the buttons before it,
   // on the Move bar (the gear menu button) and on the Artboard bar (Add Artboard).
