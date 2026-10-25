@@ -1149,6 +1149,7 @@ void cleanup_after_visual_test() {
         // The active tool and the Brush bar persist too (GitHub issue 254); a test that
         // switched tools or resized the brush must not start the next test's window there.
         "tools/activeTool", "tools/brushSize", "tools/brushOpacity", "tools/brushFlow", "tools/brushSoftness",
+        "tools/brushMode",
         "tools/brushAirbrush", "tools/brushTip", "tools/brushPreset", "tools/eraserSize", "tools/eraserOpacity",
         "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill",
         // The foreground/background pair (GitHub issue 339): a test that picked a color must
