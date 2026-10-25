@@ -3185,6 +3185,37 @@ void ui_smart_object_relink_remembers_folder_for_the_session() {
 
 // GitHub issue 257, the reporter's file: ag-psd's animation-timeline test PSD links an mp3 the
 // reader cannot find. Opening it lists the link in the Missing Linked Files dialog.
+// The Missing Linked Files dialog has the same automation gate as the Missing Fonts one:
+// a CLI/connector-mode open with the preference on opens the document, keeps the stored
+// preview, and shows no modal (a scripted open would otherwise hang on it).
+void ui_unattended_open_skips_the_missing_links_dialog() {
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingLinksDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingLinksDialog"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  add_linked_test_document(window, 200, 160);
+  const auto dir = linked_test_dir(QStringLiteral("missing-unattended"));
+  const auto art_path = write_linked_test_png(dir + QStringLiteral("/art.png"), QColor(20, 200, 40, 255));
+  const auto psd_path = dir + QStringLiteral("/parent.psd");
+  patchy::ui::MainWindowTestAccess::place_linked_file_with_path(window, art_path);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  CHECK(QFile::remove(art_path));
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_links_dialog([](QDialog& dialog) { dialog.reject(); }, seen, 40);
+  window.set_cli_automation_mode(true);
+  const auto tabs_before = patchy::ui::MainWindowTestAccess::document_tab_count(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  process_events_for(300);
+  window.set_cli_automation_mode(false);
+  CHECK(*seen == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::document_tab_count(window) == tabs_before + 1);
+  const auto layers = linked_layers(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(layers.size() == 1U);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingLinksDialog"), true).toBool());
+}
+
 void ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available() {
   const auto psd_path = patchy::ui::to_qstring(
       patchy::test::local_format_fixture_path("ag-psd/animation-timeline", "src.psd"));
@@ -3753,6 +3784,7 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_relink_and_embed_linked_work", ui_smart_object_relink_and_embed_linked_work},
       {"ui_smart_object_missing_linked_files_dialog_lists_and_relinks",
        ui_smart_object_missing_linked_files_dialog_lists_and_relinks},
+      {"ui_unattended_open_skips_the_missing_links_dialog", ui_unattended_open_skips_the_missing_links_dialog},
       {"ui_smart_object_relink_remembers_folder_for_the_session",
        ui_smart_object_relink_remembers_folder_for_the_session},
       {"ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available",

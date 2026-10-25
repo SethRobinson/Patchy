@@ -110,7 +110,10 @@ Every bundled script with tweakable behavior follows one shape; new scripts shou
 "Unattended" is `ScriptEngineHost::unattended_run()`: app-wide CLI automation mode OR
 the per-run `RunOptions.unattended` flag, set for every `--run-script` execution
 INCLUDING requests forwarded to a running GUI instance, so automation never blocks on a
-dialog. Every interactive helper honors it.
+dialog. Every interactive helper honors it, as do the open-time prompts (Missing Fonts,
+Missing Linked Files, the CMYK proof notice, import notices, the raw develop dialog, the
+open-failed box) and every dialog run through `exec_dialog`; pinned by
+`ui_unattended_open_skips_the_missing_fonts_dialog` and `ui_unattended_open_skips_the_missing_links_dialog`.
 
 The form dialog (shared by showDialog/showOptions, `run_form_dialog` in
 script_engine.cpp) also supports `folder` and `file` field types (path line edit +

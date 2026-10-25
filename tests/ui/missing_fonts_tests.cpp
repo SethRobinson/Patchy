@@ -8,6 +8,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/main_window.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui_test_access.hpp"
@@ -676,6 +677,63 @@ void ui_transforming_missing_font_text_warns_and_keeps_its_pixels() {
 
 }  // namespace
 
+// Scripts, the connector and --headless runs never see the Missing Fonts dialog on open,
+// whatever the preference says: both automation forms (app-wide CLI/connector mode and an
+// unattended script run) open the document and leave no modal behind. The perf harness,
+// which drives MainWindow without a script, sat in this dialog for hours on October 25,
+// 2026; this pins the paths real automation takes.
+void ui_unattended_open_skips_the_missing_fonts_dialog() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  ensure_artifact_dir();
+  const auto path = QDir::current().absoluteFilePath(QStringLiteral("test-artifacts/missing_fonts_unattended.psd"));
+
+  MainWindow window;
+  show_window(window);
+  {
+    const auto bytes = psd_with_missing_font(window, QStringLiteral("Missing"));
+    CHECK(!bytes.empty());
+    if (bytes.empty()) {
+      return;
+    }
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+    file.close();
+  }
+
+  // The poller only closes a stray dialog so a regression fails instead of hanging.
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog([](QDialog& dialog) { dialog.reject(); }, seen, 40);
+
+  // CLI automation mode (--headless, --run-script, the invisible connector).
+  window.set_cli_automation_mode(true);
+  const auto tabs_before = MainWindowTestAccess::document_tab_count(window);
+  MainWindowTestAccess::open_document_path(window, path);
+  process_events_for(300);
+  CHECK(*seen == 0);
+  CHECK(MainWindowTestAccess::document_tab_count(window) == tabs_before + 1);
+  window.set_cli_automation_mode(false);
+
+  // An unattended script run (every connector request and --run-script execution) in an
+  // otherwise attended window: app.open goes through the same gate.
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("unattended-open");
+  options.unattended = true;
+  const auto tabs_before_script = MainWindowTestAccess::document_tab_count(window);
+  CHECK(host.run_source(QStringLiteral("app.open('%1');").arg(path), std::move(options)));
+  for (int waited = 0; host.run_active() && waited < 10000; waited += 20) {
+    process_events_for(20);
+  }
+  process_events_for(300);
+  CHECK(!host.run_active());
+  CHECK(*seen == 0);
+  CHECK(MainWindowTestAccess::document_tab_count(window) == tabs_before_script + 1);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
+}
+
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
   return {
       {"ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer",
@@ -687,6 +745,7 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_resolve_missing_fonts_replaces_the_font_in_every_layer",
        ui_resolve_missing_fonts_replaces_the_font_in_every_layer},
       {"ui_missing_fonts_dialog_shows_on_open_until_turned_off", ui_missing_fonts_dialog_shows_on_open_until_turned_off},
+      {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},
       {"ui_transforming_missing_font_text_warns_and_keeps_its_pixels",
        ui_transforming_missing_font_text_warns_and_keeps_its_pixels},
   };

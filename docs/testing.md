@@ -81,7 +81,12 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
 - Every test runs under a per-test timeout (`TestWatchdog`, tests/test_harness.hpp):
   300 s core, 600 s UI, four times that in Debug; `PATCHY_TEST_TIMEOUT_SECONDS` overrides,
   0 disables. On expiry the run prints `[FAIL] <test>: timed out`, the UI suite lists its
-  open windows (a modal dialog nobody answers is the usual cause), and it exits 124. A new
+  open windows (a modal dialog nobody answers is the usual cause), and it exits 124. The
+  perf harness arms the same watchdog per scenario (900 s) and on Windows also prints the
+  main thread's stack, so a stalled scenario names its blocked frame; it also isolates its
+  settings under `test-artifacts/perf-settings` and turns the open-time notices (missing fonts,
+  missing links, the Affinity image-layers question, CMYK proof, update check) off for every
+  scenario, as the UI runner does. A new
   prompt must stay off under tests and unattended runs. `PATCHY_TEST_TIMEOUT_SELFTEST=1`
   adds a self-test that hangs on purpose.
 - A debounced worker's start is not a fixed offset from the trigger. To prove work runs

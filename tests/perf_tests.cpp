@@ -53,12 +53,14 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -651,7 +653,98 @@ class MainThreadSampler {
   std::map<std::string, int> stacks_;
   int samples_{0};
 };
+
+// The main thread's handle, opened in main() for the scenario watchdog below.
+HANDLE g_main_thread_handle = nullptr;
+
+// One-shot main-thread stack for the scenario watchdog: when a scenario stalls, the
+// watchdog thread suspends the main thread, walks it, and prints the frames after the
+// resume (symbolizing under a suspended peer risks the loader lock, as in the sampler).
+// A hang then names its blocked frame instead of leaving a silent process.
+void print_main_thread_stack() {
+  if (g_main_thread_handle == nullptr) {
+    return;
+  }
+  HANDLE process = GetCurrentProcess();
+  SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+  SymInitialize(process, nullptr, TRUE);  // FALSE when the sampler already did; lookups still work.
+  DWORD64 addresses[48] = {};
+  int depth = 0;
+  if (SuspendThread(g_main_thread_handle) == static_cast<DWORD>(-1)) {
+    std::fprintf(stderr, "  main thread stack: SuspendThread failed\n");
+    return;
+  }
+  CONTEXT context = {};
+  context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+  if (GetThreadContext(g_main_thread_handle, &context) != FALSE) {
+    STACKFRAME64 frame = {};
+    frame.AddrPC.Offset = context.Rip;
+    frame.AddrPC.Mode = AddrModeFlat;
+    frame.AddrFrame.Offset = context.Rbp;
+    frame.AddrFrame.Mode = AddrModeFlat;
+    frame.AddrStack.Offset = context.Rsp;
+    frame.AddrStack.Mode = AddrModeFlat;
+    while (depth < 48) {
+      if (StackWalk64(IMAGE_FILE_MACHINE_AMD64, process, g_main_thread_handle, &frame, &context, nullptr,
+                      SymFunctionTableAccess64, SymGetModuleBase64, nullptr) == FALSE ||
+          frame.AddrPC.Offset == 0) {
+        break;
+      }
+      addresses[depth++] = frame.AddrPC.Offset;
+    }
+  }
+  ResumeThread(g_main_thread_handle);
+  std::fprintf(stderr, "  main thread stack (%d frames):\n", depth);
+  for (int i = 0; i < depth; ++i) {
+    alignas(SYMBOL_INFO) char storage[sizeof(SYMBOL_INFO) + 512] = {};
+    auto* symbol = reinterpret_cast<SYMBOL_INFO*>(storage);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    symbol->MaxNameLen = 511;
+    DWORD64 displacement = 0;
+    if (SymFromAddr(process, addresses[i], &displacement, symbol) != FALSE) {
+      std::fprintf(stderr, "    %s+0x%llx\n", symbol->Name, static_cast<unsigned long long>(displacement));
+    } else {
+      std::fprintf(stderr, "    0x%llx\n", static_cast<unsigned long long>(addresses[i]));
+    }
+  }
+  std::fflush(stderr);
+}
 #endif
+
+// Names the windows open when a scenario stalls (the UI runner does the same): a
+// modal dialog nobody answers is the usual cause. Built on the GUI thread, which a
+// modal exec() still serves; a GUI thread that never answers is busy or deadlocked.
+void report_open_windows() {
+  auto listing = std::make_shared<std::promise<std::string>>();
+  auto answer = listing->get_future();
+  QMetaObject::invokeMethod(
+      qApp,
+      [listing] {
+        std::string text;
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (!widget->isVisible()) {
+            continue;
+          }
+          text += std::string("  open window: ") + widget->metaObject()->className() + " objectName='" +
+                  widget->objectName().toStdString() + "' title='" + widget->windowTitle().toStdString() + "'" +
+                  (widget->isModal() ? " modal" : "") + '\n';
+        }
+        if (auto* modal = QApplication::activeModalWidget(); modal != nullptr) {
+          text += std::string("  active modal: ") + modal->metaObject()->className() + " objectName='" +
+                  modal->objectName().toStdString() + "'\n";
+        }
+        listing->set_value(text.empty() ? std::string("  no visible windows\n") : text);
+      },
+      Qt::QueuedConnection);
+  if (answer.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+    std::fputs(answer.get().c_str(), stderr);
+  } else {
+    std::fputs("  the GUI thread did not answer within 5 s: busy or deadlocked, not waiting in an event loop\n", stderr);
+  }
+#ifdef Q_OS_WIN
+  print_main_thread_stack();
+#endif
+}
 
 // Layers-panel and layer-style-dialog latency on a deep imported document (the
 // Quintavius Affinity trading-card template: ~440 layers in ten stacked card
@@ -2702,6 +2795,10 @@ void cmyk_brush_stroke_perf_if_available() {
 
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
+#ifdef Q_OS_WIN
+  g_main_thread_handle = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE,
+                                    GetCurrentThreadId());
+#endif
   // PATCHY_PERF_ONSCREEN=1 keeps the platform window real so paint timings include
   // the native raster backend and device pixel ratio.
   if (!qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
@@ -2709,53 +2806,80 @@ int main(int argc, char* argv[]) {
   }
   QApplication app(argc, argv);
   const auto finish_workers = qScopeGuard([] { patchy::ui::wait_for_tracked_background_workers(); });
+  // Shared by every scenario: the user's settings store stays untouched (an interactive
+  // Patchy may be open), and the two open-time notices that would block an unattended
+  // open stay off, as in tests/ui/main.cpp. Before October 25, 2026 only the cmykbrush
+  // scenario did this, so the default run sat in the Missing Fonts dialog of the
+  // Quintavius document on any box whose fonts the offscreen platform cannot see.
+  isolate_perf_settings();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/cmykProofOpenNotice"), false);
+    settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), false);
+    settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), false);
+    settings.setValue(QStringLiteral("imports/afImageLayers"), QStringLiteral("smart"));  // no Affinity question
+    settings.setValue(QStringLiteral("text/warnMissingFontsOnTransform"), false);
+    settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
+    settings.sync();
+  }
+  // Every scenario runs under the suites' watchdog (15 minutes here; the scenarios open
+  // 70 Mpx documents and time whole drags): a stalled scenario prints its name, the
+  // open windows and the main thread's stack, then exits 124 (October 25, 2026: a
+  // default run sat silently for two hours in a modal dialog nobody could see).
+  patchy::test::TestWatchdog watchdog(patchy::test::test_timeout_seconds(900), report_open_windows);
+  const auto run_scenario = [&watchdog](const char* name, auto&& scenario) {
+    watchdog.begin(name);
+    scenario();
+    watchdog.end();
+    std::cout << std::flush;
+  };
   try {
     if (argc > 1 && std::string_view(argv[1]) == "zoom") {
-      tent_psb_zoom_step_perf_if_available();
+      run_scenario("zoom", tent_psb_zoom_step_perf_if_available);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "layerpanel") {
-      quintavius_layer_panel_perf_if_available();
+      run_scenario("layerpanel", quintavius_layer_panel_perf_if_available);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "brushstroke") {
-      big_brush_stroke_perf();
+      run_scenario("brushstroke", big_brush_stroke_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "idle") {
-      idle_new_document_perf();
+      run_scenario("idle", idle_new_document_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "a5brush") {
-      a5_brush_stroke_perf();
+      run_scenario("a5brush", a5_brush_stroke_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {
-      cmyk_brush_stroke_perf_if_available();
+      run_scenario("cmykbrush", cmyk_brush_stroke_perf_if_available);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "maskrotate") {
-      masked_layer_rotate_perf();
+      run_scenario("maskrotate", masked_layer_rotate_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "warpdrag") {
-      warp_drag_perf();
+      run_scenario("warpdrag", warp_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "warpphoto") {
-      warp_photo_perf_if_available();
+      run_scenario("warpphoto", warp_photo_perf_if_available);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "gradientdrag") {
-      gradient_shape_drag_perf();
+      run_scenario("gradientdrag", gradient_shape_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
-      liquify_drag_perf();
+      run_scenario("liquifydrag", liquify_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
-      many_layers_select_and_move_perf_if_available();
+      run_scenario("manylayers", many_layers_select_and_move_perf_if_available);
       return 0;
     }
     // Explicit only: launches the app a dozen times (docs/startup-performance.md).
@@ -2764,23 +2888,23 @@ int main(int argc, char* argv[]) {
     }
     // Explicit only (never part of the default run): minutes on the 85-page fixture.
     if (argc > 1 && std::string_view(argv[1]) == "pdfopen") {
-      pdf_open_perf_if_available(argc, argv);
+      run_scenario("pdfopen", [&] { pdf_open_perf_if_available(argc, argv); });
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "pdfsave") {
-      pdf_save_perf_if_available(argc, argv);
+      run_scenario("pdfsave", [&] { pdf_save_perf_if_available(argc, argv); });
       return 0;
     }
-    template_psd_dirty_move_perf_if_available();
-    template_psd_ui_keyboard_nudge_perf_if_available();
-    tent_psb_zoom_step_perf_if_available();
-    quintavius_layer_panel_perf_if_available();
-    many_layers_select_and_move_perf_if_available();
-    masked_layer_rotate_perf();
-    warp_drag_perf();
-    warp_photo_perf_if_available();
-    gradient_shape_drag_perf();
-    liquify_drag_perf();
+    run_scenario("template_dirty_move", template_psd_dirty_move_perf_if_available);
+    run_scenario("template_keyboard_nudge", template_psd_ui_keyboard_nudge_perf_if_available);
+    run_scenario("zoom", tent_psb_zoom_step_perf_if_available);
+    run_scenario("layerpanel", quintavius_layer_panel_perf_if_available);
+    run_scenario("manylayers", many_layers_select_and_move_perf_if_available);
+    run_scenario("maskrotate", masked_layer_rotate_perf);
+    run_scenario("warpdrag", warp_drag_perf);
+    run_scenario("warpphoto", warp_photo_perf_if_available);
+    run_scenario("gradientdrag", gradient_shape_drag_perf);
+    run_scenario("liquifydrag", liquify_drag_perf);
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';
     return 1;
