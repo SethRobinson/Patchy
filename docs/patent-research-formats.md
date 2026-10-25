@@ -96,5 +96,23 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     The apps run only as command-line tools for fixtures and interchange checks, nothing of them is
     linked or shipped, and the format and app names are used only to name the format and where
     files come from (no app logos or icons).
-  - *Not covered*: Krita's .kra and GIMP's .xcf. Each needs its own read before any work.
+  - *Not covered*: GIMP's .xcf needs its own read before any work. Krita's .kra has its own entry below.
+  - Binding rule in [legal-constraints.md](legal-constraints.md).
+- **Krita .kra read 2026-10-25**, an engineering read, before the code (import only).
+  - *Format*: Krita's native layered format. It has no published specification; Krita's manual
+    describes it only as a zip, loosely based on OpenDocument, that holds the layer data and a
+    rendered `mergedimage.png`. Inside: an XML layer tree (`maindoc.xml`), document metadata
+    (`documentinfo.xml`), per-layer tiled pixel data compressed with LZF, ICC profiles, and SVG for
+    vector layers. Zip's deflate, PNG and XML are already in Patchy. LZF is Marc Lehmann's small
+    Lempel-Ziv variant, published under a two-clause BSD licence (dual GPL) and described by its
+    author as patent-free; Patchy's decoder is its own short implementation of that stream format.
+    Layer styles, when present, are stored in Photoshop's own ASL encoding, which Patchy already
+    reads. No patent claim, licence term or assertion tied to the format was found.
+  - *Source*: Krita and libkra are GPL and were neither used nor read. The reader comes only from
+    files Krita 5.3 writes (fixtures Patchy's scripts make through Krita's command line and Python
+    scripting, run as tools) and openly licensed files found online, unzipped and inspected as data;
+    none of Krita's source was read or searched. Nothing of Krita is linked or shipped, and the
+    format and app names are used only to name the format and where files come from (no app logos
+    or icons). The corpus is local test data only, never committed.
+  - *Not covered*: writing .kra. A writer would need its own read first.
   - Binding rule in [legal-constraints.md](legal-constraints.md).

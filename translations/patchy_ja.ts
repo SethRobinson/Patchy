@@ -12343,6 +12343,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Preferences &gt; Metadata and Watermarks can show this notice again.</source>
         <translation>環境設定 &gt; メタデータと透かし でこの通知を再び表示できます。</translation>
     </message>
+    <message>
+        <source>The Krita layer list (maindoc.xml) is damaged or not valid XML</source>
+        <translation>Krita のレイヤーリスト (maindoc.xml) が破損しているか、有効な XML ではありません</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: its zip directory is missing or cut short</source>
+        <translation>Krita ファイルが破損しています: zip のディレクトリがないか途中で切れています</translation>
+    </message>
+    <message>
+        <source>The Krita file is too large to open</source>
+        <translation>Krita ファイルが大きすぎて開けません</translation>
+    </message>
+    <message>
+        <source>The Krita file uses zip features Patchy cannot read (encryption or an unknown compression)</source>
+        <translation>Krita ファイルは Patchy が読み込めない zip の機能 (暗号化または不明な圧縮) を使用しています</translation>
+    </message>
+    <message>
+        <source>The Krita file is damaged: an entry cannot be unpacked</source>
+        <translation>Krita ファイルが破損しています: エントリを展開できません</translation>
+    </message>
+    <message>
+        <source>This file is not a Krita document</source>
+        <translation>このファイルは Krita ドキュメントではありません</translation>
+    </message>
+    <message>
+        <source>Krita Document</source>
+        <translation>Krita ドキュメント</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

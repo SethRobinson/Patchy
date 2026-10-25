@@ -14,6 +14,7 @@
 #include "formats/jxl_document_io.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
+#include "formats/kra_document_io.hpp"
 #include "formats/pdn_document_io.hpp"
 #include "formats/raw_document_io.hpp"
 #include "formats/dds_document_io.hpp"
@@ -250,6 +251,19 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              nullptr,
                              [](std::span<const std::uint8_t> bytes) { return pdn::sniff(bytes); }});
+  // Krita documents are a read-only source too (docs/kra.md). The open path calls the
+  // reader directly with the file's folder, so file layers can load; this row serves
+  // sniffing and every other caller.
+  registry.register_handler({"patchy.formats.kra",
+                             "Krita Document",
+                             kra::kra_extensions(),
+                             [](std::span<const std::uint8_t> bytes) {
+                               FormatReadResult result;
+                               result.document = kra::DocumentIo::read(bytes, &result.notices);
+                               return result;
+                             },
+                             nullptr,
+                             [](std::span<const std::uint8_t> bytes) { return kra::sniff(bytes); }});
   // Camera raws are read-only sources (write stays null). This headless path develops with
   // camera-JPEG-like defaults; the interactive develop dialog lives in the UI layer and runs
   // BEFORE load_document_from_path reaches the registry.

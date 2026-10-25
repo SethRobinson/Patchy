@@ -4,8 +4,10 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // OpenRaster (.ora) reader and writer (docs/ora.md), written from the published spec at
@@ -71,6 +73,10 @@ public:
 };
 
 namespace detail {
+
+// The blend mode an OpenRaster composite-op names: the spec's names, and the names Krita
+// writes for its own modes ("krita:<Krita's id>"), which the .kra reader shares.
+[[nodiscard]] std::optional<BlendMode> blend_mode_from_composite_op(std::string_view op);
 
 // The writer's zip container, exposed for tests. Entries are written in order with a
 // fixed 1980-01-01 timestamp; `deflated` entries go through raw deflate, the others are
