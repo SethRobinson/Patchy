@@ -1,5 +1,7 @@
 #include "ui/channel_panel.hpp"
+#include "ui/action_icons.hpp"
 #include "ui/modifier_names.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QAbstractItemModel>
 #include <QAction>
@@ -7,10 +9,13 @@
 #include <QHBoxLayout>
 #include <QListWidget>
 #include <QMenu>
+#include <QHelpEvent>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QSignalBlocker>
 #include <QToolButton>
 #include <QTimer>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -33,7 +38,7 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   list_->setDragDropOverwriteMode(false);
   list_->setDefaultDropAction(Qt::MoveAction);
   list_->setDragDropMode(QAbstractItemView::InternalMove);
-  list_->setIconSize(QSize(42, 30));
+  list_->setIconSize(QSize(kEyeColumnWidth + kThumbnailSize.width(), kThumbnailSize.height()));
   list_->setSpacing(1);
   list_->viewport()->installEventFilter(this);
   list_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -68,9 +73,20 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
 
   connect(list_, &QListWidget::currentItemChanged, this,
           [this](QListWidgetItem* current, QListWidgetItem*) { handle_current_item_changed(current); });
-  connect(list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) { handle_item_changed(item); });
   connect(list_->model(), &QAbstractItemModel::rowsMoved, this,
           [this] { QTimer::singleShot(0, this, [this] { handle_rows_moved(); }); });
+  // Clicking the row that is already current: Composite brings every channel back, a
+  // color row shows that channel alone again (selection changes alone do not fire).
+  connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+    if (item == nullptr || item != reselect_item_ || item != list_->currentItem() || !target_callback_) {
+      return;
+    }
+    reselect_item_ = nullptr;
+    const auto row = row_from_item(item);
+    if (row.kind != RowKind::Alpha && row.kind != RowKind::Spot && row.kind != RowKind::QuickMask) {
+      target_callback_(row.kind, row.id, false);
+    }
+  });
   connect(list_, &QWidget::customContextMenuRequested, this,
           [this](const QPoint& position) { show_context_menu(position); });
 
@@ -80,6 +96,7 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
 
 void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) {
   updating_ = true;
+  reselect_item_ = nullptr;
   committed_rows_ = rows;
   fixed_spot_positions_.clear();
   std::size_t saved_index = 0;
@@ -95,18 +112,20 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
   list_->clear();
   QListWidgetItem* selected_item = nullptr;
   for (auto& row : rows) {
-    auto* item = new QListWidgetItem(row.thumbnail, row.name, list_);
+    const bool saved = row.kind == RowKind::Alpha || row.kind == RowKind::Spot;
+    const int eye = saved ? (row.overlay ? 1 : 0) : row.eye.has_value() ? (*row.eye ? 1 : 0) : -1;
+    auto* item = new QListWidgetItem(row_icon(row.thumbnail, eye), row.name, list_);
     item->setData(kKindRole, static_cast<int>(row.kind));
     item->setData(kChannelIdRole, QVariant::fromValue<qulonglong>(row.id));
+    item->setData(kThumbnailRole, row.thumbnail);
+    item->setData(kEyeRole, eye);
     auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
     if (row.kind == RowKind::Alpha) {
-      flags |= Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable;
-      item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
-      item->setToolTip(tr("Select for a grayscale view. Check to show a colored overlay.") + QLatin1Char('\n') +
+      flags |= Qt::ItemIsDragEnabled;
+      item->setToolTip(tr("Select for a grayscale view. Click the eye to show a colored overlay.") +
+                       QLatin1Char('\n') +
                        resolve_modifier_names(tr("%CTRL%-click to load this channel as a selection.")));
     } else if (row.kind == RowKind::Spot) {
-      flags |= Qt::ItemIsUserCheckable;
-      item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
       item->setToolTip(tr("Spot channels can be previewed but not edited.") + QLatin1Char('\n') +
                        resolve_modifier_names(tr("%CTRL%-click to load this channel as a selection.")));
     } else if (row.kind == RowKind::QuickMask) {
@@ -187,6 +206,119 @@ void ChannelPanel::set_reorder_callback(ReorderCallback callback) {
   reorder_callback_ = std::move(callback);
 }
 
+void ChannelPanel::set_eye_callback(EyeCallback callback) {
+  eye_callback_ = std::move(callback);
+}
+
+void ChannelPanel::set_row_thumbnail(RowKind kind, const QPixmap& thumbnail) {
+  for (auto& row : committed_rows_) {
+    if (row.kind == kind) {
+      row.thumbnail = thumbnail;
+    }
+  }
+  const QSignalBlocker blocker(list_);
+  for (int row = 0; row < list_->count(); ++row) {
+    auto* item = list_->item(row);
+    if (static_cast<RowKind>(item->data(kKindRole).toInt()) == kind) {
+      item->setData(kThumbnailRole, thumbnail);
+      item->setIcon(row_icon(thumbnail, item->data(kEyeRole).toInt()));
+    }
+  }
+}
+
+QRect ChannelPanel::eye_rect(int row) const {
+  const auto* item = list_->item(row);
+  if (item == nullptr || item->data(kEyeRole).toInt() < 0) {
+    return {};
+  }
+  const auto rect = list_->visualItemRect(item);
+  // The eye is the left part of the row icon, which starts a few pixels in.
+  return QRect(rect.left(), rect.top(), kEyeColumnWidth + 6, rect.height());
+}
+
+std::optional<bool> ChannelPanel::row_eye(int row) const {
+  const auto* item = list_->item(row);
+  if (item == nullptr || item->data(kEyeRole).toInt() < 0) {
+    return std::nullopt;
+  }
+  return item->data(kEyeRole).toInt() == 1;
+}
+
+QPixmap ChannelPanel::row_thumbnail(int row) const {
+  const auto* item = list_->item(row);
+  return item != nullptr ? item->data(kThumbnailRole).value<QPixmap>() : QPixmap();
+}
+
+QIcon ChannelPanel::row_icon(const QPixmap& thumbnail, int eye) const {
+  const auto ratio = std::max<qreal>(1.0, devicePixelRatioF());
+  const QSize size(kEyeColumnWidth + kThumbnailSize.width(), kThumbnailSize.height());
+  QPixmap result(size * ratio);
+  result.setDevicePixelRatio(ratio);
+  result.fill(Qt::transparent);
+  QPainter painter(&result);
+  if (eye >= 0) {
+    const auto icon = simple_icon(eye != 0 ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
+                                  eye != 0 ? theme().layer_eye_on : theme().layer_eye_off);
+    icon.paint(&painter, QRect(2, (size.height() - 16) / 2, 16, 16));
+  }
+  if (!thumbnail.isNull()) {
+    painter.drawPixmap(QRect(QPoint(kEyeColumnWidth, 0), kThumbnailSize), thumbnail);
+  }
+  painter.end();
+  return QIcon(result);
+}
+
+void ChannelPanel::refresh_row_icons() {
+  const QSignalBlocker blocker(list_);
+  for (int row = 0; row < list_->count(); ++row) {
+    auto* item = list_->item(row);
+    item->setIcon(row_icon(item->data(kThumbnailRole).value<QPixmap>(), item->data(kEyeRole).toInt()));
+  }
+}
+
+bool ChannelPanel::handle_eye_press(QPoint viewport_position) {
+  auto* item = list_->itemAt(viewport_position);
+  if (item == nullptr || !document_available_) {
+    return false;
+  }
+  if (!eye_rect(list_->row(item)).contains(viewport_position)) {
+    return false;
+  }
+  const auto kind = static_cast<RowKind>(item->data(kKindRole).toInt());
+  if (kind == RowKind::Alpha || kind == RowKind::Spot) {
+    toggle_saved_channel_overlay(item);
+  } else if (eye_callback_) {
+    eye_callback_(kind);
+  }
+  return true;
+}
+
+void ChannelPanel::toggle_saved_channel_overlay(QListWidgetItem* item) {
+  const bool on = item->data(kEyeRole).toInt() != 1;
+  {
+    const QSignalBlocker blocker(list_);
+    if (on) {
+      for (int row = 0; row < list_->count(); ++row) {
+        auto* other = list_->item(row);
+        const auto kind = static_cast<RowKind>(other->data(kKindRole).toInt());
+        if (other != item && (kind == RowKind::Alpha || kind == RowKind::Spot)) {
+          other->setData(kEyeRole, 0);
+        }
+      }
+    }
+    item->setData(kEyeRole, on ? 1 : 0);
+    if (on) {
+      list_->setCurrentItem(item);
+    }
+  }
+  refresh_row_icons();
+  refresh_action_states();
+  if (item == list_->currentItem() && target_callback_) {
+    const auto selected = row_from_item(item);
+    target_callback_(selected.kind, selected.id, selected.overlay);
+  }
+}
+
 std::optional<ChannelPanel::Row> ChannelPanel::selected_row() const {
   const auto* item = list_->currentItem();
   if (item == nullptr) {
@@ -211,13 +343,54 @@ void ChannelPanel::changeEvent(QEvent* event) {
   if (event != nullptr && event->type() == QEvent::LanguageChange) {
     retranslate_ui();
   }
+  if (event != nullptr && (event->type() == QEvent::StyleChange || event->type() == QEvent::PaletteChange)) {
+    refresh_row_icons();  // the eyes follow the color scheme
+  }
   QWidget::changeEvent(event);
 }
 
 bool ChannelPanel::eventFilter(QObject* watched, QEvent* event) {
   if (watched == list_->viewport() && event != nullptr) {
+    if (event->type() == QEvent::ToolTip) {
+      const auto* help = static_cast<QHelpEvent*>(event);
+      if (auto* item = list_->itemAt(help->pos());
+          item != nullptr && eye_rect(list_->row(item)).contains(help->pos())) {
+        const auto kind = static_cast<RowKind>(item->data(kKindRole).toInt());
+        QToolTip::showText(help->globalPos(),
+                           kind == RowKind::Alpha || kind == RowKind::Spot
+                               ? tr("Show or hide this channel as a colored overlay")
+                               : kind == RowKind::Composite
+                                     ? tr("Show every color channel")
+                                     : tr("Show or hide this channel. At least one channel stays visible."),
+                           list_->viewport());
+        return true;
+      }
+    }
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
+      const auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() == Qt::LeftButton &&
+          (mouse_event->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) == 0 &&
+          handle_eye_press(mouse_event->position().toPoint())) {
+        // An eye click never selects the row or starts a drag (rapid clicks arrive as
+        // press/double-click pairs; each one toggles).
+        eye_mouse_press_ = true;
+        event->accept();
+        return true;
+      }
+    }
+    if (event->type() == QEvent::MouseButtonRelease && eye_mouse_press_) {
+      eye_mouse_press_ = false;
+      event->accept();
+      return true;
+    }
     if (event->type() == QEvent::MouseButtonPress) {
       ctrl_load_mouse_press_ = false;
+      if (auto* pressed = list_->itemAt(static_cast<QMouseEvent*>(event)->position().toPoint());
+          pressed != nullptr && pressed == list_->currentItem()) {
+        reselect_item_ = pressed;
+      } else {
+        reselect_item_ = nullptr;
+      }
       auto* mouse_event = static_cast<QMouseEvent*>(event);
       const auto load_modifier =
           (mouse_event->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0;
@@ -251,8 +424,12 @@ ChannelPanel::Row ChannelPanel::row_from_item(const QListWidgetItem* item) const
   row.kind = static_cast<RowKind>(item->data(kKindRole).toInt());
   row.id = static_cast<ChannelId>(item->data(kChannelIdRole).toULongLong());
   row.name = item->text();
-  row.thumbnail = item->icon().pixmap(list_->iconSize());
-  row.overlay = item->flags().testFlag(Qt::ItemIsUserCheckable) && item->checkState() == Qt::Checked;
+  row.thumbnail = item->data(kThumbnailRole).value<QPixmap>();
+  const auto eye = item->data(kEyeRole).toInt();
+  row.overlay = (row.kind == RowKind::Alpha || row.kind == RowKind::Spot) && eye == 1;
+  if (eye >= 0) {
+    row.eye = eye == 1;
+  }
   return row;
 }
 
@@ -263,36 +440,23 @@ void ChannelPanel::handle_current_item_changed(QListWidgetItem* current) {
   }
   const auto selected = row_from_item(current);
   if (selected.kind != RowKind::Alpha && selected.kind != RowKind::Spot) {
-    const QSignalBlocker blocker(list_);
-    for (int row = 0; row < list_->count(); ++row) {
-      auto* item = list_->item(row);
-      if (item->flags().testFlag(Qt::ItemIsUserCheckable)) {
-        item->setCheckState(Qt::Unchecked);
+    bool changed = false;
+    {
+      const QSignalBlocker blocker(list_);
+      for (int row = 0; row < list_->count(); ++row) {
+        auto* item = list_->item(row);
+        const auto kind = static_cast<RowKind>(item->data(kKindRole).toInt());
+        if ((kind == RowKind::Alpha || kind == RowKind::Spot) && item->data(kEyeRole).toInt() == 1) {
+          item->setData(kEyeRole, 0);
+          changed = true;
+        }
       }
+    }
+    if (changed) {
+      refresh_row_icons();
     }
   }
   target_callback_(selected.kind, selected.id, selected.overlay);
-}
-
-void ChannelPanel::handle_item_changed(QListWidgetItem* item) {
-  if (updating_ || item == nullptr || !item->flags().testFlag(Qt::ItemIsUserCheckable)) {
-    return;
-  }
-  if (item->checkState() == Qt::Checked) {
-    const QSignalBlocker blocker(list_);
-    for (int row = 0; row < list_->count(); ++row) {
-      auto* other = list_->item(row);
-      if (other != item && other->flags().testFlag(Qt::ItemIsUserCheckable)) {
-        other->setCheckState(Qt::Unchecked);
-      }
-    }
-    list_->setCurrentItem(item);
-  }
-  refresh_action_states();
-  if (item == list_->currentItem() && target_callback_) {
-    const auto selected = row_from_item(item);
-    target_callback_(selected.kind, selected.id, selected.overlay);
-  }
 }
 
 void ChannelPanel::handle_rows_moved() {

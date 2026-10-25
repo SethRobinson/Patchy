@@ -1,5 +1,6 @@
 #include <string_view>
 #include "core/adjustment_layer.hpp"
+#include "core/channel_view.hpp"
 #include "core/document.hpp"
 #include "core/document_memory.hpp"
 #include "core/stroke_patch.hpp"
@@ -248,6 +249,73 @@ void stroke_patch_captures_and_restores_only_the_stroke_rect() {
   // A missing target applies nothing.
   mask_stroke.find_layer(masked_id)->clear_mask();
   CHECK(!patchy::apply_stroke_patch(mask_stroke, *mask_patch, /*restore_before=*/true));
+}
+
+void channel_view_eyes_follow_the_composite_rules() {
+  using patchy::ChannelViewGroup;
+  constexpr auto color = ChannelViewGroup::Color;
+  constexpr auto ink = ChannelViewGroup::Ink;
+  // The composite: every eye on, the composite targeted.
+  const auto start = patchy::select_composite_channel();
+  CHECK(patchy::channel_view_is_composite(start.view));
+  for (int index = 0; index < 3; ++index) {
+    CHECK(patchy::channel_view_eye_on(start.view, color, index));
+  }
+  CHECK(patchy::channel_view_eye_on(start.view, ink, 3));
+  // Hiding Blue keeps the composite target (painting continues) and turns the composite off.
+  const auto no_blue = patchy::toggle_channel_eye(start.view, start.target, color, 2);
+  CHECK(!patchy::channel_view_is_composite(no_blue.view));
+  CHECK(no_blue.view.visible == 0b011);
+  CHECK(no_blue.target.composite);
+  CHECK(!patchy::channel_view_eye_on(no_blue.view, color, 2));
+  // Hiding Green as well leaves Red alone: Red becomes the target.
+  const auto red_only = patchy::toggle_channel_eye(no_blue.view, no_blue.target, color, 1);
+  CHECK(red_only.view.visible == 0b001);
+  CHECK(red_only.target == patchy::channel_view_target(color, 0));
+  // The last visible channel stays on.
+  const auto still_red = patchy::toggle_channel_eye(red_only.view, red_only.target, color, 0);
+  CHECK(still_red.view == red_only.view);
+  CHECK(still_red.target == red_only.target);
+  // Red targeted, Green shown too: the target stays on Red.
+  const auto red_green = patchy::toggle_channel_eye(red_only.view, red_only.target, color, 1);
+  CHECK(red_green.view.visible == 0b011);
+  CHECK(red_green.target == patchy::channel_view_target(color, 0));
+  // Hiding the targeted Red moves the target to the channel left.
+  const auto green_only = patchy::toggle_channel_eye(red_green.view, red_green.target, color, 0);
+  CHECK(green_only.view.visible == 0b010);
+  CHECK(green_only.target == patchy::channel_view_target(color, 1));
+  // Turning every channel back on returns to the composite.
+  const auto two = patchy::toggle_channel_eye(green_only.view, green_only.target, color, 0);
+  const auto all = patchy::toggle_channel_eye(two.view, two.target, color, 2);
+  CHECK(patchy::channel_view_is_composite(all.view));
+  CHECK(all.target.composite);
+  // Selecting a channel row shows it alone; the composite row brings every channel back.
+  const auto blue = patchy::select_single_channel(color, 2);
+  CHECK(blue.view.visible == 0b100);
+  CHECK(blue.target == patchy::channel_view_target(color, 2));
+  CHECK(patchy::select_composite_channel().view == patchy::composite_channel_view());
+  // Ink plates follow the same rules in their own group; the first plate eye clicked
+  // while a color channel shows alone starts the plates from that plate alone.
+  const auto cyan = patchy::toggle_channel_eye(blue.view, blue.target, ink, 0);
+  CHECK(cyan.view == patchy::single_channel_view(ink, 0));
+  CHECK(cyan.target == patchy::channel_view_target(ink, 0));
+  CHECK(!patchy::channel_view_eye_on(cyan.view, color, 2));
+  const auto no_black = patchy::toggle_channel_eye(start.view, start.target, ink, 3);
+  CHECK(no_black.view.group == ink);
+  CHECK(no_black.view.visible == 0b0111);
+  CHECK(no_black.target == patchy::channel_view_target(ink, 0));
+  const auto all_inks = patchy::toggle_channel_eye(no_black.view, no_black.target, ink, 3);
+  CHECK(patchy::channel_view_is_composite(all_inks.view));
+  CHECK(all_inks.view == patchy::composite_channel_view());
+  // Another target (a layer mask, a saved channel) keeps a two-channel color view only.
+  CHECK(patchy::channel_view_for_target(no_blue.view, patchy::composite_channel_target()) == no_blue.view);
+  CHECK(patchy::channel_view_for_target(red_only.view, patchy::composite_channel_target()) ==
+        patchy::composite_channel_view());
+  CHECK(patchy::channel_view_for_target(no_black.view, patchy::composite_channel_target()) ==
+        patchy::composite_channel_view());
+  CHECK(patchy::channel_view_for_target(red_green.view, patchy::channel_view_target(color, 1)) == red_green.view);
+  CHECK(patchy::channel_view_for_target(red_green.view, patchy::channel_view_target(color, 2)) ==
+        patchy::single_channel_view(color, 2));
 }
 
 void document_channels_validate_crud_revisions_and_cow() {
@@ -1122,6 +1190,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
        stroke_patch_captures_and_restores_only_the_stroke_rect},
       {"document_channels_validate_crud_revisions_and_cow",
        document_channels_validate_crud_revisions_and_cow},
+      {"channel_view_eyes_follow_the_composite_rules", channel_view_eyes_follow_the_composite_rules},
       {"document_channel_geometry_tracks_image_and_canvas_operations",
        document_channel_geometry_tracks_image_and_canvas_operations},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},

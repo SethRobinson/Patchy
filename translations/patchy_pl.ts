@@ -14455,10 +14455,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>Wybierz, aby wyświetlić widok w skali szarości. Zaznacz, aby wyświetlić kolorową nakładkę.</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>Kliknij z %CTRL%, aby wczytać ten kanał jako zaznaczenie.</translation>
     </message>
@@ -14509,6 +14505,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%-kliknięcie wczytuje jako zaznaczenie obszary bez farby na tej płycie.</translation>
+    </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>Wybierz, aby wyświetlić widok w skali szarości. Kliknij oko, aby wyświetlić kolorową nakładkę.</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>Pokaż lub ukryj ten kanał jako kolorową nakładkę</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>Pokaż wszystkie kanały koloru</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>Pokaż lub ukryj ten kanał. Co najmniej jeden kanał pozostaje widoczny.</translation>
     </message>
 </context>
 <context>
@@ -25533,6 +25545,42 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Camera Raw Filter</source>
         <translation>Filtr Camera Raw</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>Wyświetlanie kanałów: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>Oglądanie kanałów: %1 (kliknij, aby wyjść)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>Kliknij, aby ponownie wyświetlić wszystkie kanały koloru.</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>Pokaż kanał złożony</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>Pokaż kanał czerwony lub cyjan</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>Pokaż kanał zielony lub magenta</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>Pokaż kanał niebieski lub żółty</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>Pokaż kanał czarny</translation>
     </message>
 </context>
 <context>

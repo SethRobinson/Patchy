@@ -4443,6 +4443,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(mask_edit_mode_chip_, &QToolButton::clicked, this, [this] {
     if (canvas_ != nullptr && canvas_->quick_mask_active()) {
       toggle_quick_mask_mode();
+    } else if (canvas_ != nullptr && (CanvasWidget::is_component_preview(canvas_->layer_edit_target()) ||
+                                      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Content &&
+                                       !channel_view_is_composite(canvas_->channel_view())))) {
+      // A view of some color channels: back to all of them.
+      set_channel_edit_target(ChannelPanel::RowKind::Composite, 0, false, true);
     } else {
       set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true);
     }
@@ -5986,6 +5991,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       pending_layer_thumbnail_refresh_ = false;
     }
     refresh_layer_thumbnails();
+    schedule_derived_channel_thumbnails();
     // Visibility changes come from many places (eyes, Alt-click solo, undo, scripts).
     refresh_merge_visible_action_state();
   });
