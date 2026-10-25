@@ -45,7 +45,25 @@ struct WriteOptions {
   // before the composite, (i, total, name) as top-level layer i (an artboard, say) is
   // encoded, (total, total, "") before the bytes are assembled. Never changes the output.
   std::function<void(int done, int total, const std::string& label)> progress{};
+  // Encodes the save's thumbnail (image resource 1036, docs/file-info.md "Thumbnails"):
+  // called on the writing thread with thumbnail_pixels of the composite, returns JFIF bytes
+  // (empty for none). When set, the document's earlier thumbnails (1033, 1036) are never
+  // written. Unset (recovery snapshots, the byte canaries), they pass through as before.
+  std::function<std::vector<std::uint8_t>(const PixelBuffer& thumbnail)> encode_thumbnail{};
 };
+
+// Photoshop's thumbnail limit: the longest side of image resource 1036.
+inline constexpr std::int32_t kThumbnailMaxSide = 160;
+
+// The image a save's thumbnail shows: `composite` (RGB or RGBA at any depth, straight
+// alpha, display-encoded) box-averaged to fit `max_side` (never enlarged), RGB8, over white
+// where `transparency` (one byte per composite pixel; empty for none) or the buffer's own
+// alpha is below 255. Integer math: the same bytes on every toolchain.
+[[nodiscard]] PixelBuffer thumbnail_pixels(const PixelBuffer& composite, std::span<const std::uint8_t> transparency,
+                                           std::int32_t max_side = kThumbnailMaxSide);
+// Image resource 1036 for a JFIF thumbnail of `width` x `height` (format 1, kJpegRGB, 24 bits).
+[[nodiscard]] std::vector<std::uint8_t> thumbnail_resource(std::int32_t width, std::int32_t height,
+                                                           std::span<const std::uint8_t> jfif);
 
 // The color mode a layered save writes.
 struct LayeredSaveColorMode {

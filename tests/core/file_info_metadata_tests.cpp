@@ -26,8 +26,10 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -1435,6 +1437,202 @@ void metadata_save_stamp_updates_exif_software_and_date() {
   CHECK(fresh.exif == nullptr);
 }
 
+// Issue 418: with the saved document described, a save of a document without metadata
+// writes what Photoshop's own new documents carry: dc:format and photoshop:ColorMode in the
+// XMP, and a big-endian EXIF block (IFD0 Orientation, resolution, Software and DateTime; Exif
+// IFD ExifVersion, ColorSpace and pixel size). A later save updates the dates, the instance,
+// the color mode and the sizes and keeps the creation record; after Strip All Metadata no
+// EXIF comes back; an existing block loses its stale IFD1 thumbnail.
+void metadata_save_stamp_describes_the_saved_psd() {
+  md::SaveStampDocument described;
+  described.width = 640;
+  described.height = 480;
+  described.horizontal_ppi = 300.0;
+  described.vertical_ppi = 300.0;
+  described.srgb = true;
+  patchy::DocumentFileInfo info;
+  md::stamp_file_info_for_save(info, {"2026-10-25T09:46:07+03:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000010"},
+                               &described);
+  CHECK(info.xmp != nullptr && info.exif != nullptr);
+  if (info.xmp == nullptr || info.exif == nullptr) {
+    return;
+  }
+  auto packet = md::parse_xmp(*info.xmp).value_or(md::XmpPacket{});
+  CHECK(packet.text(md::xmp_ns::kDc, "format") == "application/vnd.adobe.photoshop");
+  CHECK(packet.text(md::xmp_ns::kPhotoshop, "ColorMode") == "3");
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Patchy 9.9");
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-25T09:46:07+03:00");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "xmp.did:6f1a0c2e-0000-4000-8000-000000000010");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "InstanceID") == "xmp.iid:6f1a0c2e-0000-4000-8000-000000000010");
+
+  const auto check_exif = [&info](std::uint32_t width, const char* date_time, std::uint32_t color_space) {
+    const auto stream = info.exif ? md::parse_tiff(*info.exif) : std::nullopt;
+    CHECK(stream.has_value());
+    if (!stream) {
+      return;
+    }
+    CHECK(stream->big_endian);
+    CHECK(stream->find(md::IfdKind::Ifd1) == nullptr && stream->thumbnail.empty());
+    const auto entry = [&stream](md::IfdKind kind, std::uint16_t tag) {
+      const auto* ifd = stream->find(kind);
+      return ifd != nullptr ? ifd->find(tag) : nullptr;
+    };
+    const auto number = [&](md::IfdKind kind, std::uint16_t tag) {
+      const auto* found = entry(kind, tag);
+      return found != nullptr ? stream->unsigned_value(*found).value_or(0U) : 0U;
+    };
+    const auto text = [&](std::uint16_t tag) {
+      const auto* found = entry(md::IfdKind::Ifd0, tag);
+      return found != nullptr ? stream->string_value(*found) : std::string{};
+    };
+    CHECK(number(md::IfdKind::Ifd0, md::exif_tag::kOrientation) == 1U);
+    CHECK(number(md::IfdKind::Ifd0, md::exif_tag::kResolutionUnit) == 2U);
+    const auto* resolution = entry(md::IfdKind::Ifd0, md::exif_tag::kXResolution);
+    const auto ppi = resolution != nullptr ? stream->real_value(*resolution) : std::nullopt;
+    CHECK(ppi.has_value() && std::abs(*ppi - 300.0) < 1e-9);
+    CHECK(text(md::exif_tag::kSoftware) == "Patchy 9.9");
+    CHECK(text(md::exif_tag::kDateTime) == date_time);
+    const auto* version = entry(md::IfdKind::Exif, md::exif_tag::kExifVersion);
+    CHECK(version != nullptr && version->data == Bytes({'0', '2', '3', '1'}));
+    CHECK(number(md::IfdKind::Exif, md::exif_tag::kColorSpace) == color_space);
+    CHECK(number(md::IfdKind::Exif, md::exif_tag::kPixelXDimension) == width);
+    CHECK(number(md::IfdKind::Exif, md::exif_tag::kPixelYDimension) == 480U);
+  };
+  check_exif(640U, "2026:10:25 09:46:07", 1U);
+
+  described.width = 320;
+  described.color_mode = 4;
+  md::stamp_file_info_for_save(info, {"2026-10-26T10:00:00+03:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000011"},
+                               &described);
+  packet = md::parse_xmp(*info.xmp).value_or(md::XmpPacket{});
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-25T09:46:07+03:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "ModifyDate") == "2026-10-26T10:00:00+03:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "MetadataDate") == "2026-10-26T10:00:00+03:00");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "InstanceID") == "xmp.iid:6f1a0c2e-0000-4000-8000-000000000011");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "xmp.did:6f1a0c2e-0000-4000-8000-000000000010");
+  CHECK(packet.text(md::xmp_ns::kPhotoshop, "ColorMode") == "4");
+  // The color space stays as first written; the size and date follow the save.
+  check_exif(320U, "2026:10:26 10:00:00", 1U);
+
+  // Strip All Metadata: the next save records itself in the XMP but adds no EXIF.
+  md::strip_file_info(info, true);
+  CHECK(info.stripped && info.exif == nullptr);
+  md::stamp_file_info_for_save(info, {"2026-10-27T10:00:00+03:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000012"},
+                               &described);
+  CHECK(info.exif == nullptr && info.xmp != nullptr);
+
+  // An untagged document gets ColorSpace "uncalibrated", as Photoshop writes it.
+  patchy::DocumentFileInfo untagged;
+  described = md::SaveStampDocument{};
+  described.width = 320;
+  described.height = 480;
+  described.horizontal_ppi = 300.0;
+  described.vertical_ppi = 300.0;
+  md::stamp_file_info_for_save(untagged, {"2026-10-26T10:00:00+03:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000013"},
+                               &described);
+  std::swap(info, untagged);
+  check_exif(320U, "2026:10:26 10:00:00", 0xFFFFU);
+
+  // A camera block keeps its tags and loses its thumbnail, which shows the image as it was.
+  auto camera = sample_exif_stream(false);
+  camera.thumbnail = {0xFF, 0xD8, 0xFF, 0xD9};
+  camera.set_short(md::IfdKind::Ifd1, 259, 6);
+  camera.set_long(md::IfdKind::Exif, md::exif_tag::kPixelXDimension, 4000);
+  patchy::DocumentFileInfo photo;
+  photo.exif = patchy::make_metadata_bytes(md::write_tiff(camera));
+  CHECK(md::parse_tiff(*photo.exif).value_or(md::TiffStream{}).thumbnail.size() == 4U);
+  md::stamp_file_info_for_save(photo, {"2026-10-26T10:00:00+03:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000014"},
+                               &described);
+  const auto stamped = md::parse_tiff(*photo.exif).value_or(md::TiffStream{});
+  CHECK(stamped.thumbnail.empty() && stamped.find(md::IfdKind::Ifd1) == nullptr);
+  const auto* model = stamped.find(md::IfdKind::Ifd0) ? stamped.find(md::IfdKind::Ifd0)->find(md::exif_tag::kModel) : nullptr;
+  CHECK(model != nullptr && stamped.string_value(*model) == "Model X");
+  const auto* width = stamped.find(md::IfdKind::Exif) ? stamped.find(md::IfdKind::Exif)->find(md::exif_tag::kPixelXDimension)
+                                                     : nullptr;
+  CHECK(width != nullptr && stamped.unsigned_value(*width) == 320U);
+  // A camera block without resolution tags gets none.
+  CHECK(stamped.find(md::IfdKind::Ifd0)->find(md::exif_tag::kXResolution) == nullptr);
+}
+
+// The payload of image resource `id` in a read document's File Info, or nullopt.
+std::optional<Bytes> psd_file_info_resource(const patchy::Document& document, std::uint16_t id) {
+  for (const auto& [resource, payload] : document.file_info().psd_resources) {
+    if (resource == id && payload) {
+      return *payload;
+    }
+  }
+  return std::nullopt;
+}
+
+// Issue 419: given an encoder, a PSD save writes a thumbnail of the composite as it is now
+// (resource 1036: kJpegRGB, at most 160 pixels on the long side, transparency over white)
+// and never the earlier 1033 or 1036; without one (recovery snapshots, the canaries) the
+// document's resources pass through unchanged.
+void metadata_psd_save_writes_a_fresh_thumbnail() {
+  patchy::PixelBuffer pixels(400, 200, patchy::PixelFormat::rgba8());
+  auto bytes = pixels.data();
+  for (int y = 0; y < 200; ++y) {
+    for (int x = 0; x < 400; ++x) {
+      auto* pixel = bytes.data() + (static_cast<std::size_t>(y) * 400U + static_cast<std::size_t>(x)) * 4U;
+      pixel[0] = 220;
+      pixel[1] = 30;
+      pixel[2] = 20;
+      pixel[3] = x < 200 ? 0 : 255;
+    }
+  }
+  patchy::Document document(400, 200, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Layer 1", pixels);
+  const Bytes stale = {1, 2, 3, 4};
+  document.file_info().psd_resources = {{std::uint16_t{1033}, patchy::make_metadata_bytes(stale)},
+                                        {std::uint16_t{1036}, patchy::make_metadata_bytes(stale)}};
+
+  const auto plain = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(psd_file_info_resource(plain, 1036) == stale);
+  CHECK(psd_file_info_resource(plain, 1033) == stale);
+
+  patchy::PixelBuffer seen;
+  patchy::psd::WriteOptions options;
+  const Bytes jfif = {0xFF, 0xD8, 0xFF, 0xD9};
+  options.encode_thumbnail = [&seen, &jfif](const patchy::PixelBuffer& thumbnail) {
+    seen = thumbnail;
+    return jfif;
+  };
+  const auto fresh = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document, options));
+  CHECK(!psd_file_info_resource(fresh, 1033).has_value());
+  const auto resource = psd_file_info_resource(fresh, 1036);
+  CHECK(resource.has_value() && resource->size() == 28U + jfif.size());
+  if (resource && resource->size() == 28U + jfif.size()) {
+    const auto u32 = [&resource](std::size_t at) {
+      return (std::uint32_t{(*resource)[at]} << 24U) | (std::uint32_t{(*resource)[at + 1]} << 16U) |
+             (std::uint32_t{(*resource)[at + 2]} << 8U) | std::uint32_t{(*resource)[at + 3]};
+    };
+    CHECK(u32(0) == 1U);    // kJpegRGB
+    CHECK(u32(4) == 160U);  // width
+    CHECK(u32(8) == 80U);   // height
+    CHECK(u32(12) == 480U);  // padded row bytes
+    CHECK(u32(16) == 480U * 80U);
+    CHECK(u32(20) == 4U);
+    CHECK((*resource)[24] == 0 && (*resource)[25] == 24 && (*resource)[26] == 0 && (*resource)[27] == 1);
+    CHECK(std::equal(jfif.begin(), jfif.end(), resource->begin() + 28));
+  }
+  CHECK(seen.width() == 160 && seen.height() == 80 && seen.format() == patchy::PixelFormat::rgb8());
+  if (seen.width() == 160 && seen.height() == 80) {
+    const auto* rgb = seen.data().data();
+    const auto at = [rgb](int x, int y) { return rgb + (static_cast<std::size_t>(y) * 160U + static_cast<std::size_t>(x)) * 3U; };
+    CHECK(at(20, 40)[0] == 255 && at(20, 40)[1] == 255 && at(20, 40)[2] == 255);
+    CHECK(at(140, 40)[0] == 220 && at(140, 40)[1] == 30 && at(140, 40)[2] == 20);
+  }
+
+  // Small images keep their size; an encoder that returns nothing leaves no thumbnail.
+  const auto small = patchy::psd::thumbnail_pixels(patchy::PixelBuffer(30, 12, patchy::PixelFormat::rgb8()), {});
+  CHECK(small.width() == 30 && small.height() == 12);
+  const auto tall = patchy::psd::thumbnail_pixels(patchy::PixelBuffer(10, 1000, patchy::PixelFormat::rgb8()), {});
+  CHECK(tall.width() == 2 && tall.height() == 160);
+  options.encode_thumbnail = [](const patchy::PixelBuffer&) { return Bytes{}; };
+  const auto none = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document, options));
+  CHECK(!psd_file_info_resource(none, 1036).has_value() && !psd_file_info_resource(none, 1033).has_value());
+}
+
 // Photoshop acceptance inputs (File Info should show the dates and the application):
 // a new document's first save, a Photoshop file's resave and a resave of a file with
 // another application's EXIF, in test-artifacts/psd-xmp-dates for
@@ -1450,6 +1648,18 @@ void metadata_save_stamp_acceptance_files() {
   fresh.add_pixel_layer("Background", patchy::PixelBuffer(64, 48, patchy::PixelFormat::rgb8()));
   md::stamp_file_info_for_save(fresh.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-5d3b-4c8a-9e21-7b40d2f8a101"});
   write(out / "new-document.psd", patchy::psd::DocumentIo::write_layered_rgb8(fresh));
+  // Issue 418: the same save with the document described (dc:format, ColorMode, new EXIF).
+  {
+    patchy::Document described_save(64, 48, patchy::PixelFormat::rgb8());
+    described_save.add_pixel_layer("Background", patchy::PixelBuffer(64, 48, patchy::PixelFormat::rgb8()));
+    md::SaveStampDocument described;
+    described.width = 64;
+    described.height = 48;
+    md::stamp_file_info_for_save(described_save.file_info(),
+                                 {"2026-10-25T09:46:07+03:00", "Patchy 9.9", "6f1a0c2e-5d3b-4c8a-9e21-7b40d2f8a104"},
+                                 &described);
+    write(out / "new-document-exif.psd", patchy::psd::DocumentIo::write_layered_rgb8(described_save));
+  }
 
   auto exif = sample_exif_stream(true);
   exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "OtherApp 1.0");
@@ -1475,6 +1685,8 @@ std::vector<patchy::test::TestCase> file_info_metadata_tests() {
       {"metadata_save_stamp_keeps_another_applications_record", metadata_save_stamp_keeps_another_applications_record},
       {"metadata_save_stamp_records_a_new_instance_per_save", metadata_save_stamp_records_a_new_instance_per_save},
       {"metadata_save_stamp_updates_exif_software_and_date", metadata_save_stamp_updates_exif_software_and_date},
+      {"metadata_save_stamp_describes_the_saved_psd", metadata_save_stamp_describes_the_saved_psd},
+      {"metadata_psd_save_writes_a_fresh_thumbnail", metadata_psd_save_writes_a_fresh_thumbnail},
       {"metadata_save_stamp_acceptance_files", metadata_save_stamp_acceptance_files},
       {"metadata_tiff_ifd_round_trips_both_byte_orders", tiff_ifd_round_trips_both_byte_orders},
       {"metadata_tiff_ifd_survives_hostile_offsets", tiff_ifd_survives_hostile_offsets},

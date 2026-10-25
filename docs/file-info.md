@@ -99,7 +99,7 @@ copyright flag.
 - `prepare_save_metadata` always writes EXIF Orientation and XMP `tiff:Orientation` as 1,
   sets PixelX/YDimension and XMP pixel sizes where present to the output size, rewrites
   existing X/YResolution from print settings, and drops the EXIF IFD1 thumbnail and
-  `xmp:Thumbnails` (stale after edits). `CopyrightAndContact` keeps EXIF Artist/Copyright,
+  `xmp:Thumbnails` (stale after edits; JPEG writes a fresh IFD1, "Thumbnails" below). `CopyrightAndContact` keeps EXIF Artist/Copyright,
   XMP `dc:creator`, `dc:rights`, `xmpRights:*`, `photoshop:AuthorsPosition` and
   `CreatorContactInfo`, and IIM 2:80/2:85/2:116. `None` keeps only the profile.
 - `inject_metadata` replaces what the encoder wrote in the same containers. An empty
@@ -136,17 +136,45 @@ time; xmp:CreateDate and xmp:CreatorTool are set only when absent; xmpMM:History
 stEvt entry ("created" with no prior CreateDate or History, else "saved" with changed "/")
 whose instanceID `xmp.iid:<guid>` is also the new xmpMM:InstanceID; the "created" save
 also sets xmpMM:DocumentID and OriginalDocumentID to `xmp.did:<guid>` when absent. An EXIF
-block the document already has gets IFD0 Software (the stamp's software) and DateTime
-(local `YYYY:MM:DD HH:MM:SS`); a document without EXIF gets none. That is Photoshop's own
-behavior: a file another application created keeps its creator (a Photoshop 23.4 save of
-pinball_from_photoshop.psd left CreatorTool at "Adobe Photoshop 21.1" and added a history
-entry), while a Photoshop 27.11 save rewrites EXIF Software and DateTime even in a file
-another application created and gives every History entry the instanceID that
-xmpMM:InstanceID repeats. Dates are ISO 8601 with the local offset (`xmp_date`). An
-unparseable packet is left alone (the EXIF is still stamped). Recovery snapshots, flat
-formats and layered TIFF are not stamped; the core PSD writer is untouched, so the
-canaries hold. After Strip All Metadata the next PSD save writes the XMP stamp again
-(dates, creator and ids only, no EXIF).
+block gets IFD0 Software (the stamp's software) and DateTime (local `YYYY:MM:DD HH:MM:SS`).
+That is Photoshop's own behavior: a file another application created keeps its creator (a
+Photoshop 23.4 save of pinball_from_photoshop.psd left CreatorTool at "Adobe Photoshop
+21.1" and added a history entry), while a Photoshop 27.11 save rewrites EXIF Software and
+DateTime even in a file another application created and gives every History entry the
+instanceID that xmpMM:InstanceID repeats. Dates are ISO 8601 with the local offset
+(`xmp_date`). An unparseable packet is left alone (the EXIF is still stamped).
+
+The coordinator also passes `SaveStampDocument` (#418), which describes the file as
+Photoshop's own new documents do: XMP dc:format `application/vnd.adobe.photoshop` and
+photoshop:ColorMode (the PSD header mode `layered_save_color_mode` writes) on every save;
+EXIF PixelX/YDimension and X/YResolution (from print settings, unit inches) where the block
+has them, and no IFD1 thumbnail (it shows an older image). A document without EXIF gets a
+new big-endian block: IFD0 Orientation 1, X/YResolution, ResolutionUnit, Software and
+DateTime; Exif IFD ExifVersion 0231, ColorSpace (1 for an embedded sRGB profile, else
+65535 "uncalibrated", as Photoshop writes untagged files) and PixelX/YDimension. Photoshop
+also writes an IFD1 with a zero-length thumbnail pointer; Patchy leaves IFD1 out. After
+Strip All Metadata (`DocumentFileInfo::stripped`, set by `strip_file_info`, never saved)
+the next PSD save writes the XMP stamp again (dates, creator, format, mode and ids) but no
+EXIF. Recovery snapshots, flat formats and layered TIFF are not stamped; the core PSD
+writer never stamps, so the canaries hold.
+
+### Thumbnails
+
+- PSD/PSB saves through `write_prepared` set `psd::WriteOptions::encode_thumbnail` (#419):
+  the writer reduces the composite it already made (`psd::thumbnail_pixels`: integer box
+  average to fit 160 pixels, Photoshop's limit, over white where the merged transparency is
+  below 255) and the UI encodes it with Qt's JPEG at quality 75 (`encode_thumbnail_jpeg`).
+  Resource 1036 is `thumbnail_resource`: format 1 (kJpegRGB), width, height, padded row
+  bytes, total size, JFIF size, 24 bits, 1 plane, then RGB JFIF. Resource 1033 (Photoshop
+  4, BGR) and any earlier 1036 are never written then. The thumbnail is the image as saved,
+  so it is written in every Saved metadata mode and after Strip All Metadata.
+- Without the encoder (recovery snapshots, scripts and tests calling the core writer, the
+  byte canaries) the lifted 1033/1036 pass through unchanged.
+- JPEG: when a save writes EXIF, `add_jpeg_exif_thumbnail` adds IFD1 (Compression 6,
+  72 ppi) with a thumbnail of the saved image, as Photoshop does; it is left out when the
+  block would no longer fit one APP1 segment. A JPEG without EXIF gets none: adding one
+  would mean writing EXIF into every JPEG, and flat saves of documents without metadata stay
+  byte-identical (Saved metadata preference, October 23, 2026).
 ### Saved metadata preference
 
 Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_settings.*`,
@@ -188,8 +216,9 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
 - MakerNotes are copied verbatim inside the rebuilt EXIF block; makers that use absolute
   offsets (Canon among them) can end up pointing at the wrong bytes, as with most writers
   other than ExifTool.
-- PSD thumbnails (1033/1036) are kept verbatim and can show the pre-edit image until
-  stripped.
+- A PSD written by the core writer without `encode_thumbnail` (recovery snapshots,
+  scripts calling it directly) keeps the source thumbnails, which can show the pre-edit
+  image.
 
 ## Display
 
@@ -265,7 +294,8 @@ by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
 
 Core: `metadata_*` in `tests/core/file_info_metadata_tests.cpp` (every container from
 self-built bytes, deterministic mutation pass, Unicode paths, PSD round trip, edit, strip,
-save rules, injection round trips) and `watermark_*` in
-`tests/core/invisible_watermark_tests.cpp`. UI: `ui_file_info_*` in `tests/ui/file_info_tests.cpp`;
+save rules, injection round trips, the save stamp and `metadata_psd_save_writes_a_fresh_thumbnail`) and `watermark_*` in
+`tests/core/invisible_watermark_tests.cpp`. UI: `ui_file_info_*`, `ui_psd_save_*` and `ui_jpeg_save_writes_an_exif_thumbnail` in
+`tests/ui/file_info_tests.cpp`;
 scripting: `ui_script_file_info_*`, `ui_script_scan_for_watermarks`. Saved metadata preference:
 `ui_save_metadata_*` in `tests/ui/save_metadata_tests.cpp`.

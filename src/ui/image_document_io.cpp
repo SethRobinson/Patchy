@@ -1,5 +1,8 @@
 #include "ui/image_document_io.hpp"
 #include "formats/metadata/metadata_inject.hpp"
+#include "formats/metadata/exif_tags.hpp"
+#include "formats/metadata/tiff_ifd.hpp"
+#include "psd/psd_document_io.hpp"
 #include "psd/psd_tiff.hpp"
 #include "ui/save_progress.hpp"
 #include "ui/memory_info.hpp"
@@ -2255,6 +2258,36 @@ void write_bytes_with_save_file(const QString& path, std::span<const std::uint8_
   }
 }
 
+}  // namespace
+
+std::vector<std::uint8_t> encode_thumbnail_jpeg(const QImage& image) {
+  if (image.isNull()) {
+    return {};
+  }
+  const auto max_side = psd::kThumbnailMaxSide;
+  QImage fitted = image.width() > max_side || image.height() > max_side
+                      ? image.scaled(max_side, max_side, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+                      : image;
+  QImage paper(fitted.size(), QImage::Format_RGB888);
+  paper.fill(Qt::white);
+  {
+    QPainter painter(&paper);
+    painter.drawImage(0, 0, fitted);
+  }
+  QBuffer buffer;
+  buffer.open(QIODevice::WriteOnly);
+  QImageWriter writer(&buffer, QByteArrayLiteral("jpg"));
+  writer.setQuality(75);
+  if (!writer.write(paper)) {
+    return {};
+  }
+  const auto& encoded = buffer.data();
+  return {reinterpret_cast<const std::uint8_t*>(encoded.constData()),
+          reinterpret_cast<const std::uint8_t*>(encoded.constData()) + encoded.size()};
+}
+
+namespace {
+
 // The metadata a flat writer embeds (docs/file-info.md), or nullopt when there is none
 // (the encoder's bytes are then written untouched) or the format has no container for it.
 std::optional<metadata::SaveMetadata> save_metadata_for(const Document& document, const ImageSaveOptions& options,
@@ -2270,8 +2303,38 @@ std::optional<metadata::SaveMetadata> save_metadata_for(const Document& document
   return metadata;
 }
 
+// A JPEG whose EXIF is written gets a thumbnail of the saved image in IFD1, as
+// Photoshop's JPEG saves do (prepare_save_metadata dropped the stale one). Left out when
+// the block would no longer fit one APP1 segment.
+void add_jpeg_exif_thumbnail(metadata::SaveMetadata& metadata, const QImage& image) {
+  auto stream = metadata::parse_tiff(metadata.exif);
+  if (!stream.has_value()) {
+    return;
+  }
+  auto jfif = encode_thumbnail_jpeg(image);
+  if (jfif.empty()) {
+    return;
+  }
+  stream->thumbnail = std::move(jfif);
+  constexpr std::uint16_t kCompressionTag = 259;
+  stream->set_short(metadata::IfdKind::Ifd1, kCompressionTag, 6);  // JPEG (old-style)
+  stream->set_rational(metadata::IfdKind::Ifd1, metadata::exif_tag::kXResolution, 72, 1);
+  stream->set_rational(metadata::IfdKind::Ifd1, metadata::exif_tag::kYResolution, 72, 1);
+  stream->set_short(metadata::IfdKind::Ifd1, metadata::exif_tag::kResolutionUnit, 2);
+  auto bytes = metadata::write_tiff(*stream);
+  constexpr std::size_t kApp1Budget = 65533U - 6U;  // segment length field and "Exif\0\0"
+  if (bytes.size() <= kApp1Budget) {
+    metadata.exif = std::move(bytes);
+  }
+}
+
 void write_qimage_atomically(const QImage& image, const QString& path, const std::string& format, int quality,
-                             const std::optional<metadata::SaveMetadata>& metadata = std::nullopt) {
+                             std::optional<metadata::SaveMetadata> metadata = std::nullopt) {
+  const bool jpeg = format == "jpg" || format == "jpeg" || format == "jpe" || format == "jfif";
+  if (metadata.has_value() && !metadata->exif.empty() && jpeg &&
+      image.format() != QImage::Format_CMYK8888) {
+    add_jpeg_exif_thumbnail(*metadata, image);
+  }
   if (metadata.has_value()) {
     // Encode in memory, splice the metadata in, then commit the result atomically.
     QBuffer buffer;

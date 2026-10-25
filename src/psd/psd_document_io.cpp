@@ -3089,9 +3089,19 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     write_length_prefixed_block(writer, document.metadata().raw_psd_color_mode_data);
   else
     write_color_mode_data(writer, document, depth);
+  // The thumbnail shows the composite as saved, from the RGB form (docs/file-info.md, "Thumbnails").
+  std::optional<std::vector<std::uint8_t>> thumbnail;
+  if (options.encode_thumbnail) {
+    const auto pixels = thumbnail_pixels(composite_rgb, merged_transparency_channel
+                                                            ? std::span<const std::uint8_t>(composite.alpha)
+                                                            : std::span<const std::uint8_t>{});
+    const auto jfif = pixels.empty() ? std::vector<std::uint8_t>{} : options.encode_thumbnail(pixels);
+    thumbnail = jfif.empty() ? std::vector<std::uint8_t>{} : thumbnail_resource(pixels.width(), pixels.height(), jfif);
+  }
   write_length_prefixed_block(writer, image_resources_for_document(document, channel_info, output_mode,
                                                                    color_plan.cmyk ? &color_plan.cmyk->embedded_profile
-                                                                                   : nullptr));
+                                                                                   : nullptr,
+                                                                   thumbnail ? &*thumbnail : nullptr));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());
     writer.write_bytes(layer_mask.bytes());
