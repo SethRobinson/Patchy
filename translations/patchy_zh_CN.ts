@@ -25532,6 +25532,50 @@ The open document keeps its blend modes either way.</source>
         <source>Hid all layers</source>
         <translation>已隐藏所有图层</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>存储预设...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>将当前版面存储为预设</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>删除预设</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>删除所选的已存储预设</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>存储参考线版面预设</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>预设名称:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>请输入预设名称。</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>“%1”是内置预设。请选择其他名称。</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>是否替换预设“%1”?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>删除参考线版面预设</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>是否删除预设“%1”?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

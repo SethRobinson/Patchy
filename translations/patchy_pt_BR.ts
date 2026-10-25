@@ -25605,6 +25605,50 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Hid all layers</source>
         <translation>Todas as camadas ocultas</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Salvar predefinição...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Salvar o layout atual como predefinição</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Excluir predefinição</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Excluir a predefinição salva selecionada</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Salvar predefinição de layout de guias</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Nome da predefinição:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Insira um nome para a predefinição.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>&quot;%1&quot; é uma predefinição integrada. Escolha outro nome.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>Substituir a predefinição &quot;%1&quot;?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Excluir predefinição de layout de guias</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>Excluir a predefinição &quot;%1&quot;?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

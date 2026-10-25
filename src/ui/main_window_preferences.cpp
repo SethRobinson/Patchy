@@ -74,6 +74,13 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHash>
+#include <QToolButton>
+#include <QJsonValue>
+#include <QJsonParseError>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QInputDialog>
 #include <QIODevice>
 #include <QIcon>
 #include <QLabel>
@@ -2388,6 +2395,100 @@ void MainWindow::new_guide_dialog() {
   canvas_->add_guide(orientation, static_cast<std::int32_t>(std::lround(position_spin->value() * 32.0)));
 }
 
+namespace {
+
+// Saved New Guide Layout presets (GitHub issue 403): a JSON array, oldest first. The key,
+// the field names and the unit tokens are compatibility contracts; never rename them.
+// Lengths keep the unit they were saved in (measurement_unit_settings_token), so a preset
+// saved in inches or percent means the same on any document.
+constexpr const char* kGuideLayoutUserPresetsKey = "view/guideLayoutUserPresets";
+constexpr int kGuideLayoutMaxCount = 64;
+
+struct GuideLayoutUserPreset {
+  QString name;
+  MeasurementUnit unit{MeasurementUnit::Pixels};
+  int columns{0};
+  int rows{0};
+  double column_gutter{0.0};
+  double row_gutter{0.0};
+  double margin_top{0.0};
+  double margin_left{0.0};
+  double margin_bottom{0.0};
+  double margin_right{0.0};
+  bool clear_existing{false};
+};
+
+std::vector<GuideLayoutUserPreset> load_guide_layout_user_presets() {
+  std::vector<GuideLayoutUserPreset> presets;
+  QJsonParseError error;
+  const auto json = QJsonDocument::fromJson(
+      app_settings().value(QLatin1String(kGuideLayoutUserPresetsKey)).toByteArray(), &error);
+  if (error.error != QJsonParseError::NoError || !json.isArray()) {
+    return presets;
+  }
+  for (const auto& value : json.array()) {
+    if (!value.isObject()) {
+      continue;
+    }
+    const auto object = value.toObject();
+    GuideLayoutUserPreset preset;
+    preset.name = object.value(QStringLiteral("name")).toString().simplified();
+    const bool duplicate = std::any_of(presets.begin(), presets.end(), [&preset](const GuideLayoutUserPreset& other) {
+      return other.name.compare(preset.name, Qt::CaseInsensitive) == 0;
+    });
+    if (preset.name.isEmpty() || duplicate) {
+      continue;
+    }
+    const auto count = [&object](const char* key) {
+      return std::clamp(object.value(QLatin1String(key)).toInt(0), 0, kGuideLayoutMaxCount);
+    };
+    const auto length = [&object](const char* key) {
+      const auto number = object.value(QLatin1String(key)).toDouble(0.0);
+      return std::isfinite(number) ? std::max(0.0, number) : 0.0;
+    };
+    preset.unit = measurement_unit_from_settings_token(object.value(QStringLiteral("unit")).toString(),
+                                                       MeasurementUnit::Pixels);
+    preset.columns = count("columns");
+    preset.rows = count("rows");
+    preset.column_gutter = length("columnGutter");
+    preset.row_gutter = length("rowGutter");
+    preset.margin_top = length("marginTop");
+    preset.margin_left = length("marginLeft");
+    preset.margin_bottom = length("marginBottom");
+    preset.margin_right = length("marginRight");
+    preset.clear_existing = object.value(QStringLiteral("clearExisting")).toBool(false);
+    presets.push_back(preset);
+  }
+  return presets;
+}
+
+void store_guide_layout_user_presets(const std::vector<GuideLayoutUserPreset>& presets) {
+  auto settings = app_settings();
+  if (presets.empty()) {
+    settings.remove(QLatin1String(kGuideLayoutUserPresetsKey));
+    return;
+  }
+  QJsonArray array;
+  for (const auto& preset : presets) {
+    QJsonObject object;
+    object.insert(QStringLiteral("name"), preset.name);
+    object.insert(QStringLiteral("unit"), measurement_unit_settings_token(preset.unit));
+    object.insert(QStringLiteral("columns"), preset.columns);
+    object.insert(QStringLiteral("rows"), preset.rows);
+    object.insert(QStringLiteral("columnGutter"), preset.column_gutter);
+    object.insert(QStringLiteral("rowGutter"), preset.row_gutter);
+    object.insert(QStringLiteral("marginTop"), preset.margin_top);
+    object.insert(QStringLiteral("marginLeft"), preset.margin_left);
+    object.insert(QStringLiteral("marginBottom"), preset.margin_bottom);
+    object.insert(QStringLiteral("marginRight"), preset.margin_right);
+    object.insert(QStringLiteral("clearExisting"), preset.clear_existing);
+    array.push_back(object);
+  }
+  settings.setValue(QLatin1String(kGuideLayoutUserPresetsKey), QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
+
+}  // namespace
+
 void MainWindow::new_guide_layout_dialog() {
   if (canvas_ == nullptr) {
     return;
@@ -2407,29 +2508,74 @@ void MainWindow::new_guide_layout_dialog() {
     return std::max(0.0, settings.value(QLatin1String(key), 0.0).toDouble());
   };
 
+  // Item data: "" for Custom, a built-in preset's id, or "user:<index>" for a saved one.
+  const auto user_item_prefix = QStringLiteral("user:");
   auto* preset_combo = new QComboBox(&dialog);
   preset_combo->setObjectName(QStringLiteral("newGuideLayoutPresetCombo"));
-  preset_combo->addItem(tr("Custom"), QString());
   const auto& presets = guide_layout_presets();
-  for (const auto& preset : presets) {
-    preset_combo->addItem(translate_data_text(preset.name), QString::fromLatin1(preset.id.data(),
-                                                                               static_cast<qsizetype>(preset.id.size())));
-  }
+  auto user_presets = load_guide_layout_user_presets();
+  const auto rebuild_preset_combo = [&] {
+    const QSignalBlocker block(preset_combo);
+    preset_combo->clear();
+    preset_combo->addItem(tr("Custom"), QString());
+    for (const auto& preset : presets) {
+      preset_combo->addItem(translate_data_text(preset.name),
+                            QString::fromLatin1(preset.id.data(), static_cast<qsizetype>(preset.id.size())));
+    }
+    if (!user_presets.empty()) {
+      preset_combo->insertSeparator(preset_combo->count());
+      for (std::size_t index = 0; index < user_presets.size(); ++index) {
+        preset_combo->addItem(user_presets[index].name, user_item_prefix + QString::number(index));
+      }
+    }
+  };
+  rebuild_preset_combo();
+  const auto user_index_at = [&](int row) -> std::optional<std::size_t> {
+    const auto data = preset_combo->itemData(row).toString();
+    if (!data.startsWith(user_item_prefix)) {
+      return std::nullopt;
+    }
+    bool ok = false;
+    const auto index = data.mid(user_item_prefix.size()).toInt(&ok);
+    if (!ok || index < 0 || static_cast<std::size_t>(index) >= user_presets.size()) {
+      return std::nullopt;
+    }
+    return static_cast<std::size_t>(index);
+  };
+  // Saved presets are managed beside the box; built-in presets cannot be replaced or deleted.
+  auto* save_preset = new QToolButton(&dialog);
+  save_preset->setObjectName(QStringLiteral("newGuideLayoutSavePresetButton"));
+  save_preset->setText(tr("Save Preset..."));
+  save_preset->setToolTip(tr("Save the current layout as a preset"));
+  save_preset->setAutoRaise(true);
+  auto* delete_preset = new QToolButton(&dialog);
+  delete_preset->setObjectName(QStringLiteral("newGuideLayoutDeletePresetButton"));
+  delete_preset->setText(tr("Delete Preset"));
+  delete_preset->setToolTip(tr("Delete the selected saved preset"));
+  delete_preset->setAutoRaise(true);
+  delete_preset->setEnabled(false);
+  auto* preset_row = new QHBoxLayout();
+  preset_row->setContentsMargins(0, 0, 0, 0);
+  preset_row->setSpacing(4);
+  preset_row->addWidget(preset_combo, 1);
+  preset_row->addWidget(save_preset);
+  preset_row->addWidget(delete_preset);
 
   const auto make_count_spin = [&dialog](const QString& name, int value) {
     auto* spin = new QSpinBox(&dialog);
     spin->setObjectName(name);
-    spin->setRange(0, 64);
-    spin->setValue(std::clamp(value, 0, 64));
+    spin->setRange(0, kGuideLayoutMaxCount);
+    spin->setValue(std::clamp(value, 0, kGuideLayoutMaxCount));
     return spin;
   };
   // Percent is relative to the extent the length runs along.
-  const auto make_length_spin = [this, &dialog](const QString& name, double pixels, bool horizontal) {
+  const auto length_context = [this](bool horizontal) {
+    return UnitConversionContext{sanitized_document_ppi(document().print_settings().horizontal_ppi),
+                                 static_cast<double>(horizontal ? document().width() : document().height())};
+  };
+  const auto make_length_spin = [this, &dialog, length_context](const QString& name, double pixels, bool horizontal) {
     auto* spin = new UnitSpinBox(SpinUnit::Pixels, &dialog);
-    spin->set_context_provider([this, horizontal] {
-      return UnitConversionContext{sanitized_document_ppi(document().print_settings().horizontal_ppi),
-                                   static_cast<double>(horizontal ? document().width() : document().height())};
-    });
+    spin->set_context_provider([length_context, horizontal] { return length_context(horizontal); });
     spin->setObjectName(name);
     spin->setRange(0.0, static_cast<double>(kMaxGuideOffsetPixels));
     spin->setDecimals(3);
@@ -2471,7 +2617,7 @@ void MainWindow::new_guide_layout_dialog() {
     row->addWidget(second, 1);
     return row;
   };
-  form->addRow(tr("Preset:"), preset_combo);
+  form->addRow(tr("Preset:"), preset_row);
   form->addRow(tr("Columns:"), pair_row(columns_spin, tr("Gutter:"), column_gutter_spin));
   form->addRow(tr("Rows:"), pair_row(rows_spin, tr("Gutter:"), row_gutter_spin));
   form->addRow(tr("Top margin:"), pair_row(top_spin, tr("Bottom:"), bottom_spin));
@@ -2492,24 +2638,47 @@ void MainWindow::new_guide_layout_dialog() {
         GuideLayoutAxis{columns_spin->value(), column_gutter_spin->value(), left_spin->value(), right_spin->value()},
         GuideLayoutAxis{rows_spin->value(), row_gutter_spin->value(), top_spin->value(), bottom_spin->value()}};
   };
-  // The preset box names the preset the fields match, or Custom.
-  const auto sync_preset = [=, &presets] {
+  // A saved preset's lengths in pixels on this document.
+  const auto user_preset_layout = [length_context](const GuideLayoutUserPreset& preset) {
+    const auto pixels = [&preset, length_context](double value, bool horizontal) {
+      const auto converted = convert_unit_entry(UnitEntry{value, spin_unit_for(preset.unit)}, SpinUnit::Pixels,
+                                                length_context(horizontal));
+      return std::clamp(converted.value_or(0.0), 0.0, static_cast<double>(kMaxGuideOffsetPixels));
+    };
+    return GuideLayout{GuideLayoutAxis{preset.columns, pixels(preset.column_gutter, true),
+                                       pixels(preset.margin_left, true), pixels(preset.margin_right, true)},
+                       GuideLayoutAxis{preset.rows, pixels(preset.row_gutter, false), pixels(preset.margin_top, false),
+                                       pixels(preset.margin_bottom, false)}};
+  };
+  // The fields keep three decimals, so a converted saved length matches within that.
+  const auto same_layout = [](const GuideLayout& a, const GuideLayout& b) {
+    const auto close = [](double x, double y) { return std::abs(x - y) < 0.0006; };
+    const auto same_axis = [&close](const GuideLayoutAxis& p, const GuideLayoutAxis& q) {
+      return p.count == q.count && close(p.gutter, q.gutter) && close(p.margin_start, q.margin_start) &&
+             close(p.margin_end, q.margin_end);
+    };
+    return same_axis(a.columns, b.columns) && same_axis(a.rows, b.rows);
+  };
+  // The preset box names the preset the fields match (built-ins first), or Custom.
+  const auto sync_preset = [&] {
     const auto layout = current_layout();
-    int index = 0;
-    for (std::size_t preset = 0; preset < presets.size(); ++preset) {
+    int row = 0;
+    for (std::size_t preset = 0; preset < presets.size() && row == 0; ++preset) {
       if (presets[preset].layout == layout) {
-        index = static_cast<int>(preset) + 1;
-        break;
+        row = preset_combo->findData(
+            QString::fromLatin1(presets[preset].id.data(), static_cast<qsizetype>(presets[preset].id.size())));
+      }
+    }
+    for (std::size_t index = 0; index < user_presets.size() && row <= 0; ++index) {
+      if (same_layout(user_preset_layout(user_presets[index]), layout)) {
+        row = preset_combo->findData(user_item_prefix + QString::number(index));
       }
     }
     const QSignalBlocker block(preset_combo);
-    preset_combo->setCurrentIndex(index);
+    preset_combo->setCurrentIndex(std::max(row, 0));
+    delete_preset->setEnabled(user_index_at(preset_combo->currentIndex()).has_value());
   };
-  connect(preset_combo, &QComboBox::currentIndexChanged, &dialog, [=, &presets](int index) {
-    if (index <= 0 || index > static_cast<int>(presets.size())) {
-      return;
-    }
-    const auto& layout = presets[static_cast<std::size_t>(index - 1)].layout;
+  const auto apply_layout = [=](const GuideLayout& layout) {
     columns_spin->setValue(layout.columns.count);
     column_gutter_spin->setValue(layout.columns.gutter);
     left_spin->setValue(layout.columns.margin_start);
@@ -2518,14 +2687,109 @@ void MainWindow::new_guide_layout_dialog() {
     row_gutter_spin->setValue(layout.rows.gutter);
     top_spin->setValue(layout.rows.margin_start);
     bottom_spin->setValue(layout.rows.margin_end);
+  };
+  connect(preset_combo, &QComboBox::currentIndexChanged, &dialog, [&](int row) {
+    if (const auto user = user_index_at(row); user.has_value()) {
+      const auto preset = user_presets[*user];
+      apply_layout(user_preset_layout(preset));
+      clear_existing->setChecked(preset.clear_existing);
+    } else if (row > 0 && row <= static_cast<int>(presets.size())) {
+      apply_layout(presets[static_cast<std::size_t>(row - 1)].layout);
+    }
     sync_preset();
   });
   for (auto* spin : {columns_spin, rows_spin}) {
-    connect(spin, &QSpinBox::valueChanged, &dialog, [=] { sync_preset(); });
+    connect(spin, &QSpinBox::valueChanged, &dialog, [&] { sync_preset(); });
   }
   for (auto* spin : {column_gutter_spin, row_gutter_spin, top_spin, left_spin, bottom_spin, right_spin}) {
-    connect(spin, &QDoubleSpinBox::valueChanged, &dialog, [=] { sync_preset(); });
+    connect(spin, &QDoubleSpinBox::valueChanged, &dialog, [&] { sync_preset(); });
   }
+
+  connect(save_preset, &QToolButton::clicked, &dialog, [&] {
+    const auto title = tr("Save Guide Layout Preset");
+    QString initial_name;
+    if (const auto user = user_index_at(preset_combo->currentIndex()); user.has_value()) {
+      initial_name = user_presets[*user].name;
+    }
+    QInputDialog input(&dialog);
+    input.setObjectName(QStringLiteral("newGuideLayoutSavePresetNameDialog"));
+    input.setWindowTitle(title);
+    input.setLabelText(tr("Preset name:"));
+    input.setInputMode(QInputDialog::TextInput);
+    input.setTextValue(initial_name);
+    input.setOkButtonText(tr("Save"));
+    input.resize(420, input.sizeHint().height());
+    if (exec_dialog(input) != QDialog::Accepted) {
+      return;
+    }
+    const auto name = input.textValue().simplified();
+    if (name.isEmpty()) {
+      (void)show_warning_message(&dialog, title, tr("Enter a name for the preset."), QMessageBox::Ok, QMessageBox::Ok,
+                                 QStringLiteral("newGuideLayoutPresetNameMessageBox"));
+      return;
+    }
+    bool builtin = name.compare(tr("Custom"), Qt::CaseInsensitive) == 0;
+    for (const auto& preset : presets) {
+      builtin = builtin || name.compare(translate_data_text(preset.name), Qt::CaseInsensitive) == 0 ||
+                name.compare(QLatin1String(preset.name), Qt::CaseInsensitive) == 0;
+    }
+    if (builtin) {
+      (void)show_warning_message(&dialog, title, tr("\"%1\" is a built-in preset. Choose another name.").arg(name),
+                                 QMessageBox::Ok, QMessageBox::Ok, QStringLiteral("newGuideLayoutPresetNameMessageBox"));
+      return;
+    }
+    // Lengths are saved in the unit the fields show.
+    const auto unit = measurement_unit_for(column_gutter_spin->display_unit()).value_or(MeasurementUnit::Pixels);
+    const auto in_unit = [&](double pixels, bool horizontal) {
+      return convert_unit_entry(UnitEntry{pixels, SpinUnit::Pixels}, spin_unit_for(unit), length_context(horizontal))
+          .value_or(0.0);
+    };
+    GuideLayoutUserPreset preset;
+    preset.name = name;
+    preset.unit = unit;
+    preset.columns = columns_spin->value();
+    preset.rows = rows_spin->value();
+    preset.column_gutter = in_unit(column_gutter_spin->value(), true);
+    preset.row_gutter = in_unit(row_gutter_spin->value(), false);
+    preset.margin_top = in_unit(top_spin->value(), false);
+    preset.margin_left = in_unit(left_spin->value(), true);
+    preset.margin_bottom = in_unit(bottom_spin->value(), false);
+    preset.margin_right = in_unit(right_spin->value(), true);
+    preset.clear_existing = clear_existing->isChecked();
+    auto existing = std::find_if(user_presets.begin(), user_presets.end(), [&name](const GuideLayoutUserPreset& other) {
+      return other.name.compare(name, Qt::CaseInsensitive) == 0;
+    });
+    if (existing != user_presets.end()) {
+      const auto answer = show_warning_message(&dialog, title, tr("Replace the preset \"%1\"?").arg(existing->name),
+                                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
+                                               QStringLiteral("newGuideLayoutReplacePresetMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        return;
+      }
+      *existing = preset;
+    } else {
+      user_presets.push_back(preset);
+    }
+    store_guide_layout_user_presets(user_presets);
+    rebuild_preset_combo();
+    sync_preset();
+  });
+  connect(delete_preset, &QToolButton::clicked, &dialog, [&] {
+    const auto user = user_index_at(preset_combo->currentIndex());
+    if (!user.has_value()) {
+      return;
+    }
+    const auto answer = show_warning_message(
+        &dialog, tr("Delete Guide Layout Preset"), tr("Delete the preset \"%1\"?").arg(user_presets[*user].name),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No, QStringLiteral("newGuideLayoutDeletePresetMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+    user_presets.erase(user_presets.begin() + static_cast<std::ptrdiff_t>(*user));
+    store_guide_layout_user_presets(user_presets);
+    rebuild_preset_combo();
+    sync_preset();
+  });
   sync_preset();
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);

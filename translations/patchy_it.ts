@@ -25605,6 +25605,50 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Hid all layers</source>
         <translation>Tutti i livelli nascosti</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Salva predefinito...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Salva il layout corrente come predefinito</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Elimina predefinito</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Elimina il predefinito salvato selezionato</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Salva predefinito layout guide</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Nome predefinito:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Inserisci un nome per il predefinito.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>&quot;%1&quot; è un predefinito incorporato. Scegli un altro nome.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>Sostituire il predefinito &quot;%1&quot;?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Elimina predefinito layout guide</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>Eliminare il predefinito &quot;%1&quot;?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

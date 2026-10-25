@@ -11,6 +11,10 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFrame>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMessageBox>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
@@ -2656,6 +2660,230 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
   save_widget_artifact("ui_new_guide_layout_canvas", window);
 }
 
+// Saved New Guide Layout presets (GitHub issue 403): Save Preset... stores the fields under a
+// name, the preset comes back after the dialog reopens and applies its values, saving under
+// the same name asks before replacing it, built-in names are refused, and Delete Preset
+// (only for saved presets) asks before removing it.
+void ui_new_guide_layout_user_presets_save_apply_delete() {
+  const QStringList keys{QStringLiteral("view/rulerUnits"),
+                         QStringLiteral("view/guideLayoutColumns"),
+                         QStringLiteral("view/guideLayoutRows"),
+                         QStringLiteral("view/guideLayoutColumnGutter"),
+                         QStringLiteral("view/guideLayoutRowGutter"),
+                         QStringLiteral("view/guideLayoutMarginTop"),
+                         QStringLiteral("view/guideLayoutMarginLeft"),
+                         QStringLiteral("view/guideLayoutMarginBottom"),
+                         QStringLiteral("view/guideLayoutMarginRight"),
+                         QStringLiteral("view/guideLayoutClearExisting"),
+                         QStringLiteral("view/guideLayoutUserPresets")};
+  std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
+  {
+    auto settings = patchy::ui::app_settings();
+    for (const auto& key : keys) {
+      restorers.push_back(std::make_unique<SettingsValueRestorer>(key));
+      if (key != QStringLiteral("view/rulerUnits")) {
+        settings.remove(key);
+      }
+    }
+  }
+  const auto user_presets_json = [] {
+    return patchy::ui::app_settings().value(QStringLiteral("view/guideLayoutUserPresets")).toByteArray();
+  };
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::create_document(window, 600, 300);
+  patchy::ui::MainWindowTestAccess::set_ruler_unit(window, patchy::ui::MeasurementUnit::Pixels);
+  (void)require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Arms a one-shot answer for a dialog that opens inside the next blocking call.
+  const auto when_open = [](const QString& name, std::function<void(QDialog&)> act) {
+    QTimer::singleShot(0, [name, act] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(name));
+      CHECK(dialog != nullptr);
+      if (dialog != nullptr) {
+        act(*dialog);
+      }
+    });
+  };
+  const auto name_prompt = [when_open](const QString& text, std::function<void()> after = {}) {
+    when_open(QStringLiteral("newGuideLayoutSavePresetNameDialog"), [text, after](QDialog& prompt) {
+      auto* edit = prompt.findChild<QLineEdit*>();
+      CHECK(edit != nullptr);
+      if (edit != nullptr) {
+        edit->setText(text);
+      }
+      if (after) {
+        after();  // arms the box that opens once the prompt closes
+      }
+      prompt.accept();
+    });
+  };
+  const auto answer_box = [when_open](const QString& name, QMessageBox::StandardButton button) {
+    when_open(name, [button](QDialog& dialog) {
+      auto* box = qobject_cast<QMessageBox*>(&dialog);
+      CHECK(box != nullptr && box->button(button) != nullptr);
+      if (box != nullptr && box->button(button) != nullptr) {
+        box->button(button)->click();
+      } else {
+        dialog.reject();
+      }
+    });
+  };
+  struct Fields {
+    QComboBox* preset{nullptr};
+    QAbstractButton* save{nullptr};
+    QAbstractButton* remove{nullptr};
+    QSpinBox* columns{nullptr};
+    QSpinBox* rows{nullptr};
+    QDoubleSpinBox* column_gutter{nullptr};
+    QDoubleSpinBox* left{nullptr};
+    QCheckBox* clear{nullptr};
+    bool ok() const {
+      return preset != nullptr && save != nullptr && remove != nullptr && columns != nullptr && rows != nullptr &&
+             column_gutter != nullptr && left != nullptr && clear != nullptr;
+    }
+  };
+  const auto fields_of = [](QWidget& dialog) {
+    Fields fields;
+    fields.preset = dialog.findChild<QComboBox*>(QStringLiteral("newGuideLayoutPresetCombo"));
+    fields.save = dialog.findChild<QAbstractButton*>(QStringLiteral("newGuideLayoutSavePresetButton"));
+    fields.remove = dialog.findChild<QAbstractButton*>(QStringLiteral("newGuideLayoutDeletePresetButton"));
+    fields.columns = dialog.findChild<QSpinBox*>(QStringLiteral("newGuideLayoutColumnsSpin"));
+    fields.rows = dialog.findChild<QSpinBox*>(QStringLiteral("newGuideLayoutRowsSpin"));
+    fields.column_gutter = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutColumnGutterSpin"));
+    fields.left = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutMarginLeftSpin"));
+    fields.clear = dialog.findChild<QCheckBox*>(QStringLiteral("newGuideLayoutClearExistingCheck"));
+    CHECK(fields.ok());
+    return fields;
+  };
+  const auto run_dialog = [&](const std::function<void(QDialog&, Fields&)>& act) {
+    bool saw = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("newGuideLayoutDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto fields = fields_of(*dialog);
+      if (!fields.ok()) {
+        dialog->reject();
+        return;
+      }
+      act(*dialog, fields);
+      saw = true;
+      if (dialog->isVisible()) {
+        dialog->reject();
+      }
+    });
+    require_action(window, "viewNewGuideLayoutAction")->trigger();
+    QApplication::processEvents();
+    CHECK(saw);
+  };
+
+  // Save a layout under a name; a built-in name is refused.
+  run_dialog([&](QDialog& dialog, Fields& f) {
+    CHECK(!f.remove->isEnabled());  // the 2 x 2 default is built in
+    f.columns->setValue(5);
+    f.rows->setValue(0);
+    f.column_gutter->setValue(10.0);
+    f.left->setValue(20.0);
+    f.clear->setChecked(true);
+    CHECK(f.preset->currentData().toString().isEmpty());  // Custom
+    CHECK(!f.remove->isEnabled());
+    name_prompt(QStringLiteral("3 x 3 Grid"), [answer_box] {
+      answer_box(QStringLiteral("newGuideLayoutPresetNameMessageBox"), QMessageBox::Ok);
+    });
+    f.save->click();
+    QApplication::processEvents();
+    CHECK(user_presets_json().isEmpty());
+    name_prompt(QStringLiteral("Five Columns"));
+    f.save->click();
+    QApplication::processEvents();
+    CHECK(f.preset->currentText() == QStringLiteral("Five Columns"));
+    CHECK(f.remove->isEnabled());
+    QApplication::processEvents();
+    save_widget_artifact("ui_new_guide_layout_user_preset", dialog);
+    // Cancel: the preset stays saved, the last-used fields do not change.
+  });
+  const auto saved = QJsonDocument::fromJson(user_presets_json()).array();
+  CHECK(saved.size() == 1);
+  if (saved.size() == 1) {
+    const auto object = saved.first().toObject();
+    CHECK(object.value(QStringLiteral("name")).toString() == QStringLiteral("Five Columns"));
+    CHECK(object.value(QStringLiteral("unit")).toString() == QStringLiteral("px"));
+    CHECK(object.value(QStringLiteral("columns")).toInt() == 5);
+    CHECK(object.value(QStringLiteral("columnGutter")).toDouble() == 10.0);
+    CHECK(object.value(QStringLiteral("marginLeft")).toDouble() == 20.0);
+    CHECK(object.value(QStringLiteral("clearExisting")).toBool());
+  }
+
+  // Reopened: the saved preset is listed after the built-ins and applies its values; saving
+  // under its name (any case) asks before replacing it.
+  run_dialog([&](QDialog& dialog, Fields& f) {
+    CHECK(f.preset->currentData().toString() == QStringLiteral("guideLayout.2x2"));
+    CHECK(!f.clear->isChecked());
+    const auto row = f.preset->findText(QStringLiteral("Five Columns"));
+    CHECK(row > f.preset->findData(QStringLiteral("guideLayout.12columnsGutter")));
+    f.preset->setCurrentIndex(row);
+    CHECK(f.columns->value() == 5 && f.rows->value() == 0);
+    CHECK(f.column_gutter->value() == 10.0 && f.left->value() == 20.0);
+    CHECK(f.clear->isChecked());
+    CHECK(f.remove->isEnabled());
+    f.columns->setValue(6);
+    CHECK(f.preset->currentData().toString().isEmpty());
+    // Declining keeps the old values.
+    name_prompt(QStringLiteral("five columns"), [answer_box] {
+      answer_box(QStringLiteral("newGuideLayoutReplacePresetMessageBox"), QMessageBox::No);
+    });
+    f.save->click();
+    QApplication::processEvents();
+    CHECK(QJsonDocument::fromJson(user_presets_json()).array().first().toObject().value(QStringLiteral("columns"))
+              .toInt() == 5);
+    name_prompt(QStringLiteral("Five Columns"), [answer_box] {
+      answer_box(QStringLiteral("newGuideLayoutReplacePresetMessageBox"), QMessageBox::Yes);
+    });
+    f.save->click();
+    QApplication::processEvents();
+    CHECK(QJsonDocument::fromJson(user_presets_json()).array().size() == 1);
+    CHECK(QJsonDocument::fromJson(user_presets_json()).array().first().toObject().value(QStringLiteral("columns"))
+              .toInt() == 6);
+    CHECK(f.preset->currentText() == QStringLiteral("Five Columns"));
+    dialog.accept();
+  });
+  // Six columns with 10 px gutters after a 20 px left margin: the margin guide and a pair per division.
+  std::size_t vertical = 0;
+  std::size_t horizontal = 0;
+  for (const auto& guide : document.guides()) {
+    (guide.orientation == patchy::GuideOrientation::Vertical ? vertical : horizontal) += 1;
+  }
+  CHECK(vertical == 11);
+  CHECK(horizontal == 0);
+
+  // Delete Preset: only for saved presets, and it asks first.
+  run_dialog([&](QDialog&, Fields& f) {
+    CHECK(f.preset->currentText() == QStringLiteral("Five Columns"));  // the remembered fields match it
+    CHECK(f.remove->isEnabled());
+    f.preset->setCurrentIndex(f.preset->findData(QStringLiteral("guideLayout.3x3")));
+    CHECK(!f.remove->isEnabled());
+    f.preset->setCurrentIndex(f.preset->findText(QStringLiteral("Five Columns")));
+    CHECK(f.remove->isEnabled());
+    answer_box(QStringLiteral("newGuideLayoutDeletePresetMessageBox"), QMessageBox::No);
+    f.remove->click();
+    QApplication::processEvents();
+    CHECK(f.preset->findText(QStringLiteral("Five Columns")) > 0);
+    answer_box(QStringLiteral("newGuideLayoutDeletePresetMessageBox"), QMessageBox::Yes);
+    f.remove->click();
+    QApplication::processEvents();
+    CHECK(f.preset->findText(QStringLiteral("Five Columns")) < 0);
+    CHECK(f.preset->currentData().toString().isEmpty());  // the fields stay, now Custom
+    CHECK(f.columns->value() == 6);
+    CHECK(!f.remove->isEnabled());
+  });
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("view/guideLayoutUserPresets")));
+}
+
 }  // namespace
 
 // A typed physical unit in a pixel-only field (Feather, the Rectangle tool's
@@ -2754,5 +2982,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
        ui_pen_preferences_spin_buttons_visible_and_increment_on_right},
       {"ui_new_guide_layout_dialog_presets_gutters_and_margins",
        ui_new_guide_layout_dialog_presets_gutters_and_margins},
+      {"ui_new_guide_layout_user_presets_save_apply_delete",
+       ui_new_guide_layout_user_presets_save_apply_delete},
   };
 }

@@ -25532,6 +25532,50 @@ The open document keeps its blend modes either way.</source>
         <source>Hid all layers</source>
         <translation>모든 레이어를 숨겼습니다</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>사전 설정 저장...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>현재 레이아웃을 사전 설정으로 저장</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>선택한 저장된 사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>안내선 레이아웃 사전 설정 저장</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>사전 설정 이름:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>사전 설정의 이름을 입력합니다.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>&quot;%1&quot;은(는) 내장된 사전 설정입니다. 다른 이름을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>사전 설정 &quot;%1&quot;을(를) 바꾸시겠습니까?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>안내선 레이아웃 사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>사전 설정 &quot;%1&quot;을(를) 삭제하시겠습니까?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

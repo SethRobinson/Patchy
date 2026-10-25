@@ -25605,6 +25605,50 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Hid all layers</source>
         <translation>Alle Ebenen ausgeblendet</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Vorgabe speichern...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Aktuelles Layout als Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Vorgabe löschen</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Ausgewählte gespeicherte Vorgabe löschen</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Hilfslinienlayout-Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Vorgabenname:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Geben Sie einen Namen für die Vorgabe ein.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>&quot;%1&quot; ist eine integrierte Vorgabe. Wählen Sie einen anderen Namen.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>Vorgabe &quot;%1&quot; ersetzen?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Hilfslinienlayout-Vorgabe löschen</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>Vorgabe &quot;%1&quot; löschen?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

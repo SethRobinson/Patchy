@@ -25678,6 +25678,50 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Hid all layers</source>
         <translation>Ukryto wszystkie warstwy</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Zapisz ustawienie...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Zapisz bieżący układ jako ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Usuń ustawienie</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Usuń zaznaczone zapisane ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Zapisz ustawienie wstępne układu prowadnic</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Nazwa ustawienia:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Wprowadź nazwę ustawienia wstępnego.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>„%1” to wbudowane ustawienie wstępne. Wybierz inną nazwę.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>Zamienić ustawienie wstępne „%1”?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Usuń ustawienie wstępne układu prowadnic</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>Usunąć ustawienie wstępne „%1”?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

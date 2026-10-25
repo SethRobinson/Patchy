@@ -25532,6 +25532,50 @@ The open document keeps its blend modes either way.</source>
         <source>Hid all layers</source>
         <translation>すべてのレイヤーを非表示にしました</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>プリセットを保存...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>現在のレイアウトをプリセットとして保存</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>プリセットを削除</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>選択した保存済みプリセットを削除</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>ガイドレイアウトのプリセットを保存</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>プリセット名:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>プリセットの名前を入力してください。</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>「%1」は組み込みのプリセットです。別の名前を選んでください。</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>プリセット「%1」を置き換えますか?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>ガイドレイアウトのプリセットを削除</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>プリセット「%1」を削除しますか?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

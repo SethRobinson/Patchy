@@ -25605,6 +25605,50 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Hid all layers</source>
         <translation>Todas las capas ocultadas</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Guardar ajuste preestablecido...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Guardar la composición actual como ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Eliminar ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Eliminar el ajuste preestablecido guardado seleccionado</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Guardar ajuste preestablecido de composición de guías</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Nombre del ajuste preestablecido:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Introduzca un nombre para el ajuste preestablecido.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>&quot;%1&quot; es un ajuste preestablecido integrado. Elija otro nombre.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>¿Desea reemplazar el ajuste preestablecido &quot;%1&quot;?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Eliminar ajuste preestablecido de composición de guías</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>¿Desea eliminar el ajuste preestablecido &quot;%1&quot;?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

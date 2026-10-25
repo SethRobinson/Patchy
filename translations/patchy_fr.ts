@@ -25605,6 +25605,50 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Hid all layers</source>
         <translation>Tous les calques masqués</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Enregistrer le paramètre prédéfini...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Enregistrer la disposition actuelle comme paramètre prédéfini</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Supprimer le paramètre prédéfini</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Supprimer le paramètre prédéfini enregistré sélectionné</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Enregistrer un paramètre prédéfini de disposition des repères</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Nom du paramètre prédéfini :</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Saisissez un nom pour le paramètre prédéfini.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>« %1 » est un paramètre prédéfini intégré. Choisissez un autre nom.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>Remplacer le paramètre prédéfini « %1 » ?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Supprimer un paramètre prédéfini de disposition des repères</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>Supprimer le paramètre prédéfini « %1 » ?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

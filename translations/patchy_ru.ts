@@ -25678,6 +25678,50 @@ The open document keeps its blend modes either way.</source>
         <source>Hid all layers</source>
         <translation>Все слои скрыты</translation>
     </message>
+    <message>
+        <source>Save Preset...</source>
+        <translation>Сохранить предустановку...</translation>
+    </message>
+    <message>
+        <source>Save the current layout as a preset</source>
+        <translation>Сохранить текущий макет как набор</translation>
+    </message>
+    <message>
+        <source>Delete Preset</source>
+        <translation>Удалить предустановку</translation>
+    </message>
+    <message>
+        <source>Delete the selected saved preset</source>
+        <translation>Удалить выбранный сохраненный набор</translation>
+    </message>
+    <message>
+        <source>Save Guide Layout Preset</source>
+        <translation>Сохранить набор макета направляющих</translation>
+    </message>
+    <message>
+        <source>Preset name:</source>
+        <translation>Имя предустановки:</translation>
+    </message>
+    <message>
+        <source>Enter a name for the preset.</source>
+        <translation>Введите имя для предустановки.</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <translation>«%1» — это встроенная предустановка. Выберите другое имя.</translation>
+    </message>
+    <message>
+        <source>Replace the preset &quot;%1&quot;?</source>
+        <translation>Заменить предустановку «%1»?</translation>
+    </message>
+    <message>
+        <source>Delete Guide Layout Preset</source>
+        <translation>Удалить набор макета направляющих</translation>
+    </message>
+    <message>
+        <source>Delete the preset &quot;%1&quot;?</source>
+        <translation>Удалить предустановку «%1»?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
