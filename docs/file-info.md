@@ -128,8 +128,8 @@ copyright flag.
 
 ### Save stamp
 
-A PSD/PSB Save or Save As (`DocumentSaveCoordinator::write_prepared`, also scripts and
-`--export`) records itself in the session's XMP and EXIF before the writer runs, through
+A PSD/PSB or JPEG Save or Save As (`DocumentSaveCoordinator::write_prepared`, also scripts'
+`saveAs` and `--export`; JPEG since October 25, 2026, not a script's `exportAs` copy) records itself in the session's XMP and EXIF before the writer runs, through
 `stamp_file_info_for_save` with `save_stamp_now()` (local time and offset, `"Patchy " +
 PATCHY_VERSION`, a fresh `QUuid`): xmp:ModifyDate and xmp:MetadataDate become the save
 time; xmp:CreateDate and xmp:CreatorTool are set only when absent; xmpMM:History gains a
@@ -144,9 +144,10 @@ DateTime even in a file another application created and gives every History entr
 instanceID that xmpMM:InstanceID repeats. Dates are ISO 8601 with the local offset
 (`xmp_date`). An unparseable packet is left alone (the EXIF is still stamped).
 
-The coordinator also passes `SaveStampDocument` (#418), which describes the file as
-Photoshop's own new documents do: XMP dc:format `application/vnd.adobe.photoshop` and
-photoshop:ColorMode (the PSD header mode `layered_save_color_mode` writes) on every save;
+The coordinator also passes `SaveStampDocument` (#418, `stamp_document_for_save`), which
+describes the file as Photoshop's own new documents do: XMP dc:format
+(`application/vnd.adobe.photoshop`, or `image/jpeg`) and photoshop:ColorMode (the PSD
+header mode: `layered_save_color_mode` for PSD, 3 or 4 for a CMYK JPEG) on every save;
 EXIF PixelX/YDimension and X/YResolution (from print settings, unit inches) where the block
 has them, and no IFD1 thumbnail (it shows an older image). A document without EXIF gets a
 new big-endian block: IFD0 Orientation 1, X/YResolution, ResolutionUnit, Software and
@@ -154,9 +155,9 @@ DateTime; Exif IFD ExifVersion 0231, ColorSpace (1 for an embedded sRGB profile,
 65535 "uncalibrated", as Photoshop writes untagged files) and PixelX/YDimension. Photoshop
 also writes an IFD1 with a zero-length thumbnail pointer; Patchy leaves IFD1 out. After
 Strip All Metadata (`DocumentFileInfo::stripped`, set by `strip_file_info`, never saved)
-the next PSD save writes the XMP stamp again (dates, creator, format, mode and ids) but no
-EXIF. Recovery snapshots, flat formats and layered TIFF are not stamped; the core PSD
-writer never stamps, so the canaries hold.
+the next save writes the XMP stamp again (dates, creator, format, mode and ids) but no
+EXIF. Recovery snapshots, File > Export As, flat formats other than JPEG and layered TIFF
+are not stamped; the core writers never stamp, so the canaries hold.
 
 ### Thumbnails
 
@@ -172,9 +173,9 @@ writer never stamps, so the canaries hold.
   byte canaries) the lifted 1033/1036 pass through unchanged.
 - JPEG: when a save writes EXIF, `add_jpeg_exif_thumbnail` adds IFD1 (Compression 6,
   72 ppi) with a thumbnail of the saved image, as Photoshop does; it is left out when the
-  block would no longer fit one APP1 segment. A JPEG without EXIF gets none: adding one
-  would mean writing EXIF into every JPEG, and flat saves of documents without metadata stay
-  byte-identical (Saved metadata preference, October 23, 2026).
+  block would no longer fit one APP1 segment. With the JPEG save stamp a new document's
+  Save As has EXIF, so it gets one too; a save without EXIF (Saved metadata None, after
+  Strip All Metadata, Export As with Metadata None) gets none.
 ### Saved metadata preference
 
 Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_settings.*`,
@@ -185,9 +186,10 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
 
 - None: no save stamp (`write_prepared(..., stamp_save = false)`) and nothing personal. What the
   file already carries is kept; Strip All Metadata removes it.
-- Basic: the save stamp above, PSD and PSB only, as before the preference existed. Decided
-  October 23, 2026: flat formats stay unstamped, so a document without metadata still saves
-  byte-identically to before (the injection rule above).
+- Basic: the save stamp above for PSD, PSB and JPEG Save/Save As. JPEG was added October
+  25, 2026 (Seth), reversing the October 23 rule for JPEG only: the other flat formats stay
+  unstamped, so a document without metadata still saves them byte-identically (the
+  injection rule above), and File > Export As follows only its Metadata combo.
 - Personal: Basic plus `add_personal_save_metadata` before a save to a format that carries
   metadata (PSD, PSB, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF, PDF author): the name goes into
   `dc:creator` beside any creator already there (never replacing one), the copyright notice into

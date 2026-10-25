@@ -35,6 +35,32 @@ metadata::SaveStamp save_stamp_now() {
                              QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString()};
 }
 
+namespace {
+
+bool is_jpeg_save_extension(const QString& extension) {
+  return extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg") ||
+         extension == QStringLiteral("jpe") || extension == QStringLiteral("jfif");
+}
+
+// Photoshop's save record in the document's XMP and EXIF (docs/file-info.md, "Save stamp"):
+// the save itself, and the file as written: `format` is dc:format, `color_mode` the PSD
+// header mode photoshop:ColorMode names (3 RGB, 4 CMYK).
+void stamp_document_for_save(Document& document, const char* format, int color_mode) {
+  const auto& read = std::as_const(document);
+  metadata::SaveStampDocument described;
+  described.format = format;
+  described.color_mode = color_mode;
+  described.width = read.width();
+  described.height = read.height();
+  described.horizontal_ppi = read.print_settings().horizontal_ppi;
+  described.vertical_ppi = read.print_settings().vertical_ppi;
+  const auto& profile = read.color_state().embedded_icc_profile;
+  described.srgb = color_mode == 3 && !profile.empty() && is_srgb_profile(profile);
+  metadata::stamp_file_info_for_save(document.file_info(), save_stamp_now(), &described);
+}
+
+}  // namespace
+
 bool is_photoshop_document_extension(const QString& extension) {
   return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
 }
@@ -217,18 +243,10 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     const bool psb = extension == QStringLiteral("psb");
     const auto cmyk_proof = effective_image_options.psd_cmyk_proof ? working_cmyk_space() : nullptr;
     if (stamp_save) {
-      const auto& document = std::as_const(target->document);
       psd::WriteOptions mode_options{psb};
       mode_options.cmyk_proof = cmyk_proof;
-      metadata::SaveStampDocument described;
-      described.color_mode = psd::DocumentIo::layered_save_color_mode(document, mode_options).mode;
-      described.width = document.width();
-      described.height = document.height();
-      described.horizontal_ppi = document.print_settings().horizontal_ppi;
-      described.vertical_ppi = document.print_settings().vertical_ppi;
-      const auto& profile = document.color_state().embedded_icc_profile;
-      described.srgb = described.color_mode == 3 && !profile.empty() && is_srgb_profile(profile);
-      metadata::stamp_file_info_for_save(target->document.file_info(), save_stamp_now(), &described);
+      const auto mode = psd::DocumentIo::layered_save_color_mode(std::as_const(target->document), mode_options).mode;
+      stamp_document_for_save(target->document, "application/vnd.adobe.photoshop", mode);
     }
     // The writer reads a copy-on-write snapshot on a worker, so the window keeps painting
     // the Saving dialog through the composite (recovery writes the same way).
@@ -271,6 +289,12 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     svg::DocumentIo::write_file(document_for_8bit_writer(target->document, narrowed), to_filesystem_path(path),
                                 &writer_notices);
   } else {
+    // A JPEG Save or Save As records itself like a PSD save (decided October 25, 2026); its
+    // EXIF then also carries a thumbnail (add_jpeg_exif_thumbnail). Copies (a script's
+    // exportAs) and every other flat format stay as they are; File > Export As never comes here.
+    if (stamp_save && !export_copy && is_jpeg_save_extension(extension)) {
+      stamp_document_for_save(target->document, "image/jpeg", effective_image_options.export_cmyk ? 4 : 3);
+    }
     // Editable PDF keeps layers and reports what it baked, like the SVG writer. Every flat
     // format and PDF writes a copy-on-write snapshot on a worker (a one-page PDF of a grid
     // of scanned pages took 10 s on this thread); PDF reports its pages.
