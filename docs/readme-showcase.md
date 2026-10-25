@@ -1,6 +1,6 @@
 # Rebuilding the README showcase
 
-The README uses a hero image and ten feature captures. The [full gallery](screenshots.md)
+The README uses a hero image and nine feature captures. The [full gallery](screenshots.md)
 keeps the other examples. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
 
@@ -30,8 +30,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `plugin_kpt5.png` | `scripts/dev/readme-shots/plugin-kpt5.js` | Licensed KPT 5 fixture and the existing CC0 city photograph |
 | `plugin_dialog.png` | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
 | `object_select.png` | `scripts/dev/readme-shots/object-select.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped in the script; needs the High Quality model (the script downloads it when missing) |
-| `artboards.png` | `scripts/dev/readme-shots/artboards.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
-| `light_theme.png` | `scripts/dev/readme-shots/artboards.js`, with isolated Light settings | Same artboard scene and CC0 photograph as `artboards.png` |
+| `artboards.png` | `scripts/dev/readme-shots/artboards.js`, with isolated Light settings | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
 | `layered_import.png` | `scripts/dev/readme-shots/layered-import.js` | Generated OpenRaster poster using the existing CC0 city photograph, plus the self-authored, Paint.NET-saved `test-fixtures/pdn/demo.pdn` |
 | `smart_objects.png` (gallery only) | `shot_readme_smart_objects` | Local PSD fixtures used by the existing scene |
 | `vector_tools.png` | `shot_readme_vector_tools` | Generated vector artwork with gradient fill, rounded corners, and a dashed pattern stroke |
@@ -58,8 +57,8 @@ The separate Levels, brush-dynamics, shape-appearance, and Affinity images are r
 from the gallery. Their existing scenes remain regression coverage; the driver
 does not publish those artifacts. Brush dynamics are described with brush tips.
 Long Shadow and Smart Objects remain in the gallery; the README's feature cards use
-Layer Styles and Object Selection instead. Every card is the same width, in pairs; the
-last row pairs Layered Imports with Light Theme.
+Layer Styles and Object Selection instead. Every image is the same width. Eight
+feature cards sit in pairs; Layered Imports is centered in the final row.
 
 The Object Selection scene crops the Havana street photo to its lower half and runs
 `doc.selection.objectSelect` with one loose box around the vintage car, on the High
@@ -77,12 +76,14 @@ vector-masked, so the artboards visibly clip it. The Post is selected with the A
 (handles, "+" buttons, options bar) and `patchy.ui.expandPanel('properties')` shows its
 X, Y, W, H and background. Check that no text overlaps after a font or layout change.
 
-The Light Theme capture runs the same Artboards script with `ColorScheme = 'light'`
+The Artboards capture runs with `ColorScheme = 'light'`
 in the driver's scene definition. The driver writes only that run's isolated
 settings; it never changes the user's theme.
 
 The Layered Imports scene writes a 640 x 400 OpenRaster poster in its scratch
 folder, then reads that file and the Paint.NET landscape through Files as Layers.
+Its heading and format list cover PSD/PSB, Affinity, OpenRaster, Paint.NET,
+layered TIFF, Aseprite, SVG, and PDF; the two pictured examples are ORA and PDN.
 It checks that both imports produce groups with multiple children, places them
 side by side, and exposes their real layer stacks. The ORA lettering becomes
 pixel layers, as the format requires. Each outer group uses Normal to isolate its

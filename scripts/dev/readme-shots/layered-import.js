@@ -34,9 +34,9 @@ source.close();
 var doc = app.newDocument(1392, 656);
 doc.activeLayer.name = 'Paper';
 doc.activeLayer.fill('#f2ede4');
-var header = doc.addTextLayer('TWO FORMATS. REAL LAYERS.', {font: 'Arial Black', size: 44,
+var header = doc.addTextLayer('LAYERED FILES, OPEN IN PATCHY', {font: 'Arial Black', size: 44,
   color: '#172f40', x: 40, y: 24, box: {width: 1310, height: 70}});
-var intro = doc.addTextLayer('OpenRaster and Paint.NET artwork, together in Patchy', {font: 'Segoe UI', size: 24,
+var intro = doc.addTextLayer('PSD/PSB  ·  Affinity  ·  OpenRaster  ·  Paint.NET  ·  Layered TIFF  ·  Aseprite  ·  SVG  ·  PDF', {font: 'Segoe UI', size: 24,
   color: '#4f626c', x: 42, y: 94, box: {width: 1290, height: 40}});
 var oraLabel = doc.addTextLayer('OPENRASTER  .ora', {font: 'Segoe UI', bold: true, size: 27,
   color: '#172f40', x: 40, y: 578, box: {width: 640, height: 48}});

@@ -100,10 +100,6 @@ $jsScenes = [ordered]@{
     'artboards' = @{
         Script = Join-Path $repo 'scripts\dev\readme-shots\artboards.js'
         Args = @("photo=$(Join-Path $repo 'test-fixtures\readme\havana_vintage_car_cc0.jpg')")
-    }
-    'light_theme' = @{
-        Script = Join-Path $repo 'scripts\dev\readme-shots\artboards.js'
-        Args = @("photo=$(Join-Path $repo 'test-fixtures\readme\havana_vintage_car_cc0.jpg')")
         ColorScheme = 'light'
     }
     'layered_import' = @{
@@ -134,6 +130,8 @@ $jsScenes = [ordered]@{
 # The hero uses the Smart Filters image directly. Retired gallery scenes stay
 # available as regression tests, but must not republish removed PNGs.
 if ($Scene -eq 'hero' -or $Scene -eq 'shot_readme_hero') { $Scene = 'smart_filters' }
+# The Artboards capture now uses Light; the former duplicate name is an alias.
+if ($Scene -eq 'light_theme' -or $Scene -eq 'shot_readme_light_theme') { $Scene = 'artboards' }
 $retiredScenes = @('levels', 'brush_dynamics', 'shape_appearance', 'affinity_import')
 $sceneName = $Scene -replace '^shot_readme_?', ''
 if ($retiredScenes -contains $sceneName) {

@@ -14,8 +14,8 @@ Click any image to inspect it at full size. These are captures of the real edito
 </tr>
 <tr>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/artboards.png"><img src="images/screenshots/artboards.png" width="430" alt="One document holding four artboards for a car-weekend campaign: a white story, a black banner, a cream post selected with the Artboard tool's handles and add buttons, and a transparent icon, with the Properties panel showing the post's position, size and background"></a>
-      <br><sub>Artboards: a story, banner, post and icon in one document, each with its own size and background, exported to separate files or PDF pages</sub>
+      <a href="images/screenshots/artboards.png"><img src="images/screenshots/artboards.png" width="430" alt="Patchy's Light theme with four artboards for a car-weekend campaign: a white story, a black banner, a cream post selected with the Artboard tool's handles and add buttons, and a transparent icon, with the Properties panel showing the post's position, size and background"></a>
+      <br><sub>Artboards: a story, banner, post and icon in one document, each with its own size and background, exported to separate files or PDF pages. This screenshot uses the Light theme.</sub>
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/gmic.png"><img src="images/screenshots/gmic.png" width="430" alt="G'MIC Filter Library with Rodilius chosen among the Artistic filters and previewing live inside a selection on the right half of a Havana street photo"></a>
@@ -110,7 +110,6 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 </tr>
 <tr>
-<td align="center" valign="top" width="50%"><a href="images/screenshots/layered_import.png"><img src="images/screenshots/layered_import.png" width="430" alt="OpenRaster city poster and Paint.NET landscape imported into one document, with both layer stacks expanded"></a><br><sub>Layered imports: OpenRaster folders and pixel layers beside Paint.NET layers with their names, visibility, opacity, and blend modes</sub></td>
-<td align="center" valign="top" width="50%"><a href="images/screenshots/light_theme.png"><img src="images/screenshots/light_theme.png" width="430" alt="The car-weekend artboard document in Patchy's Light theme, with the Post artboard selected and its properties open"></a><br><sub>Light theme, shown with the same artboard document as the Dark capture above. Dark, Light, seven other bundled themes, and custom theme files are available</sub></td>
+<td align="center" valign="top" colspan="2"><a href="images/screenshots/layered_import.png"><img src="images/screenshots/layered_import.png" width="430" alt="Layered-format showcase listing PSD/PSB, Affinity, OpenRaster, Paint.NET, layered TIFF, Aseprite, SVG, and PDF, with OpenRaster and Paint.NET examples and both layer stacks expanded"></a><br><sub>Layered imports include PSD/PSB, Affinity, OpenRaster, Paint.NET, layered TIFF, and Aseprite, plus editable SVG and PDF artwork. These OpenRaster and Paint.NET examples show imported pixel layers, folders, opacity, and blend modes.</sub></td>
 </tr>
 </table>
