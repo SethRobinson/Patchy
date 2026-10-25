@@ -4,6 +4,7 @@
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/pattern_presets.hpp"
+#include "ui/camera_raw_filter_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
@@ -1519,6 +1520,12 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
                                               [](const QString&, const patchy::PixelBuffer&) {});
     grab_dialog(QStringLiteral("styleManagerDialog"), "style_manager");
     (void)patchy::ui::request_style_manager(nullptr, styles, styles.find_entry(style_storage_id)->id);
+    grab_dialog(QStringLiteral("cameraRawFilterDialog"), "camera_raw_filter");
+    patchy::ui::CameraRawFilterRequest camera_raw_request;
+    camera_raw_request.source = std::make_shared<const patchy::PixelBuffer>(
+        solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(150, 110, 70, 255)));
+    camera_raw_request.bounds = patchy::Rect::from_size(48, 36);
+    (void)patchy::ui::run_camera_raw_filter_dialog(nullptr, camera_raw_request);
     grab_dialog(QStringLiteral("patchySplashScreen"), "about");
     patchy::ui::show_about_splash();
     // The color picker is a top-level widget, not a dialog.
@@ -1530,7 +1537,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     picker.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 12);
+  CHECK(captured == 14);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

@@ -12563,6 +12563,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>12 Columns, 20 px Gutter</source>
         <translation>12열, 간격 20 px</translation>
     </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw 필터</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>레이어의 평균 색상을 중립으로 맞춥니다</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>레이어를 따뜻하거나 차갑게 만듭니다. 0이면 색상이 그대로입니다.</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>레이어를 마젠타 또는 녹색 쪽으로 옮깁니다. 0이면 색상이 그대로입니다.</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>레이어: %1 x %2, 채널당 %3비트</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>선택 영역 안에 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>프로필, 디모자이크, 노이즈 감소에는 센서의 원본 데이터가 필요합니다. 카메라 RAW 파일을 열 때 RAW 현상에서 사용할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>끄면 필터 적용 전 레이어와 비교할 수 있습니다</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>정제 중...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>빠른 미리 보기 업데이트 중...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>Shift-클릭하면 평균 색상을 중립으로 맞춥니다. %ALT%-클릭하면 재설정됩니다.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>적용 중...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25328,6 +25376,18 @@ The open document keeps its blend modes either way.</source>
         <source>Right:</source>
         <translation>오른쪽:</translation>
     </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Camera &amp;Raw 필터...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>활성 레이어의 화이트 밸런스, 노출, 톤, 색상을 조정합니다</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw 필터</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27295,6 +27355,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye: width와 height는 1 이상이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter: 설정 객체를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter: 알 수 없는 설정 %1입니다.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter: %1은(는) 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter에는 RGB 픽셀 레이어가 필요합니다.</translation>
     </message>
 </context>
 <context>

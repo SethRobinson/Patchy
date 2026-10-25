@@ -12563,6 +12563,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>12 Columns, 20 px Gutter</source>
         <translation>12 列，间距 20 px</translation>
     </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw 滤镜</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>中和图层的平均颜色</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>使图层变暖或变冷。0 保持其颜色不变。</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>使图层偏向洋红或绿色。0 保持其颜色不变。</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>图层: %1 x %2，每通道 %3 位</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>应用于选区内部。</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>配置文件、去马赛克和降噪需要传感器原始数据：打开相机原始文件时可在“Raw 显影”中使用。</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>关闭以与应用滤镜前的图层比较</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>正在精细化...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>正在更新快速预览...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>按住 Shift 单击可中和平均颜色。按住 %ALT% 单击可重置。</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>正在应用...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25328,6 +25376,18 @@ The open document keeps its blend modes either way.</source>
         <source>Right:</source>
         <translation>右:</translation>
     </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Camera &amp;Raw 滤镜...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>调整当前图层的白平衡、曝光、色调和颜色</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Camera Raw 滤镜</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27295,6 +27355,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye: width 和 height 必须至少为 1。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter：请传入设置对象。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter：未知设置 %1。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter：%1 必须是数字。</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter 需要 RGB 像素图层。</translation>
     </message>
 </context>
 <context>

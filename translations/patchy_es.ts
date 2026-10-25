@@ -12598,6 +12598,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>12 Columns, 20 px Gutter</source>
         <translation>12 columnas, medianil de 20 px</translation>
     </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Filtro de Camera Raw</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>Neutraliza el color medio de la capa</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>Calienta o enfría la capa. 0 conserva sus colores.</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>Desplaza la capa hacia el magenta o el verde. 0 conserva sus colores.</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>Capa: %1 x %2, %3 bits por canal</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>Se aplica dentro de la selección.</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>El perfil, el demosaico y la reducción de ruido necesitan datos del sensor: están en Revelar RAW al abrir un archivo raw de cámara.</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>Desactívalo para comparar con la capa antes del filtro</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>Refinando...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>Actualizando la previsualización rápida...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>Mayús-clic neutraliza el color medio. %ALT%-clic lo restablece.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>Aplicando...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -25401,6 +25449,18 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Right:</source>
         <translation>Derecho:</translation>
     </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Filtro de Camera &amp;Raw...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>Ajusta el balance de blancos, la exposición, el tono y el color de la capa activa</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Filtro de Camera Raw</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27369,6 +27429,22 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye: width y height deben ser al menos 1.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter: pasa un objeto de ajustes.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter: ajuste desconocido %1.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter: %1 debe ser un número.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter necesita una capa de píxeles RGB.</translation>
     </message>
 </context>
 <context>

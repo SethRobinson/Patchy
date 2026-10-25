@@ -185,6 +185,7 @@ add_library(patchy_core
   src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
   src/core/pattern_resource.cpp
+  src/core/photo_develop.cpp
   src/core/photo_divide.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_depth.cpp
@@ -1426,6 +1427,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/psd_font_resolver.hpp
       src/ui/print_layout.cpp
       src/ui/qt_geometry.cpp
+      src/ui/camera_raw_filter_dialog.hpp
+      src/ui/camera_raw_filter_dialog.cpp
       src/ui/raw_develop_dialog.hpp
       src/ui/raw_develop_dialog.cpp
       src/ui/raw_develop_histogram.hpp
@@ -2198,6 +2201,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
+    tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
     tests/core/pixel_depth_tests.cpp
     tests/core/pixel_tools_tests.cpp
@@ -2329,6 +2333,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/deep_operation_audit_tests.cpp
       tests/ui/group_transform_tests.cpp
       tests/ui/channels_panel_tests.cpp
+      tests/ui/camera_raw_filter_tests.cpp
       tests/ui/camera_raw_heif_tests.cpp
       tests/ui/layer_mask_tests.cpp
       tests/ui/pen_tablet_input_tests.cpp

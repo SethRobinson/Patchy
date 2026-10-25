@@ -210,6 +210,44 @@ middle button pans then. The middle button pans in every preview. Tests:
 `ui_raw_histogram_regions_and_auto_values`, `ui_raw_dialog_histogram_drag_and_modifier_clicks`,
 `ui_raw_dialog_zoom_controls_and_scrubby_zoom`, `ui_raw_dialog_issue_shots_if_available`.
 
+## Camera Raw Filter
+
+Filter > Camera Raw Filter (GitHub issue 392; `filterCameraRawFilterAction`, permanent hotkey
+command `filter.camera_raw_filter`, Shift+Ctrl+A) runs the RGB half of Develop Raw on the active
+RGB pixel layer at its own depth. Stages that need sensor data (camera-space white balance,
+demosaic, wavelet/FBDD/color-noise reduction, highlight recovery, the rendering profile, half
+size) stay raw-only. Smart Objects get the usual "rasterize first" refusal; there is no Smart
+Filter form (below).
+
+`core/photo_develop.{hpp,cpp}` (Qt-free) owns `ToneParams`, `build_tone_lut` and `apply_color`,
+which `raw_tone.hpp` re-exports for the raw pipeline unchanged, plus `PhotoDevelopParams` and
+`PhotoDeveloper`. Per pixel: white balance gains and 2^exposure on linear light, the tone LUT on
+the sRGB encoding, saturation/vibrance, back to the buffer depth. 8 and 16-bit layers go through
+three 16-bit per-channel tables (tone alone is exactly `build_tone_lut`) and `apply_color`; 32-bit
+layers stay linear floats, the tone curve continuing with slope 1 above white. Each stage at its
+neutral value is skipped, so neutral settings change no byte; alpha is never touched. Temperature
+and tint are relative (-100..100, 0 = the layer's colors): +-100 moves red against blue by 0.6 stop
+each and green by 0.4 stop, normalized so white keeps its Rec.709 luminance. Auto (and Shift-click
+on Temperature/Tint) is a gray-world estimate from the alpha-weighted linear mean of the quick
+preview copy (`photo_auto_white_balance`). Exposure spans -5..5 EV.
+
+`ui/camera_raw_filter_dialog.{hpp,cpp}` is its own dialog built from Develop Raw's parts: the
+histogram widget and its auto values, slider Shift/Alt-clicks, the zoom bar and Scrubby Zoom
+(same `imports/rawDevelopScrubbyZoom` preference), a Preview check for before/after. Two lanes
+as above: a quick draft of a bilinear copy bounded to 1280 px (selection scaled like the Filter
+Gallery proxy), refinement on the whole layer after 500 ms idle; OK reuses a matching refined
+result or waits for one. `apply_camera_raw_filter_to_pixels` (filter_workflows) applies inside the
+selection, soft edges blended by coverage. Settings start neutral each time.
+
+Smart Filter: not offered. Patchy hosts only Photoshop's own native filter descriptors (no private
+fallback, [smart-objects.md](smart-objects.md)); Photoshop's Camera Raw Filter descriptor carries
+Adobe Camera Raw's full settings and Photoshop would re-render it with ACR, not these formulas.
+Supporting it means writing that descriptor so Photoshop opens it without warnings and mapping
+these controls onto ACR's, accepting that Photoshop's render differs.
+
+Tests: `photo_develop_*` (core), `ui_camera_raw_filter_dialog_applies_one_undo_step`,
+`ui_camera_raw_filter_script_and_selection`, and the dialog in `ui_offscreen_dialog_sweep_is_themed_in_both_schemes`.
+
 ## Formats and tests
 
 RAW sources are read-only: no writer, empty `save_extensions`; `save_document()`

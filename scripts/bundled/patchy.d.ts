@@ -467,6 +467,23 @@ interface PatchyLayer {
    */
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
   /**
+   * Filter > Camera Raw Filter on this RGB pixel layer at its own depth, e.g.
+   * applyCameraRawFilter({exposure: 0.5, contrast: 20, vibrance: 30}). Temperature and tint
+   * are relative (0 keeps the layer's colors), -100..100; exposure is -5..5 EV; the rest are
+   * -100..100. Missing settings stay neutral and out-of-range numbers clamp. With a selection
+   * only the selected pixels change, soft edges blended by coverage. Unknown names throw.
+   */
+  applyCameraRawFilter(settings?: {
+    temperature?: number;
+    tint?: number;
+    exposure?: number;
+    contrast?: number;
+    highlights?: number;
+    shadows?: number;
+    saturation?: number;
+    vibrance?: number;
+  }): void;
+  /**
    * Runs a legacy Photoshop filter plug-in (an id from patchy.plugins.list()) on this
    * 8 or 16-bit layer (16 bits go through an 8-bit copy; a 32-bit layer throws), limited
    * to the document selection, as one undoable edit. {dialog: false}

@@ -393,6 +393,7 @@ int main(int argc, char* argv[]) {
            deep_operation_audit_tests,
            group_transform_tests,
            channels_panel_tests,
+           camera_raw_filter_tests,
            camera_raw_heif_tests,
            layer_mask_tests,
            pen_tablet_input_tests,
