@@ -144,7 +144,7 @@ PixelBuffer script_fresh_pixels(const Document* document, int width, int height)
 
 // Script-facing blend mode ids. Append-only and aligned with the BlendMode
 // enum order (core/layer.hpp); scripts hard-code these strings.
-constexpr std::array<const char*, 49> kBlendModeIds = {
+constexpr std::array<const char*, 58> kBlendModeIds = {
     "pass-through", "normal",       "multiply",    "screen",       "overlay",
     "darken",       "lighten",      "color-dodge", "color-burn",   "hard-light",
     "soft-light",   "difference",   "linear-burn", "pin-light",    "saturation",
@@ -166,7 +166,7 @@ constexpr std::array<const char*, 49> kBlendModeIds = {
     "linear-multiply",
     "linear-addition",
     "linear-subtract",
-    "linear-divide"};
+    "linear-divide", "soft-light-svg", "additive-subtractive", "arc-tangent", "geometric-mean", "allanon", "parallel", "hard-overlay", "interpolation", "easy-dodge"};
 
 QJSValue rect_to_js(QJSEngine* engine, const Rect& rect) {
   auto value = engine->newObject();

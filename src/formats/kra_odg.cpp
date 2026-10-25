@@ -8,6 +8,7 @@
 #include "core/layer_metadata.hpp"
 #include "formats/svg_xml.hpp"
 #include "psd/psd_text_runs.hpp"
+#include "support/translate_noop.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -460,7 +461,7 @@ std::vector<Layer> read_odg_vector_layer(std::span<const std::uint8_t> content, 
   };
   find_page(find_page, root);
   if (page == nullptr) {
-    throw std::runtime_error("the vector data has no drawing");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "the vector data has no drawing"));
   }
   Converter converter{styles, {}, {}, 0};
   for (const auto& child : page->children) {

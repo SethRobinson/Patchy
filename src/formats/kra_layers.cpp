@@ -6,6 +6,7 @@
 #include "core/pixel_depth.hpp"
 #include "formats/svg_document_io.hpp"
 #include "formats/svg_xml.hpp"
+#include "support/translate_noop.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -598,11 +599,11 @@ std::vector<Layer> read_vector_layer(std::span<const std::uint8_t> svg, Document
     tag_start = text.find("<svg", tag_start + 4);
   }
   if (tag_start == std::string::npos) {
-    throw std::runtime_error("the vector data is not SVG");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "the vector data is not SVG"));
   }
   auto tag_end = text.find('>', tag_start);
   if (tag_end == std::string::npos) {
-    throw std::runtime_error("the vector data is not SVG");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "the vector data is not SVG"));
   }
   // Krita writes the canvas size in points with a matching viewBox: user units are points.
   // Sizing the root in pixels maps them onto the canvas at the document's resolution.
@@ -624,7 +625,7 @@ std::vector<Layer> read_vector_layer(std::span<const std::uint8_t> svg, Document
     notices.push_back(std::move(notice));
   }
   if (shapes.width() != target.width() || shapes.height() != target.height()) {
-    notices.emplace_back("the shapes were scaled to fit the canvas");
+    notices.emplace_back(PATCHY_TRANSLATE_NOOP("QObject", "the shapes were scaled to fit the canvas"));
   }
   for (const auto& pattern : shapes.metadata().patterns.patterns) {
     target.metadata().patterns.adopt(pattern);

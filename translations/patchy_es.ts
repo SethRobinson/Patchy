@@ -12658,6 +12658,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>Aplicando...</translation>
     </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>Luz suave (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>Aditivo-sustractivo</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>Arcotangente</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>Media geométrica</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>Paralelo</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>Superponer duro</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Interpolación</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>Sobreexponer suave</translation>
+    </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>los datos vectoriales no son SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>las formas se escalaron para ajustarse al lienzo</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>los datos vectoriales no contienen ningún dibujo</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

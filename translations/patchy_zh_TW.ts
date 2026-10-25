@@ -12623,6 +12623,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>正在套用...</translation>
     </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>柔光 (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>加減</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>反正切</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>幾何平均</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon 平均</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>並聯</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>強覆蓋</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>內插</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>柔和加亮</translation>
+    </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>向量資料不是 SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>形狀已縮放以符合畫布</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>向量資料中沒有繪圖</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

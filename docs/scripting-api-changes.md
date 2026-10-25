@@ -20,6 +20,11 @@ to the selection like `applyFilter`. Permanent setting names: `temperature`, `ti
 relative), `exposure` (-5..5 EV), `contrast`, `highlights`, `shadows`, `saturation`, `vibrance`
 (-100..100); missing ones are neutral, out-of-range numbers clamp, unknown names or non-numbers throw.
 Pinned by `ui_camera_raw_filter_script_and_selection`.
+2026-10-25 (additive): blend mode ids `soft-light-svg`, `additive-subtractive`, `arc-tangent`,
+`geometric-mean`, `allanon`, `parallel`, `hard-overlay`, `interpolation` and `easy-dodge` (Krita's
+modes, for .kra files, [kra.md](kra.md)), appended in that order after GIMP's to the permanent list
+for `layer.blendMode` and stroke `mode`. 8 and 16-bit documents only; a PSD save writes them as
+`normal` or bakes them. Pinned by `ui_script_krita_blend_mode_ids`.
 2026-10-25 (additive): blend mode ids `grain-extract`, `grain-merge`, `hsv-hue`, `hsv-saturation`,
 `hsl-color`, `hsv-value`, `lch-hue`, `lch-chroma`, `lch-color`, `lch-lightness`, `luminance`,
 `luma-darken-only`, `luma-lighten-only`, `linear-multiply`, `linear-addition`, `linear-subtract` and

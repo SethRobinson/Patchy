@@ -12693,6 +12693,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>Stosowanie...</translation>
     </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>Łagodne światło (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>Addytywno-subtraktywny</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>Arcus tangens</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>Średnia geometryczna</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>Równoległy</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>Twarda nakładka</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Interpolacja</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>Łagodne rozjaśnianie</translation>
+    </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>dane wektorowe nie są w formacie SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>kształty przeskalowano do rozmiaru obszaru roboczego</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>dane wektorowe nie zawierają rysunku</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

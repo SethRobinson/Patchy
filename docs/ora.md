@@ -88,12 +88,13 @@ merged image, rendered pass-through, then differs from every spec reader).
 | `svg:src-atop` | clipped onto the layer below when that layer is the bottom of its stack (then it equals Photoshop clipping); otherwise unclipped with a notice |
 | `svg:dst-in`, `dst-out`, `dst-atop` | Normal with a notice |
 | `krita:soft_light` (Krita's Photoshop soft light), `krita:exclusion`, `linear_burn`, `linear_dodge`, `vivid_light`, `linear light` (with a space), `pin_light`, `hard_mix_photoshop`, `subtract`, `divide`, `dissolve` | the matching mode (names seen in Krita 5.3's own files) |
+| `krita:soft_light_svg`, `additive_subtractive`, `arc_tangent`, `geometric_mean`, `allanon`, `parallel`, `hard overlay`, `interpolation`, `easy dodge` | Krita's own modes of the same names ([kra.md](kra.md#blend-modes)) |
 | `svg:-dp-divide`, `svg:-dp-minus` | Divide, Subtract (Drawpile's names, seen in its test recordings) |
 | anything else | Normal, with a notice naming layer and op (MyPaint 2's `mypaint:spectral-wgm` pigment mode included: no equivalent) |
 
 Writes use the spec name where one exists (Linear Dodge as `svg:plus`), Krita's name for Exclusion,
 Linear Burn, Vivid, Linear and Pin Light, Hard Mix, Subtract, Divide, Dissolve, Darker Color and
-Lighter Color (only Krita reads those; the save warning says so). `krita:darker color` and
+Lighter Color, and Krita's own modes under their Krita names (only Krita reads those; the save warning says so). `krita:darker color` and
 `krita:lighter color` (with spaces) were not seen in a Krita file; Krita 5.3 renders Patchy's file
 with them as those modes (the interchange check below). GIMP writes its own extra modes as
 `svg:src-over`.

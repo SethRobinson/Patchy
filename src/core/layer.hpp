@@ -139,7 +139,18 @@ enum class BlendMode {
   LinearMultiply,
   LinearAddition,
   LinearSubtract,
-  LinearDivide
+  LinearDivide,
+  // Krita's own per-channel modes for .kra import (docs/kra.md), measured on Krita's renders
+  // (core/krita_blend_modes.hpp): the same rules as the Paint.NET and GIMP modes.
+  SoftLightSvg,
+  AdditiveSubtractive,
+  ArcTangent,
+  GeometricMean,
+  Allanon,
+  Parallel,
+  HardOverlay,
+  Interpolation,
+  EasyDodge
 };
 
 enum class LayerKind {

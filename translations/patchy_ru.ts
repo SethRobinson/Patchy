@@ -12693,6 +12693,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>Применение...</translation>
     </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>Мягкий свет (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>Аддитивно-субтрактивный</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>Арктангенс</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>Среднее геометрическое</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Алланон</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>Параллельный</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>Жёсткое перекрытие</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Интерполяция</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>Мягкое осветление</translation>
+    </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>векторные данные не в формате SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>фигуры масштабированы под размер холста</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>в векторных данных нет рисунка</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
