@@ -85,7 +85,14 @@ public:
   // reference is only valid until the next call (QHash rehash); copy it to keep it.
   const FontFamilyRenderInfo& family_render_info(const QString& family);
 
+protected:
+  void focusOutEvent(QFocusEvent* event) override;
+
 private:
+  // Scroll the closed control's text back to the start of the family name (GitHub issue 416):
+  // QLineEdit::setText parks the cursor at the end, which hides the start of a long name.
+  void show_name_from_start();
+
   QPointer<QFrame> popup_;
   // Toggle guard: the click that dismisses the Qt::Popup is replayed onto the combo (or lands
   // while the popup is still closing), which would instantly reopen it. Same machinery as
