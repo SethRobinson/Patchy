@@ -29,7 +29,6 @@
 #include "core/style_presets.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/photo_pattern_presets.hpp"
-#include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
@@ -176,9 +175,7 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
     settings.sync();
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
@@ -236,8 +233,7 @@ void ui_options_bar_spinboxes_fit_widest_value() {
   // grows the box to fit its widest value text; require chevron + box chrome
   // clearance (14 + 14 in dialog_utils.cpp) beyond the min/max text on every
   // options-bar spin box.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(toolbar != nullptr);
   const auto require_fits = [](const QWidget* spin, const QString& text) {
@@ -291,8 +287,7 @@ void ui_options_bar_spinboxes_show_their_extremes_unclipped() {
   // QLineEdit's own horizontal margins before any text is drawn. It runs on the real
   // windows platform too (DirectWrite advances are wider than offscreen FreeType's):
   //   patchy_ui_visual_tests.exe ui_options_bar_spinboxes_show   (no QT_QPA_PLATFORM)
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(toolbar != nullptr);
   int checked = 0;
@@ -495,8 +490,7 @@ void ui_selection_options_bars_group_their_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -633,8 +627,7 @@ void ui_shape_options_bars_group_their_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -774,8 +767,7 @@ void ui_crop_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -863,8 +855,7 @@ void ui_crop_options_bar_groups_its_controls() {
 // show the Sample combo with Ignore Adjustment Layers beside it, the Healing Brush its
 // Mode combo, each on one row at 1366 px. The Healing bar is the issue shot.
 void ui_retouch_options_bars_show_sample_and_mode() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.resize(1366, 738);
   auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -910,8 +901,7 @@ void ui_pick_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -952,8 +942,7 @@ void ui_text_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -1041,8 +1030,7 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -1153,8 +1141,7 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
     auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
@@ -1257,8 +1244,7 @@ void ui_options_menu_buttons_show_the_gear() {
   for (const auto scheme : schemes) {
     ColorSchemeRestorer restore_scheme(scheme);
     const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     if (options_bar == nullptr) {
@@ -1277,8 +1263,7 @@ void ui_options_menu_buttons_show_the_gear() {
   for (const auto scheme : schemes) {
     ColorSchemeRestorer restore_scheme(scheme);
     const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     for (const auto& entry : buttons) {
       require_action(window, entry.tool_action)->trigger();
@@ -1330,8 +1315,7 @@ void ui_options_bars_follow_the_separator_rules() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.resize(1366, 738);
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -1415,8 +1399,7 @@ void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
   // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
   // have no inline slider at all any more.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* gradient_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
@@ -1459,8 +1442,7 @@ void ui_options_bar_checkboxes_paint_without_a_frame() {
   // frame behind their glyph and text, so they read as buttons beside the plain Show
   // Transform Controls and Snap boxes. Every options-bar checkbox now shows the bar's own
   // surface at its corners, the same pixel as the gap beside it.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.resize(1600, 800);
   auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
   CHECK(options != nullptr);
@@ -1511,8 +1493,7 @@ void ui_line_options_bar_fits_one_row_with_room_to_spare() {
   // collapses, so a desktop with slightly wider fonts than the offscreen ones wrapped
   // Appearance... onto a second line at 1366 px. The arrowheads are glyph toggles now and
   // the row keeps 100 px of slack under that width.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
   auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
   CHECK(options != nullptr && mode != nullptr);
@@ -1560,8 +1541,7 @@ void ui_line_options_bar_fits_one_row_with_room_to_spare() {
 void ui_text_options_bar_size_shows_photoshop_precision() {
   // Photoshop's type size shows at most two decimals and drops trailing zeros. Patchy
   // stores whole pixels, so the third decimal ("14.446 pt") was false precision.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action(window, "toolTypeAction")->trigger();
   QApplication::processEvents();
   auto* size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
@@ -1601,9 +1581,7 @@ void ui_text_options_bar_size_shows_photoshop_precision() {
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->setFocus();
   // This test exercises the Photoshop-style pan navigation (wheel zoom off).
   canvas->set_wheel_zooms(false);
@@ -1632,9 +1610,7 @@ void ui_canvas_wheel_matches_photoshop_navigation() {
 }
 
 void ui_canvas_wheel_zoom_mode_zooms_at_cursor() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->setFocus();
   // A plain wheel zooms by default on every platform (MainWindow::kWheelZoomsDefault).
   CHECK(patchy::ui::MainWindow::kWheelZoomsDefault);
@@ -1659,9 +1635,7 @@ void ui_canvas_wheel_zoom_mode_zooms_at_cursor() {
 void ui_canvas_trackpad_scroll_pans_both_axes() {
   // GitHub issue 44: a two-finger scroll carries both axes and a scroll phase. It pans
   // freely at finger speed in either wheel mode; a stepped wheel keeps the mode.
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->setFocus();
   const QPoint at(300, 240);
   // Zoom in so the pan has room on both axes.
@@ -1729,9 +1703,7 @@ void ui_canvas_trackpad_scroll_pans_both_axes() {
 void ui_canvas_trackpad_scroll_ignored_during_pointer_gesture() {
   // A palm on the trackpad mid-stroke must not slide the document under the brush, and
   // momentum from an earlier flick stops at the next press.
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->setFocus();
   canvas->set_tool(patchy::ui::CanvasTool::Brush);
   const QPoint at(300, 240);
@@ -1865,9 +1837,7 @@ void ui_own_window_color_sample_reads_widget_without_screen_grab() {
 }
 
 void ui_status_bar_zoom_percent_box_edits_zoom() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* zoom_edit = window.statusBar()->findChild<patchy::ui::ZoomPercentEdit*>(QStringLiteral("statusZoomEdit"));
   CHECK(zoom_edit != nullptr);
@@ -1924,9 +1894,7 @@ void ui_status_bar_zoom_percent_box_edits_zoom() {
 // value needs in the current font, its text running up to the presets chevron.
 void ui_status_bar_zoom_box_fits_large_values() {
   using patchy::ui::ZoomPercentEdit;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* bar = window.statusBar();
   auto* zoom_edit = bar->findChild<ZoomPercentEdit*>(QStringLiteral("statusZoomEdit"));
   auto* controls = bar->findChild<QWidget*>(QStringLiteral("statusZoomControls"));
@@ -2013,9 +1981,7 @@ void ui_status_bar_zoom_box_fits_large_values() {
 // inside it opens the zoom presets (800% down to 12.5%, current one checked), and
 // Fit fits the view.
 void ui_status_bar_zoom_box_wheel_scrub_and_buttons() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* zoom_edit = window.statusBar()->findChild<patchy::ui::ZoomPercentEdit*>(QStringLiteral("statusZoomEdit"));
   auto* controls = window.statusBar()->findChild<QWidget*>(QStringLiteral("statusZoomControls"));
   auto* fit = window.statusBar()->findChild<QToolButton*>(QStringLiteral("statusZoomFitButton"));
@@ -2187,8 +2153,7 @@ void ui_status_bar_document_info_shows_document_facts() {
   const auto dot = StatusDocumentInfoLabel::separator();
   const QString dims = QStringLiteral("1920 × 1080 px");
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.add_document_session(status_info_test_document(), QStringLiteral("Status Info"));
     window.resize(1366, 768);
     QApplication::processEvents();
@@ -2281,8 +2246,7 @@ void ui_status_bar_document_info_drops_parts_when_narrow() {
   CHECK(field.isHidden());
 
   // In the window: a narrower bar shows a shorter prefix of the same line.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(status_info_test_document(), QStringLiteral("Status Info"));
   window.resize(1366, 768);
   QApplication::processEvents();
@@ -2349,8 +2313,7 @@ void ui_status_bar_document_info_follows_active_document() {
 // The status bar at a 1366 px window keeps the zoom box and the document info
 // field on its one line, with room left for the status message.
 void ui_status_bar_document_info_fits_at_1366() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(status_info_test_document(), QStringLiteral("Status Info"));
   window.resize(1366, 768);
   QApplication::processEvents();
@@ -2521,9 +2484,7 @@ void ui_status_bar_selection_info_follows_selection() {
 }
 
 void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   // Center the view on the middle of the default 1024x768 document, then zoom to 300%.
   canvas->fit_to_view();
@@ -2548,9 +2509,7 @@ void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
 }
 
 void ui_image_resize_recenters_view_and_zoom_double_click_shows_document() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->fit_to_view();
 
   // Image > Image Size to half keeps the zoom; the view must recenter on the
@@ -3159,9 +3118,7 @@ void ui_canvas_scroll_bars_follow_zoom_and_resize() {
 // Actual Pixels and 200%, ahead of the selection and pasteboard sections, and
 // each entry changes the view as its View menu twin does.
 void ui_zoom_tool_context_menu_offers_view_zoom_commands() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto visible_context_menu = [](QWidget& widget) -> QMenu* {
     for (auto* menu : widget.findChildren<QMenu*>(QStringLiteral("canvasContextMenu"))) {
       if (menu->isVisible()) {
@@ -3305,9 +3262,7 @@ void ui_canvas_backdrop_context_menu_sets_color() {
     return action;
   };
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     require_action_by_text(window, QStringLiteral("Brush"))->trigger();
     canvas->set_zoom_centered(0.25);
     QApplication::processEvents();
@@ -3342,9 +3297,7 @@ void ui_canvas_backdrop_context_menu_sets_color() {
   }
   {
     // A new window starts from the saved color; Default clears the key.
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     CHECK(canvas->backdrop_color() == QColor(0x35, 0x35, 0x35));
     canvas->set_zoom_centered(0.25);
     QApplication::processEvents();
@@ -4014,9 +3967,7 @@ void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
 }
 
 void ui_stamp_and_gradient_flyouts_swap_tools() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* stamp_button = window.findChild<QToolButton*>(QStringLiteral("stampToolButton"));
   CHECK(stamp_button != nullptr);
@@ -4082,9 +4033,7 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
 // issue 45, Photoshop's Shift+key convention). The plain letter still selects
 // the group's primary tool.
 void ui_tool_cycle_hotkeys_walk_each_flyout() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
@@ -4186,9 +4135,7 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
 // sits below Polygon. Shift+U walks the same order; U still selects Rect. The artifact is
 // the open flyout, the issue's AFTER shot.
 void ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
   CHECK(button != nullptr && button->menu() != nullptr);
   if (button == nullptr || button->menu() == nullptr) {
@@ -4237,9 +4184,7 @@ void ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order() {
 }
 
 void ui_tool_flyout_double_click_opens_menu() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
   CHECK(button != nullptr);
   auto* menu = button->menu();
@@ -4309,9 +4254,7 @@ void check_flyout_click_and_left_hold(QToolButton& button, QAction& shown_tool) 
 }
 
 void ui_tool_flyout_left_hold_opens_menu() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
   CHECK(button != nullptr);
   check_flyout_click_and_left_hold(*button, *require_action(window, "toolMarqueeAction"));
@@ -4374,8 +4317,7 @@ void ui_tools_work_with_no_document_open() {
 }
 
 void ui_tool_flyout_right_click_opens_menu() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
   CHECK(button != nullptr);
   auto* menu = button->menu();
@@ -4399,8 +4341,7 @@ void ui_tool_flyout_right_click_opens_menu() {
 // button without a flyout keeps the toolbar menu, which also proves the check below sees
 // that menu when it opens.
 void ui_tool_flyout_right_click_opens_only_the_flyout() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
   CHECK(palette != nullptr);
   auto* button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
@@ -4602,9 +4543,7 @@ void check_flyout_ways_in_select_the_shown_tool(patchy::ui::MainWindow& window) 
 
 void ui_tool_flyout_hold_and_right_click_select_the_shown_tool() {
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     check_flyout_ways_in_select_the_shown_tool(window);
     CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
   }
@@ -4620,9 +4559,7 @@ void ui_tool_flyout_hold_and_right_click_select_the_shown_tool() {
 // Windows, with the press on macOS and X11). The toolbar menu still opens from the empty
 // part of the palette: a separator stands in for it, and the event bubbles from there.
 void ui_tool_button_right_click_selects_plain_tool() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
   CHECK(palette != nullptr);
   if (palette == nullptr) {
@@ -4713,8 +4650,7 @@ void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
     auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
     CHECK(palette != nullptr && button != nullptr && button->menu() != nullptr);
@@ -4826,8 +4762,7 @@ void ui_tool_flyout_marks_the_tool_its_button_shows() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
     auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
     CHECK(palette != nullptr && button != nullptr && button->menu() != nullptr);
@@ -4949,9 +4884,7 @@ void ui_tool_flyout_marks_the_tool_its_button_shows() {
 }
 
 void ui_shape_flyout_and_zoom_tool_work() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* marquee_button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
   auto* shape_button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
   auto* zoom_button = window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
@@ -4996,9 +4929,7 @@ void ui_zoom_tool_scrubby_option_persists_and_reaches_canvas() {
     settings.remove(QStringLiteral("tools/zoomScrubby"));
     settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* scrubby = window.findChild<QCheckBox*>(QStringLiteral("zoomScrubbyCheck"));
   CHECK(scrubby != nullptr);
   if (scrubby == nullptr) {
@@ -5129,9 +5060,7 @@ void ui_zoom_tool_direction_buttons_set_click_direction() {
     settings.remove(QStringLiteral("tools/zoomToolZoomsOut"));
     settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* zoom_in_mode = window.findChild<QAction*>(QStringLiteral("zoomInModeAction"));
   auto* zoom_out_mode = window.findChild<QAction*>(QStringLiteral("zoomOutModeAction"));
   CHECK(zoom_in_mode != nullptr);
@@ -5186,9 +5115,7 @@ void ui_zoom_tool_direction_buttons_set_click_direction() {
 // GitHub issue 77: Zoom In/Out and the Zoom tool click walk Photoshop's zoom
 // ladder, so an off-ladder view lands on the next rung instead of a multiple.
 void ui_zoom_steps_follow_photoshop_ladder() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* zoom_in = require_action(window, "viewZoomInAction");
   auto* zoom_out = require_action(window, "viewZoomOutAction");
   CHECK(zoom_in != nullptr && zoom_out != nullptr);
@@ -5243,9 +5170,7 @@ void ui_zoom_steps_follow_photoshop_ladder() {
 // Zoom tool and set the view like the View menu commands; Fill Screen (a new
 // View command) uses the larger axis ratio where Fit uses the smaller.
 void ui_zoom_options_bar_view_buttons_set_view() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* actual = window.findChild<QPushButton*>(QStringLiteral("zoomActualPixelsButton"));
   auto* fit = window.findChild<QPushButton*>(QStringLiteral("zoomFitScreenButton"));
   auto* fill = window.findChild<QPushButton*>(QStringLiteral("zoomFillScreenButton"));
@@ -5294,9 +5219,7 @@ void ui_zoom_options_bar_view_buttons_set_view() {
 // GitHub issue 303: the Hand tool's options row shows the Zoom row's 100% /
 // Fit Screen / Fill Screen buttons (the same widgets) and they set the view.
 void ui_hand_options_bar_shows_zoom_view_buttons() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* actual = window.findChild<QPushButton*>(QStringLiteral("zoomActualPixelsButton"));
   auto* fit = window.findChild<QPushButton*>(QStringLiteral("zoomFitScreenButton"));
   auto* fill = window.findChild<QPushButton*>(QStringLiteral("zoomFillScreenButton"));
@@ -5345,9 +5268,7 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
 // Ctrl+click zooms in and Alt+click zooms out one Zoom-tool step about the
 // clicked point, whatever the Zoom tool's own direction; a plain drag pans.
 void ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Hand"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Pan);
@@ -5454,8 +5375,7 @@ void ui_tool_palette_crop_icon_has_large_center() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Light, patchy::ui::ColorSchemePreference::Dark}) {
     ColorSchemeRestorer restore_scheme(scheme);
     const bool light = scheme == patchy::ui::ColorSchemePreference::Light;
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* button = window.findChild<QToolButton*>(QStringLiteral("cropToolButton"));
     CHECK(button != nullptr && button->menu() != nullptr);
     if (button == nullptr || button->menu() == nullptr) {
@@ -5544,8 +5464,7 @@ void ui_tool_palette_crop_icon_has_large_center() {
 }
 
 void ui_tool_palette_icons_render_sheet() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   struct ToolIconEntry {
     const char* action_name;
@@ -5716,9 +5635,7 @@ void ui_tool_palette_icons_render_sheet() {
 }
 
 void ui_filled_shape_preview_clears_after_commit() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
   // This test exercises the legacy raster commit; Shape mode (the default)
   // would route the drag to a new shape layer instead.
@@ -5849,9 +5766,7 @@ void ui_fill_tool_tolerance_and_contiguous_persist_across_documents() {
     settings.remove(QStringLiteral("tools/fillContiguous"));
     settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tolerance = window.findChild<QSpinBox*>(QStringLiteral("fillToleranceSpin"));
   auto* contiguous = window.findChild<QCheckBox*>(QStringLiteral("fillContiguousCheck"));
   CHECK(tolerance != nullptr);
@@ -6063,8 +5978,7 @@ void ui_fill_of_wand_selection_with_many_spans_is_fast() {
 // GitHub issue 66: clicking into an options-bar numeric field selects its whole
 // value, so typing replaces it (Qt only selects on keyboard focus).
 void ui_toolbar_spin_boxes_select_all_on_focus() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.activateWindow();
   QApplication::processEvents();
 
@@ -6143,9 +6057,7 @@ QToolButton* flyout_button_showing(patchy::ui::MainWindow& window, QAction* acti
 void ui_active_tool_and_options_restore_on_next_launch() {
   const auto restorers = clear_issue_254_settings();
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
     CHECK(canvas->brush_size() == 25);
     ensure_artifact_dir();
@@ -6201,9 +6113,7 @@ void ui_active_tool_and_options_restore_on_next_launch() {
   }
   {
     // "The next launch": a fresh window from the same settings store.
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     CHECK(canvas->tool() == patchy::ui::CanvasTool::EllipticalMarquee);
     auto* elliptical = require_action(window, "toolEllipticalMarqueeAction");
     CHECK(elliptical->isChecked());
@@ -6240,9 +6150,7 @@ void ui_active_tool_and_options_restore_on_next_launch() {
   }
   {
     // Quit on the Eraser: the next launch shows it selected with its own values in the bar.
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     CHECK(canvas->tool() == patchy::ui::CanvasTool::Eraser);
     CHECK(require_action(window, "toolEraserAction")->isChecked());
     CHECK(canvas->brush_size() == 33);
@@ -6287,9 +6195,7 @@ void ui_colors_survive_closing_last_document_and_carry_to_new_documents() {
   const QColor red(200, 30, 40);
   const QColor blue(20, 60, 210);
   const QColor green(30, 160, 70);
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* first = require_canvas(window);
+  auto&& [window, first] = ShownWindowFixture{};
   if (first == nullptr) {
     return;
   }
@@ -6419,9 +6325,7 @@ void ui_tool_settings_fall_back_on_missing_or_malformed_keys() {
     settings.setValue(QStringLiteral("tools/shapeFill"), QStringLiteral("sometimes"));
     settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
   CHECK(require_action(window, "toolBrushAction")->isChecked());
   CHECK(canvas->brush_size() == 25);
@@ -6850,9 +6754,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
     settings.remove(QStringLiteral("tools/gradientStops"));
     settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
   QApplication::processEvents();
   CHECK(!canvas->gradient_stops().has_value());
@@ -7173,8 +7075,7 @@ void ui_options_bar_labels_drop_the_trailing_colon() {
   CHECK(patchy::ui::strip_trailing_colon(QString::fromUtf8("\xe4\xb8\x8d\xe9\x80\x8f\xef\xbc\x9a")) ==
         QString::fromUtf8("\xe4\xb8\x8d\xe9\x80\x8f"));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   for (const auto* tool : {"Brush", "Marquee", "Crop", "Rect"}) {
     require_action_by_text(window, QString::fromLatin1(tool))->trigger();
     QApplication::processEvents();
@@ -7205,8 +7106,7 @@ void ui_options_bar_labels_drop_the_trailing_colon() {
 // "Size:" moves brushSizeSpin one step per pixel, ten with Shift, clamped to the
 // range; a plain click changes nothing; the label wears the SizeHor cursor.
 void ui_options_bar_label_scrub_changes_spin_value() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   QApplication::processEvents();
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
@@ -8554,8 +8454,7 @@ void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
 }
 
 void ui_right_dock_panels_expand_within_window_height() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // Worst-case palette: 256 colors is 22 swatch rows, which must scroll
@@ -8616,8 +8515,7 @@ void ui_right_dock_panels_expand_within_window_height() {
 // expanding one grew the window further out of view (GitHub issue 108). The
 // offscreen platform's 600 px screen stands in for that laptop.
 void ui_right_dock_floors_fit_the_screen_height() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layers_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("layersDock"));
   CHECK(layers_dock != nullptr);
   if (layers_dock == nullptr) {
@@ -8705,8 +8603,7 @@ void ui_right_dock_floors_fit_the_screen_height() {
 }
 
 void ui_collapsed_right_docks_have_uniform_title_height() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   // Properties/Info/History all start collapsed (the Color and Palette group starts expanded):
   // each section is exactly its title row (min == max), with no dead band under the header, at
   // the column width.
@@ -8733,8 +8630,7 @@ void ui_collapsed_right_docks_have_uniform_title_height() {
 // of its tallest member. Collapsing the shown tab collapses the whole group, so no dead
 // band stays under the strip; expanding any of them expands the group again.
 void ui_tabbed_right_dock_group_collapses_as_one() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* group = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("layersDock"));
   auto* layers_toggle = window.findChild<QToolButton*>(QStringLiteral("layersDockCollapseButton"));
@@ -8776,8 +8672,7 @@ void ui_short_panel_scroll_bar_drags_by_handle() {
   // style, whose arrow-button reservation made the groove smaller than the
   // styled handle; the drag span went negative and every handle drag
   // snapped the value to the minimum.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action(window, "layerNewAction")->trigger();
   QApplication::processEvents();
   for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
@@ -8832,8 +8727,7 @@ void ui_short_panel_scroll_bar_drags_by_handle() {
 // (every row wrapped, GitHub issue 199), each panel scrolls sideways, with the
 // scroll bar at the bottom, instead of the drag stopping at the content width.
 void ui_right_dock_drags_below_content_minimum_with_scroll() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   // The wrapped Layers rows and the sideways bar need the group's spare height, which the
   // expanded Color panel takes in the 780 px test window.
   patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
@@ -8887,8 +8781,7 @@ void ui_right_dock_drags_below_content_minimum_with_scroll() {
 // A handle drag that ends near the content-fit width snaps onto it, the width
 // that just fits the Layers footer, from either side.
 void ui_right_dock_drag_snaps_to_content_width() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   QApplication::processEvents();
   QWidget* layers_dock = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(layers_dock != nullptr);
@@ -8923,8 +8816,7 @@ void ui_right_dock_drag_snaps_to_content_width() {
 // The column width handle stays usable while a non-modal preview dialog
 // (Invert here; filters, adjustments and G'MIC share the path) is open.
 void ui_right_dock_drag_works_during_preview_dialog() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   QApplication::processEvents();
   QWidget* layers_dock = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(layers_dock != nullptr);
@@ -8962,8 +8854,7 @@ void ui_right_dock_drag_works_during_preview_dialog() {
 void ui_right_dock_separator_drags_between_docks() {
   // The dividers between the column's sections stay draggable: expanded sections
   // keep low floors, so a divider keeps travel either way.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   // Collapse Color so the Layers group has height above its floor to give in the 780 px
   // test window.
   patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
@@ -9020,8 +8911,7 @@ void ui_layer_action_button_foreign_drag_never_repolishes_in_filter() {
   // Patchy under Breeze, whose polish() reinstalls filters and sends Qt's
   // filter loop back to Patchy's.
   FilterInstallingStyle style;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
   CHECK(button != nullptr);
   CHECK(button->property("layerDropAction").isValid());
@@ -9049,8 +8939,7 @@ void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
   // discoverable by their refusal to highlight.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   QMenu menu(&window);
   auto* enabled_action = menu.addAction(QStringLiteral("Enabled entry"));

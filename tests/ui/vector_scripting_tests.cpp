@@ -1,6 +1,5 @@
 #include "core/adjustment_layer.hpp"
 #include "ui/main_window.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QEventLoop>

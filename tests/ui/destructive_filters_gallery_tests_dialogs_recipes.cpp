@@ -16,7 +16,6 @@
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "filters/builtin_filters.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
 #include <QApplication>

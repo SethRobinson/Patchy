@@ -12,7 +12,6 @@
 #include "ui/main_window.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "filters/builtin_filters.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QAction>
 #include <QApplication>

@@ -1,6 +1,5 @@
 
 #include "core/adjustment_layer.hpp"
-#include "synthetic_dng.hpp"
 #include <atomic>
 #include <array>
 #include <cstdint>

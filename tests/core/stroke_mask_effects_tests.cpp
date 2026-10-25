@@ -13,7 +13,6 @@
 #include "render/layer_compositor.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>

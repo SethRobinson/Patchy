@@ -26,7 +26,6 @@
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_patterns.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>

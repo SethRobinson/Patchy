@@ -33,7 +33,6 @@
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>

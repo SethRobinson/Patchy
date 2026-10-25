@@ -1,4 +1,3 @@
-#include "synthetic_dng.hpp"
 #include <QIODevice>
 #include <QWidget>
 #include <algorithm>

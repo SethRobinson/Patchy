@@ -15,7 +15,6 @@
 #include "ui/tile_preview_window.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/script_engine.hpp"
-#include "synthetic_dng.hpp"
 #include "unicode_path_names.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"

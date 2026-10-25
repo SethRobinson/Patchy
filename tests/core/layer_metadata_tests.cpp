@@ -6,7 +6,6 @@
 #include "core/vector_shape.hpp"
 #include "psd/psd_binary.hpp"
 #include "test_harness.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>

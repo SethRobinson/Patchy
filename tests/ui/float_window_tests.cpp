@@ -4,7 +4,6 @@
 #include "core/layer_metadata.hpp"
 #include "ui/document_session_store.hpp"
 #include "ui/main_window.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QAction>
 #include <QApplication>

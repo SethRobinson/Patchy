@@ -7,7 +7,6 @@
 #include "formats/tga_document_io.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
-#include "synthetic_dng.hpp"
 #include <array>
 #include <bit>
 #include <cctype>

@@ -26,7 +26,6 @@
 #include "ui/mcp_attachment.hpp"
 #include "ui/qt_paths.hpp"
 #include "unicode_path_names.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <patchy_version.hpp>
 #include <QAbstractSpinBox>

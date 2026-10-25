@@ -19,7 +19,6 @@
 #include "ui/new_document_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -995,6 +994,11 @@ void show_window_empty(patchy::ui::MainWindow& window) {
   window.resize(1180, 780);
   window.show();
   QApplication::processEvents();
+}
+
+ShownWindowFixture::ShownWindowFixture() {
+  show_window(window);
+  canvas = require_canvas(window);
 }
 
 void process_events_for(int milliseconds) {

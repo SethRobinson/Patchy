@@ -1,5 +1,4 @@
 #include "ui/canvas_widget.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QInputDevice>

@@ -18,7 +18,6 @@
 #include "ui/print_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/script_engine.hpp"
-#include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "ui/qt_paths.hpp"
 #include "unicode_path_names.hpp"

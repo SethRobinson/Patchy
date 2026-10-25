@@ -6,19 +6,18 @@ Read before adding tests, changing test infrastructure, diagnosing suite-only fa
 
 ## Suite organization
 
-`tests/test_harness.hpp` is the shared runner and check vocabulary; its one Win32 body (`suppress_crash_dialogs`) is in `tests/test_harness.cpp`, listed in every test executable, so `<windows.h>` stays out of the test TUs. The core binary groups tests in `tests/core/*_tests.cpp`. Each TU exports `<group>_tests()`; `tests/core/main.cpp` concatenates registrations in fixed order. Append to the appropriate vector; never use static self-registration (cross-TU order varies). Move shared Qt-free helpers into `tests/core/core_test_support.{hpp,cpp}` or `psd_test_support.{hpp,cpp}`, namespace `patchy::test`; do not duplicate them.
+`tests/test_harness.hpp` is the shared runner and check vocabulary; its one Win32 body (`suppress_crash_dialogs`) is in `tests/test_harness.cpp`, listed in every test executable, so `<windows.h>` stays out of the test TUs. The core binary groups tests in `tests/core/*_tests.cpp`. Each TU exports `<group>_tests()`; `tests/core/main.cpp` concatenates registrations in fixed order. Append to the appropriate vector; never use static self-registration (cross-TU order varies). Move shared Qt-free helpers into `tests/core/core_test_support.{hpp,cpp}` or `psd_test_support.{hpp,cpp}`, namespace `patchy::test`; do not duplicate them (`solid_rgb`, `solid_rgba` and `solid_rgb_document(w, h, layer, r, g, b)` already exist: never redefine them in a TU).
+
+A test that needs a shown window with the historical startup document starts with `auto&& [window, canvas] = ShownWindowFixture{};` (`ui_test_support.hpp`): one line for `MainWindow window; show_window(window); auto* canvas = require_canvas(window);`, with the same lifetime as the local it replaces. Name the canvas even when unused (no compiler warns while one bound name is used). Keep the explicit local only for `show_window_empty` or a document opened before showing. `synthetic_dng.hpp` belongs only in TUs that call `synthetic_bayer_dng`.
 
 The UI suite uses `tests/ui/*_tests.cpp`, declarations in `tests/ui/ui_test_groups.hpp`, and fixed ordering in `tests/ui/main.cpp`: contact-sheet/README tests consume earlier artifacts, and QSettings state crosses tests. Helpers: `tests/ui/ui_test_support.{hpp,cpp}`, namespace `patchy::test::ui`. `MainWindowTestAccess` (`tests/ui/ui_test_access.hpp`, bodies in `ui_test_access.cpp`; both compile once in the `patchy_ui_test_shared` OBJECT library with `ui_test_support.cpp` and the translation tests) is befriended by qualified name in `main_window.hpp`.
 
 Both suites' `unicode_path_tests` and `ui_script_io_round_trips_unicode_path` share names in `tests/unicode_path_names.hpp`. In names and Qt-free TUs, spell non-ASCII as `\u`/`\U` escapes in `u8""`: only Qt-linked targets inherit `-utf-8`; raw bytes in core tests use the ANSI code page and raise C4819.
 
-Recursive cleanup uses `tests/test_scratch_remove.hpp` (UI wrapper:
-`remove_test_scratch_dir`). Targets must be strictly below `test-artifacts`,
-`qttest`, `.qttest`, or system-temp `patchy*`; roots are protected. Resolve parent
-links before checking containment; remove final links without their targets.
-Node uses host path APIs ([wasm.md](wasm.md)), failing closed on resolution errors
-and dangling parents. Core filter `test_scratch_remove` covers missing/Unicode
-paths and link safety; unavailable symlink creation reports a capability skip.
+Recursive cleanup uses `tests/test_scratch_remove.hpp` (UI wrapper `remove_test_scratch_dir`):
+targets strictly below `test-artifacts`, `qttest`, `.qttest` or system-temp `patchy*`, parent
+links resolved before the containment check, final links removed without their targets. Node
+uses host path APIs ([wasm.md](wasm.md)) and fails closed on resolution errors.
 
 Split groups exceeding ~3,000 lines into `<group>_tests_<theme>.cpp`, exporting
 `<group>_tests_partN()`. Keep `<group>_tests.cpp` as an aggregator preserving the
@@ -51,7 +50,7 @@ A run ends with `[SUMMARY] executed N, passed P, failed F, skipped S in T s`. Ex
 
 A test whose optional input is absent (untracked fixture, missing face, a build or platform without the feature) calls `patchy::test::skip(reason)` or `skip_unless_exists(path)` before asserting; the runner prints `[SKIP] <test>: <reason>`. Never return early or print `[SKIP]` yourself: the runner then reports `[PASS]` for nothing. A missing optional input never fails a test; one that checked part of its work prints a `  note:` line and passes. `TestSkipped` is not a `std::exception`: never skip inside a `try` with `catch (...)`. UI face gates: `skip_without_font_face`, `skip_without_psd_text_face`, `skip_without_arial_for_psd_text_preview` (`missing_*_reason` for partial checks).
 
-Never run two test processes (or a test process and the app) at once: they share the QSettings store, and a concurrent run rewrites preference keys mid-test (`ui_language_saved_preference_overrides_system_language` saw its saved language clobbered). One suite at a time.
+Never run two test processes (or a test process and the app) at once: they share the QSettings store, and a concurrent run rewrites preference keys mid-test. One suite at a time.
 
 The QSettings store also persists across runs, and a killed run skips every customize-then-restore test's restore step. Any settings group one test customizes while another asserts its defaults without seeding them (the `hotkeys` group is the known case) must be removed by the bootstrap block in `tests/ui/main.cpp`; groups whose assertion sites all clear or seed their own keys first (`palettes`, `colorPanel`, `saveOptions`, `recentFiles`) need no bootstrap entry. `cleanup_after_visual_test` clears `newDocument` (its Recent row carries Artboards into the next New) and the active-tool and brush keys per test.
 

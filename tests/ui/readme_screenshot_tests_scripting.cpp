@@ -1,7 +1,6 @@
 #include "core/layer_metadata.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/app_settings.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QAbstractItemView>

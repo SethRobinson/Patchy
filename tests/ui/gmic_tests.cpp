@@ -1,6 +1,5 @@
 #include <QStatusBar>
 #include "ui/theme_manager.hpp"
-#include "synthetic_dng.hpp"
 #include <QDialog>
 #include <QEventLoop>
 #include <QWidget>

@@ -13,7 +13,6 @@
 #include "psd/psd_document_io.hpp"
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>

@@ -2,7 +2,6 @@
 #include "formats/bmp_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include <array>
 #include <bit>
 #include <cctype>

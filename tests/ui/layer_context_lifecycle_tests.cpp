@@ -16,7 +16,6 @@
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
 #include <QAction>
@@ -314,9 +313,7 @@ void ui_right_drag_does_not_pan_canvas() {
 // Remove Object; off the selection (and without a Move-tool layer hit) there
 // is nothing to offer; with the Move tool the layer section comes first.
 void ui_selection_context_menu_offers_remove_object() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
        canvas->widget_position_for_document_point(QPoint(80, 80)));
@@ -429,9 +426,7 @@ void ui_selection_context_menu_offers_remove_object() {
 // must survive that nested loop, and ordinary mouse input afterwards must not touch a
 // dead widget.
 void ui_stroke_selection_from_context_menu_survives_following_mouse_input() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   canvas->set_primary_color(Qt::black);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
@@ -663,8 +658,7 @@ void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
 void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
   // The Color Overlay page's color patch is a passive QLabel next to the Choose
   // Color... button; double-clicking the patch must open the same picker.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
 
   bool saw_dialog = false;
@@ -721,8 +715,7 @@ void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
 // Duplicate to Document, Rename, Delete), as Photoshop does; a plain layer keeps the
 // layer wording (GitHub issue 203).
 void ui_layer_context_menu_names_groups_as_groups() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::Document seed(120, 80, patchy::PixelFormat::rgba8());
   const auto paper =
       seed.add_pixel_layer("Paper", solid_pixels(120, 80, patchy::PixelFormat::rgba8(), QColor(255, 255, 255))).id();
@@ -783,9 +776,7 @@ void ui_layer_context_menu_names_groups_as_groups() {
 }
 
 void ui_layer_context_menu_exposes_blending_options_dialog() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
   CHECK(layer_list != nullptr);
@@ -1101,8 +1092,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
 }
 
 void ui_layer_row_double_click_opens_blending_options_dialog() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   auto* item = layer_list->item(0);
@@ -1149,8 +1139,7 @@ void ui_layer_fx_badge_button_opens_layer_style_dialog() {
   // The click must activate the styled layer itself, so start elsewhere.
   document.set_active_layer(document.layers().front().id());
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Fx Badge"));
   QApplication::processEvents();
 
@@ -1204,8 +1193,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   // same round trip: unchecked by default, saved into LayerStroke::overprint.
   // The Drop Shadow page's "Layer Knocks Out Drop Shadow" checkbox (PS default
   // ON, LayerDropShadow::layer_conceals) round-trips the same way.
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
 
   bool edited = false;
@@ -1534,8 +1522,7 @@ void ui_layer_context_menu_layer_style_actions_follow_selection_state() {
   target_b_layer.set_bounds(patchy::Rect{96, 16, 24, 24});
   document.add_layer(std::move(target_b_layer));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Style Menu State"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -1609,8 +1596,7 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
   target_b_layer.set_opacity(0.77F);
   document.add_layer(std::move(target_b_layer));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Style Copy Paste Delete"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
@@ -1936,8 +1922,7 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
     patchy::tga::DocumentIo::write_file(source, std::filesystem::path(path.toStdWString()));
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   CHECK(window.screen() != nullptr);
   // Closing a partly offscreen main window must leave every prompt button
   // reachable, including the native frame below the message-box content.
@@ -2076,8 +2061,7 @@ void ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all() {
     return document;
   };
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   auto* tab_bar = tabs->findChild<QTabBar*>();
@@ -2209,8 +2193,7 @@ void ui_canvas_size_preserves_layers_and_crop_option_resets() {
 }
 
 void ui_new_document_and_canvas_size_dialogs_work() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   CHECK(tabs->count() == 1);
@@ -2395,8 +2378,7 @@ void ui_new_document_preset_double_click_creates_document() {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("newDocument"));
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
   CHECK(tabs != nullptr && info != nullptr);
@@ -2446,8 +2428,7 @@ void ui_new_document_dialog_remembers_last_settings() {
     settings.remove(QStringLiteral("newDocument"));
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
   CHECK(tabs != nullptr);
@@ -2587,8 +2568,7 @@ void ui_new_document_template_groups_hold_every_template() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   struct Group {
     const char* chip;
@@ -2720,8 +2700,7 @@ void ui_new_document_search_filters_every_group() {
   QApplication::clipboard()->setImage(clipboard_image);
   QApplication::processEvents();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   const auto tabs_before = tabs != nullptr ? tabs->count() : 0;
@@ -2881,8 +2860,7 @@ void ui_new_document_reopens_on_the_last_picked_group() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
 
@@ -2952,8 +2930,7 @@ void ui_new_document_review_captures() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   bool first_done = false;
   QTimer::singleShot(0, [&] {
@@ -3028,8 +3005,7 @@ void ui_new_document_dialog_always_opens_centered() {
     auto settings = patchy::ui::app_settings();
     settings.remove(group);
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto* screen = window.screen();
   CHECK(screen != nullptr);
   const auto available = screen != nullptr ? screen->availableGeometry() : QRect(0, 0, 1280, 800);
@@ -3164,8 +3140,7 @@ void ui_new_document_recent_row_lists_creates_newest_first() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
   new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-720p");
@@ -3248,8 +3223,7 @@ void ui_new_document_recent_row_follows_the_clipboard() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
 
   new_document_recent::run_dialog(window, [&](QDialog& dialog) {
@@ -3296,8 +3270,7 @@ void ui_new_document_recent_row_fits_the_dialog_width() {
   }
   patchy::ui::app_settings().setValue(QStringLiteral("newDocument/recent"),
                                       QString::fromUtf8(QJsonDocument(entries).toJson(QJsonDocument::Compact)));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   new_document_recent::run_dialog(window, [&](QDialog& dialog) {
     auto* recent = list(dialog, "newDocumentRecentList");
     CHECK(recent != nullptr);
@@ -3334,8 +3307,7 @@ void ui_new_document_recent_row_seeds_from_old_last_used_settings() {
     settings.setValue(QStringLiteral("newDocument/lastPpi"), 150.0);
     settings.setValue(QStringLiteral("newDocument/lastBackground"), QColor(Qt::black));
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   new_document_recent::run_dialog(window, [&](QDialog& dialog) {
     auto* recent = list(dialog, "newDocumentRecentList");
     auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
@@ -3363,8 +3335,7 @@ void ui_new_document_recent_row_review_captures() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   new_document_recent::create_from_template(window, "newDocumentSocialChip", "social-square-1080");
   new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
   QImage image(1200, 800, QImage::Format_RGBA8888);
@@ -3403,8 +3374,7 @@ void ui_new_document_dialog_fits_short_screens() {
   SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-720p");
   QImage image(800, 600, QImage::Format_RGBA8888);
   image.fill(QColor(70, 120, 190));
@@ -3486,8 +3456,7 @@ void ui_new_document_dialog_remembers_unit() {
     settings.setValue(QStringLiteral("view/rulerUnits"), QStringLiteral("cm"));
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
 
@@ -3607,8 +3576,7 @@ void ui_new_document_opens_fit_to_view() {
 }
 
 void ui_new_document_background_starts_locked() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(tabs != nullptr);
@@ -3637,9 +3605,7 @@ void ui_new_document_background_starts_locked() {
 }
 
 void ui_merge_down_into_position_locked_background_works() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
@@ -3668,8 +3634,7 @@ void ui_merge_down_into_position_locked_background_works() {
 // GitHub issue 274: Photoshop's Background rules. The File > New Background (core
 // background_layer) never leaves the bottom of the stack, and takes no layer styles.
 void ui_background_layer_stays_at_bottom_and_takes_no_styles() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   auto& doc = patchy::ui::MainWindowTestAccess::document(window);
@@ -3731,8 +3696,7 @@ void ui_background_layer_stays_at_bottom_and_takes_no_styles() {
 // name), and its shorter right-click menu offers Layer from Background, which makes it an
 // ordinary "Layer 0" in one undo step. Delete Layer and Merge Visible need another layer.
 void ui_background_layer_marker_and_short_menu() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
   CHECK(layer_list != nullptr && layers_dock != nullptr);
@@ -3974,8 +3938,7 @@ void ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing() {
 void ui_new_layer_dialog_and_merge_visible_retranslate() {
   LanguageRestorer language;
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* dialog_action = require_action(window, "layerNewWithDialogAction");
   auto* merge_action = require_action(window, "layerMergeVisibleLayersAction");
   CHECK(dialog_action->text() == QStringLiteral("New &Layer..."));

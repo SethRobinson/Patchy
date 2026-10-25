@@ -14,7 +14,6 @@
 #include "ui/main_window.hpp"
 #include "ui/new_document_dialog.hpp"
 #include "ui/app_settings.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QByteArray>

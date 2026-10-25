@@ -23,7 +23,6 @@
 #include "ui/app_settings.hpp"
 #include "ui/theme_palette.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QAbstractItemView>
@@ -69,6 +68,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -88,8 +88,7 @@ namespace {
 using namespace patchy::test::ui;
 
 void ui_tab_switch_layers_follow_the_canvas_after_tab_reorder() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(tabs != nullptr);
@@ -125,8 +124,7 @@ void ui_tab_switch_layers_follow_the_canvas_after_tab_reorder() {
 }
 
 void ui_new_layer_defaults_and_multiselect_layers_work() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   CHECK(layer_list->selectionMode() == QAbstractItemView::ExtendedSelection);
@@ -170,8 +168,7 @@ void ui_new_layer_defaults_and_multiselect_layers_work() {
 }
 
 void ui_ungroup_layers_releases_children_in_order_and_undoes() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   require_action(window, "layerNewAction")->trigger();
@@ -426,8 +423,7 @@ void ui_merge_down_flattens_entire_psd_to_single_layer() {
   patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("iPad Flatten All"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -541,8 +537,7 @@ void ui_merge_down_merges_layers_across_folders() {
 }
 
 void ui_new_layer_button_inserts_above_selected_layer() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
   CHECK(layer_list != nullptr);
@@ -589,8 +584,7 @@ void ui_document_default_layer_selection_skips_folder() {
   CHECK(*default_layer_id == child_id);
   document.set_active_layer(*default_layer_id);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Opened With Default Selection"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
@@ -616,8 +610,7 @@ void ui_document_with_only_folders_opens_with_no_layer_selected() {
   CHECK(!patchy::default_non_group_layer_id(document.layers()).has_value());
   document.clear_active_layer();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Opened Without Selection"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
@@ -647,8 +640,7 @@ void ui_duplicate_layer_copies_text_and_folder_trees() {
   folder.add_child(std::move(nested_folder));
   document.add_layer(std::move(folder));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Duplicate Trees"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -711,8 +703,7 @@ void ui_delete_layer_activates_the_layer_below() {
   document.add_layer(std::move(solo));
   document.add_pixel_layer("Top", solid_pixels(64, 48, format, QColor(Qt::black)));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Delete Selection"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
@@ -835,8 +826,7 @@ void ui_duplicate_layer_inserts_copies_above_source() {
   document.add_layer(std::move(folder));
   document.add_pixel_layer("Top", solid_pixels(64, 48, format, QColor(Qt::black)));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Duplicate Placement"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -933,8 +923,7 @@ void ui_copy_paste_layer_panel_copies_layers_and_folder_trees() {
   folder.add_child(std::move(nested_folder));
   document.add_layer(std::move(folder));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Copy Paste Trees"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -985,9 +974,7 @@ void ui_copy_paste_layer_panel_copies_layers_and_folder_trees() {
 }
 
 void ui_layer_rows_toggle_visibility_and_drag_reorder() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto settle_visibility = [canvas] {
     CHECK(process_events_until([canvas] { return canvas->render_settled(); }, 10000));
   };
@@ -1159,8 +1146,7 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
 }
 
 void ui_layer_folders_create_with_drag_drop_affordances() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   CHECK(require_action(window, "layerNewFolderAction") != nullptr);
@@ -1276,8 +1262,7 @@ void ui_layer_panel_mixed_folder_visual_cleanup() {
   document.add_layer(std::move(folder));
   document.set_active_layer(styled_id);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Panel Visual Cleanup"));
   QApplication::processEvents();
 
@@ -1513,8 +1498,7 @@ void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
   }};
 
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.add_document_session(make_document(), QStringLiteral("Thumbnail Sizes"));
     QApplication::processEvents();
     auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -1600,8 +1584,7 @@ void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
   }
 
   // A new window starts at the saved size.
-  patchy::ui::MainWindow reopened;
-  show_window(reopened);
+  auto&& [reopened, canvas] = ShownWindowFixture{};
   reopened.add_document_session(make_document(), QStringLiteral("Thumbnail Sizes Again"));
   QApplication::processEvents();
   auto* layer_list = reopened.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -2035,8 +2018,7 @@ void ui_layer_list_edge_click_selects_without_scrolling() {
 }
 
 void ui_layer_new_folder_button_groups_dropped_layers() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* folder_button = window.findChild<QPushButton*>(QStringLiteral("layerNewFolderButton"));
   CHECK(layer_list != nullptr);
@@ -2065,8 +2047,7 @@ void ui_layer_new_folder_button_groups_dropped_layers() {
 }
 
 void ui_layer_action_buttons_accept_multiselect_drops() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
   auto* duplicate_button = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
@@ -2108,8 +2089,7 @@ void ui_layer_action_buttons_accept_multiselect_drops() {
 // The Layers panel footer's Add Layer Mask button: enabled only for exactly
 // one selected layer that can take a new mask, and it adds the mask.
 void ui_layer_add_mask_button_tracks_selection_and_adds_mask() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* mask_button = window.findChild<QPushButton*>(QStringLiteral("layerAddMaskButton"));
   CHECK(layer_list != nullptr);
@@ -2170,8 +2150,7 @@ void ui_layer_styles_button_tracks_selection_and_lists_effects() {
   patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
   document.add_pixel_layer("Badge", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Styles Button"));
   QApplication::processEvents();
 
@@ -2282,8 +2261,7 @@ void ui_panel_footer_buttons_outline_only_on_hover() {
     patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
     document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
     document.add_pixel_layer("Layer 1", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     window.add_document_session(std::move(document), QStringLiteral("Footer Buttons"));
     QApplication::processEvents();
 
@@ -2395,8 +2373,7 @@ void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
   stroke.enabled = false;
   document.find_layer(badge_id)->layer_style().strokes.push_back(stroke);
   document.set_active_layer(badge_id);
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Styles Menu"));
   QApplication::processEvents();
 
@@ -2508,8 +2485,7 @@ void ui_layer_color_labels_menu_undo_and_row_strip() {
                                 solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(40, 90, 200))));
   document.add_layer(std::move(group));
   document.add_pixel_layer("Badge", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Colors"));
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -2652,8 +2628,7 @@ void ui_layer_eye_right_click_opens_color_menu() {
   document.add_pixel_layer("Base", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
   document.add_pixel_layer("Middle", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(40, 90, 200)));
   document.add_pixel_layer("Top", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Colors"));
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -2786,8 +2761,7 @@ void ui_issue_244_sample_layers_panel_shots_if_available() {
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore(scheme);
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
     QApplication::processEvents();
     QApplication::processEvents();
@@ -2829,8 +2803,7 @@ void ui_issue_246_sample_prevent_auto_nesting_if_available() {
   patchy::test::skip_unless_exists(path);
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -2954,8 +2927,7 @@ void ui_psd_background_hides_prevent_auto_nesting_badge() {
           static_cast<qint64>(bytes.size()));
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -3001,8 +2973,7 @@ void ui_layer_folders_expand_and_contract_children() {
                                    solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 80, 220))));
   document.add_layer(std::move(group));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Folder Disclosure"));
   QApplication::processEvents();
 
@@ -3072,8 +3043,7 @@ void ui_layer_folders_open_with_saved_expansion_state() {
                                         solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 80, 220))));
   document.add_layer(std::move(open_group));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Saved Folder State"));
   QApplication::processEvents();
 
@@ -3127,8 +3097,7 @@ void ui_layer_folder_toggle_saves_without_marking_modified() {
     patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(psd_path));
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
   QApplication::processEvents();
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
@@ -3175,8 +3144,7 @@ void ui_layer_folder_toggle_saves_without_marking_modified() {
   CHECK(!group_expanded(aseprite, "Open Folder"));
 
   // A reopened file shows the folders as they were saved.
-  patchy::ui::MainWindow reopened;
-  show_window(reopened);
+  auto&& [reopened, reopened_canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(reopened, psd_path);
   QApplication::processEvents();
   auto* reopened_list = reopened.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -3204,8 +3172,7 @@ void ui_layer_empty_folder_disclosure_toggles_and_saves() {
     patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(psd_path));
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -3284,8 +3251,7 @@ void ui_layer_empty_folder_disclosure_toggles_and_saves() {
   CHECK(group_expanded(saved, "Closed Empty"));
   CHECK(!group_expanded(saved, "Open Empty"));
 
-  patchy::ui::MainWindow reopened;
-  show_window(reopened);
+  auto&& [reopened, reopened_canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(reopened, psd_path);
   QApplication::processEvents();
   auto* reopened_list = reopened.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -3314,8 +3280,7 @@ void ui_layer_folder_alt_click_toggles_nested_folders() {
                                 solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 80, 220))));
   document.add_layer(std::move(outer));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Alt Click Folder Branch"));
   QApplication::processEvents();
 
@@ -3390,8 +3355,7 @@ void ui_layer_folder_ctrl_alt_click_toggles_all_folders() {
                                  solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 180, 80))));
   document.add_layer(std::move(second));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Ctrl Alt Click All Folders"));
   QApplication::processEvents();
 
@@ -3539,8 +3503,7 @@ void ui_layer_row_name_double_click_renames_inline() {
   document.add_pixel_layer("Sketch", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 80, 220)));
   const auto sketch_id = *document.active_layer_id();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Inline Rename"));
   QApplication::processEvents();
 
@@ -3654,9 +3617,7 @@ void ui_layer_row_name_double_click_renames_inline() {
 // styles apply to shapes too); Shape Appearance stays on the vector badge.
 void ui_layer_shape_row_double_click_opens_layer_style() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
        canvas->widget_position_for_document_point(QPoint(400, 300)));
@@ -3689,9 +3650,7 @@ void ui_layer_shape_row_double_click_opens_layer_style() {
 // the row, not seated on its second text line.
 void ui_layer_row_badges_center_on_the_row() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
        canvas->widget_position_for_document_point(QPoint(400, 300)));
@@ -3719,9 +3678,7 @@ void ui_layer_row_badges_center_on_the_row() {
 // (regression: double-clicking the badge opened Layer Style, September 2026).
 void ui_layer_vector_badge_double_click_opens_shape_appearance() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
        canvas->widget_position_for_document_point(QPoint(400, 300)));
@@ -3833,8 +3790,7 @@ void ui_layer_rename_hotkey_enters_inline_edit() {
   document.add_pixel_layer("Beta", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(220, 80, 40)));
   const auto beta_id = *document.active_layer_id();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Rename Hotkey"));
   QApplication::processEvents();
 
@@ -3960,8 +3916,7 @@ void ui_folder_visibility_preserves_layer_panel_scroll() {
   }
   document.add_layer(std::move(group));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Panel Scroll"));
   QApplication::processEvents();
 
@@ -4029,8 +3984,7 @@ void ui_layer_row_selected_highlight_paints() {
   group.add_child(std::move(child));
   document.add_layer(std::move(group));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Row Highlight"));
   QApplication::processEvents();
 
@@ -4066,8 +4020,7 @@ void ui_layer_row_selected_highlight_paints() {
 }
 
 void ui_layer_fill_opacity_control_updates_active_layer() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* fill = window.findChild<QSpinBox*>(QStringLiteral("layerFillOpacitySpin"));
   CHECK(fill != nullptr);
   CHECK(fill->isEnabled());
@@ -4088,8 +4041,7 @@ void ui_right_dock_opens_at_content_width_without_gap() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
   CHECK(manager.set_language(QStringLiteral("pl"), false));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   QApplication::processEvents();
   QApplication::processEvents();
   QWidget* dock = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -4122,8 +4074,7 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
   for (const auto& code : {QStringLiteral("ru"), QStringLiteral("pl"), QStringLiteral("en")}) {
     CHECK(manager.set_language(code, false));
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     QApplication::processEvents();
     QWidget* dock = patchy::ui::MainWindowTestAccess::panel_column(window);
     auto* combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
@@ -4181,8 +4132,7 @@ void ui_layer_panel_compact_width_keeps_controls_whole() {
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
   for (const auto& code : {QStringLiteral("en"), QStringLiteral("ru"), QStringLiteral("pl")}) {
     CHECK(manager.set_language(code, false));
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     patchy::Document document(320, 240, patchy::PixelFormat::rgb8());
     document.add_pixel_layer("Background", solid_pixels(320, 240, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
     document.add_pixel_layer("Sky", solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(90, 150, 220)));
@@ -4300,8 +4250,7 @@ void ui_layer_filter_shows_matching_rows_and_ancestor_folders() {
   const auto background_id = document.layers()[0].id();
   document.set_active_layer(background_id);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Layer Name Filter"));
   QApplication::processEvents();
 
@@ -4341,8 +4290,7 @@ void ui_layer_filter_reveals_matches_inside_collapsed_folders() {
                                 solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(220, 40, 40))));
   document.add_layer(std::move(group));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Filter Collapsed Folder"));
   QApplication::processEvents();
 
@@ -4369,8 +4317,7 @@ void ui_layer_filter_reveals_matches_inside_collapsed_folders() {
 }
 
 void ui_layer_filter_reapplies_after_layer_rename() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(make_name_filter_document(), QStringLiteral("Filter Rename"));
   QApplication::processEvents();
 
@@ -4442,8 +4389,7 @@ void ui_layer_filter_blocks_layer_drag_reorder() {
 }
 
 void ui_layer_filter_persists_across_document_tabs() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
@@ -4483,8 +4429,7 @@ void ui_layer_filter_empty_match_keeps_document_state() {
   const auto background_id = document.layers()[0].id();
   document.set_active_layer(background_id);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Filter Empty Match"));
   QApplication::processEvents();
 
@@ -4670,8 +4615,7 @@ void ui_layer_eye_alt_click_isolates_and_restores() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   const auto ids = build_eye_test_document(document);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Isolate"));
   QApplication::processEvents();
 
@@ -4706,8 +4650,7 @@ void ui_layer_eye_alt_click_folder_isolates_group() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   const auto ids = build_eye_test_document(document);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Isolate Folder"));
   QApplication::processEvents();
 
@@ -4737,8 +4680,7 @@ void ui_layer_eye_alt_click_reisolate_keeps_original_snapshot() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   const auto ids = build_eye_test_document(document);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Reisolate"));
   QApplication::processEvents();
 
@@ -4772,8 +4714,7 @@ void ui_layer_eye_alt_click_after_external_change_starts_fresh() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   const auto ids = build_eye_test_document(document);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Fresh Isolate"));
   QApplication::processEvents();
 
@@ -4817,8 +4758,7 @@ void ui_layer_eye_sweep_sets_crossed_rows_to_first_state() {
                       .id());
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Sweep"));
   QApplication::processEvents();
 
@@ -4877,8 +4817,7 @@ void ui_layer_eye_sweep_skips_disabled_and_off_column() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   const auto ids = build_eye_test_document(document, /*folder_visible=*/false, /*child_b_visible=*/true);
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Sweep Skips"));
   QApplication::processEvents();
 
@@ -5056,8 +4995,7 @@ void ui_layer_eye_double_click_toggles_each_click() {
                                                           QColor(40, 80, 220)))
                             .id();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Eye Double Click"));
   QApplication::processEvents();
 
@@ -5187,8 +5125,7 @@ void ui_layer_list_row_masks_map_scroll_bars_without_warnings() {
     document.add_pixel_layer("Row " + std::to_string(index),
                              solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(index * 4, 80, 120)));
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(std::move(document), QStringLiteral("Row Masks"));
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));

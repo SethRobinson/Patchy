@@ -34,7 +34,6 @@
 #include "filters/gmic/gmic_engine.hpp"
 #include "ui/gmic_filter_library_dialog.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -73,6 +72,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <memory>

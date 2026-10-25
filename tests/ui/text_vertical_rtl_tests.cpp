@@ -4,7 +4,6 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include <QAbstractSpinBox>
 #include <QByteArray>
 #include <QFont>

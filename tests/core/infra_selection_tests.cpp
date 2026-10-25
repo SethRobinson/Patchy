@@ -14,7 +14,6 @@
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include "remove_object_fixture.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>

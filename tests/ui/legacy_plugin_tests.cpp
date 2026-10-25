@@ -1,7 +1,6 @@
 #include <QStatusBar>
 
 
-#include "synthetic_dng.hpp"
 #include <QDialog>
 #include <QEventLoop>
 #include <QFileInfo>

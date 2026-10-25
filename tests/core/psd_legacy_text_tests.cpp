@@ -6,7 +6,6 @@
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "test_harness.hpp"
-#include "synthetic_dng.hpp"
 #include <bit>
 #include <cctype>
 #include <chrono>

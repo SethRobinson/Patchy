@@ -1,4 +1,3 @@
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>

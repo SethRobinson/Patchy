@@ -1,5 +1,4 @@
 #include "core/adjustment_layer.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <bit>
 #include <cctype>

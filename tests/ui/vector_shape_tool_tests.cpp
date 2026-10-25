@@ -11,7 +11,6 @@
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
 #include "ui/app_settings.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QDir>
@@ -107,9 +106,7 @@ void shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint d
 
 void ui_shape_tool_creates_shape_layer_and_undoes() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -155,9 +152,7 @@ void ui_shape_tool_creates_shape_layer_and_undoes() {
 // used to be refused outside the document, while marquee drags were not.
 void ui_shape_and_text_drags_start_off_canvas() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
   // Zoom out so the pasteboard around the document is inside the widget.
@@ -223,9 +218,7 @@ void ui_shape_and_text_drags_start_off_canvas() {
 
 void ui_shape_tool_combine_extends_active_shape_layer() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -256,9 +249,7 @@ void ui_shape_tool_combine_extends_active_shape_layer() {
 
 void ui_shape_tool_path_mode_populates_work_path() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -294,9 +285,7 @@ void ui_shape_tool_path_mode_populates_work_path() {
 // (GitHub issue 61); gradient paint is left alone.
 void ui_palette_swatch_click_recolors_selected_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   const auto* preset = patchy::find_builtin_palette_preset("pico8");
@@ -371,9 +360,7 @@ void ui_palette_swatch_click_recolors_selected_shape() {
 // only sets the foreground.
 void ui_eyedropper_pick_recolors_selected_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // Two sample patches on the bottom pixel layer.
@@ -450,9 +437,7 @@ void ui_eyedropper_pick_recolors_selected_shape() {
 // so a drag through the picker is one undo step; gradient fills are left alone.
 void ui_foreground_panel_color_recolors_selected_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   require_action_by_text(window, QStringLiteral("Ellipse"))->trigger();
@@ -520,9 +505,7 @@ void ui_foreground_panel_color_recolors_selected_shape() {
 
 void ui_shape_tool_pixels_mode_keeps_raster_commit() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -547,9 +530,7 @@ void ui_shape_tool_pixels_mode_keeps_raster_commit() {
 
 void ui_line_shape_layer_uses_weight_and_stroke_settings() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Line);
@@ -582,9 +563,7 @@ void pen_click(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
 
 void ui_pen_tool_click_and_close_creates_shape_layer() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -621,9 +600,7 @@ void ui_pen_tool_click_and_close_creates_shape_layer() {
 
 void ui_pen_tool_path_mode_keys_and_handles() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   const auto initial_layers = document.layers().size();
@@ -690,9 +667,7 @@ patchy::LayerId make_rect_shape_layer(patchy::ui::MainWindow& window,
 
 void ui_direct_select_drags_anchor_with_single_undo() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -724,9 +699,7 @@ void ui_direct_select_drags_anchor_with_single_undo() {
 
 void ui_path_select_drags_whole_shape_group() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -751,9 +724,7 @@ void ui_path_select_drags_whole_shape_group() {
 
 void ui_pen_adds_deletes_and_converts_anchors() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -791,9 +762,7 @@ void ui_pen_adds_deletes_and_converts_anchors() {
 
 void ui_path_select_combine_op_edit_applies() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -933,9 +902,7 @@ QDialog* find_top_level_dialog(const QString& object_name);
 
 void ui_free_transform_scales_shape_layer_crisply() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -982,9 +949,7 @@ void ui_free_transform_scales_shape_layer_crisply() {
 // fixed corner creep 3 px per transform and the dragged corner miss the box.
 void ui_free_transform_shape_with_outside_stroke_lands_on_box() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
   {
@@ -1035,9 +1000,7 @@ void ui_free_transform_shape_with_outside_stroke_lands_on_box() {
 // now covers the shape wherever it sits, so the plain Move drag returns it.
 void ui_shape_moved_off_canvas_by_free_transform_moves_back() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
   canvas->set_tool(patchy::ui::CanvasTool::Move);
@@ -1072,9 +1035,7 @@ void ui_polygon_tool_creates_polygons_and_stars() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
   SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Polygon);
@@ -1113,9 +1074,7 @@ void ui_polygon_tool_creates_polygons_and_stars() {
 void ui_custom_shape_stamps_and_defines() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
@@ -1187,9 +1146,7 @@ void ui_custom_shape_stamps_and_defines() {
 void ui_custom_shape_shift_and_link_keep_proportions() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   auto* link_button = window.findChild<QPushButton*>(QStringLiteral("vectorShapeLinkSizeButton"));
   CHECK(link_button != nullptr);
@@ -1363,9 +1320,7 @@ void ui_line_arrowheads_extend_the_shape() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_start(QStringLiteral("tools/lineArrowStart"));
   SettingsValueRestorer saved_end(QStringLiteral("tools/lineArrowEnd"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Line);
@@ -1394,9 +1349,7 @@ void ui_line_arrowheads_extend_the_shape() {
 
 void ui_paths_panel_lists_saves_and_targets_paths() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A Path-mode drag creates the work path; the panel lists it.
@@ -1450,9 +1403,7 @@ void ui_paths_panel_lists_saves_and_targets_paths() {
 
 void ui_paths_panel_fill_stroke_and_make_selection() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -1543,9 +1494,7 @@ QDialog* find_top_level_dialog(const QString& object_name) {
 
 void ui_shape_appearance_dialog_commits_and_cancels() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -1616,9 +1565,7 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
 void ui_shape_appearance_unit_fields_share_spin_box_border() {
   VectorSettingsGuard settings_guard;
   ColorSchemeRestorer restore_scheme;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
 
@@ -1702,9 +1649,7 @@ void ui_shape_appearance_unit_fields_share_spin_box_border() {
 
 void ui_new_solid_fill_layer_uses_selection_mask() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -1750,9 +1695,7 @@ void ui_new_solid_fill_layer_uses_selection_mask() {
 
 void ui_shape_geometry_edits_live_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -1816,9 +1759,7 @@ void ui_shape_geometry_edits_live_shape() {
 
 void ui_shape_mode_drag_previews_fill_appearance() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);  // Shape mode default
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
@@ -1847,9 +1788,7 @@ void ui_shape_mode_drag_previews_fill_appearance() {
 // and the corner is filled to the tip.
 void ui_shape_mode_drag_previews_stroke_inside_the_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_zoom(1.0);
   QApplication::processEvents();
 
@@ -1897,9 +1836,7 @@ void ui_shape_mode_drag_previews_stroke_inside_the_shape() {
 
 void ui_paths_panel_clipping_path_toggle() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // Two saved paths.
@@ -1947,9 +1884,7 @@ void ui_paths_panel_clipping_path_toggle() {
 
 void ui_path_edits_refresh_panel_thumbnails() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
@@ -2190,9 +2125,7 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
   // Regression: choosing a CUSTOM library pattern (imported image, auto
   // generated id) in the Shape Appearance dialog rendered an empty fill.
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A shape layer to restyle.
@@ -2311,9 +2244,7 @@ void ui_options_bar_pattern_fill_creates_pattern_shape() {
   // shape then carries it, the tile is adopted into the document store (the
   // Patt-block hard-refusal rule), and the mirror seeds later documents too.
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   patchy::PixelBuffer tile(8, 8, patchy::PixelFormat::rgba8());
@@ -2389,9 +2320,7 @@ void ui_options_bar_edits_selected_shape_appearance() {
   // controls show for the path-select tools, edit the LAYER (one undo entry
   // per gesture), and stick as the next-shape defaults.
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
@@ -2482,8 +2411,7 @@ void ui_options_bar_edits_selected_shape_appearance() {
 void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.resize(1800, 800);
   patchy::ui::MainWindowTestAccess::set_ruler_unit(window, patchy::ui::MeasurementUnit::Pixels);
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
@@ -2610,9 +2538,7 @@ void check_swatch_outline_reads_on_bar(QToolButton& button, const char* label) {
 // the stroke paint it had.
 void ui_shape_stroke_width_zero_means_no_stroke() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_zoom(1.0);
   QApplication::processEvents();
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
@@ -2739,8 +2665,7 @@ void ui_shape_stroke_width_zero_means_no_stroke() {
 void ui_shape_swatches_outline_contrasts_with_options_bar() {
   VectorSettingsGuard settings_guard;
   ColorSchemeRestorer restore_scheme(patchy::ui::ColorSchemePreference::Dark);
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   window.resize(1800, 800);
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
@@ -2786,9 +2711,7 @@ void ui_shape_swatches_outline_contrasts_with_options_bar() {
 
 void ui_new_fill_layer_clips_to_targeted_path() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A Path-mode rect drag creates AND targets the work path.
@@ -2824,9 +2747,7 @@ void ui_new_fill_layer_clips_to_targeted_path() {
 
 void ui_new_gradient_fill_layer_spans_canvas() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_primary_color(Qt::black);
@@ -2858,9 +2779,7 @@ void ui_new_gradient_fill_layer_spans_canvas() {
 
 void ui_pen_hover_shows_context_cursor_badges() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
 
   canvas->set_tool(patchy::ui::CanvasTool::Pen);
@@ -2916,9 +2835,7 @@ void ui_pen_hover_shows_context_cursor_badges() {
 
 void ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -2961,9 +2878,7 @@ void ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws() {
 
 void ui_pen_ctrl_drag_moves_in_progress_session_anchor() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Pen);
@@ -3003,9 +2918,7 @@ void ui_pen_ctrl_drag_moves_in_progress_session_anchor() {
 // selected shape as one undo step, and the next plain drag draws again.
 void ui_shape_tool_ctrl_acts_as_path_select() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto first_id = make_rect_shape_layer(window, *canvas);  // 100,100 - 300,220
   shape_drag(*canvas, QPoint(400, 300), QPoint(500, 380));
@@ -3084,9 +2997,7 @@ void ui_shape_tool_ctrl_acts_as_path_select() {
 // stroke like the original, and one Undo removes it.
 void ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   canvas->set_view_zoom_centered(1.0);
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -3166,9 +3077,7 @@ void ui_shape_tool_ctrl_alt_drag_duplicates_a_filled_shape() {
 // Combine setting stays New Layer, and the add is one undo step.
 void ui_shape_tool_shift_press_adds_to_shape_layer() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   auto* combine_combo = window.findChild<QComboBox*>(QStringLiteral("vectorCombineCombo"));
   CHECK(combine_combo != nullptr);
@@ -3242,9 +3151,7 @@ void ui_shape_tool_shift_press_adds_to_shape_layer() {
 
 void ui_pen_session_start_shows_hint_message() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto hint = patchy::ui::resolve_modifier_names(QStringLiteral(
       "Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; "
       "Enter or %CTRL%+click away ends an open path; Esc cancels."));
@@ -3269,9 +3176,7 @@ void ui_pen_session_start_shows_hint_message() {
 
 void ui_vector_mode_combo_disables_pixels_for_vector_only_tools() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
   CHECK(mode_combo != nullptr);
@@ -3310,9 +3215,7 @@ void ui_vector_mode_combo_disables_pixels_for_vector_only_tools() {
 
 void ui_layer_context_menu_offers_shape_appearance_for_shape_layers() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr && layer_list->count() > 0);
@@ -3376,9 +3279,7 @@ void ui_paths_panel_actions_follow_row_selection() {
   // too; clicking a row used to leave Fill/Stroke/Make Selection/Delete stuck
   // disabled (and the post-open blanket enable left them wrongly enabled).
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
@@ -3459,9 +3360,7 @@ bool accent_overlay_near(patchy::ui::CanvasWidget& canvas, QPoint document_point
 
 void ui_paths_panel_target_shows_overlay_with_any_tool() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   // A Path-mode drag creates the work path AND targets its row (Photoshop
   // highlights Work Path as soon as you draw).
@@ -3525,9 +3424,7 @@ void ui_paths_panel_target_shows_overlay_with_any_tool() {
 
 void ui_shape_layer_auto_targets_path_row_until_dismissed() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A Shape-mode drag creates a shape layer; its transient row auto-targets
@@ -3571,9 +3468,7 @@ void ui_shape_layer_auto_targets_path_row_until_dismissed() {
 
 void ui_shape_layer_row_shows_vector_badge() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
@@ -3615,9 +3510,7 @@ void ui_shape_layer_row_shows_vector_badge() {
 
 void ui_paths_panel_ctrl_click_loads_selection() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
@@ -3656,9 +3549,7 @@ void ui_paths_panel_ctrl_click_loads_selection() {
 
 void ui_paths_panel_duplicate_and_reorder() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // Two saved paths via New Path + Path-mode drags (each drag lands in the
@@ -3711,9 +3602,7 @@ void ui_paths_panel_duplicate_and_reorder() {
 
 void ui_fill_path_supports_patterns() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -3830,9 +3719,7 @@ void ui_fill_path_supports_patterns() {
 
 void ui_stroke_path_simulate_pressure_tapers() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // Pin the pen-input mapping the taper rides (the user's preferences could
@@ -3905,9 +3792,7 @@ void ui_stroke_path_simulate_pressure_tapers() {
 
 void ui_path_free_transform_moves_scales_and_undoes() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A rect work path, auto-targeted by the drag.
@@ -3978,9 +3863,7 @@ void ui_path_free_transform_moves_scales_and_undoes() {
 
 void ui_make_work_path_from_selection_traces_selection() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A donut selection: outer rect with a rectangular hole.
@@ -4048,8 +3931,7 @@ void ui_make_work_path_from_selection_traces_selection() {
 
 void ui_new_fill_cancel_preserves_document_and_history() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   // Earlier ordered tests can empty the user's pattern library. Supply this
   // document's own pattern so the Pattern command can open its dialog.
@@ -4082,9 +3964,7 @@ void ui_new_fill_cancel_preserves_document_and_history() {
 
 void ui_path_transform_is_cancelled_on_layer_target_change() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto first = *document.active_layer_id();
@@ -4159,9 +4039,7 @@ std::function<void()> shape_create_dialog_answer(bool& seen, double width, doubl
 
 void ui_shape_tap_opens_create_dialog_and_places_rectangle() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -4265,9 +4143,7 @@ void ui_shape_tap_opens_create_dialog_and_places_rectangle() {
 // and never opens the Create <Shape> dialog.
 void ui_shape_tiny_drag_commits_without_create_dialog() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -4312,9 +4188,7 @@ void ui_shape_tiny_drag_commits_without_create_dialog() {
 
 void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -4458,9 +4332,7 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
 // tool only its own extra field.
 void ui_shape_create_dialog_layout() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto visible_child = [](QDialog* dialog, const char* name) {
     auto* widget = dialog->findChild<QWidget*>(QLatin1String(name));
     return widget != nullptr && widget->isVisible();
@@ -4516,9 +4388,7 @@ void ui_shape_create_dialog_layout() {
 // unlinked, and a new options-bar Radius replaces the remembered corners.
 void ui_shape_create_rectangle_radius_link() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   auto* bar_radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
   CHECK(bar_radius != nullptr);
@@ -4642,9 +4512,7 @@ void ui_shape_create_rectangle_radius_link() {
 
 void ui_shape_tap_line_fixed_size_and_path_mode() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto initial_layers = document.layers().size();
 
@@ -4702,9 +4570,7 @@ void ui_shape_tap_line_fixed_size_and_path_mode() {
 // unlinked (issue shots for GitHub issues 309 and 310); nothing is created.
 void ui_shape_create_dialog_captures() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const std::pair<patchy::ui::CanvasTool, const char*> tools[] = {
       {patchy::ui::CanvasTool::Rectangle, "shape_create_dialog_rectangle"},
       {patchy::ui::CanvasTool::Ellipse, "shape_create_dialog_ellipse"},
@@ -4739,9 +4605,7 @@ void ui_shape_create_dialog_captures() {
 
 void ui_shape_size_spins_reflect_and_resize_active_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   auto* width_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorShapeWidthSpin"));
@@ -4832,9 +4696,7 @@ void ui_shape_size_spins_reflect_and_resize_active_shape() {
 
 void ui_shape_size_controls_follow_move_and_properties_selection() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   require_action(window, "toolRectAction")->trigger();
@@ -4924,8 +4786,7 @@ void ui_shape_size_controls_follow_move_and_properties_selection() {
 
 void ui_shape_style_row_is_pixel_only_and_greys_size_at_normal() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
   auto* fixed_width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));
   auto* fixed_height = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedHeightSpin"));
@@ -4999,8 +4860,7 @@ protected:
 
 void ui_options_bar_never_shows_pixel_widgets_in_shape_mode() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
@@ -5051,9 +4911,7 @@ void ui_path_overlay_follows_move_drag() {
     // A shape layer shows no path outline under Move (GitHub issue 238), before,
     // during or after a drag. An ellipse, probed where its curve runs inside the
     // bounds: the Move tool's own layer box draws on the bounds edges.
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
     shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));  // center (200,160), radii 100 x 60
     CHECK(canvas->panel_path_targeted());
@@ -5103,9 +4961,7 @@ void ui_path_overlay_follows_move_drag() {
 // the artwork. View > Show Target Path still hides it under a path tool.
 void ui_shape_layer_outline_shows_only_under_path_and_shape_tools() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220); its path row auto-targets
   CHECK(canvas->panel_path_targeted());
   const auto outline_shown = [&](patchy::ui::CanvasTool tool) {
@@ -5139,9 +4995,7 @@ void ui_shape_layer_outline_shows_only_under_path_and_shape_tools() {
 
 void ui_path_overlay_follows_free_transform() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
   CHECK(canvas->panel_path_targeted());
   // The Rectangle tool stays active, so the shape layer's outline draws (GitHub issue 238).
@@ -5173,9 +5027,7 @@ void ui_path_overlay_follows_free_transform() {
 
 void ui_layer_dialogs_refuse_during_transform() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
 
@@ -5233,9 +5085,7 @@ void ui_layer_dialogs_refuse_during_transform() {
 
 void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
   const auto history_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
@@ -5319,9 +5169,7 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
 
 void ui_shape_geometry_link_keeps_aspect() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // 200 x 120
 
@@ -5359,9 +5207,7 @@ void ui_shape_geometry_link_keeps_aspect() {
 
 void ui_shape_geometry_radius_link_edits_all_corners() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   auto* tool_radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
   CHECK(tool_radius != nullptr);
@@ -5490,9 +5336,7 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
 
 void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
   CHECK(radius_spin != nullptr);
   radius_spin->setValue(12);  // rounded rect: the tallest Geometry group
@@ -5576,9 +5420,7 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
 
 void ui_shape_appearance_spins_have_step_buttons() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
 
@@ -5636,9 +5478,7 @@ void ui_shape_appearance_spins_have_step_buttons() {
 
 void ui_shape_appearance_reset_restores_factory_defaults() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   require_action(window, "toolRectAction")->trigger();  // the options-bar mirrors need the real tool
   QApplication::processEvents();
@@ -5712,8 +5552,7 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
 
 void ui_options_bar_mode_combo_stays_first_for_shape_tools() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
@@ -5737,9 +5576,7 @@ void ui_options_bar_mode_combo_stays_first_for_shape_tools() {
 
 void ui_shape_appearance_entry_points_open_the_dialog() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
 
   const auto opens_dialog = [&](const std::function<void()>& trigger) {
@@ -5801,9 +5638,7 @@ void ui_shape_appearance_entry_points_open_the_dialog() {
 // layer was deselected (a blank click in the Layers panel, Select > Deselect Layers).
 void ui_properties_edit_appearance_hides_when_layers_are_deselected() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
   patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
   QApplication::processEvents();
@@ -5853,8 +5688,7 @@ void ui_properties_edit_appearance_hides_when_layers_are_deselected() {
 // message, opens nothing and changes nothing; the Properties W and H fields stay inert too.
 void ui_properties_shape_controls_are_safe_without_a_shape() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
   QApplication::processEvents();
   auto* button = window.findChild<QPushButton*>(QStringLiteral("propertiesEditAppearanceButton"));
@@ -5920,8 +5754,7 @@ void ui_properties_shape_controls_are_safe_without_a_shape() {
 // Height row (two width/height pairs on one bar was the September 2026 bug).
 void ui_shape_size_row_shows_in_shape_mode_only() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
   auto* width_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorShapeWidthSpin"));
   auto* link_button = window.findChild<QPushButton*>(QStringLiteral("vectorShapeLinkSizeButton"));
@@ -5956,9 +5789,7 @@ void ui_shape_size_row_shows_in_shape_mode_only() {
 // canvas menu (docs/tools.md, "Canvas right-click menu").
 void ui_shape_context_menu_offers_shape_commands() {
   VectorSettingsGuard settings_guard;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
   canvas->setFocus(Qt::MouseFocusReason);
@@ -6021,9 +5852,7 @@ void ui_shape_context_menu_offers_shape_commands() {
 void ui_shape_size_fields_follow_ruler_unit() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   document.print_settings().horizontal_ppi = 300.0;
   document.print_settings().vertical_ppi = 300.0;
@@ -6140,9 +5969,7 @@ void ui_shape_size_fields_follow_ruler_unit() {
 void ui_shape_appearance_unit_pick_sets_ruler_unit() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   document.print_settings().horizontal_ppi = 300.0;
   document.print_settings().vertical_ppi = 300.0;

@@ -7,7 +7,6 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/main_window.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QEventLoop>
@@ -27,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <memory>

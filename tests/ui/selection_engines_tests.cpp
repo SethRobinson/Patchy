@@ -3,7 +3,6 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include "ui/qt_paths.hpp"
@@ -35,6 +34,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <memory>

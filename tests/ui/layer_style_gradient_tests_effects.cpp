@@ -10,7 +10,6 @@
 #include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/main_window.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QByteArray>

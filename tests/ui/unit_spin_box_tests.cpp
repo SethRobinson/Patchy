@@ -1,4 +1,3 @@
-#include "synthetic_dng.hpp"
 #include <QAbstractSpinBox>
 #include <QDoubleSpinBox>
 #include <QSpinBox>

@@ -21,7 +21,6 @@
 #include "ui/theme_manager.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/splash_dialog.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>

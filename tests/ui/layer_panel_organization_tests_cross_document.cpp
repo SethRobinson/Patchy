@@ -1,5 +1,4 @@
 #include "ui/canvas_widget.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <atomic>
 #include <array>

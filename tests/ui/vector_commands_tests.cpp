@@ -1,7 +1,6 @@
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QEventLoop>

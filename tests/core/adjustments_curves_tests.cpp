@@ -20,7 +20,6 @@
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -59,6 +58,7 @@ using patchy::test::psd_layer_extra_data;
 using patchy::test::psd_raw_layer_record_names;
 using patchy::test::rgb_diff_metrics;
 using patchy::test::solid_rgb;
+using patchy::test::solid_rgb_document;
 using patchy::test::solid_rgba;
 using patchy::test::write_ascii4;
 using patchy::test::write_pascal_padded;
@@ -707,8 +707,7 @@ std::vector<std::uint8_t> test_patchy_plad_payload(
 
 void psd_curves_native_output_omits_private_plad_and_migrates_legacy() {
   const auto write_document = [](const patchy::CurvesAdjustment& curves) {
-    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-    document.add_pixel_layer("Base", solid_rgb(1, 1, 80, 100, 120));
+    patchy::Document document = solid_rgb_document(1, 1, "Base", 80, 100, 120);
     patchy::AdjustmentSettings settings;
     settings.kind = patchy::AdjustmentKind::Curves;
     settings.curves = curves;
@@ -901,8 +900,7 @@ void psd_native_curves_suppresses_private_fallback_and_preserves_both_blocks() {
   CHECK(std::equal(stale_plad.begin(), stale_plad.end(), rewritten_plad->begin()));
   CHECK(rewritten_plad->back() == 0U);
 
-  patchy::Document native_document(1, 1, patchy::PixelFormat::rgb8());
-  native_document.add_pixel_layer("Base", solid_rgb(1, 1, 40, 80, 120));
+  patchy::Document native_document = solid_rgb_document(1, 1, "Base", 40, 80, 120);
   patchy::AdjustmentSettings native_settings;
   native_settings.kind = patchy::AdjustmentKind::Curves;
   native_settings.curves.rgb = {{0, 4}, {128, 180}, {255, 250}};
@@ -979,8 +977,7 @@ void psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip() {
     }
   };
 
-  patchy::Document fresh_document(8, 8, patchy::PixelFormat::rgb8());
-  fresh_document.add_pixel_layer("Base", solid_rgb(8, 8, 50, 100, 150));
+  patchy::Document fresh_document = solid_rgb_document(8, 8, "Base", 50, 100, 150);
   patchy::AdjustmentSettings fresh_settings;
   fresh_settings.kind = patchy::AdjustmentKind::Curves;
   fresh_settings.curves = expected;
@@ -1055,8 +1052,7 @@ void psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip() {
 }
 
 void psd_levels_adjustment_channel_round_trips() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 0));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 0, 200, 0);
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::Levels;
@@ -1103,8 +1099,7 @@ void psd_levels_adjustment_channel_round_trips() {
 }
 
 void psd_levels_adjustment_writes_native_levl_only() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 32, 128, 220));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 32, 128, 220);
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::Levels;
@@ -1147,8 +1142,7 @@ void psd_native_levels_adjustment_imports_without_patchy_block() {
   CHECK(settings->kind == patchy::AdjustmentKind::Levels);
   CHECK(settings->levels.red.black_output == 255);
 
-  patchy::Document composited(1, 1, patchy::PixelFormat::rgb8());
-  composited.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 0));
+  patchy::Document composited = solid_rgb_document(1, 1, "Base", 0, 200, 0);
   patchy::Layer adjustment(composited.allocate_layer_id(), "Native Levels", patchy::LayerKind::Adjustment);
   patchy::configure_adjustment_layer(adjustment, *settings);
   composited.add_layer(std::move(adjustment));
@@ -1473,8 +1467,7 @@ void psd_native_hue2_colorize_adjustment_imports_and_renders() {
   CHECK(settings->hue_saturation.hue_shift == -180);
   CHECK(settings->hue_saturation.saturation_delta == -61);
 
-  patchy::Document composited(1, 1, patchy::PixelFormat::rgb8());
-  composited.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
+  patchy::Document composited = solid_rgb_document(1, 1, "Base", 120, 120, 120);
   patchy::Layer adjustment(composited.allocate_layer_id(), "Native Colorize", patchy::LayerKind::Adjustment);
   patchy::configure_adjustment_layer(adjustment, *settings);
   composited.add_layer(std::move(adjustment));
@@ -1485,8 +1478,7 @@ void psd_native_hue2_colorize_adjustment_imports_and_renders() {
 }
 
 void psd_hue_saturation_adjustment_writes_native_hue2_only() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 120, 120, 120);
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::HueSaturation;
   settings.hue_saturation.colorize = true;
@@ -1939,8 +1931,7 @@ void psd_generic_bg_colorize_writes_comparison_artifacts_if_available() {
 }
 
 void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
-  patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
+  patchy::Document document = solid_rgb_document(3, 2, "Background", 255, 255, 255);
   document.add_pixel_layer("Middle", solid_rgba(3, 2, 80, 120, 180, 255));
   document.add_pixel_layer("Top", solid_rgba(3, 2, 220, 20, 60, 192));
 
@@ -2036,8 +2027,7 @@ void adjustment_invert_math_lut_and_metadata_round_trip() {
 }
 
 void psd_invert_adjustment_writes_native_nvrt_only_and_round_trips() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 10, 200, 30));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 10, 200, 30);
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::Invert;
@@ -2285,8 +2275,7 @@ void adjustment_exposure_math_metadata_and_psd_round_trip() {
   CHECK(clamped.offset_ten_thousandths == -5000);
   CHECK(clamped.gamma_hundredths == 1);
 
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 79, 88, 107));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 79, 88, 107);
   patchy::Layer layer(document.allocate_layer_id(), "Exposure", patchy::LayerKind::Adjustment);
   layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
   patchy::configure_adjustment_layer(layer, exposure);
@@ -2318,8 +2307,7 @@ void adjustment_exposure_math_metadata_and_psd_round_trip() {
 }
 
 void psd_posterize_threshold_write_native_blocks_and_round_trip() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 100, 100, 100);
 
   patchy::AdjustmentSettings posterize;
   posterize.kind = patchy::AdjustmentKind::Posterize;
@@ -2636,8 +2624,7 @@ void adjustment_modern_brightness_contrast_matches_photoshop_captures() {
 }
 
 void psd_brightness_contrast_writes_native_brit_only_and_round_trips() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 100, 100, 100);
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::BrightnessContrast;
@@ -2671,8 +2658,7 @@ void psd_brightness_contrast_writes_native_brit_only_and_round_trips() {
 }
 
 void psd_brightness_contrast_modern_writes_cged_and_round_trips() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 100, 100, 100);
 
   // Patchy-authored modern settings (the default mode, like Photoshop's):
   // values ride the CgEd descriptor beside Photoshop's all-zero compatibility
@@ -2819,8 +2805,7 @@ void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
 }
 
 void psd_color_balance_writes_native_blnc_only_and_round_trips() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+  patchy::Document document = solid_rgb_document(1, 1, "Base", 100, 100, 100);
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::ColorBalance;
@@ -3096,8 +3081,7 @@ void color_balance_tones_round_trip_metadata_and_blnc() {
   settings.color_balance.highlights = {-20, 45, -70};
   settings.color_balance.preserve_luminosity = true;
 
-  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(2, 2, 136, 136, 136));
+  patchy::Document document = solid_rgb_document(2, 2, "Base", 136, 136, 136);
   patchy::Layer adjustment(document.allocate_layer_id(), "Color Balance", patchy::LayerKind::Adjustment);
   adjustment.set_bounds(patchy::Rect::from_size(2, 2));
   patchy::configure_adjustment_layer(adjustment, settings);
@@ -4385,8 +4369,7 @@ void psd_native_nvrt_adjustment_imports_and_renders() {
   CHECK(settings.has_value());
   CHECK(settings->kind == patchy::AdjustmentKind::Invert);
 
-  patchy::Document composited(1, 1, patchy::PixelFormat::rgb8());
-  composited.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 64));
+  patchy::Document composited = solid_rgb_document(1, 1, "Base", 0, 200, 64);
   patchy::Layer adjustment(composited.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
   patchy::configure_adjustment_layer(adjustment, *settings);
   composited.add_layer(std::move(adjustment));

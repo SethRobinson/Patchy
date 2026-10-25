@@ -30,6 +30,11 @@ patchy::PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::uin
 
 patchy::Document make_tool_document();
 
+// A `width` x `height` RGB document whose only layer is `layer_name` filled with
+// solid_rgb(width, height, r, g, b): the two-line setup most core tests start with.
+patchy::Document solid_rgb_document(std::int32_t width, std::int32_t height, std::string layer_name,
+                                    std::uint8_t r, std::uint8_t g, std::uint8_t b);
+
 patchy::EditOptions tool_options(std::uint8_t r = 220, std::uint8_t g = 20, std::uint8_t b = 40);
 
 void write_u16_le(std::ofstream& file, std::uint16_t value);

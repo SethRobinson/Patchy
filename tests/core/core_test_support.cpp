@@ -3,7 +3,6 @@
 #include "core/pixel_tools.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -56,6 +55,13 @@ patchy::Document make_tool_document() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
   document.add_pixel_layer("Paint", solid_rgba(64, 48, 0, 0, 0, 0));
+  return document;
+}
+
+patchy::Document solid_rgb_document(std::int32_t width, std::int32_t height, std::string layer_name,
+                                    std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+  patchy::Document document(width, height, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer(std::move(layer_name), solid_rgb(width, height, r, g, b));
   return document;
 }
 

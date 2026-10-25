@@ -7,7 +7,6 @@
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include <bit>
 #include <cctype>
 #include <cmath>

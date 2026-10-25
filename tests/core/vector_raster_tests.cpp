@@ -1,5 +1,4 @@
 #include "core/blend_math.hpp"
-#include "synthetic_dng.hpp"
 #include <bit>
 #include <cctype>
 #include <chrono>
@@ -55,6 +54,7 @@ using patchy::Rect;
 using patchy::VectorPath;
 using patchy::VectorRasterOptions;
 using patchy::test::fnv1a_hash_bytes;
+using patchy::test::solid_rgba;
 
 PathAnchor corner(double x, double y) {
   PathAnchor anchor;
@@ -1081,20 +1081,6 @@ void stroke_shape_composites_fill_and_stroke() {
   CHECK(mixed[2] > 100 && mixed[2] < 140);  // half the stroke blue
 }
 
-patchy::PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
-                               std::uint8_t b, std::uint8_t a = 255) {
-  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
-  for (std::int32_t y = 0; y < height; ++y) {
-    for (std::int32_t x = 0; x < width; ++x) {
-      auto* px = pixels.pixel(x, y);
-      px[0] = r;
-      px[1] = g;
-      px[2] = b;
-      px[3] = a;
-    }
-  }
-  return pixels;
-}
 
 patchy::LayerVectorMask baked_triangle_mask(Rect canvas) {
   patchy::LayerVectorMask mask;
@@ -1112,8 +1098,8 @@ patchy::LayerVectorMask baked_triangle_mask(Rect canvas) {
 void vector_mask_composites_in_flatten() {
   const Rect canvas{0, 0, 32, 32};
   patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("bg", solid_rgba(32, 32, 255, 255, 255));
-  patchy::Layer blue(2, "blue", solid_rgba(32, 32, 0, 0, 255));
+  document.add_pixel_layer("bg", solid_rgba(32, 32, 255, 255, 255, 255));
+  patchy::Layer blue(2, "blue", solid_rgba(32, 32, 0, 0, 255, 255));
   blue.set_vector_mask(baked_triangle_mask(canvas));
   document.add_layer(std::move(blue));
 
@@ -1150,8 +1136,8 @@ void vector_mask_composites_in_flatten() {
 void vector_mask_multiplies_with_raster_mask() {
   const Rect canvas{0, 0, 32, 32};
   patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("bg", solid_rgba(32, 32, 255, 255, 255));
-  patchy::Layer green(2, "green", solid_rgba(32, 32, 0, 200, 0));
+  document.add_pixel_layer("bg", solid_rgba(32, 32, 255, 255, 255, 255));
+  patchy::Layer green(2, "green", solid_rgba(32, 32, 0, 200, 0, 255));
 
   // Raster mask: top half revealed.
   patchy::PixelBuffer mask_pixels(32, 32, patchy::PixelFormat::gray8());

@@ -12,7 +12,6 @@
 #include "formats/document_trim.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
-#include "synthetic_dng.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>

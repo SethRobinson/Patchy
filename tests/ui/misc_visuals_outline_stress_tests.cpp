@@ -3,7 +3,6 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/selection_outline.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QDir>

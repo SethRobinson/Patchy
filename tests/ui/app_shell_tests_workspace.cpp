@@ -23,7 +23,6 @@
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
 #include "ui/network_mounts.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <patchy_version.hpp>
 #include <QAbstractItemModel>
@@ -929,8 +928,7 @@ void ui_start_panel_shows_about_info_and_update_status() {
 // A checked Window menu entry hides its panel even while the panel is collapsed
 // (GitHub issue 234); choosing it again shows the panel, expanded.
 void ui_window_menu_hides_collapsed_panel() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* window_menu = window.findChild<QMenu*>(QStringLiteral("windowMenu"));
   // History has a section of its own (a tab behind another one comes forward instead).
@@ -970,8 +968,7 @@ void ui_window_menu_hides_collapsed_panel() {
 }
 
 void ui_window_menu_lists_panels_and_toolbars() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* window_menu = window.findChild<QMenu*>(QStringLiteral("windowMenu"));
   auto* arrange_menu = window.findChild<QMenu*>(QStringLiteral("windowArrangeMenu"));
@@ -1063,8 +1060,7 @@ void ui_window_menu_lists_panels_and_toolbars() {
 // stacked in one column with nothing beside it. Under the old dock column a reopened dock
 // could come back narrower, with the window background showing beside its title.
 void ui_panel_close_and_reopen_keeps_full_width() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -1103,8 +1099,7 @@ void ui_panel_close_and_reopen_keeps_full_width() {
 // Seth's case: expanding a panel and collapsing it again (or closing it) must hand its
 // height back to the other panels at once, never leave a band between the title rows.
 void ui_panel_collapse_and_close_leave_no_gap() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -1167,8 +1162,7 @@ void ui_panel_collapse_and_close_leave_no_gap() {
 // With every section collapsed the title rows stack from the top of the column, the
 // spare height below them; expanding a section fills the column again (GitHub issue 391).
 void ui_panel_all_collapsed_stack_at_top() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -1242,8 +1236,7 @@ void ui_panel_all_collapsed_stack_at_top() {
 // title row or its tab bar); a drop line shows where it lands, Escape cancels, and the
 // moved sections keep the column filled.
 void ui_panel_title_drag_reorders_sections() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -1369,8 +1362,7 @@ void ui_panel_title_drag_reorders_sections() {
 // tab texts and every per-tab state follow, a drop line shows where the tab lands, Escape
 // cancels, and nothing floats or leaves the bar.
 void ui_panel_tab_drag_reorders_tabs() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -1829,8 +1821,7 @@ void ui_panel_drag_onto_header_merges_into_tabs() {
 // a click on the collapse button toggles nothing extra. Every change goes through the
 // collapse button, so the button and the saved layout stay in step.
 void ui_panel_title_click_expands_and_double_click_collapses() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -1935,8 +1926,7 @@ void ui_panel_title_click_expands_and_double_click_collapses() {
 // panel toggles and Reset Panels); on the tab group's tab bar the close entry closes the
 // whole group.
 void ui_panel_header_right_click_opens_panel_menu() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   CHECK(column != nullptr);
   if (column == nullptr) {
@@ -2010,8 +2000,7 @@ void ui_panel_header_right_click_opens_panel_menu() {
 // A right-click on a toolbar lists the panels and toolbars and Reset Panels, as the panel
 // header menu does.
 void ui_panel_list_opens_on_toolbar_right_click() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   {
     std::unique_ptr<QMenu> menu(window.createPopupMenu());
     CHECK(menu != nullptr);
@@ -2081,8 +2070,7 @@ void ui_panel_layout_returns_in_the_next_window() {
   bool properties_expanded_before = false;
   int picked_width = 0;
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
     properties_expanded_before = column->panel_expanded(properties);
     column->set_panel_expanded(properties, !properties_expanded_before);
@@ -2187,8 +2175,7 @@ void ui_panel_layout_returns_in_the_next_window() {
 // first-launch section and tab order, the default collapse states, Layers in front and the content-fit column
 // width.
 void ui_reset_panels_restores_first_launch_layout() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* tool_palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
   CHECK(column != nullptr && tool_palette != nullptr);
@@ -2270,8 +2257,7 @@ void ui_reset_panels_restores_first_launch_layout() {
 // height than the window had: the window grew past the bottom of the screen. It keeps its
 // size and place, on a short screen too.
 void ui_reset_panels_keeps_the_window_geometry() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   const int short_screen = 720;
   patchy::ui::MainWindowTestAccess::set_available_window_height(window, short_screen);
@@ -2303,8 +2289,7 @@ void ui_reset_panels_keeps_the_window_geometry() {
 // layers, a separator, then the adjustments, exactly as Layer > New Fill Layer and Layer >
 // New Adjustment Layer do, so a new kind lands in both.
 void ui_layer_panel_new_layer_menu_lists_fills_and_adjustments() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QToolButton*>(QStringLiteral("layerNewAdjustmentButton"));
   auto* fill_menu = window.findChild<QMenu*>(QStringLiteral("layerNewFillMenu"));
   auto* adjustment_menu = window.findChild<QMenu*>(QStringLiteral("layerNewAdjustmentMenu"));
@@ -2357,8 +2342,7 @@ void ui_layer_panel_new_layer_menu_lists_fills_and_adjustments() {
 }
 
 void ui_main_window_renders_color_controls() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
   auto* background = window.findChild<QPushButton*>(QStringLiteral("backgroundColorButton"));
@@ -2563,8 +2547,7 @@ void ui_main_window_renders_color_controls() {
 // text, in both schemes; the action keeps its id, Q shortcut and tooltip.
 void ui_tool_palette_quick_mask_button_shows_its_icon() {
   ensure_artifact_dir();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* button = window.findChild<QToolButton*>(QStringLiteral("quickMaskButton"));
   auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
   auto* action = require_hotkey_action(window, QStringLiteral("select.quick_mask"));
@@ -2816,8 +2799,7 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
 }
 
 void ui_tool_palette_overflow_hides_quick_mask_before_swatches() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto setup = shrink_window_until_tool_palette_overflows(window);
 
   // The footer (color well, Quick Mask) is pinned to the bottom and never
@@ -3261,8 +3243,7 @@ void ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency() {
 }
 
 void ui_top_menu_items_highlight_on_hover() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* file_menu = window.menuBar()->actions().front()->menu();
   CHECK(file_menu != nullptr);
@@ -3311,8 +3292,7 @@ void ui_save_as_dialog_lists_recent_files() {
     settings.sync();
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
@@ -3374,8 +3354,7 @@ void ui_open_recent_lists_two_hundred_files_in_one_scrolling_list() {
     settings.sync();
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   // One list of every entry (the persisted cap is 200), no paged submenus and no
   // per-file menu rows: the menu stays a compact box beside the File menu.
@@ -3586,8 +3565,7 @@ void ui_open_recent_filter_narrows_entries_and_opens_first_match() {
 void ui_open_dialog_remembers_last_filter() {
   SettingsValueRestorer filter_restorer(QStringLiteral("lastOpenFilter"));
   patchy::ui::app_settings().remove(QStringLiteral("lastOpenFilter"));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   QStringList rows;
   QString selected_first;
   QString selected_second;
@@ -3636,8 +3614,7 @@ void ui_open_failed_box_names_the_file() {
     CHECK(file.open(QIODevice::WriteOnly));
     file.write("this is not a PNG");
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   QString box_text;
   bool answered = false;
   QTimer poll;
@@ -3701,8 +3678,7 @@ void ui_open_by_content_when_the_extension_is_wrong() {
     psd_bytes = file.readAll();
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto before = patchy::ui::MainWindowTestAccess::session_count(window);
 
   // Drag and drop accepts the mislabeled file (the drag check sniffs unknown extensions).
@@ -3848,8 +3824,7 @@ void ui_pdn_files_open_with_layers_and_by_content() {
   const auto bin_path = write(QStringLiteral("drawing.bin"));
   const auto png_path = write(QStringLiteral("drawing.png"));
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto before = patchy::ui::MainWindowTestAccess::session_count(window);
   const auto check_document = [&] {
     const auto& document = patchy::ui::MainWindowTestAccess::document(window);
@@ -3969,8 +3944,7 @@ void ui_open_recent_folders_list_two_hundred_folders_with_filter() {
     settings.sync();
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   // Open Recent Folder matches Open Recent File: a filter row over one scrolling list
   // of every entry (the persisted cap is 200), no paged submenus or per-folder rows.
@@ -4095,8 +4069,7 @@ void ui_recent_file_context_menu_copies_path() {
 
   QApplication::clipboard()->clear();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
@@ -4157,8 +4130,7 @@ void ui_recent_folder_context_menu_copies_path_and_offers_explorer() {
 
   QApplication::clipboard()->clear();
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* folders_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
   CHECK(folders_menu != nullptr);
@@ -4216,8 +4188,7 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
   SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
 
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     bool saved = false;
     QTimer::singleShot(0, [&] {
       auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
@@ -4238,8 +4209,7 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
           QFileInfo(remembered_dir).absoluteFilePath());
   }
 
-  patchy::ui::MainWindow next_window;
-  show_window(next_window);
+  auto&& [next_window, canvas] = ShownWindowFixture{};
 
   bool saw_dialog = false;
   QTimer::singleShot(0, [&] {
@@ -4276,8 +4246,7 @@ void ui_open_remembers_last_directory_and_lists_recent_folders() {
     settings.sync();
   }
 
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   auto* folders_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
   CHECK(folders_menu != nullptr);

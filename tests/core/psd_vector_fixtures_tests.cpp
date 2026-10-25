@@ -7,7 +7,6 @@
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
-#include "synthetic_dng.hpp"
 #include <bit>
 #include <cctype>
 #include <chrono>

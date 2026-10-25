@@ -17,7 +17,6 @@
 #include "ui/main_window.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "unicode_path_names.hpp"
 #include "local_psd_fixtures.hpp"

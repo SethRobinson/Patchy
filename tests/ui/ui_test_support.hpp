@@ -10,6 +10,7 @@
 #include "ui/alpha_row_bands.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/localization.hpp"
+#include "ui/main_window.hpp"
 #include "ui/theme_manager.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
@@ -50,7 +51,7 @@ class QMenu;
 class QTextEdit;
 class QWidget;
 namespace patchy { class Document; class FilterRegistry; struct FilterInvocation; }
-namespace patchy::ui { class CanvasWidget; class MainWindow; }
+namespace patchy::ui { class CanvasWidget; }
 
 namespace patchy::test::ui {
 
@@ -526,6 +527,26 @@ void show_window(patchy::ui::MainWindow& window);
 // show_window without the compatibility document: the true empty-startup state
 // (start panel visible, no sessions).
 void show_window_empty(patchy::ui::MainWindow& window);
+
+// A MainWindow shown through show_window (so it holds the historical 1024x768 startup
+// document) whose canvas has already passed require_canvas. One line names both and
+// keeps the fixture alive to the end of the scope, exactly like the window local it
+// replaces:
+//
+//   auto&& [window, canvas] = ShownWindowFixture{};
+//
+// A test that never touches the canvas still names it: no supported compiler warns
+// about one unused name of a structured binding while another is used. Tests that
+// open their own document before showing, or need show_window_empty, keep the
+// explicit MainWindow local.
+struct ShownWindowFixture {
+  patchy::ui::MainWindow window;
+  patchy::ui::CanvasWidget* canvas{nullptr};
+
+  ShownWindowFixture();
+  ShownWindowFixture(const ShownWindowFixture&) = delete;
+  ShownWindowFixture& operator=(const ShownWindowFixture&) = delete;
+};
 
 void process_events_for(int milliseconds);
 

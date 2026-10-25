@@ -24,7 +24,6 @@
 #include "ui/script_folders.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
@@ -86,9 +85,7 @@ namespace {
 using namespace patchy::test::ui;
 void ui_color_picker_changes_foreground_color() {
   ensure_artifact_dir();
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
   CHECK(foreground != nullptr);
   foreground->click();
@@ -317,9 +314,7 @@ void ui_color_picker_fields_keep_their_digits_in_a_styled_dialog() {
 }
 void ui_color_picker_wheel_and_sliders_modes() {
   ensure_artifact_dir();
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
   CHECK(foreground != nullptr);
   // Clear any persisted tab so the picker opens on Square (the unset default).
@@ -711,8 +706,7 @@ void ui_message_box_expanded_details_stay_inside_screen() {
   CHECK(available.contains(expanded_frame));
 }
 void ui_dirty_state_marks_tabs_and_undo_restores_saved_revision() {
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   CHECK(!tabs->tabText(tabs->currentIndex()).endsWith(QStringLiteral("*")));
@@ -1016,8 +1010,7 @@ void ui_psd_import_notice_reports_only_unsupported_blend_if() {
   const auto unsupported_path = write_blend_if_fixture(
       QStringLiteral("unsupported-blend-if"),
       std::vector<std::uint8_t>(unsupported_payload.begin(), unsupported_payload.end()));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(window, supported_path);
   QApplication::processEvents();
   CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("Blend If")));
@@ -1075,8 +1068,7 @@ void ui_psd_import_notice_reports_unrendered_layer_effects() {
   CHECK(temp.isValid());
   const auto path = temp.filePath(QStringLiteral("unrendered-effects.psd"));
   patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
   // Group layer effects RENDER since July 2026: no unrendered-effects notice.
@@ -1092,8 +1084,7 @@ void ui_psd_import_warning_dialog_is_hidden_by_default() {
     settings.sync();
   }
   const auto psd_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-default.psd"));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   const auto original_tab_count = tabs->count();
@@ -1115,8 +1106,7 @@ void ui_psd_import_warning_dialog_shows_when_enabled() {
     settings.sync();
   }
   const auto psd_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-enabled.psd"));
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   const auto original_tab_count = tabs->count();
@@ -1131,9 +1121,7 @@ void ui_psd_import_warning_dialog_shows_when_enabled() {
   CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
 }
 void ui_alt_left_click_samples_foreground_color() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(QColor(12, 180, 240));
   use_solid_fill_settings(canvas);
@@ -1153,9 +1141,7 @@ void ui_alt_left_click_samples_foreground_color() {
   CHECK(color_close(canvas_pixel(*canvas, sample_document_point), sampled_before_click, 0));
 }
 void ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(QColor(40, 160, 220));
   use_solid_fill_settings(canvas);
@@ -1196,8 +1182,7 @@ void ui_image_mode_converts_bit_depth_with_undo() {
   // buffer, keeps Indexed (8-bit only) out of reach, and undoes.
   patchy::set_deep_editing_override(true);
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* to8 = require_action(window, "imageMode8BitAction");
     auto* to16 = require_action(window, "imageMode16BitAction");
     auto* to32 = require_action(window, "imageMode32BitAction");
@@ -1225,8 +1210,7 @@ void ui_image_mode_converts_bit_depth_with_undo() {
   }
   patchy::set_deep_editing_override(false);
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     CHECK(!require_action(window, "imageMode16BitAction")->isVisible());
   }
   patchy::set_deep_editing_override(std::nullopt);
@@ -1287,8 +1271,7 @@ void ui_new_document_dialog_creates_the_chosen_bit_depth() {
   };
   patchy::set_deep_editing_override(true);
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     answer_new_document(16, true, nullptr);
     require_action(window, "fileNewAction")->trigger();
     QApplication::processEvents();
@@ -1308,8 +1291,7 @@ void ui_new_document_dialog_creates_the_chosen_bit_depth() {
   }
   patchy::set_deep_editing_override(false);
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     answer_new_document(8, false, nullptr);
     require_action(window, "fileNewAction")->trigger();
     QApplication::processEvents();
@@ -1322,8 +1304,7 @@ void ui_new_document_dialog_creates_the_chosen_bit_depth() {
 void ui_image_mode_from_32_bits_asks_for_hdr_toning() {
   patchy::set_deep_editing_override(true);
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* to16 = require_action(window, "imageMode16BitAction");
     require_action(window, "imageMode32BitAction")->trigger();
     QApplication::processEvents();
@@ -1430,9 +1411,7 @@ void ui_deep_document_render_strips_match_the_sequential_render() {
 // returns the resulting layers narrowed to 8 bits, checking the depth invariant on the way.
 std::vector<patchy::PixelBuffer> run_layer_operations_at_depth(patchy::BitDepth depth) {
   using patchy::ui::MainWindowTestAccess;
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto& doc = MainWindowTestAccess::document(window);
   const auto width = doc.width();
   const auto height = doc.height();
@@ -2577,8 +2556,7 @@ void ui_eyedropper_sample_layers_migrates_legacy_setting() {
     settings.setValue(QStringLiteral("tools/eyedropperSampleAllLayers"), false);
   }
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* layers_combo = window.findChild<QComboBox*>(QStringLiteral("eyedropperSampleLayersCombo"));
     CHECK(layers_combo != nullptr);
     CHECK(require_canvas(window)->eyedropper_sample_layers() == patchy::SampleLayers::CurrentLayer);
@@ -2594,8 +2572,7 @@ void ui_eyedropper_sample_layers_migrates_legacy_setting() {
   }
   {
     // The new key wins over the bool on the next launch.
-    patchy::ui::MainWindow window;
-    show_window(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     CHECK(require_canvas(window)->eyedropper_sample_layers() == patchy::SampleLayers::AllLayersNoAdjustments);
   }
   auto settings = patchy::ui::app_settings();
@@ -2651,9 +2628,7 @@ void ui_eyedropper_picks_group_opacity_and_clipping_composite() {
   CHECK(color_close(pick(blue_point), expected_blue, 1));
 }
 void ui_eyedropper_starts_in_gray_area_and_drags_to_document_color() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(QColor(34, 201, 145));
   use_solid_fill_settings(canvas);
@@ -3492,8 +3467,7 @@ void select_hotkeys_tab(QTabWidget& tabs, QDialog& dialog) {
 void ui_preferences_builds_hotkey_editor_on_first_visit() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
@@ -3538,8 +3512,7 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
 void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
@@ -3602,8 +3575,7 @@ void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
 void ui_hotkey_editor_lists_scripts_category() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   const auto pong_id = patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js"));
   CHECK(window.hotkey_registry().find_command(pong_id) != nullptr);
   bool saw_dialog = false;
@@ -3642,8 +3614,7 @@ void ui_hotkey_editor_lists_scripts_category() {
 void ui_hotkey_editor_steals_conflicting_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
@@ -3705,8 +3676,7 @@ void ui_hotkey_editor_reset_all_clears_overrides() {
     settings.setValue(QStringLiteral("hotkeys/edit.undo"), QString());
     settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   CHECK(require_action(window, "fileNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_F9));
   const auto* undo_command = window.hotkey_registry().find_command(QStringLiteral("edit.undo"));
   CHECK(undo_command != nullptr && undo_command->action != nullptr);
@@ -3758,9 +3728,7 @@ private:
 void ui_color_picker_cmyk_fields_follow_working_space() {
   ensure_artifact_dir();
   const ScopedCmykWorkingSettings formula(patchy::ui::CmykWorkingSettings{QLatin1String(patchy::ui::kCmykProfileFormula)});
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   CHECK(!patchy::working_cmyk_space()->has_profile());
   window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"))->click();
   QApplication::processEvents();
@@ -3878,8 +3846,7 @@ void ui_color_picker_warns_when_a_color_cannot_print() {
 // applies them on OK.
 void ui_preferences_cmyk_settings_persist_and_apply() {
   const ScopedCmykWorkingSettings defaults(patchy::ui::CmykWorkingSettings{});
-  patchy::ui::MainWindow window;
-  show_window(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));

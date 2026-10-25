@@ -5,6 +5,7 @@
 
 #include "ai/ai_selection_math.hpp"
 #include "ai/segmentation_engine.hpp"
+#include "core_test_support.hpp"
 #include "formats/stb/stb_image.h"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
@@ -31,6 +32,7 @@ using patchy::PixelFormat;
 using patchy::Rect;
 using patchy::ai::AiMask;
 using patchy::ai::LogitMapping;
+using patchy::test::solid_rgba;
 
 std::uint64_t splitmix64(std::uint64_t& state) {
   std::uint64_t z = (state += 0x9E3779B97F4A7C15ULL);
@@ -39,21 +41,6 @@ std::uint64_t splitmix64(std::uint64_t& state) {
   return z ^ (z >> 31U);
 }
 
-PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                       std::uint8_t a) {
-  PixelBuffer pixels(width, height, PixelFormat::rgba8());
-  for (std::int32_t y = 0; y < height; ++y) {
-    auto row = pixels.row(y);
-    for (std::int32_t x = 0; x < width; ++x) {
-      auto* px = row.data() + static_cast<std::size_t>(x) * 4U;
-      px[0] = r;
-      px[1] = g;
-      px[2] = b;
-      px[3] = a;
-    }
-  }
-  return pixels;
-}
 
 // A self-authored scene: a mottled green-grey background (deterministic noise) with a
 // shaded red disc, the one clear object. `disc` receives the disc's exact mask.

@@ -20,7 +20,6 @@
 #include "ui/app_settings.hpp"
 #include "ui/zoom_status_bar.hpp"
 #include "psd/psd_document_io.hpp"
-#include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -91,9 +90,7 @@ struct ScopedSingleThreadedRender {
 };
 
 void ui_move_preview_preserves_layer_order() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
 
@@ -125,9 +122,7 @@ void ui_move_preview_preserves_layer_order() {
 }
 
 void ui_move_tool_moves_selected_layers_together() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
 
@@ -648,9 +643,7 @@ void ui_move_auto_select_persists_across_windows() {
     settings.sync();
   }
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     auto* check = window.findChild<QCheckBox*>(QStringLiteral("moveAutoSelectCheck"));
     CHECK(check != nullptr);
     require_action_by_text(window, QStringLiteral("Move"))->trigger();
@@ -670,9 +663,7 @@ void ui_move_auto_select_persists_across_windows() {
     auto settings = patchy::ui::app_settings();
     CHECK(settings.value(QStringLiteral("tools/moveAutoSelect")).toBool());
   }
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->auto_select_layer());
@@ -2044,9 +2035,7 @@ void ui_move_auto_select_target_persists_across_windows() {
     settings.sync();
   }
   {
-    patchy::ui::MainWindow window;
-    show_window(window);
-    auto* canvas = require_canvas(window);
+    auto&& [window, canvas] = ShownWindowFixture{};
     require_action_by_text(window, QStringLiteral("Move"))->trigger();
     QApplication::processEvents();
     auto* combo = window.findChild<QComboBox*>(QStringLiteral("moveAutoSelectTargetCombo"));
@@ -3121,9 +3110,7 @@ void ui_processing_overlay_is_visible_before_slow_move_commit_callback() {
 }
 
 void ui_processing_overlay_ticks_during_filter_apply() {
-  patchy::ui::MainWindow window;
-  show_window(window);
-  auto* canvas = require_canvas(window);
+  auto&& [window, canvas] = ShownWindowFixture{};
 
   canvas->set_primary_color(QColor(30, 120, 220));
   require_action(window, "layerFillForegroundAction")->trigger();
