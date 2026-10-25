@@ -48,7 +48,7 @@
     "window_close_pressed_bg": "#9f2117",
     "tool_palette_bg": "#313131",
     "tool_palette_border": "#020202",
-    "tool_palette_separator": "#484848",
+    "tool_palette_separator": "#c5c5c5",
     "options_bar_bg": "#1b1b1b",
     "options_bar_top_edge": "#383838",
     "option_separator": "#343434",
