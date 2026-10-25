@@ -48,6 +48,7 @@
 #include "core/vector_shape.hpp"
 #include "core/vector_raster.hpp"
 #include "ui/default_custom_shapes.hpp"
+#include "ui/blend_mode_ui.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/pattern_library.hpp"
@@ -1997,12 +1998,13 @@ void save_screen_popup_artifact(const std::string& name, QWidget& window, QWidge
 }
 
 // The checks a long pattern or gradient list must pass once its popup is open (GitHub
-// issue 271): the scrolling list form on every style, at most kLongListPopupRows rows,
+// issue 271): the scrolling list form on every style, at most `max_rows` rows,
 // inside the screen's available area, the wheel reaching the top and the keyboard
 // reaching and picking the first row. `combo` must be scrolled away from row 0 (its
 // current row is near the end).
 void check_long_list_popup_reaches_first_row(QComboBox& combo, const std::string& artifact,
-                                             QWidget& window) {
+                                             QWidget& window,
+                                             int max_rows = patchy::ui::kLongListPopupRows) {
   combo.showPopup();
   QApplication::processEvents();
   auto* view = combo.view();
@@ -2017,7 +2019,7 @@ void check_long_list_popup_reaches_first_row(QComboBox& combo, const std::string
   CHECK(available.contains(popup->frameGeometry()));
   const auto row_height = view->sizeHintForRow(0);
   CHECK(row_height > 0);
-  CHECK(view->viewport()->height() <= row_height * patchy::ui::kLongListPopupRows);
+  CHECK(view->viewport()->height() <= row_height * max_rows);
   auto* scroll_bar = view->verticalScrollBar();
   CHECK(scroll_bar->isVisible());
   CHECK(scroll_bar->value() > 0);
@@ -2119,6 +2121,80 @@ void ui_shape_pattern_list_popup_fits_the_screen() {
     CHECK(edited->stroke.content.pattern_id == tie_dye_id);
     CHECK(edited->stroke.content.pattern_name == tie_dye_key);
   }
+}
+
+// GitHub issue 414: at 125% on a small screen the blend mode lists (the Brush bar's Mode,
+// the Layers panel's) opened as a menu with the current row over the box, and its top ran
+// off the screen. Every blend mode list is now the scrolling list form inside the screen's
+// available area, its first row reachable by wheel and keyboard, on every style.
+void ui_blend_mode_lists_fit_a_small_screen() {
+  // Outlives the window: a combo still carrying it when a CHECK unwinds must not crash.
+  std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+  CHECK(fusion != nullptr);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
+  const auto available = window.screen()->availableGeometry();
+  for (const auto* name : {"brushModeCombo", "layerBlendModeCombo"}) {
+    auto* combo = window.findChild<QComboBox*>(QString::fromLatin1(name));
+    CHECK(combo != nullptr);
+    CHECK(combo->isVisible());
+    CHECK(combo->maxVisibleItems() == patchy::ui::kBlendModeListPopupRows);
+    CHECK(combo->count() <= patchy::ui::kBlendModeListPopupRows);
+    // Large row text stands in for a large interface scale: the whole list is taller than
+    // the space above or below the box, as on a small screen at 125%, so it must be cut to
+    // the screen and scroll.
+    QFont large_rows = combo->font();
+    large_rows.setPixelSize(30);
+    for (int row = 0; row < combo->count(); ++row) {
+      combo->setItemData(row, large_rows, Qt::FontRole);
+    }
+    for (auto* style : {fusion.get(), static_cast<QStyle*>(nullptr)}) {
+      combo->setStyle(style);
+      combo->setCurrentIndex(combo->count() - 1);
+      QApplication::processEvents();
+      const auto row_height = combo->view()->sizeHintForRow(0);
+      const QRect box(combo->mapToGlobal(QPoint(0, 0)), combo->size());
+      CHECK(row_height * combo->count() >
+            std::max(available.bottom() - box.bottom(), box.top() - available.top()));
+      check_long_list_popup_reaches_first_row(
+          *combo, std::string("ui_issue414_") + name + (style != nullptr ? "_fusion" : "_native"), window,
+          patchy::ui::kBlendModeListPopupRows);
+    }
+    combo->setStyle(nullptr);
+    for (int row = 0; row < combo->count(); ++row) {
+      combo->setItemData(row, QVariant(), Qt::FontRole);
+    }
+  }
+
+  // Review capture at the normal row size: the window moved down until the Brush bar's box
+  // sits halfway down the screen, so its list is cut to the screen and scrolls.
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+  CHECK(combo != nullptr);
+  const auto box_center = combo->mapToGlobal(combo->rect().center());
+  window.move(window.pos() + QPoint(0, available.center().y() - box_center.y()));
+  QApplication::processEvents();
+  combo->setCurrentIndex(combo->count() - 1);
+  combo->showPopup();
+  QApplication::processEvents();
+  CHECK(available.contains(combo->view()->window()->frameGeometry()));
+  CHECK(combo->view()->verticalScrollBar()->isVisible());
+  save_screen_popup_artifact("ui_issue414_brush_mode_list_small_screen", window, *combo->view()->window());
+  combo->hidePopup();
+  QApplication::processEvents();
+
+  // A list window placed past the available area (Windows fits it to the whole screen,
+  // taskbar included) is moved and shortened back inside it.
+  combo->showPopup();
+  QApplication::processEvents();
+  auto* popup = combo->view()->window();
+  CHECK(popup->isVisible());
+  popup->setGeometry(QRect(available.left() - 30, available.top() - 40, popup->width(), available.height() + 120));
+  patchy::ui::fit_combo_popup_to_screen(*combo, *popup);
+  CHECK(available.contains(popup->geometry()));
+  const QRect box(combo->mapToGlobal(QPoint(0, 0)), combo->size());
+  CHECK(!popup->geometry().intersects(box));
+  combo->hidePopup();
+  QApplication::processEvents();
 }
 
 void ui_shape_pattern_fill_uses_custom_library_pattern() {
@@ -6076,6 +6152,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_pattern_dropdowns_show_embedded_thumbnails",
        ui_shape_pattern_dropdowns_show_embedded_thumbnails},
       {"ui_shape_pattern_list_popup_fits_the_screen", ui_shape_pattern_list_popup_fits_the_screen},
+      {"ui_blend_mode_lists_fit_a_small_screen", ui_blend_mode_lists_fit_a_small_screen},
       {"ui_options_bar_pattern_fill_creates_pattern_shape",
        ui_options_bar_pattern_fill_creates_pattern_shape},
       {"ui_options_bar_edits_selected_shape_appearance",

@@ -2090,14 +2090,83 @@ void refresh_cursor_under_pointer() {
   }
 }
 
-void use_scrolling_list_popup(QComboBox& combo) {
-  combo.setMaxVisibleItems(kLongListPopupRows);
+namespace {
+
+constexpr char kScrollingListPopupProperty[] = "patchy.scrollingListPopup";
+
+// Refits the combo's list window each time it opens (fit_combo_popup_to_screen). The Show
+// event arrives after QComboBox placed the window and before it scrolls to the current row.
+class ComboPopupScreenFit final : public QObject {
+public:
+  explicit ComboPopupScreenFit(QComboBox& combo) : QObject(&combo), combo_(&combo) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show) {
+      if (auto* popup = qobject_cast<QWidget*>(watched); popup != nullptr && popup->isWindow()) {
+        fit_combo_popup_to_screen(*combo_, *popup);
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QComboBox* combo_;
+};
+
+}  // namespace
+
+void fit_combo_popup_to_screen(const QComboBox& combo, QWidget& popup) {
+  // A Wayland client cannot see its window's place on the output; the compositor keeps
+  // the popup on screen there.
+  auto* screen = combo.screen();
+  if (screen == nullptr ||
+      QGuiApplication::platformName().startsWith(QLatin1String("wayland"), Qt::CaseInsensitive)) {
+    return;
+  }
+  const auto available = screen->availableGeometry();
+  auto rect = popup.geometry();
+  if (available.contains(rect) || available.isEmpty()) {
+    return;
+  }
+  // Qt's own rule (below the box, else above it, else the taller side, scrolling), measured
+  // against the area the taskbar and docks leave free.
+  const QRect box(combo.mapToGlobal(QPoint(0, 0)), combo.size());
+  const int below = available.bottom() - box.bottom();
+  const int above = box.top() - available.top();
+  const int height = std::min(rect.height(), available.height());
+  if (height <= below) {
+    rect = QRect(rect.left(), box.bottom() + 1, rect.width(), height);
+  } else if (height <= above) {
+    rect = QRect(rect.left(), box.top() - height, rect.width(), height);
+  } else if (below >= above) {
+    rect = QRect(rect.left(), box.bottom() + 1, rect.width(), std::max(below, 1));
+  } else {
+    rect = QRect(rect.left(), box.top() - above, rect.width(), std::max(above, 1));
+  }
+  if (rect.top() < available.top() || rect.bottom() > available.bottom()) {
+    // The box itself sits outside the available area: keep the list on the screen.
+    rect.setHeight(std::min(rect.height(), available.height()));
+    rect.moveTop(std::clamp(rect.top(), available.top(), available.bottom() - rect.height() + 1));
+  }
+  rect.setWidth(std::min(rect.width(), available.width()));
+  rect.moveLeft(std::clamp(rect.left(), available.left(), available.right() - rect.width() + 1));
+  popup.setGeometry(rect);
+}
+
+void use_scrolling_list_popup(QComboBox& combo, int max_rows) {
+  combo.setMaxVisibleItems(max_rows);
+  if (combo.property(kScrollingListPopupProperty).toBool()) {
+    return;
+  }
+  combo.setProperty(kScrollingListPopupProperty, true);
   // The sheet's hint wins over the style's SH_ComboBox_Popup; it cascades with (never
   // replaces) the theme sheet the window carries.
   combo.setStyleSheet(combo.styleSheet() + QStringLiteral("\nQComboBox { combobox-popup: 0; }"));
   // QComboBox turns the list's scroll bar off when it builds the view under a menu-style
   // popup and never turns it back on, so the list scrolled with no bar to drag.
   combo.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  // On Windows QComboBox fits the list to the whole screen, taskbar included (GitHub issue 414).
+  combo.view()->window()->installEventFilter(new ComboPopupScreenFit(combo));
 }
 
 ThemedQss dialog_spinbox_button_style() {
