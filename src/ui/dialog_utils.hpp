@@ -223,8 +223,8 @@ protected:
 // Width of the outline a frameless window draws at its edge: 1 px where the window
 // server shadows the window (Windows DWM, macOS), 2 px on X11, Wayland and wasm, which
 // draw no shadow for a client-decorated window, so the outline is all that separates
-// a dialog or the main window from whatever sits behind it (Seth's glados check of the
-// Linux chrome, October 17, 2026: 1 px dialogs blended into the window behind them).
+// a dialog or the main window from whatever sits behind it (a check of the Linux
+// chrome on October 17, 2026: 1 px dialogs blended into the window behind them).
 [[nodiscard]] int frameless_window_edge_width();
 enum class DialogChromeCloseMode { Reject, Accept };
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,

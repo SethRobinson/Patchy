@@ -4340,7 +4340,7 @@ void ui_network_mount_classification_uses_deepest_mount_point() {
   const auto network = [&](const char* path) {
     return patchy::ui::path_is_on_network_mount(QString::fromUtf8(path), mounts);
   };
-  CHECK(!network("/Users/seth/Pictures/a.psd"));
+  CHECK(!network("/Users/someone/Pictures/a.psd"));
   CHECK(network("/Volumes/share/a.psd"));
   CHECK(network("/Volumes/share"));
   CHECK(!network("/Volumes/share2/a.psd"));   // sibling with a common prefix

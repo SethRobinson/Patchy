@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Cross-checks Patchy's DDS writer with Pillow's independent decoders.
 
     python -I scripts/dev/dds/verify_dds.py build/release/test-artifacts/dds

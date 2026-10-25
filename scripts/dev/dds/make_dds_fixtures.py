@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Generates the committed DDS fixtures under test-fixtures/dds and prints the sample table
 the core tests pin.
 

@@ -40,7 +40,7 @@ function Get-PatchyLockPath([bool]$Windows, $Remote) {
 # command line). Linux truncates names to 15 characters, hence the patchy_* prefixes. Processes
 # inside the Flatpak SDK sandbox are visible to the host's pgrep.
 # Both short ssh calls below send keepalives: a connection that drops mid-command otherwise
-# leaves ssh waiting forever, and the run never releases the host (glados, October 24, 2026:
+# leaves ssh waiting forever, and the run never releases the host (a Linux host, October 24, 2026:
 # a release run sat 22 minutes on the lock release). Four missed 15 s probes end it.
 $PatchySshQuick = @('-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4')
 
