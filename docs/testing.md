@@ -68,7 +68,9 @@ FreeType may expose an OpenType typographic family rather than its familiar GDI 
 
 A writing system that no registered face covers (Thai or Japanese text in the suite or under `--headless`) makes Qt resolve the request to its glyph-box engine, whose family list is empty; `QRawFont::familyName()` indexes it unchecked and crashes. Check `QFontDatabase::families(system)` before asking a per-script `QRawFont` for its family (reference `text_family_draws_any_of`, main_window.cpp; pinned by `ui_script_text_layer_with_uncovered_script_does_not_crash`).
 
-Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key events, and the stuck bit persists in the shared QApplication. Assert behavior through code that reads the current event's folded modifiers. `ui_brush_alt_shows_eyedropper_cursor` is the order-independent reference.
+Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key events, and the stuck bit persists in the shared QApplication. Assert behavior through code that reads the current event's folded modifiers. `ui_brush_alt_shows_eyedropper_cursor` is the order-independent reference. QTest input (spontaneous) leaves its modifiers there on every platform, and on macOS so does a plain sent Ctrl key; `cleanup_after_visual_test` resets the state between tests, so only a test's own earlier input can leak into its later checks.
+
+On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unmatched for the rest of the test: send shortcut keys before any menu capture.
 
 ## Failure and lifetime traps
 
