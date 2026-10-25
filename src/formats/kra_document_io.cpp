@@ -14,6 +14,7 @@
 
 #include "color/color_management.hpp"
 #include "color/rgb_profiles.hpp"
+#include "core/blend_math.hpp"
 #include "core/document_channel.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
@@ -184,10 +185,14 @@ constexpr std::array kKritaOps = {
     // Paint.NET's modes have the same formulas in Krita (measured on its renders).
     KritaOp{"xor", BlendMode::Xor},
     KritaOp{"negation", BlendMode::Negation},
+    // GIMP's grain modes have the same formulas in Krita (measured within 0.5).
+    KritaOp{"grain_merge", BlendMode::GrainMerge},
+    KritaOp{"grain_extract", BlendMode::GrainExtract},
 };
 
 // Krita modes that open as a near Patchy mode (docs/kra.md "Blend modes" has the measured
-// differences).
+// differences). Soft Light (SVG) is a Patchy mode of its own; Photoshop's Soft Light stands in
+// for it only in 32-bit documents.
 constexpr std::array kApproximateOps = {
     KritaOp{"soft_light_svg", BlendMode::SoftLight},
     // Krita's Reflect and Glow round differently from Paint.NET's (at most 11 levels apart).
@@ -198,18 +203,30 @@ constexpr std::array kApproximateOps = {
     KritaOp{"luminosity_sai", BlendMode::LinearDodge},
 };
 
-[[nodiscard]] std::optional<BlendMode> blend_mode_from_krita(std::string_view id, bool& approximate) {
+// Krita's own modes (Soft Light (SVG), Allanon, ...) resolve through the OpenRaster table's
+// "krita:" names. The modes that exist only for other editors' files are 8 and 16-bit
+// (blend_mode_supported_at_depth): in a 32-bit document such a layer takes the nearest
+// Photoshop mode below, or opens as Normal.
+[[nodiscard]] std::optional<BlendMode> blend_mode_from_krita(std::string_view id, BitDepth depth, bool& approximate) {
   approximate = false;
+  std::optional<BlendMode> exact;
   for (const auto& entry : kKritaOps) {
     if (entry.id == id) {
-      return entry.mode;
+      exact = entry.mode;
     }
   }
-  if (const auto mode = ora::detail::blend_mode_from_composite_op("krita:" + std::string(id)); mode.has_value()) {
-    return mode;
+  if (!exact.has_value()) {
+    exact = ora::detail::blend_mode_from_composite_op("krita:" + std::string(id));
+  }
+  // Photoshop's own modes keep rendering at any depth here, as Krita draws them.
+  const auto usable = [depth](BlendMode mode) {
+    return !blend_mode_is_non_photoshop(mode) || blend_mode_supported_at_depth(mode, depth);
+  };
+  if (exact.has_value() && usable(*exact)) {
+    return exact;
   }
   for (const auto& entry : kApproximateOps) {
-    if (entry.id == id) {
+    if (entry.id == id && usable(entry.mode)) {
       approximate = true;
       return entry.mode;
     }
@@ -1192,7 +1209,7 @@ void apply_common(Layer& layer, const Node& node, BuildState& state, bool group)
   const bool filter_like = node.type == NodeType::Filter;
   if (!filter_like || node.composite_op != "copy") {
     bool approximate = false;
-    if (const auto mode = blend_mode_from_krita(node.composite_op, approximate); mode.has_value()) {
+    if (const auto mode = blend_mode_from_krita(node.composite_op, state.depth, approximate); mode.has_value()) {
       layer.set_blend_mode(*mode);
       if (approximate) {
         add_unique(state.read.approximated_ops, node.name + " (" + node.composite_op + ")");

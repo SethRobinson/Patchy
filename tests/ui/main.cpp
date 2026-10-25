@@ -350,6 +350,9 @@ int main(int argc, char* argv[]) {
     // interactive open of them. The tests that cover it turn it on themselves.
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), false);
     settings.setValue(QStringLiteral("text/warnMissingFontsOnTransform"), false);
+    // Esc commits text by default (issue 415), but most text tests leave a session with Esc
+    // expecting the cancel; the tests that cover the option set it themselves.
+    settings.setValue(QStringLiteral("input/escapeCommitsText"), false);
     // Linked fixtures saved elsewhere would raise the Missing Linked Files dialog the same way;
     // ui_smart_object_missing_linked_files_dialog_lists_and_relinks turns it on.
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), false);
@@ -393,6 +396,7 @@ int main(int argc, char* argv[]) {
            deep_operation_audit_tests,
            group_transform_tests,
            channels_panel_tests,
+           camera_raw_filter_tests,
            camera_raw_heif_tests,
            layer_mask_tests,
            pen_tablet_input_tests,

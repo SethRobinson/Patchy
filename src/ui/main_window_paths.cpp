@@ -11,6 +11,7 @@
 
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pattern_sampler.hpp"
@@ -46,6 +47,7 @@
 #include <QPoint>
 #include <QPointF>
 #include <QPointingDevice>
+#include <QScopeGuard>
 #include <QRect>
 #include <QRgb>
 #include <QSize>
@@ -335,8 +337,12 @@ void MainWindow::target_document_path_row(DocumentPathId id) {
 }
 
 void MainWindow::target_canvas_path_in_paths_panel() {
-  if (canvas_ == nullptr || paths_panel_ == nullptr || !has_active_document() ||
-      paths_panel_->selected_row().has_value()) {
+  if (canvas_ == nullptr || paths_panel_ == nullptr || !has_active_document()) {
+    return;
+  }
+  // Whatever happens below, the menu shows the commands' current state.
+  const auto refresh_states = qScopeGuard([this] { paths_panel_->refresh_action_states(); });
+  if (paths_panel_->selected_row().has_value()) {
     return;
   }
   const auto* target = canvas_->path_edit_target_path();
@@ -353,6 +359,50 @@ void MainWindow::target_canvas_path_in_paths_panel() {
     path_row_hidden_for_layer_.reset();
     refresh_paths_panel();
   }
+}
+
+QString MainWindow::path_paint_target_refusal() const {
+  if (!has_active_document()) {
+    return {};
+  }
+  // fill_active_path and stroke_active_path's own checks, after their
+  // select_only_layer_if_none_active (which picks the only layer).
+  const auto& doc = std::as_const(document());
+  auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    active = only_layer_id(doc.layers());
+  }
+  const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_pixels_are_procedural(*layer)) {
+    return tr("Select an editable pixel layer first");
+  }
+  if (layer_id_locks_image_pixels(*active)) {
+    return tr("Layer pixels are locked.");
+  }
+  return {};
+}
+
+PathCommandRefusals MainWindow::paths_panel_command_refusals() const {
+  PathCommandRefusals refusals;
+  if (paths_panel_ == nullptr || !has_active_document()) {
+    return refusals;
+  }
+  const auto row = paths_panel_->selected_row();
+  if (!row.has_value()) {
+    refusals.fill = tr("Select a path to fill");
+    refusals.stroke = tr("Select a path to stroke");
+    refusals.make_selection = tr("Select a path to convert");
+  } else if (const auto* path = resolved_row_path(static_cast<int>(row->kind), row->id);
+             path == nullptr || path->empty()) {
+    refusals.fill = refusals.stroke = refusals.make_selection = tr("The path is empty");
+  } else {
+    refusals.fill = refusals.stroke = path_paint_target_refusal();
+  }
+  if (!row.has_value() || row->kind == PathsPanel::RowKind::LayerPath) {
+    refusals.duplicate = tr("Select a saved path or the work path to duplicate");
+    refusals.remove = tr("Select a saved path or the work path to delete");
+  }
+  return refusals;
 }
 
 void MainWindow::handle_paths_panel_target(int kind, DocumentPathId id) {

@@ -1,5 +1,6 @@
 #include "core/blend_math_deep.hpp"
 #include "core/gimp_blend_modes.hpp"
+#include "core/krita_blend_modes.hpp"
 #include "core/pixel_depth.hpp"
 
 #include <algorithm>
@@ -117,6 +118,9 @@ float blend_channel_unit(float s, float d, BlendMode mode, bool linear) noexcept
     case BlendMode::GrainMerge:
       return std::clamp(d + s - 0.5F, 0.0F, 1.0F);
     default:
+      if (blend_mode_is_krita_only(mode)) {
+        return krita_blend_unit(s, d, mode);
+      }
       return s;
   }
 }

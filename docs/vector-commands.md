@@ -119,8 +119,7 @@ Each tool owns one job (GitHub issue 248).
 | Direct Select (white arrow) | every point, handle and segment edit; hollow anchors on the active path | moving a shape it did not select point by point |
 
 An anchor, outline or fill press under Path Select moves the whole group; the knob hit test
-(`path_handle_at`) and the handle hover hint are Direct Select's only, and knobs draw under
-Direct Select and the Pen family, never Path Select.
+(`path_handle_at`) and handle hover hint are Direct Select's only.
 
 Modifiers. Ctrl swaps the two arrows while held (`arrow_swap_active_`, read by
 `path_edit_tool()` like the Pen's `pen_temp_direct_select_` latch): set from the press
@@ -139,11 +138,10 @@ point or segment selects its whole subpath; Alt at a handle press breaks a smoot
 handle drag on a smooth anchor keeps the pair colinear: the opposite handle turns with it
 and keeps its own length.
 
-Cursors (`tool_cursors.cpp`, Patchy's own art from the shared pointer arrow, hotspot on
-the tip, theme-exempt like the other tool cursors): `path_select_cursor()` is the arrow
-solid dark with a light edge, `direct_select_cursor()` the light arrow with a hollow
-anchor square badge; `apply_arrow_cursor` shows the one `path_edit_tool()` reports, so
-Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
+Cursors (`tool_cursors.cpp`, Patchy's own art, hotspot on the tip, theme-exempt):
+`path_select_cursor()` is a solid dark arrow, `direct_select_cursor()` a light one with
+a hollow anchor badge; `apply_arrow_cursor` shows `path_edit_tool()`'s, so Ctrl flips it
+and the Pen's Ctrl latch shows Direct Select's. Coverage:
 `ui_direct_select_alt_click_selects_the_whole_subpath`,
 `ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it`,
 `ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
@@ -170,10 +168,9 @@ Auto Add/Delete edit, so it never deletes the point): the session starts from it
 run backwards when continuing from the first one so it always grows at its last anchor
 (`PenContinuation`), and commit (Enter, Ctrl+click away, closing on the other end, a tool
 switch) replaces that subpath in place in its original direction, one "Extend path" undo
-entry; it is skipped when the target or that subpath changed under the session or nothing
-was added. The hover shows `PenHoverAction::Continue` (a solid square badge, hint "Click to
-continue the path from this end point"). Mid-session, Ctrl+click away from the session's
-points ends the path open (`handle_pen_ctrl_press`). Coverage:
+entry, skipped if the target or subpath changed meanwhile or nothing was added. The hover shows `PenHoverAction::Continue` (a solid square badge, hint "Click to
+continue the path from this end point"). Mid-session, Ctrl+click away from its points
+ends the path open (`handle_pen_ctrl_press`). Coverage:
 `ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path`,
 `ui_pen_click_on_an_open_end_continues_the_path`.
 
@@ -241,16 +238,14 @@ adds it, an unselected segment replaces the selection with its two ends.
 Test: `ui_direct_select_drags_marquee_selection_by_segment`.
 
 Shift held during the drag constrains movement to the nearest horizontal,
-vertical, or 45-degree axis (Photoshop's vertex constraint,
-`constrain_drag_to_axes`): the constraint is re-evaluated every move against
-the total delta from the press point, never latched, and the points follow
-the mouse's projection onto the snapped axis. Anchor drags track the total
-delta (`path_drag_applied_delta_`) and apply per-move increments
-(`update_path_edit_drag`). Pressing or releasing Shift with a
-stationary cursor replays the drag at the last raw pointer position from
-keyPressEvent/keyReleaseEvent. Shift at press keeps its additive-selection
-meaning; only move/key state during the drag drives the constraint. Handle
-drags and the Pen's in-session Ctrl anchor drag stay unconstrained.
+vertical, or 45-degree axis (`constrain_drag_to_axes`), re-evaluated every
+move against the total delta from the press (never latched); the points follow
+the mouse's projection onto that axis. Anchor drags track the total delta
+(`path_drag_applied_delta_`) and apply per-move increments
+(`update_path_edit_drag`). Shift pressed or released with a stationary cursor
+replays the drag at the last raw pointer position. Shift at press keeps its
+additive meaning. Handle drags and the Pen's in-session Ctrl anchor drag stay
+unconstrained.
 
 The marquee drag takes Space and Shift like the selection marquee: Space held
 repositions the whole rect (its keyRelease branch deliberately skips
@@ -292,7 +287,11 @@ issue 396): Make Selection | Fill, Stroke | Simplify | Duplicate, Delete Path.
 They act on the panel's row, so the callback first runs
 `target_canvas_path_in_paths_panel` (no row targeted: target the edited path's
 row); `set_active_document_path` keeps the point selection when the edited path
-stays the same (`ui_path_context_menu_offers_paths_panel_commands`). The menu uses the RAW hit,
+stays the same (`ui_path_context_menu_offers_paths_panel_commands`). A command
+that would only refuse is disabled with its refusal as tooltip
+(`paths_panel_command_refusals`, `kActionDisabledReasonProperty`), refreshed by
+`refresh_layer_controls` and before either menu opens
+(`ui_path_menu_greys_out_commands_that_would_refuse`). The menu uses the RAW hit,
 so it works with Auto Add/Delete off and under the anchor tools. No menu with
 no target path, during a Pen session, or in a path transform.
 
@@ -350,10 +349,11 @@ through `CanvasWidget::replace_path_edit_target`, the un-armed half of
 `apply_path_edit`, under the preview edit lock; cancel restores the snapshot
 of the OWNING object (whole `Layer` or `DocumentPath`, so a saved path keeps
 its verbatim PSD bytes), accept restores then re-applies after one
-"Simplify path" undo entry. The dialog is non-modal (`run_non_modal_dialog`);
-the commit re-validates the document identity and the target's existence
-first. Script: `layer.simplifyPath({tolerance, cornerAngle,
-snapCurvesToLines})` returns `{anchorsBefore, anchorsAfter}`. Tests: `path_simplify_*` in
+"Simplify path" undo entry. Removing nothing, the readout says whether a
+larger Tolerance would help and OK adds no undo entry
+(`ui_simplify_path_from_canvas_menu_previews_and_explains_no_change`). Non-modal (`run_non_modal_dialog`): the commit
+re-validates the document and target first. Script: `layer.simplifyPath({tolerance, cornerAngle,
+snapCurvesToLines})` -> `{anchorsBefore, anchorsAfter}`. Tests: `path_simplify_*` in
 `tests/core/vector_shape_tests.cpp`.
 
 ## Combine Shapes

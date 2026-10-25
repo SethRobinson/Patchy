@@ -23,7 +23,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QEvent>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -44,6 +46,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <functional>
 #include <initializer_list>
 #include <map>
@@ -110,6 +113,45 @@ QPlainTextEdit* read_only_text(const QString& text, QWidget* parent, int max_hei
   edit->setMaximumHeight(max_height);
   return edit;
 }
+
+// The privacy bar's insets: the text sits kPrivacyBannerTextInset from the left edge, and the
+// Don't Show Again button, centered vertically, sits as far from the right edge as from the
+// top and bottom edges (never less than kPrivacyBannerMinimumInset, never more than the text
+// inset plus a few pixels, so a wrap change cannot oscillate). Without the button the right
+// inset matches the left.
+constexpr int kPrivacyBannerTextInset = 9;
+constexpr int kPrivacyBannerMinimumInset = 7;
+constexpr int kPrivacyBannerMaximumInset = 14;
+
+class PrivacyBannerInset : public QObject {
+public:
+  PrivacyBannerInset(QObject* parent, QHBoxLayout* layout, QWidget* button)
+      : QObject(parent), layout_(layout), button_(button) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Show || event->type() == QEvent::LayoutRequest) {
+      apply(static_cast<QWidget*>(watched));
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  void apply(const QWidget* bar) {
+    int right = kPrivacyBannerTextInset;
+    if (!button_->isHidden()) {
+      const int vertical = (bar->height() - button_->sizeHint().height()) / 2;
+      right = std::clamp(vertical, kPrivacyBannerMinimumInset, kPrivacyBannerMaximumInset);
+    }
+    auto margins = layout_->contentsMargins();
+    if (margins.right() != right) {
+      margins.setRight(right);
+      layout_->setContentsMargins(margins);
+    }
+  }
+
+  QHBoxLayout* layout_;
+  QWidget* button_;
+};
 
 // A titled group of read-only rows; rows with empty values are skipped.
 class RowsBuilder {
@@ -489,12 +531,15 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     QLabel#fileInfoWatermarkCheckDetail[watermarkStatus="notChecked"] {
       color: @hint_text;
     }
-    QLabel#fileInfoPrivacyBanner {
+    QFrame#fileInfoPrivacyBannerRow {
       background: @warning_banner_bg;
       border: 1px solid @warning_banner_border;
       border-radius: 3px;
+    }
+    QLabel#fileInfoPrivacyBanner {
+      background: transparent;
+      border: none;
       color: @warning_banner_text;
-      padding: 7px 9px;
     }
     QScrollArea[fileInfoPage="true"], QScrollArea[fileInfoPage="true"] > QWidget > QWidget {
       background: transparent;
@@ -541,11 +586,14 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
 
   // The privacy notice, with a way to turn it off (Preferences > Metadata and Watermarks
   // turns it back on). A pixel watermark found by Scan for Watermarks always shows.
-  auto* banner_row = new QWidget(&dialog);
+  // The bar is the frame; its button sits inside it, as far from the right edge as from the
+  // bar's top and bottom (PrivacyBannerInset).
+  auto* banner_row = new QFrame(&dialog);
   banner_row->setObjectName(QStringLiteral("fileInfoPrivacyBannerRow"));
   auto* banner_layout = new QHBoxLayout(banner_row);
-  banner_layout->setContentsMargins(0, 0, 0, 0);
-  banner_layout->setSpacing(8);
+  banner_layout->setContentsMargins(kPrivacyBannerTextInset, kPrivacyBannerMinimumInset, kPrivacyBannerTextInset,
+                                    kPrivacyBannerMinimumInset);
+  banner_layout->setSpacing(kPrivacyBannerTextInset);
   auto* banner = new QLabel(banner_row);
   banner->setObjectName(QStringLiteral("fileInfoPrivacyBanner"));
   banner->setWordWrap(true);
@@ -554,6 +602,7 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
   hide_notice->setObjectName(QStringLiteral("fileInfoHidePrivacyNoticeButton"));
   hide_notice->setToolTip(QObject::tr("Preferences > Metadata and Watermarks can show this notice again."));
   banner_layout->addWidget(hide_notice, 0, Qt::AlignVCenter);
+  banner_row->installEventFilter(new PrivacyBannerInset(banner_row, banner_layout, hide_notice));
   root->addWidget(banner_row);
   QString banner_watermarks;  // what the latest scan found, for the banner
   const auto show_banner = [banner, banner_row, hide_notice, &banner_watermarks](

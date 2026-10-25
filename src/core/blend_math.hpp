@@ -70,7 +70,8 @@ enum class DissolveField : std::uint32_t {
 // GIMP's Grain Extract and Grain Merge (docs/xcf.md): no Photoshop file carries them either.
 [[nodiscard]] bool blend_mode_is_gimp_only(BlendMode mode) noexcept;
 [[nodiscard]] bool layers_use_gimp_blend_modes(const std::vector<Layer>& layers) noexcept;
-// Either kind: a mode that exists for another editor's files and that no blend menu lists.
+// Any of those, or Krita's own modes (core/krita_blend_modes.hpp): a mode that exists for
+// another editor's files and that no blend menu lists.
 [[nodiscard]] bool blend_mode_is_non_photoshop(BlendMode mode) noexcept;
 [[nodiscard]] FillCompositeResult composite_special_fill_rgb(
     std::array<std::uint8_t, 3> source, std::array<std::uint8_t, 3> destination, BlendMode mode,

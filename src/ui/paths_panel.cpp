@@ -1,5 +1,6 @@
 #include "ui/paths_panel.hpp"
 
+#include "ui/dialog_utils.hpp"
 #include "ui/modifier_names.hpp"
 
 #include <QAction>
@@ -182,6 +183,11 @@ void PathsPanel::set_document_available(bool available) {
   refresh_action_states();
 }
 
+void PathsPanel::set_command_refusals_provider(CommandRefusalsProvider provider) {
+  command_refusals_provider_ = std::move(provider);
+  refresh_action_states();
+}
+
 void PathsPanel::set_target_callback(TargetCallback callback) {
   target_callback_ = std::move(callback);
 }
@@ -319,7 +325,9 @@ void PathsPanel::handle_item_changed(QListWidgetItem* item) {
 }
 
 void PathsPanel::show_context_menu(const QPoint& position) {
+  refresh_action_states();
   QMenu menu(this);
+  install_disabled_reason_tooltips(menu);
   for (auto* action : {new_path_action_, duplicate_path_action_, fill_path_action_,
                        stroke_path_action_, make_selection_action_, from_selection_action_,
                        simplify_path_action_, clipping_path_action_, delete_path_action_}) {
@@ -336,18 +344,21 @@ void PathsPanel::refresh_action_states() {
   const auto row = selected_row();
   const bool has_path = row.has_value();
   const bool deletable = has_path && row->kind != RowKind::LayerPath;
-  if (fill_path_action_ != nullptr) {
-    fill_path_action_->setEnabled(document_available_ && has_path);
-  }
-  if (stroke_path_action_ != nullptr) {
-    stroke_path_action_->setEnabled(document_available_ && has_path);
-  }
-  if (make_selection_action_ != nullptr) {
-    make_selection_action_->setEnabled(document_available_ && has_path);
-  }
-  if (duplicate_path_action_ != nullptr) {
-    duplicate_path_action_->setEnabled(document_available_ && deletable);
-  }
+  const auto refusals =
+      document_available_ && command_refusals_provider_ ? command_refusals_provider_() : PathCommandRefusals{};
+  // A command is live when the panel's own row rule and the host's checks
+  // both allow it; the host's reason rides along for the menus' tooltips.
+  const auto apply = [this](QAction* action, bool row_allows, const QString& refusal) {
+    if (action == nullptr) {
+      return;
+    }
+    action->setEnabled(document_available_ && row_allows && refusal.isEmpty());
+    action->setProperty(kActionDisabledReasonProperty, document_available_ ? refusal : QString());
+  };
+  apply(fill_path_action_, has_path, refusals.fill);
+  apply(stroke_path_action_, has_path, refusals.stroke);
+  apply(make_selection_action_, has_path, refusals.make_selection);
+  apply(duplicate_path_action_, deletable, refusals.duplicate);
   if (clipping_path_action_ != nullptr) {
     // Saved paths only (the work path and the transient layer row have no
     // stable identity in the file).
@@ -356,9 +367,7 @@ void PathsPanel::refresh_action_states() {
     const QSignalBlocker blocker(clipping_path_action_);
     clipping_path_action_->setChecked(saved && row->clipping);
   }
-  if (delete_path_action_ != nullptr) {
-    delete_path_action_->setEnabled(document_available_ && deletable);
-  }
+  apply(delete_path_action_, deletable, refusals.remove);
   if (new_path_action_ != nullptr) {
     new_path_action_->setEnabled(document_available_);
   }

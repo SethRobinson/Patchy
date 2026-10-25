@@ -146,6 +146,7 @@ add_library(patchy_core
   src/core/splitmix64.hpp
   src/core/blend_math_deep.cpp
   src/core/gimp_blend_modes.cpp
+  src/core/krita_blend_modes.cpp
   src/core/brush_dynamics.cpp
   src/core/paint_mode.cpp
   src/core/brush_tip.cpp
@@ -170,6 +171,7 @@ add_library(patchy_core
   src/core/image_trace.cpp
   src/core/layer.cpp
   src/core/smart_filter_schema.cpp
+  src/core/guide_layout.cpp
   src/core/layer_alignment.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
@@ -184,6 +186,7 @@ add_library(patchy_core
   src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
   src/core/pattern_resource.cpp
+  src/core/photo_develop.cpp
   src/core/photo_divide.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_depth.cpp
@@ -1425,6 +1428,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/psd_font_resolver.hpp
       src/ui/print_layout.cpp
       src/ui/qt_geometry.cpp
+      src/ui/camera_raw_filter_dialog.hpp
+      src/ui/camera_raw_filter_dialog.cpp
       src/ui/raw_develop_dialog.hpp
       src/ui/raw_develop_dialog.cpp
       src/ui/raw_develop_histogram.hpp
@@ -2188,6 +2193,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
     tests/core/pipl_tests.cpp
+    tests/core/guide_layout_tests.cpp
     tests/core/layer_alignment_tests.cpp
     tests/core/layer_metadata_tests.cpp
     tests/core/file_info_metadata_tests.cpp
@@ -2196,6 +2202,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
+    tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
     tests/core/pixel_depth_tests.cpp
     tests/core/pixel_tools_tests.cpp
@@ -2327,6 +2334,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/deep_operation_audit_tests.cpp
       tests/ui/group_transform_tests.cpp
       tests/ui/channels_panel_tests.cpp
+      tests/ui/camera_raw_filter_tests.cpp
       tests/ui/camera_raw_heif_tests.cpp
       tests/ui/layer_mask_tests.cpp
       tests/ui/pen_tablet_input_tests.cpp

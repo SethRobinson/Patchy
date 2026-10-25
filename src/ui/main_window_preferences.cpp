@@ -8,6 +8,7 @@
 #include "ui/canvas_types.hpp"
 #include "color/color_management.hpp"
 #include "core/document.hpp"
+#include "core/guide_layout.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/main_window.hpp"
 #include "core/pixel_tools.hpp"
@@ -125,6 +126,7 @@
 #include <span>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 
 // Icon resources live in the static patchy_ui library; force registration before first use.
@@ -2376,6 +2378,7 @@ void MainWindow::new_guide_dialog() {
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   content->addWidget(buttons);
+  append_themed_style(dialog, dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return;
@@ -2398,49 +2401,167 @@ void MainWindow::new_guide_layout_dialog() {
   form->setContentsMargins(0, 0, 0, 0);
   form->setSpacing(8);
 
-  auto* columns_spin = new QSpinBox(&dialog);
-  columns_spin->setObjectName(QStringLiteral("newGuideLayoutColumnsSpin"));
-  columns_spin->setRange(0, 64);
-  columns_spin->setValue(2);
-  auto* rows_spin = new QSpinBox(&dialog);
-  rows_spin->setObjectName(QStringLiteral("newGuideLayoutRowsSpin"));
-  rows_spin->setRange(0, 64);
-  rows_spin->setValue(2);
+  // The last layout used comes back (GitHub issue 403); lengths are stored in pixels.
+  auto settings = app_settings();
+  const auto stored_pixels = [&settings](const char* key) {
+    return std::max(0.0, settings.value(QLatin1String(key), 0.0).toDouble());
+  };
+
+  auto* preset_combo = new QComboBox(&dialog);
+  preset_combo->setObjectName(QStringLiteral("newGuideLayoutPresetCombo"));
+  preset_combo->addItem(tr("Custom"), QString());
+  const auto& presets = guide_layout_presets();
+  for (const auto& preset : presets) {
+    preset_combo->addItem(translate_data_text(preset.name), QString::fromLatin1(preset.id.data(),
+                                                                               static_cast<qsizetype>(preset.id.size())));
+  }
+
+  const auto make_count_spin = [&dialog](const QString& name, int value) {
+    auto* spin = new QSpinBox(&dialog);
+    spin->setObjectName(name);
+    spin->setRange(0, 64);
+    spin->setValue(std::clamp(value, 0, 64));
+    return spin;
+  };
+  // Percent is relative to the extent the length runs along.
+  const auto make_length_spin = [this, &dialog](const QString& name, double pixels, bool horizontal) {
+    auto* spin = new UnitSpinBox(SpinUnit::Pixels, &dialog);
+    spin->set_context_provider([this, horizontal] {
+      return UnitConversionContext{sanitized_document_ppi(document().print_settings().horizontal_ppi),
+                                   static_cast<double>(horizontal ? document().width() : document().height())};
+    });
+    spin->setObjectName(name);
+    spin->setRange(0.0, static_cast<double>(kMaxGuideOffsetPixels));
+    spin->setDecimals(3);
+    spin->set_trim_trailing_zeros(true);
+    spin->setValue(pixels);
+    register_ruler_unit_field(spin);
+    return spin;
+  };
+  auto* columns_spin = make_count_spin(QStringLiteral("newGuideLayoutColumnsSpin"),
+                                       settings.value(QStringLiteral("view/guideLayoutColumns"), 2).toInt());
+  auto* column_gutter_spin = make_length_spin(QStringLiteral("newGuideLayoutColumnGutterSpin"),
+                                              stored_pixels("view/guideLayoutColumnGutter"), true);
+  auto* rows_spin = make_count_spin(QStringLiteral("newGuideLayoutRowsSpin"),
+                                    settings.value(QStringLiteral("view/guideLayoutRows"), 2).toInt());
+  auto* row_gutter_spin = make_length_spin(QStringLiteral("newGuideLayoutRowGutterSpin"),
+                                           stored_pixels("view/guideLayoutRowGutter"), false);
+  auto* top_spin =
+      make_length_spin(QStringLiteral("newGuideLayoutMarginTopSpin"), stored_pixels("view/guideLayoutMarginTop"), false);
+  auto* left_spin =
+      make_length_spin(QStringLiteral("newGuideLayoutMarginLeftSpin"), stored_pixels("view/guideLayoutMarginLeft"), true);
+  auto* bottom_spin = make_length_spin(QStringLiteral("newGuideLayoutMarginBottomSpin"),
+                                       stored_pixels("view/guideLayoutMarginBottom"), false);
+  auto* right_spin = make_length_spin(QStringLiteral("newGuideLayoutMarginRightSpin"),
+                                      stored_pixels("view/guideLayoutMarginRight"), true);
   auto* clear_existing = new QCheckBox(tr("Clear existing guides"), &dialog);
   clear_existing->setObjectName(QStringLiteral("newGuideLayoutClearExistingCheck"));
-  clear_existing->setChecked(false);
-  form->addRow(tr("Columns:"), columns_spin);
-  form->addRow(tr("Rows:"), rows_spin);
+  clear_existing->setChecked(settings.value(QStringLiteral("view/guideLayoutClearExisting"), false).toBool());
+
+  // "Columns: [n]  Gutter: [px]" on one row; each label scrubs the field after it.
+  std::vector<QLabel*> second_labels;
+  const auto pair_row = [&dialog, &second_labels](QWidget* first, const QString& second_label, QWidget* second) {
+    auto* row = new QHBoxLayout();
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(8);
+    row->addWidget(first, 1);
+    auto* label = new QLabel(second_label, &dialog);
+    second_labels.push_back(label);
+    row->addWidget(label);
+    row->addWidget(second, 1);
+    return row;
+  };
+  form->addRow(tr("Preset:"), preset_combo);
+  form->addRow(tr("Columns:"), pair_row(columns_spin, tr("Gutter:"), column_gutter_spin));
+  form->addRow(tr("Rows:"), pair_row(rows_spin, tr("Gutter:"), row_gutter_spin));
+  form->addRow(tr("Top margin:"), pair_row(top_spin, tr("Bottom:"), bottom_spin));
+  form->addRow(tr("Left margin:"), pair_row(left_spin, tr("Right:"), right_spin));
   form->addRow(QString(), clear_existing);
   content->addLayout(form);
+  // One width for the inner labels lines the second fields up in a column.
+  int second_label_width = 0;
+  for (const auto* label : second_labels) {
+    second_label_width = std::max(second_label_width, label->sizeHint().width());
+  }
+  for (auto* label : second_labels) {
+    label->setMinimumWidth(second_label_width);
+  }
+
+  const auto current_layout = [=] {
+    return GuideLayout{
+        GuideLayoutAxis{columns_spin->value(), column_gutter_spin->value(), left_spin->value(), right_spin->value()},
+        GuideLayoutAxis{rows_spin->value(), row_gutter_spin->value(), top_spin->value(), bottom_spin->value()}};
+  };
+  // The preset box names the preset the fields match, or Custom.
+  const auto sync_preset = [=, &presets] {
+    const auto layout = current_layout();
+    int index = 0;
+    for (std::size_t preset = 0; preset < presets.size(); ++preset) {
+      if (presets[preset].layout == layout) {
+        index = static_cast<int>(preset) + 1;
+        break;
+      }
+    }
+    const QSignalBlocker block(preset_combo);
+    preset_combo->setCurrentIndex(index);
+  };
+  connect(preset_combo, &QComboBox::currentIndexChanged, &dialog, [=, &presets](int index) {
+    if (index <= 0 || index > static_cast<int>(presets.size())) {
+      return;
+    }
+    const auto& layout = presets[static_cast<std::size_t>(index - 1)].layout;
+    columns_spin->setValue(layout.columns.count);
+    column_gutter_spin->setValue(layout.columns.gutter);
+    left_spin->setValue(layout.columns.margin_start);
+    right_spin->setValue(layout.columns.margin_end);
+    rows_spin->setValue(layout.rows.count);
+    row_gutter_spin->setValue(layout.rows.gutter);
+    top_spin->setValue(layout.rows.margin_start);
+    bottom_spin->setValue(layout.rows.margin_end);
+    sync_preset();
+  });
+  for (auto* spin : {columns_spin, rows_spin}) {
+    connect(spin, &QSpinBox::valueChanged, &dialog, [=] { sync_preset(); });
+  }
+  for (auto* spin : {column_gutter_spin, row_gutter_spin, top_spin, left_spin, bottom_spin, right_spin}) {
+    connect(spin, &QDoubleSpinBox::valueChanged, &dialog, [=] { sync_preset(); });
+  }
+  sync_preset();
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   buttons->setObjectName(QStringLiteral("newGuideLayoutButtonBox"));
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   content->addWidget(buttons);
+  // Last, once every field exists: the fields' -/+ buttons (docs/ui-conventions.md).
+  append_themed_style(dialog, dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return;
   }
 
-  if (clear_existing->isChecked() && !document().guides().empty()) {
-    push_undo_snapshot(tr("New Guide Layout"));
+  const auto layout = current_layout();
+  settings.setValue(QStringLiteral("view/guideLayoutColumns"), layout.columns.count);
+  settings.setValue(QStringLiteral("view/guideLayoutRows"), layout.rows.count);
+  settings.setValue(QStringLiteral("view/guideLayoutColumnGutter"), layout.columns.gutter);
+  settings.setValue(QStringLiteral("view/guideLayoutRowGutter"), layout.rows.gutter);
+  settings.setValue(QStringLiteral("view/guideLayoutMarginTop"), layout.rows.margin_start);
+  settings.setValue(QStringLiteral("view/guideLayoutMarginLeft"), layout.columns.margin_start);
+  settings.setValue(QStringLiteral("view/guideLayoutMarginBottom"), layout.rows.margin_end);
+  settings.setValue(QStringLiteral("view/guideLayoutMarginRight"), layout.columns.margin_end);
+  settings.setValue(QStringLiteral("view/guideLayoutClearExisting"), clear_existing->isChecked());
+
+  push_undo_snapshot(tr("New Guide Layout"));
+  if (clear_existing->isChecked()) {
     document().guides().clear();
-  } else {
-    push_undo_snapshot(tr("New Guide Layout"));
   }
-  const auto add_even_guides = [this](GuideOrientation orientation, int count, int span) {
-    if (count <= 0 || span <= 0) {
-      return;
-    }
-    for (int index = 1; index < count; ++index) {
-      const auto position = static_cast<double>(span) * static_cast<double>(index) / static_cast<double>(count);
-      document().guides().push_back(DocumentGuide{orientation, static_cast<std::int32_t>(std::lround(position * 32.0))});
+  const auto add_guides = [this](GuideOrientation orientation, const GuideLayoutAxis& axis, int extent) {
+    for (const auto position : guide_layout_positions_32(axis, extent)) {
+      document().guides().push_back(DocumentGuide{orientation, position});
     }
   };
-  add_even_guides(GuideOrientation::Vertical, columns_spin->value(), document().width());
-  add_even_guides(GuideOrientation::Horizontal, rows_spin->value(), document().height());
+  add_guides(GuideOrientation::Vertical, layout.columns, document().width());
+  add_guides(GuideOrientation::Horizontal, layout.rows, document().height());
   canvas_->document_changed();
 }
 
@@ -2793,7 +2914,7 @@ void MainWindow::load_pen_input_settings() {
   show_transform_drag_values_ = settings.value(QStringLiteral("view/showTransformValues"), true).toBool();
   snap_transforms_to_pixel_grid_ =
       settings.value(QStringLiteral("input/snapTransformsToPixelGrid"), true).toBool();
-  escape_commits_text_ = settings.value(QStringLiteral("input/escapeCommitsText"), false).toBool();
+  escape_commits_text_ = settings.value(QStringLiteral("input/escapeCommitsText"), true).toBool();
   apply_pen_input_settings(canvas_);
 }
 

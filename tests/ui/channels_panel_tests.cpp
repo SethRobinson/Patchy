@@ -1,6 +1,8 @@
 #include <QStatusBar>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/channel_panel.hpp"
+#include "local_psd_fixtures.hpp"
 #include "color/color_management.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/main_window.hpp"
@@ -222,15 +224,29 @@ void ui_channels_panel_targets_and_alpha_edits() {
   CHECK(require_action(window, "layerFillForegroundAction")->isEnabled());
   CHECK(!require_action(window, "filterAction_patchy_filters_edge_detect")->isEnabled());
 
-  channels->item(4)->setCheckState(Qt::Checked);
-  QApplication::processEvents();
+  // A saved channel's eye shows it as a colored overlay over the composite.
+  auto* panel = window.findChild<patchy::ui::ChannelPanel*>(QStringLiteral("channelPanel"));
+  CHECK(panel != nullptr);
+  const auto click_saved_eye = [&] {
+    const auto eye = panel->eye_rect(4).center();
+    send_mouse(*channels->viewport(), QEvent::MouseButtonPress, eye, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*channels->viewport(), QEvent::MouseButtonRelease, eye, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  CHECK(panel->row_eye(4) == std::optional<bool>(false));
+  // Shown alone, a saved channel hides the color channels.
+  CHECK(panel->row_eye(0) == std::optional<bool>(false));
+  CHECK(panel->row_eye(1) == std::optional<bool>(false));
+  click_saved_eye();
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Overlay);
+  CHECK(panel->row_eye(4) == std::optional<bool>(true));
+  CHECK(panel->row_eye(0) == std::optional<bool>(true));
   const auto overlay_preview = canvas_pixel(*canvas, QPoint(32, 24));
   CHECK(overlay_preview.red() > 120);
   CHECK(overlay_preview.blue() < 170);
-  channels->item(4)->setCheckState(Qt::Unchecked);
-  QApplication::processEvents();
+  click_saved_eye();
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
+  CHECK(panel->row_eye(4) == std::optional<bool>(false));
 
   const auto composite_before = patchy::Compositor{}.flatten_rgb8(active_document);
   canvas->set_primary_color(Qt::white);
@@ -948,6 +964,230 @@ void ui_channels_panel_shows_cmyk_plates_under_proof_colors() {
 }
 
 
+// Brings the Channels tab to the front, so its rows have geometry for eye clicks.
+void show_channels_tab(patchy::ui::MainWindow& window) {
+  for (auto* tabs : window.findChildren<QTabBar*>()) {
+    for (int index = 0; index < tabs->count(); ++index) {
+      if (tabs->tabText(index) == QStringLiteral("Channels")) {
+        tabs->setCurrentIndex(index);
+        QApplication::processEvents();
+        return;
+      }
+    }
+  }
+  CHECK(false);
+}
+
+void click_channel_eye(patchy::ui::ChannelPanel& panel, QListWidget& channels, int row) {
+  const auto rect = panel.eye_rect(row);
+  CHECK(!rect.isEmpty());
+  send_mouse(*channels.viewport(), QEvent::MouseButtonPress, rect.center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*channels.viewport(), QEvent::MouseButtonRelease, rect.center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// Waits for the derived rows' thumbnails, which follow the canvas composite on a short timer.
+QImage wait_for_channel_thumbnail(patchy::ui::ChannelPanel& panel, int row, qint64 previous_key = 0) {
+  QElapsedTimer timer;
+  timer.start();
+  while (timer.elapsed() < 5000) {
+    QApplication::processEvents();
+    const auto thumbnail = panel.row_thumbnail(row);
+    const auto image = thumbnail.toImage();
+    if (!image.isNull() && thumbnail.cacheKey() != previous_key && image.pixelColor(21, 15) != image.pixelColor(1, 1)) {
+      return image;
+    }
+  }
+  return panel.row_thumbnail(row).toImage();
+}
+
+// Channel visibility (GitHub issue 412; docs/channels.md, "Channel visibility"): the eyes,
+// the composite rules, the canvas view mask, Ctrl+2 to Ctrl+6 and the real thumbnails.
+void ui_channel_eyes_view_mask_shortcuts_and_thumbnails() {
+  // Three stripes: reddish, greenish, bluish.
+  patchy::Document document(60, 40, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(60, 40, patchy::PixelFormat::rgb8(), QColor(200, 40, 20));
+  fill_pixel_rect(pixels, QRect(20, 0, 20, 40), QColor(30, 180, 60));
+  fill_pixel_rect(pixels, QRect(40, 0, 20, 40), QColor(40, 70, 220));
+  document.add_pixel_layer("Stripes", std::move(pixels));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Stripes"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  show_channels_tab(window);
+  auto* panel = window.findChild<patchy::ui::ChannelPanel*>(QStringLiteral("channelPanel"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(panel != nullptr && channels != nullptr);
+  CHECK(channels->count() == 4);
+  using Target = patchy::ui::CanvasWidget::LayerEditTarget;
+  const auto eyes = [panel] {
+    QString text;
+    for (int row = 0; row < 4; ++row) {
+      text += panel->row_eye(row).value_or(false) ? QLatin1Char('1') : QLatin1Char('0');
+    }
+    return text;
+  };
+  const auto shown = [canvas](QPoint point) {
+    QApplication::processEvents();
+    return canvas_pixel(*canvas, point);
+  };
+  const QPoint red_stripe(10, 20);
+  const QPoint green_stripe(30, 20);
+  const QPoint blue_stripe(50, 20);
+  auto* undo = require_hotkey_action(window, QStringLiteral("edit.undo"));
+  CHECK(!undo->isEnabled());
+  CHECK(eyes() == QStringLiteral("1111"));
+
+  // Hiding Blue: the composite's eye goes off, the composite stays targeted (painting goes
+  // on), and the canvas zeroes blue.
+  click_channel_eye(*panel, *channels, 3);
+  CHECK(eyes() == QStringLiteral("0110"));
+  CHECK(canvas->layer_edit_target() == Target::Content);
+  CHECK(canvas->channel_view().visible == 0b011);
+  CHECK(color_close(shown(blue_stripe), QColor(40, 70, 0), 2));
+  CHECK(color_close(shown(red_stripe), QColor(200, 40, 0), 2));
+  CHECK(require_action_by_text(window, QStringLiteral("Brush"))->isEnabled());
+  auto* chip = window.findChild<QToolButton*>(QStringLiteral("maskEditModeChip"));
+  CHECK(chip != nullptr && chip->isVisible());
+  CHECK(chip->text().contains(QStringLiteral("Red, Green")));
+  // A view only: nothing to undo, and the document keeps its pixels.
+  CHECK(!undo->isEnabled());
+  const auto& active_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(patchy::Compositor{}.flatten_rgb8(active_document).pixel(50, 20)[2] == 220);
+
+  // Hiding Green leaves Red alone: Red becomes the target, shown in grayscale.
+  click_channel_eye(*panel, *channels, 2);
+  CHECK(eyes() == QStringLiteral("0100"));
+  CHECK(canvas->layer_edit_target() == Target::ComponentRed);
+  CHECK(channels->currentRow() == 1);
+  CHECK(color_close(shown(red_stripe), QColor(200, 200, 200), 2));
+  CHECK(color_close(shown(blue_stripe), QColor(40, 40, 40), 2));
+  // The last visible channel cannot be hidden.
+  click_channel_eye(*panel, *channels, 1);
+  CHECK(eyes() == QStringLiteral("0100"));
+  CHECK(canvas->layer_edit_target() == Target::ComponentRed);
+
+  // Showing Green again: Red and Green in color with blue zeroed, Red still targeted.
+  click_channel_eye(*panel, *channels, 2);
+  CHECK(eyes() == QStringLiteral("0110"));
+  CHECK(canvas->layer_edit_target() == Target::ComponentRed);
+  CHECK(color_close(shown(green_stripe), QColor(30, 180, 0), 2));
+  CHECK(color_close(shown(blue_stripe), QColor(40, 70, 0), 2));
+  CHECK(chip->isVisible() && chip->text().contains(QStringLiteral("Red, Green")));
+
+  // Saving while channels are hidden writes the document's own pixels.
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto saved_path = directory.filePath(QStringLiteral("hidden-channels.png"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved_path));
+  const QImage saved(saved_path);
+  CHECK(!saved.isNull());
+  CHECK(saved.pixelColor(50, 20) == QColor(40, 70, 220));
+  CHECK(saved.pixelColor(10, 20) == QColor(200, 40, 20));
+
+  // The composite's eye turns every channel on and targets the composite.
+  click_channel_eye(*panel, *channels, 0);
+  CHECK(eyes() == QStringLiteral("1111"));
+  CHECK(canvas->layer_edit_target() == Target::Content);
+  CHECK(channels->currentRow() == 0);
+  CHECK(color_close(shown(blue_stripe), QColor(40, 70, 220), 2));
+  CHECK(!chip->isVisible());
+
+  // Hide Blue again, then click the already selected Composite row itself: all on.
+  click_channel_eye(*panel, *channels, 3);
+  CHECK(eyes() == QStringLiteral("0110"));
+  const auto composite_row = channels->visualItemRect(channels->item(0)).center() + QPoint(30, 0);
+  send_mouse(*channels->viewport(), QEvent::MouseButtonPress, composite_row, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*channels->viewport(), QEvent::MouseButtonRelease, composite_row, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(eyes() == QStringLiteral("1111"));
+
+  // Ctrl+2 to Ctrl+5: the composite, then Red, Green, Blue alone. Ctrl+6 is Black in CMYK
+  // Proof only.
+  const QStringList ids{QStringLiteral("channel.view_composite"), QStringLiteral("channel.view_first"),
+                        QStringLiteral("channel.view_second"), QStringLiteral("channel.view_third"),
+                        QStringLiteral("channel.view_fourth")};
+  for (int slot = 0; slot < ids.size(); ++slot) {
+    CHECK(require_hotkey_action(window, ids[slot])->shortcut() ==
+          QKeySequence(QKeyCombination(Qt::ControlModifier, static_cast<Qt::Key>(Qt::Key_2 + slot))));
+  }
+  require_hotkey_action(window, ids[1])->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == Target::ComponentRed);
+  CHECK(eyes() == QStringLiteral("0100"));
+  require_hotkey_action(window, ids[2])->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == Target::ComponentGreen);
+  CHECK(eyes() == QStringLiteral("0010"));
+  CHECK(color_close(shown(green_stripe), QColor(180, 180, 180), 2));
+  require_hotkey_action(window, ids[3])->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == Target::ComponentBlue);
+  CHECK(eyes() == QStringLiteral("0001"));
+  require_hotkey_action(window, ids[4])->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == Target::ComponentBlue);
+  require_hotkey_action(window, ids[0])->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == Target::Content);
+  CHECK(eyes() == QStringLiteral("1111"));
+  CHECK(!undo->isEnabled());
+
+  // Thumbnails show the image: Red's is light on the red stripe and dark on the others,
+  // and the composite's is in color.
+  const auto composite_thumbnail = wait_for_channel_thumbnail(*panel, 0);
+  const auto red_thumbnail = wait_for_channel_thumbnail(*panel, 1);
+  const auto blue_thumbnail = wait_for_channel_thumbnail(*panel, 3);
+  CHECK(!red_thumbnail.isNull() && !blue_thumbnail.isNull() && !composite_thumbnail.isNull());
+  const auto thumbnail_point = [](const QImage& image, double fraction) {
+    return image.pixelColor(static_cast<int>(image.width() * fraction), image.height() / 2);
+  };
+  CHECK(std::abs(thumbnail_point(red_thumbnail, 0.2).red() - 200) <= 8);
+  CHECK(std::abs(thumbnail_point(red_thumbnail, 0.5).red() - 30) <= 8);
+  CHECK(std::abs(thumbnail_point(blue_thumbnail, 0.8).red() - 220) <= 8);
+  CHECK(std::abs(thumbnail_point(blue_thumbnail, 0.2).red() - 20) <= 8);
+  CHECK(color_close(thumbnail_point(composite_thumbnail, 0.5), QColor(30, 180, 60), 8));
+  // They follow edits: inverting the image makes Red's dark where it was light.
+  const auto previous_key = panel->row_thumbnail(1).cacheKey();
+  require_hotkey_action(window, QStringLiteral("patchy.filters.invert"))->trigger();
+  QApplication::processEvents();
+  const auto inverted = wait_for_channel_thumbnail(*panel, 1, previous_key);
+  CHECK(std::abs(thumbnail_point(inverted, 0.2).red() - 55) <= 8);
+}
+
+// Issue shots for GitHub issue 412 on a color photo: the panel's eyes and thumbnails, and
+// the canvas with Red alone and with Red and Green.
+void ui_channel_view_issue_412_shots() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(photo.string()));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  show_channels_tab(window);
+  auto* panel = window.findChild<patchy::ui::ChannelPanel*>(QStringLiteral("channelPanel"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(panel != nullptr && channels != nullptr);
+  if (panel == nullptr || channels == nullptr) {
+    return;
+  }
+  (void)wait_for_channel_thumbnail(*panel, 1);
+  save_widget_artifact("issue_412_after_panel", *panel);
+  const QPoint sample(1500, 1000);
+  require_hotkey_action(window, QStringLiteral("channel.view_first"))->trigger();
+  QApplication::processEvents();
+  const auto red_only = canvas_pixel(*canvas, sample);
+  CHECK(red_only.red() == red_only.green() && red_only.green() == red_only.blue());
+  save_widget_artifact("issue_412_after_canvas_red", *canvas);
+  click_channel_eye(*panel, *channels, 2);
+  const auto red_green = canvas_pixel(*canvas, sample);
+  CHECK(red_green.blue() == 0);
+  save_widget_artifact("issue_412_after_canvas_red_green", *canvas);
+  save_widget_artifact("issue_412_after_panel_red_green", *panel);
+}
+
 // The channel context menu's New Layer from Channel copies a row's values into a
 // grayscale layer; New Layer from Channel Color copies a component or ink plate in its own
 // color (Screen for components, Multiply for plates).
@@ -1044,6 +1284,8 @@ std::vector<patchy::test::TestCase> channels_panel_tests() {
       {"ui_channels_target_survives_document_switch", ui_channels_target_survives_document_switch},
       {"ui_channels_panel_shows_cmyk_plates_under_proof_colors", ui_channels_panel_shows_cmyk_plates_under_proof_colors},
       {"ui_channel_rows_become_new_layers", ui_channel_rows_become_new_layers},
+      {"ui_channel_eyes_view_mask_shortcuts_and_thumbnails", ui_channel_eyes_view_mask_shortcuts_and_thumbnails},
+      {"ui_channel_view_issue_412_shots", ui_channel_view_issue_412_shots},
       {"ui_non_psd_save_warns_before_discarding_channels",
        ui_non_psd_save_warns_before_discarding_channels},
       {"ui_save_layered_flat_format_routes_to_save_as_with_psd_default",

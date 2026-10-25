@@ -2416,7 +2416,8 @@ void ui_text_placeholder_survives_panels_and_warp() {
 }
 
 // GitHub issue 173: Preferences > Tools > "Use Esc to commit text" (input/escapeCommitsText,
-// default off). Off, Esc cancels the session; on, Esc commits it like Ctrl+Enter.
+// default on since issue 415: a clean profile shows it ticked). On, Esc commits the session like
+// Ctrl+Enter; off, Esc cancels it.
 void ui_text_escape_commits_preference() {
   SettingsValueRestorer restore_escape(QStringLiteral("input/escapeCommitsText"));
   {
@@ -2474,22 +2475,8 @@ void ui_text_escape_commits_preference() {
     CHECK(patchy::ui::app_settings().value(QStringLiteral("input/escapeCommitsText"), !on).toBool() == on);
   };
 
-  // Default off: Esc cancels and the provisional layer goes away.
+  // Default on (the key is absent): Esc commits the typed text.
   const auto before_cancel = layer_count();
-  {
-    auto* editor = open_point_text_session(window, *canvas, QPoint(40, 60));
-    const bool opened = editor != nullptr;
-    if (opened) {
-      editor->setPlainText(QStringLiteral("Dropped"));
-      send_key(*editor, Qt::Key_Escape);
-      process_events_for(100);
-    }
-    CHECK(opened);
-  }
-  CHECK(live_editor() == nullptr);
-  CHECK(layer_count() == before_cancel);
-
-  set_preference(true);
   {
     auto* editor = open_point_text_session(window, *canvas, QPoint(40, 160));
     const bool opened = editor != nullptr;
@@ -2519,12 +2506,13 @@ void ui_text_escape_commits_preference() {
   CHECK(live_editor() == nullptr);
   CHECK(layer_count() == before_cancel + 1);
 
+  // Off (the dialog showed the default ticked): Esc cancels and the provisional layer goes away.
   set_preference(false);
   {
     auto* editor = open_point_text_session(window, *canvas, QPoint(40, 360));
     const bool opened = editor != nullptr;
     if (opened) {
-      editor->setPlainText(QStringLiteral("Dropped again"));
+      editor->setPlainText(QStringLiteral("Dropped"));
       send_key(*editor, Qt::Key_Escape);
       process_events_for(100);
     }
@@ -2532,6 +2520,22 @@ void ui_text_escape_commits_preference() {
   }
   CHECK(live_editor() == nullptr);
   CHECK(layer_count() == before_cancel + 1);
+
+  // And on again: Esc commits.
+  set_preference(true);
+  {
+    auto* editor = open_point_text_session(window, *canvas, QPoint(40, 60));
+    const bool opened = editor != nullptr;
+    if (opened) {
+      editor->setPlainText(QStringLiteral("Kept again"));
+      send_key(*editor, Qt::Key_Escape);
+      process_events_for(150);
+    }
+    CHECK(opened);
+  }
+  CHECK(live_editor() == nullptr);
+  CHECK(layer_count() == before_cancel + 2);
+  CHECK(active_layer_text(window) == QStringLiteral("Kept again"));
 }
 
 // GitHub issue 387: re-opening a text layer and committing it with nothing changed adds no

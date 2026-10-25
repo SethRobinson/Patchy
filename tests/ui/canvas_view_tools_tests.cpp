@@ -42,6 +42,7 @@
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QFontInfo>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -895,8 +896,10 @@ void ui_retouch_options_bars_show_sample_and_mode() {
 }
 
 // GitHub issue 322: the Pick bar leads with its Foreground/Background pair (no "Sets:" label),
-// then a separator and the Sample Size and Sample fields, and the Show Sample Ring checkbox
-// (GitHub issue 320) after another separator, on one row at 1366 px.
+// then a separator and the Size and Layer fields (labels shortened in GitHub issue 409), and the
+// Show Sample Ring checkbox
+// (GitHub issue 320) after another separator, on one row at 1366 px. The Foreground and
+// Background buttons are as tall as the combos, with the same font and text line (issue 409).
 void ui_pick_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -921,15 +924,30 @@ void ui_pick_options_bar_groups_its_controls() {
     const std::vector<QString> expected{QStringLiteral("eyedropperSetsForegroundButton"),
                                         QStringLiteral("eyedropperSetsBackgroundButton"),
                                         QStringLiteral("|"),
-                                        QStringLiteral("Sample Size"),
+                                        QStringLiteral("Size"),
                                         QStringLiteral("eyedropperSampleSizeCombo"),
-                                        QStringLiteral("Sample"),
+                                        QStringLiteral("Layer"),
                                         QStringLiteral("eyedropperSampleLayersCombo"),
                                         QStringLiteral("|"),
                                         QStringLiteral("eyedropperShowSampleRingCheck")};
     CHECK(tokens == expected);
     CHECK(std::find(tokens.begin(), tokens.end(), QStringLiteral("Sets")) == tokens.end());
     CHECK(options_row_extent(*options).second == 1);
+    auto* size_combo = window.findChild<QComboBox*>(QStringLiteral("eyedropperSampleSizeCombo"));
+    CHECK(size_combo != nullptr);
+    for (const auto* name : {"eyedropperSetsForegroundButton", "eyedropperSetsBackgroundButton"}) {
+      auto* button = window.findChild<QPushButton*>(QString::fromLatin1(name));
+      CHECK(button != nullptr);
+      if (button == nullptr || size_combo == nullptr) {
+        continue;
+      }
+      std::printf("  %s%s: button %dx%d at y %d, combo height %d at y %d\n", name, suffix.c_str(),
+                  button->width(), button->height(), button->y(), size_combo->height(), size_combo->y());
+      CHECK(button->height() == size_combo->height());
+      CHECK(button->geometry().center().y() == size_combo->geometry().center().y());
+      CHECK(QFontInfo(button->font()).pixelSize() == QFontInfo(size_combo->font()).pixelSize());
+      CHECK(button->font().family() == size_combo->font().family());
+    }
     save_widget_artifact("ui_pick_options_bar" + suffix, *options_bar);
   }
 }

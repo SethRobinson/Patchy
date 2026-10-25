@@ -144,14 +144,16 @@ QString photoshop_style_template() {
     }
     /* min-width: the generic QToolButton rule's 26 px content minimum made the gear
        button 37 px wide for a 16 px glyph (GitHub issue 364 needed the room). */
-    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"] {
+    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"],
+    QToolButton#colorPanelViewButton {
       padding: 2px 3px;
       min-width: 16px;
       min-height: 20px;
       max-height: 20px;
     }
     QToolButton#brushSmoothingOptionsButton::menu-indicator,
-    QToolButton[optionsBarMenuButton="true"]::menu-indicator {
+    QToolButton[optionsBarMenuButton="true"]::menu-indicator,
+    QToolButton#colorPanelViewButton::menu-indicator {
       width: 0;
     }
     QToolButton#brushDynamicsButton[dynamicsActive="true"] {
@@ -370,16 +372,18 @@ QString photoshop_style_template() {
       width: 10px;
       margin: -5px 0;
     }
+    /* No vertical padding: the button is then as tall as the bar's fields (26 px
+       with the border) and its text sits on their text line (GitHub issue 409). */
     QToolBar#Options QPushButton {
       min-height: 24px;
       max-height: 24px;
       background: @options_button_bg;
       border: 1px solid @field_inset_border;
       border-top-color: @field_bevel_top;
-      padding: 1px 7px;
+      padding: 0 7px;
     }
     QToolBar#Options QPushButton[optionsSessionButton="true"] {
-      padding: 1px 2px; /* the 20px session icons need the width the default 7px padding eats */
+      padding: 0 2px; /* the 20px session icons need the width the default 7px padding eats */
     }
     QToolBar#Options QPushButton:checked {
       background: @accent_checked_bg;
@@ -778,6 +782,11 @@ QString photoshop_style_template() {
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
+    }
+    /* The clip badge takes the content thumbnail's width (Small is 22 px), so it centers on
+       the base row's thumbnail (#397); the generic 26 px minimum would widen it. */
+    QToolButton#layerClippingBadgeButton {
+      min-width: 0;
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerFxBadgeButton:hover,
     QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {

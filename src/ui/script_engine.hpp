@@ -461,6 +461,9 @@ public:
   // Filter application onto a layer's pixel buffer by registry id.
   bool apply_filter_to_layer(std::int64_t session_id, LayerId layer_id, const QString& filter_id,
                              const QJSValue& params);
+  // Filter > Camera Raw Filter's settings (GitHub issue 392) on a layer, limited to the
+  // session's selection like the menu command.
+  bool apply_camera_raw_filter_to_layer(std::int64_t session_id, LayerId layer_id, const QJSValue& settings);
   // Legacy Photoshop plug-in by identifier (patchy.plugins.list()), limited to
   // the session's selection; the dialog is skipped for unattended runs.
   bool apply_legacy_plugin_to_layer(std::int64_t session_id, LayerId layer_id, const QString& plugin_id,

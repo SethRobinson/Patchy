@@ -47,6 +47,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
+#include <QToolTip>
 #include <QTimer>
 #include <QPolygonF>
 #include <QProgressDialog>
@@ -3195,6 +3196,38 @@ void install_menu_separator_click_guard() {
   }
   app->setProperty(kInstalledProperty, true);
   app->installEventFilter(new MenuSeparatorClickGuard(app));
+}
+
+namespace {
+
+class DisabledReasonToolTipFilter final : public QObject {
+ public:
+  explicit DisabledReasonToolTipFilter(QMenu* menu) : QObject(menu), menu_(menu) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == menu_ && event->type() == QEvent::ToolTip) {
+      const auto* help = static_cast<QHelpEvent*>(event);
+      const auto* action = menu_->actionAt(help->pos());
+      const auto reason =
+          action != nullptr && !action->isEnabled() ? action->property(kActionDisabledReasonProperty).toString()
+                                                    : QString();
+      if (!reason.isEmpty()) {
+        QToolTip::showText(help->globalPos(), reason, menu_);
+        return true;
+      }
+      QToolTip::hideText();
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  QMenu* menu_;
+};
+
+}  // namespace
+
+void install_disabled_reason_tooltips(QMenu& menu) {
+  menu.installEventFilter(new DisabledReasonToolTipFilter(&menu));
 }
 
 void hide_menu_action_icons(QMenu* menu) {

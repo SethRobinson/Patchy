@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <initializer_list>
 #include <utility>
 
 int qInitResources_icons();
@@ -206,15 +207,17 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
     painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);
     painter.drawLine(QPointF(13.0, 16.0), QPointF(19.0, 16.0));
   } else if (text == QStringLiteral("clip")) {
-    // Clipping mask: a bent arrow turning down onto the base layer's top edge,
-    // pointing at the layer below that the row clips to (#397).
-    QPainterPath arrow(QPointF(9.0, 8.5));
-    arrow.lineTo(15.5, 8.5);
-    arrow.quadTo(QPointF(20.0, 8.5), QPointF(20.0, 13.0));
-    arrow.lineTo(20.0, 20.5);
+    // Clipping mask: a bent arrow coming in from the right and turning down onto
+    // the base layer's top edge, pointing at the layer below that the row clips
+    // to (#397). The ink is centered so the row badge centers on the base row's
+    // thumbnail.
+    QPainterPath arrow(QPointF(23.0, 8.5));
+    arrow.lineTo(16.5, 8.5);
+    arrow.quadTo(QPointF(12.0, 8.5), QPointF(12.0, 13.0));
+    arrow.lineTo(12.0, 20.5);
     painter.drawPath(arrow);
-    painter.drawLine(QPointF(20.0, 20.5), QPointF(16.5, 17.0));
-    painter.drawLine(QPointF(20.0, 20.5), QPointF(23.5, 17.0));
+    painter.drawLine(QPointF(12.0, 20.5), QPointF(15.5, 17.0));
+    painter.drawLine(QPointF(12.0, 20.5), QPointF(8.5, 17.0));
     painter.drawLine(QPointF(7.0, 24.5), QPointF(25.0, 24.5));
   } else if (text == QStringLiteral("default")) {
     painter.setBrush(Qt::black);
@@ -579,105 +582,100 @@ QIcon line_arrowhead_icon(bool at_end) {
                            22.0, &ThemePalette::icon_ink, std::move(glyph));
 }
 
+namespace {
+
+// GitHub issue 405: the Align and Distribute glyphs are axis-aligned bars and
+// one-pixel anchor lines, so they are laid out on an 18 px grid (the options
+// bar's icon size) and every edge is rounded to whole device pixels at the size
+// actually rendered (18, 27, 36 px for 100%, 150%, 200%) and filled without
+// antialiasing. Scaling one 22-unit drawing put edges between pixels and left
+// soft, half-covered strokes. `rects` are QRect(x, y, w, h) on the 18 px grid in
+// the glyph's base orientation (anchor lines vertical); `mirror` flips it left
+// to right and `transpose` swaps the axes for the vertical modes.
+void paint_pixel_grid_glyph(QPainter& painter, const QColor& ink, std::initializer_list<QRect> rects,
+                            bool mirror, bool transpose) {
+  constexpr double kGrid = 18.0;
+  const qreal ratio = painter.device() != nullptr ? painter.device()->devicePixelRatioF() : qreal(1.0);
+  // The engine scales the 22-unit authored square to the requested size; the
+  // device size in pixels is that square under the full device transform.
+  const int size = std::max(1, qRound(22.0 * painter.deviceTransform().m11()));
+  const double scale = size / kGrid;
+  const auto edge = [scale](int value) { return static_cast<int>(std::floor(value * scale + 0.5)); };
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  painter.setWorldTransform(QTransform::fromScale(1.0 / ratio, 1.0 / ratio));
+  painter.setPen(Qt::NoPen);
+  for (const QRect& rect : rects) {
+    int left = edge(rect.x());
+    int right = std::max(left + 1, edge(rect.x() + rect.width()));
+    int top = edge(rect.y());
+    int bottom = std::max(top + 1, edge(rect.y() + rect.height()));
+    if (mirror) {
+      const int mirrored_left = size - right;
+      right = size - left;
+      left = mirrored_left;
+    }
+    if (transpose) {
+      std::swap(left, top);
+      std::swap(right, bottom);
+    }
+    painter.fillRect(QRectF(left, top, right - left, bottom - top), ink);
+  }
+  painter.restore();
+}
+
+}  // namespace
+
 QIcon align_edge_icon(AlignEdge edge) {
-  // Drawn in a 22-unit square: the anchor line marks the edge or center the
-  // bars line up with; the bars are 10 and 6 units long so the metaphor reads
-  // at the options bar's 18 px render size.
+  // A one-pixel anchor line at the edge or center the bars line up with, and a
+  // long and a short bar (4 px thick at 18 px) so the metaphor reads at the
+  // options bar's size. Pixel-grid layout: paint_pixel_grid_glyph.
   auto glyph = [edge](QPainter& painter, const QColor& ink) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
-    painter.setBrush(ink);
-    constexpr double kLong = 10.0;
-    constexpr double kShort = 6.0;
-    constexpr double kThickness = 3.6;
-    const bool horizontal = align_edge_is_horizontal(edge);
-    // Anchor coordinate along the aligned axis and the bar placement rule.
-    double anchor = 11.0;
-    if (edge == AlignEdge::Left || edge == AlignEdge::Top) {
-      anchor = 4.0;
-    } else if (edge == AlignEdge::Right || edge == AlignEdge::Bottom) {
-      anchor = 18.0;
+    const bool transpose = !align_edge_is_horizontal(edge);
+    if (edge == AlignEdge::HorizontalCenter || edge == AlignEdge::VerticalCenter) {
+      // Odd bar lengths so the line runs through their middle column.
+      paint_pixel_grid_glyph(painter, ink, {QRect(3, 3, 11, 4), QRect(5, 11, 7, 4), QRect(8, 1, 1, 16)}, false,
+                             transpose);
+      return;
     }
-    const auto bar_start = [&](double length) {
-      if (edge == AlignEdge::Left || edge == AlignEdge::Top) {
-        return anchor + 1.0;
-      }
-      if (edge == AlignEdge::Right || edge == AlignEdge::Bottom) {
-        return anchor - 1.0 - length;
-      }
-      return anchor - length / 2.0;
-    };
-    painter.setPen(Qt::NoPen);
-    if (horizontal) {
-      painter.drawRect(QRectF(bar_start(kLong), 5.0, kLong, kThickness));
-      painter.drawRect(QRectF(bar_start(kShort), 13.4, kShort, kThickness));
-      painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
-      painter.drawLine(QPointF(anchor, 2.5), QPointF(anchor, 19.5));
-    } else {
-      painter.drawRect(QRectF(5.0, bar_start(kLong), kThickness, kLong));
-      painter.drawRect(QRectF(13.4, bar_start(kShort), kThickness, kShort));
-      painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
-      painter.drawLine(QPointF(2.5, anchor), QPointF(19.5, anchor));
-    }
+    const bool mirror = edge == AlignEdge::Right || edge == AlignEdge::Bottom;
+    paint_pixel_grid_glyph(painter, ink, {QRect(3, 1, 1, 16), QRect(5, 3, 10, 4), QRect(5, 11, 6, 4)}, mirror,
+                           transpose);
   };
   return themed_glyph_icon(QStringLiteral("align-edge-%1").arg(static_cast<int>(edge)), 22.0,
                            &ThemePalette::icon_ink, std::move(glyph));
 }
 
 QIcon distribute_mode_icon(DistributeMode mode) {
-  // Drawn in a 22-unit square for the horizontal modes and transposed for the
-  // vertical ones, with align_edge_icon's ink, 1.6-unit anchor lines and bar
-  // proportions so the two button groups read as one set (GitHub issue 405).
-  // Feature modes: two bars of different length, each with its own anchor line
-  // at the edge or center the command spaces evenly. Spacing modes: three bars
-  // with two equal gaps, each gap underlined.
+  // The vertical modes are the horizontal glyphs transposed, in align_edge_icon's
+  // ink, line weight and bar thickness so the two button groups read as one set
+  // (GitHub issue 405). Feature modes: a long and a short bar, each with its own
+  // anchor line at the edge or center the command spaces evenly. Spacing modes:
+  // three bars with the two equal gaps underlined. Pixel-grid layout:
+  // paint_pixel_grid_glyph.
   const bool vertical = mode == DistributeMode::Top || mode == DistributeMode::VerticalCenter ||
                         mode == DistributeMode::Bottom || mode == DistributeMode::VerticalSpacing;
   auto glyph = [mode, vertical](QPainter& painter, const QColor& ink) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    if (vertical) {
-      painter.setTransform(QTransform(0.0, 1.0, 1.0, 0.0, 0.0, 0.0), true);
-    }
-    const QPen line_pen(ink, 1.6, Qt::SolidLine, Qt::FlatCap);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(ink);
-    if (mode == DistributeMode::HorizontalSpacing || mode == DistributeMode::VerticalSpacing) {
-      constexpr double kWidth = 3.6;
-      constexpr double kGap = 3.7;
-      constexpr double kLengths[] = {12.0, 7.0, 10.0};
-      for (int i = 0; i < 3; ++i) {
-        const double left = 2.5 + i * (kWidth + kGap);
-        painter.drawRect(QRectF(left, 9.0 - kLengths[i] / 2.0, kWidth, kLengths[i]));
-      }
-      painter.setPen(line_pen);
-      for (int i = 0; i < 2; ++i) {
-        const double start = 2.5 + kWidth + i * (kWidth + kGap);
-        painter.drawLine(QPointF(start, 18.5), QPointF(start + kGap, 18.5));
-      }
-      return;
-    }
-    constexpr double kThickness = 3.6;
-    constexpr double kLengths[] = {12.0, 7.0};
-    double anchors[] = {6.5, 15.5};
-    if (mode == DistributeMode::Left || mode == DistributeMode::Top) {
-      anchors[0] = 4.0;
-      anchors[1] = 13.0;
-    } else if (mode == DistributeMode::Right || mode == DistributeMode::Bottom) {
-      anchors[0] = 9.0;
-      anchors[1] = 18.0;
-    }
-    for (int i = 0; i < 2; ++i) {
-      double left = anchors[i] - kThickness / 2.0;
-      if (mode == DistributeMode::Left || mode == DistributeMode::Top) {
-        left = anchors[i] + 1.0;
-      } else if (mode == DistributeMode::Right || mode == DistributeMode::Bottom) {
-        left = anchors[i] - 1.0 - kThickness;
-      }
-      painter.drawRect(QRectF(left, 11.0 - kLengths[i] / 2.0, kThickness, kLengths[i]));
-    }
-    painter.setPen(line_pen);
-    for (const double anchor : anchors) {
-      painter.drawLine(QPointF(anchor, 2.5), QPointF(anchor, 19.5));
+    switch (mode) {
+      case DistributeMode::HorizontalSpacing:
+      case DistributeMode::VerticalSpacing:
+        paint_pixel_grid_glyph(painter, ink,
+                               {QRect(2, 2, 3, 11), QRect(8, 4, 3, 7), QRect(14, 3, 3, 9), QRect(5, 15, 3, 1),
+                                QRect(11, 15, 3, 1)},
+                               false, vertical);
+        break;
+      case DistributeMode::HorizontalCenter:
+      case DistributeMode::VerticalCenter:
+        // Odd bar widths so each line runs through its bar's middle column.
+        paint_pixel_grid_glyph(painter, ink,
+                               {QRect(2, 3, 5, 12), QRect(4, 1, 1, 16), QRect(11, 5, 5, 8), QRect(13, 1, 1, 16)},
+                               false, vertical);
+        break;
+      default:
+        paint_pixel_grid_glyph(painter, ink,
+                               {QRect(2, 1, 1, 16), QRect(4, 3, 4, 12), QRect(10, 1, 1, 16), QRect(12, 5, 4, 8)},
+                               mode == DistributeMode::Right || mode == DistributeMode::Bottom, vertical);
+        break;
     }
   };
   return themed_glyph_icon(QStringLiteral("distribute-mode-%1").arg(static_cast<int>(mode)), 22.0,

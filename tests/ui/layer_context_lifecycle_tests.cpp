@@ -3998,8 +3998,9 @@ void ui_new_layer_button_alt_click_opens_new_layer_dialog() {
   CHECK(doc.layers().size() == layers_before + 3U);
 }
 
-// GitHub issue 410: the clipping option sits under Name and "Fill with neutral color" under
-// Mode, both in the field column; the fill's label and enabled state follow the mode.
+// GitHub issue 410: "Clip to the layer below" sits under Name in the field column, and a
+// Fill row under Mode offers the mode's neutral color with a swatch and its name; a mode
+// without one says so in plain text instead of showing a dimmed checkbox.
 void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
   using Access = patchy::ui::MainWindowTestAccess;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -4012,9 +4013,15 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
         auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
         auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
         auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("newLayerModeCombo"));
+        auto* fill_row = dialog.findChild<QWidget*>(QStringLiteral("newLayerNeutralFillRow"));
         auto* neutral = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerNeutralFillCheck"));
-        CHECK(form != nullptr && name != nullptr && clip != nullptr && mode != nullptr && neutral != nullptr);
-        if (form == nullptr || name == nullptr || clip == nullptr || mode == nullptr || neutral == nullptr) {
+        auto* swatch = dialog.findChild<QLabel*>(QStringLiteral("newLayerNeutralFillSwatch"));
+        auto* color_name = dialog.findChild<QLabel*>(QStringLiteral("newLayerNeutralFillName"));
+        auto* note = dialog.findChild<QLabel*>(QStringLiteral("newLayerNeutralFillNote"));
+        CHECK(form != nullptr && name != nullptr && clip != nullptr && mode != nullptr && fill_row != nullptr &&
+              neutral != nullptr && swatch != nullptr && color_name != nullptr && note != nullptr);
+        if (form == nullptr || name == nullptr || clip == nullptr || mode == nullptr || fill_row == nullptr ||
+            neutral == nullptr || swatch == nullptr || color_name == nullptr || note == nullptr) {
           dialog.reject();
           return;
         }
@@ -4027,43 +4034,61 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
         const auto [name_row, name_role] = position(name);
         const auto [clip_row, clip_role] = position(clip);
         const auto [mode_row, mode_role] = position(mode);
-        const auto [neutral_row, neutral_role] = position(neutral);
+        const auto [fill_row_index, fill_role] = position(fill_row);
         CHECK(name_row == 0 && clip_row == 1 && clip_role == QFormLayout::FieldRole);
-        CHECK(neutral_row == mode_row + 1 && neutral_role == QFormLayout::FieldRole);
+        CHECK(fill_row_index == mode_row + 1 && fill_role == QFormLayout::FieldRole);
         CHECK(name_role == QFormLayout::FieldRole && mode_role == QFormLayout::FieldRole);
-        CHECK(form->labelForField(clip) == nullptr && form->labelForField(neutral) == nullptr);
+        CHECK(form->labelForField(clip) == nullptr);
+        auto* fill_label = qobject_cast<QLabel*>(form->labelForField(fill_row));
+        CHECK(fill_label != nullptr && fill_label->text() == QStringLiteral("Fill:"));
+        CHECK(clip->text() == QStringLiteral("Clip to the layer below"));
+        CHECK(neutral->text() == QStringLiteral("Neutral color"));
         // Lined up with the fields, not the labels.
         CHECK(clip->mapTo(&dialog, QPoint()).x() == name->mapTo(&dialog, QPoint()).x());
-        CHECK(neutral->mapTo(&dialog, QPoint()).x() == mode->mapTo(&dialog, QPoint()).x());
+        CHECK(fill_row->mapTo(&dialog, QPoint()).x() == mode->mapTo(&dialog, QPoint()).x());
 
-        const QString white = QStringLiteral("Fill with neutral color (white)");
-        const QString black = QStringLiteral("Fill with neutral color (black)");
-        const QString gray = QStringLiteral("Fill with neutral color (50% gray)");
-        const QString none = QStringLiteral("No neutral color exists for current mode");
-        // Normal has no neutral color.
-        CHECK(!neutral->isEnabled() && !neutral->isChecked());
-        CHECK(neutral->text() == none);
-        const std::array<std::pair<patchy::BlendMode, QString>, 26> expected{{
-            {patchy::BlendMode::Darken, white},       {patchy::BlendMode::Multiply, white},
-            {patchy::BlendMode::ColorBurn, white},    {patchy::BlendMode::LinearBurn, white},
-            {patchy::BlendMode::DarkerColor, white},  {patchy::BlendMode::Divide, white},
-            {patchy::BlendMode::Lighten, black},      {patchy::BlendMode::Screen, black},
-            {patchy::BlendMode::ColorDodge, black},   {patchy::BlendMode::LinearDodge, black},
-            {patchy::BlendMode::LighterColor, black}, {patchy::BlendMode::Difference, black},
-            {patchy::BlendMode::Exclusion, black},    {patchy::BlendMode::Subtract, black},
-            {patchy::BlendMode::Overlay, gray},       {patchy::BlendMode::SoftLight, gray},
-            {patchy::BlendMode::HardLight, gray},     {patchy::BlendMode::VividLight, gray},
-            {patchy::BlendMode::LinearLight, gray},   {patchy::BlendMode::PinLight, gray},
-            {patchy::BlendMode::HardMix, none},       {patchy::BlendMode::Normal, none},
-            {patchy::BlendMode::Dissolve, none},      {patchy::BlendMode::Hue, none},
-            {patchy::BlendMode::Luminosity, none},    {patchy::BlendMode::Color, none},
+        // Normal has no neutral color: the note shows, readable (enabled), and the checkbox hides.
+        CHECK(!neutral->isVisibleTo(&dialog) && !neutral->isChecked());
+        CHECK(note->isVisibleTo(&dialog) && note->isEnabled());
+        CHECK(note->text() == QStringLiteral("This mode has no neutral color"));
+        enum class Expect { White, Black, Gray, None };
+        const std::array<std::pair<patchy::BlendMode, Expect>, 26> expected{{
+            {patchy::BlendMode::Darken, Expect::White},       {patchy::BlendMode::Multiply, Expect::White},
+            {patchy::BlendMode::ColorBurn, Expect::White},    {patchy::BlendMode::LinearBurn, Expect::White},
+            {patchy::BlendMode::DarkerColor, Expect::White},  {patchy::BlendMode::Divide, Expect::White},
+            {patchy::BlendMode::Lighten, Expect::Black},      {patchy::BlendMode::Screen, Expect::Black},
+            {patchy::BlendMode::ColorDodge, Expect::Black},   {patchy::BlendMode::LinearDodge, Expect::Black},
+            {patchy::BlendMode::LighterColor, Expect::Black}, {patchy::BlendMode::Difference, Expect::Black},
+            {patchy::BlendMode::Exclusion, Expect::Black},    {patchy::BlendMode::Subtract, Expect::Black},
+            {patchy::BlendMode::Overlay, Expect::Gray},       {patchy::BlendMode::SoftLight, Expect::Gray},
+            {patchy::BlendMode::HardLight, Expect::Gray},     {patchy::BlendMode::VividLight, Expect::Gray},
+            {patchy::BlendMode::LinearLight, Expect::Gray},   {patchy::BlendMode::PinLight, Expect::Gray},
+            {patchy::BlendMode::HardMix, Expect::None},       {patchy::BlendMode::Normal, Expect::None},
+            {patchy::BlendMode::Dissolve, Expect::None},      {patchy::BlendMode::Hue, Expect::None},
+            {patchy::BlendMode::Luminosity, Expect::None},    {patchy::BlendMode::Color, Expect::None},
         }};
-        for (const auto& [blend, label] : expected) {
+        for (const auto& [blend, want] : expected) {
           const auto index = mode->findData(static_cast<int>(blend));
           CHECK(index >= 0);
           mode->setCurrentIndex(index);
-          CHECK(neutral->text() == label);
-          CHECK(neutral->isEnabled() == (label != none));
+          const bool offered = want != Expect::None;
+          CHECK(neutral->isVisibleTo(&dialog) == offered && neutral->isEnabled() == offered);
+          CHECK(swatch->isVisibleTo(&dialog) == offered && color_name->isVisibleTo(&dialog) == offered);
+          CHECK(note->isVisibleTo(&dialog) == !offered);
+          if (!offered) {
+            continue;
+          }
+          const QString expected_name = want == Expect::White   ? QStringLiteral("White")
+                                        : want == Expect::Black ? QStringLiteral("Black")
+                                                                : QStringLiteral("50% gray");
+          CHECK(color_name->text() == expected_name);
+          const int value = want == Expect::White ? 255 : want == Expect::Black ? 0 : 128;
+          const auto swatch_image = swatch->pixmap().toImage();
+          CHECK(!swatch_image.isNull());
+          if (!swatch_image.isNull()) {
+            const auto center = swatch_image.pixelColor(swatch_image.width() / 2, swatch_image.height() / 2);
+            CHECK(center.red() == value && center.green() == value && center.blue() == value);
+          }
         }
         int offered = 0;
         for (int index = 0; index < mode->count(); ++index) {
@@ -4073,9 +4098,23 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
           }
         }
         CHECK(offered == 20);
-
+        // The row keeps its height whichever side shows, so the dialog does not jump.
+        mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Normal)));
+        QApplication::processEvents();
+        const auto height_without = fill_row->height();
+        const auto dialog_height_without = dialog.height();
+        for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+          ColorSchemeRestorer restore(scheme);
+          QApplication::processEvents();
+          save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "issue410_new_layer_dialog_normal_dark"
+                                                                                 : "issue410_new_layer_dialog_normal_light",
+                               dialog);
+        }
         mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Overlay)));
         neutral->setChecked(true);
+        QApplication::processEvents();
+        CHECK(fill_row->height() == height_without);
+        CHECK(dialog.height() == dialog_height_without);
         for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
           ColorSchemeRestorer restore(scheme);
           QApplication::processEvents();
@@ -4192,7 +4231,7 @@ void ui_new_layer_dialog_and_merge_visible_retranslate() {
       [](QDialog& dialog) {
         CHECK(dialog.windowTitle() == QStringLiteral("新規レイヤー"));
         auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
-        CHECK(clip != nullptr && clip->text() == QStringLiteral("下のレイヤーでクリッピングマスクを作成"));
+        CHECK(clip != nullptr && clip->text() == QStringLiteral("下のレイヤーにクリップ"));
         dialog.reject();
       },
       seen);

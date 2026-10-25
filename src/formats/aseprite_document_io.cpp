@@ -158,6 +158,15 @@ constexpr std::uint8_t kAlphaThreshold = 128;
     case BlendMode::LinearAddition:
     case BlendMode::LinearSubtract:
     case BlendMode::LinearDivide:
+    case BlendMode::SoftLightSvg:
+    case BlendMode::AdditiveSubtractive:
+    case BlendMode::ArcTangent:
+    case BlendMode::GeometricMean:
+    case BlendMode::Allanon:
+    case BlendMode::Parallel:
+    case BlendMode::HardOverlay:
+    case BlendMode::Interpolation:
+    case BlendMode::EasyDodge:
       if (lossy != nullptr) {
         *lossy = true;
       }

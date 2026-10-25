@@ -448,28 +448,40 @@
         <translation>Opacidade:</translation>
     </message>
     <message>
-        <source>Use Previous Layer to Create Clipping Mask</source>
-        <translation>Usar camada anterior para criar máscara de recorte</translation>
-    </message>
-    <message>
         <source>Clip the new layer to the layer below it</source>
         <translation>Recortar a nova camada na camada abaixo</translation>
     </message>
     <message>
-        <source>No neutral color exists for current mode</source>
-        <translation>Não existe cor neutra para o modo atual</translation>
+        <source>White</source>
+        <translation>Branco</translation>
     </message>
     <message>
-        <source>Fill with neutral color (white)</source>
-        <translation>Preencher com cor neutra (branco)</translation>
+        <source>Black</source>
+        <translation>Preto</translation>
     </message>
     <message>
-        <source>Fill with neutral color (black)</source>
-        <translation>Preencher com cor neutra (preto)</translation>
+        <source>50% gray</source>
+        <translation>Cinza 50%</translation>
     </message>
     <message>
-        <source>Fill with neutral color (50% gray)</source>
-        <translation>Preencher com cor neutra (cinza 50%)</translation>
+        <source>Clip to the layer below</source>
+        <translation>Recortar na camada abaixo</translation>
+    </message>
+    <message>
+        <source>Neutral color</source>
+        <translation>Cor neutra</translation>
+    </message>
+    <message>
+        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
+        <translation>Preencher a nova camada com a cor que deixa a imagem inalterada neste modo</translation>
+    </message>
+    <message>
+        <source>This mode has no neutral color</source>
+        <translation>Este modo não tem cor neutra</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Preenchimento:</translation>
     </message>
 </context>
 <context>
@@ -12570,6 +12582,130 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>GIMP Image</source>
         <translation>Imagem do GIMP</translation>
     </message>
+    <message>
+        <source>2 Columns</source>
+        <translation>2 colunas</translation>
+    </message>
+    <message>
+        <source>3 Columns</source>
+        <translation>3 colunas</translation>
+    </message>
+    <message>
+        <source>4 Columns</source>
+        <translation>4 colunas</translation>
+    </message>
+    <message>
+        <source>2 x 2 Grid</source>
+        <translation>Grade 2 x 2</translation>
+    </message>
+    <message>
+        <source>3 x 3 Grid</source>
+        <translation>Grade 3 x 3</translation>
+    </message>
+    <message>
+        <source>4 x 4 Grid</source>
+        <translation>Grade 4 x 4</translation>
+    </message>
+    <message>
+        <source>12 Columns, 20 px Gutter</source>
+        <translation>12 colunas, medianiz de 20 px</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Filtro do Camera Raw</translation>
+    </message>
+    <message>
+        <source>Neutralize the layer&apos;s average color</source>
+        <translation>Neutraliza a cor média da camada</translation>
+    </message>
+    <message>
+        <source>Warms or cools the layer. 0 keeps its colors.</source>
+        <translation>Aquece ou esfria a camada. 0 mantém as cores.</translation>
+    </message>
+    <message>
+        <source>Shifts the layer toward magenta or green. 0 keeps its colors.</source>
+        <translation>Desloca a camada para o magenta ou o verde. 0 mantém as cores.</translation>
+    </message>
+    <message>
+        <source>Layer: %1 x %2, %3 bits per channel</source>
+        <translation>Camada: %1 x %2, %3 bits por canal</translation>
+    </message>
+    <message>
+        <source>Applies inside the selection.</source>
+        <translation>Aplica-se dentro da seleção.</translation>
+    </message>
+    <message>
+        <source>Profile, demosaic and noise reduction need raw sensor data: they are in Develop Raw when a camera raw file opens.</source>
+        <translation>Perfil, demosaico e redução de ruído precisam dos dados brutos do sensor: estão em Revelar RAW ao abrir um arquivo raw de câmera.</translation>
+    </message>
+    <message>
+        <source>Turn off to compare with the layer before the filter</source>
+        <translation>Desative para comparar com a camada antes do filtro</translation>
+    </message>
+    <message>
+        <source>Refining...</source>
+        <translation>Refinando...</translation>
+    </message>
+    <message>
+        <source>Updating quick preview...</source>
+        <translation>Atualizando visualização rápida...</translation>
+    </message>
+    <message>
+        <source>Shift-click neutralizes the average color. %ALT%-click resets it.</source>
+        <translation>Shift-clique neutraliza a cor média. %ALT%-clique a redefine.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>Aplicando...</translation>
+    </message>
+    <message>
+        <source>Soft Light (SVG)</source>
+        <translation>Luz indireta (SVG)</translation>
+    </message>
+    <message>
+        <source>Additive-Subtractive</source>
+        <translation>Aditivo-subtrativo</translation>
+    </message>
+    <message>
+        <source>Arc Tangent</source>
+        <translation>Arco tangente</translation>
+    </message>
+    <message>
+        <source>Geometric Mean</source>
+        <translation>Média geométrica</translation>
+    </message>
+    <message>
+        <source>Allanon</source>
+        <translation>Allanon</translation>
+    </message>
+    <message>
+        <source>Parallel</source>
+        <translation>Paralelo</translation>
+    </message>
+    <message>
+        <source>Hard Overlay</source>
+        <translation>Sobrepor forte</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Interpolação</translation>
+    </message>
+    <message>
+        <source>Easy Dodge</source>
+        <translation>Subexposição suave</translation>
+    </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>os dados vetoriais não são SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>as formas foram redimensionadas para caber na tela</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>os dados vetoriais não têm desenho</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14344,10 +14480,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <source>Select for a grayscale view. Check to show a colored overlay.</source>
-        <translation>Selecione para uma visualização em escala de cinza. Marque para mostrar uma sobreposição colorida.</translation>
-    </message>
-    <message>
         <source>%CTRL%-click to load this channel as a selection.</source>
         <translation>%CTRL%-clique para carregar este canal como uma seleção.</translation>
     </message>
@@ -14399,12 +14531,98 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%CTRL%-click to load where this plate has no ink as a selection.</source>
         <translation>%CTRL%+clique carrega como seleção as áreas sem tinta desta chapa.</translation>
     </message>
+    <message>
+        <source>Select for a grayscale view. Click the eye to show a colored overlay.</source>
+        <translation>Selecione para uma visualização em escala de cinza. Clique no olho para mostrar uma sobreposição colorida.</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel as a colored overlay</source>
+        <translation>Mostrar ou ocultar este canal como sobreposição colorida</translation>
+    </message>
+    <message>
+        <source>Show every color channel</source>
+        <translation>Mostrar todos os canais de cor</translation>
+    </message>
+    <message>
+        <source>Show or hide this channel. At least one channel stays visible.</source>
+        <translation>Mostrar ou ocultar este canal. Pelo menos um canal permanece visível.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
         <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Clique ou arraste para definir a cor do primeiro plano. %ALT%-clique ou %ALT%-arraste para definir a cor de fundo.</translation>
+    </message>
+    <message>
+        <source>Color panel view</source>
+        <translation>Exibição do painel Cor</translation>
+    </message>
+    <message>
+        <source>Hue Cube</source>
+        <translation>Cubo de matiz</translation>
+    </message>
+    <message>
+        <source>RGB Sliders</source>
+        <translation>Controles deslizantes RGB</translation>
+    </message>
+    <message>
+        <source>HSB Sliders</source>
+        <translation>Controles deslizantes HSB</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <comment>Red channel</comment>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <comment>Green channel</comment>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Blue channel</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>H</source>
+        <comment>Hue</comment>
+        <translation>H</translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>Saturation</comment>
+        <translation>S</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>Brightness</comment>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Vermelho</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Verde</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Azul</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>Matiz</translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation>Saturação</translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation>Brilho</translation>
     </message>
 </context>
 <context>
@@ -23542,10 +23760,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Ajustar à tela</translation>
     </message>
     <message>
-        <source>Sample Size:</source>
-        <translation>Tamanho da amostra:</translation>
-    </message>
-    <message>
         <source>Point Sample</source>
         <translation>Amostra pontual</translation>
     </message>
@@ -25352,6 +25566,114 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Show the File Info notice about information you may not want to share</source>
         <translation>Mostrar o aviso de Informações do arquivo sobre dados que você talvez não queira compartilhar</translation>
+    </message>
+    <message>
+        <source>Layer:</source>
+        <translation>Camada:</translation>
+    </message>
+    <message>
+        <source>Gutter:</source>
+        <translation>Medianiz:</translation>
+    </message>
+    <message>
+        <source>Top margin:</source>
+        <translation>Margem superior:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Inferior:</translation>
+    </message>
+    <message>
+        <source>Left margin:</source>
+        <translation>Margem esquerda:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Direita:</translation>
+    </message>
+    <message>
+        <source>Camera &amp;Raw Filter...</source>
+        <translation>Filtro do Camera &amp;Raw...</translation>
+    </message>
+    <message>
+        <source>Adjust white balance, exposure, tone and color of the active layer</source>
+        <translation>Ajusta o balanço de branco, a exposição, o tom e a cor da camada ativa</translation>
+    </message>
+    <message>
+        <source>Camera Raw Filter</source>
+        <translation>Filtro do Camera Raw</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>Showing channels: %1</source>
+        <translation>Mostrando canais: %1</translation>
+    </message>
+    <message>
+        <source>Viewing channels: %1 (click to exit)</source>
+        <translation>Visualizando canais: %1 (clique para sair)</translation>
+    </message>
+    <message>
+        <source>Click to show every color channel again.</source>
+        <translation>Clique para mostrar todos os canais de cor novamente.</translation>
+    </message>
+    <message>
+        <source>Show Composite Channel</source>
+        <translation>Mostrar canal composto</translation>
+    </message>
+    <message>
+        <source>Show Red or Cyan Channel</source>
+        <translation>Mostrar canal vermelho ou ciano</translation>
+    </message>
+    <message>
+        <source>Show Green or Magenta Channel</source>
+        <translation>Mostrar canal verde ou magenta</translation>
+    </message>
+    <message>
+        <source>Show Blue or Yellow Channel</source>
+        <translation>Mostrar canal azul ou amarelo</translation>
+    </message>
+    <message>
+        <source>Show Black Channel</source>
+        <translation>Mostrar canal preto</translation>
+    </message>
+    <message>
+        <source>Raise Tolerance to remove points.</source>
+        <translation>Aumente a tolerância para remover pontos.</translation>
+    </message>
+    <message>
+        <source>This path has no points to remove.</source>
+        <translation>Este demarcador não tem pontos para remover.</translation>
+    </message>
+    <message>
+        <source>Hide This Layer</source>
+        <translation>Ocultar esta camada</translation>
+    </message>
+    <message>
+        <source>Show This Layer</source>
+        <translation>Mostrar esta camada</translation>
+    </message>
+    <message>
+        <source>Show/Hide All Other Layers</source>
+        <translation>Mostrar/ocultar todas as outras camadas</translation>
+    </message>
+    <message>
+        <source>Show All Layers</source>
+        <translation>Mostrar todas as camadas</translation>
+    </message>
+    <message>
+        <source>Hide All Layers</source>
+        <translation>Ocultar todas as camadas</translation>
+    </message>
+    <message>
+        <source>Showed all layers</source>
+        <translation>Todas as camadas mostradas</translation>
+    </message>
+    <message>
+        <source>Hid all layers</source>
+        <translation>Todas as camadas ocultas</translation>
     </message>
 </context>
 <context>
@@ -27321,6 +27643,22 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>redEye: width and height must be at least 1.</source>
         <translation>redEye: width e height devem ser pelo menos 1.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: pass an object of settings.</source>
+        <translation>applyCameraRawFilter: passe um objeto de configurações.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: unknown setting %1.</source>
+        <translation>applyCameraRawFilter: configuração desconhecida %1.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter: %1 must be a number.</source>
+        <translation>applyCameraRawFilter: %1 deve ser um número.</translation>
+    </message>
+    <message>
+        <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation>applyCameraRawFilter precisa de uma camada de pixels RGB.</translation>
     </message>
 </context>
 <context>

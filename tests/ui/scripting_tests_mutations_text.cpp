@@ -1113,6 +1113,31 @@ void ui_script_gimp_blend_mode_ids() {
   CHECK(layer_named(document, "Mode grain-merge")->blend_mode() == patchy::BlendMode::GrainMerge);
 }
 
+void ui_script_krita_blend_mode_ids() {
+  // docs/kra.md: Krita's own modes have permanent script ids, appended after GIMP's.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var ids = ['soft-light-svg', 'additive-subtractive', 'arc-tangent', 'geometric-mean', 'allanon', 'parallel', 'hard-overlay', 'interpolation', 'easy-dodge'];
+    for (var i = 0; i < ids.length; ++i) {
+      var layer = doc.addLayer('Mode ' + ids[i]);
+      layer.blendMode = ids[i];
+      if (layer.blendMode !== ids[i]) throw new Error('read back ' + layer.blendMode);
+    }
+  )JS")));
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(layer_named(document, "Mode soft-light-svg")->blend_mode() == patchy::BlendMode::SoftLightSvg);
+  CHECK(layer_named(document, "Mode additive-subtractive")->blend_mode() == patchy::BlendMode::AdditiveSubtractive);
+  CHECK(layer_named(document, "Mode arc-tangent")->blend_mode() == patchy::BlendMode::ArcTangent);
+  CHECK(layer_named(document, "Mode geometric-mean")->blend_mode() == patchy::BlendMode::GeometricMean);
+  CHECK(layer_named(document, "Mode allanon")->blend_mode() == patchy::BlendMode::Allanon);
+  CHECK(layer_named(document, "Mode parallel")->blend_mode() == patchy::BlendMode::Parallel);
+  CHECK(layer_named(document, "Mode hard-overlay")->blend_mode() == patchy::BlendMode::HardOverlay);
+  CHECK(layer_named(document, "Mode interpolation")->blend_mode() == patchy::BlendMode::Interpolation);
+  CHECK(layer_named(document, "Mode easy-dodge")->blend_mode() == patchy::BlendMode::EasyDodge);
+}
+
 void ui_script_stale_layer_wrapper_throws() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2277,6 +2302,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part1() {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
       {"ui_script_paint_dot_net_blend_mode_ids", ui_script_paint_dot_net_blend_mode_ids},
       {"ui_script_gimp_blend_mode_ids", ui_script_gimp_blend_mode_ids},
+      {"ui_script_krita_blend_mode_ids", ui_script_krita_blend_mode_ids},
       {"ui_script_stale_layer_wrapper_throws", ui_script_stale_layer_wrapper_throws},
       {"ui_script_shape_feather_and_density", ui_script_shape_feather_and_density},
       {"ui_script_pixels_roundtrip_and_palette_snap", ui_script_pixels_roundtrip_and_palette_snap},

@@ -152,6 +152,8 @@ constexpr int kPaletteDockPreferredHeight = 320;
 // The Color panel stays compact: a short field reads fine and leaves the height to Layers.
 constexpr int kColorDockPreferredHeight = 170;
 constexpr int kColorDockMaximumHeight = 280;
+// The Color panel's view (ColorDockPanel::view_token; GitHub issue 404). Never renamed.
+constexpr char kColorPanelViewKey[] = "colorPanel/view";
 
 // The Layers panel rows that wrap instead of clipping (GitHub issues 96 and 199).
 // Each reports two widths: minimumSize() is the narrowest width it fits whole,
@@ -807,6 +809,14 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
       panel_column_->set_panel_visible(id, false);
     }
   });
+  // The Color panel's views, as its own menu button lists them (GitHub issue 404).
+  if (panel_id == QStringLiteral("colorDock") && color_dock_panel_ != nullptr) {
+    menu.addSeparator();
+    for (const auto view : {ColorDockPanel::View::HueCube, ColorDockPanel::View::RgbSliders,
+                            ColorDockPanel::View::HsbSliders}) {
+      menu.addAction(color_dock_panel_->view_action(view));
+    }
+  }
   menu.addSeparator();
   sort_window_panel_entries();
   for (auto* action : sorted_window_panel_actions()) {
@@ -1737,6 +1747,33 @@ void MainWindow::create_docks() {
       [this](ChannelPanel::RowKind kind, ChannelId id) { load_channel_as_selection(kind, id); });
   channel_panel_->set_reorder_callback(
       [this](std::vector<ChannelId> order) { reorder_channels_from_panel(std::move(order)); });
+  channel_panel_->set_eye_callback([this](ChannelPanel::RowKind kind) { toggle_channel_eye(kind); });
+  // Ctrl+2 shows the composite, Ctrl+3 to Ctrl+5 one color channel alone (Red, Green, Blue;
+  // Cyan, Magenta, Yellow in CMYK Proof) and Ctrl+6 Black in CMYK Proof. On the window, so
+  // they work whichever panel tab is in front.
+  const std::array<const char*, 5> channel_view_texts{
+      QT_TR_NOOP("Show Composite Channel"), QT_TR_NOOP("Show Red or Cyan Channel"),
+      QT_TR_NOOP("Show Green or Magenta Channel"), QT_TR_NOOP("Show Blue or Yellow Channel"),
+      QT_TR_NOOP("Show Black Channel")};
+  const std::array<const char*, 5> channel_view_ids{"channel.view_composite", "channel.view_first",
+                                                    "channel.view_second", "channel.view_third",
+                                                    "channel.view_fourth"};
+  const std::array<const char*, 5> channel_view_object_names{
+      "channelViewCompositeAction", "channelViewFirstAction", "channelViewSecondAction", "channelViewThirdAction",
+      "channelViewFourthAction"};
+  for (std::size_t slot = 0; slot < channel_view_actions_.size(); ++slot) {
+    auto* action = new QAction(tr(channel_view_texts[slot]), this);
+    action->setObjectName(QLatin1String(channel_view_object_names[slot]));
+    bind_action_text(action, channel_view_texts[slot]);
+    register_hotkey(action, QLatin1String(channel_view_ids[slot]),
+                    QKeySequence(QKeyCombination(Qt::ControlModifier,
+                                                 static_cast<Qt::Key>(Qt::Key_2 + static_cast<int>(slot)))),
+                    QStringLiteral("channels"));
+    register_document_action(action);
+    addAction(action);
+    connect(action, &QAction::triggered, this, [this, slot] { show_channel_by_shortcut(static_cast<int>(slot)); });
+    channel_view_actions_[slot] = action;
+  }
   register_document_widget(channel_panel_);
   refresh_channel_panel();
 
@@ -1790,6 +1827,7 @@ void MainWindow::create_docks() {
     handle_paths_panel_target(static_cast<int>(kind), id);
   });
   paths_panel_->set_deselect_callback([this] { handle_paths_panel_deselect(); });
+  paths_panel_->set_command_refusals_provider([this] { return paths_panel_command_refusals(); });
   paths_panel_->set_rename_callback(
       [this](DocumentPathId id, QString name) { rename_document_path(id, name); });
   paths_panel_->set_save_work_path_callback([this] { save_work_path_as_named(); });
@@ -2039,12 +2077,25 @@ void MainWindow::create_color_dock(std::vector<PanelSpec>& specs) {
   connect(color_dock_panel_->background_chip(), &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   register_document_widget(color_dock_panel_);
   color_dock_panel_->set_colors(foreground_color_, background_color_);
+  if (const auto view = ColorDockPanel::view_from_token(
+          app_settings().value(QString::fromLatin1(kColorPanelViewKey)).toString())) {
+    color_dock_panel_->set_view(*view);
+  }
+  // The slider views ask for their own height, the cube for the spec's; a view picked
+  // while the panel is open and in front resizes it at once.
+  connect(color_dock_panel_, &ColorDockPanel::view_changed, this, [this](ColorDockPanel::View view) {
+    app_settings().setValue(QString::fromLatin1(kColorPanelViewKey), ColorDockPanel::view_token(view));
+    if (panel_column_ != nullptr) {
+      panel_column_->refit_panel_height(QStringLiteral("colorDock"));
+    }
+  });
   specs.push_back(PanelSpec{.id = QStringLiteral("colorDock"),
                             .object_prefix = QStringLiteral("color"),
                             .title = tr("Color"),
                             .content = color_dock_panel_,
                             .expanded_maximum_height = kColorDockMaximumHeight,
-                            .preferred_height = kColorDockPreferredHeight});
+                            .preferred_height = kColorDockPreferredHeight,
+                            .preferred_content_height = [panel = color_dock_panel_] { return panel->fitted_height(); }});
 }
 
 void MainWindow::apply_color_panel_pick(QColor color, bool background) {
