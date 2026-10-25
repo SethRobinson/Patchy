@@ -5927,6 +5927,17 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   // A Move-tool right-click on any other active leaf layer (pixel, text, smart
   // object): Free Transform, as the shape section offers it.
   canvas->set_layer_context_actions_callback([this] { return QList<QAction*>{free_transform_action_}; });
+  // A path-tool right-click on a path: the Paths panel's commands for that path
+  // (GitHub issue 396; docs/vector-commands.md, "Path context menu").
+  canvas->set_path_context_actions_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return QList<QAction*>{};
+    }
+    target_canvas_path_in_paths_panel();
+    return QList<QAction*>{path_make_selection_action_, nullptr, path_fill_action_, path_stroke_action_,
+                           nullptr, path_simplify_action_, nullptr, path_duplicate_action_,
+                           path_delete_action_};
+  });
   canvas->set_vector_preview_status_callback([this, canvas](QString message, bool notice) {
     if (canvas == canvas_) {
       refresh_vector_preview_action();
