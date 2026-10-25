@@ -12642,6 +12642,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Applying...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13705,22 +13742,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14410,6 +14431,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -15363,10 +15392,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>&amp;Actual Pixels</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -25446,6 +25471,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>This path has no points to remove.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

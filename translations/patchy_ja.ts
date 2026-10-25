@@ -12623,6 +12623,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>適用中...</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>選択範囲の境界</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>ターゲットパス（アンカーポイントとアウトライン）</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>移動ツールのレイヤーの輪郭</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>ガイド</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>移動中の整列ライン</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>ピクセルグリッド</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>アートボード名</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>エクストラオプションを表示</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>表示 &gt; エクストラは、ここでチェックした項目を表示または非表示にします。
+各項目の表示設定もそのまま適用されます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13530,22 +13568,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>前の選択範囲を再選択しました</translation>
     </message>
     <message>
-        <source>Showing selection edges</source>
-        <translation>選択範囲の境界を表示しています</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>選択範囲の境界を非表示にしています</translation>
-    </message>
-    <message>
-        <source>Showing selection edges and path points</source>
-        <translation>選択範囲の境界とパスのポイントを表示しています</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>選択範囲の境界とパスのポイントを非表示にしています</translation>
-    </message>
-    <message>
         <source>Expanded selection by %1 px</source>
         <translation>選択範囲を %1 px 拡張しました</translation>
     </message>
@@ -14392,6 +14414,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>ワープはレイヤー全体に適用されます。先にこの変形を確定してください。</translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>エクストラを表示しています</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>エクストラを非表示にしています</translation>
     </message>
 </context>
 <context>
@@ -16142,10 +16172,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>実際のピクセル(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>選択範囲の境界を表示(&amp;E)</translation>
     </message>
     <message>
         <source>&amp;Scripting Guide</source>
@@ -25455,6 +25481,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>This path has no points to remove.</source>
         <translation>このパスには削除できるポイントがありません。</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>エクストラ(&amp;E)</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>表示・非表示(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>選択範囲の境界(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>エクストラオプションを表示(&amp;E)...</translation>
     </message>
 </context>
 <context>

@@ -314,7 +314,8 @@ QRectF CanvasWidget::artboard_label_widget_rect(const Layer& artboard) const {
 }
 
 std::optional<LayerId> CanvasWidget::artboard_label_at(QPoint widget_point) const {
-  if (document_ == nullptr) {
+  // Names hidden by View > Extras take no clicks either.
+  if (document_ == nullptr || !extra_shown(ViewExtra::ArtboardNames)) {
     return std::nullopt;
   }
   for (const auto* artboard : document_artboards(std::as_const(*document_))) {
@@ -911,7 +912,7 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
     }
   }
   for (const auto* artboard : artboards) {
-    if (!artboard->visible()) {
+    if (!artboard->visible() || !extra_shown(ViewExtra::ArtboardNames)) {
       continue;
     }
     const auto rect = shown_rect(*artboard);

@@ -843,9 +843,9 @@ void ui_path_overlay_outline_is_hairline() {
   CHECK(image.pixelColor(corner.x(), corner.y() - 7).lightness() > 240);
 }
 
-// Ctrl+H (Show Selection Edges, Photoshop's Extras toggle) hides the path
-// anchors and outline together with the marching ants and leaves the target
-// alone; a second press shows them again.
+// Ctrl+H (View > Extras, which covers the target path by default) hides the
+// path anchors and outline together with the marching ants and leaves the
+// target alone; a second press shows them again.
 void ui_ctrl_h_hides_path_points_with_selection_edges() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;

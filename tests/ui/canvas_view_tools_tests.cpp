@@ -59,6 +59,7 @@
 #include <QListWidget>
 #include <QLocale>
 #include <QMouseEvent>
+#include <QKeySequence>
 #include <QMenu>
 #include <QMimeData>
 #include <QMessageBox>
@@ -3917,6 +3918,197 @@ void ui_pixel_grid_toggle_persists_and_scripts() {
     auto* action = window.findChild<QAction*>(QStringLiteral("viewTogglePixelGridAction"));
     CHECK(action != nullptr && !action->isChecked());
     CHECK(!require_canvas(window)->pixel_grid_visible());
+  }
+}
+
+// View > Extras (GitHub issue 420): with every overlay covered, Extras off draws the
+// canvas exactly as with each overlay's own toggle off, Extras on brings them back, and an
+// overlay unticked in Show Extras Options keeps drawing while Extras is off. Selection
+// edges: a new selection shows them while Extras is off, and the next Ctrl+H hides them.
+void ui_view_extras_hides_covered_overlays_and_restores_them() {
+  using patchy::ui::ViewExtra;
+  using patchy::ui::kAllViewExtras;
+  using patchy::ui::view_extra_bit;
+  patchy::Document document(48, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(48, 32, patchy::PixelFormat::rgb8(), QColor(200, 180, 120)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_snap_enabled(false);
+  canvas.show();
+  canvas.set_view_zoom_centered(8.0);
+  canvas.add_guide(patchy::GuideOrientation::Vertical, 20 * 32);
+  canvas.add_guide(patchy::GuideOrientation::Horizontal, 12 * 32);
+  const auto grab = [&canvas] {
+    QApplication::processEvents();
+    return canvas.grab().toImage();
+  };
+  canvas.set_grid_visible(false);
+  canvas.set_guides_visible(false);
+  canvas.set_pixel_grid_visible(false);
+  const auto bare = grab();
+  canvas.set_grid_visible(true);
+  const auto grid_only = grab();
+  canvas.set_guides_visible(true);
+  canvas.set_pixel_grid_visible(true);
+  const auto all = grab();
+  CHECK(grid_only != bare);
+  CHECK(all != grid_only);
+  CHECK(canvas.extras_visible());
+  CHECK(canvas.extras_covered() == kAllViewExtras);
+
+  canvas.set_extras_visible(false);
+  CHECK(grab() == bare);
+  CHECK(canvas.grid_visible() && canvas.guides_visible() && canvas.pixel_grid_visible());
+  canvas.set_extras_visible(true);
+  CHECK(grab() == all);
+
+  canvas.set_extras_covered(kAllViewExtras & ~view_extra_bit(ViewExtra::Grid));
+  canvas.set_extras_visible(false);
+  CHECK(canvas.extra_shown(ViewExtra::Grid));
+  CHECK(!canvas.extra_shown(ViewExtra::Guides));
+  CHECK(grab() == grid_only);
+  save_widget_artifact("ui_view_extras_grid_kept", canvas);
+
+  canvas.set_extras_covered(kAllViewExtras);
+  canvas.set_extras_visible(true);
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(4, 4)),
+       canvas.widget_position_for_document_point(QPoint(16, 12)));
+  QApplication::processEvents();
+  CHECK(canvas.has_selection());
+  CHECK(canvas.selection_edges_drawn());
+  canvas.toggle_extras_visible();
+  CHECK(!canvas.extras_visible());
+  CHECK(!canvas.selection_edges_drawn());
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(24, 14)),
+       canvas.widget_position_for_document_point(QPoint(40, 26)));
+  QApplication::processEvents();
+  CHECK(canvas.selection_edges_drawn());
+  CHECK(!canvas.extras_visible());
+  canvas.toggle_extras_visible();
+  CHECK(!canvas.extras_visible());
+  CHECK(!canvas.selection_edges_drawn());
+  canvas.toggle_extras_visible();
+  CHECK(canvas.extras_visible());
+  CHECK(canvas.selection_edges_drawn());
+
+  canvas.set_extras_covered(kAllViewExtras & ~view_extra_bit(ViewExtra::SelectionEdges));
+  canvas.toggle_extras_visible();
+  CHECK(!canvas.extras_visible());
+  CHECK(canvas.selection_edges_drawn());
+  canvas.set_show_selection_edges(false);
+  CHECK(!canvas.selection_edges_drawn());
+  canvas.set_show_selection_edges(true);
+  canvas.set_extras_covered(kAllViewExtras);
+  CHECK(!canvas.selection_edges_drawn());
+}
+
+// The View menu's Extras (Ctrl+H, the old view.selection_edges command), View > Show >
+// Selection Edges, and Show Extras Options with its view/extras/* settings.
+void ui_view_extras_menu_options_dialog_and_settings() {
+  using patchy::ui::ViewExtra;
+  using patchy::ui::kAllViewExtras;
+  using patchy::ui::view_extra_bit;
+  std::vector<std::unique_ptr<SettingsValueRestorer>> saved;
+  for (const char* key : {"selectionEdges", "targetPath", "layerOutlines", "guides", "smartGuides", "grid",
+                          "pixelGrid", "artboardNames"}) {
+    const auto full_key = QStringLiteral("view/extras/") + QLatin1String(key);
+    saved.push_back(std::make_unique<SettingsValueRestorer>(full_key));
+    patchy::ui::app_settings().remove(full_key);
+  }
+  const auto unticked = view_extra_bit(ViewExtra::Grid) | view_extra_bit(ViewExtra::Guides);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    auto* extras = require_action(window, "viewExtrasAction");
+    CHECK(extras->isCheckable() && extras->isChecked());
+    CHECK(extras->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_H));
+    CHECK(require_hotkey_action(window, QStringLiteral("view.selection_edges")) == extras);
+    auto* show_edges = require_action(window, "viewShowSelectionEdgesAction");
+    CHECK(show_edges->isCheckable() && show_edges->isChecked());
+    CHECK(show_edges->shortcut().isEmpty());
+    auto* show_menu = window.findChild<QMenu*>(QStringLiteral("viewShowMenu"));
+    CHECK(show_menu != nullptr);
+    if (show_menu == nullptr) {
+      return;
+    }
+    CHECK(show_menu->actions().contains(show_edges));
+    CHECK(show_menu->actions().contains(require_action(window, "viewExtrasOptionsAction")));
+    if (auto* view_menu = qobject_cast<QMenu*>(show_menu->parent()); view_menu != nullptr) {
+      CHECK(view_menu->actions().contains(extras));
+      view_menu->popup(window.mapToGlobal(QPoint(60, 40)));
+      QApplication::processEvents();
+      save_widget_artifact("ui_view_extras_view_menu", *view_menu);
+      show_menu->popup(window.mapToGlobal(QPoint(300, 40)));
+      QApplication::processEvents();
+      save_widget_artifact("ui_view_extras_show_menu", *show_menu);
+      show_menu->close();
+      view_menu->close();
+      QApplication::processEvents();
+    } else {
+      CHECK(false);
+    }
+    CHECK(canvas->extras_covered() == kAllViewExtras);
+
+    send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(!canvas->extras_visible());
+    CHECK(!extras->isChecked());
+    CHECK(!canvas->extra_shown(ViewExtra::Grid));
+
+    bool dialog_seen = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("viewExtrasOptionsDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      dialog_seen = true;
+      const auto boxes = dialog->findChildren<QCheckBox*>();
+      CHECK(boxes.size() == 8);
+      for (const auto* box : boxes) {
+        CHECK(box->isChecked());
+      }
+      auto* grid = dialog->findChild<QCheckBox*>(QStringLiteral("viewExtrasGridCheck"));
+      auto* guides = dialog->findChild<QCheckBox*>(QStringLiteral("viewExtrasGuidesCheck"));
+      CHECK(grid != nullptr && guides != nullptr);
+      if (grid != nullptr && guides != nullptr) {
+        grid->setChecked(false);
+        guides->setChecked(false);
+      }
+      save_widget_artifact("ui_view_extras_options_dialog", *dialog);
+      QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
+    });
+    require_action(window, "viewExtrasOptionsAction")->trigger();
+    QApplication::processEvents();
+    CHECK(dialog_seen);
+    CHECK(canvas->extras_covered() == (kAllViewExtras & ~unticked));
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/extras/grid"), true).toBool());
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/extras/guides"), true).toBool());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("view/extras/pixelGrid"), false).toBool());
+    CHECK(canvas->extra_shown(ViewExtra::Grid));
+    CHECK(canvas->extra_shown(ViewExtra::Guides));
+    CHECK(!canvas->extra_shown(ViewExtra::PixelGrid));
+
+    // The menu entry (the window may not be active again after the modal dialog).
+    extras->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->extras_visible());
+    CHECK(extras->isChecked());
+
+    show_edges->trigger();
+    CHECK(!canvas->show_selection_edges());
+    show_edges->trigger();
+    CHECK(canvas->show_selection_edges());
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->extras_covered() == (kAllViewExtras & ~unticked));
+    CHECK(canvas->extras_visible());
   }
 }
 
@@ -9027,6 +9219,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_canvas_pixel_grid_lands_on_pixel_boundaries", ui_canvas_pixel_grid_lands_on_pixel_boundaries},
       {"ui_canvas_pixel_grid_capture_light_and_dark_areas", ui_canvas_pixel_grid_capture_light_and_dark_areas},
       {"ui_pixel_grid_toggle_persists_and_scripts", ui_pixel_grid_toggle_persists_and_scripts},
+      {"ui_view_extras_hides_covered_overlays_and_restores_them",
+       ui_view_extras_hides_covered_overlays_and_restores_them},
+      {"ui_view_extras_menu_options_dialog_and_settings", ui_view_extras_menu_options_dialog_and_settings},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

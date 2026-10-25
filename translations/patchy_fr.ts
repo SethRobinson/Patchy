@@ -12658,6 +12658,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>Application...</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>Contours de sélection</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>Tracé cible (points d&apos;ancrage et contour)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>Contours des calques avec l&apos;outil Déplacement</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>Repères</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>Lignes d&apos;alignement pendant le déplacement</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>Grille de pixels</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>Noms des plans de travail</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>Options des extras</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>Affichage &gt; Extras affiche et masque les éléments cochés ici.
+Le réglage propre de chaque élément dans le menu Affichage s&apos;applique toujours.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13721,22 +13759,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Les calques de forme ne peuvent pas être peints. Pixellisez le calque pour modifier ses pixels.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>Affichage du contour de la sélection et des points de tracé</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>Masquage du contour de la sélection et des points de tracé</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>Affichage du contour de la sélection</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>Masquage du contour de la sélection</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>Nouveau repère</translation>
     </message>
@@ -14427,6 +14449,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>La déformation s&apos;applique à tout le calque. Appliquez d&apos;abord cette transformation.</translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>Affichage des extras</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>Masquage des extras</translation>
     </message>
 </context>
 <context>
@@ -15380,10 +15410,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>&amp;Pixels réels</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>Afficher le &amp;contour de la sélection</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25528,6 +25554,22 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>This path has no points to remove.</source>
         <translation>Ce tracé n&apos;a aucun point à supprimer.</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>&amp;Extras</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>&amp;Afficher</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>&amp;Contours de sélection</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>Options des &amp;extras...</translation>
     </message>
 </context>
 <context>

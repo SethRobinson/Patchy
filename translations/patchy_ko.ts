@@ -12623,6 +12623,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>적용 중...</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>선택 영역 가장자리</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>대상 패스(기준점 및 윤곽선)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>이동 도구의 레이어 윤곽선</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>안내선</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>이동 중 정렬선</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>픽셀 격자</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>대지 이름</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>표시자 옵션 표시</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>보기 &gt; 표시자는 여기에서 선택한 항목을 표시하거나 숨깁니다.
+각 항목의 보기 설정도 그대로 적용됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13694,22 +13732,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>모양 레이어는 칠할 수 없습니다. 레이어를 래스터화하여 픽셀을 편집합니다.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>선택 가장자리 및 패스 점 표시</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>선택 가장자리 및 패스 점 숨기기</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>선택 가장자리 표시</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>선택 가장자리 숨기기</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>새로운 안내선</translation>
     </message>
@@ -14392,6 +14414,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>뒤틀기는 레이어 전체에 적용됩니다. 먼저 이 변형을 적용하세요.</translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>표시자를 표시합니다</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>표시자를 숨깁니다</translation>
     </message>
 </context>
 <context>
@@ -15484,10 +15514,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>실제 픽셀(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>선택 영역 가장자리 표시(&amp;E)</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25455,6 +25481,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>This path has no points to remove.</source>
         <translation>이 패스에는 제거할 점이 없습니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>표시자(&amp;E)</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>표시(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>선택 영역 가장자리(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>표시자 옵션 표시(&amp;E)...</translation>
     </message>
 </context>
 <context>

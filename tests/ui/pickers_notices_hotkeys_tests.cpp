@@ -2719,7 +2719,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "imageAdjustBrightnessContrastAction")->shortcut().isEmpty());
   CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustBrightnessAction")) == nullptr);
   CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustContrastAction")) == nullptr);
-  CHECK(require_action(window, "viewToggleSelectionEdgesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_H));
+  CHECK(require_action(window, "viewExtrasAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_H));
   CHECK(require_action(window, "viewToggleRulersAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_R));
   CHECK(require_action(window, "viewToggleGridAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
   CHECK(require_action(window, "viewToggleGuidesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Semicolon));

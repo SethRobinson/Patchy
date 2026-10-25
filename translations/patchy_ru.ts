@@ -12693,6 +12693,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>Применение...</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>Края выделения</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>Целевой контур (опорные точки и линия)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>Контуры слоёв при инструменте «Перемещение»</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>Направляющие</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>Линии выравнивания при перемещении</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>Пиксельная сетка</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>Имена монтажных областей</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>Параметры вспомогательных элементов</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>Вид &gt; Вспомогательные элементы показывает и скрывает отмеченные здесь элементы.
+Собственная настройка каждого элемента в меню «Вид» по-прежнему действует.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13764,22 +13802,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Слои фигур не могут быть окрашены. Растеризуйте слой, чтобы редактировать его пиксели.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>Отображение краев выделения и точек пути</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>Скрытие краев выделения и точек пути</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>Отображение краев выделения</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>Скрытие краев выделения</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>Новая направляющая</translation>
     </message>
@@ -14462,6 +14484,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>Деформация применяется ко всему слою. Сначала примените это преобразование.</translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>Вспомогательные элементы показаны</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>Вспомогательные элементы скрыты</translation>
     </message>
 </context>
 <context>
@@ -15556,10 +15586,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>&amp;Реальные пиксели</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>Показать &amp;границы выделения</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25601,6 +25627,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>This path has no points to remove.</source>
         <translation>В этом контуре нет точек, которые можно удалить.</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>&amp;Вспомогательные элементы</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>П&amp;оказать</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>&amp;Края выделения</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>Параметры вспомогательных &amp;элементов...</translation>
     </message>
 </context>
 <context>

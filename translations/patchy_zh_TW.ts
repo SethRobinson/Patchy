@@ -12623,6 +12623,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>正在套用...</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>選取範圍邊緣</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>目標路徑（錨點和外框）</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>移動工具下的圖層外框</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>參考線</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>移動時的對齊線</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>像素格線</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>工作區域名稱</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>顯示額外選項</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>檢視 &gt; 額外內容會顯示或隱藏此處勾選的項目。
+每個項目自己的檢視設定仍然適用。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13686,22 +13724,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>形狀圖層無法繪製。請點陣化該圖層以編輯其像素。</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>顯示選取範圍邊緣和路徑點</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>隱藏選取範圍邊緣和路徑點</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>顯示選取範圍邊緣</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>隱藏選取範圍邊緣</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>新增參考線</translation>
     </message>
@@ -14392,6 +14414,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>彎曲作用於整個圖層。請先套用此變形。</translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>正在顯示額外內容</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>正在隱藏額外內容</translation>
     </message>
 </context>
 <context>
@@ -15344,10 +15374,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>實際像素(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>顯示選取範圍邊緣(&amp;E)</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25455,6 +25481,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>This path has no points to remove.</source>
         <translation>此路徑沒有可刪除的點。</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>額外內容(&amp;E)</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>顯示(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>選取範圍邊緣(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>顯示額外選項(&amp;E)...</translation>
     </message>
 </context>
 <context>

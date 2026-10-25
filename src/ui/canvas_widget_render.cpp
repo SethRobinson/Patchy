@@ -1058,7 +1058,8 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_layer_outline(moving_layer_outline_rect(moving_layer, move_preview_delta_));
     }
   }
-  if (tool_ == CanvasTool::Move && !moving_layer_ && !draw_transform_overlay && move_hover_outline_rect_.has_value()) {
+  if (tool_ == CanvasTool::Move && !moving_layer_ && !draw_transform_overlay && move_hover_outline_rect_.has_value() &&
+      extra_shown(ViewExtra::LayerOutlines)) {
     draw_layer_outline(*move_hover_outline_rect_);
   }
   // A selection rectangle outlines what releasing it would select, with the
@@ -2277,7 +2278,7 @@ void CanvasWidget::draw_deep_zoom_image(QPainter& painter, const QImage& image, 
 void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect,
                                          QRect exposed_rect, bool grid_only) const {
   if (image.isNull() || document_rect.isEmpty() || image.size() != document_rect.size() || zoom_ <= 0.0 ||
-      (grid_only && !pixel_grid_visible_)) {
+      (grid_only && !(pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid)))) {
     return;
   }
   const auto top_left = widget_position(document_rect.topLeft());
@@ -2314,7 +2315,8 @@ void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image,
   QPoint device_origin;
   auto raster = deep_zoom_raster(
       image.copy(first_x - document_rect.x(), first_y - document_rect.y(), end_x - first_x, end_y - first_y),
-      QPoint(first_x, first_y), edges_x, edges_y, ratio, pixel_grid_visible_, device_origin, grid_only);
+      QPoint(first_x, first_y), edges_x, edges_y, ratio,
+      pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid), device_origin, grid_only);
   if (raster.isNull()) {
     return;
   }
@@ -2328,7 +2330,7 @@ void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image,
 }
 
 void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const {
-  if (!grid_visible_ || document_ == nullptr || target_rect.isEmpty()) {
+  if (!grid_visible_ || !extra_shown(ViewExtra::Grid) || document_ == nullptr || target_rect.isEmpty()) {
     return;
   }
 
@@ -2467,7 +2469,8 @@ void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rec
 }
 
 void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
-  if ((!guides_visible_ && !dragging_guide_) || document_ == nullptr) {
+  // A guide being dragged draws even while hidden, so the drag is visible.
+  if (((!guides_visible_ || !extra_shown(ViewExtra::Guides)) && !dragging_guide_) || document_ == nullptr) {
     return;
   }
 

@@ -124,21 +124,64 @@ bool CanvasWidget::selection_edges_visible() const noexcept {
   return selection_edges_visible_;
 }
 
-void CanvasWidget::toggle_selection_edges_visible() {
-  set_selection_edges_visible(!selection_edges_visible_);
-  if (status_callback_) {
-    // The same toggle hides the path overlay (draw_path_edit_overlay), so
-    // name it when a path is on screen.
-    const auto* path = path_edit_target_path();
-    const bool path_shown = target_path_visible_ && !pen_session_active_ && target_path_outline_tool_allows() &&
-                            path != nullptr && !path->subpaths.empty();
-    if (path_shown) {
-      status_callback_(selection_edges_visible_ ? tr("Showing selection edges and path points")
-                                                : tr("Hiding selection edges and path points"));
-    } else {
-      status_callback_(selection_edges_visible_ ? tr("Showing selection edges") : tr("Hiding selection edges"));
-    }
+void CanvasWidget::set_show_selection_edges(bool show) noexcept {
+  if (show_selection_edges_ == show) {
+    return;
   }
+  show_selection_edges_ = show;
+  update();
+}
+
+bool CanvasWidget::show_selection_edges() const noexcept {
+  return show_selection_edges_;
+}
+
+bool CanvasWidget::selection_edges_drawn() const noexcept {
+  return show_selection_edges_ && selection_edges_visible_;
+}
+
+void CanvasWidget::set_extras_visible(bool visible) {
+  extras_visible_ = visible;
+  if ((extras_covered_ & view_extra_bit(ViewExtra::SelectionEdges)) != 0) {
+    selection_edges_visible_ = visible;
+  }
+  update();
+}
+
+bool CanvasWidget::extras_visible() const noexcept {
+  return extras_visible_;
+}
+
+void CanvasWidget::toggle_extras_visible() {
+  // A selection made while Extras was off shows its edges (they reset on every new
+  // selection), so the press that follows hides them rather than bringing the rest back.
+  const bool reshown_selection = !extras_visible_ &&
+                                 (extras_covered_ & view_extra_bit(ViewExtra::SelectionEdges)) != 0 &&
+                                 selection_edges_visible_ && !quick_mask_active_ && !selection_.isEmpty();
+  set_extras_visible(!extras_visible_ && !reshown_selection);
+  if (status_callback_) {
+    status_callback_(extras_visible_ ? tr("Showing extras") : tr("Hiding extras"));
+  }
+}
+
+void CanvasWidget::set_extras_covered(std::uint32_t covered) {
+  if (extras_covered_ == covered) {
+    return;
+  }
+  extras_covered_ = covered;
+  if (!extras_visible_) {
+    // Extras is off: the edges follow whether it still covers them.
+    selection_edges_visible_ = (covered & view_extra_bit(ViewExtra::SelectionEdges)) == 0;
+  }
+  update();
+}
+
+std::uint32_t CanvasWidget::extras_covered() const noexcept {
+  return extras_covered_;
+}
+
+bool CanvasWidget::extra_shown(ViewExtra extra) const noexcept {
+  return extras_visible_ || (extras_covered_ & view_extra_bit(extra)) == 0;
 }
 
 void CanvasWidget::set_rulers_visible(bool visible) noexcept {
@@ -839,7 +882,7 @@ CanvasWidget::MoveSnapResult CanvasWidget::snapped_move_delta_with_matches(QPoin
 }
 
 int CanvasWidget::guide_at_widget_position(QPoint widget_position) const {
-  if (document_ == nullptr || !guides_visible_) {
+  if (document_ == nullptr || !guides_visible_ || !extra_shown(ViewExtra::Guides)) {
     return -1;
   }
   // Guides run across the whole view, so one on the pasteboard is grabbed there too

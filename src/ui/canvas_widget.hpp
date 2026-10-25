@@ -24,6 +24,7 @@
 #include "ui/selection_outline.hpp"
 #include "ui/stroke_pixel_map.hpp"
 #include "ui/vector_preview_renderer.hpp"
+#include "ui/view_extras.hpp"
 
 #include <QBasicTimer>
 #include <QBrush>
@@ -1167,13 +1168,27 @@ public:
   [[nodiscard]] QRect invert_smart_filter_mask(QString history_label);
   void finish_smart_filter_mask_edit();
   void cancel_smart_filter_mask_edit();
-  // View > Show Selection Edges (Ctrl+H), Photoshop's Extras toggle: false
-  // hides the marching ants AND the path overlay (anchors, handles, outline;
-  // a live pen session and a path-transform box still draw). Any selection
-  // change resets it to true.
+  // This canvas's marching ants: false hides them. View > Extras (Ctrl+H) sets it with
+  // the Extras state while Extras covers selection edges, and any new selection resets it
+  // to true, so a fresh selection always shows (docs/view-navigation.md, "Extras").
   void set_selection_edges_visible(bool visible) noexcept;
   [[nodiscard]] bool selection_edges_visible() const noexcept;
-  void toggle_selection_edges_visible();
+  // View > Show > Selection Edges: the app-wide per-item toggle, pushed in by MainWindow.
+  void set_show_selection_edges(bool show) noexcept;
+  [[nodiscard]] bool show_selection_edges() const noexcept;
+  // View > Extras (Ctrl+H, GitHub issue 420), per canvas: off hides every overlay in
+  // extras_covered() (the Show Extras Options choice, app-wide). A covered overlay draws
+  // only while its own toggle is on and Extras is on (extra_shown).
+  void set_extras_visible(bool visible);
+  [[nodiscard]] bool extras_visible() const noexcept;
+  // Ctrl+H: hides when any covered overlay shows (a selection drawn while Extras was off
+  // counts), otherwise shows; posts a status message.
+  void toggle_extras_visible();
+  void set_extras_covered(std::uint32_t covered);
+  [[nodiscard]] std::uint32_t extras_covered() const noexcept;
+  [[nodiscard]] bool extra_shown(ViewExtra extra) const noexcept;
+  // Whether the marching ants draw: the Show toggle and this canvas's flag.
+  [[nodiscard]] bool selection_edges_drawn() const noexcept;
   void set_rulers_visible(bool visible) noexcept;
   [[nodiscard]] bool rulers_visible() const noexcept;
   // Display unit for the ruler tick marks (the app-wide "view/rulerUnits" preference,
@@ -3376,6 +3391,9 @@ private:
   QRect spacebar_reposition_start_marquee_rect_;
   QRect spacebar_reposition_start_marquee_start_rect_;
   bool selection_edges_visible_{true};
+  bool show_selection_edges_{true};
+  bool extras_visible_{true};
+  std::uint32_t extras_covered_{kAllViewExtras};
   bool quick_mask_active_{false};
   PixelBuffer quick_mask_pixels_;
   std::uint64_t quick_mask_revision_{0};

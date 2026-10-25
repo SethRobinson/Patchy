@@ -141,19 +141,27 @@ void ui_ctrl_h_hides_selection_edges_without_blue_tint() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(130, 115)), Qt::white, 2));
   save_widget_artifact("ui_selection_edges_hidden", *canvas);
 
+  // A new selection shows its edges although Extras stays off (GitHub issue 420), and
+  // the next Ctrl+H hides them again rather than bringing the other extras back.
   require_action(window, "editDeselectAction")->trigger();
   QApplication::processEvents();
   CHECK(!canvas->has_selection());
   CHECK(canvas->selection_edges_visible());
-
-  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
-  QApplication::processEvents();
-  CHECK(!canvas->selection_edges_visible());
+  CHECK(!canvas->extras_visible());
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
        canvas->widget_position_for_document_point(QPoint(80, 70)));
   QApplication::processEvents();
   CHECK(canvas->has_selection());
   CHECK(canvas->selection_edges_visible());
+  CHECK(!canvas->extras_visible());
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->selection_edges_visible());
+  CHECK(!canvas->extras_visible());
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->selection_edges_visible());
+  CHECK(canvas->extras_visible());
 }
 
 void ui_select_inverse_and_extended_blend_modes_work() {

@@ -2336,6 +2336,18 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   }
 }
 
+void MainWindow::view_extras_options_dialog() {
+  const auto chosen = request_view_extras_options(this, view_extras_covered_);
+  if (!chosen.has_value()) {
+    return;
+  }
+  view_extras_covered_ = *chosen;
+  save_view_extras_covered(view_extras_covered_);
+  for (const auto& active_session : sessions_) {
+    apply_canvas_aid_settings(active_session->canvas);
+  }
+}
+
 void MainWindow::new_guide_dialog() {
   if (canvas_ == nullptr) {
     return;
@@ -2702,6 +2714,8 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_backdrop_color_override(view_canvas_backdrop_color_);
   canvas->set_guide_color(view_guide_color_);
   canvas->set_target_path_visible(view_target_path_visible_);
+  canvas->set_show_selection_edges(view_selection_edges_shown_);
+  canvas->set_extras_covered(view_extras_covered_);
   canvas->set_vector_preview_enabled(view_vector_preview_enabled_);
   canvas->set_proof_display_transform(proof_display_transform_);
 }
@@ -2954,6 +2968,7 @@ void MainWindow::load_view_settings() {
   view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
   view_pixel_grid_visible_ = settings.value(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_).toBool();
   view_guides_visible_ = settings.value(QStringLiteral("view/guidesVisible"), view_guides_visible_).toBool();
+  view_extras_covered_ = load_view_extras_covered();
   view_guides_locked_ = settings.value(QStringLiteral("view/guidesLocked"), view_guides_locked_).toBool();
   view_snap_enabled_ = settings.value(QStringLiteral("view/snapEnabled"), view_snap_enabled_).toBool();
   view_snap_to_guides_ = settings.value(QStringLiteral("view/snapToGuides"), view_snap_to_guides_).toBool();

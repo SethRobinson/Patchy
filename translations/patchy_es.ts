@@ -12658,6 +12658,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Applying...</source>
         <translation>Aplicando...</translation>
     </message>
+    <message>
+        <source>Selection edges</source>
+        <translation>Bordes de selección</translation>
+    </message>
+    <message>
+        <source>Target path (anchor points and outline)</source>
+        <translation>Trazado de destino (puntos de ancla y contorno)</translation>
+    </message>
+    <message>
+        <source>Layer outlines under the Move tool</source>
+        <translation>Contornos de capa con la herramienta Mover</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>Guías</translation>
+    </message>
+    <message>
+        <source>Alignment lines while moving</source>
+        <translation>Líneas de alineación al mover</translation>
+    </message>
+    <message>
+        <source>Pixel grid</source>
+        <translation>Cuadrícula de píxeles</translation>
+    </message>
+    <message>
+        <source>Artboard names</source>
+        <translation>Nombres de mesas de trabajo</translation>
+    </message>
+    <message>
+        <source>Show Extras Options</source>
+        <translation>Mostrar opciones de extras</translation>
+    </message>
+    <message>
+        <source>View &gt; Extras shows and hides the items ticked here.
+Each item&apos;s own View setting still applies.</source>
+        <translation>Vista &gt; Extras muestra y oculta los elementos marcados aquí.
+El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13721,22 +13759,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>No se puede pintar sobre las capas de forma. Rasterice la capa para editar sus píxeles.</translation>
     </message>
     <message>
-        <source>Showing selection edges and path points</source>
-        <translation>Mostrando los bordes de la selección y los puntos de trazado</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges and path points</source>
-        <translation>Ocultando los bordes de la selección y los puntos de trazado</translation>
-    </message>
-    <message>
-        <source>Showing selection edges</source>
-        <translation>Mostrando los bordes de la selección</translation>
-    </message>
-    <message>
-        <source>Hiding selection edges</source>
-        <translation>Ocultando los bordes de la selección</translation>
-    </message>
-    <message>
         <source>New Guide</source>
         <translation>Nueva guía</translation>
     </message>
@@ -14427,6 +14449,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Warp works on the whole layer. Apply this transform first.</source>
         <translation>La deformación actúa sobre toda la capa. Aplique primero esta transformación.</translation>
+    </message>
+    <message>
+        <source>Showing extras</source>
+        <translation>Mostrando extras</translation>
+    </message>
+    <message>
+        <source>Hiding extras</source>
+        <translation>Ocultando extras</translation>
     </message>
 </context>
 <context>
@@ -15380,10 +15410,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>&amp;Píxeles reales</translation>
-    </message>
-    <message>
-        <source>Show Selection &amp;Edges</source>
-        <translation>Mostrar &amp;bordes de selección</translation>
     </message>
     <message>
         <source>Show Target &amp;Path</source>
@@ -25528,6 +25554,22 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>This path has no points to remove.</source>
         <translation>Este trazado no tiene puntos que eliminar.</translation>
+    </message>
+    <message>
+        <source>&amp;Extras</source>
+        <translation>&amp;Extras</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>Mo&amp;strar</translation>
+    </message>
+    <message>
+        <source>&amp;Selection Edges</source>
+        <translation>&amp;Bordes de selección</translation>
+    </message>
+    <message>
+        <source>Show &amp;Extras Options...</source>
+        <translation>Mostrar opciones de &amp;extras...</translation>
     </message>
 </context>
 <context>
