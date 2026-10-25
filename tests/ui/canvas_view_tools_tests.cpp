@@ -8846,7 +8846,7 @@ void ui_right_dock_drag_works_during_preview_dialog() {
     }
     CHECK(false);
   });
-  require_action(window, "imageAdjustInvertAction")->trigger();
+  require_action(window, "imageAdjustDesaturateAction")->trigger();
   CHECK(saw_dialog);
   CHECK(width_during == width_before - 60);
 }

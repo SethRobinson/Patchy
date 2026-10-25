@@ -449,7 +449,7 @@ void ui_float_window_respects_preview_dialog_edit_lock() {
     }
     CHECK(false);
   });
-  require_action(window, "imageAdjustInvertAction")->trigger();
+  require_action(window, "imageAdjustDesaturateAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
   CHECK(!tab_canvas->edit_locked());

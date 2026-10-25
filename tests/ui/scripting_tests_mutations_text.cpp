@@ -1851,7 +1851,6 @@ void ui_destructive_edits_blend_by_soft_selection_coverage() {
   };
 
   check_blend("menu invert", QColor(55, 215, 215), [&] {
-    accept_filter_dialog();
     require_action(window, "imageAdjustInvertAction")->trigger();
   });
   // White input 128 doubles every channel: 200 clips to 255, 40 becomes 80.

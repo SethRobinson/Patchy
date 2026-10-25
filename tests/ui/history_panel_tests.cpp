@@ -348,7 +348,7 @@ void ui_history_clicks_blocked_during_preview_lock() {
     }
     CHECK(false);
   });
-  require_action(window, "imageAdjustInvertAction")->trigger();
+  require_action(window, "imageAdjustDesaturateAction")->trigger();
   CHECK(saw_disabled_history);
   CHECK(history->isEnabled());
 }

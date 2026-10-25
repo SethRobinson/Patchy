@@ -117,7 +117,9 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
       CHECK(amount != nullptr);
       CHECK(amount->value() == 100);
       process_events_for(120);
-      saw_live_filter_preview = color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8);
+      const auto preview_pixel = canvas_pixel(*canvas, QPoint(40, 40));
+      saw_live_filter_preview = std::abs(preview_pixel.red() - preview_pixel.green()) <= 2 &&
+                                std::abs(preview_pixel.green() - preview_pixel.blue()) <= 2;
       const auto preview_pixel_before_edit = canvas_pixel(*canvas, QPoint(40, 40));
       drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
            canvas->widget_position_for_document_point(QPoint(58, 58)));
@@ -135,7 +137,7 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
     }
     CHECK(false);
   });
-  require_action(window, "imageAdjustInvertAction")->trigger();
+  require_action(window, "imageAdjustDesaturateAction")->trigger();
   CHECK(saw_live_filter_preview);
   CHECK(canvas_zoomed_with_dialog_open);
   CHECK(canvas_panned_with_dialog_open);
@@ -145,8 +147,28 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(tabs->tabBar()->isEnabled());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
 
-  accept_filter_dialog();
+  // Invert applies at once with no settings dialog, as one undo step (#411).
+  bool saw_invert_dialog = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyFilterDialog") && widget->isVisible()) {
+        saw_invert_dialog = true;
+        if (auto* dialog = qobject_cast<QDialog*>(widget); dialog != nullptr) {
+          dialog->reject();
+        }
+      }
+    }
+  });
+  const auto undo_depth_before_invert = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   require_action(window, "imageAdjustInvertAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!saw_invert_dialog);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before_invert + 1U);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8));
 
@@ -438,7 +460,6 @@ void ui_image_adjustments_respect_active_selection() {
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
        canvas->widget_position_for_document_point(QPoint(100, 100)));
   QApplication::processEvents();
-  accept_filter_dialog();
   require_action(window, "imageAdjustInvertAction")->trigger();
   QApplication::processEvents();
   require_action(window, "editDeselectAction")->trigger();
@@ -504,7 +525,6 @@ void ui_direct_pixel_previews_preserve_floating_layer_bounds() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(Qt::white), 5));
   CHECK(!color_close(canvas_pixel(*canvas, QPoint(72, 47)), original_pixel, 8));
 
-  accept_filter_dialog();
   require_action(window, "imageAdjustInvertAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->active_layer_document_rect().has_value());

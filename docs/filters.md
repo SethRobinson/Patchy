@@ -50,7 +50,7 @@ A `FilterInvocation` stores filter ID, schema version, named parameters, and cap
 
 ## Categories and UI contracts
 
-Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale (no direct action yet), Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, Posterize. The four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance) are not catalog filters; see [adjustments-calibration.md](adjustments-calibration.md).
+Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale (no direct action yet), Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, Posterize. Invert (Ctrl+I) applies at once with no dialog, like the three autos below (#411). The four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance) are not catalog filters; see [adjustments-calibration.md](adjustments-calibration.md).
 
 The gallery exposes the other 37 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
 
@@ -102,7 +102,7 @@ The three autos share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp
 - **Auto Contrast** (`auto_contrast`, Ctrl+Alt+Shift+L): one merged R+G+B histogram, a single black/white pair, the same LUT on all three channels; casts survive.
 - **Auto Color** (`auto_color`, Ctrl+Shift+B): the per-channel scan plus a neutral-midtone snap. The channel's whole-image mean, normalized into the stretched range, selects the integer `gamma_percent` in [10, 999] whose curve maps it closest to 128, ties preferring the smaller gamma. Every result is a Levels dialog state.
 - Whole-layer analysis even with a selection; the wrapper restores unselected pixels afterward. Alpha untouched; UInt8 buffers with 3+ channels only.
-- Menu, hotkey, and scripting invocations of the three autos apply immediately at the catalog defaults with no dialog. `amount` remains a catalog contract for recipes, Saved Looks, and explicit scripting invocations; `apply_filter` special-cases the immediate path (`filter_applies_without_settings_dialog`).
+- Menu, hotkey, and scripting invocations of the three autos (and Invert) apply immediately at the catalog defaults with no dialog. `amount` remains a catalog contract for recipes, Saved Looks, and explicit scripting invocations; `apply_filter` special-cases the immediate path (`filter_applies_without_settings_dialog`).
 - **Auto All** (`imageAdjustAutoAllAction`, persisted command ID `image.auto_all`, no default shortcut) applies Tone, Contrast, then Color as one three-entry recipe pass and one undo step (`MainWindow::auto_all_adjustments`), a MainWindow command, not a catalog filter. With a selection it follows the recipe contract (unselected pixels restore once at the end) and can differ from three menu applies; without one they are byte-identical.
 - Photoshop calibration deltas: [adjustments-calibration.md](adjustments-calibration.md).
 

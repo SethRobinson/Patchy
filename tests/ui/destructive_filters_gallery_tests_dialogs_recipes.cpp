@@ -2443,23 +2443,20 @@ void ui_filter_on_text_layer_prompts_and_rasterizes() {
     if (rasterize == nullptr) {
       return;
     }
-    // Invert's settings dialog opens right after the rasterize; accept the
-    // default amount so the filter commits.
+    // Invert has no settings dialog (#411): it applies right after the rasterize.
     QTimer::singleShot(0, [&] {
-      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-      CHECK(dialog != nullptr);
-      if (dialog == nullptr) {
-        return;
+      if (auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+          dialog != nullptr) {
+        saw_settings_dialog = true;
+        dialog->reject();
       }
-      saw_settings_dialog = true;
-      dialog->accept();
     });
     rasterize->click();
   });
   require_action(window, "imageAdjustInvertAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
-  CHECK(saw_settings_dialog);
+  CHECK(!saw_settings_dialog);
 
   const auto* rasterized = std::as_const(document).find_layer(layer_id);
   CHECK(rasterized != nullptr);

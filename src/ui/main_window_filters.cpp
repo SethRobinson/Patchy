@@ -1183,12 +1183,13 @@ std::optional<SmartFilterStack> smart_filter_stack_with_recipe(
   return candidate;
 }
 
-// Image > Adjustments autos apply immediately at catalog defaults (amount 100,
-// byte-identical to the raw kernels via blend_filter_with_original's >= 100
-// short-circuit). The amount parameter stays in the catalog for recipes,
-// Saved Looks, and scripting.
+// Image > Adjustments autos and Invert (#411) apply immediately at catalog
+// defaults (amount 100, byte-identical to the raw kernels via
+// blend_filter_with_original's >= 100 short-circuit). The amount parameter
+// stays in the catalog for recipes, Saved Looks, and scripting.
 bool filter_applies_without_settings_dialog(const std::string& identifier) {
-  return identifier == "patchy.filters.blur" ||
+  return identifier == "patchy.filters.invert" ||
+         identifier == "patchy.filters.blur" ||
          identifier == "patchy.filters.blur_more" ||
          identifier == "patchy.filters.sharpen_more" ||
          identifier == "patchy.filters.average" ||

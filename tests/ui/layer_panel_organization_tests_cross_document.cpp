@@ -256,7 +256,7 @@ void ui_layer_drag_to_other_document_respects_edit_lock() {
     }
     CHECK(false);
   });
-  require_action(window, "imageAdjustInvertAction")->trigger();
+  require_action(window, "imageAdjustDesaturateAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, docs.target_canvas) == 0);
