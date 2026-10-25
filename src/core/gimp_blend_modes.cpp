@@ -281,7 +281,8 @@ std::array<double, 3> gimp_blend_unit(const std::array<double, 3>& source, const
     }
     case BlendMode::LchHue: {
       const auto src = to_lch(s);
-      if (src.c <= 0.0) {
+      // A gray's a and b are rounding noise, not a hue (the threshold keeps it toolchain-stable).
+      if (src.c < 1e-6) {
         return d;
       }
       auto dst = to_lch(d);

@@ -1005,7 +1005,7 @@ void xcf_hostile_input_never_crashes() {
   } catch (const std::runtime_error&) {
   }
   // Not XCF at all, and CinePaint's XCF.
-  for (const std::string text : {std::string("hello world, not an image"), std::string("gimp xcf v100\0", 14)}) {
+  for (const std::string& text : {std::string("hello world, not an image"), std::string("gimp xcf v100\0", 14)}) {
     try {
       (void)patchy::xcf::DocumentIo::read(std::vector<std::uint8_t>(text.begin(), text.end()));
       CHECK(false);

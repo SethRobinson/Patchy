@@ -903,7 +903,7 @@ struct TileJob {
     tile.height = std::min(kTileSize, height - tile.y);
     tile.start = starts[i];
     const auto next = i + 1 < starts.size() ? starts[i + 1] : 0;
-    tile.end = next > tile.start ? std::min(next, tile.start + max_encoded) : tile.start + max_encoded;
+    tile.end = next > tile.start ? std::min<std::uint64_t>(next, tile.start + max_encoded) : tile.start + max_encoded;
     tile.end = std::min<std::uint64_t>(tile.end, reader.size());
   }
   return tiles;
@@ -3171,7 +3171,7 @@ private:
   document.guides() = std::move(guides);
 
   Build build{reader, PixelLayout{static_cast<BaseType>(base), true, precision}, depth, compression,
-              std::move(colormap), print.horizontal_ppi, document, {}, {}, 0, std::nullopt};
+              std::move(colormap), print.horizontal_ppi, document, {}, {}, 0, std::nullopt, {}, {}};
   build.notices.insert(depth_notices.begin(), depth_notices.end());
   if (damaged_structure) {
     build.notices.insert(Notice::DamagedStructure);
