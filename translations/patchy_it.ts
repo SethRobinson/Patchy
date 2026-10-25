@@ -12634,6 +12634,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Easy Dodge</source>
         <translation>Scherma morbida</translation>
     </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>i dati vettoriali non sono SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>le forme sono state ridimensionate per adattarsi all’area di lavoro</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>i dati vettoriali non contengono alcun disegno</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

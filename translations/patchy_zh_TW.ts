@@ -12599,6 +12599,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Easy Dodge</source>
         <translation>柔和加亮</translation>
     </message>
+    <message>
+        <source>the vector data is not SVG</source>
+        <translation>向量資料不是 SVG</translation>
+    </message>
+    <message>
+        <source>the shapes were scaled to fit the canvas</source>
+        <translation>形狀已縮放以符合畫布</translation>
+    </message>
+    <message>
+        <source>the vector data has no drawing</source>
+        <translation>向量資料中沒有繪圖</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
