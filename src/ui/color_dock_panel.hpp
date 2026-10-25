@@ -67,7 +67,9 @@ public:
   [[nodiscard]] HueSliderWidget* hue_strip() const noexcept { return hue_strip_; }
   [[nodiscard]] BackgroundPickCursor* field_cursor() const noexcept { return field_cursor_; }
   [[nodiscard]] BackgroundPickCursor* hue_strip_cursor() const noexcept { return hue_strip_cursor_; }
-  [[nodiscard]] QToolButton* view_button() const noexcept { return view_button_; }
+  // The settings gear with the view menu. MainWindow places it in the panel's title row,
+  // so it is not a child of the panel.
+  [[nodiscard]] QToolButton* settings_button() const noexcept { return settings_button_; }
   [[nodiscard]] QAction* view_action(View view) const;
   [[nodiscard]] QWidget* channel_track(Channel channel) const;
   [[nodiscard]] QSpinBox* channel_spin(Channel channel) const;
@@ -117,7 +119,7 @@ private:
   ColorWellGlyphButton* swap_{nullptr};
   ColorWellGlyphButton* default_{nullptr};
   QVBoxLayout* well_column_{nullptr};
-  QToolButton* view_button_{nullptr};
+  QToolButton* settings_button_{nullptr};
   QMenu* view_menu_{nullptr};
   QActionGroup* view_group_{nullptr};
   std::array<QAction*, 3> view_actions_{};

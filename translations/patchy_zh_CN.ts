@@ -14550,10 +14550,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>单击或拖动以设置前景色。按住 %ALT% 单击或按住 %ALT% 拖动以设置背景色。</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>颜色面板视图</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>色相立方体</translation>
     </message>
@@ -14618,6 +14614,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brightness</source>
         <translation>亮度</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>颜色面板设置</translation>
     </message>
 </context>
 <context>

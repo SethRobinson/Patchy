@@ -51,6 +51,9 @@ struct PanelSpec {
   // plus what it returns, in place of preferred_height: a panel sized to its content
   // (the Color panel's slider views). Asked each time, so it sees the current style.
   std::function<int()> preferred_content_height;
+  // A small button at the right end of the title row (the Color panel's settings gear),
+  // reparented into it. At most 18 px tall, so every title row keeps one height.
+  QWidget* header_widget{nullptr};
 };
 
 class PanelColumn final : public QWidget {

@@ -14585,10 +14585,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Haga clic o arrastre para definir el color frontal. Haga %ALT%+clic o %ALT%+arrastrar para definir el color de fondo.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Vista del panel Color</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Cubo de tono</translation>
     </message>
@@ -14653,6 +14649,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Brightness</source>
         <translation>Brillo</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Ajustes del panel Color</translation>
     </message>
 </context>
 <context>

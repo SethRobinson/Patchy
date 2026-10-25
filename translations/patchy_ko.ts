@@ -14550,10 +14550,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>클릭하거나 드래그하여 전경색을 설정합니다. %ALT%-클릭하거나 %ALT%-드래그하여 배경색을 설정합니다.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>색상 패널 보기</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>색조 큐브</translation>
     </message>
@@ -14618,6 +14614,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brightness</source>
         <translation>밝기</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>색상 패널 설정</translation>
     </message>
 </context>
 <context>

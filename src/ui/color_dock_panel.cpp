@@ -160,22 +160,18 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   default_->setDefaultAction(default_colors);
   default_->move(0, 28);
 
-  // The view menu (GitHub issue 404), under the pair in every view. The same entries are
-  // on the panel's header menu (MainWindow::show_panel_header_menu).
-  view_button_ = new QToolButton(this);
-  view_button_->setObjectName(QStringLiteral("colorPanelViewButton"));
-  view_button_->setIcon(themed_glyph_icon(QStringLiteral("panel-menu"), 16.0, &ThemePalette::text_secondary,
-                                          [](QPainter& painter, const QColor& ink) {
-                                            painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
-                                            for (const double y : {4.5, 8.0, 11.5}) {
-                                              painter.drawLine(QPointF(3.0, y), QPointF(13.0, y));
-                                            }
-                                          }));
-  view_button_->setIconSize(QSize(16, 16));
-  view_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  view_button_->setPopupMode(QToolButton::InstantPopup);
-  view_button_->setFocusPolicy(Qt::NoFocus);
-  view_menu_ = new QMenu(view_button_);
+  // The views (GitHub issue 404) are picked from the settings gear, which MainWindow puts
+  // at the right end of the panel's title row (PanelSpec::header_widget). It is the only
+  // place to switch them.
+  settings_button_ = new QToolButton(this);
+  settings_button_->setObjectName(QStringLiteral("colorPanelSettingsButton"));
+  settings_button_->setIcon(simple_icon(QStringLiteral("gear")));
+  settings_button_->setIconSize(QSize(14, 14));
+  settings_button_->setFixedSize(18, 18);
+  settings_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  settings_button_->setPopupMode(QToolButton::InstantPopup);
+  settings_button_->setFocusPolicy(Qt::NoFocus);
+  view_menu_ = new QMenu(settings_button_);
   view_menu_->setObjectName(QStringLiteral("colorPanelViewMenu"));
   view_group_ = new QActionGroup(this);
   view_group_->setExclusive(true);
@@ -192,7 +188,7 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
     view_actions_[static_cast<std::size_t>(view_index(view))] = action;
   }
   view_actions_[0]->setChecked(true);
-  view_button_->setMenu(view_menu_);
+  settings_button_->setMenu(view_menu_);
 
   // The Hue Cube.
   auto* cube = new QWidget(this);
@@ -235,7 +231,6 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   well_column_->setContentsMargins(0, 0, 0, 0);
   well_column_->setSpacing(4);
   well_column_->addWidget(well);
-  well_column_->addWidget(view_button_, 0, Qt::AlignLeft);
   well_column_->addStretch(1);
   auto* layout = new QHBoxLayout(this);
   layout->setContentsMargins(8, 8, 8, 8);
@@ -573,8 +568,8 @@ void ColorDockPanel::retranslate() {
       tr("Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color."));
   field_->setToolTip(hint);
   hue_strip_->setToolTip(hint);
-  view_button_->setToolTip(tr("Color panel view"));
-  view_button_->setAccessibleName(tr("Color panel view"));
+  settings_button_->setToolTip(tr("Color panel settings"));
+  settings_button_->setAccessibleName(tr("Color panel settings"));
   const std::array<QString, 3> view_names = {tr("Hue Cube"), tr("RGB Sliders"), tr("HSB Sliders")};
   for (std::size_t index = 0; index < view_names.size(); ++index) {
     view_actions_[index]->setText(view_names[index]);

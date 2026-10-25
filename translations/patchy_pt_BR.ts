@@ -14585,10 +14585,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Clique ou arraste para definir a cor do primeiro plano. %ALT%-clique ou %ALT%-arraste para definir a cor de fundo.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Exibição do painel Cor</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Cubo de matiz</translation>
     </message>
@@ -14653,6 +14649,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Brightness</source>
         <translation>Brilho</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Configurações do painel Cor</translation>
     </message>
 </context>
 <context>

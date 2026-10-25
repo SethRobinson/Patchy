@@ -14620,10 +14620,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Kliknij lub przeciągnij, aby ustawić kolor narzędzia. Kliknij z %ALT% lub przeciągnij z %ALT%, aby ustawić kolor tła.</translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation>Widok panelu Kolor</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Kostka barwy</translation>
     </message>
@@ -14688,6 +14684,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Brightness</source>
         <translation>Jasność</translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
+        <translation>Ustawienia panelu Kolor</translation>
     </message>
 </context>
 <context>

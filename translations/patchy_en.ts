@@ -14568,10 +14568,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Color panel view</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14635,6 +14631,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color panel settings</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

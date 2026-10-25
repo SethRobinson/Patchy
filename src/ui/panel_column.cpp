@@ -260,6 +260,9 @@ PanelColumn::Page* PanelColumn::build_page(Section& section, const PanelSpec& sp
   // A long title clips instead of holding a narrowed column wide.
   page->label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   header_layout->addWidget(page->label, 1);
+  if (spec.header_widget != nullptr) {
+    header_layout->addWidget(spec.header_widget);
+  }
   layout->addWidget(page->header);
   // A drag on the title row (the label passes its presses up) moves the section.
   page->header->installEventFilter(this);
