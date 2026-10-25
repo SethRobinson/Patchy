@@ -15,10 +15,11 @@ Every tool's bar follows these rules; a new bar or control is placed by them (wo
 7. **Icon buttons between two fields sit evenly**: the glyph is as far from the field before as from the label after (the swap button: 11 px each side, issue 286 follow-up).
 8. **A menu of further options is a gear button** (`make_options_menu_button` in main_window_actions_options_bar.cpp: `gear.svg` at 16 px, InstantPopup, the `optionsBarMenuButton` QSS rule's bordered 20 px look with no menu arrow and a 16 px content minimum, 27 px wide; GitHub issue 326 follow-up): Move's align menu, Crop options and Smoothing options. Never a "..." text button.
 9. **One row at 1366 px.** A separator costs 7 px (a 3 px widget and the flow's 4 px spacing); when a row has no room, drop a separator before a control (the Mixer row has none before Sample All Layers; GitHub issue 364).
+10. **Buttons are as tall as the fields.** The `QToolBar#Options QPushButton` rule has no vertical padding, so a text button is 26 px like the combos and spin boxes and its text sits on their line (GitHub issue 409; `ui_pick_options_bar_groups_its_controls` checks the Pick bar's Foreground/Background pair).
 
 Example, the Brush bar: `Preset [combo] | Size [spin][slider] | Mode [combo] Opacity [spin] | Soft [spin] Flow [spin] [Airbrush] | Smooth [spin][gear] | Tip [picker][dynamics]` (the Opacity separator: GitHub issue 364; every brush-family bar with Opacity has it). Example, the Patch bar: `[modes] | Patch [combo] | [Transparent] [Sample All Layers] | [Remove Object]`.
 
-Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (and the variants its style or mode combo switches to) in both schemes and fails on a leading, trailing or doubled separator or a wrapped row. Rules 1 to 4, 6 and 7 are review rules.
+Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (and the variants its style or mode combo switches to) in both schemes and fails on a leading, trailing or doubled separator or a wrapped row. Rules 1 to 4, 6 and 7 are review rules; rule 10 is checked on the Pick bar only.
 
 ## One height per window width
 
