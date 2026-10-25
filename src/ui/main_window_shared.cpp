@@ -6,6 +6,7 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/smart_filter.hpp"
@@ -1309,16 +1310,15 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
 namespace {
 
 std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerId id, std::size_t& index) {
-  for (std::size_t i = 0; i < layers.size(); ++i) {
-    if (layers[i].id() == id) {
-      index = i;
-      return &layers;
-    }
-    if (auto* found = layer_siblings_containing(layers[i].children(), id, index); found != nullptr) {
-      return found;
-    }
+  // Walks const and casts the hit (find_layer_location): descending through the mutable
+  // children() bumped every visited layer's revisions, so each duplicate or new layer
+  // re-rendered the thumbnails of every layer below it (GitHub issue 402).
+  const auto location = find_layer_location(layers, id);
+  if (!location.has_value()) {
+    return nullptr;
   }
-  return nullptr;
+  index = location->index;
+  return location->siblings;
 }
 
 }  // namespace
