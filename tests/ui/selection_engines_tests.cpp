@@ -12,6 +12,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -163,6 +164,124 @@ void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   CHECK(canvas->selected_document_region().contains(QPoint(120, 52)));
   CHECK(canvas->selected_document_region().contains(QPoint(220, 52)));
   save_widget_artifact("ui_magic_wand_options", *canvas);
+}
+
+// GitHub issue 435: the Magic Wand bar's Sample combo is the Pick tool's Size (one shared
+// setting), and the wand's seed averages that square. On noise, Point Sample selects exactly
+// the pixels near the clicked one (the pre-435 result); 5 by 5 selects those near the mean.
+void ui_magic_wand_sample_size_averages_the_seed() {
+  SettingsValueRestorer saved_sample_size(QStringLiteral("tools/eyedropperSampleSize"));
+  constexpr int width = 120;
+  constexpr int height = 90;
+  auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+  std::uint64_t state = 435U;
+  const auto next = [&state] {
+    std::uint64_t z = (state += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31U);
+  };
+  const QPoint click(60, 45);
+  std::vector<QColor> colors;
+  colors.reserve(static_cast<std::size_t>(width) * height);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const bool speck = QPoint(x, y) == click;
+      const auto noise = [&next] { return 104 + static_cast<int>(next() % 49U); };
+      const int red = noise();
+      const int green = noise();
+      const int blue = noise();
+      colors.push_back(speck ? QColor(160, 96, 150, 255) : QColor(red, green, blue, 255));
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), colors.back());
+    }
+  }
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Noise", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Wand Sample Size"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolMagicWandAction")->trigger();
+  canvas->set_wand_tolerance(12);
+  canvas->set_wand_contiguous(false);
+  canvas->set_wand_sample_all_layers(false);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_selection_antialias(false);
+  auto* wand_combo = window.findChild<QComboBox*>(QStringLiteral("wandSampleSizeCombo"));
+  auto* pick_combo = window.findChild<QComboBox*>(QStringLiteral("eyedropperSampleSizeCombo"));
+  CHECK(wand_combo != nullptr && pick_combo != nullptr);
+  if (wand_combo == nullptr || pick_combo == nullptr) {
+    return;
+  }
+
+  const auto color_at = [&colors](int x, int y) {
+    return colors[static_cast<std::size_t>(y) * width + static_cast<std::size_t>(x)];
+  };
+  const auto expected_count = [&](const QColor& seed) {
+    int count = 0;
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const auto color = color_at(x, y);
+        const int dr = color.red() - seed.red();
+        const int dg = color.green() - seed.green();
+        const int db = color.blue() - seed.blue();
+        count += dr * dr + dg * dg + db * db <= 4 * 12 * 12 ? 1 : 0;
+      }
+    }
+    return count;
+  };
+  const auto selected_count = [canvas] {
+    int count = 0;
+    for (const auto& rect : canvas->selected_document_region()) {
+      count += rect.width() * rect.height();
+    }
+    return count;
+  };
+  const auto click_wand = [canvas, click] {
+    canvas->clear_selection();
+    const auto widget_point = canvas->widget_position_for_document_point(click);
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  // Point Sample: the seed is the clicked speck.
+  wand_combo->setCurrentIndex(wand_combo->findData(1));
+  CHECK(canvas->eyedropper_sample_size() == 1);
+  click_wand();
+  const int point_count = selected_count();
+  CHECK(point_count == expected_count(QColor(160, 96, 150)));
+  CHECK(canvas->selected_document_region().contains(click));
+
+  // 5 by 5 Average, chosen on the wand's bar: the Pick bar shows it too.
+  wand_combo->setCurrentIndex(wand_combo->findData(5));
+  CHECK(canvas->eyedropper_sample_size() == 5);
+  CHECK(pick_combo->currentData().toInt() == 5);
+  click_wand();
+  int sums[3] = {0, 0, 0};
+  for (int y = click.y() - 2; y <= click.y() + 2; ++y) {
+    for (int x = click.x() - 2; x <= click.x() + 2; ++x) {
+      const auto color = color_at(x, y);
+      sums[0] += color.red();
+      sums[1] += color.green();
+      sums[2] += color.blue();
+    }
+  }
+  const QColor mean((sums[0] + 12) / 25, (sums[1] + 12) / 25, (sums[2] + 12) / 25);
+  const int averaged_count = selected_count();
+  std::printf("  wand: Point Sample selects %d px, 5 by 5 Average %d px of %d\n", point_count, averaged_count,
+              width * height);
+  CHECK(averaged_count == expected_count(mean));
+  CHECK(averaged_count > point_count * 10);
+  save_widget_artifact("ui_magic_wand_sample_size_averages_the_seed", *canvas);
+
+  // The Pick bar's combo drives the wand's too.
+  pick_combo->setCurrentIndex(pick_combo->findData(3));
+  CHECK(wand_combo->currentData().toInt() == 3);
+  CHECK(canvas->eyedropper_sample_size() == 3);
+  wand_combo->setCurrentIndex(wand_combo->findData(1));
 }
 
 void ui_quick_mask_feathered_round_trip_is_exact_and_temporary() {
@@ -1838,6 +1957,7 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
        ui_radial_gradient_tool_renders_custom_transparency},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
        ui_magic_wand_contiguous_and_sample_all_layers_options_work},
+      {"ui_magic_wand_sample_size_averages_the_seed", ui_magic_wand_sample_size_averages_the_seed},
       {"ui_quick_mask_feathered_round_trip_is_exact_and_temporary",
        ui_quick_mask_feathered_round_trip_is_exact_and_temporary},
       {"ui_quick_mask_overlay_channels_and_tab_state_are_temporary",

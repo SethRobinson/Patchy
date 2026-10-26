@@ -225,6 +225,29 @@ constexpr std::array<TransformTypeButton, 4> kTransformTypeButtons{{
 // The session button's TransformDistortMode, read by sync_transform_type_buttons.
 constexpr const char* kTransformTypeModeProperty = "patchy.transformTypeMode";
 
+// The sample squares of the Pick tool's Size and the Magic Wand's Sample (GitHub issues
+// 151 and 435): one shared setting, two combos with the same entries.
+constexpr std::array<int, 7> kEyedropperSampleSizes{1, 3, 5, 11, 31, 51, 101};
+
+QString eyedropper_sample_size_text(int size) {
+  return size == 1 ? QCoreApplication::translate(kMainWindowTranslationContext, "Point Sample")
+                   : QCoreApplication::translate(kMainWindowTranslationContext, "%1 by %1 Average").arg(size);
+}
+
+void fill_sample_size_combo(QComboBox* combo, int current_size) {
+  for (const int size : kEyedropperSampleSizes) {
+    combo->addItem(eyedropper_sample_size_text(size), size);
+  }
+  combo->setCurrentIndex(std::max(0, combo->findData(current_size)));
+}
+
+void retranslate_sample_size_combo(QComboBox* combo) {
+  const QSignalBlocker blocker(combo);
+  for (int index = 0; index < combo->count(); ++index) {
+    combo->setItemText(index, eyedropper_sample_size_text(combo->itemData(index).toInt()));
+  }
+}
+
 }  // namespace
 
 namespace {
@@ -1023,6 +1046,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
                         CanvasTool::ObjectSelect, CanvasTool::PatchTool});
+
+  // The Magic Wand's Sample (GitHub issue 435): the seed color averages this square
+  // around the click. It is the Pick tool's Size setting, shared as Photoshop shares it,
+  // so this combo and eyedropperSampleSizeCombo mirror one value.
+  add_option_label(QT_TR_NOOP("Sample:"), {CanvasTool::MagicWand});
+  wand_sample_size_combo_ = new QComboBox(toolbar);
+  wand_sample_size_combo_->setObjectName(QStringLiteral("wandSampleSizeCombo"));
+  fill_sample_size_combo(wand_sample_size_combo_, current_eyedropper_sample_size_);
+  bind_tooltip(wand_sample_size_combo_,
+               QT_TR_NOOP("Compare against the average color of a square around the click instead of one pixel"));
+  add_option_widget(wand_sample_size_combo_, {CanvasTool::MagicWand});
+  connect(wand_sample_size_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || wand_sample_size_combo_ == nullptr) {
+      return;
+    }
+    apply_shared_sample_size(wand_sample_size_combo_->itemData(index).toInt());
+  });
+  add_option_separator({CanvasTool::MagicWand});
 
   // Quick Select leads with its brush Size, set apart from Feather (GitHub issue 291).
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::QuickSelect});
@@ -3316,19 +3357,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Eyedropper});
   eyedropper_sample_size_combo_ = new QComboBox(toolbar);
   eyedropper_sample_size_combo_->setObjectName(QStringLiteral("eyedropperSampleSizeCombo"));
-  static constexpr std::array<int, 7> kEyedropperSampleSizes{1, 3, 5, 11, 31, 51, 101};
-  const auto eyedropper_sample_size_text = [](int size) {
-    return size == 1 ? QCoreApplication::translate(kMainWindowTranslationContext, "Point Sample")
-                     : QCoreApplication::translate(kMainWindowTranslationContext, "%1 by %1 Average").arg(size);
-  };
-  for (const int size : kEyedropperSampleSizes) {
-    eyedropper_sample_size_combo_->addItem(eyedropper_sample_size_text(size), size);
-  }
-  // Marked for lupdate; the texts above are built from these sources.
+  fill_sample_size_combo(eyedropper_sample_size_combo_, current_eyedropper_sample_size_);
+  // Marked for lupdate; eyedropper_sample_size_text builds its texts from these sources.
   static_cast<void>(QT_TR_NOOP("Point Sample"));
   static_cast<void>(QT_TR_NOOP("%1 by %1 Average"));
-  eyedropper_sample_size_combo_->setCurrentIndex(
-      std::max(0, eyedropper_sample_size_combo_->findData(current_eyedropper_sample_size_)));
   bind_tooltip(eyedropper_sample_size_combo_,
                QT_TR_NOOP("Average the colors in a square around the click instead of one pixel"));
   add_option_widget(eyedropper_sample_size_combo_, {CanvasTool::Eyedropper});
@@ -3336,11 +3368,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (index < 0 || eyedropper_sample_size_combo_ == nullptr) {
       return;
     }
-    current_eyedropper_sample_size_ = eyedropper_sample_size_combo_->itemData(index).toInt();
-    if (canvas_ != nullptr) {
-      canvas_->set_eyedropper_sample_size(current_eyedropper_sample_size_);
-    }
-    save_tool_settings();
+    apply_shared_sample_size(eyedropper_sample_size_combo_->itemData(index).toInt());
   });
 
   add_option_label(QT_TR_NOOP("Layer:"), {CanvasTool::Eyedropper});
@@ -3397,13 +3425,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   QPointer<QComboBox> eyedropper_size_combo(eyedropper_sample_size_combo_);
   QPointer<QComboBox> eyedropper_layers_combo(eyedropper_sample_layers_combo_);
-  register_retranslation([eyedropper_size_combo, eyedropper_layers_combo, eyedropper_sample_size_text,
-                          sample_layers_text] {
-    if (eyedropper_size_combo != nullptr) {
-      const QSignalBlocker blocker(eyedropper_size_combo);
-      for (int index = 0; index < eyedropper_size_combo->count(); ++index) {
-        eyedropper_size_combo->setItemText(
-            index, eyedropper_sample_size_text(eyedropper_size_combo->itemData(index).toInt()));
+  QPointer<QComboBox> wand_size_combo(wand_sample_size_combo_);
+  register_retranslation([eyedropper_size_combo, wand_size_combo, eyedropper_layers_combo, sample_layers_text] {
+    for (QComboBox* combo : {eyedropper_size_combo.data(), wand_size_combo.data()}) {
+      if (combo != nullptr) {
+        retranslate_sample_size_combo(combo);
       }
     }
     if (eyedropper_layers_combo != nullptr) {

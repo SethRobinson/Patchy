@@ -7,6 +7,7 @@
 #include "core/resample.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -232,6 +233,14 @@ enum class CanvasAnchor {
 // keep them in step (`tool_fill_bucket_tolerance_metric_matches_magic_wand` pins it).
 [[nodiscard]] bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::uint16_t channels,
                                           int tolerance) noexcept;
+// The Magic Wand's seed color for a click at (x, y) in an RGBA8 image (GitHub issue 435):
+// the pixel itself for Point Sample (sample_size 1), otherwise the mean of the
+// sample_size square centered on it, clipped to the image like the Pick tool's average.
+// Alpha is the plain mean and RGB is alpha-weighted (the plain mean when the square is
+// fully transparent). Integer math, rounded to nearest.
+[[nodiscard]] std::array<std::uint8_t, 4> wand_seed_color(const std::uint8_t* rgba, std::int32_t width,
+                                                          std::int32_t height, std::size_t stride, std::int32_t x,
+                                                          std::int32_t y, std::int32_t sample_size) noexcept;
 // Paint Bucket fill from (x, y): honors options.flood_tolerance, options.flood_contiguous,
 // options.primary.a (opacity, blended through the ordinary pixel writer), and
 // options.fill_softness_feather (feathered inward from the filled region's edge).

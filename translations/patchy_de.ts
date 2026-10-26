@@ -25916,6 +25916,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung und Überlagerung</translation>
     </message>
+    <message>
+        <source>Compare against the average color of a square around the click instead of one pixel</source>
+        <translation>Mit der Durchschnittsfarbe eines Quadrats um den Klick statt mit einem Pixel vergleichen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -25916,6 +25916,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Impostazioni della sorgente di clonazione: sorgenti, spostamento, scala, rotazione e sovrapposizione</translation>
     </message>
+    <message>
+        <source>Compare against the average color of a square around the click instead of one pixel</source>
+        <translation>Confronta con il colore medio di un quadrato attorno al clic invece di un solo pixel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

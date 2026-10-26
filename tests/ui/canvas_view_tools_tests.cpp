@@ -732,15 +732,24 @@ void ui_selection_options_bars_group_their_controls() {
     }
     style->setCurrentIndex(0);
 
-    // Magic Wand: Tolerance spelled out and set apart; Contiguous keeps its name.
+    // Magic Wand: Tolerance spelled out and set apart; Contiguous keeps its name. Sample
+    // and its size combo form their own group after the mode buttons (GitHub issue 435),
+    // and the Contiguous checkbox keeps following Tolerance.
     require_action(window, "toolMagicWandAction")->trigger();
     {
       const auto tokens = row("toolMagicWandAction");
       CHECK(next_to(tokens, QStringLiteral("Tolerance"), QStringLiteral("wandToleranceSpin")));
       CHECK(next_to(tokens, QStringLiteral("wandToleranceSpin"), separator));
+      CHECK(at(tokens, QStringLiteral("wandContiguousCheck")) > at(tokens, QStringLiteral("wandToleranceSpin")));
       auto* contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
       CHECK(contiguous != nullptr && contiguous->text() == QStringLiteral("Contiguous"));
+      CHECK(next_to(tokens, QStringLiteral("selectionIntersectModeAction"), separator));
+      CHECK(separated_before(tokens, QStringLiteral("Sample")));
+      CHECK(next_to(tokens, QStringLiteral("Sample"), QStringLiteral("wandSampleSizeCombo")));
+      CHECK(next_to(tokens, QStringLiteral("wandSampleSizeCombo"), separator));
+      CHECK(separated_before(tokens, QStringLiteral("selectionFeatherLabel")));
       shot("issue_290_magic_wand_options_bar");
+      shot("issue_435_magic_wand_options_bar");
     }
 
     // Quick Select: Size | Feather | the checkboxes (no Anti-alias, as in Photoshop).

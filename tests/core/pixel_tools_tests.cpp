@@ -648,6 +648,86 @@ void tool_fill_bucket_tolerance_metric_matches_magic_wand() {
   CHECK(!patchy::color_within_tolerance(&g0, &g21, 1, 10));
 }
 
+// GitHub issue 435: the Magic Wand's seed averages the Sample Size square around the
+// click. On noise, an averaged seed selects the noisy area's mean color; Point Sample stays
+// the clicked pixel exactly (the pre-435 seed). The square clips at the image edge.
+void tool_magic_wand_seed_averages_the_sample_square() {
+  constexpr int width = 64;
+  constexpr int height = 48;
+  constexpr std::size_t stride = static_cast<std::size_t>(width) * 4U;
+  std::vector<std::uint8_t> rgba(stride * height);
+  std::uint64_t state = 0x435'435'435ULL;
+  const auto next = [&state] {
+    std::uint64_t z = (state += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31U);
+  };
+  // Gray 128 with +-24 noise per channel: a noisy flat area.
+  for (std::size_t index = 0; index < rgba.size(); index += 4U) {
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      rgba[index + channel] = static_cast<std::uint8_t>(104 + static_cast<int>(next() % 49U));
+    }
+    rgba[index + 3U] = 255U;
+  }
+  // The clicked pixel is a speck far from the area's mean.
+  constexpr int click_x = 30;
+  constexpr int click_y = 20;
+  auto* speck = rgba.data() + static_cast<std::size_t>(click_y) * stride + static_cast<std::size_t>(click_x) * 4U;
+  speck[0] = 160;
+  speck[1] = 96;
+  speck[2] = 150;
+
+  const auto point = patchy::wand_seed_color(rgba.data(), width, height, stride, click_x, click_y, 1);
+  CHECK(point[0] == 160 && point[1] == 96 && point[2] == 150 && point[3] == 255);
+
+  // The 5 by 5 seed is the square's mean, rounded.
+  const auto averaged = patchy::wand_seed_color(rgba.data(), width, height, stride, click_x, click_y, 5);
+  for (std::size_t channel = 0; channel < 4U; ++channel) {
+    int sum = 0;
+    for (int y = click_y - 2; y <= click_y + 2; ++y) {
+      for (int x = click_x - 2; x <= click_x + 2; ++x) {
+        sum += rgba[static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * 4U + channel];
+      }
+    }
+    CHECK(averaged[channel] == static_cast<std::uint8_t>((sum + 12) / 25));
+  }
+
+  // The selection (the Wand's non-contiguous test at tolerance 12) changes with the seed:
+  // the speck matches almost nothing, the mean matches much of the noise.
+  const auto selected_count = [&](const std::array<std::uint8_t, 4>& seed) {
+    int count = 0;
+    for (std::size_t index = 0; index < rgba.size(); index += 4U) {
+      count += patchy::color_within_tolerance(seed.data(), rgba.data() + index, 4, 12) ? 1 : 0;
+    }
+    return count;
+  };
+  const int point_count = selected_count(point);
+  const int averaged_count = selected_count(averaged);
+  std::printf("  wand seed: point selects %d px, 5 by 5 selects %d px of %d\n", point_count, averaged_count,
+              width * height);
+  CHECK(point_count >= 1);
+  CHECK(averaged_count > point_count * 10);
+
+  // Clipped at the corner: a 5 by 5 at (0, 0) averages the 3 by 3 inside the image.
+  const auto corner = patchy::wand_seed_color(rgba.data(), width, height, stride, 0, 0, 5);
+  int corner_sum = 0;
+  for (int y = 0; y <= 2; ++y) {
+    for (int x = 0; x <= 2; ++x) {
+      corner_sum += rgba[static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * 4U];
+    }
+  }
+  CHECK(corner[0] == static_cast<std::uint8_t>((corner_sum + 4) / 9));
+
+  // RGB is alpha-weighted: transparent pixels do not pull the color, only the alpha.
+  std::array<std::uint8_t, 3U * 4U> row{200, 40, 40, 255, 0, 0, 0, 0, 200, 40, 40, 255};
+  const auto weighted = patchy::wand_seed_color(row.data(), 3, 1, row.size(), 1, 0, 3);
+  CHECK(weighted[0] == 200 && weighted[1] == 40 && weighted[2] == 40 && weighted[3] == 170);
+  std::array<std::uint8_t, 3U * 4U> clear{30, 60, 90, 0, 30, 60, 90, 0, 30, 60, 90, 0};
+  const auto transparent = patchy::wand_seed_color(clear.data(), 3, 1, clear.size(), 1, 0, 3);
+  CHECK(transparent[0] == 30 && transparent[1] == 60 && transparent[2] == 90 && transparent[3] == 0);
+}
+
 void tool_fill_bucket_tolerance_fills_near_colors_but_not_text() {
   auto document = make_noisy_background_document();
   const auto layer_id = document.layers().front().id();
@@ -1663,6 +1743,7 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
        tool_fill_rect_honors_opacity_and_softness_feather},
       {"tool_fill_bucket_fills_region_and_writes_artifact", tool_fill_bucket_fills_region_and_writes_artifact},
       {"tool_fill_bucket_tolerance_metric_matches_magic_wand", tool_fill_bucket_tolerance_metric_matches_magic_wand},
+      {"tool_magic_wand_seed_averages_the_sample_square", tool_magic_wand_seed_averages_the_sample_square},
       {"tool_fill_bucket_tolerance_fills_near_colors_but_not_text",
        tool_fill_bucket_tolerance_fills_near_colors_but_not_text},
       {"tool_fill_bucket_non_contiguous_fills_every_matching_pixel",

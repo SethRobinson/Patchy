@@ -25916,6 +25916,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação e sobreposição</translation>
     </message>
+    <message>
+        <source>Compare against the average color of a square around the click instead of one pixel</source>
+        <translation>Comparar com a cor média de um quadrado ao redor do clique em vez de um único pixel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -45,6 +45,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Marquee, Elliptical | Style, W, H (`selectionStyleCombo`, `selectionRatio*`, `selectionFixed*`) | none | no | no (session) |
 | Magnetic Lasso | Width, Contrast, Frequency (`magneticLasso*Spin`) | `magneticLassoWidth`, `...EdgeContrast`, `...Frequency` | yes | yes |
 | Magic Wand | Tolerance, Contiguous, Sample All Layers | `wandTolerance`, `wandContiguous`, `wandSampleAllLayers` | yes | yes |
+| Magic Wand | Sample (`wandSampleSizeCombo`, the Pick tool's Size shared; GitHub issue 435) | `eyedropperSampleSize` | yes | yes |
 | Quick Select | Size, Sample All Layers, Enhance Edge | `quickSelectSize`, `...SampleAllLayers`, `...EnhanceEdge` | yes | yes |
 | Object Selection | Sample All Layers, Model | `objectSelectSampleAllLayers`, `objectSelectModel` | yes | yes |
 | Crop | Style, ratio W/H, Delete Cropped Pixels, Delete Layers | `cropStyle`, `cropRatioWidth`, `cropRatioHeight`, `cropDeletePixels`, `cropDeleteLayers` | yes | yes |
