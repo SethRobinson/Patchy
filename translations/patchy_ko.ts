@@ -13012,10 +13012,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>끄면 &gt; 화살표로 열을 더 엽니다.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>팔레트에 톱니바퀴 버튼 표시</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>도구</translation>
     </message>

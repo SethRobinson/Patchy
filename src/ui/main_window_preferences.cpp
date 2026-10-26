@@ -942,6 +942,21 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* gui_scale_label = new QLabel(tr("Interface scale:"), application_group);
   gui_scale_label->setBuddy(gui_scale_combo);
   application_form->addRow(gui_scale_label, scale_row);
+  // Customize Tool Palette right under the toolbar icon size (GitHub issue 213), on a line of
+  // its own: the scale row is already full in the longer languages. It opens as a child of
+  // Preferences and applies its own choice on its own OK.
+  auto* customize_palette_row = new QWidget(application_group);
+  customize_palette_row->setObjectName(QStringLiteral("preferencesCustomizeToolPaletteRow"));
+  auto* customize_palette_layout = new QHBoxLayout(customize_palette_row);
+  customize_palette_layout->setContentsMargins(0, 0, 0, 0);
+  auto* customize_palette_button = new QPushButton(tr("Customize Tool Palette..."), customize_palette_row);
+  customize_palette_button->setObjectName(QStringLiteral("preferencesCustomizeToolPaletteButton"));
+  customize_palette_button->setAutoDefault(false);
+  connect(customize_palette_button, &QPushButton::clicked, &dialog,
+          [this, &dialog] { show_tool_palette_customization(ToolPaletteCustomizeTab::Tools, &dialog); });
+  customize_palette_layout->addWidget(customize_palette_button);
+  customize_palette_layout->addStretch(1);
+  application_form->addRow(QString(), customize_palette_row);
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
   // Linux only: the desktop's own title bar and frame instead of the frameless chrome
@@ -2218,6 +2233,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     /* Plain-QWidget field containers inherit the global QWidget background, which
        shows as a mismatched band against the panel_card_bg panels. */
     QDialog#patchyPreferencesDialog QWidget#preferencesInterfaceScaleRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesCustomizeToolPaletteRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesUpdateCheckRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesRecoveryRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesVisibilityRow,

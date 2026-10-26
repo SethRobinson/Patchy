@@ -10,6 +10,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFont>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -33,7 +34,7 @@ namespace {
 QString hidden_tools_key() { return QStringLiteral("toolPalette/hiddenTools"); }
 QString layout_key() { return QStringLiteral("toolPalette/layout"); }
 QString wheel_scroll_key() { return QStringLiteral("toolPalette/wheelScroll"); }
-QString show_customize_button_key() { return QStringLiteral("toolPalette/showCustomizeButton"); }
+// toolPalette/showCustomizeButton belonged to the palette's gear, since removed: never reuse it.
 QString hidden_layer_buttons_key() { return QStringLiteral("layersPanel/hiddenFooterButtons"); }
 // The layout token; anything else (or nothing) is one column.
 constexpr auto kTwoColumnsToken = "two_columns";
@@ -48,8 +49,8 @@ QStringList normalized_ids(QStringList ids) {
 // The id stored on a tree row or list item.
 constexpr int kIdRole = Qt::UserRole;
 
-// A painted miniature of the palette (mockup 1's preview): the gear, the slots in one or two
-// columns with the cluster separators, and the color well. It repaints from the choice the
+// A painted miniature of the palette (mockup 1's preview): the slots in one or two columns
+// with the cluster separators, and the color well. It repaints from the choice the
 // dialog's controls hold, so it follows every tick.
 class ToolPalettePreview final : public QWidget {
 public:
@@ -74,11 +75,6 @@ protected:
     painter.drawLine(width() - 1, 0, width() - 1, height() - 1);
     const int columns = customization_.two_columns ? 2 : 1;
     int y = kMargin;
-    if (customization_.show_customize_button) {
-      const int side = kGearHeight - 2;
-      catalog_.customize_icon.paint(&painter, QRect((width() - 1 - side) / 2, y + 1, side, side));
-      y += kGearHeight + kSpacing;
-    }
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
       const auto icons = visible_icons(cluster);
@@ -119,7 +115,6 @@ private:
   static constexpr int kCellHeight = 19;
   static constexpr int kIcon = 15;
   static constexpr int kSpacing = 1;
-  static constexpr int kGearHeight = 13;
   static constexpr int kSeparatorMargin = 2;
   static constexpr int kSeparatorExtent = 2 * kSeparatorMargin + 1;
   static constexpr int kSwatch = 14;
@@ -142,9 +137,6 @@ private:
   [[nodiscard]] QSize content_size() const {
     const int columns = customization_.two_columns ? 2 : 1;
     int height = kMargin;
-    if (customization_.show_customize_button) {
-      height += kGearHeight + kSpacing;
-    }
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
       const auto count = static_cast<int>(visible_icons(cluster).size());
@@ -181,7 +173,6 @@ ToolPaletteCustomization stored_tool_palette_customization() {
   value.hidden_tools = settings.value(hidden_tools_key()).toStringList();
   value.two_columns = settings.value(layout_key()).toString() == QLatin1String(kTwoColumnsToken);
   value.wheel_scroll = settings.value(wheel_scroll_key(), true).toBool();
-  value.show_customize_button = settings.value(show_customize_button_key(), true).toBool();
   value.hidden_layer_buttons = settings.value(hidden_layer_buttons_key()).toStringList();
   return normalized_tool_palette_customization(std::move(value));
 }
@@ -208,11 +199,6 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
     settings.remove(wheel_scroll_key());
   } else {
     settings.setValue(wheel_scroll_key(), false);
-  }
-  if (normalized.show_customize_button) {
-    settings.remove(show_customize_button_key());
-  } else {
-    settings.setValue(show_customize_button_key(), false);
   }
 }
 
@@ -245,7 +231,8 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
   tree->setSelectionMode(QAbstractItemView::NoSelection);
   tree->setFocusPolicy(Qt::StrongFocus);
   tree->setIconSize(QSize(16, 16));
-  tree->setUniformRowHeights(true);
+  // The cluster headings are taller than the tool rows.
+  tree->setUniformRowHeights(false);
   tree->header()->setStretchLastSection(false);
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
   tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
@@ -276,9 +263,6 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
   wheel_hint->setObjectName(QStringLiteral("toolPaletteWheelScrollHint"));
   wheel_hint->setIndent(22);
   side->addWidget(wheel_hint);
-  auto* show_gear = new QCheckBox(QObject::tr("Show the gear button on the palette"), tools_page);
-  show_gear->setObjectName(QStringLiteral("toolPaletteShowGearCheck"));
-  side->addWidget(show_gear);
   side->addSpacing(10);
   auto* preview_label = new QLabel(QObject::tr("Preview"), tools_page);
   preview_label->setFont(heading_font);
@@ -322,6 +306,9 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
     header->setFirstColumnSpanned(true);
     header->setFont(0, heading_font);
     header->setForeground(0, theme().text_secondary);
+    // Padding above and below the heading, from the font rather than a fixed height.
+    header->setSizeHint(0, QSize(0, QFontMetrics(heading_font).height() + 18));
+    header->setTextAlignment(0, Qt::AlignLeft | Qt::AlignBottom);
     for (const auto& entry : cluster.entries) {
       auto* row = new QTreeWidgetItem(header);
       const auto& lead = entry.members.front();
@@ -382,11 +369,20 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
     }
     value.two_columns = two_columns->isChecked();
     value.wheel_scroll = wheel_scroll->isChecked();
-    value.show_customize_button = show_gear->isChecked();
     for (int index = 0; index < layer_list->count(); ++index) {
       auto* item = layer_list->item(index);
       if (item->checkState() != Qt::Checked) {
         value.hidden_layer_buttons.push_back(item->data(kIdRole).toString());
+      }
+    }
+    // As with tools, a button id this build does not know stays as it was.
+    for (const auto& id : current.hidden_layer_buttons) {
+      bool listed = false;
+      for (const auto& button : catalog.layer_buttons) {
+        listed = listed || button.id == id;
+      }
+      if (!listed) {
+        value.hidden_layer_buttons.push_back(id);
       }
     }
     return normalized_tool_palette_customization(std::move(value));
@@ -417,7 +413,6 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
     }
     (value.two_columns ? two_columns : one_column)->setChecked(true);
     wheel_scroll->setChecked(value.wheel_scroll);
-    show_gear->setChecked(value.show_customize_button);
     for (int index = 0; index < layer_list->count(); ++index) {
       auto* item = layer_list->item(index);
       item->setCheckState(value.hidden_layer_buttons.contains(item->data(kIdRole).toString()) ? Qt::Unchecked
@@ -431,8 +426,7 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
 
   QObject::connect(tree, &QTreeWidget::itemChanged, &dialog, [&](QTreeWidgetItem*, int) { refresh_preview(); });
   QObject::connect(layer_list, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) { refresh_preview(); });
-  for (auto* box : {static_cast<QAbstractButton*>(two_columns), static_cast<QAbstractButton*>(wheel_scroll),
-                    static_cast<QAbstractButton*>(show_gear)}) {
+  for (auto* box : {static_cast<QAbstractButton*>(two_columns), static_cast<QAbstractButton*>(wheel_scroll)}) {
     QObject::connect(box, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_preview(); });
   }
 

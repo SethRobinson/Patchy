@@ -13049,10 +13049,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Altrimenti la freccia &gt; apre altre colonne.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Mostra il pulsante a ingranaggio nella palette</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Strumenti</translation>
     </message>

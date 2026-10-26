@@ -13086,10 +13086,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>W przeciwnym razie strzałka &gt; otwiera kolejne kolumny.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Pokaż przycisk koła zębatego na palecie</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Narzędzia</translation>
     </message>

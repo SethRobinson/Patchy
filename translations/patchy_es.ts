@@ -13049,10 +13049,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Si no, la flecha &gt; abre más columnas.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Mostrar el botón de engranaje en la paleta</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Herramientas</translation>
     </message>

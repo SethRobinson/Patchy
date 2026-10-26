@@ -13032,10 +13032,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation type="unfinished"></translation>
     </message>

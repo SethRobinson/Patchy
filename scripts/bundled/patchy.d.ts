@@ -1643,6 +1643,7 @@ interface PatchyUi {
     hiddenTools?: string[];
     layout?: "oneColumn" | "twoColumns";
     wheelScroll?: boolean;
+    /** No longer used: the palette has no gear. Reads false; setting it does nothing. */
     showGearButton?: boolean;
     hiddenLayerButtons?: string[];
   };

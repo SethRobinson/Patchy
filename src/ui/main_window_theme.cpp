@@ -248,15 +248,9 @@ QString photoshop_style_template() {
     QMenu#layerFooterButtonsMenu QWidget#layerFooterToggleRow, QMenu#layerFooterButtonsMenu QCheckBox {
       background: transparent;
     }
-    /* The gear's holder and the two-column rows only arrange buttons: the bar shows through. */
-    QToolBar#toolPalette QWidget#toolPaletteCustomizeHolder, QToolBar#toolPalette QWidget#toolPaletteRow {
+    /* The two-column rows only arrange buttons: the bar shows through. */
+    QToolBar#toolPalette QWidget#toolPaletteRow {
       background: transparent;
-    }
-    /* The gear above the tools (Customize Tool Palette) sits in a shorter row. */
-    QToolBar#toolPalette QToolButton#toolPaletteCustomizeButton {
-      min-height: @tp(16)px;
-      max-height: @tp(16)px;
-      padding: 0;
     }
     QToolBar#toolPalette QPushButton {
       min-width: @tp(26)px;
@@ -614,7 +608,16 @@ QString photoshop_style_template() {
       color: @text_on_accent;
       border: 1px solid @category_selected_border;
     }
-    /* Customize Tool Palette's tickable rows (the rule above hides list indicators). */
+    /* Customize Tool Palette's rows: room for the tick and the icon with a clear gap above
+       and below (the cluster headings get more through their size hint), and the checkbox look
+       (the rule above hides list indicators). */
+    QTreeWidget#toolPaletteCustomizeTree::item {
+      min-height: 26px;
+    }
+    QListWidget#layerFooterButtonsList::item {
+      min-height: 30px;
+      padding: 0 4px;
+    }
     QTreeWidget#toolPaletteCustomizeTree::indicator, QListWidget#layerFooterButtonsList::indicator {
       width: 12px;
       height: 12px;

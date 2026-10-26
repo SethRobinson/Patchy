@@ -447,9 +447,6 @@ QString plain_tool_button_object_name(CanvasTool tool) {
   return name + QStringLiteral("ToolButton");
 }
 
-// The gear's icon, a little smaller than the tools' (its row is shorter).
-int customize_button_icon_extent(double factor) { return tool_palette_length(14, factor); }
-
 class MouseDoubleClickFilter final : public QObject {
 public:
   MouseDoubleClickFilter(std::function<void()> callback, QObject* parent)
@@ -1089,8 +1086,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   tool_action_group_ = tool_group;
 
   // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md,
-  // "Customizing the palette"): the gear above the tools, Window > Customize Tool
-  // Palette..., and the palette's right-click menu all open the dialog.
+  // "Customizing the palette"): Window > Customize Tool Palette..., the palette's
+  // right-click menu and a Preferences button open the dialog.
   tool_palette_customization_ = stored_tool_palette_customization();
   customize_tool_palette_action_ = new QAction(tr("Customize Tool Palette..."), this);
   customize_tool_palette_action_->setObjectName(QStringLiteral("windowCustomizeToolPaletteAction"));
@@ -1105,25 +1102,10 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   if (ctx.window_menu != nullptr && window_panels_separator_ != nullptr) {
     ctx.window_menu->insertAction(window_panels_separator_, customize_tool_palette_action_);
   }
-  // The gear sits in a holder: a QToolButton whose parent is the toolbar always draws the
-  // bar's icon size, and the gear's row is shorter than a tool's.
-  auto* customize_holder = new QWidget(tool_palette);
-  customize_holder->setObjectName(QStringLiteral("toolPaletteCustomizeHolder"));
-  auto* customize_holder_layout = new QHBoxLayout(customize_holder);
-  customize_holder_layout->setContentsMargins(0, 0, 0, 0);
-  auto* customize_button = new QToolButton(customize_holder);
-  customize_button->setObjectName(QStringLiteral("toolPaletteCustomizeButton"));
-  customize_button->setDefaultAction(customize_tool_palette_action_);
-  customize_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  customize_button->setAutoRaise(true);
-  customize_button->setFocusPolicy(Qt::NoFocus);
-  const int customize_icon = customize_button_icon_extent(tool_palette_factor_);
-  customize_button->setIconSize(QSize(customize_icon, customize_icon));
-  customize_holder_layout->addWidget(customize_button);
   auto* palette_stash = new QWidget(this);
   palette_stash->setObjectName(QStringLiteral("toolPaletteStash"));
   palette_stash->hide();
-  tool_palette_layout_ = new ToolPaletteLayout(tool_palette, customize_holder, palette_stash);
+  tool_palette_layout_ = new ToolPaletteLayout(tool_palette, palette_stash);
 
   // The palette is ordered in clusters split by separators: select, paint,
   // retouch, draw/type, view. Tools sharing a slot get a flyout button.
@@ -1673,9 +1655,6 @@ ToolPaletteCatalog MainWindow::tool_palette_catalog() const {
   for (const auto& footer : layer_footer_buttons_) {
     catalog.layer_buttons.push_back({QString::fromLatin1(footer.id), tr(footer.name_source), footer.button->icon()});
   }
-  if (customize_tool_palette_action_ != nullptr) {
-    catalog.customize_icon = customize_tool_palette_action_->icon();
-  }
   if (primary_color_button_ != nullptr && secondary_color_button_ != nullptr) {
     catalog.foreground = primary_color_button_->color();
     catalog.background = secondary_color_button_->color();
@@ -1683,7 +1662,7 @@ ToolPaletteCatalog MainWindow::tool_palette_catalog() const {
   return catalog;
 }
 
-void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab) {
+void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab, QWidget* parent) {
   // One dialog at a time: a second way in brings the open one forward on its tab.
   if (auto* open = findChild<QDialog*>(QStringLiteral("toolPaletteCustomizeDialog")); open != nullptr) {
     if (auto* tabs = open->findChild<QTabWidget*>(QStringLiteral("toolPaletteCustomizeTabs")); tabs != nullptr) {
@@ -1694,7 +1673,10 @@ void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab) {
     return;
   }
   const auto catalog = tool_palette_catalog();
-  if (const auto chosen = request_tool_palette_customization(this, catalog, tool_palette_customization_, tab);
+  // Opened from Preferences, the dialog is its child, so it closes with Preferences
+  // (run_non_modal_dialog rejects children when their parent finishes).
+  if (const auto chosen = request_tool_palette_customization(parent != nullptr ? parent : this, catalog,
+                                                             tool_palette_customization_, tab);
       chosen.has_value()) {
     apply_tool_palette_customization(*chosen);
   }
@@ -1787,11 +1769,6 @@ void MainWindow::apply_tool_palette_factor(double factor) {
     if (button->property("toolFlyout").toBool() && button->menu() != nullptr) {
       button->menu()->setStyleSheet(tool_flyout_menu_style(icon_extent));
     }
-  }
-  if (auto* customize_button = palette->findChild<QToolButton*>(QStringLiteral("toolPaletteCustomizeButton"));
-      customize_button != nullptr) {
-    const int customize_icon = customize_button_icon_extent(factor);
-    customize_button->setIconSize(QSize(customize_icon, customize_icon));
   }
   setStyleSheet(photoshop_style(factor));
 }

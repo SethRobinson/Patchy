@@ -13049,10 +13049,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Sinon, la flèche &gt; ouvre d&apos;autres colonnes.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Afficher le bouton engrenage sur la palette</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Outils</translation>
     </message>
