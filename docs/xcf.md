@@ -63,7 +63,8 @@ nesting past 64 and hostile counts read as damage. Truncated and mutated files a
 
 With deep editing off every precision opens at 8 bits with a notice. Gray layers widen to
 RGB; indexed layers expand through the colormap (at most 256 entries), alpha on or off at
-128 as GIMP renders it, and the colormap becomes the document's attached palette. Masks,
+128 as GIMP renders it, and the colormap becomes the document's attached palette in file order,
+so the open path offers Palette mode as for an indexed PNG ([palette-mode.md](palette-mode.md)). Masks,
 channels and the selection are coverage: their values are kept whatever the curve. The
 `icc-profile` parasite becomes the embedded profile of an RGB image, which the open path
 converts to sRGB like every format ([rgb-profiles.md](rgb-profiles.md)). Known gap: 8 and

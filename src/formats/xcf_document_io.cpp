@@ -3294,6 +3294,12 @@ private:
     document.add_channel(std::move(saved));
   }
   add_paths(document, paths);
+  if (base == 2 && !build.colormap.empty()) {
+    // The colormap in file order, so the open path offers Palette mode like an indexed PNG.
+    const auto count = build.colormap.size();
+    const std::uint16_t index_bits = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
+    document.indexed_palette() = DocumentIndexedPalette{build.colormap, index_bits};
+  }
 
   // Image parasites: the ICC profile, the comment, Exif and XMP, then GIMP's metadata tag
   // list filling what those left out.
