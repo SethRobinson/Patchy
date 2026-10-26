@@ -293,7 +293,8 @@ bool CanvasWidget::pointer_gesture_active() const noexcept {
          crop_dragging_out_ || crop_rotating_ ||
          crop_drag_handle_ != TransformHandle::None || pen_handle_dragging_ ||
          pen_session_drag_anchor_ >= 0 || path_drag_mode_ != PathEditDrag::None ||
-         path_transform_drag_handle_ != TransformHandle::None || artboard_drag_active();
+         path_transform_drag_handle_ != TransformHandle::None || artboard_drag_active() ||
+         ruler_drag_part_ != RulerPart::None;
 }
 
 void CanvasWidget::set_tiling_preview_enabled(bool enabled) {
@@ -352,6 +353,11 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
       document_ != nullptr && document_->width() == document->width() &&
       document_->height() == document->height();
   const bool quick_mask_was_cleared = quick_mask_active_ && !preserve_quick_mask;
+  // The Ruler line survives a history restore of the same size; another document or a
+  // new canvas size clears it (docs/pick-tool.md).
+  const bool keep_ruler_line = preserve_frame_for_same_size && document != nullptr && document_ != nullptr &&
+                               document_->width() == document->width() &&
+                               document_->height() == document->height();
   if (quick_mask_was_cleared) {
     quick_mask_trace(QStringLiteral("Quick Mask off: the canvas's document was replaced"));
     quick_mask_active_ = false;
@@ -486,6 +492,11 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   cancel_patch_tool_drag();
   cancel_crop_session();
   cancel_perspective_crop_session();
+  if (keep_ruler_line) {
+    cancel_ruler_drag();
+  } else {
+    clear_ruler_line();
+  }
   begin_default_crop_session();  // the Crop tool frames the incoming document
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
@@ -525,6 +536,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     }
     pen_temp_direct_select_ = false;
     shape_temp_path_select_ = false;
+    move_vector_mask_drag_ = false;
     shape_ctrl_path_select_ = false;
     arrow_swap_active_ = false;
     path_selection_by_path_select_ = tool == CanvasTool::PathSelect;
@@ -540,6 +552,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     // switch must not resize the document.
     cancel_crop_session();
     cancel_perspective_crop_session();
+    cancel_ruler_drag();
     cancel_artboard_drag();
     commit_path_transform();  // tool switches commit, like the pen session
     finish_free_transform();
@@ -623,6 +636,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     cancel_patch_tool_drag();
     cancel_crop_session();
     cancel_perspective_crop_session();
+    cancel_ruler_drag();
     moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;

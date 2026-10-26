@@ -23,6 +23,7 @@
     <file alias="quick-mask-on.svg">icons/quick-mask-on.svg</file>
     <file alias="link.svg">icons/link.svg</file>
     <file alias="gear.svg">icons/gear.svg</file>
+    <file alias="brush-dynamics.svg">icons/brush-dynamics.svg</file>
     <file alias="off.svg">icons/off.svg</file>
     <file alias="invert.svg">icons/invert.svg</file>
     <file alias="apply.svg">icons/apply.svg</file>
@@ -104,6 +105,7 @@
     <file alias="tool-red-eye.svg">icons/tool-red-eye.svg</file>
     <file alias="tool-crop.svg">icons/tool-crop.svg</file>
     <file alias="tool-perspective-crop.svg">icons/tool-perspective-crop.svg</file>
+    <file alias="tool-ruler.svg">icons/tool-ruler.svg</file>
     <file alias="tool-artboard.svg">icons/tool-artboard.svg</file>
     <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
     <file alias="tool-mixer-brush.svg">icons/tool-mixer-brush.svg</file>

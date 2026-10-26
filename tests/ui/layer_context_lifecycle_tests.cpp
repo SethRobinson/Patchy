@@ -3372,10 +3372,11 @@ void ui_new_document_recent_row_review_captures() {
   QApplication::clipboard()->clear();
 }
 
-// New Document fits short screens (GitHub issue 342): five card columns, the Recent row as
-// the top section of the template list under one frame, a caption naming the group (or the
-// search), and every group unscrolled (Mobile has the most, 12), in a dialog no taller than
-// about 620 px at the default font.
+// New Document fits short screens (GitHub issue 342): the search field and the group chips on
+// one row across the top, over both the template list and the settings; five card columns,
+// the Recent row as the top section of the template list under one frame, a caption naming
+// the group (or the search), and every group unscrolled (Mobile has the most, 12), in a
+// dialog no taller than about 540 px at the default font.
 void ui_new_document_dialog_fits_short_screens() {
   using new_document_recent::list;
   using new_document_templates::card_ids;
@@ -3401,7 +3402,7 @@ void ui_new_document_dialog_fits_short_screens() {
     mobile_chip->click();
     QApplication::processEvents();
     save_widget_artifact("issue_342_new_document_mobile", dialog);
-    CHECK(dialog.height() <= 620);
+    CHECK(dialog.height() <= 540);
     CHECK(presets->viewport()->height() >= 3 * presets->gridSize().height());
     CHECK(presets->count() == 12);
     CHECK(!presets->verticalScrollBar()->isVisible());
@@ -3423,6 +3424,24 @@ void ui_new_document_dialog_fits_short_screens() {
     CHECK(recent->parentWidget() == frame && presets->parentWidget() == frame);
     CHECK(group_label->isVisible() && group_label->text() == QStringLiteral("Mobile"));
     CHECK(recent->frameShape() == QFrame::NoFrame && presets->frameShape() == QFrame::NoFrame);
+
+    // The search field and the chips share the top row, above the list frame and the settings.
+    auto* chip_row = dialog.findChild<QWidget*>(QStringLiteral("newDocumentChipRow"));
+    auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentNameEdit"));
+    CHECK(chip_row != nullptr && name != nullptr);
+    if (chip_row == nullptr || name == nullptr) {
+      dialog.reject();
+      return;
+    }
+    const auto in_dialog = [&dialog](const QWidget* widget) {
+      return QRect(widget->mapTo(&dialog, QPoint(0, 0)), widget->size());
+    };
+    CHECK(std::abs(in_dialog(search).top() - in_dialog(mobile_chip).top()) <= 4);
+    CHECK(in_dialog(search).right() < in_dialog(chip_row).left());
+    const auto top_row_bottom = std::max(in_dialog(search).bottom(), in_dialog(chip_row).bottom());
+    CHECK(in_dialog(frame).top() > top_row_bottom);
+    CHECK(in_dialog(name).top() > top_row_bottom);
+    CHECK(std::abs(in_dialog(frame).top() - in_dialog(name).top()) <= 8);
 
     // The chips sit on one row, and every group fits without a scroll bar.
     int chip_top = -1;

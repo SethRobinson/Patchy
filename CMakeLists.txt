@@ -1184,6 +1184,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/artboard_preset_picker.cpp
   src/ui/canvas_widget_crop.cpp
   src/ui/canvas_widget_perspective_crop.cpp
+  src/ui/canvas_widget_ruler.cpp
+      src/ui/ruler_tool.hpp
+      src/ui/ruler_tool.cpp
       src/ui/canvas_widget_cursors.cpp
       src/ui/canvas_widget_draw_tools.cpp
       src/ui/eyedropper_sample_overlay.hpp
@@ -1386,6 +1389,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/appearance_properties.cpp
       src/ui/shape_create_dialog.hpp
       src/ui/shape_create_dialog.cpp
+      src/ui/mask_properties_dialog.hpp
+      src/ui/mask_properties_dialog.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/unit_spin_box.hpp
@@ -2348,6 +2353,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/crop_tool_tests.cpp
+      tests/ui/ruler_tool_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/deep_operation_audit_tests.cpp
@@ -2398,6 +2404,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/float_window_tests.cpp
       tests/ui/document_rename_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
+      tests/ui/vector_mask_editing_tests.cpp
       tests/ui/batch_appearance_tests.cpp
       tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp

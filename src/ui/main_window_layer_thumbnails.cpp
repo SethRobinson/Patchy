@@ -22,6 +22,7 @@
 #include <QStatusBar>
 #include <QString>
 #include <QStringLiteral>
+#include <QTimer>
 
 #include <array>
 #include <cstddef>
@@ -209,6 +210,25 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
     }
     toggle->setObjectName(QStringLiteral("layerMaskThumbnailToggleAction"));
     toggle->setEnabled(!pixels_locked);
+    if (vector_mask) {
+      const bool linked = !layer->vector_mask()->unlinked;
+      auto* link = menu.addAction(linked ? tr("Unlink Vector Mask") : tr("Link Vector Mask"));
+      link->setObjectName(QStringLiteral("layerVectorMaskThumbnailLinkAction"));
+      link->setEnabled(!pixels_locked);
+      connect(link, &QAction::triggered, this, [this, linked] { set_active_layer_vector_mask_linked(!linked); });
+    }
+    auto* properties = menu.addAction(tr("Mask Properties..."));
+    properties->setObjectName(QStringLiteral("layerMaskThumbnailPropertiesAction"));
+    properties->setEnabled(!pixels_locked);
+    connect(properties, &QAction::triggered, this, [this, id, vector_mask] {
+      // After the menu's own loop ends: the dialog runs one too.
+      const auto session_id = session().session_id;
+      QTimer::singleShot(0, this, [this, id, vector_mask, session_id] {
+        if (has_active_document() && session().session_id == session_id) {
+          edit_layer_mask_properties(id, vector_mask);
+        }
+      });
+    });
     menu.addSeparator();
     // The Layer menu's own commands, so their shortcuts show and their state is the menu's.
     const auto add_shared = [&menu](QAction* action) {

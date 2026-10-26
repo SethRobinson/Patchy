@@ -12755,6 +12755,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>打开文档时不显示（可在 首选项 &gt; 应用程序 中重新开启）</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>标尺工具</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>图层与矢量蒙版已链接。单击可取消链接。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>图层与矢量蒙版未链接。单击可链接。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>矢量蒙版属性</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>图层蒙版属性</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>蒙版隐藏区域的不透明度。低于 100% 时图层会透过这些区域显示。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>按此像素数柔化蒙版边缘</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14660,6 +14688,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>正在隐藏额外内容</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>拉直图层</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>矢量蒙版还没有可移动的路径。请用钢笔或形状工具绘制一条。</translation>
     </message>
 </context>
 <context>
@@ -26092,6 +26128,206 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>没有图层带有帧时间</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>屏幕模式(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>标准(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>带菜单的全屏(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>全屏(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>切换屏幕模式(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>退出全屏</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>按 %1 或 Esc 退出全屏</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>按 Esc 退出全屏</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>没有可裁切的内容：在容差范围内每个像素都是透明的。请降低容差。</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>没有可裁切的内容：每个像素都在裁切颜色的容差范围内。请降低容差。</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>起点的水平位置</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>起点的垂直位置</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>从起点到终点的水平距离</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>从起点到终点的垂直距离 (向下为正)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>线条相对水平方向的逆时针角度；有两条边时为两边之间的角度</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>线条长度</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>第二条边的长度 (%ALT%+拖动端点可添加)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>拉直图层</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>旋转当前图层使线条水平 (更接近垂直时则使其垂直)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>拉直图像</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>旋转整个图像使线条水平，并裁掉空白的角落</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>移除测量线</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>标尺工具</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>拖动以测量，Shift 保持 45 度。拖动端点或线条可调整，%ALT%+拖动端点可测量角度。</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>标尺工具：拖动以测量，Shift 保持 45 度。拖动端点或线条可调整，%ALT%+拖动端点可添加第二条边并测量两边之间的角度。拉直会使线条水平。</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>吸管工具</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>循环切换吸管工具</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>请先用标尺工具画一条线</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>线条已经是直的</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>请选择要拉直的图层</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>已将图层逆时针拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>已将图层顺时针拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>已将图像逆时针拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>已将图像顺时针拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>正在编辑矢量蒙版：用钢笔或形状工具绘制路径或形状来遮盖图层</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>取消链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>蒙版属性...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>已添加矢量蒙版。用钢笔或形状工具绘制路径或形状来遮盖图层</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>取消链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>图层与矢量蒙版已链接</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>图层与矢量蒙版已取消链接</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>矢量蒙版属性</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>图层蒙版属性</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>已更改矢量蒙版的密度和羽化</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>已更改图层蒙版的密度和羽化</translation>
     </message>
     <message>
         <source>Export Theme Package...</source>

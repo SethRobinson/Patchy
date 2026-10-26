@@ -792,6 +792,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Ruler && document_ != nullptr && event->button() == Qt::LeftButton &&
+      !((event->modifiers() & Qt::ControlModifier) != 0 && guide_at_widget_position(event->pos()) >= 0)) {
+    // The Ruler owns every left press (Ctrl on a guide still drags the guide): an end,
+    // the line, or a new line, on the canvas or the pasteboard.
+    handle_ruler_press(event);
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::PerspectiveCrop && document_ != nullptr && event->button() == Qt::LeftButton) {
     // Perspective Crop owns every left press: corners, the inside, click placement
     // and the first drag, on the canvas or the pasteboard.
@@ -1165,6 +1174,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Move && handle_move_vector_mask_press(event, document_position_f(event->position()))) {
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::Move) {
     const ZoomTraceScope press_trace("move_press", zoom_);
     Layer* top_clicked_layer = nullptr;
@@ -1947,6 +1960,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
   }
 
+  if (move_vector_mask_drag_) {
+    handle_path_edit_move(event, document_position_f(event->position()));
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     handle_path_edit_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
@@ -2008,6 +2027,16 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Artboard) {
     clear_move_hover_outline();
     update_artboard_tool_cursor(event->pos());
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Ruler && !dragging_guide_) {
+    clear_move_hover_outline();
+    if (ruler_drag_part_ != RulerPart::None) {
+      update_ruler_drag(document_position_f(event->position()), event->modifiers());
+    }
+    update_ruler_cursor(event->pos());
     last_mouse_position_ = event->pos();
     return;
   }
@@ -2707,6 +2736,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  if (move_vector_mask_drag_ && event->button() == Qt::LeftButton) {
+    handle_path_edit_release(event);
+    move_vector_mask_drag_ = false;
+    clear_path_edit_selection();
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     if (handle_path_edit_release(event)) {
       if (!path_transform_active_) {
@@ -2780,6 +2816,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->button() == Qt::LeftButton) {
+    finish_ruler_drag(event);
+    event->accept();
     return;
   }
 
@@ -4091,6 +4133,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     }
   }
 
+  if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->key() == Qt::Key_Escape) {
+    // Esc mid-drag puts the line back as it was before the press.
+    cancel_ruler_drag();
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::PerspectiveCrop && perspective_crop_session_pending()) {
     if (event->key() == Qt::Key_Escape) {
       cancel_perspective_crop_session();
@@ -4326,6 +4375,15 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       event->accept();
       return;
     }
+  }
+  // A full-screen screen mode takes the unused Escape before layer deselection
+  // (GitHub issue 212): it is the way back without menus, so it must not depend
+  // on the layer selection being empty.
+  if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier && !event->isAutoRepeat() &&
+      !pointer_gesture_active() && !transforming_layer_ && !warping_layer_ && unused_escape_callback_ &&
+      unused_escape_callback_()) {
+    event->accept();
+    return;
   }
   // Lowest-priority Escape: every cancelable session above (gestures, pen
   // and path editing, magnetic lasso, guides, warp, free transform, crop, text

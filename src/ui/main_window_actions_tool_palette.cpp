@@ -136,6 +136,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fill");
     case CanvasTool::Eyedropper:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pick");
+    case CanvasTool::Ruler:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ruler");
     case CanvasTool::Text:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type");
     case CanvasTool::Pan:
@@ -232,6 +234,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.fill");
     case CanvasTool::Eyedropper:
       return QStringLiteral("tools.eyedropper");
+    case CanvasTool::Ruler:
+      return QStringLiteral("tools.ruler");
     case CanvasTool::Text:
       return QStringLiteral("tools.type");
     case CanvasTool::Pan:
@@ -307,6 +311,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag a box or click four corners around a skewed area, then drag the "
              "corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a "
              "rectangle.");
+    case CanvasTool::Ruler:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust "
+             "it, %ALT%+drag an end to measure an angle.");
     default:
       return nullptr;
   }
@@ -340,6 +347,10 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it "
              "(Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc "
              "clears the corners.");
+    case CanvasTool::Ruler:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to "
+             "adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten "
+             "levels the line.");
     case CanvasTool::AddAnchor:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Anchor Point: click a path segment to insert a point.");
     case CanvasTool::DeleteAnchor:
@@ -1004,6 +1015,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::PerspectiveCrop:
       name = "tool-perspective-crop";
       break;
+    case CanvasTool::Ruler:
+      name = "tool-ruler";
+      break;
     case CanvasTool::AddAnchor:
       name = "tool-add-anchor";
       break;
@@ -1353,7 +1367,17 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
   tool_palette->addSeparator();
 
-  add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
+  // Pick and Ruler share a slot, as in Photoshop (docs/pick-tool.md, GitHub issue 331).
+  auto* pick_menu = new QMenu(tr("Pick Tools"), tool_palette);
+  pick_menu->setObjectName(QStringLiteral("pickToolMenu"));
+  bind_widget_text(pick_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pick Tools"));
+  auto* pick_action = create_flyout_tool_action(pick_menu, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
+  auto* ruler_action = create_flyout_tool_action(pick_menu, tr("Ruler"), CanvasTool::Ruler, QKeySequence());
+  auto* pick_tool_button = new QToolButton(tool_palette);
+  pick_tool_button->setObjectName(QStringLiteral("pickToolButton"));
+  configure_tool_flyout(tool_palette, pick_menu, pick_tool_button, pick_action, {pick_action, ruler_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Pick Tools"),
+                        "toolCyclePickAction", "tools.cycle.pick", QKeySequence(Qt::SHIFT | Qt::Key_I));
   add_tool_action(tool_palette, tool_group, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H));
   auto* zoom_tool_action = add_tool_action(tool_palette, tool_group, tr("Zoom"), CanvasTool::Zoom, QKeySequence(Qt::Key_Z));
   if (auto* zoom_button = qobject_cast<QToolButton*>(tool_palette->widgetForAction(zoom_tool_action));

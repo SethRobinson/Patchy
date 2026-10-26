@@ -12755,6 +12755,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>문서를 열 때 표시 안 함 (환경설정 &gt; 애플리케이션에서 다시 켤 수 있음)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>자</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>레이어와 벡터 마스크가 연결되어 있습니다. 연결을 해제하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>레이어와 벡터 마스크가 연결 해제되었습니다. 연결하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>마스크로 숨겨진 영역의 불투명도입니다. 100% 미만이면 그 영역에서도 레이어가 비쳐 보입니다.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>마스크 가장자리를 이 픽셀 수만큼 부드럽게 합니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14660,6 +14688,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>표시자를 숨깁니다</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>벡터 마스크에 아직 이동할 패스가 없습니다. 펜이나 모양 도구로 그리세요.</translation>
     </message>
 </context>
 <context>
@@ -26092,6 +26128,206 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>프레임 시간이 있는 레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>화면 모드(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>표준(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>메뉴가 있는 전체 화면(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>전체 화면(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>화면 모드 전환(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>전체 화면 종료</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>%1 또는 Esc 키를 누르면 전체 화면이 종료됩니다</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Esc 키를 누르면 전체 화면이 종료됩니다</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>재단할 것이 없습니다: 모든 픽셀이 허용치 안에서 투명합니다. 허용치를 낮추세요.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>재단할 것이 없습니다: 모든 픽셀이 재단 색상의 허용치 안에 있습니다. 허용치를 낮추세요.</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>각도:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>시작점의 가로 위치</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>시작점의 세로 위치</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>시작점에서 끝점까지의 가로 거리</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>시작점에서 끝점까지의 세로 거리 (아래쪽이 양수)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>가로선에서 시계 반대 방향으로 잰 선의 각도. 두 변이 있으면 그 사이의 각도</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>선의 길이</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>두 번째 변의 길이 (끝을 %ALT%+드래그하면 추가)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>선이 수평이 되도록 활성 레이어를 회전 (세로에 더 가까우면 수직으로)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>이미지 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>선이 수평이 되도록 이미지 전체를 회전하고 빈 모서리를 잘라 냅니다</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>측정선 제거</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>자</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>드래그하여 측정하고 Shift는 45도 단위로 고정합니다. 끝이나 선을 드래그해 조정하고, 끝을 %ALT%+드래그하면 각도를 잽니다.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>자: 드래그하여 측정하고 Shift는 45도 단위로 고정합니다. 끝이나 선을 드래그해 조정하고, 끝을 %ALT%+드래그하면 두 번째 변을 추가해 사이 각도를 잽니다. 수평 맞추기는 선을 수평으로 만듭니다.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>색상 선택 도구</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>색상 선택 도구 전환</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>먼저 자로 선을 그리세요</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>선이 이미 반듯합니다</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>수평을 맞출 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>레이어를 시계 반대 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>레이어를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>이미지를 시계 반대 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>이미지를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크 편집 중: 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>마스크 속성...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크를 추가했습니다. 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>레이어와 벡터 마스크가 연결됨</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>레이어와 벡터 마스크 연결 해제됨</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>벡터 마스크의 밀도와 페더를 변경했습니다</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>레이어 마스크의 밀도와 페더를 변경했습니다</translation>
     </message>
     <message>
         <source>Export Theme Package...</source>

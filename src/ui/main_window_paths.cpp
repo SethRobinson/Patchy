@@ -413,6 +413,16 @@ void MainWindow::handle_paths_panel_target(int kind, DocumentPathId id) {
   if (static_cast<PathsPanel::RowKind>(kind) == PathsPanel::RowKind::LayerPath) {
     active_document_path_id_.reset();
     canvas_->set_active_document_path(std::nullopt);
+    // A pixel layer's row is its vector mask: picking it targets the mask, as a click
+    // on the mask's thumbnail does, so the Pen and path tools edit it (#447).
+    if (has_active_document() && canvas_->text_area_edit_target_path() == nullptr) {
+      const auto active = std::as_const(document()).active_layer_id();
+      const auto* layer = active.has_value() ? std::as_const(document()).find_layer(*active) : nullptr;
+      if (layer != nullptr && layer->vector_mask() != nullptr && !layer_is_vector_shape(*layer) &&
+          canvas_->layer_edit_target() != CanvasWidget::LayerEditTarget::VectorMask) {
+        set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::VectorMask, true);
+      }
+    }
   } else {
     active_document_path_id_ = id;
     canvas_->set_active_document_path(id);

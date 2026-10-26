@@ -12773,6 +12773,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14677,6 +14705,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Hiding extras</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -26082,6 +26118,206 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>No frame times on any layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

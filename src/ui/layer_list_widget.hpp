@@ -104,6 +104,10 @@ public:
   // Double-click on the content thumbnail specifically; the rest of the row
   // keeps the plain item double-click behavior.
   void set_content_thumbnail_double_click_callback(std::function<void(QListWidgetItem*)> callback);
+  // Double-click on the layer mask or vector mask thumbnail (MaskThumbnail or
+  // VectorMaskThumbnail): the mask's properties instead of the row's editor.
+  void set_mask_thumbnail_double_click_callback(
+      std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
   void set_smart_filter_double_click_callback(std::function<void(QListWidgetItem*, std::size_t)> callback);
   // Double-click inside a layer effect row: the effect kind (a LayerStyleEffect value) and
   // its index in that kind's list.
@@ -284,6 +288,7 @@ private:
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
   std::function<void(QListWidgetItem*)> content_thumbnail_double_click_callback_;
+  std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> mask_thumbnail_double_click_callback_;
   std::function<void(QListWidgetItem*, std::size_t)> smart_filter_double_click_callback_;
   std::function<void(QListWidgetItem*, int, std::size_t)> layer_effect_double_click_callback_;
   std::function<void(LayerId, const QString&)> inline_rename_callback_;

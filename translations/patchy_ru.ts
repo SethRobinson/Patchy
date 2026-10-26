@@ -12825,6 +12825,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Не показывать при открытии документов (снова включается в Настройки &gt; Приложение)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Линейка</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Слой и векторная маска связаны. Нажмите, чтобы отменить связь.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Слой и векторная маска не связаны. Нажмите, чтобы связать.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Свойства векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Свойства маски слоя</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Непрозрачность скрытых маской областей. Ниже 100% слой просвечивает сквозь них.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Смягчает края маски на это число пикселей</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14730,6 +14758,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>Вспомогательные элементы скрыты</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Выровнять слой</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>У векторной маски пока нет контура для перемещения. Нарисуйте его инструментом «Перо» или инструментом фигуры.</translation>
     </message>
 </context>
 <context>
@@ -26238,6 +26274,206 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>Ни у одного слоя нет времени кадра</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Режим &amp;экрана</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Стандартный</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Полный экран с &amp;меню</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Полный экран</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>П&amp;ереключить режим экрана</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Нажмите %1 или Esc, чтобы выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Нажмите Esc, чтобы выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели прозрачны в пределах допуска. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели в пределах допуска от цвета обрезки. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Угол:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Горизонтальное положение начальной точки</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Вертикальное положение начальной точки</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Расстояние по горизонтали от начальной точки до конечной</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Расстояние по вертикали от начальной точки до конечной (вниз положительно)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Угол линии против часовой стрелки от горизонтали; при двух сторонах угол между ними</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Длина линии</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Длина второй стороны (%ALT%+перетаскивание конца добавляет её)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Выровнять слой</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Повернуть активный слой так, чтобы линия стала горизонтальной (или вертикальной, если она ближе к вертикали)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Выровнять изображение</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Повернуть всё изображение так, чтобы линия стала горизонтальной, и обрезать пустые углы</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Удалить измерительную линию</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Линейка</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Перетащите, чтобы измерить, Shift удерживает шаг 45 градусов. Перетащите конец или линию, чтобы изменить её, %ALT%+перетаскивание конца измеряет угол.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Линейка: перетащите, чтобы измерить, Shift удерживает шаг 45 градусов. Перетащите конец или линию, чтобы изменить её, %ALT%+перетаскивание конца добавляет вторую сторону и измеряет угол между ними. Выровнять делает линию горизонтальной.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Инструменты выбора цвета</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Сменить инструмент выбора цвета</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Сначала проведите линию Линейкой</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>Линия уже ровная</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Выберите слой для выравнивания</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Слой выровнен поворотом на %1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Слой выровнен поворотом на %1 градус по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Изображение выровнено поворотом на %1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Изображение выровнено поворотом на %1 градус по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Редактирование векторной маски: нарисуйте контур или фигуру инструментом «Перо» или инструментом фигуры, чтобы замаскировать слой</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Отменить связь векторной маски</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Связать векторную маску</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Свойства маски...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Добавлена векторная маска. Нарисуйте контур или фигуру инструментом «Перо» или инструментом фигуры, чтобы замаскировать слой</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Связать векторную маску</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Отменить связь векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Слой и векторная маска связаны</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Связь слоя и векторной маски отменена</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Свойства векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Свойства маски слоя</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Изменены плотность и растушёвка векторной маски</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Изменены плотность и растушёвка маски слоя</translation>
     </message>
     <message>
         <source>Export Theme Package...</source>

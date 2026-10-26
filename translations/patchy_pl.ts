@@ -12825,6 +12825,34 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Nie pokazuj przy otwieraniu dokumentów (Preferencje &gt; Aplikacja włącza to ponownie)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Linijka</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Warstwa i maska wektorowa są połączone. Kliknij, aby odłączyć.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Warstwa i maska wektorowa są rozłączone. Kliknij, aby połączyć.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Właściwości maski wektorowej</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Właściwości maski warstwy</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Krycie obszarów ukrytych przez maskę. Poniżej 100% warstwa prześwituje przez nie.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Zmiękcza krawędzie maski o tyle pikseli</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14730,6 +14758,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Hiding extras</source>
         <translation>Dodatki są ukryte</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Wyprostuj warstwę</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>Maska wektorowa nie ma jeszcze ścieżki do przesunięcia. Narysuj ją Piórem lub narzędziem kształtu.</translation>
     </message>
 </context>
 <context>
@@ -26238,6 +26274,206 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>No frame times on any layer</source>
         <translation>Żadna warstwa nie ma czasu klatki</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Tryb &amp;ekranu</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Standardowy</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Pełny ekran z &amp;menu</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Pełny ekran</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>Przełącz &amp;tryb ekranu</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Zamknij pełny ekran</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Naciśnij %1 lub Esc, aby zamknąć pełny ekran</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Naciśnij Esc, aby zamknąć pełny ekran</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nic do przycięcia: każdy piksel jest przezroczysty w granicach tolerancji. Zmniejsz Tolerancję.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nic do przycięcia: każdy piksel mieści się w tolerancji koloru przycinania. Zmniejsz Tolerancję.</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Kąt:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Pozioma pozycja punktu początkowego</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Pionowa pozycja punktu początkowego</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Odległość w poziomie od punktu początkowego do końca</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Odległość w pionie od punktu początkowego do końca (w dół dodatnia)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Kąt linii mierzony przeciwnie do ruchu wskazówek zegara od poziomu; przy dwóch ramionach kąt między nimi</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Długość linii</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Długość drugiego ramienia (%ALT%+przeciągnij koniec, aby je dodać)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Wyprostuj warstwę</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Obróć aktywną warstwę tak, aby linia była pozioma (lub pionowa, gdy jest bliższa pionu)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Wyprostuj obraz</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Obróć cały obraz tak, aby linia była pozioma, i przytnij puste narożniki</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Usuń linię pomiarową</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Linijka</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Przeciągnij, aby zmierzyć, Shift zachowuje 45 stopni. Przeciągnij koniec lub linię, aby ją dopasować, %ALT%+przeciągnij koniec, aby zmierzyć kąt.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Linijka: przeciągnij, aby zmierzyć, Shift zachowuje 45 stopni. Przeciągnij koniec lub linię, aby ją dopasować, %ALT%+przeciągnij koniec, aby dodać drugie ramię i zmierzyć kąt między nimi. Wyprostuj poziomuje linię.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Narzędzia pobierania</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Przełącz narzędzia pobierania</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Najpierw narysuj linię Linijką</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>Linia jest już prosta</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Wybierz warstwę do wyprostowania</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Wyprostowano warstwę o %1 stopni przeciwnie do ruchu wskazówek zegara</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Wyprostowano warstwę o %1 stopni zgodnie z ruchem wskazówek zegara</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Wyprostowano obraz o %1 stopni przeciwnie do ruchu wskazówek zegara</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Wyprostowano obraz o %1 stopni zgodnie z ruchem wskazówek zegara</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Edycja maski wektorowej: narysuj ścieżkę lub kształt Piórem albo narzędziem kształtu, aby zamaskować warstwę</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Odłącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Połącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Właściwości maski...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Dodano maskę wektorową. Narysuj ścieżkę lub kształt Piórem albo narzędziem kształtu, aby zamaskować warstwę</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Połącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Odłącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Warstwa i maska wektorowa połączone</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Warstwa i maska wektorowa rozłączone</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Właściwości maski wektorowej</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Właściwości maski warstwy</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Zmieniono gęstość i wtapianie maski wektorowej</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Zmieniono gęstość i wtapianie maski warstwy</translation>
     </message>
     <message>
         <source>Export Theme Package...</source>

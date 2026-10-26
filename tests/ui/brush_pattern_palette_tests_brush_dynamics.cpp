@@ -15,6 +15,7 @@
 #include <QDialog>
 #include <QFile>
 #include <QImage>
+#include <QLabel>
 #include <QListWidget>
 #include <QJsonDocument>
 #include <QSizeGrip>
@@ -929,15 +930,25 @@ void ui_brush_dynamics_button_toggles_popup_closed() {
     return popup;
   };
 
+  // An icon button, not the word (GitHub issue 364 follow-up); "Dynamics" stays its
+  // accessible name and the tooltip says what it opens.
+  CHECK(button->toolButtonStyle() == Qt::ToolButtonIconOnly);
+  CHECK(!button->icon().isNull());
+  CHECK(button->accessibleName() == QObject::tr("Dynamics"));
+  CHECK(button->toolTip().contains(QStringLiteral("dynamics"), Qt::CaseInsensitive));
+  CHECK(!button->isChecked());
+
   button->click();
   QApplication::processEvents();
   CHECK(find_popup() != nullptr);
+  CHECK(button->isChecked());  // reads as pressed while its popup is open
 
   // A second click while the popup is open (the replayed dismissal click) must close it and
   // NOT immediately reopen it — the close-then-instant-reopen was the July 2026 toggle bug.
   button->click();
   QApplication::processEvents();
   CHECK(find_popup() == nullptr);
+  CHECK(!button->isChecked());
 
   // And the button must not stay dead: a later click opens the popup again.
   process_events_for(350);
@@ -945,8 +956,83 @@ void ui_brush_dynamics_button_toggles_popup_closed() {
   QApplication::processEvents();
   auto* reopened = find_popup();
   CHECK(reopened != nullptr);
+  CHECK(button->isChecked());
   reopened->close();
   QApplication::processEvents();
+  CHECK(!button->isChecked());
+  clear_brush_tip_test_state();
+}
+
+// GitHub issue 364 follow-up: the Tip picker (and the Brush tool's Dynamics button) lead the
+// bar, right after the Preset menu, on every tool that has a tip; Pattern Stamp has no Preset
+// and starts with Tip. A separator then sets them apart from Size.
+void ui_brush_tip_follows_the_preset_menu() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  window.resize(1366, 738);
+  show_window(window);
+  window.resize(1366, 738);
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options != nullptr);
+  if (options == nullptr) {
+    return;
+  }
+  const auto row = [options] {
+    std::vector<QWidget*> visible;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible()) {
+        visible.push_back(child);
+      }
+    }
+    std::sort(visible.begin(), visible.end(), [](QWidget* a, QWidget* b) { return a->x() < b->x(); });
+    QStringList tokens;
+    for (auto* child : visible) {
+      const auto* label = qobject_cast<QLabel*>(child);
+      tokens << (label != nullptr ? label->text()
+                 : child->objectName().isEmpty() ? QString::fromLatin1(child->metaObject()->className())
+                                                 : child->objectName());
+    }
+    return tokens;
+  };
+  const auto separator = QStringLiteral("optionSeparator");
+  struct Case {
+    const char* action;
+    QStringList lead;
+  };
+  const auto tip = QStringLiteral("Tip");
+  const auto preset = QStringLiteral("Preset");
+  const std::vector<Case> cases = {
+      {"toolBrushAction", {preset, QStringLiteral("brushPresetCombo"), tip, QStringLiteral("brushTipPicker"),
+                           QStringLiteral("brushDynamicsButton"), separator}},
+      {"toolEraserAction",
+       {preset, QStringLiteral("brushPresetCombo"), tip, QStringLiteral("brushTipPicker"), separator}},
+      {"toolMixerBrushAction",
+       {preset, QStringLiteral("brushPresetCombo"), tip, QStringLiteral("brushTipPicker"), separator}},
+      {"toolPatternStampAction", {tip, QStringLiteral("brushTipPicker"), separator}},
+  };
+  for (const auto& test_case : cases) {
+    require_action(window, test_case.action)->trigger();
+    QApplication::processEvents();
+    process_events_for(30);
+    const auto tokens = row();
+    std::printf("  %-24s %s\n", test_case.action, qPrintable(tokens.join(QLatin1Char(' '))));
+    CHECK(tokens.mid(0, test_case.lead.size()) == test_case.lead);
+    // The tip sits on the first row, ahead of Size.
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    auto* size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    CHECK(picker != nullptr && size != nullptr);
+    if (picker != nullptr && size != nullptr) {
+      CHECK(picker->x() < size->x());
+      CHECK(std::abs(picker->geometry().center().y() - size->geometry().center().y()) < 8);
+    }
+  }
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  process_events_for(30);
+  if (options_bar != nullptr) {
+    save_widget_artifact("ui_brush_options_bar_tip_first", *options_bar);
+  }
   clear_brush_tip_test_state();
 }
 
@@ -1602,6 +1688,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
        ui_brush_tip_picker_popup_offers_define_from_selection},
       {"ui_brush_tip_picker_keeps_options_bar_height", ui_brush_tip_picker_keeps_options_bar_height},
       {"ui_brush_tip_picker_keeps_a_fixed_width", ui_brush_tip_picker_keeps_a_fixed_width},
+      {"ui_brush_tip_follows_the_preset_menu", ui_brush_tip_follows_the_preset_menu},
       {"ui_default_brush_tips_carry_curated_dynamics", ui_default_brush_tips_carry_curated_dynamics},
       {"ui_brush_tip_manager_edits_dynamics", ui_brush_tip_manager_edits_dynamics},
       {"ui_brush_tip_picker_popup_resizes_and_persists", ui_brush_tip_picker_popup_resizes_and_persists},

@@ -12790,6 +12790,34 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Non mostrare all&apos;apertura dei documenti (Preferenze &gt; Applicazione lo riattiva)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Righello</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Livello e maschera vettoriale sono collegati. Fai clic per scollegarli.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Livello e maschera vettoriale sono scollegati. Fai clic per collegarli.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Proprietà maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Proprietà maschera di livello</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Quanto sono opache le aree nascoste della maschera. Sotto il 100% il livello traspare attraverso di esse.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Ammorbidisce i bordi della maschera di questo numero di pixel</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14695,6 +14723,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Hiding extras</source>
         <translation>Extra nascosti</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Raddrizza livello</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>La maschera vettoriale non ha ancora un tracciato da spostare. Disegnane uno con la Penna o uno strumento forma.</translation>
     </message>
 </context>
 <context>
@@ -26165,6 +26201,206 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>No frame times on any layer</source>
         <translation>Nessun livello ha un tempo fotogramma</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Modalità &amp;schermo</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Standard</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Schermo intero con &amp;menu</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>Schermo &amp;intero</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Cambia modalità schermo</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Esci da schermo intero</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Premi %1 o Esc per uscire da schermo intero</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Premi Esc per uscire da schermo intero</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Niente da rifilare: ogni pixel è trasparente entro la tolleranza. Riduci la Tolleranza.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Niente da rifilare: ogni pixel è entro la tolleranza del colore da rifilare. Riduci la Tolleranza.</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Ang:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Posizione orizzontale del punto iniziale</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Posizione verticale del punto iniziale</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Distanza orizzontale dal punto iniziale alla fine</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Distanza verticale dal punto iniziale alla fine (verso il basso è positiva)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Angolo della linea, in senso antiorario dall&apos;orizzontale; con due bracci, l&apos;angolo tra di essi</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Lunghezza della linea</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Lunghezza del secondo braccio (%ALT%+trascina un&apos;estremità per aggiungerne uno)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Raddrizza livello</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Ruota il livello attivo in modo che la linea sia orizzontale (o verticale, se è più vicina alla verticale)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Raddrizza immagine</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Ruota l&apos;intera immagine in modo che la linea sia orizzontale e ritaglia gli angoli vuoti</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Rimuovi la linea di misura</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Righello</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Trascina per misurare, Maiusc mantiene 45 gradi. Trascina un&apos;estremità o la linea per regolarla, %ALT%+trascina un&apos;estremità per misurare un angolo.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Righello: trascina per misurare, Maiusc mantiene 45 gradi. Trascina un&apos;estremità o la linea per regolarla, %ALT%+trascina un&apos;estremità per aggiungere un secondo braccio e misurare l&apos;angolo tra di essi. Raddrizza rende la linea orizzontale.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Strumenti contagocce</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Alterna strumenti contagocce</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Disegna prima una linea con il Righello</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>La linea è già dritta</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Seleziona un livello da raddrizzare</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Livello raddrizzato di %1 gradi in senso antiorario</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Livello raddrizzato di %1 gradi in senso orario</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Immagine raddrizzata di %1 gradi in senso antiorario</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Immagine raddrizzata di %1 gradi in senso orario</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Modifica della maschera vettoriale: disegna un tracciato o una forma con la Penna o uno strumento forma per mascherare il livello</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Scollega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Collega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Proprietà maschera...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Maschera vettoriale aggiunta. Disegna un tracciato o una forma con la Penna o uno strumento forma per mascherare il livello</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Collega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Scollega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Livello e maschera vettoriale collegati</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Livello e maschera vettoriale scollegati</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Proprietà maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Proprietà maschera di livello</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Densità e sfumatura della maschera vettoriale modificate</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Densità e sfumatura della maschera di livello modificate</translation>
     </message>
     <message>
         <source>Export Theme Package...</source>

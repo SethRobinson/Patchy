@@ -12790,6 +12790,34 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Não mostrar ao abrir documentos (Preferências &gt; Aplicativo reativa)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Régua</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Camada e máscara vetorial estão vinculadas. Clique para desvincular.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Camada e máscara vetorial estão desvinculadas. Clique para vincular.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Propriedades da máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Propriedades da máscara de camada</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>A opacidade das áreas ocultas pela máscara. Abaixo de 100% a camada aparece através delas.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Suaviza as bordas da máscara por este número de pixels</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14695,6 +14723,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Hiding extras</source>
         <translation>Ocultando extras</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Endireitar camada</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>A máscara vetorial ainda não tem um demarcador para mover. Desenhe um com a Caneta ou uma ferramenta de forma.</translation>
     </message>
 </context>
 <context>
@@ -26165,6 +26201,206 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>No frame times on any layer</source>
         <translation>Nenhuma camada tem duração de quadro</translation>
+    </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Modo de &amp;tela</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Padrão</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Tela cheia com &amp;menus</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>Tela &amp;cheia</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Alternar modo de tela</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Sair da tela cheia</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Pressione %1 ou Esc para sair da tela cheia</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Pressione Esc para sair da tela cheia</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nada para aparar: todos os pixels são transparentes dentro da tolerância. Diminua a Tolerância.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nada para aparar: todos os pixels estão dentro da tolerância da cor de corte. Diminua a Tolerância.</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Âng:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Posição horizontal do ponto inicial</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Posição vertical do ponto inicial</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Distância horizontal do ponto inicial ao final</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Distância vertical do ponto inicial ao final (para baixo é positiva)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Ângulo da linha, no sentido anti-horário a partir da horizontal; com dois braços, o ângulo entre eles</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Comprimento da linha</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Comprimento do segundo braço (%ALT%+arrastar uma ponta adiciona um)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Endireitar camada</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Girar a camada ativa para que a linha fique horizontal (ou vertical, quando estiver mais perto da vertical)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Endireitar imagem</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Girar a imagem inteira para que a linha fique horizontal e cortar os cantos vazios</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Remover a linha de medição</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Régua</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Arraste para medir; Shift mantém 45 graus. Arraste uma ponta ou a linha para ajustá-la; %ALT%+arrastar uma ponta mede um ângulo.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Régua: arraste para medir; Shift mantém 45 graus. Arraste uma ponta ou a linha para ajustá-la; %ALT%+arrastar uma ponta adiciona um segundo braço e mede o ângulo entre eles. Endireitar nivela a linha.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Ferramentas de seleção de cor</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Alternar ferramentas de seleção de cor</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Primeiro desenhe uma linha com a Régua</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>A linha já está reta</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Selecione uma camada para endireitar</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Camada endireitada %1 graus no sentido anti-horário</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Camada endireitada %1 graus no sentido horário</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Imagem endireitada %1 graus no sentido anti-horário</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Imagem endireitada %1 graus no sentido horário</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Editando a máscara vetorial: desenhe um demarcador ou uma forma com a Caneta ou uma ferramenta de forma para mascarar a camada</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Desvincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Vincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Propriedades da máscara...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Adicionada uma máscara vetorial. Desenhe um demarcador ou uma forma com a Caneta ou uma ferramenta de forma para mascarar a camada</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Vincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Desvincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Camada e máscara vetorial vinculadas</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Camada e máscara vetorial desvinculadas</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Propriedades da máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Propriedades da máscara de camada</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Densidade e difusão da máscara vetorial alteradas</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Densidade e difusão da máscara de camada alteradas</translation>
     </message>
     <message>
         <source>Export Theme Package...</source>
