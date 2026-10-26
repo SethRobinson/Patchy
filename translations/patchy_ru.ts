@@ -25993,6 +25993,74 @@ The open document keeps its blend modes either way.</source>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Сравнивать со средним цветом квадрата вокруг щелчка вместо одного пикселя</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>Загрузить маску слоя как выделение</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>Добавлено к выделению</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>Вычтено из выделения</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>Выполнено пересечение с выделением</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>Выделить пиксели</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>Добавить пиксели к выделению</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>Вычесть пиксели из выделения</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>Пересечь пиксели с выделением</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>Включить маску слоя</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>Включить векторную маску</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>Отключить векторную маску</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>Выделить пиксели маски</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>Добавить маску к выделению</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>Вычесть маску из выделения</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>Пересечь маску с выделением</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>Применить маску к слою перед удалением?</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Применить</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

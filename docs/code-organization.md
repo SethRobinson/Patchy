@@ -17,6 +17,7 @@ Read this before moving functions, adding members to the large UI classes, split
 - `main_window_theme.cpp` - `photoshop_style()` and application-wide QSS, declared in `main_window_shared.hpp`.
 - `main_window_plugins.cpp` - legacy Photoshop plug-in folder scanning, the category submenu, and running a plug-in through the out-of-process host (`legacy_plugin_runner_win.cpp`); see docs/plugins.md.
 - `main_window_layer_panel.cpp` - layer-row widgets, thumbnails, summaries, refresh, drag, and visibility plumbing.
+- `main_window_layer_thumbnails.cpp` - Layers panel thumbnail gestures: Ctrl-click selection loads, the layer and mask thumbnail menus, and the footer Delete on a targeted mask ([layer-panel.md](layer-panel.md)).
 - `main_window_files.cpp` - the single `file_format_entries()` definition, open/save/export/print/import, and recent files/folders.
 - `main_window_smart_objects.cpp` - smart-object export, commit, refresh, relink, embed, replace, convert, and place flows.
 - `main_window_sessions.cpp` - document sessions, tabs, close paths, float windows, and `update_start_panel_visibility()`.

@@ -1140,53 +1140,14 @@ void MainWindow::create_docks() {
   layer_list->set_visibility_isolate_callback([this](LayerId id) { isolate_layer_visibility(id); });
   layer_list->set_visibility_sweep_callback(
       [this](LayerId id, bool visible) { set_layer_visibility(id, visible); });
-  layer_list->set_ctrl_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
-    if (canvas_ == nullptr || item == nullptr) {
-      return;
-    }
-    const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
-    if (target == LayerCtrlClickTarget::MaskThumbnail) {
-      canvas_->select_layer_mask_pixels(id);
-    } else if (target == LayerCtrlClickTarget::VectorMaskThumbnail) {
-      const auto* layer = std::as_const(document()).find_layer(id);
-      const auto* mask = layer != nullptr ? layer->vector_mask() : nullptr;
-      if (mask != nullptr) {
-        // Materialize the coverage cache onto the whole canvas (zero outside
-        // cache_bounds) so the selection matches the rendered mask.
-        PixelBuffer coverage(document().width(), document().height(), PixelFormat::gray8());
-        for (int y = 0; y < coverage.height(); ++y) {
-          for (int x = 0; x < coverage.width(); ++x) {
-            const auto local_x = x - mask->cache_bounds.x;
-            const auto local_y = y - mask->cache_bounds.y;
-            std::uint8_t value = 0;
-            if (!mask->cache.empty() && local_x >= 0 && local_y >= 0 &&
-                local_x < mask->cache.width() && local_y < mask->cache.height()) {
-              value = *mask->cache.pixel(local_x, local_y);
-            }
-            *coverage.pixel(x, y) = value;
-          }
+  layer_list->set_ctrl_click_callback(
+      [this](QListWidgetItem* item, LayerCtrlClickTarget target, Qt::KeyboardModifiers modifiers) {
+        if (canvas_ == nullptr || item == nullptr) {
+          return;
         }
-        canvas_->replace_selection_from_grayscale(coverage, tr("Load vector mask selection"));
-        statusBar()->showMessage(tr("Loaded the vector mask as a selection"));
-      }
-    } else if (target == LayerCtrlClickTarget::SmartFilterMaskThumbnail) {
-      const auto* layer = std::as_const(document()).find_layer(id);
-      const auto* stack = layer != nullptr ? layer->smart_filter_stack() : nullptr;
-      const auto pixels = stack != nullptr
-                              ? materialize_smart_filter_mask(
-                                    stack->mask, document().width(),
-                                    document().height())
-                              : std::nullopt;
-      if (pixels.has_value()) {
-        canvas_->replace_selection_from_grayscale(
-            *pixels, tr("Load Smart Filter mask selection"));
-        statusBar()->showMessage(
-            tr("Loaded the Smart Filter mask as a selection"));
-      }
-    } else {
-      canvas_->select_layer_opaque_pixels(id);
-    }
-  });
+        load_layer_part_selection(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()), target,
+                                  thumbnail_click_selection_operation(modifiers));
+      });
   layer_list->set_thumbnail_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target,
                                                   Qt::KeyboardModifiers modifiers) {
     if (canvas_ == nullptr || item == nullptr) {
@@ -1670,7 +1631,7 @@ void MainWindow::create_docks() {
   });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
   connect(animation_button, &QPushButton::clicked, this, [this] { toggle_animation_preview_window(); });
-  connect(delete_button, &QPushButton::clicked, this, [this] { delete_active_layer(); });
+  connect(delete_button, &QPushButton::clicked, this, [this] { delete_from_layers_panel(); });
   for (auto* widget : {static_cast<QWidget*>(add_button), static_cast<QWidget*>(add_folder_button),
                        static_cast<QWidget*>(adjustment_button), static_cast<QWidget*>(duplicate_button),
                        static_cast<QWidget*>(animation_button), static_cast<QWidget*>(delete_button)}) {

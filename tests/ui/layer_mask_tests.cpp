@@ -13,6 +13,12 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QToolButton>
+#include <QTimer>
+#include <QTest>
+#include <QPushButton>
+#include <QMessageBox>
+#include <QMenu>
+#include <QContextMenuEvent>
 #include <algorithm>
 #include <atomic>
 #include <array>
@@ -698,6 +704,300 @@ void ui_layer_thumbnail_defers_brush_refresh_until_stroke_end() {
   CHECK(after.blue() < 90);
 }
 
+// Layers panel thumbnail gestures (#431, #432, #433, #441). A 40x20 document: "Left" is opaque
+// on its left half; "Masked" is opaque everywhere with a mask that is white on the top half.
+patchy::Document thumbnail_gesture_document() {
+  patchy::Document document(40, 20, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  patchy::PixelBuffer left(40, 20, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < left.height(); ++y) {
+    for (int x = 0; x < left.width(); ++x) {
+      auto* pixel = left.pixel(x, y);
+      pixel[0] = 30;
+      pixel[1] = 90;
+      pixel[2] = 200;
+      pixel[3] = x < 20 ? 255 : 0;
+    }
+  }
+  document.add_pixel_layer("Left", std::move(left));
+  auto& masked =
+      document.add_pixel_layer("Masked", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(220, 60, 30)));
+  patchy::PixelBuffer mask(40, 20, patchy::PixelFormat::gray8());
+  for (int y = 0; y < mask.height(); ++y) {
+    auto row = mask.row(y);
+    std::fill(row.begin(), row.end(), y < 10 ? std::uint8_t{255} : std::uint8_t{0});
+  }
+  masked.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 40, 20}, std::move(mask), 0, false});
+  return document;
+}
+
+const patchy::Layer* find_named_layer(patchy::ui::MainWindow& window, const char* name) {
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  for (const auto& layer : doc.layers()) {
+    if (layer.name() == name) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+struct SeenMenu {
+  QString name;
+  QStringList actions;
+  QStringList texts;
+};
+
+// Right-clicks `widget_name` in `row_name`'s row and picks `pick` (an action objectName, or empty
+// to close); returns the menu that opened. `artifact` saves the open menu.
+SeenMenu right_click_layer_row_part(QListWidget& layers, const QString& row_name, const QString& widget_name,
+                                    const QString& pick, const std::string& artifact = {}) {
+  SeenMenu seen;
+  QTimer::singleShot(0, [&seen, pick, artifact] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || !menu->isVisible()) {
+        continue;
+      }
+      seen.name = menu->objectName();
+      QAction* chosen = nullptr;
+      for (auto* action : menu->actions()) {
+        seen.actions.push_back(action->isSeparator() ? QStringLiteral("-") : action->objectName());
+        seen.texts.push_back(action->text());
+        if (!pick.isEmpty() && action->objectName() == pick) {
+          chosen = action;
+        }
+      }
+      if (!artifact.empty()) {
+        save_widget_artifact(artifact, *menu);
+      }
+      if (chosen != nullptr) {
+        menu->setActiveAction(chosen);
+        QTest::keyClick(menu, Qt::Key_Return);
+      } else {
+        menu->close();
+      }
+      return;
+    }
+  });
+  auto* row = layers.itemWidget(require_layer_item(layers, row_name));
+  CHECK(row != nullptr);
+  auto* part = row != nullptr ? row->findChild<QWidget*>(widget_name) : nullptr;
+  CHECK(part != nullptr);
+  if (part != nullptr) {
+    const auto local = part->rect().center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, local, part->mapToGlobal(local));
+    QApplication::sendEvent(part, &event);
+  }
+  QApplication::processEvents();
+  return seen;
+}
+
+void ui_layer_thumbnail_ctrl_click_loads_and_combines_selection() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(thumbnail_gesture_document(), QStringLiteral("Thumbnail Clicks"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  auto* background_item = require_layer_item(*layers, QStringLiteral("Background"));
+  layers->clearSelection();
+  layers->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  QApplication::processEvents();
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto active_before = doc.active_layer_id();
+  const auto selected = [&](int x, int y) { return canvas->selection_alpha_at(QPoint(x, y)) == 255U; };
+  const auto ctrl_click = [&](const char* row, const char* part, Qt::KeyboardModifiers extra) {
+    click_layer_row_thumbnail(*layers, QString::fromLatin1(row), QString::fromLatin1(part),
+                              Qt::ControlModifier | extra);
+  };
+
+  // Ctrl replaces with the layer's pixels; the row selection and active layer stay put.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  ctrl_click("Left", "layerContentThumbnail", Qt::NoModifier);
+  CHECK(selected(5, 5) && selected(5, 15) && !selected(30, 5));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1U);
+  // Ctrl+Shift adds the mask: its top half joins.
+  ctrl_click("Masked", "layerMaskThumbnail", Qt::ShiftModifier);
+  CHECK(selected(5, 5) && selected(5, 15) && selected(30, 5) && !selected(30, 15));
+  // Ctrl+Alt subtracts the layer's pixels: only the mask's right half is left.
+  ctrl_click("Left", "layerContentThumbnail", Qt::AltModifier);
+  CHECK(!selected(5, 5) && !selected(5, 15) && selected(30, 5) && !selected(30, 15));
+  // Ctrl+Shift+Alt intersects: the layer's pixels within the mask.
+  ctrl_click("Left", "layerContentThumbnail", Qt::NoModifier);
+  ctrl_click("Masked", "layerMaskThumbnail", Qt::ShiftModifier | Qt::AltModifier);
+  CHECK(selected(5, 5) && !selected(5, 15) && !selected(30, 5) && !selected(30, 15));
+  CHECK(doc.active_layer_id() == active_before);
+  CHECK(layers->selectedItems().size() == 1);
+  CHECK(background_item->isSelected());
+  // Each load is one undo step.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(selected(5, 5) && selected(5, 15) && !selected(30, 5));
+}
+
+void ui_layer_thumbnail_right_click_opens_pixels_menu() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(thumbnail_gesture_document(), QStringLiteral("Thumbnail Menu"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  const auto selected = [&](int x, int y) { return canvas->selection_alpha_at(QPoint(x, y)) == 255U; };
+
+  click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::ControlModifier);
+  const auto seen = right_click_layer_row_part(*layers, QStringLiteral("Left"), QStringLiteral("layerContentThumbnail"),
+                                               QStringLiteral("layerThumbnailPixelsAddAction"),
+                                               "issue432_layer_thumbnail_menu");
+  CHECK(seen.name == QStringLiteral("layerThumbnailMenu"));
+  CHECK(seen.actions.mid(0, 5) ==
+        (QStringList{QStringLiteral("layerThumbnailPixelsSelectAction"), QStringLiteral("layerThumbnailPixelsAddAction"),
+                     QStringLiteral("layerThumbnailPixelsSubtractAction"),
+                     QStringLiteral("layerThumbnailPixelsIntersectAction"), QStringLiteral("-")}));
+  CHECK(seen.texts.value(5) == QStringLiteral("Thumbnail Size"));
+  CHECK(selected(5, 15) && selected(30, 5) && !selected(30, 15));
+
+  click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::ControlModifier);
+  right_click_layer_row_part(*layers, QStringLiteral("Left"), QStringLiteral("layerContentThumbnail"),
+                             QStringLiteral("layerThumbnailPixelsIntersectAction"));
+  CHECK(selected(5, 5) && !selected(5, 15) && !selected(30, 5));
+
+  // The rest of the row keeps the full layer menu.
+  const auto row_menu =
+      right_click_layer_row_part(*layers, QStringLiteral("Left"), QStringLiteral("layerRowName"), QString());
+  CHECK(row_menu.name == QStringLiteral("layerContextMenu"));
+}
+
+void ui_layer_mask_thumbnail_right_click_opens_mask_menu() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(thumbnail_gesture_document(), QStringLiteral("Mask Menu"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  const auto selected = [&](int x, int y) { return canvas->selection_alpha_at(QPoint(x, y)) == 255U; };
+  const auto mask_menu = [&](const char* pick, const std::string& artifact = {}) {
+    return right_click_layer_row_part(*layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
+                                      QString::fromLatin1(pick), artifact);
+  };
+
+  // The right-clicked row becomes the target of the mask commands.
+  auto* left_item = require_layer_item(*layers, QStringLiteral("Left"));
+  layers->clearSelection();
+  layers->setCurrentItem(left_item);
+  left_item->setSelected(true);
+  QApplication::processEvents();
+  auto seen = mask_menu("layerMaskThumbnailToggleAction", "issue431_mask_thumbnail_menu");
+  CHECK(seen.name == QStringLiteral("layerMaskThumbnailMenu"));
+  CHECK(seen.actions ==
+        (QStringList{QStringLiteral("layerMaskThumbnailToggleAction"), QStringLiteral("-"),
+                     QStringLiteral("layerDeleteMaskAction"), QStringLiteral("layerApplyMaskAction"),
+                     QStringLiteral("-"), QStringLiteral("layerMaskThumbnailSelectAction"),
+                     QStringLiteral("layerMaskThumbnailAddAction"), QStringLiteral("layerMaskThumbnailSubtractAction"),
+                     QStringLiteral("layerMaskThumbnailIntersectAction")}));
+  CHECK(seen.texts.value(0) == QStringLiteral("Disable Layer Mask"));
+  const auto* masked = find_named_layer(window, "Masked");
+  CHECK(masked != nullptr && masked->mask().has_value() && masked->mask()->disabled);
+  seen = mask_menu("layerMaskThumbnailToggleAction");
+  CHECK(seen.texts.value(0) == QStringLiteral("Enable Layer Mask"));
+  masked = find_named_layer(window, "Masked");
+  CHECK(masked != nullptr && masked->mask().has_value() && !masked->mask()->disabled);
+
+  mask_menu("layerMaskThumbnailSelectAction");
+  CHECK(selected(5, 5) && selected(30, 5) && !selected(30, 15));
+  click_layer_row_thumbnail(*layers, QStringLiteral("Left"), QStringLiteral("layerContentThumbnail"),
+                            Qt::ControlModifier);
+  mask_menu("layerMaskThumbnailSubtractAction");
+  CHECK(!selected(5, 5) && selected(5, 15) && !selected(30, 15));
+
+  mask_menu("layerDeleteMaskAction");
+  masked = find_named_layer(window, "Masked");
+  CHECK(masked != nullptr && !masked->mask().has_value());
+}
+
+// Answers the footer Delete prompt with `button` (an objectName, or "cancel") when it opens.
+void answer_delete_mask_prompt(bool& seen, const char* button) {
+  QTimer::singleShot(0, [&seen, button] {
+    auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    seen = box->objectName() == QStringLiteral("deleteLayerMaskPrompt");
+    if (std::string_view(button) == "cancel") {
+      box->button(QMessageBox::Cancel)->click();
+      return;
+    }
+    auto* push = box->findChild<QPushButton*>(QString::fromLatin1(button));
+    CHECK(push != nullptr);
+    if (push != nullptr) {
+      push->click();
+    }
+  });
+}
+
+void ui_layer_footer_delete_removes_targeted_mask() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(thumbnail_gesture_document(), QStringLiteral("Footer Delete"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
+  CHECK(delete_button != nullptr);
+  const auto target_mask = [&] {
+    click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerContentThumbnail"));
+    click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"));
+    CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  };
+
+  // Cancel keeps both.
+  target_mask();
+  bool prompt_seen = false;
+  answer_delete_mask_prompt(prompt_seen, "cancel");
+  delete_button->click();
+  QApplication::processEvents();
+  CHECK(prompt_seen);
+  const auto* masked = find_named_layer(window, "Masked");
+  CHECK(masked != nullptr && masked->mask().has_value());
+
+  // Delete removes the mask and keeps the layer, whole again.
+  prompt_seen = false;
+  answer_delete_mask_prompt(prompt_seen, "deleteLayerMaskDeleteButton");
+  delete_button->click();
+  QApplication::processEvents();
+  CHECK(prompt_seen);
+  masked = find_named_layer(window, "Masked");
+  CHECK(masked != nullptr && !masked->mask().has_value());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 15)), QColor(220, 60, 30), 8));
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+
+  // Apply bakes the mask into the layer's transparency.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  target_mask();
+  prompt_seen = false;
+  answer_delete_mask_prompt(prompt_seen, "deleteLayerMaskApplyButton");
+  delete_button->click();
+  QApplication::processEvents();
+  CHECK(prompt_seen);
+  masked = find_named_layer(window, "Masked");
+  CHECK(masked != nullptr && !masked->mask().has_value());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 15)), QColor(255, 255, 255), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 5)), QColor(220, 60, 30), 8));
+
+  // With the layer content targeted, Delete removes the layer as before.
+  click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerContentThumbnail"));
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  delete_button->click();
+  QApplication::processEvents();
+  CHECK(find_named_layer(window, "Masked") == nullptr);
+  CHECK(find_named_layer(window, "Left") != nullptr);
+}
+
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_mask_tests() {
@@ -719,5 +1019,10 @@ std::vector<patchy::test::TestCase> layer_mask_tests() {
       {"ui_layer_thumbnail_updates_after_brush_edit", ui_layer_thumbnail_updates_after_brush_edit},
       {"ui_layer_thumbnail_defers_brush_refresh_until_stroke_end",
        ui_layer_thumbnail_defers_brush_refresh_until_stroke_end},
+      {"ui_layer_thumbnail_ctrl_click_loads_and_combines_selection",
+       ui_layer_thumbnail_ctrl_click_loads_and_combines_selection},
+      {"ui_layer_thumbnail_right_click_opens_pixels_menu", ui_layer_thumbnail_right_click_opens_pixels_menu},
+      {"ui_layer_mask_thumbnail_right_click_opens_mask_menu", ui_layer_mask_thumbnail_right_click_opens_mask_menu},
+      {"ui_layer_footer_delete_removes_targeted_mask", ui_layer_footer_delete_removes_targeted_mask},
   };
 }

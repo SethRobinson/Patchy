@@ -57,7 +57,11 @@ While the list is open (#367, `PopupAwareComboBox`), the highlighted mode shows 
 
 ## Click selection
 
-Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `viewportEvent` for bare viewport; keep the two branches in step): plain click selects one layer (collapse from a multi-selection is deferred to release so drags work), Ctrl-click toggles the row, Shift-click selects `currentRow()`..target replacing the selection, and Ctrl+Shift-click selects the same range but adds it to the existing selection (`select_range_to_item`'s `additive` flag). The Ctrl branch is tested first, so a Ctrl-click on a thumbnail always loads the layer pixels as a selection, with or without Shift.
+Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `viewportEvent` for bare viewport; keep the two branches in step): plain click selects one layer (collapse from a multi-selection is deferred to release so drags work), Ctrl-click toggles the row, Shift-click selects `currentRow()`..target replacing the selection, and Ctrl+Shift-click selects the same range but adds it to the existing selection (`select_range_to_item`'s `additive` flag). The Ctrl branch is tested first, so a Ctrl-click on a thumbnail loads it as a selection instead (next section).
+
+### Thumbnail menus and selection loads
+
+A Ctrl-click (Cmd on macOS) on a content, mask, vector-mask or Smart Filter mask thumbnail loads that part as a selection and leaves the rows alone; Shift adds, Alt subtracts, Shift+Alt intersects (`thumbnail_click_selection_operation`, #433). `MainWindow::load_layer_part_selection` (main_window_layer_thumbnails.cpp) runs the canvas load, then `combine_selection_coverage` against the selection from before it, as one selection history step. A right-click on a pixel layer's content thumbnail opens `layerThumbnailMenu` (Select Pixels, Add, Subtract, Intersect, Thumbnail Size; #432); on a raster or vector mask thumbnail, `layerMaskThumbnailMenu` or `layerVectorMaskThumbnailMenu` (Disable/Enable, the Layer menu's Delete and Apply or Rasterize actions, the four mask loads; #431), after making the row the active layer. Folder, adjustment and Smart Filter mask thumbnails keep the full menu. Tests: `ui_layer_thumbnail_*`, `ui_layer_mask_thumbnail_right_click_opens_mask_menu`, `ui_ctrl_click_layer_*`.
 
 ### Move tool on the canvas
 
@@ -135,61 +139,11 @@ The footer's `layerAddMaskButton` runs `MainWindow::add_layer_mask` (reveal-all,
 
 `layerNewAdjustmentButton` lists the fill layers, a separator, then the adjustments, built by the Layer menu's `populate_new_fill_layer_menu` and `populate_new_adjustment_layer_menu` (issue 252). Film button (`layerAnimationButton`): [animation.md](animation.md#animation-preview-window).
 
-## Drag to another document
+## Layer commands: delete, duplicate, drags to other documents
 
-Dragging rows onto another open document copies the layers there. The drag's mime data carries the layer ids (`application/x-patchy-layer-ids`) plus the source session as `pid:session_id`
-(`application/x-patchy-layer-source-session`, from the id `refresh_layer_list` stamps on the list): layer ids
-restart per document, and a drag from another Patchy process never matches. `startDrag` offers `Copy | Move` so the
-cursor shows the copy badge over a foreign document; the panel's own reorder and the footer buttons force Move. Drop targets are every session canvas (a tab page or a float) and the document tabs,
-all handled by `MainWindow::handle_cross_document_layer_drag_event` from the app event
-filter, ahead of the tab-bar tear-off branch: the tab bar has `setAcceptDrops` so it
-becomes the DnD receiver, and non-layer mime stays unaccepted so file drops still reach
-the tab widget. Its own document, a missing or foreign source token, a gap between tabs, or the
-preview-dialog edit lock refuses the drop (file-drop handlers never see a layer drag); the
-hovered tab lights through `show_tab_strip_highlight`.
+Delete Layer (menu, footer button, Delete key, trash drop) runs `MainWindow::delete_layers`: it activates the sibling below the lowest deleted root, else the one above, else its group (issue 249). The footer button goes through `delete_from_layers_panel`: with one layer selected and its raster or vector mask the edit target, it deletes that mask instead; a raster mask on a pixel layer that Apply Layer Mask accepts asks first (`deleteLayerMaskPrompt`: Apply, Delete, Cancel; #441, `ui_layer_footer_delete_removes_targeted_mask`).
 
-The drop returns before any document work: the payload is copied out and
-`duplicate_layers_to_session` runs from `QTimer::singleShot(0)` (the source panel's
-`QDrag::exec` is still on the stack and the copy rebuilds its rows).
-`copy_layers_between_sessions` (main_window_layer_ops.cpp; `copy_layers_between_documents`
-is its Document-level core, shared with Files as Layers) backs the dialog and scripts
-too: it builds Edit > Copy's payload, validates the Smart Filter caches against the
-target, runs the caller's `before_mutation` hook (the UI pushes the target's "Duplicate
-layer" snapshot there), clones every root with `clone_layer_tree_with_document_ids`
-BEFORE inserting anything (no session-targeted undo can roll back a half-inserted
-stack), keeps the source names (a collision earns the copy suffix), applies one shared
-placement offset, re-bakes vector rasters against the target canvas, and inserts the
-stack directly above the target's active layer in source order, topmost copy active. Placement: a canvas drop
-centers the copied set's movable extent on the drop point; Shift-drop, a tab drop, the
-dialog and scripts keep the source coordinates when the documents share dimensions, else
-center on the target canvas. A root whose Smart Filters depend on position keeps
-its coordinates (the adopted cache would go stale). Linked
-masks move inside `translate_moved_layer_metadata`; unlinked raster and vector masks shift
-explicitly so the copy stays one unit. The UI then activates the target and selects the copies. Pinned by `ui_layer_drag_*` (layer_panel_organization_tests_cross_document.cpp)
-and `ui_layer_drag_to_float_canvas_centers_at_drop_point` (float_window_tests.cpp);
-`send_layer_drop_to_widget` synthesizes the drag.
-
-Duplicate Layer (`layerDuplicateAction`, the footer button and its drop target) runs
-`MainWindow::duplicate_layers`: the copies land as one block directly above the topmost
-selected root, in its parent and in source order, and become the selection. `ui_duplicate_layer_inserts_copies_above_source` pins it.
-
-Delete Layer (menu, footer button, Delete key, trash drop) runs `MainWindow::delete_layers`: it activates the sibling below the lowest deleted root, else the one above, else its group (issue 249).
-
-An Alt-drop in the panel duplicates instead of moving: `LayerListWidget::dropEvent` records `LayerDropRequest::copy` from the event's modifiers
-(enter/move report CopyAction for the badge), and `MainWindow::duplicate_layers_for_drop` clones each dragged root above its source, then
-runs `move_layers_for_drop` on the CLONES, so the originals never move; the copies become
-the selection under one snapshot. `ui_layer_alt_drag_duplicates_in_panel` pins it.
-
-The same core backs Duplicate Layer to Document... (`layerDuplicateToDocumentAction`, hotkey
-id `layer.duplicate_to_document`, in the layer context menu and on the window itself since
-the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`) takes
-a name for a lone copy (`duplicateLayerNameEdit`) and a destination
-(`duplicateLayerTargetCombo`: every other open document, then New Document, a fresh
-session of the source's size and print resolution), always keep-position. The scripting
-API's `layer.duplicate(targetDocument)` routes through
-`ScriptEngineHost::duplicate_layers_to_session`, so the run's own snapshot covers the
-target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies` and
-`ui_script_layer_duplicate_to_document` pin them.
+Drags onto another document, Duplicate Layer, Alt-drop duplicates and Duplicate Layer to Document: [layer-drag-duplicate.md](layer-drag-duplicate.md).
 
 ## File drops onto the panel
 
