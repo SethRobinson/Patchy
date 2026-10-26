@@ -104,15 +104,16 @@
 #include <QRect>
 #include <QScopeGuard>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QValidator>
 #include <QString>
 #include <QStringList>
 #include <QStringLiteral>
-#include <QTabWidget>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -327,6 +328,20 @@ std::optional<int> parse_gui_scale_text(const QString& input) {
 
 QString gui_scale_text(int percent) { return QString::number(percent) + percent_suffix(); }
 
+// A page title as the page list shows it: the titles are tab-style strings ("Units && Grids"),
+// where && is a literal ampersand and a single & marks a mnemonic a list row has no use for.
+QString preferences_page_list_text(const QString& title) {
+  QString text;
+  text.reserve(title.size());
+  for (qsizetype index = 0; index < title.size(); ++index) {
+    if (title.at(index) == QLatin1Char('&') && index + 1 < title.size()) {
+      ++index;
+    }
+    text.append(title.at(index));
+  }
+  return text;
+}
+
 // Lets the editable interface-scale combo take any whole percent in the range. Over the
 // maximum cannot be typed; under the minimum is held as intermediate and clamped up when
 // the edit is committed, as normalize_gui_scale_percent clamps a stored value.
@@ -366,7 +381,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   dialog.resize(700, 560);
 
   const auto make_tab_page = [](QWidget* parent) {
-    // Wrap each tab in a scroll area so a tab whose content is taller than the
+    // Wrap each page in a scroll area so a page whose content is taller than the
     // dialog scrolls instead of overlapping its own controls.
     // The host insets the scroll area from the pane's top and bottom edges so
     // the vertical scroll bar does not butt against the pane border.
@@ -400,16 +415,30 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   };
 
-  auto* tabs = new QTabWidget(&dialog);
-  tabs->setObjectName(QStringLiteral("preferencesTabWidget"));
-  tabs->setDocumentMode(true);
-  // Every tab stays visible: without scroll buttons the tab bar's minimum
-  // width is the full row, which the layout passes on to the dialog, so the
-  // last tabs never hide behind arrows.
-  tabs->setUsesScrollButtons(false);
-  suppress_native_tab_bar_base(*tabs);
+  // The pages are listed down the left (GitHub issue 451): a tab row made the dialog wider
+  // with every page added. Each row carries its page's id, which preferences/lastPage
+  // stores, so a page added later never shifts the remembered one.
+  auto* page_list = new QListWidget(&dialog);
+  page_list->setObjectName(QStringLiteral("preferencesPageList"));
+  page_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  page_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  page_list->setTextElideMode(Qt::ElideNone);
+  page_list->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+  auto* page_stack = new QStackedWidget(&dialog);
+  page_stack->setObjectName(QStringLiteral("preferencesPageStack"));
+  const auto add_page = [page_list, page_stack](QWidget* page, const QString& title, const QString& id) {
+    const int index = page_stack->addWidget(page);
+    auto* item = new QListWidgetItem(preferences_page_list_text(title), page_list);
+    item->setData(Qt::UserRole, id);
+    return index;
+  };
+  connect(page_list, &QListWidget::currentRowChanged, page_stack, [page_stack](int row) {
+    if (row >= 0) {
+      page_stack->setCurrentIndex(row);
+    }
+  });
 
-  auto [application_page, application_layout] = make_tab_page(tabs);
+  auto [application_page, application_layout] = make_tab_page(page_stack);
   auto* application_group = new QFrame(application_page);
   application_group->setObjectName(QStringLiteral("preferencesApplicationGroup"));
   configure_panel(application_group);
@@ -535,7 +564,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   export_icon_template_button->setToolTip(
       tr("Write every built-in icon as an SVG file into a folder, to start a theme's icons/ folder from."));
   // Three rows of at most three: five buttons in one row were wider than the
-  // field column, and the tab's scroll area clips rather than scrolls
+  // field column, and the page's scroll area clips rather than scrolls
   // horizontally, which cut off the last button and every combo's arrow
   // (September 2026).
   auto* theme_buttons_row = new QHBoxLayout();
@@ -1305,7 +1334,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
           });
   application_layout->addWidget(development_group);
   application_layout->addStretch(1);
-  tabs->addTab(application_page, tr("Application"));
+  add_page(application_page, tr("Application"), QStringLiteral("application"));
 
   // Connected after setCurrentIndex so restoring the saved value does not count
   // as a user choice.
@@ -1313,7 +1342,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
 
   // Tools: tool and canvas-input behavior (the mouse wheel, Free Transform), the way
   // Photoshop's Tools page groups them.
-  auto [tools_page, tools_layout] = make_tab_page(tabs);
+  auto [tools_page, tools_layout] = make_tab_page(page_stack);
   auto* tools_group = new QFrame(tools_page);
   tools_group->setObjectName(QStringLiteral("preferencesToolsGroup"));
   configure_panel(tools_group);
@@ -1424,12 +1453,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   }
 #endif
   tools_layout->addStretch(1);
-  tabs->addTab(tools_page, tr("Tools"));
+  add_page(tools_page, tr("Tools"), QStringLiteral("tools"));
 
   // Metadata and Watermarks: what saves add of Patchy's own and the user's (docs/file-info.md,
   // "Saved metadata preference"), then the TrustMark text saves add, when they add it, the
   // check on open, and the optional models (docs/watermarks.md, "Preferences").
-  auto [watermarks_page, watermarks_layout] = make_tab_page(tabs);
+  auto [watermarks_page, watermarks_layout] = make_tab_page(page_stack);
   const auto section_heading = [](const QString& text, QWidget* parent, const char* name) {
     auto* label = new QLabel(text, parent);
     label->setObjectName(QLatin1String(name));
@@ -1680,9 +1709,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   connect(watermark_check_open, &QCheckBox::toggled, &dialog, [refresh_watermark_text] { refresh_watermark_text(); });
   refresh_watermark_text();
   watermarks_layout->addStretch(1);
-  tabs->addTab(watermarks_page, tr("Metadata and Watermarks"));
+  add_page(watermarks_page, tr("Metadata and Watermarks"), QStringLiteral("metadata"));
 
-  auto [pen_page, pen_layout] = make_tab_page(tabs);
+  auto [pen_page, pen_layout] = make_tab_page(page_stack);
   auto* pen_group = new QFrame(pen_page);
   pen_group->setObjectName(QStringLiteral("preferencesPenGroup"));
   configure_panel(pen_group);
@@ -1792,9 +1821,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   pen_form->addRow(tr("Minimum tilt roundness:"), pen_tilt_roundness_spin);
   pen_layout->addWidget(pen_group);
   pen_layout->addStretch(1);
-  tabs->addTab(pen_page, tr("Pen"));
+  add_page(pen_page, tr("Pen"), QStringLiteral("pen"));
 
-  auto [view_page, view_layout] = make_tab_page(tabs);
+  auto [view_page, view_layout] = make_tab_page(page_stack);
   auto* view_group = new QFrame(view_page);
   view_group->setObjectName(QStringLiteral("preferencesCanvasAidsGroup"));
   configure_panel(view_group);
@@ -1970,9 +1999,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   view_form->addRow(tr("Overlay preview:"), overlay_preview);
   view_layout->addWidget(view_group);
   view_layout->addStretch(1);
-  tabs->addTab(view_page, tr("Units && Grids"));
+  add_page(view_page, tr("Units && Grids"), QStringLiteral("unitsAndGrids"));
 
-  auto [snapping_page, snapping_layout] = make_tab_page(tabs);
+  auto [snapping_page, snapping_layout] = make_tab_page(page_stack);
   auto* snapping_group = new QFrame(snapping_page);
   snapping_group->setObjectName(QStringLiteral("preferencesSnappingGroup"));
   configure_panel(snapping_group);
@@ -1982,21 +2011,21 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   snapping_form->addRow(tr("Snap targets:"), snap_targets_row);
   snapping_layout->addWidget(snapping_group);
   snapping_layout->addStretch(1);
-  tabs->addTab(snapping_page, tr("Snapping"));
+  add_page(snapping_page, tr("Snapping"), QStringLiteral("snapping"));
 
-  auto [hotkeys_page, hotkeys_layout] = make_tab_page(tabs);
+  auto [hotkeys_page, hotkeys_layout] = make_tab_page(page_stack);
   hotkeys_layout->addStretch(1);
-  const int hotkeys_tab_index = tabs->addTab(hotkeys_page, tr("Hotkeys"));
+  const int hotkeys_tab_index = add_page(hotkeys_page, tr("Hotkeys"), QStringLiteral("hotkeys"));
 
   // Building ~150 hotkey rows is the single most expensive part of opening this
-  // dialog, so the panel is built on the first visit to its tab; most
+  // dialog, so the panel is built on the first visit to its page; most
   // Preferences opens never switch to it. Built on demand, it is also created
   // after the dialog stylesheet below is set, so Qt never repolishes its
   // several-hundred-widget subtree (the September 2026 Preferences-open
-  // slowdown). The tab itself stays at this position: tests and the Windows
-  // Plug-ins tab after it depend on the order.
+  // slowdown). The page itself stays at this position: tests and the Windows
+  // Plug-ins page after it depend on the order.
   HotkeyEditorPanel* hotkey_editor = nullptr;
-  connect(tabs, &QTabWidget::currentChanged, &dialog,
+  connect(page_stack, &QStackedWidget::currentChanged, &dialog,
           [this, hotkeys_page, hotkeys_layout, hotkeys_tab_index, &hotkey_editor](int index) {
             if (index != hotkeys_tab_index || hotkey_editor != nullptr) {
               return;
@@ -2006,18 +2035,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
             hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
             hotkeys_layout->insertWidget(0, hotkey_editor);
           });
-  if (page == PreferencesPage::Hotkeys) {
-    tabs->setCurrentIndex(hotkeys_tab_index);  // builds the panel through the connection above
-    if (hotkey_editor != nullptr) {
-      hotkey_editor->set_search_text(hotkey_search);
-    }
-  }
-
 #ifdef Q_OS_WIN
   // Plug-ins: the folders scanned for legacy Photoshop .8bf filters (Windows
   // only, where they can run). The two automatic folders are fixed; the list
   // holds the user-added ones (docs/plugins.md). Scanning never runs a plug-in.
-  auto [plugins_page, plugins_layout] = make_tab_page(tabs);
+  auto [plugins_page, plugins_layout] = make_tab_page(page_stack);
   auto* plugins_group = new QFrame(plugins_page);
   plugins_group->setObjectName(QStringLiteral("preferencesPluginsGroup"));
   configure_panel(plugins_group);
@@ -2106,10 +2128,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   plugins_form->addRow(tr("Screen size for plug-in windows:"), plugin_screen_combo);
   plugins_layout->addWidget(plugins_group);
   plugins_layout->addStretch(1);
-  tabs->addTab(plugins_page, tr("Plug-ins"));
+  add_page(plugins_page, tr("Plug-ins"), QStringLiteral("plugins"));
 #endif
 
-  content->addWidget(tabs, 1);
+  auto* pages_row = new QHBoxLayout();
+  pages_row->setContentsMargins(0, 0, 0, 0);
+  pages_row->setSpacing(8);
+  pages_row->addWidget(page_list);
+  pages_row->addWidget(page_stack, 1);
+  content->addLayout(pages_row, 1);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
   buttons->setObjectName(QStringLiteral("preferencesButtonBox"));
@@ -2126,30 +2153,36 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
 
   // Applied after every child widget exists: Qt does not reliably pick up
   // sub-control rules (QSpinBox::up-button) for widgets created on hidden
-  // tab pages after the stylesheet was set. The Hotkeys panel is the one
+  // pages after the stylesheet was set. The Hotkeys panel is the one
   // exception, built on demand above: it has no spin box and none of the IDs
   // below, and creating it after this sheet is what keeps its rows from being
   // repolished.
   append_themed_style(dialog, QStringLiteral(R"(
-    QDialog#patchyPreferencesDialog QTabWidget::pane {
+    QDialog#patchyPreferencesDialog QStackedWidget#preferencesPageStack {
       border: 1px solid @dialog_tab_border;
       background: @dialog_tab_bg;
-      top: -1px;
     }
-    QDialog#patchyPreferencesDialog QTabBar::tab {
+    QDialog#patchyPreferencesDialog QListWidget#preferencesPageList {
       background: @dialog_tab_bg;
       border: 1px solid @dialog_tab_border;
       color: @dialog_tab_text;
-      padding: 7px 18px;
-      min-width: 92px;
+      outline: 0;
     }
-    QDialog#patchyPreferencesDialog QTabBar::tab:hover:!selected {
+    QDialog#patchyPreferencesDialog QListWidget#preferencesPageList::item {
+      min-height: 0;
+      padding: 6px 16px 6px 10px;
+      border: 0;
+      border-left: 3px solid transparent;
+      color: @dialog_tab_text;
+    }
+    QDialog#patchyPreferencesDialog QListWidget#preferencesPageList::item:hover:!selected {
       background: @dialog_tab_hover_bg;
     }
-    QDialog#patchyPreferencesDialog QTabBar::tab:selected {
+    QDialog#patchyPreferencesDialog QListWidget#preferencesPageList::item:selected {
       background: @dialog_tab_selected_bg;
       color: @text_on_raised;
-      border-bottom-color: @dialog_tab_selected_bg;
+      border: 0;
+      border-left: 3px solid @accent;
     }
     QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
       background: @panel_card_bg;
@@ -2214,9 +2247,45 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // final word (see docs/ui-conventions.md).
   append_themed_style(dialog, dialog_spinbox_button_style());
 
-  // Wide enough for every tab: the explicit minimum size above keeps the
-  // layout from raising the dialog's minimum itself, so take the layout's
-  // minimum width (the full tab row, styled) by hand.
+  // The list is as wide as its longest title in the current language, measured with
+  // the sheet above applied (row padding included), and no wider.
+  page_list->ensurePolished();
+  page_list->setFixedWidth(page_list->sizeHintForColumn(0) + 2 * page_list->frameWidth() + 2);
+
+  // The page to open on: Hotkeys when asked for, else the page the dialog was last
+  // closed on. Selected after the sheet so a Hotkeys panel built here is never repolished.
+  int start_row = 0;
+  if (page == PreferencesPage::Hotkeys) {
+    start_row = hotkeys_tab_index;
+  } else if (page == PreferencesPage::Last) {
+    const auto last_page = stored_preferences_last_page();
+    for (int row = 0; row < page_list->count(); ++row) {
+      if (page_list->item(row)->data(Qt::UserRole).toString() == last_page) {
+        start_row = row;
+      }
+    }
+  }
+  page_list->setCurrentRow(start_row);  // builds the Hotkeys panel through the connection above
+  if (page == PreferencesPage::Hotkeys && hotkey_editor != nullptr) {
+    hotkey_editor->set_search_text(hotkey_search);
+  }
+  page_list->setFocus();
+
+  // The pages scroll only vertically, so the page area is as wide as the widest page's
+  // content plus a scroll bar; the scroll areas themselves report almost no minimum.
+  int page_content_width = 0;
+  for (const auto* scroll : page_stack->findChildren<QScrollArea*>(QStringLiteral("preferencesTabScroll"))) {
+    if (const auto* content_widget = scroll->widget(); content_widget != nullptr) {
+      content_widget->ensurePolished();  // hidden pages: measure with the sheet's paddings
+      page_content_width = std::max(page_content_width, content_widget->minimumSizeHint().width() +
+                                                            scroll->verticalScrollBar()->sizeHint().width());
+    }
+  }
+  page_stack->setMinimumWidth(page_content_width + 2 * page_stack->frameWidth());
+
+  // Wide enough for the list and every page's content: the explicit minimum size above
+  // keeps the layout from raising the dialog's minimum itself, so take the layout's
+  // minimum width by hand.
   root->activate();
   const int needed_width = root->totalMinimumSize().width();
   if (needed_width > dialog.minimumWidth()) {
@@ -2240,6 +2309,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const int dialog_result = exec_dialog(dialog);
   if (dialog.size() != entry_size) {
     set_stored_preferences_dialog_size(dialog.size());
+  }
+  if (const auto* current_page = page_list->currentItem(); current_page != nullptr) {
+    set_stored_preferences_last_page(current_page->data(Qt::UserRole).toString());
   }
   if (dialog_result == QDialog::Accepted) {
     if (const auto code = language_combo->currentData().toString(); !code.isEmpty()) {

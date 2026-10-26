@@ -37,6 +37,7 @@ QString update_last_check_key() { return QStringLiteral("updates/lastCheckSecsSi
 QString update_skipped_version_key() { return QStringLiteral("updates/skippedVersion"); }
 QString appimage_menu_entry_prompt_declined_key() { return QStringLiteral("appimage/menuEntryPromptDeclined"); }
 QString preferences_dialog_size_key() { return QStringLiteral("preferences/dialogSize"); }
+QString preferences_last_page_key() { return QStringLiteral("preferences/lastPage"); }
 QString system_title_bar_key() { return QStringLiteral("window/systemTitleBar"); }
 QString cmyk_profile_key() { return QStringLiteral("color/cmykProfile"); }
 QString cmyk_intent_key() { return QStringLiteral("color/cmykIntent"); }
@@ -108,6 +109,13 @@ QSize stored_preferences_dialog_size() {
 void set_stored_preferences_dialog_size(QSize size) {
   auto settings = app_settings();
   settings.setValue(preferences_dialog_size_key(), size);
+}
+
+QString stored_preferences_last_page() { return app_settings().value(preferences_last_page_key()).toString(); }
+
+void set_stored_preferences_last_page(const QString& page_id) {
+  auto settings = app_settings();
+  settings.setValue(preferences_last_page_key(), page_id);
 }
 
 QSettings app_settings() {

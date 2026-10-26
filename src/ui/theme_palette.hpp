@@ -317,8 +317,9 @@ struct ThemePalette {
   // macOS-only group boxes (see the APPLE-gated QSS block).
   QColor group_box_border;
 
-  // The Preferences dialog's own tab bar and panels. Deliberately separate from
-  // the document tab roles: these are a settings-sheet treatment, and the two
+  // The Preferences dialog's page list, page area and panels (the names date from
+  // its tab bar; role names are persisted .patchytheme keys). Deliberately separate
+  // from the document tab roles: these are a settings-sheet treatment, and the two
   // need to be free to diverge in Light.
   QColor dialog_tab_bg;
   QColor dialog_tab_border;

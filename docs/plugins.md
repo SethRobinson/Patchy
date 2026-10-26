@@ -4,7 +4,7 @@ Patchy's plug-in support: the classic Photoshop `.8bf` filter host and the unuse
 
 ## Legacy Photoshop .8bf filters
 
-Windows only. Both 32-bit and 64-bit filter plug-ins run; the probe rejects every plug-in on macOS, Linux and the web build with a platform reason. Off Windows there is no plug-ins folder, no About row, no rescan command, no Preferences tab and no startup scan: the Plugins menu shows only a disabled "run on Windows only" note (a decision: no Wine route).
+Windows only. Both 32-bit and 64-bit filter plug-ins run; the probe rejects every plug-in on macOS, Linux and the web build with a platform reason. Off Windows there is no plug-ins folder, no About row, no rescan command, no Preferences page and no startup scan: the Plugins menu shows only a disabled "run on Windows only" note (a decision: no Wine route).
 
 ### Where plug-ins come from
 
@@ -22,7 +22,7 @@ The host loop, the per-plug-in quirks and the out-of-process helper in `src/plug
 
 ### Safety
 
-Scanning executes nothing. Running a plug-in executes third-party code with the user's permissions inside the helper process (the Preferences tab says so); the helper is crash-isolated, not a security sandbox. Third-party plug-ins live in gitignored `local-test-fixtures/photoshop-plugins/` and are hash-checked and Defender-scanned before a first run on an offload machine, never on the dev box (agents_local.md).
+Scanning executes nothing. Running a plug-in executes third-party code with the user's permissions inside the helper process (the Preferences page says so); the helper is crash-isolated, not a security sandbox. Third-party plug-ins live in gitignored `local-test-fixtures/photoshop-plugins/` and are hash-checked and Defender-scanned before a first run on an offload machine, never on the dev box (agents_local.md).
 
 ### Scripting
 

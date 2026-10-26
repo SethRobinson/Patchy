@@ -554,6 +554,16 @@ bool process_events_until(const std::function<bool()>& condition, int timeout_ms
 
 QDialog* find_top_level_dialog(const QString& object_name);
 
+// The Preferences dialog lists its pages down the left (GitHub issue 451): the list
+// (preferencesPageList) and the stacked pages beside it (preferencesPageStack).
+QListWidget* preferences_page_list(QWidget& dialog);
+QWidget* preferences_current_page(QWidget& dialog);
+// A page's row by its title as listed ("Units & Grids"); -1 when missing. Pages get added
+// over time, so tests that want one page find it by name.
+int preferences_page_row(QWidget& dialog, const QString& title);
+// Selects that page as a click would and processes events; false when it is missing.
+bool select_preferences_page(QWidget& dialog, const QString& title);
+
 // A hidden stand-in parent for a dialog a test opens without a MainWindow. The app's QSS
 // (photoshop_style()) is set on the MainWindow, not on qApp, and reaches a dialog only
 // through its parent: with a null parent, combo boxes, spin boxes and buttons render in

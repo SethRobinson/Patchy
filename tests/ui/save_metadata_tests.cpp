@@ -30,7 +30,6 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
-#include <QTabWidget>
 #include <QTimer>
 
 #include <algorithm>
@@ -147,17 +146,7 @@ void ui_save_metadata_preferences_page_persists() {
   patchy::ui::MainWindow window;
   show_window(window);
   run_preferences_dialog(window, /*accept=*/true, [](QDialog& dialog) {
-    auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    if (tabs == nullptr) {
-      return;
-    }
-    for (int index = 0; index < tabs->count(); ++index) {
-      if (tabs->tabText(index) == QObject::tr("Metadata and Watermarks")) {
-        tabs->setCurrentIndex(index);
-      }
-    }
-    QApplication::processEvents();
+    CHECK(select_preferences_page(dialog, QStringLiteral("Metadata and Watermarks")));
     auto* basic = dialog.findChild<QRadioButton*>(QStringLiteral("preferencesSavedMetadataBasicRadio"));
     auto* personal = dialog.findChild<QRadioButton*>(QStringLiteral("preferencesSavedMetadataPersonalRadio"));
     auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("preferencesSavedMetadataNameEdit"));

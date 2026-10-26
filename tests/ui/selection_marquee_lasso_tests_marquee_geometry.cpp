@@ -2227,17 +2227,6 @@ void ui_snap_applies_to_shape_text_and_move_tools() {
   save_widget_artifact("ui_snap_shape_text_move", canvas);
 }
 
-// A Preferences page's index by its title (-1 when missing): pages get added over time, so tests
-// that only want one page find it by name.
-int preferences_tab_index(const QTabWidget& tabs, const QString& title) {
-  for (int index = 0; index < tabs.count(); ++index) {
-    if (tabs.tabText(index) == title) {
-      return index;
-    }
-  }
-  return -1;
-}
-
 void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   SettingsValueRestorer restore_rulers(QStringLiteral("view/rulersVisible"));
   SettingsValueRestorer restore_grid(QStringLiteral("view/gridVisible"));
@@ -2265,21 +2254,22 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    // Windows appends a Plug-ins tab for the legacy 8BF host (docs/plugins.md).
+    auto* pages = preferences_page_list(*dialog);
+    CHECK(pages != nullptr);
+    // Windows appends a Plug-ins page for the legacy 8BF host (docs/plugins.md).
 #ifdef Q_OS_WIN
-    CHECK(tabs->count() == 8);
-    CHECK(tabs->tabText(7) == QStringLiteral("Plug-ins"));
+    CHECK(pages->count() == 8);
+    CHECK(pages->item(7)->text() == QStringLiteral("Plug-ins"));
 #else
-    CHECK(tabs->count() == 7);
+    CHECK(pages->count() == 7);
 #endif
-    CHECK(tabs->tabText(1) == QStringLiteral("Tools"));
-    CHECK(tabs->tabText(2) == QStringLiteral("Metadata and Watermarks"));
-    CHECK(tabs->tabText(3) == QStringLiteral("Pen"));
-    CHECK(tabs->tabText(4) == QStringLiteral("Units && Grids"));
-    CHECK(tabs->tabText(5) == QStringLiteral("Snapping"));
-    CHECK(tabs->tabText(6) == QStringLiteral("Hotkeys"));
+    CHECK(pages->item(0)->text() == QStringLiteral("Application"));
+    CHECK(pages->item(1)->text() == QStringLiteral("Tools"));
+    CHECK(pages->item(2)->text() == QStringLiteral("Metadata and Watermarks"));
+    CHECK(pages->item(3)->text() == QStringLiteral("Pen"));
+    CHECK(pages->item(4)->text() == QStringLiteral("Units & Grids"));
+    CHECK(pages->item(5)->text() == QStringLiteral("Snapping"));
+    CHECK(pages->item(6)->text() == QStringLiteral("Hotkeys"));
     // Tool and canvas-input behavior lives on the Tools tab, not on Application or Pen.
     auto* tools_group = dialog->findChild<QWidget*>(QStringLiteral("preferencesToolsGroup"));
     CHECK(tools_group != nullptr);
@@ -2382,11 +2372,7 @@ void ui_pen_preferences_persist_and_apply() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    const int pen_tab = preferences_tab_index(*tabs, QStringLiteral("Pen"));
-    CHECK(pen_tab >= 0);
-    tabs->setCurrentIndex(pen_tab);
+    CHECK(select_preferences_page(*dialog, QStringLiteral("Pen")));
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEnabledCheck"))->setChecked(true);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureSizeCheck"))->setChecked(false);
     dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenPressureSizeMinSpin"))->setValue(27);
@@ -2446,9 +2432,7 @@ void ui_pen_preferences_spin_buttons_visible_and_increment_on_right() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    tabs->setCurrentIndex(preferences_tab_index(*tabs, QStringLiteral("Pen")));
+    CHECK(select_preferences_page(*dialog, QStringLiteral("Pen")));
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEnabledCheck"))->setChecked(true);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureSizeCheck"))->setChecked(true);
     QApplication::processEvents();

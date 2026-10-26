@@ -416,7 +416,8 @@ public:
   // Scans the script folders, refreshes the commands, and rebuilds an open Script
   // Manager tree: what every path that changes the folders calls afterwards.
   ScriptScan rescan_scripts();
-  enum class PreferencesPage { Application, Hotkeys };
+  // Last opens the page the dialog was closed on (preferences/lastPage).
+  enum class PreferencesPage { Last, Application, Hotkeys };
   // Preferences opened on the Hotkeys page with its search field prefilled (the Script
   // Manager's "Assign Hotkey..." passes the script's display name).
   void show_hotkey_preferences(const QString& search = QString()) { show_preferences(PreferencesPage::Hotkeys, search); }
@@ -1151,7 +1152,7 @@ private:
   void page_setup();
   void print_document();
   // hotkey_search prefills the Hotkeys page's search field (used with PreferencesPage::Hotkeys).
-  void show_preferences(PreferencesPage page = PreferencesPage::Application, const QString& hotkey_search = QString());
+  void show_preferences(PreferencesPage page = PreferencesPage::Last, const QString& hotkey_search = QString());
   // Re-applies the whole UI for a new color scheme, live. Connected to
   // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
   // the steps have to run in.
