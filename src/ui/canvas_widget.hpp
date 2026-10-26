@@ -1283,6 +1283,10 @@ public:
   void set_backdrop_color_override(std::optional<QColor> color);
   [[nodiscard]] std::optional<QColor> backdrop_color_override() const noexcept;
   [[nodiscard]] QColor backdrop_color() const;
+  // Paints `area` with the pasteboard: the user color when one is set, otherwise the
+  // theme's backdrop image over `canvas_backdrop` (theme_backdrop.hpp), otherwise
+  // that color alone.
+  void fill_pasteboard(QPainter& painter, const QRectF& area) const;
   // Fired by the backdrop menu's preset entries (nullopt = Default) and by its Select
   // Custom Color... entry; unset, the presets apply to this canvas alone.
   void set_backdrop_color_change_requested_callback(std::function<void(std::optional<QColor>)> callback);

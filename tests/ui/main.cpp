@@ -455,6 +455,7 @@ int main(int argc, char* argv[]) {
            appimage_menu_entry_tests,
            open_with_registration_tests,
            composite_render_tests,
+           theme_package_tests,
            readme_screenshot_tests,
        }) {
     auto group = registration();

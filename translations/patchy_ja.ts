@@ -12848,6 +12848,98 @@ Each item&apos;s own View setting still applies.</source>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>テーマファイル &quot;%1&quot; を読み込めませんでした。</translation>
     </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; には true か false を指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; には &quot;smooth&quot; か &quot;nearest&quot; を指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; がオブジェクトではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>背景モード &quot;%1&quot; は &quot;tile&quot;、&quot;stretch&quot;、&quot;center&quot; のいずれでもありません (タイル表示にします)。</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>テーマパッケージに theme.json がありません。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>アイコン &quot;%1&quot; に一致する組み込みアイコンがありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>アイコン &quot;%1&quot; は SVG、PNG、BMP ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>アイコン &quot;%1&quot; を読み込めませんでした (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>サウンド &quot;%1&quot; はどのサウンドイベントにも対応していません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>サウンド &quot;%1&quot; は WAV ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>背景画像 &quot;%1&quot; がパッケージ内にありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>背景画像 &quot;%1&quot; を読み込めませんでした (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>テーマフォルダー &quot;%1&quot; を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>テーマパッケージ &quot;%1&quot; にパッケージ外を指すパスがあります: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>テーマパッケージ &quot;%1&quot; がテーマパッケージの上限を超えています。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>テーマフォルダー &quot;%1&quot; に読み込める theme.json がありません。</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>テーマパッケージがテーマパッケージの上限を超えています。</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>テーマパッケージは読み込める zip ファイルではありません。</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>テーマパッケージは Patchy が読み込めない暗号化または圧縮方式を使っています。</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>テーマパッケージ内のファイルが破損しています。</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>テーマパッケージにパッケージ外を指すパスがあります: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>フォルダー &quot;%1&quot; を作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot; を書き込めませんでした。</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26000,6 +26092,56 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>フレーム時間のあるレイヤーはありません</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>テーマパッケージを書き出し...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>選択中のテーマを、アイコン、画像、サウンドを含む .zip パッケージとして保存します。</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>アイコンテンプレートを書き出し...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>すべての組み込みアイコンを SVG ファイルとしてフォルダーに書き出します。テーマの icons/ フォルダーの土台にしてください。</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>テーマのサウンドを再生</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>テーマパッケージに含まれるサウンドを再生します (保存の完了時など)。サウンドのないテーマでは何も鳴りません。</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>テーマ &quot;%1&quot; を削除しますか? フォルダーはごみ箱に移動します。</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy テーマ (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>テーマパッケージを書き出し</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy テーマパッケージ (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>アイコンテンプレートを書き出し</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>%n 個のアイコンを %1 に書き出しました。</numerusform>
+        </translation>
     </message>
 </context>
 <context>

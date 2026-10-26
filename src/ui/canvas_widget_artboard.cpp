@@ -760,7 +760,7 @@ void CanvasWidget::draw_canvas_backdrop(QPainter& painter, const QRectF& target_
   // An artboard document: between the artboards is pasteboard (the composite there is
   // transparent, and only loose layers paint it); inside each artboard the usual
   // checkerboard shows what a Transparent background lets through.
-  painter.fillRect(target_rect.intersected(QRectF(exposed_rect)), backdrop_color());
+  fill_pasteboard(painter, target_rect.intersected(QRectF(exposed_rect)));
   for (const auto* artboard : document_artboards(std::as_const(*document_))) {
     if (!artboard->visible()) {
       continue;
@@ -863,7 +863,7 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
       // (pasteboard, other artboards' checkerboard), not over the artboard still drawn there.
       const auto vacated = widget_rect_for_document_rect(QRectF(clipped));
       const auto exposed = vacated.toAlignedRect();
-      painter.fillRect(vacated, backdrop_color());
+      fill_pasteboard(painter, vacated);
       for (const auto* other : artboards) {
         if (other->visible() && other->id() != *artboard_drag_id_) {
           const auto& rect = other->artboard()->rect;

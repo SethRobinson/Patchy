@@ -12866,6 +12866,98 @@ Each item&apos;s own View setting still applies.</source>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -25991,6 +26083,57 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>

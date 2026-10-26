@@ -1,10 +1,10 @@
 # User-importable theme files
 
-Read this before changing the `.patchytheme` format, the custom-palette runtime override, or `ThemeManager`'s custom-theme apply path. See [ui-conventions.md](ui-conventions.md) for the built-in Dark/Light system this overlays.
+Read this before changing the `.patchytheme` format, theme packages (icons, backdrop, sounds), the custom-palette runtime override, or `ThemeManager`'s custom-theme apply path. See [ui-conventions.md](ui-conventions.md) for the built-in Dark/Light system this overlays.
 
 ## Format
 
-A `.patchytheme` file is JSON:
+A `.patchytheme` file is JSON (a theme package's `theme.json` is the same, plus the keys in [Theme packages](#theme-packages)):
 
 ```json
 { "format": 1, "name": "Solarized", "base": "dark", "roles": { "window_bg": "#002b36", "accent": "#268bd2" } }
@@ -34,7 +34,58 @@ Anything that caches a `theme()`-derived value across calls must key that cache 
 
 `active_custom_theme_id()` is empty when a built-in scheme is active, otherwise the theme file's name within `user_themes_directory()`. It persists as `preferences/customThemeId`, a key additive to and independent of `preferences/colorScheme`: the built-in preference stays the fallback if the custom theme is ever cleared or its backing file goes missing. `load_saved_preference()` applies the built-in preference first, then tries to load and apply the saved custom theme; a missing or invalid file leaves the built-in preference in place rather than failing startup. While a custom theme is active, an OS light/dark flip under Follow System is ignored rather than silently reverting to a built-in palette.
 
-`user_themes_directory()` (`src/ui/theme_file.cpp`) mirrors `user_fonts_directory()`: `AppDataLocation/themes/` (`%APPDATA%\RTsoft\Patchy\themes` on Windows), empty on wasm (the theme buttons are hidden there too). `PATCHY_THEMES_DIR` overrides it for test isolation, the same pattern other per-user directories use. Only `*.patchytheme` files are scanned. `themes/example-high-contrast.patchytheme` in the repository is the sample users start from; keep it loading ([features.md](features.md) points users at it).
+`user_themes_directory()` (`src/ui/theme_file.cpp`) mirrors `user_fonts_directory()`: `AppDataLocation/themes/` (`%APPDATA%\RTsoft\Patchy\themes` on Windows), empty on wasm (the theme buttons are hidden there too). `PATCHY_THEMES_DIR` overrides it for test isolation, the same pattern other per-user directories use. It holds `*.patchytheme` files and theme packages (below). `themes/example-high-contrast.patchytheme` in the repository is the single-file sample; keep it loading.
+
+## Theme packages
+
+A theme package is a folder in `user_themes_directory()` holding `theme.json`, or that folder zipped as a `.zip` (`theme.json` at the zip root, or inside exactly one top folder, which is what zipping a folder produces). `theme_package.hpp` loads both:
+
+```
+My Theme/
+  theme.json          the .patchytheme JSON, plus the package keys below
+  icons/<stem>.svg    icon overrides: .svg, .png or .bmp; <stem>@2x.png for HiDPI
+  images/bg.png       anything "backdrop" names (PNG, JPEG or BMP)
+  sounds/<event>.wav  theme sounds, one per event id
+```
+
+- Package keys, all optional and parsed by `load_theme_from_json` (so a single `.patchytheme` may carry them; its "backdrop" has nothing to point at and is ignored): `"recolorIcons"` (bool, default true), `"iconScaling"` (`"smooth"` default, or `"nearest"` for pixel art), `"backdrop": {"image": "images/bg.png", "mode": "tile" | "stretch" | "center"}` (mode defaults to tile). A bad value is a warning and the key keeps its default.
+- The format stays 1. An older build ignores unknown top-level keys (`load_theme_from_json` reads only `format`, `name`, `base` and `roles`), so a `.patchytheme` with package keys still loads its colors there, and an older build never scans folders or zips at all.
+- Ids: a folder's id is its folder name, a zip's its file name (`My Theme.zip`). `user_theme_ids()` lists `*.patchytheme`, `*.zip` and every folder holding `theme.json`, sorted; `load_theme_by_id` picks the loader from what the id names, so `preferences/customThemeId` keeps working for every kind.
+- Everything is read into memory once at load (`ThemeAssets`: decoded icons and backdrop, WAV bytes, and every raw file for Export Theme Package), so a folder and a zip behave the same and nothing reads the disk at paint time. A folder reads only `theme.json` and the three subfolders; a zip reads only the entries under them (anything else, a README for example, is skipped).
+- Safety: a package never runs code; it holds JSON, SVG, PNG, BMP, JPEG and WAV data only, and images decode by their extension, never by content. Every zip entry name must pass `formats::safe_zip_entry_path` and `is_safe_theme_package_path` (no `..`, no absolute or drive path, no backslash), or the whole package is refused; a folder file whose canonical path leaves the folder (a symlink) is refused the same way. The zip goes through `formats::ZipEntryReader` (the OpenRaster and Krita reader), in memory.
+- Limits (`ThemePackageLimits`): the zip file 64 MB, one file 16 MB, all files 64 MB, 2048 files; past any of them the package does not load. A bitmap icon over 1024 px a side, or a backdrop over 8192, is skipped with a warning.
+- Unreadable or unknown parts (an icon that matches no built-in stem, a sound that names no event, a non-WAV sound, a missing backdrop) are warnings; the theme loads without them.
+
+### Icons
+
+`icons/<stem>.<ext>` replaces the built-in icon `<stem>`: the resource stems in `src/ui/icons/` (`builtin_icon_stems()`), minus the QSS `url()` assets (`stylesheet_referenced_icon_names()`), which no icon engine draws. `overridable_icon_stems()` is that list, and Export Icon Template (`export_icon_template`) writes each of those SVGs as authored into a chosen folder, which is how an author gets the names. Procedural glyph icons (`themed_glyph_icon`, the `simple_icon` fallbacks with no SVG) cannot be replaced.
+
+The override goes through `ThemedIconEngine` in `icon_theme.cpp`: `load_icon_face` checks `active_theme_assets()` first and falls back to the shipped SVG, and the engine reloads its faces when `theme_generation()` moves, so a live theme switch repaints existing QActions with no `setIcon`. An SVG override is recolored like the built-ins (`recolor_icon_svg`, the ten-color vocabulary) when `"recolorIcons"` is true and drawn as authored when false; PNG and BMP are never recolored. A bitmap is fitted to the requested size with its aspect kept, in device pixels; `<stem>@2x.png` is used once the target is larger than the 1x image. `"iconScaling": "nearest"` scales with `Qt::FastTransformation`, so pixel art stays hard-edged. An invalid SVG falls back to the shipped icon.
+
+## Backdrop
+
+`theme_backdrop.hpp`. A package's backdrop image paints the canvas pasteboard (`CanvasWidget::fill_pasteboard`, used for the paint-event fill, the pasteboard between artboards and an artboard drag's vacated rect) and the empty workspace behind the start panel (`StartPanel::paintEvent`). It is anchored to the top-level window, so it stays put while the document pans and zooms and lines up across canvases. `canvas_backdrop` is filled under it (transparent pixels, the margin around a centered image), and a user pasteboard color (`view/canvasBackdropColor`) still wins over the image. The tile pixmap, and stretched copies per target size (at most four), are cached on `theme_generation()`; a repaint only fills its exposed area.
+
+The canvas scroll-bar gutter follows a custom theme (`themed_scroll_gutter_url`, consulted by `themed_icon_url("scroll-dither")`): a tiled backdrop's tile, made opaque over `canvas_scrollbar_track`, or otherwise a two-pixel dither of that track and a tone 14 levels away (lighter on a dark track, darker on a light one), the shape of the authored `scroll-dither.svg`. The PNG is written once to `<temp>/patchy-theme-cache/gutter-<sha1>.png` (QSS `url()` reads only files and resources). A custom theme whose track equals its base scheme's keeps the authored SVG; so do the built-in schemes.
+
+## Sounds
+
+`theme_sounds.hpp`. Patchy has no sounds of its own; a package's `sounds/<event>.wav` plays for these events, through `play_wav_bytes` (sound_effects.hpp: winmm, NSSound or a Linux player process, no Qt Multimedia). The ids are persisted identifiers (they are the file names themes ship), append-only:
+
+| Event id | Plays when |
+|---|---|
+| `save-done` | a save or saved copy finishes (`save_document_to_path`) |
+| `export-done` | an export finishes (Export As, Quick Export, animation, sprite sheet, PDF and folder exports) |
+| `long-operation-done` | a progress dialog that stayed up 3 s or more closes |
+| `error` | an error box opens (`show_critical_message`) |
+| `warning` | a warning box opens (`show_warning_message`) |
+| `script-alert` | a script's `alert()` box opens |
+
+The long-operation watcher is an application event filter timing `QProgressDialog` Show to Hide; `refresh_long_operation_sound_watcher` installs it only while the active theme has that sound. Preferences' "Play theme sounds" (`preferences/playThemeSounds`, default on) turns every theme sound off; `PATCHY_NO_SOUND` silences the player itself (tests, headless runs).
+
+## Authoring loop
+
+While a folder package is the active theme (applied or only previewed), `ThemeManager` watches it with a `QFileSystemWatcher` (the folder, `theme.json`, the three subfolders and their files) and reloads it `kPackageReloadDelayMs` (250 ms) after the last change, unpersisted; a reload that fails (half-written JSON) keeps the theme already showing. Each reload re-arms every path, since editors that save by replacing a file drop it from the watch. Switching away drops every watched path, which also releases the Windows directory handles that would block deleting the folder. Reload Themes still rereads every theme. `themes/example-package/` in the repository is the sample package (two colored SVG icons, a pixel-art PNG with `@2x`, a tiled backdrop and a save sound); keep it loading with no warnings (`ui_theme_package_icon_template_and_example_package`).
 
 ## Bundled themes
 
@@ -42,8 +93,8 @@ Anything that caches a `theme()`-derived value across calls must key that cache 
 
 ## Preferences UI
 
-The color-scheme combo lists the three built-in entries, a separator, the bundled themes, then (when any exist) a separator and one entry per file in `user_themes_directory()`, each theme carrying a `"custom:" + id` data token. `rescan_custom_themes` (a lambda in `show_preferences`) drops every custom entry and the separator and re-reads the folder; it runs at open, after Delete, and from Reload Themes. `apply_combo_selection` applies whatever the combo shows as a live preview and is shared by the combo's change handler, Reload, and Delete. Import copies a chosen file into `user_themes_directory()` and adds its entry; Export writes `serialize_theme_to_json(theme(), active_color_scheme(), name)` to a chosen path, opening in `user_themes_directory()` with the shown theme's name suggested (`exportThemeFileDialog`), and a file saved inside that folder is rescanned and selected at once (the "copy a built-in, then edit it" path); bundled entries show as "Name (built-in)" so the copy and its source stay distinguishable; Reload Themes rescans and re-applies the selected entry even when the selection did not move (the authoring loop: edit the JSON, click Reload); Delete Theme... (enabled only on a user-folder entry, never a bundled one; `preferencesDeleteThemeConfirm` confirms) removes the file, rescans, and selects the first built-in entry; Open Themes Folder creates the folder and opens it in the file manager. All five buttons are `#ifndef Q_OS_WASM`. Reload and Delete block the combo's signals around the rescan, because removing the current item moves the selection. The dialog's revert-on-cancel guard branches on the `"custom:"` prefix, calling `set_custom_theme`/`clear_custom_theme` instead of `set_preference` for a custom entry.
+The color-scheme combo lists the three built-in entries, a separator, the bundled themes, then (when any exist) a separator and one entry per `user_theme_ids()` id (files, zips and folders), each theme carrying a `"custom:" + id` data token. `rescan_custom_themes` (a lambda in `show_preferences`) drops every custom entry and the separator and re-reads the folder; it runs at open, after Delete, and from Reload Themes. `apply_combo_selection` applies whatever the combo shows as a live preview and is shared by the combo's change handler, Reload, and Delete. Import copies a chosen `.patchytheme` or `.zip` (validated by loading it first) into `user_themes_directory()` and adds its entry; Export writes `serialize_theme_to_json(theme(), active_color_scheme(), name)` to a chosen path, opening in `user_themes_directory()` with the shown theme's name suggested (`exportThemeFileDialog`), and a file saved inside that folder is rescanned and selected at once (the "copy a built-in, then edit it" path); bundled entries show as "Name (built-in)" so the copy and its source stay distinguishable; Reload Themes rescans and re-applies the selected entry even when the selection did not move (the authoring loop: edit the JSON, click Reload); Delete Theme... (enabled only on a user-folder entry, never a bundled one; `preferencesDeleteThemeConfirm` confirms) removes the file, or moves a package folder to the trash (`QFile::moveToTrash`, never a recursive delete) after clearing the theme if it is showing, rescans, and selects the first built-in entry; Open Themes Folder creates the folder and opens it in the file manager; Export Theme Package... writes `serialize_theme_package_zip` (theme.json from the live palette plus the shown package's options and files) to a chosen `.zip`; Export Icon Template... writes the overridable SVGs into a chosen folder. The Play theme sounds checkbox (`preferencesPlayThemeSoundsCheck`) commits on OK. All seven buttons and the checkbox are `#ifndef Q_OS_WASM`. Reload and Delete block the combo's signals around the rescan, because removing the current item moves the selection. The dialog's revert-on-cancel guard branches on the `"custom:"` prefix, calling `set_custom_theme`/`clear_custom_theme` instead of `set_preference` for a custom entry.
 
 ## Known limitation
 
-The QSS `url()` icon assets in `icon_theme.cpp` (`scroll-dither.svg` and its siblings, see the scroll-bar rule in [ui-conventions.md](ui-conventions.md)) are selected by base scheme and authored around the built-in `canvas_backdrop` value, not recolored per role. A custom theme with a very different backdrop can show a mismatched scrollbar-gutter texture. The same applies to a user pasteboard color chosen from the canvas right-click menu (`view/canvasBackdropColor`, [tools.md](tools.md)): it recolors only the pasteboard, never the scroll bars. Everything else, every painted widget and every hand-authored icon glyph, follows the custom palette exactly, because both read `theme()` at paint time.
+The QSS `url()` icon assets other than `scroll-dither` (the checkmark, spin arrows and flyout corner, see [ui-conventions.md](ui-conventions.md)) are selected by base scheme, not recolored per role, and a package cannot replace them. The scroll-bar gutter follows a custom theme ([Backdrop](#backdrop)) but not a user pasteboard color chosen from the canvas right-click menu (`view/canvasBackdropColor`, [tools.md](tools.md)), which recolors only the pasteboard. Everything else, every painted widget and every hand-authored icon glyph, follows the custom palette exactly, because both read `theme()` at paint time.

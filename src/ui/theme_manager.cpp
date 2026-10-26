@@ -1,11 +1,18 @@
 #include "ui/theme_manager.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/theme_package.hpp"
+#include "ui/theme_sounds.hpp"
 
+#include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QGuiApplication>
 #include <QPalette>
 #include <QSettings>
 #include <QStyleHints>
+#include <QTimer>
 #include <QToolTip>
 
 namespace patchy::ui {
@@ -180,7 +187,12 @@ void ThemeManager::set_custom_theme(const QString& id, const CustomTheme& theme,
   // entirely different palette, so that function's equal-scheme guard must
   // not suppress this apply.
   active_custom_id_ = id;
+  // The assets go in first: set_active_custom_palette moves theme_generation(),
+  // which is what the icon engine and the backdrop cache key on.
+  set_active_theme_assets(theme.assets);
   set_active_custom_palette(theme.palette, theme.base);
+  refresh_long_operation_sound_watcher();
+  watch_active_package();
   if (!system_scheme_override_.has_value()) {
     QGuiApplication::styleHints()->setColorScheme(theme.base == ColorScheme::Light ? Qt::ColorScheme::Light
                                                                                     : Qt::ColorScheme::Dark);
@@ -197,7 +209,10 @@ void ThemeManager::clear_custom_theme(bool persist) {
     return;
   }
   active_custom_id_.reset();
+  set_active_theme_assets(nullptr);
   clear_active_custom_palette();
+  refresh_long_operation_sound_watcher();
+  watch_active_package();
   if (persist) {
     auto settings = app_settings();
     settings.setValue(custom_theme_id_key(), QString());
@@ -232,6 +247,70 @@ void ThemeManager::load_saved_preference() {
     return;
   }
   set_custom_theme(custom_id, *result.theme, /*persist=*/false);
+}
+
+QStringList ThemeManager::watched_package_paths() const {
+  if (package_watcher_ == nullptr) {
+    return {};
+  }
+  return package_watcher_->directories() + package_watcher_->files();
+}
+
+void ThemeManager::watch_active_package() {
+  if (package_watcher_ != nullptr) {
+    // Dropping the paths also releases the directory handles, which on Windows
+    // would otherwise keep the folder from being deleted or renamed.
+    const auto watched = watched_package_paths();
+    if (!watched.isEmpty()) {
+      package_watcher_->removePaths(watched);
+    }
+  }
+  if (!active_custom_id_ || !is_theme_package_directory_id(*active_custom_id_)) {
+    return;
+  }
+  if (package_watcher_ == nullptr) {
+    package_watcher_ = new QFileSystemWatcher(this);
+    package_reload_timer_ = new QTimer(this);
+    package_reload_timer_->setSingleShot(true);
+    package_reload_timer_->setInterval(kPackageReloadDelayMs);
+    connect(package_reload_timer_, &QTimer::timeout, this, [this] { reload_active_package(); });
+    // Editors often save by replacing the file, which drops it from the watch;
+    // the reload re-arms every path, so the next save is seen too.
+    connect(package_watcher_, &QFileSystemWatcher::fileChanged, package_reload_timer_,
+            qOverload<>(&QTimer::start));
+    connect(package_watcher_, &QFileSystemWatcher::directoryChanged, package_reload_timer_,
+            qOverload<>(&QTimer::start));
+  }
+  const QDir root(theme_file_path_for_id(*active_custom_id_));
+  QStringList paths{root.absolutePath(), root.filePath(QString(kThemePackageManifest))};
+  for (const auto& folder : {QStringLiteral("icons"), QStringLiteral("images"), QStringLiteral("sounds")}) {
+    const auto folder_path = root.filePath(folder);
+    if (!QFileInfo(folder_path).isDir()) {
+      continue;
+    }
+    paths.push_back(folder_path);
+    // Bounded like the loader: a package past the entry limit does not load at all.
+    QDirIterator it(folder_path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    while (it.hasNext() && paths.size() < ThemePackageLimits{}.max_entries) {
+      paths.push_back(it.next());
+    }
+  }
+  package_watcher_->addPaths(paths);
+}
+
+void ThemeManager::reload_active_package() {
+  if (!active_custom_id_ || !is_theme_package_directory_id(*active_custom_id_)) {
+    return;
+  }
+  const auto id = *active_custom_id_;
+  auto result = load_theme_by_id(id);
+  if (!result.theme) {
+    // Mid-edit JSON is common; keep showing the last good version.
+    qWarning("Theme package \"%s\" did not reload: %s", qPrintable(id), qPrintable(result.error));
+    watch_active_package();
+    return;
+  }
+  set_custom_theme(id, *result.theme, /*persist=*/false);
 }
 
 void ThemeManager::set_system_color_scheme_for_testing(std::optional<Qt::ColorScheme> scheme) {

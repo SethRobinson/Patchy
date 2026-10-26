@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "Example Package",
+  "base": "dark",
+  "recolorIcons": false,
+  "iconScaling": "nearest",
+  "backdrop": {
+    "image": "images/backdrop.png",
+    "mode": "tile"
+  },
+  "roles": {
+    "accent": "#e0883a",
+    "canvas_backdrop": "#1d2a2f",
+    "canvas_scrollbar_track": "#1d2a2f"
+  }
+}
