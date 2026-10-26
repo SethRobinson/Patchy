@@ -2251,12 +2251,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   move_show_transform_controls_check_ = new CheckGlyphBox(tr("Transform Controls"), toolbar);
   move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
   bind_tooltip(move_show_transform_controls_check_, QT_TR_NOOP("Show transform controls when selecting a layer with Move"));
-  move_show_transform_controls_check_->setChecked(canvas_defaults->show_transform_controls());
+  // One app-wide choice (tools/showTransformControls), read here so the start panel
+  // shows it before any canvas exists.
+  move_show_transform_controls_check_->setChecked(
+      app_settings()
+          .value(QStringLiteral("tools/showTransformControls"), canvas_defaults->show_transform_controls())
+          .toBool());
   add_option_widget(move_show_transform_controls_check_, {CanvasTool::Move});
   connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (canvas_ != nullptr) {
-      canvas_->set_show_transform_controls(checked);
+    // Every open document follows, so a tab switch never flips the box back.
+    for (const auto& session : sessions_) {
+      if (session->canvas != nullptr) {
+        session->canvas->set_show_transform_controls(checked);
+      }
     }
+    // Written here, by the user's click, rather than by save_tool_settings, like
+    // Auto-Select: a click with no document open (no canvas to save from) still
+    // counts, and a canvas flag set directly (tests, the stress harness) never leaks.
+    app_settings().setValue(QStringLiteral("tools/showTransformControls"), checked);
   });
   // Snap mirrors View > Snap: one persisted setting (view/snapEnabled), two
   // surfaces. The action owns the state; the checkbox follows its toggled signal.
