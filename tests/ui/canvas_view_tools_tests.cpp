@@ -2763,7 +2763,7 @@ void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
   canvas->set_zoom_centered(3.0);
   CHECK(std::abs(canvas->zoom() - 3.0) < 1e-6);
   const QPoint document_center(512, 384);
-  const QPoint widget_center(canvas->width() / 2, canvas->height() / 2);
+  const auto widget_center = canvas->view_content_rect().center().toPoint();
   const auto before = canvas->widget_position_for_document_point(document_center);
   CHECK(std::abs(before.x() - widget_center.x()) <= 2);
   CHECK(std::abs(before.y() - widget_center.y()) <= 2);
@@ -2790,7 +2790,7 @@ void ui_image_resize_recenters_view_and_zoom_double_click_shows_document() {
   accept_image_size_dialog(512, 384);
   require_action(window, "imageSizeAction")->trigger();
   QApplication::processEvents();
-  const QPoint widget_center(canvas->width() / 2, canvas->height() / 2);
+  const auto widget_center = canvas->view_content_rect().center().toPoint();
   const QPoint document_center(256, 192);
   const auto after_resize = canvas->widget_position_for_document_point(document_center);
   CHECK(std::abs(after_resize.x() - widget_center.x()) <= 2);
@@ -2943,22 +2943,23 @@ void ui_zoom_preset_recovers_parked_view() {
 
   // A preset zoom where the document overflows the viewport clamps
   // Photoshop-style: the anchor pins to the document, and no grey shows past
-  // the document edges.
+  // the document edges in the view area (inside the scroll bars, GitHub issue 301).
   canvas.set_zoom_centered(4.0);
   CHECK(std::abs(canvas.zoom() - 4.0) < 1e-6);
+  const auto area = canvas.view_content_rect();
   const auto overflow_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
   const auto overflow_corner = canvas.widget_position_for_document_point(QPoint(200, 150));
-  CHECK(overflow_origin.x() <= 0);
-  CHECK(overflow_origin.y() <= 0);
-  CHECK(overflow_corner.x() >= canvas.width());
-  CHECK(overflow_corner.y() >= canvas.height());
+  CHECK(overflow_origin.x() <= area.left());
+  CHECK(overflow_origin.y() <= area.top());
+  CHECK(overflow_corner.x() >= area.right());
+  CHECK(overflow_corner.y() >= area.bottom());
 
   // Back at 100% the document fits the viewport, so the preset recenters it.
   canvas.set_zoom_centered(1.0);
   CHECK(std::abs(canvas.zoom() - 1.0) < 1e-6);
   const auto center = canvas.widget_position_for_document_point(QPoint(100, 75));
-  CHECK(std::abs(center.x() - 200) <= 2);
-  CHECK(std::abs(center.y() - 150) <= 2);
+  CHECK(std::abs(center.x() - area.center().x()) <= 2);
+  CHECK(std::abs(center.y() - area.center().y()) <= 2);
 }
 
 // GitHub issue 241: a viewport resize keeps a fitting document centered, keeps a fitting
@@ -2996,18 +2997,20 @@ void ui_open_shows_small_images_at_actual_size_and_fits_large_ones() {
               << view->height() << ")" << std::endl;
     const auto top_left = view->widget_position_for_document_point(QPoint(0, 0));
     const auto bottom_right = view->widget_position_for_document_point(QPoint(width, height));
-    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > view->width() - 80 ||
-                                  height * (1.0 / view->devicePixelRatioF()) > view->height() - 80;
+    // Fit's 40 px margin per side is taken inside the view area (GitHub issue 301).
+    const auto area = view->view_content_rect();
+    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > area.width() - 80 ||
+                                  height * (1.0 / view->devicePixelRatioF()) > area.height() - 80;
     if (larger_than_view) {
       CHECK(view->view_zoom() < 1.0);
-      CHECK(top_left.x() >= 0 && top_left.y() >= 0);
-      CHECK(bottom_right.x() <= view->width() && bottom_right.y() <= view->height());
+      CHECK(top_left.x() >= area.left() && top_left.y() >= area.top());
+      CHECK(bottom_right.x() <= area.right() && bottom_right.y() <= area.bottom());
     } else {
       CHECK(std::abs(view->view_zoom() - 1.0) < 1e-9);
     }
-    // Centered either way.
-    CHECK(std::abs(top_left.x() + bottom_right.x() - view->width()) <= 2);
-    CHECK(std::abs(top_left.y() + bottom_right.y() - view->height()) <= 2);
+    // Centered in the view area either way.
+    CHECK(std::abs(top_left.x() + bottom_right.x() - 2.0 * area.center().x()) <= 2);
+    CHECK(std::abs(top_left.y() + bottom_right.y() - 2.0 * area.center().y()) <= 2);
   };
 
   patchy::ui::MainWindowTestAccess::open_document_path(window, small_path);
@@ -3047,7 +3050,7 @@ void ui_canvas_resize_keeps_document_centered_and_view_center_stable() {
   canvas.show();
   QApplication::processEvents();
   const auto offset_from_center = [&canvas](QPointF document_point) {
-    return canvas.widget_position_f(document_point) - QPointF(canvas.width() / 2.0, canvas.height() / 2.0);
+    return canvas.widget_position_f(document_point) - canvas.view_content_rect().center();
   };
   const auto close_to = [](QPointF a, QPointF b) { return std::abs(a.x() - b.x()) <= 1.0 && std::abs(a.y() - b.y()) <= 1.0; };
 
@@ -3076,7 +3079,7 @@ void ui_canvas_resize_keeps_document_centered_and_view_center_stable() {
   CHECK(canvas.begin_pan_at_global_position(canvas.mapToGlobal(QPoint(400, 300))));
   CHECK(canvas.pan_to_global_position(canvas.mapToGlobal(QPoint(350, 330))));
   CHECK(canvas.end_pan());
-  const auto probe = canvas.document_point_for_widget_position(QPointF(400.0, 300.0));
+  const auto probe = canvas.document_point_for_widget_position(canvas.view_content_rect().center());
   CHECK(probe.x() > 10.0 && probe.x() < 190.0 && probe.y() > 10.0 && probe.y() < 140.0);
   for (const auto size : {QSize(520, 380), QSize(900, 560), QSize(640, 700)}) {
     canvas.resize(size);
@@ -3099,8 +3102,8 @@ void ui_window_resize_panels_tabs_and_floats_keep_small_document_centered() {
   first->set_view_zoom_centered(1.0);
   const auto centered = [](patchy::ui::CanvasWidget* canvas, QPointF document_center) {
     const auto position = canvas->widget_position_f(document_center);
-    return std::abs(position.x() - canvas->width() / 2.0) <= 1.0 &&
-           std::abs(position.y() - canvas->height() / 2.0) <= 1.0;
+    const auto center = canvas->view_content_rect().center();
+    return std::abs(position.x() - center.x()) <= 1.0 && std::abs(position.y() - center.y()) <= 1.0;
   };
   CHECK(centered(first, {150.0, 100.0}));
   patchy::ui::MainWindowTestAccess::create_document(window, 260, 180);
@@ -3276,18 +3279,21 @@ void ui_canvas_scroll_bars_reflect_pan_range() {
   // if smaller, stays visible): pan spans
   // [minimum_visible - document_span, viewport_span - minimum_visible], and the
   // bar value counts down from the pan maximum (value 0 = top/left extreme).
-  const auto expected_maximum_and_centered_value = [](int viewport_span, int document_span) {
+  // Centering places the document in the view area, inside the scroll bars
+  // (GitHub issue 301).
+  const auto area = canvas.view_content_rect();
+  const auto expected_maximum_and_centered_value = [](int viewport_span, int document_span, double area_start,
+                                                      double area_span) {
     const auto minimum_visible =
         std::max(1.0, static_cast<double>(std::min(viewport_span, document_span)) * 0.10);
     const auto pan_minimum = minimum_visible - static_cast<double>(document_span);
     const auto pan_maximum = static_cast<double>(viewport_span) - minimum_visible;
-    const auto centered_pan =
-        (static_cast<double>(viewport_span) - static_cast<double>(document_span)) / 2.0;
+    const auto centered_pan = area_start + (area_span - static_cast<double>(document_span)) / 2.0;
     return std::pair(static_cast<int>(std::lround(pan_maximum - pan_minimum)),
                      static_cast<int>(std::lround(pan_maximum - centered_pan)));
   };
-  const auto [h_maximum, h_value] = expected_maximum_and_centered_value(500, 100);  // 580, 290
-  const auto [v_maximum, v_value] = expected_maximum_and_centered_value(400, 80);   // 464, 232
+  const auto [h_maximum, h_value] = expected_maximum_and_centered_value(500, 100, area.left(), area.width());
+  const auto [v_maximum, v_value] = expected_maximum_and_centered_value(400, 80, area.top(), area.height());
   CHECK(horizontal->minimum() == 0);
   CHECK(horizontal->maximum() == h_maximum);
   CHECK(horizontal->value() == h_value);
@@ -5689,8 +5695,9 @@ void ui_zoom_options_bar_view_buttons_set_view() {
   const auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto doc_width = static_cast<double>(document.width());
   const auto doc_height = static_cast<double>(document.height());
-  const auto fit_zoom = std::min((canvas->width() - 80.0) / doc_width, (canvas->height() - 80.0) / doc_height);
-  const auto fill_zoom = std::max(canvas->width() / doc_width, canvas->height() / doc_height);
+  const auto area = canvas->view_content_rect();
+  const auto fit_zoom = std::min((area.width() - 80.0) / doc_width, (area.height() - 80.0) / doc_height);
+  const auto fill_zoom = std::max(area.width() / doc_width, area.height() / doc_height);
   CHECK(fill_zoom > fit_zoom);
 
   canvas->set_zoom(0.37);
@@ -5738,8 +5745,9 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
   const auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto doc_width = static_cast<double>(document.width());
   const auto doc_height = static_cast<double>(document.height());
-  const auto fit_zoom = std::min((canvas->width() - 80.0) / doc_width, (canvas->height() - 80.0) / doc_height);
-  const auto fill_zoom = std::max(canvas->width() / doc_width, canvas->height() / doc_height);
+  const auto area = canvas->view_content_rect();
+  const auto fit_zoom = std::min((area.width() - 80.0) / doc_width, (area.height() - 80.0) / doc_height);
+  const auto fill_zoom = std::max(area.width() / doc_width, area.height() / doc_height);
 
   canvas->set_zoom(0.37);
   actual->click();
@@ -5756,6 +5764,100 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
   if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
     save_widget_artifact("issue_303_hand_options_bar", *options_bar);
   }
+}
+
+// GitHub issue 301: Fill Screen and Fit on Screen size and center the document in the
+// part of the canvas the rulers and scroll bars leave free, with rulers on and off.
+// The free area is measured here from the ruler bands and the scroll bars' own geometry.
+void ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars() {
+  ensure_artifact_dir();
+  const auto folder = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "issue301_fill");
+  std::filesystem::create_directories(folder);
+  // A framed image, so the screenshots show whether an edge hides under a ruler or bar.
+  QImage framed(1024, 768, QImage::Format_RGB32);
+  framed.fill(QColor(40, 110, 190));
+  {
+    QPainter painter(&framed);
+    painter.fillRect(framed.rect().adjusted(12, 12, -12, -12), QColor(235, 235, 235));
+  }
+  const auto framed_path = QString::fromStdWString((folder / "framed.png").wstring());
+  CHECK(framed.save(framed_path));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, framed_path);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* rulers = require_action(window, "viewToggleRulersAction");
+  auto* fit = require_action(window, "viewFitOnScreenAction");
+  auto* fill = require_action_by_text(window, QStringLiteral("Fill Screen"));
+  auto* horizontal_bar = canvas->findChild<QScrollBar*>(QStringLiteral("canvasHorizontalScrollBar"));
+  auto* vertical_bar = canvas->findChild<QScrollBar*>(QStringLiteral("canvasVerticalScrollBar"));
+  CHECK(horizontal_bar != nullptr && vertical_bar != nullptr);
+  if (horizontal_bar == nullptr || vertical_bar == nullptr) {
+    return;
+  }
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto shown_rect = [&] {
+    return QRectF(canvas->widget_position_f(QPointF(0.0, 0.0)),
+                  canvas->widget_position_f(QPointF(document.width(), document.height())));
+  };
+  const auto free_area = [&] {
+    CHECK(horizontal_bar->isVisible() && vertical_bar->isVisible());
+    const double left = canvas->rulers_visible() ? patchy::ui::kLeftRulerWidth : 0.0;
+    const double top = canvas->rulers_visible() ? patchy::ui::kTopRulerHeight : 0.0;
+    return QRectF(QPointF(left, top), QPointF(vertical_bar->geometry().left(), horizontal_bar->geometry().top()));
+  };
+  const auto close_to = [](double a, double b) { return std::abs(a - b) <= 1.0; };
+  const auto check_fill = [&](const char* label) {
+    const auto shown = shown_rect();
+    const auto area = free_area();
+    std::cout << "issue 301 " << label << ": fill shows " << shown.left() << "," << shown.top() << " to "
+              << shown.right() << "," << shown.bottom() << " in " << area.left() << "," << area.top() << " to "
+              << area.right() << "," << area.bottom() << std::endl;
+    // Covers the free area, meets it exactly on one axis, centered in it on both.
+    CHECK(shown.left() <= area.left() + 1.0 && shown.top() <= area.top() + 1.0);
+    CHECK(shown.right() >= area.right() - 1.0 && shown.bottom() >= area.bottom() - 1.0);
+    CHECK((close_to(shown.left(), area.left()) && close_to(shown.right(), area.right())) ||
+          (close_to(shown.top(), area.top()) && close_to(shown.bottom(), area.bottom())));
+    CHECK(close_to(shown.center().x(), area.center().x()));
+    CHECK(close_to(shown.center().y(), area.center().y()));
+  };
+  const auto check_fit = [&](const char* label) {
+    const auto shown = shown_rect();
+    const auto area = free_area().adjusted(40.0, 40.0, -40.0, -40.0);
+    std::cout << "issue 301 " << label << ": fit shows " << shown.left() << "," << shown.top() << " to "
+              << shown.right() << "," << shown.bottom() << std::endl;
+    CHECK(shown.left() >= area.left() - 1.0 && shown.top() >= area.top() - 1.0);
+    CHECK(shown.right() <= area.right() + 1.0 && shown.bottom() <= area.bottom() + 1.0);
+    CHECK((close_to(shown.left(), area.left()) && close_to(shown.right(), area.right())) ||
+          (close_to(shown.top(), area.top()) && close_to(shown.bottom(), area.bottom())));
+    CHECK(close_to(shown.center().x(), area.center().x()));
+    CHECK(close_to(shown.center().y(), area.center().y()));
+  };
+
+  if (!rulers->isChecked()) {
+    rulers->trigger();
+  }
+  QApplication::processEvents();
+  CHECK(canvas->rulers_visible());
+  fill->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("issue_301_fill_screen_rulers", window);
+  check_fill("rulers on");
+  fit->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("issue_301_fit_screen_rulers", window);
+  check_fit("rulers on");
+
+  rulers->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->rulers_visible());
+  fill->trigger();
+  QApplication::processEvents();
+  check_fill("rulers off");
+  fit->trigger();
+  QApplication::processEvents();
+  check_fit("rulers off");
 }
 
 // GitHub issue 304: with the Hand tool, and with Space held over another tool,
@@ -9537,6 +9639,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_zoom_steps_follow_photoshop_ladder", ui_zoom_steps_follow_photoshop_ladder},
       {"ui_zoom_options_bar_view_buttons_set_view", ui_zoom_options_bar_view_buttons_set_view},
       {"ui_hand_options_bar_shows_zoom_view_buttons", ui_hand_options_bar_shows_zoom_view_buttons},
+      {"ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars",
+       ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars},
       {"ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans", ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans},
       {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},

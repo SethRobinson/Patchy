@@ -3707,16 +3707,17 @@ void ui_layer_thumbnail_double_click_zooms_canvas_to_layer() {
   double_click_thumbnail(QStringLiteral("Badge"));
   CHECK(canvas->zoom() > zoom_before);
   // zoom_to_document_rect centers the rect: the layer's center lands at the
-  // canvas widget's center.
+  // center of the view area (the canvas less its rulers and scroll bars).
+  const auto view_center = canvas->view_content_rect().center().toPoint();
   const auto badge_center = canvas->widget_position_for_document_point(QPoint(620, 115));
-  CHECK(std::abs(badge_center.x() - canvas->width() / 2) <= 2);
-  CHECK(std::abs(badge_center.y() - canvas->height() / 2) <= 2);
+  CHECK(std::abs(badge_center.x() - view_center.x()) <= 2);
+  CHECK(std::abs(badge_center.y() - view_center.y()) <= 2);
 
   // A folder zooms to its children's union (center of (100,200)-(340,430)).
   double_click_thumbnail(QStringLiteral("Assets"));
   const auto union_center = canvas->widget_position_for_document_point(QPoint(220, 315));
-  CHECK(std::abs(union_center.x() - canvas->width() / 2) <= 2);
-  CHECK(std::abs(union_center.y() - canvas->height() / 2) <= 2);
+  CHECK(std::abs(union_center.x() - view_center.x()) <= 2);
+  CHECK(std::abs(union_center.y() - view_center.y()) <= 2);
   save_widget_artifact("ui_layer_thumbnail_double_click_zoom", window);
 }
 

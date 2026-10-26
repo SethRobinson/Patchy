@@ -195,7 +195,7 @@ void ui_crop_to_selection_centers_cropped_image() {
   CHECK(QSize(document.width(), document.height()) == selection_size);
   const auto center_widget =
       canvas->widget_position_for_document_point(QPoint(document.width() / 2, document.height() / 2));
-  const QPoint viewport_center(canvas->width() / 2, canvas->height() / 2);
+  const auto viewport_center = canvas->view_content_rect().center().toPoint();
   CHECK(std::abs(center_widget.x() - viewport_center.x()) <= 4);
   CHECK(std::abs(center_widget.y() - viewport_center.y()) <= 4);
   save_widget_artifact("ui_crop_to_selection_centered", *canvas);

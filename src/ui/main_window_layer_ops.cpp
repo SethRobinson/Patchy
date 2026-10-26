@@ -1260,7 +1260,10 @@ void MainWindow::paste_clipboard(bool in_place) {
   const auto view_point = [this](double x, double y) {
     return canvas_->document_point_for_widget_position(QPointF(x, y));
   };
-  const auto view_center = view_point(canvas_->width() / 2.0, canvas_->height() / 2.0);
+  // The view is the canvas less its rulers and scroll bars, where Fit and Fill center the
+  // document (docs/view-navigation.md, "View area").
+  const auto view_area = canvas_->view_content_rect();
+  const auto view_center = view_point(view_area.center().x(), view_area.center().y());
   const auto place_axis = [](double desired, int content_size, int canvas_size) {
     // Keep pixels at their original size. Oversized content cannot fit, so
     // center its overflow; otherwise keep the entire pasted rectangle inside.
@@ -1304,8 +1307,9 @@ void MainWindow::paste_clipboard(bool in_place) {
     }
   } else if (!in_place && source_origin.has_value() && clipboard_.has_value() &&
              clipboard_->source_session_id == session().session_id) {
-    const QPolygonF view{view_point(0.0, 0.0), view_point(canvas_->width(), 0.0),
-                         view_point(canvas_->width(), canvas_->height()), view_point(0.0, canvas_->height())};
+    const QPolygonF view{view_point(view_area.left(), view_area.top()), view_point(view_area.right(), view_area.top()),
+                         view_point(view_area.right(), view_area.bottom()),
+                         view_point(view_area.left(), view_area.bottom())};
     source_place_in_view = view.containsPoint(
         QPointF(source_origin->x() + pixels.width() / 2.0, source_origin->y() + pixels.height() / 2.0),
         Qt::OddEvenFill);

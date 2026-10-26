@@ -38,6 +38,8 @@ constexpr double kMaxZoom = 128.0;
 constexpr double kZoomDragFactorPerPixel = 1.01;
 constexpr double kMinimumVisibleDocumentFraction = 0.10;
 constexpr int kScrollBarSingleStep = 20;
+// Fit on Screen's and the Zoom-tool marquee's margin, per side of the view area.
+constexpr double kFitMarginPerSide = 40.0;
 
 // The allowed pan range per axis: at least 10% of the document (or of the
 // viewport, whichever is smaller) must stay visible. The scroll bars derive
@@ -105,7 +107,8 @@ void CanvasWidget::set_zoom_centered(double zoom) {
     return;
   }
   ZoomTraceScope trace("zoom_step", zoom_);
-  const QPointF viewport_center(static_cast<double>(width()) / 2.0, static_cast<double>(height()) / 2.0);
+  const auto area = view_content_rect();
+  const auto viewport_center = area.center();
   // Anchor the document point under the viewport center, clamped to the
   // document bounds: when a geometry change left the view off-center, a raw
   // center anchor can sit in the grey margin and pin empty space, pushing the
@@ -121,17 +124,19 @@ void CanvasWidget::set_zoom_centered(double zoom) {
   // Photoshop's scroll model, applied per axis at preset time: a document
   // that fits the window is centered, and one that overflows never shows grey
   // past its edges (hand-tool overscroll stays free afterwards).
+  // Both measured in the view area, so neither the rulers nor the scroll bars
+  // cover a document edge.
   const auto document_width = static_cast<double>(document_->width()) * zoom_;
   const auto document_height = static_cast<double>(document_->height()) * zoom_;
-  if (document_width <= static_cast<double>(width())) {
-    pan_.setX((static_cast<double>(width()) - document_width) / 2.0);
+  if (document_width <= area.width()) {
+    pan_.setX(area.left() + (area.width() - document_width) / 2.0);
   } else {
-    pan_.setX(std::clamp(pan_.x(), static_cast<double>(width()) - document_width, 0.0));
+    pan_.setX(std::clamp(pan_.x(), area.right() - document_width, area.left()));
   }
-  if (document_height <= static_cast<double>(height())) {
-    pan_.setY((static_cast<double>(height()) - document_height) / 2.0);
+  if (document_height <= area.height()) {
+    pan_.setY(area.top() + (area.height() - document_height) / 2.0);
   } else {
-    pan_.setY(std::clamp(pan_.y(), static_cast<double>(height()) - document_height, 0.0));
+    pan_.setY(std::clamp(pan_.y(), area.bottom() - document_height, area.top()));
   }
   constrain_pan();
   if (std::abs(old_zoom - zoom_) < 0.0001 && (pan_ - old_pan).manhattanLength() < 0.01) {
@@ -162,17 +167,34 @@ void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) 
   notify_view_changed();
 }
 
+QRectF CanvasWidget::view_content_rect() const {
+  const auto left = rulers_visible_ ? kLeftRulerWidth : 0;
+  const auto top = rulers_visible_ ? kTopRulerHeight : 0;
+  // The bars are shown whenever a document is open (sync_scroll_bars) and take
+  // the same sizeHint thickness there, so a Fill that overflows one axis does
+  // not bring a bar in afterwards.
+  int right = 0;
+  int bottom = 0;
+  if (document_ != nullptr && document_->width() > 0 && document_->height() > 0 &&
+      vertical_scroll_bar_ != nullptr && horizontal_scroll_bar_ != nullptr) {
+    right = std::max(1, vertical_scroll_bar_->sizeHint().width());
+    bottom = std::max(1, horizontal_scroll_bar_->sizeHint().height());
+  }
+  return QRectF(left, top, std::max(1, width() - left - right), std::max(1, height() - top - bottom));
+}
+
 void CanvasWidget::fit_to_view() {
   if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
     return;
   }
 
-  const auto available_width = std::max(1.0, static_cast<double>(width() - 80));
-  const auto available_height = std::max(1.0, static_cast<double>(height() - 80));
+  const auto area = view_content_rect();
+  const auto available_width = std::max(1.0, area.width() - 2.0 * kFitMarginPerSide);
+  const auto available_height = std::max(1.0, area.height() - 2.0 * kFitMarginPerSide);
   zoom_ = clamp_logical_zoom(std::min(available_width / static_cast<double>(document_->width()),
                                       available_height / static_cast<double>(document_->height())));
-  pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
-                 (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_->width()) * zoom_) / 2.0,
+                 area.top() + (area.height() - static_cast<double>(document_->height()) * zoom_) / 2.0);
   constrain_pan();
   update();
   notify_view_changed();
@@ -191,10 +213,11 @@ void CanvasWidget::fill_to_view() {
     return;
   }
 
-  zoom_ = clamp_logical_zoom(std::max(static_cast<double>(width()) / static_cast<double>(document_->width()),
-                                      static_cast<double>(height()) / static_cast<double>(document_->height())));
-  pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
-                 (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  const auto area = view_content_rect();
+  zoom_ = clamp_logical_zoom(std::max(area.width() / static_cast<double>(document_->width()),
+                                      area.height() / static_cast<double>(document_->height())));
+  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_->width()) * zoom_) / 2.0,
+                 area.top() + (area.height() - static_cast<double>(document_->height()) * zoom_) / 2.0);
   constrain_pan();
   update();
   notify_view_changed();
@@ -205,8 +228,9 @@ void CanvasWidget::center_document_in_view() {
     return;
   }
 
-  pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
-                 (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  const auto area = view_content_rect();
+  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_->width()) * zoom_) / 2.0,
+                 area.top() + (area.height() - static_cast<double>(document_->height()) * zoom_) / 2.0);
   constrain_pan();
   update();
   notify_view_changed();
@@ -224,13 +248,14 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
     return;
   }
 
-  const auto available_width = std::max(1.0, static_cast<double>(width() - 80));
-  const auto available_height = std::max(1.0, static_cast<double>(height() - 80));
+  const auto area = view_content_rect();
+  const auto available_width = std::max(1.0, area.width() - 2.0 * kFitMarginPerSide);
+  const auto available_height = std::max(1.0, area.height() - 2.0 * kFitMarginPerSide);
   zoom_ = clamp_logical_zoom(std::min(available_width / std::max(1.0, static_cast<double>(document_rect.width())),
                                       available_height / std::max(1.0, static_cast<double>(document_rect.height()))));
-  pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
+  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
                      static_cast<double>(document_rect.x()) * zoom_,
-                 (static_cast<double>(height()) - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
+                 area.top() + (area.height() - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
                      static_cast<double>(document_rect.y()) * zoom_);
   constrain_pan();
   update_tool_cursor();
@@ -320,11 +345,16 @@ bool CanvasWidget::keep_view_centered_across_resize(QSize old_size) noexcept {
     }
     return pan + (new_span - old_span) / 2.0;
   };
+  // Spans and pans are taken in the view area (the rulers and scroll bars keep
+  // their thickness across a resize), so a document Fit placed stays centered there.
+  const auto area = view_content_rect();
+  const auto band_width = static_cast<double>(width()) - area.width();
+  const auto band_height = static_cast<double>(height()) - area.height();
   const auto old_pan = pan_;
-  pan_ = QPointF(axis(pan_.x(), static_cast<double>(old_size.width()), static_cast<double>(width()),
-                      static_cast<double>(document_->width()) * zoom_),
-                 axis(pan_.y(), static_cast<double>(old_size.height()), static_cast<double>(height()),
-                      static_cast<double>(document_->height()) * zoom_));
+  pan_ = QPointF(area.left() + axis(pan_.x() - area.left(), static_cast<double>(old_size.width()) - band_width,
+                                    area.width(), static_cast<double>(document_->width()) * zoom_),
+                 area.top() + axis(pan_.y() - area.top(), static_cast<double>(old_size.height()) - band_height,
+                                   area.height(), static_cast<double>(document_->height()) * zoom_));
   return pan_ != old_pan;
 }
 

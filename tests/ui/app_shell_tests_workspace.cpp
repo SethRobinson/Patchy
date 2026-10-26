@@ -2904,8 +2904,8 @@ void ui_tool_palette_expansion_keeps_the_document_centered() {
   QApplication::processEvents();
   const auto centered = [canvas] {
     const auto position = canvas->widget_position_f(QPointF(60.0, 40.0));
-    return std::abs(position.x() - canvas->width() / 2.0) <= 1.0 &&
-           std::abs(position.y() - canvas->height() / 2.0) <= 1.0;
+    const auto center = canvas->view_content_rect().center();
+    return std::abs(position.x() - center.x()) <= 1.0 && std::abs(position.y() - center.y()) <= 1.0;
   };
   CHECK(centered());
   const auto collapsed_width = canvas->width();

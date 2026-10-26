@@ -266,6 +266,11 @@ public:
   // Zooms so the document covers the viewport (the larger axis ratio, where
   // fit_to_view uses the smaller) and centers it.
   void fill_to_view();
+  // The part of the widget the document shows in: the widget less the ruler
+  // band (when rulers are on) and the scroll bars (shown whenever a document
+  // is open). Fit, Fill, Zoom-tool marquee and centering place the document
+  // in it (GitHub issue 301, docs/view-navigation.md "View area").
+  [[nodiscard]] QRectF view_content_rect() const;
   void refresh_tool_cursor();
   // View > Fit on Screen: the whole document in the viewport, zooming in when it is small.
   void fit_to_view();
