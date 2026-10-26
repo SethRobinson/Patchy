@@ -487,6 +487,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   begin_default_crop_session();  // the Crop tool frames the incoming document
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
+  refresh_stroke_connect_preview();
   if (brush_adjust_dragging_) {
     end_brush_adjust_drag(false);
   }
@@ -560,6 +561,9 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     mixer_brush_state_ = {};
   }
   tool_ = tool;
+  if (tool_changed) {
+    refresh_stroke_connect_preview();
+  }
   // Each selection tool keeps its own combine mode; surface this tool's stored
   // mode so the cursor badge and Options bar follow when switching tools.
   if (const auto index = selection_tool_index(tool_); index >= 0) {
