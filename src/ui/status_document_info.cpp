@@ -3,10 +3,12 @@
 #include "core/document.hpp"
 #include "formats/metadata/metadata_view.hpp"
 
+#include <QEvent>
 #include <QFontMetrics>
 #include <QLocale>
 
 #include <algorithm>
+#include <initializer_list>
 #include <span>
 
 namespace patchy::ui {
@@ -129,7 +131,38 @@ void StatusDocumentInfoLabel::set_info(const Info& info) {
   parts_ = info.parts;
   setToolTip(info.tooltip);
   update_shown_text();
-  setVisible(!parts_.isEmpty());
+  apply_visibility(!parts_.isEmpty());
+}
+
+void StatusDocumentInfoLabel::set_separators(QWidget* before, QWidget* after) {
+  separator_before_ = before;
+  separator_after_ = after;
+  apply_visibility(!isHidden());
+}
+
+void StatusDocumentInfoLabel::apply_visibility(bool shown) {
+  setVisible(shown);
+  for (auto* separator : {separator_before_, separator_after_}) {
+    if (separator != nullptr) {
+      separator->setVisible(shown);
+    }
+  }
+}
+
+int StatusDocumentInfoLabel::reserved_text_width() const {
+  // The same strings describe() shows, so a translation sizes the field too.
+  const auto sample =
+      QStringList{tr("%1 × %2 px").arg(10000).arg(10000), tr("%1 ppi").arg(300),
+                  tr("%1 %2", "status bar: color mode, then bit depth").arg(tr("CMYK Proof"), tr("16-bit"))}
+          .join(separator());
+  return fontMetrics().horizontalAdvance(sample);
+}
+
+void StatusDocumentInfoLabel::changeEvent(QEvent* event) {
+  QLabel::changeEvent(event);
+  if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange) {
+    update_shown_text();
+  }
 }
 
 void StatusDocumentInfoLabel::set_width_budget(int pixels) {
@@ -145,16 +178,31 @@ void StatusDocumentInfoLabel::update_shown_text() {
     setText(QString());
     return;
   }
-  ensurePolished();  // the status-bar style sets the font the fit measures with
+  ensurePolished();  // the status-bar style sets the font and padding the fit measures with
   const auto metrics = fontMetrics();
-  // Dimensions always show; each further part only when it fits whole.
+  // One width for every document (GitHub issue 206), so the message after the field
+  // holds still across tab switches; only a narrow bar makes it smaller.
+  const auto padding = rect().width() - contentsRect().width();
+  const auto reserved = reserved_text_width();
+  const auto budget = width_budget_ > 0 ? std::max(0, width_budget_ - padding) : reserved;
+  const auto narrowed = budget < reserved;
+  const auto room = std::min(budget, reserved);
+  // Dimensions always show; each further part only when it fits whole. With the full
+  // width to spare, a rare longer part is elided instead (the tooltip has it all).
   auto text = parts_.front();
   for (qsizetype index = 1; index < parts_.size(); ++index) {
     const auto longer = text + separator() + parts_[index];
-    if (width_budget_ > 0 && metrics.horizontalAdvance(longer) > width_budget_) {
+    if (metrics.horizontalAdvance(longer) > room) {
+      if (!narrowed) {
+        text = metrics.elidedText(longer, Qt::ElideRight, room);
+      }
       break;
     }
     text = longer;
+  }
+  const auto width = std::max(room, metrics.horizontalAdvance(text)) + padding;
+  if (width != this->width() || minimumWidth() != maximumWidth()) {
+    setFixedWidth(width);
   }
   if (text != this->text()) {
     setText(text);

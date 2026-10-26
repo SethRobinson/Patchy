@@ -22,9 +22,12 @@ namespace patchy::ui {
 
 // The status-bar document info field (GitHub issues 202 and 206; see
 // docs/view-navigation.md): one line with the active document's dimensions,
-// resolution, color mode and bit depth, in that order. When the bar is narrow the
-// trailing parts drop off whole; the dimensions always stay. The tooltip carries the
-// whole line plus the color profile and memory use.
+// resolution, color mode and bit depth, in that order, between two separators. The
+// field keeps one width for every document (a long sample line in its own font), so
+// the status message after it starts at the same place; a rare longer line is elided.
+// When the bar is narrow the field narrows and trailing parts drop off whole; the
+// dimensions always stay. The tooltip carries the whole line plus the color profile
+// and memory use.
 class StatusDocumentInfoLabel final : public QLabel {
   Q_OBJECT
 
@@ -48,15 +51,26 @@ public:
 
   // Shows `info` or, with no parts, hides the field. A no-op when nothing changed.
   void set_info(const Info& info);
-  // The most text width the field may take; trailing parts that do not fit drop.
+  // The most width the field may take; trailing parts that do not fit drop.
   void set_width_budget(int pixels);
+  // The separators before and after the field; they show and hide with it.
+  void set_separators(QWidget* before, QWidget* after);
   [[nodiscard]] const QStringList& parts() const noexcept { return parts_; }
+  // The text width the field reserves when the bar has room: a long sample line in
+  // the field's font and the UI language.
+  [[nodiscard]] int reserved_text_width() const;
+
+protected:
+  void changeEvent(QEvent* event) override;
 
 private:
   void update_shown_text();
+  void apply_visibility(bool shown);
 
   QStringList parts_;
   int width_budget_{0};
+  QWidget* separator_before_{nullptr};
+  QWidget* separator_after_{nullptr};
 };
 
 // The status-bar selection readout (GitHub issue 355; docs/view-navigation.md): the
