@@ -629,7 +629,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   // tablet path is excluded here.
   if (event->button() == Qt::RightButton && (event->modifiers() & Qt::AltModifier) != 0 &&
       !handling_tablet_event_ && !edit_locked_ && !spacebar_panning_ && !painting_ && !drawing_shape_ &&
-      !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
+      !quick_selecting_ && !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
     begin_brush_adjust_drag(event->pos());
     event->accept();
     return;
@@ -3223,10 +3223,24 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
     if (was_click) {
       // A press inside the selection that never became a drag is a plain click,
-      // which deselects (matching the click-to-deselect behaviour elsewhere).
+      // which does what the tool's click does: the polygonal and magnetic
+      // lassos start a trace at the press, the Magic Wand selects from it, and
+      // the marquees and Lasso deselect (GitHub issue 436).
       restore_selection_before_edit();
-      clear_selection();
-      record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
+      const auto press_point = selection_move_origin_document_;
+      if (tool_ == CanvasTool::PolygonLasso && document_ != nullptr) {
+        start_polygon_lasso(QPolygon{press_point}, /*from_lasso=*/false);
+      } else if (tool_ == CanvasTool::MagneticLasso && document_ != nullptr) {
+        start_magnetic_lasso(clamped_document_point(*document_, press_point), Qt::NoModifier);
+      } else if (tool_ == CanvasTool::MagicWand) {
+        begin_processing_operation();
+        magic_wand_select(press_point);
+        end_processing_operation();
+        record_selection_history(tr("Magic Wand"), selection_snapshot_before_edit());
+      } else {
+        clear_selection();
+        record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
+      }
     } else {
       apply_selection_move(document_point - selection_move_origin_document_);
       // Coalesce with any preceding move/nudge so a run of repositions is one

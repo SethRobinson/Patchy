@@ -1790,12 +1790,14 @@ void CanvasWidget::refresh_active_marquee_selection() {
 }
 
 bool CanvasWidget::can_move_selection_at(QPoint document_point, Qt::KeyboardModifiers modifiers) const {
-  // Photoshop lets any selection tool drag an existing selection by grabbing
+  // The marquees, lassos and Magic Wand drag an existing selection by grabbing
   // inside it, but only in Replace mode (Shift/Alt/Add/Subtract keep editing the
-  // selection's shape instead of moving it).
-  const bool selection_tool =
-      tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso;
-  return selection_tool && !selection_.isEmpty() &&
+  // selection's shape instead of moving it), and never while a polygonal or
+  // magnetic trace is in progress: its clicks place points (GitHub issue 436).
+  const bool selection_tool = tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee ||
+                              tool_ == CanvasTool::Lasso || tool_ == CanvasTool::PolygonLasso ||
+                              tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand;
+  return selection_tool && !polygon_lassoing_ && !magnetic_lassoing_ && !selection_.isEmpty() &&
          selection_operation(modifiers) == SelectionMode::Replace && selection_.contains(document_point);
 }
 
