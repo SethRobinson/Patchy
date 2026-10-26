@@ -13031,6 +13031,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Reset to Default</source>
         <translation>還原預設值</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>無失真，速度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>品質 %1，速度 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>無失真，編碼強度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>品質 %1，編碼強度 %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>編碼比其他格式耗時更長；完成後預覽會更新。</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 設定</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 設定</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>選取後編碼</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>正在編碼...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28662,6 +28698,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette：未知的值「%1」。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb：format 必須是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb 無法編碼：%1</translation>
     </message>
 </context>
 <context>

@@ -1247,6 +1247,11 @@ interface PatchyDocument {
   /** Writes a copy to the path with the same formats and options as saveAs, and leaves the
    * document alone: its path, title and modified state never change, whatever the format. */
   exportAs(path: string, options?: PatchySaveOptions): boolean;
+  /** File > Export for Web's encoders without a file: the bytes exportAs would write for this
+   *  format ("avif" only where AVIF is built). options are exactly the exportAs keys of that
+   *  format, strictly checked. width and height are the encoded image's size. */
+  encodeForWeb(format: "jpeg" | "webp" | "png" | "gif" | "avif" | "jxl",
+               options?: PatchySaveOptions): {bytes: ArrayBuffer; width: number; height: number};
   /** Exports visible top-level layers, top first, as animated WebP. Groups become one frame.
    * Trailing seconds tokens ("blink 0.033s") override frameDelayMs. Preserves the document path
    * and modified state. loopCount is total plays (0 = forever), defaults to the imported or

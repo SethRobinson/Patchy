@@ -13105,6 +13105,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Reset to Default</source>
         <translation>Восстановить по умолчанию</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Без потерь, скорость %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Качество %1, скорость %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Без потерь, усилие %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Качество %1, усилие %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>Кодирование занимает больше времени, чем у других форматов; предпросмотр обновится по завершении.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>Параметры AVIF</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>Параметры JPEG XL</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>выберите для кодирования</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Кодирование...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28816,6 +28852,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: неизвестное значение &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format должен быть одним из %1.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb не удалось закодировать: %1</translation>
     </message>
 </context>
 <context>

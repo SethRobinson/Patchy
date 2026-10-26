@@ -13068,6 +13068,42 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Reset to Default</source>
         <translation>Auf Standard zurücksetzen</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Verlustfrei, Geschwindigkeit %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Qualität %1, Geschwindigkeit %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Verlustfrei, Aufwand %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Qualität %1, Aufwand %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>Das Kodieren dauert länger als bei den anderen Formaten; die Vorschau aktualisiert sich, wenn es fertig ist.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF-Einstellungen</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG-XL-Einstellungen</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>zum Kodieren wählen</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Wird kodiert...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28739,6 +28775,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: unbekannter Wert &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format muss eines von %1 sein.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb konnte nicht kodieren: %1</translation>
     </message>
 </context>
 <context>

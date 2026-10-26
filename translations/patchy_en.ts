@@ -13051,6 +13051,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Reset to Default</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28656,6 +28692,14 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

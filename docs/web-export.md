@@ -14,13 +14,17 @@ hooks in `src/ui/image_document_io.cpp`.
 
 ## Formats and options
 
-The list is JPEG, WebP, PNG and GIF (`WebExportFormat`, append-only; AVIF and JPEG XL are stage
-3). Each format keeps its own settings.
+The list is JPEG, WebP, AVIF, JPEG XL, PNG and GIF (`WebExportFormat`, append-only; AVIF only
+where `avif::is_available()`, so not in the browser build). Each format keeps its own settings.
 
 - JPEG: Quality 1-100 (default 80), Progressive (default on), Optimize coding (optimized Huffman
   tables, default on), Background color for transparent areas (default white; JPEG has no alpha).
 - WebP: Quality 0-100 (75), Lossless, and "Animation from visible layers" when the document has
   two or more layers and a visible one (the animated WebP writer, as Flat Image).
+- AVIF: Quality 0-100 (80), Speed 0-10 (6, lower is smaller and slower), Lossless: Flat Image's
+  `avif_*` options through the vendored libaom writer ([avif.md](avif.md); its codec rules apply).
+- JPEG XL: Quality 1-100 (90), Effort 1-9 (7), Lossless, and "Animation from visible layers" with a
+  Frame delay for two or more layers ([jxl.md](jxl.md); animated frames are 8-bit).
 - PNG: Colors Full color (lossless, transparency kept) or Palette: the GIF quantizer's Colors,
   Dither and Amount below, written as an indexed PNG with one fully transparent entry (tRNS) for
   pixels under 50% alpha (`ImageSaveOptions::png_palette`, `quantized_png8_image`).
@@ -60,9 +64,16 @@ palette and ignore them. Pinned by `gif_quantize_*` (core).
 
 ## Preview engine
 
-`WebExportPreviewEngine` runs one worker at a time over a job queue (selected format first, then
-the others one at a time). `request()` replaces the queue and bumps the generation; a queued job
-whose generation is stale when its worker starts is dropped unrun. Each job:
+`WebExportPreviewEngine` has two lanes, each with one worker at a time: lane 0 encodes the
+selected format, lane 1 the other rows one after another (fast formats first). A slow AVIF or JPEG
+XL encode in lane 1 therefore never delays the selected format, and the UI thread only keeps
+books. `request()` replaces both queues and bumps the generation; a queued job whose generation
+is stale when its worker starts is dropped unrun, and one already running finishes and is cached
+by signature. The narrowed source and the prepared document are made under a mutex once and then
+shared read-only by both lanes. AVIF and JPEG XL sizes are only computed in the background after
+their row has been selected once in that dialog (until then the row says "select to encode"): on
+a large photo libaom and libjxl take seconds, and encoding them for every quality change of
+another format would keep a core busy for nothing. Each job:
 
 1. Narrows the source to 8 bits once per dialog.
 2. Prepares the resized, trimmed, sRGB-converted stand-in (`export_transformed_document`), cached
@@ -70,12 +81,14 @@ whose generation is stale when its worker starts is dropped unrun. Each job:
 3. Encodes through `encode_flat_image_bytes` (the real `write_flat_image_file` into a private
    temporary folder) with `without_export_transforms` options plus JPEG's background fill, or from
    the whole document for an animated WebP.
-4. Decodes the bytes with Qt's reader (the one Patchy opens these formats with).
+4. Decodes the bytes (`decode_web_export_bytes`): Qt's readers for JPEG, WebP, PNG and GIF,
+   `avif::read_avif` and `jxl::read_jxl` for the other two (an animation shows frame 1).
 
 Results are cached by signature (format, geometry, metadata and the format's options; at most 12),
 so equal settings never encode twice and switching back is instant. The dialog shows a result only
 when its signature matches the current settings; until then the last image stays up with
-"encoding...". Settings changes restart a 200 ms debounce. Save reuses the current result's bytes
+"encoding...", and a row whose settings changed keeps its last size, in italics with " ...",
+until the new size lands. Settings changes restart a 200 ms debounce. Save reuses the current result's bytes
 (`write_encoded_image_file`, a QSaveFile); while the current settings are still encoding, Save
 waits for them. With no current result, `export_for_web` encodes on the save worker.
 
@@ -92,7 +105,8 @@ zoom and pan in step), Result only.
 `metadata` (`none`, `copyright`, `all`), `thumbnail`, `resample` (`smooth`, `pixelArt`), `trim`,
 `convertToSrgb`, `compare` (`split`, `sideBySide`, `result`), `revealWhenDone`, `pngColors`
 (`full`, `palette`), `pngPaletteColors`, `pngDither` and `gifDither` (`none`, `diffusion`),
-`pngDitherAmount`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, all under
+`pngDitherAmount`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, `avifQuality`, `avifSpeed`, `avifLossless`,
+`jxlQuality`, `jxlEffort`, `jxlLossless`, `jxlAnimate`, `jxlFrameDelayMs`, all under
 `exportForWeb/`. Saved when the dialog is accepted. Reset returns every option to its first-use
 default and keeps the compare mode and reveal choice.
 
@@ -104,12 +118,22 @@ default and keeps the compare mode and reveal choice.
 default; the palette keys without it throw). Strict, like every save option
 ([scripting-api-changes.md](scripting-api-changes.md)). `metadata` was already there.
 
+`doc.encodeForWeb(format, options)` encodes without a file and returns `{bytes, width, height}`
+(`bytes` an ArrayBuffer). `format` is a persisted token (`"jpeg"`, `"webp"`, `"png"`, `"gif"`,
+`"avif"`, `"jxl"`; `"avif"` throws where AVIF is not built); `options` are exactly the `exportAs`
+keys of that format, parsed by the same strict reader, starting from the same defaults, and the
+bytes are what `exportAs` would write for an RGB document (a CMYK Proof document still needs
+`colorMode: "cmyk"` for CMYK). `width`/`height` come from decoding the result.
+
 ## Tests
 
 Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defaults_and_options`,
 `ui_web_export_palette_png_and_gif_read_back`, `ui_script_export_as_palette_keys`,
+`ui_web_export_avif_and_jxl_read_back`, `ui_web_export_slow_encode_never_blocks_the_selected_format`,
+`ui_script_encode_for_web`,
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,
 `ui_web_export_engine_drops_stale_requests`, `ui_web_export_dialog_previews_and_saves` (captures
-`web_export_jpeg_split`, `web_export_png_palette` and `web_export_gif_side_by_side`), `ui_web_export_metadata_and_thumbnail_choices`,
+`web_export_jpeg_split`, `web_export_png_palette`, `web_export_gif_side_by_side`,
+`web_export_avif` and `web_export_jxl`), `ui_web_export_metadata_and_thumbnail_choices`,
 `ui_unicode_export_for_web_writes_encoded_bytes`, `ui_script_export_as_jpeg_coding_options`, the
 dialog sweep, `ui_file_export_menu_actions_registered` and `ui_photoshop_shortcuts_are_registered`.

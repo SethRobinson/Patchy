@@ -13068,6 +13068,42 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Reset to Default</source>
         <translation>Rétablir les valeurs par défaut</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Sans perte, vitesse %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Qualité %1, vitesse %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Sans perte, effort %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Qualité %1, effort %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>L&apos;encodage prend plus de temps que pour les autres formats ; l&apos;aperçu se met à jour une fois terminé.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>Réglages AVIF</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>Réglages JPEG XL</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>sélectionner pour encoder</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Encodage...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28739,6 +28775,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette : valeur inconnue &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb : format doit être l&apos;un de %1.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb n&apos;a pas pu encoder : %1</translation>
     </message>
 </context>
 <context>

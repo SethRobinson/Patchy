@@ -60,6 +60,7 @@
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/script_save_options.hpp"
+#include "ui/web_export.hpp"
 #include "ui/script_vector.hpp"
 #include "ui/watermark_scan_report.hpp"
 #include "core/text_area.hpp"
@@ -3353,6 +3354,54 @@ bool ScriptDocumentObject::saveAs(const QString& path, const QJSValue& options) 
 bool ScriptDocumentObject::exportAs(const QString& path, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   return save_to_path(QStringLiteral("exportAs"), path, options, /*export_copy=*/true);
+}
+
+QJSValue ScriptDocumentObject::encodeForWeb(const QString& format, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return QJSValue();
+  }
+  const auto web_format = web_export_format_from_key(format);
+  if (!web_format.has_value()) {
+    QStringList tokens;
+    for (const auto known : web_export_formats()) {
+      tokens << QStringLiteral("\"%1\"").arg(web_export_format_key(known));
+    }
+    host_.throw_js_error(ScriptEngineHost::tr("encodeForWeb: format must be one of %1.").arg(tokens.join(QStringLiteral(", "))));
+    return QJSValue();
+  }
+  auto save_options = host_.save_options_for_session(session_id_);
+  if (!save_options.has_value()) {
+    return QJSValue();
+  }
+  const auto extension = web_export_extension(*web_format);
+  if (!options.isUndefined()) {
+    const auto error =
+        apply_script_image_save_options(QStringLiteral("encodeForWeb"), extension, options, *save_options);
+    if (!error.isEmpty()) {
+      host_.throw_js_error(error);
+      return QJSValue();
+    }
+  }
+  std::vector<std::uint8_t> bytes;
+  QSize size(document->width(), document->height());
+  try {
+    bytes = encode_flat_image_bytes(*document, extension, *save_options);
+    if (const auto decoded = decode_web_export_bytes(*web_format, bytes); !decoded.isNull()) {
+      size = decoded.size();
+    }
+  } catch (const std::exception& error) {
+    host_.throw_js_error(ScriptEngineHost::tr("encodeForWeb could not encode: %1").arg(QObject::tr(error.what())));
+    return QJSValue();
+  }
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("bytes"),
+                     host_.engine()->toScriptValue(QByteArray(reinterpret_cast<const char*>(bytes.data()),
+                                                              static_cast<qsizetype>(bytes.size()))));
+  result.setProperty(QStringLiteral("width"), size.width());
+  result.setProperty(QStringLiteral("height"), size.height());
+  return result;
 }
 
 bool ScriptDocumentObject::save_to_path(const QString& method, const QString& path, const QJSValue& options,

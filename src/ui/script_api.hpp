@@ -358,6 +358,10 @@ public:
   Q_INVOKABLE QJSValue trim(const QJSValue& options = QJSValue());
   Q_INVOKABLE bool saveAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAs(const QString& path, const QJSValue& options = QJSValue());
+  // File > Export for Web's encoders without a file (docs/web-export.md): format "jpeg",
+  // "webp", "png", "gif", "avif" or "jxl", options as exportAs takes for that format.
+  // Returns {bytes: ArrayBuffer, width, height}.
+  Q_INVOKABLE QJSValue encodeForWeb(const QString& format, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedPng(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE void close();

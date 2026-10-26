@@ -1,6 +1,8 @@
 #include "ui/web_export.hpp"
 
 #include "color/rgb_profiles.hpp"
+#include "formats/avif_document_io.hpp"
+#include "formats/jxl_document_io.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/activity_spinner.hpp"
 #include "ui/app_settings.hpp"
@@ -42,6 +44,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <deque>
@@ -69,6 +72,14 @@ constexpr const char* kTrimKey = "exportForWeb/trim";
 constexpr const char* kConvertToSrgbKey = "exportForWeb/convertToSrgb";
 constexpr const char* kCompareKey = "exportForWeb/compare";
 constexpr const char* kRevealKey = "exportForWeb/revealWhenDone";
+constexpr const char* kAvifQualityKey = "exportForWeb/avifQuality";
+constexpr const char* kAvifSpeedKey = "exportForWeb/avifSpeed";
+constexpr const char* kAvifLosslessKey = "exportForWeb/avifLossless";
+constexpr const char* kJxlQualityKey = "exportForWeb/jxlQuality";
+constexpr const char* kJxlEffortKey = "exportForWeb/jxlEffort";
+constexpr const char* kJxlLosslessKey = "exportForWeb/jxlLossless";
+constexpr const char* kJxlAnimateKey = "exportForWeb/jxlAnimate";
+constexpr const char* kJxlFrameDelayKey = "exportForWeb/jxlFrameDelayMs";
 constexpr const char* kPngColorsKey = "exportForWeb/pngColors";
 constexpr const char* kPngPaletteColorsKey = "exportForWeb/pngPaletteColors";
 constexpr const char* kPngDitherKey = "exportForWeb/pngDither";
@@ -151,10 +162,42 @@ constexpr std::size_t kCachedResults = 12;
 
 }  // namespace
 
+// The encoded file read back for display: Qt's readers for JPEG, WebP, PNG and GIF, Patchy's
+// own for AVIF and JPEG XL (Qt has no plug-in for them). The first frame of an animation.
+QImage decode_web_export_bytes(WebExportFormat format, std::span<const std::uint8_t> bytes) {
+  if (format == WebExportFormat::Avif || format == WebExportFormat::Jxl) {
+    auto read = format == WebExportFormat::Avif ? avif::read_avif(bytes) : jxl::read_jxl(bytes);
+    std::optional<Document> narrowed;
+    const auto& eight_bit = document_for_8bit_writer(read.document, narrowed);
+    // Animations open one layer per frame, frame 1 on top: show that layer alone.
+    if (eight_bit.layers().size() > 1) {
+      const auto& top = std::as_const(eight_bit).layers().back();
+      return display_image(render_layer_isolated(eight_bit, top));
+    }
+    return display_image(qimage_from_document(eight_bit, true));
+  }
+  const auto extension = web_export_extension(format).toLatin1();
+  return display_image(QImage::fromData(
+      QByteArrayView(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())),
+      extension.constData()));
+}
+
 const std::vector<WebExportFormat>& web_export_formats() {
-  static const std::vector<WebExportFormat> formats = {WebExportFormat::Jpeg, WebExportFormat::Webp,
-                                                       WebExportFormat::Png, WebExportFormat::Gif};
+  static const std::vector<WebExportFormat> formats = [] {
+    std::vector<WebExportFormat> list{WebExportFormat::Jpeg, WebExportFormat::Webp};
+    if (avif::is_available()) {
+      list.push_back(WebExportFormat::Avif);
+    }
+    list.push_back(WebExportFormat::Jxl);
+    list.push_back(WebExportFormat::Png);
+    list.push_back(WebExportFormat::Gif);
+    return list;
+  }();
   return formats;
+}
+
+bool web_export_format_is_slow(WebExportFormat format) {
+  return format == WebExportFormat::Avif || format == WebExportFormat::Jxl;
 }
 
 QString web_export_format_key(WebExportFormat format) {
@@ -165,6 +208,10 @@ QString web_export_format_key(WebExportFormat format) {
       return QStringLiteral("png");
     case WebExportFormat::Gif:
       return QStringLiteral("gif");
+    case WebExportFormat::Avif:
+      return QStringLiteral("avif");
+    case WebExportFormat::Jxl:
+      return QStringLiteral("jxl");
     case WebExportFormat::Jpeg:
       break;
   }
@@ -188,6 +235,10 @@ QString web_export_extension(WebExportFormat format) {
       return QStringLiteral("png");
     case WebExportFormat::Gif:
       return QStringLiteral("gif");
+    case WebExportFormat::Avif:
+      return QStringLiteral("avif");
+    case WebExportFormat::Jxl:
+      return QStringLiteral("jxl");
     case WebExportFormat::Jpeg:
       break;
   }
@@ -202,6 +253,10 @@ QString web_export_format_name(WebExportFormat format) {
       return QStringLiteral("PNG");
     case WebExportFormat::Gif:
       return QStringLiteral("GIF");
+    case WebExportFormat::Avif:
+      return QStringLiteral("AVIF");
+    case WebExportFormat::Jxl:
+      return QStringLiteral("JPEG XL");
     case WebExportFormat::Jpeg:
       break;
   }
@@ -221,6 +276,14 @@ WebExportSettings load_web_export_settings() {
   settings.webp_quality = std::clamp(stored.value(QLatin1String(kWebpQualityKey), 75).toInt(), 0, 100);
   settings.webp_lossless = stored.value(QLatin1String(kWebpLosslessKey), false).toBool();
   settings.webp_animate = stored.value(QLatin1String(kWebpAnimateKey), false).toBool();
+  settings.avif_quality = std::clamp(stored.value(QLatin1String(kAvifQualityKey), 80).toInt(), 0, 100);
+  settings.avif_speed = std::clamp(stored.value(QLatin1String(kAvifSpeedKey), 6).toInt(), 0, 10);
+  settings.avif_lossless = stored.value(QLatin1String(kAvifLosslessKey), false).toBool();
+  settings.jxl_quality = std::clamp(stored.value(QLatin1String(kJxlQualityKey), 90).toInt(), 1, 100);
+  settings.jxl_effort = std::clamp(stored.value(QLatin1String(kJxlEffortKey), 7).toInt(), 1, 9);
+  settings.jxl_lossless = stored.value(QLatin1String(kJxlLosslessKey), false).toBool();
+  settings.jxl_animate = stored.value(QLatin1String(kJxlAnimateKey), false).toBool();
+  settings.jxl_frame_delay_ms = std::clamp(stored.value(QLatin1String(kJxlFrameDelayKey), 100).toInt(), 0, 655350);
   settings.png_palette = stored.value(QLatin1String(kPngColorsKey)).toString() == QStringLiteral("palette");
   settings.png_colors = std::clamp(stored.value(QLatin1String(kPngPaletteColorsKey), 256).toInt(), 2, 256);
   settings.png_dither = stored.value(QLatin1String(kPngDitherKey)).toString() == QStringLiteral("diffusion");
@@ -253,6 +316,14 @@ void save_web_export_settings(const WebExportSettings& settings) {
   stored.setValue(QLatin1String(kWebpQualityKey), settings.webp_quality);
   stored.setValue(QLatin1String(kWebpLosslessKey), settings.webp_lossless);
   stored.setValue(QLatin1String(kWebpAnimateKey), settings.webp_animate);
+  stored.setValue(QLatin1String(kAvifQualityKey), settings.avif_quality);
+  stored.setValue(QLatin1String(kAvifSpeedKey), settings.avif_speed);
+  stored.setValue(QLatin1String(kAvifLosslessKey), settings.avif_lossless);
+  stored.setValue(QLatin1String(kJxlQualityKey), settings.jxl_quality);
+  stored.setValue(QLatin1String(kJxlEffortKey), settings.jxl_effort);
+  stored.setValue(QLatin1String(kJxlLosslessKey), settings.jxl_lossless);
+  stored.setValue(QLatin1String(kJxlAnimateKey), settings.jxl_animate);
+  stored.setValue(QLatin1String(kJxlFrameDelayKey), settings.jxl_frame_delay_ms);
   stored.setValue(QLatin1String(kPngColorsKey), settings.png_palette ? QStringLiteral("palette") : QStringLiteral("full"));
   stored.setValue(QLatin1String(kPngPaletteColorsKey), settings.png_colors);
   stored.setValue(QLatin1String(kPngDitherKey), settings.png_dither ? QStringLiteral("diffusion") : QStringLiteral("none"));
@@ -312,6 +383,18 @@ ImageSaveOptions web_export_image_options(const WebExportSettings& settings, Web
         options.palette_dither_amount = std::clamp(settings.png_dither_amount, 0, 100);
       }
       break;
+    case WebExportFormat::Avif:
+      options.avif_quality = std::clamp(settings.avif_quality, 0, 100);
+      options.avif_speed = std::clamp(settings.avif_speed, 0, 10);
+      options.avif_lossless = settings.avif_lossless;
+      break;
+    case WebExportFormat::Jxl:
+      options.jxl_quality = std::clamp(settings.jxl_quality, 1, 100);
+      options.jxl_effort = std::clamp(settings.jxl_effort, 1, 9);
+      options.jxl_lossless = settings.jxl_lossless;
+      options.jxl_animate = settings.jxl_animate;
+      options.animation_frame_delay_ms = std::clamp(settings.jxl_frame_delay_ms, 0, 655350);
+      break;
     case WebExportFormat::Gif:
       options.palette_colors = std::clamp(settings.gif_colors, 2, 256);
       options.palette_dither = settings.gif_dither;
@@ -340,6 +423,16 @@ QString web_export_format_summary(const WebExportSettings& settings, WebExportFo
                                    : QObject::tr("%n colors, no dither", nullptr, settings.png_colors);
       }
       break;
+    case WebExportFormat::Avif:
+      return settings.avif_lossless
+                 ? QObject::tr("Lossless, speed %1").arg(settings.avif_speed)
+                 : QObject::tr("Quality %1, speed %2").arg(settings.avif_quality).arg(settings.avif_speed);
+    case WebExportFormat::Jxl: {
+      const auto base = settings.jxl_lossless
+                            ? QObject::tr("Lossless, effort %1").arg(settings.jxl_effort)
+                            : QObject::tr("Quality %1, effort %2").arg(settings.jxl_quality).arg(settings.jxl_effort);
+      return settings.jxl_animate ? QObject::tr("%1, animated").arg(base) : base;
+    }
     case WebExportFormat::Gif: {
       const auto base = settings.gif_dither ? QObject::tr("%n colors, diffusion", nullptr, settings.gif_colors)
                                             : QObject::tr("%n colors, no dither", nullptr, settings.gif_colors);
@@ -356,7 +449,8 @@ WebExportJob web_export_job(const WebExportSettings& settings, WebExportFormat f
   job.options = web_export_image_options(settings, format, document_size);
   job.convert_to_srgb = settings.convert_to_srgb;
   job.animate = (format == WebExportFormat::Webp && settings.webp_animate) ||
-                (format == WebExportFormat::Gif && settings.gif_animate);
+                (format == WebExportFormat::Gif && settings.gif_animate) ||
+                (format == WebExportFormat::Jxl && settings.jxl_animate);
   auto signature = web_export_format_key(format) + QLatin1Char('|') +
                    geometry_signature(job.geometry, job.convert_to_srgb) + QLatin1Char('|') +
                    metadata_policy_key(settings.metadata);
@@ -383,6 +477,20 @@ WebExportJob web_export_job(const WebExportSettings& settings, WebExportFormat f
                          .arg(job.options.palette_dither_amount);
       }
       break;
+    case WebExportFormat::Avif:
+      signature += QStringLiteral("|q%1s%2l%3")
+                       .arg(job.options.avif_quality)
+                       .arg(job.options.avif_speed)
+                       .arg(job.options.avif_lossless ? 1 : 0);
+      break;
+    case WebExportFormat::Jxl:
+      signature += QStringLiteral("|q%1e%2l%3n%4f%5")
+                       .arg(job.options.jxl_quality)
+                       .arg(job.options.jxl_effort)
+                       .arg(job.options.jxl_lossless ? 1 : 0)
+                       .arg(job.animate ? 1 : 0)
+                       .arg(job.options.animation_frame_delay_ms);
+      break;
     case WebExportFormat::Gif:
       signature += QStringLiteral("|c%1d%2a%3n%4f%5")
                        .arg(job.options.palette_colors)
@@ -405,18 +513,23 @@ bool web_export_has_non_srgb_profile(const Document& document) {
 
 struct WebExportPreviewEngine::State {
   std::shared_ptr<const Document> source;
-  // Worker side: only the one running job touches these (the mutex makes that explicit).
+  // Worker side. The mutex guards the narrowed source and the prepared cache; encodes run
+  // outside it on immutable shared documents, so the two lanes encode at the same time.
   std::mutex worker_mutex;
   std::shared_ptr<const Document> narrowed;
   QString prepared_key;
   std::shared_ptr<const Document> prepared;
   QImage prepared_image;
   std::vector<std::string> prepared_notices;
-  // UI thread.
-  std::deque<WebExportJob> queue;
+  // UI thread. Lane 0 runs the selected format's job, lane 1 the other rows one at a time,
+  // so a slow AVIF or JPEG XL size never holds back the selected format.
+  struct Lane {
+    std::deque<WebExportJob> queue;
+    bool in_flight{false};
+  };
+  std::array<Lane, 2> lanes;
   std::map<QString, WebExportResult> results;
   std::deque<QString> result_order;
-  bool in_flight{false};
   bool closed{false};
   std::function<void(const WebExportJob&, const WebExportResult&)> callback;
   std::atomic<std::uint64_t> generation{0};
@@ -425,7 +538,7 @@ struct WebExportPreviewEngine::State {
 
 namespace {
 
-void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::State>& state);
+void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::State>& state, std::size_t lane);
 
 void store_web_export_result(WebExportPreviewEngine::State& state, const QString& signature,
                              const WebExportResult& result) {
@@ -439,50 +552,65 @@ void store_web_export_result(WebExportPreviewEngine::State& state, const QString
   }
 }
 
-void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::State>& state) {
-  if (state->closed || state->in_flight) {
+// The 8-bit source and the prepared (resized, trimmed, sRGB) document for a job's geometry,
+// made once and shared by both lanes.
+struct PreparedSources {
+  std::shared_ptr<const Document> narrowed;
+  std::shared_ptr<const Document> prepared;
+  QImage prepared_image;
+  std::vector<std::string> notices;
+};
+
+PreparedSources prepared_sources(WebExportPreviewEngine::State& state, const WebExportJob& job) {
+  const std::lock_guard lock(state.worker_mutex);
+  if (state.narrowed == nullptr) {
+    std::optional<Document> narrowed;
+    const auto& eight_bit = document_for_8bit_writer(*state.source, narrowed);
+    state.narrowed = narrowed.has_value() ? std::make_shared<const Document>(std::move(*narrowed))
+                                          : std::shared_ptr<const Document>(state.source, &eight_bit);
+  }
+  const auto key = geometry_signature(job.geometry, job.convert_to_srgb);
+  if (state.prepared == nullptr || state.prepared_key != key) {
+    state.prepared_notices.clear();
+    state.prepared =
+        WebExportPreviewEngine::prepare(*state.narrowed, job.geometry, job.convert_to_srgb, &state.prepared_notices);
+    state.prepared_image = display_image(flat_export_qimage(*state.prepared, true));
+    state.prepared_key = key;
+  }
+  return PreparedSources{state.narrowed, state.prepared, state.prepared_image, state.prepared_notices};
+}
+
+void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::State>& state, std::size_t lane_index) {
+  auto& lane = state->lanes[lane_index];
+  if (state->closed || lane.in_flight) {
     return;
   }
-  while (!state->queue.empty() && state->results.find(state->queue.front().signature) != state->results.end()) {
-    state->queue.pop_front();
+  while (!lane.queue.empty() && state->results.find(lane.queue.front().signature) != state->results.end()) {
+    lane.queue.pop_front();
   }
-  if (state->queue.empty()) {
+  if (lane.queue.empty()) {
     return;
   }
-  auto job = std::move(state->queue.front());
-  state->queue.pop_front();
-  state->in_flight = true;
+  auto job = std::move(lane.queue.front());
+  lane.queue.pop_front();
+  lane.in_flight = true;
   const auto generation = state->generation.load(std::memory_order_acquire);
   auto* app = QCoreApplication::instance();
-  run_tracked_background_worker([state, job = std::move(job), generation, app]() mutable {
+  run_tracked_background_worker([state, job = std::move(job), generation, app, lane_index]() mutable {
     std::optional<WebExportResult> result;
     // A job whose request was replaced before it started is dropped unrun.
     if (state->generation.load(std::memory_order_acquire) == generation) {
       state->encodes.fetch_add(1, std::memory_order_acq_rel);
-      const std::lock_guard lock(state->worker_mutex);
       WebExportResult encoded;
+      PreparedSources sources;
       try {
-        if (state->narrowed == nullptr) {
-          std::optional<Document> narrowed;
-          const auto& eight_bit = document_for_8bit_writer(*state->source, narrowed);
-          state->narrowed = narrowed.has_value() ? std::make_shared<const Document>(std::move(*narrowed))
-                                                 : std::shared_ptr<const Document>(state->source, &eight_bit);
-        }
-        const auto key = geometry_signature(job.geometry, job.convert_to_srgb);
-        if (state->prepared == nullptr || state->prepared_key != key) {
-          state->prepared_notices.clear();
-          state->prepared = WebExportPreviewEngine::prepare(*state->narrowed, job.geometry, job.convert_to_srgb,
-                                                            &state->prepared_notices);
-          state->prepared_image = display_image(flat_export_qimage(*state->prepared, true));
-          state->prepared_key = key;
-        }
-        encoded = WebExportPreviewEngine::encode(*state->narrowed, job, state->prepared);
-        encoded.original = state->prepared_image;
-        encoded.notices.insert(encoded.notices.begin(), state->prepared_notices.begin(),
-                               state->prepared_notices.end());
+        sources = prepared_sources(*state, job);
+        encoded = WebExportPreviewEngine::encode(*sources.narrowed, job, sources.prepared);
+        encoded.original = sources.prepared_image;
+        encoded.notices.insert(encoded.notices.begin(), sources.notices.begin(), sources.notices.end());
       } catch (const std::exception& error) {
         encoded.error = QString::fromUtf8(error.what());
-        encoded.original = state->prepared_image;
+        encoded.original = sources.prepared_image;
       }
       result = std::move(encoded);
     }
@@ -491,8 +619,8 @@ void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::Sta
     }
     QMetaObject::invokeMethod(
         app,
-        [state, job = std::move(job), result = std::move(result)]() mutable {
-          state->in_flight = false;
+        [state, job = std::move(job), result = std::move(result), lane_index]() mutable {
+          state->lanes[lane_index].in_flight = false;
           if (state->closed) {
             return;
           }
@@ -504,7 +632,7 @@ void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::Sta
               state->callback(job, *result);
             }
           }
-          start_next_web_export_job(state);
+          start_next_web_export_job(state, lane_index);
         },
         Qt::QueuedConnection);
   });
@@ -529,11 +657,18 @@ void WebExportPreviewEngine::request(std::vector<WebExportJob> jobs) {
     return;
   }
   state_->generation.fetch_add(1, std::memory_order_acq_rel);
-  state_->queue.assign(std::make_move_iterator(jobs.begin()), std::make_move_iterator(jobs.end()));
+  state_->lanes[0].queue.clear();
+  state_->lanes[1].queue.clear();
+  for (std::size_t index = 0; index < jobs.size(); ++index) {
+    state_->lanes[index == 0 ? 0 : 1].queue.push_back(std::move(jobs[index]));
+  }
   start_next();
 }
 
-void WebExportPreviewEngine::start_next() { start_next_web_export_job(state_); }
+void WebExportPreviewEngine::start_next() {
+  start_next_web_export_job(state_, 0);
+  start_next_web_export_job(state_, 1);
+}
 
 std::optional<WebExportResult> WebExportPreviewEngine::cached(const QString& signature) const {
   const auto found = state_->results.find(signature);
@@ -543,7 +678,10 @@ std::optional<WebExportResult> WebExportPreviewEngine::cached(const QString& sig
   return found->second;
 }
 
-bool WebExportPreviewEngine::busy() const { return state_->in_flight || !state_->queue.empty(); }
+bool WebExportPreviewEngine::busy() const {
+  return std::any_of(state_->lanes.begin(), state_->lanes.end(),
+                     [](const State::Lane& lane) { return lane.in_flight || !lane.queue.empty(); });
+}
 
 std::uint64_t WebExportPreviewEngine::generation() const {
   return state_->generation.load(std::memory_order_acquire);
@@ -554,7 +692,8 @@ int WebExportPreviewEngine::encodes_started() const { return state_->encodes.loa
 void WebExportPreviewEngine::close() {
   state_->closed = true;
   state_->generation.fetch_add(1, std::memory_order_acq_rel);
-  state_->queue.clear();
+  state_->lanes[0].queue.clear();
+  state_->lanes[1].queue.clear();
   state_->callback = {};
 }
 
@@ -592,10 +731,7 @@ WebExportResult WebExportPreviewEngine::encode(const Document& narrowed_source, 
     options.export_background_color = job.options.export_background_color;
     bytes = encode_flat_image_bytes(source, extension, options, &result.notices);
   }
-  const auto format = extension.toLatin1();
-  result.decoded = display_image(QImage::fromData(
-      QByteArrayView(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())),
-      format.constData()));
+  result.decoded = decode_web_export_bytes(job.format, bytes);
   result.bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
   if (job.format == WebExportFormat::Gif || (job.format == WebExportFormat::Png && job.options.png_palette)) {
     result.palette = used_colors(result.decoded);
@@ -714,6 +850,7 @@ public:
 
   void set_images(QImage original, QImage result) {
     const auto size = !original.isNull() ? original.size() : result.size();
+    setProperty("webExportResultKey", result.cacheKey());
     original_.set_source(std::move(original));
     result_.set_source(std::move(result));
     if (!size.isEmpty()) {
@@ -1031,6 +1168,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   if (!offer_animation) {
     settings.webp_animate = false;
     settings.gif_animate = false;
+    settings.jxl_animate = false;
   }
 
   QDialog dialog(parent);
@@ -1134,6 +1272,73 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   webp_animate->setVisible(offer_animation);
   webp_form->addRow(webp_animate);
   controls->addWidget(webp_group);
+
+  // AVIF and JPEG XL settings (slow encoders: a note says so).
+  const auto add_slow_note = [](QFormLayout* form, QWidget* parent) {
+    auto* note = new QLabel(QObject::tr("Encoding takes longer than the other formats; the preview updates when it is "
+                                        "done."),
+                            parent);
+    note->setWordWrap(true);
+    set_themed_style(*note, QStringLiteral("color: @hint_text;"));
+    form->addRow(note);
+  };
+  auto* avif_group = make_group(&dialog, QObject::tr("AVIF settings"), "webExportAvifGroup");
+  auto* avif_form = make_form(avif_group);
+  auto* avif_quality = add_dialog_slider_spin_row(avif_form, avif_group, QObject::tr("Quality:"),
+                                                  QStringLiteral("webExportAvifQualitySlider"),
+                                                  QStringLiteral("webExportAvifQualitySpin"), 0, 100,
+                                                  settings.avif_quality);
+  auto* avif_speed = new QSpinBox(avif_group);
+  avif_speed->setObjectName(QStringLiteral("webExportAvifSpeedSpin"));
+  avif_speed->setRange(0, 10);
+  avif_speed->setValue(settings.avif_speed);
+  avif_speed->setToolTip(QObject::tr("Lower speed makes smaller files and takes longer to save."));
+  configure_dialog_spinbox(avif_speed, 76);
+  avif_speed->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  avif_form->addRow(QObject::tr("Speed:"), avif_speed);
+  auto* avif_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), avif_group);
+  avif_lossless->setObjectName(QStringLiteral("webExportAvifLosslessCheck"));
+  avif_form->addRow(avif_lossless);
+  add_slow_note(avif_form, avif_group);
+  avif_group->setVisible(false);
+  controls->addWidget(avif_group);
+
+  auto* jxl_group = make_group(&dialog, QObject::tr("JPEG XL settings"), "webExportJxlGroup");
+  auto* jxl_form = make_form(jxl_group);
+  auto* jxl_quality = add_dialog_slider_spin_row(jxl_form, jxl_group, QObject::tr("Quality:"),
+                                                 QStringLiteral("webExportJxlQualitySlider"),
+                                                 QStringLiteral("webExportJxlQualitySpin"), 1, 100,
+                                                 settings.jxl_quality);
+  auto* jxl_effort = new QSpinBox(jxl_group);
+  jxl_effort->setObjectName(QStringLiteral("webExportJxlEffortSpin"));
+  jxl_effort->setRange(1, 9);
+  jxl_effort->setValue(settings.jxl_effort);
+  jxl_effort->setToolTip(QObject::tr("Higher effort makes smaller files and takes longer to save."));
+  configure_dialog_spinbox(jxl_effort, 76);
+  jxl_effort->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  jxl_form->addRow(QObject::tr("Effort:"), jxl_effort);
+  auto* jxl_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), jxl_group);
+  jxl_lossless->setObjectName(QStringLiteral("webExportJxlLosslessCheck"));
+  jxl_form->addRow(jxl_lossless);
+  auto* jxl_animate = new QCheckBox(QObject::tr("Animation from visible layers"), jxl_group);
+  jxl_animate->setObjectName(QStringLiteral("webExportJxlAnimateCheck"));
+  jxl_animate->setToolTip(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first."));
+  jxl_animate->setVisible(offer_animation);
+  jxl_form->addRow(jxl_animate);
+  auto* jxl_delay = new QDoubleSpinBox(jxl_group);
+  jxl_delay->setObjectName(QStringLiteral("webExportJxlFrameDelaySpin"));
+  jxl_delay->setRange(0.0, 655.35);
+  jxl_delay->setDecimals(2);
+  jxl_delay->setSingleStep(0.05);
+  jxl_delay->setSuffix(QObject::tr(" s"));
+  jxl_delay->setValue(settings.jxl_frame_delay_ms / 1000.0);
+  jxl_delay->setToolTip(QObject::tr("A layer name ending in a time such as 0.25s sets that frame's delay."));
+  configure_dialog_spinbox(jxl_delay, 96);
+  jxl_form->addRow(QObject::tr("Frame delay:"), jxl_delay);
+  auto* jxl_delay_label = jxl_form->labelForField(jxl_delay);
+  add_slow_note(jxl_form, jxl_group);
+  jxl_group->setVisible(false);
+  controls->addWidget(jxl_group);
 
   // PNG settings.
   auto* png_group = make_group(&dialog, QObject::tr("PNG settings"), "webExportPngGroup");
@@ -1380,6 +1585,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   bool accepting = false;
   // Encodes that failed, by signature (their list row says so instead of "encoding...").
   std::map<QString, QString> errors;
+  // Rows selected at least once (AVIF and JPEG XL encode in the background only then) and
+  // each row's last size, shown while a new encode runs.
+  std::set<WebExportFormat> visited;
+  std::map<WebExportFormat, QString> last_sizes;
   const auto selected_format = [&] {
     const auto* item = format_list->currentItem();
     return item != nullptr ? web_export_format_from_key(item->data(0, Qt::UserRole).toString())
@@ -1396,6 +1605,14 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     read.webp_quality = webp_quality->value();
     read.webp_lossless = webp_lossless->isChecked();
     read.webp_animate = offer_animation && webp_animate->isChecked();
+    read.avif_quality = avif_quality->value();
+    read.avif_speed = avif_speed->value();
+    read.avif_lossless = avif_lossless->isChecked();
+    read.jxl_quality = jxl_quality->value();
+    read.jxl_effort = jxl_effort->value();
+    read.jxl_lossless = jxl_lossless->isChecked();
+    read.jxl_animate = offer_animation && jxl_animate->isChecked();
+    read.jxl_frame_delay_ms = static_cast<int>(std::lround(jxl_delay->value() * 1000.0));
     read.png_palette = png_colors_combo->currentData().toString() == QStringLiteral("palette");
     read.png_colors = png_rows.colors->value();
     read.png_dither = png_rows.dither->currentData().toString() == QStringLiteral("diffusion");
@@ -1461,9 +1678,28 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       item->setText(1, web_export_format_summary(current, format));
       const auto job = web_export_job(current, format, document_size);
       const auto cached = engine.cached(job.signature);
-      item->setText(2, cached.has_value() && cached->bytes != nullptr ? data_size_text(cached->bytes->size())
-                       : errors.contains(job.signature)               ? QObject::tr("failed")
-                                                                      : QObject::tr("encoding..."));
+      const bool unvisited_slow = web_export_format_is_slow(format) && !visited.contains(format);
+      const bool waiting = !cached.has_value() && !errors.contains(job.signature) && !unvisited_slow;
+      QString text;
+      if (cached.has_value() && cached->bytes != nullptr) {
+        text = data_size_text(cached->bytes->size());
+        last_sizes[format] = text;
+      } else if (errors.contains(job.signature)) {
+        text = QObject::tr("failed");
+      } else if (unvisited_slow) {
+        // AVIF and JPEG XL sizes start once their row has been selected (docs/web-export.md).
+        text = QObject::tr("select to encode");
+      } else if (const auto last = last_sizes.find(format); last != last_sizes.end()) {
+        // The last size stays, marked, until the new encode lands.
+        text = last->second + QStringLiteral(" ...");
+      } else {
+        text = QObject::tr("encoding...");
+      }
+      item->setText(2, text);
+      auto font = item->font(2);
+      font.setItalic(waiting);
+      item->setFont(2, font);
+      item->setToolTip(2, waiting ? QObject::tr("Encoding...") : QString());
     }
   };
   const auto refresh_visibility = [&] {
@@ -1472,6 +1708,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     webp_group->setVisible(format == WebExportFormat::Webp);
     png_group->setVisible(format == WebExportFormat::Png);
     gif_group->setVisible(format == WebExportFormat::Gif);
+    avif_group->setVisible(format == WebExportFormat::Avif);
+    jxl_group->setVisible(format == WebExportFormat::Jxl);
+    avif_quality->parentWidget()->setEnabled(!avif_lossless->isChecked());
+    jxl_quality->parentWidget()->setEnabled(!jxl_lossless->isChecked());
+    const bool jxl_animated = offer_animation && jxl_animate->isChecked();
+    jxl_delay->setVisible(jxl_animated);
+    if (jxl_delay_label != nullptr) {
+      jxl_delay_label->setVisible(jxl_animated);
+    }
     const bool png_palette = png_colors_combo->currentData().toString() == QStringLiteral("palette");
     png_palette_box->setVisible(png_palette);
     png_note->setVisible(!png_palette);
@@ -1550,10 +1795,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     const auto current = read_settings();
     std::vector<WebExportJob> jobs;
     // The selected format first, then the others one at a time.
+    visited.insert(current.format);
     jobs.push_back(web_export_job(current, current.format, document_size));
-    for (const auto format : web_export_formats()) {
-      if (format != current.format) {
-        jobs.push_back(web_export_job(current, format, document_size));
+    // Then the fast formats, then AVIF and JPEG XL rows that have been selected once.
+    for (const bool slow : {false, true}) {
+      for (const auto format : web_export_formats()) {
+        if (format != current.format && web_export_format_is_slow(format) == slow &&
+            (!slow || visited.contains(format))) {
+          jobs.push_back(web_export_job(current, format, document_size));
+        }
       }
     }
     engine.request(std::move(jobs));
@@ -1610,6 +1860,14 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     webp_quality->setValue(values.webp_quality);
     webp_lossless->setChecked(values.webp_lossless);
     webp_animate->setChecked(values.webp_animate);
+    avif_quality->setValue(values.avif_quality);
+    avif_speed->setValue(values.avif_speed);
+    avif_lossless->setChecked(values.avif_lossless);
+    jxl_quality->setValue(values.jxl_quality);
+    jxl_effort->setValue(values.jxl_effort);
+    jxl_lossless->setChecked(values.jxl_lossless);
+    jxl_animate->setChecked(values.jxl_animate);
+    jxl_delay->setValue(values.jxl_frame_delay_ms / 1000.0);
     png_colors_combo->setCurrentIndex(values.png_palette ? 1 : 0);
     png_rows.colors->setValue(values.png_colors);
     png_rows.dither->setCurrentIndex(values.png_dither ? 1 : 0);
@@ -1699,14 +1957,17 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   QObject::connect(jpeg_quality, &QSpinBox::valueChanged, &dialog, [&](int) { on_changed(); });
   QObject::connect(webp_quality, &QSpinBox::valueChanged, &dialog, [&](int) { on_changed(); });
   QObject::connect(metadata_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_changed(); });
-  for (auto* spin : {png_rows.colors, png_rows.amount, gif_rows.colors, gif_rows.amount}) {
+  for (auto* spin : {png_rows.colors, png_rows.amount, gif_rows.colors, gif_rows.amount, avif_quality, avif_speed,
+                     jxl_quality, jxl_effort}) {
     QObject::connect(spin, &QSpinBox::valueChanged, &dialog, [&](int) { on_changed(); });
   }
   for (auto* combo : {png_colors_combo, png_rows.dither, gif_rows.dither}) {
     QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_changed(); });
   }
   QObject::connect(gif_delay, &QDoubleSpinBox::valueChanged, &dialog, [&](double) { on_changed(); });
-  for (auto* check : {jpeg_progressive, jpeg_optimize, webp_lossless, webp_animate, gif_animate, thumbnail_check,
+  QObject::connect(jxl_delay, &QDoubleSpinBox::valueChanged, &dialog, [&](double) { on_changed(); });
+  for (auto* check : {jpeg_progressive, jpeg_optimize, webp_lossless, webp_animate, gif_animate, avif_lossless,
+                      jxl_lossless, jxl_animate, thumbnail_check,
                       trim_check}) {
     QObject::connect(check, &QCheckBox::toggled, &dialog, [&](bool) { on_changed(); });
   }
