@@ -169,17 +169,34 @@ Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_ent
   `~/.local/share`; a relative `XDG_DATA_HOME` is ignored, as the spec says): the AppImage's own
   shipped desktop file with every `Exec` program replaced by the quoted `.AppImage` path
   (`%F` kept; quoting and `%%` per the Desktop Entry spec, `desktop_entry_exec_argument`), a
-  `TryExec` naming the file (a deleted AppImage hides the entry instead of leaving a dead one)
-  and the marker `X-Patchy-AppImage=true`. Then the hicolor icons from `$APPDIR/usr/share`
+  `TryExec` naming the file (a deleted AppImage hides the entry instead of leaving a dead one),
+  `Icon` set to the full path of the copied 256 px PNG instead of the themed name
+  (`appimage_menu_entry_icon_file`; the themed name only resolves once every desktop program
+  has reloaded its icon theme, see below) and the marker `X-Patchy-AppImage=true`. Then the hicolor icons from `$APPDIR/usr/share`
   (7 PNG sizes and the scalable SVG, `appimage_menu_entry_icon_names`), icons first. Only
   files whose bytes differ are written, all through `write_file_bytes_atomically`.
 - **Remove** deletes exactly those 9 paths (built from the fixed name list, no listing or
   wildcard), only when the desktop file carries the marker. Folders stay. Removing also sets
   `appimage/menuEntryPromptDeclined`.
-- After a change Patchy runs `update-desktop-database -q <applications>` when installed, and
-  `gtk-update-icon-cache` only when `icons/hicolor/icon-theme.cache` already exists: GTK
-  trusts a cache newer than the theme folder, so a new user cache would hide icons other
-  programs add later without refreshing it. Both detached, best effort.
+- After a change (`refresh_desktop_menu_caches`, best effort, nothing new written) Patchy runs
+  `update-desktop-database -q <applications>` when installed; sets the user `icons/hicolor`
+  folder's modification time to now (`mark_icon_theme_changed`: GTK and Qt rescan a theme
+  whose folder changed); runs `gtk-update-icon-cache` only when `icons/hicolor/icon-theme.cache`
+  already exists (GTK trusts a cache newer than the theme folder, so a new user cache would
+  hide icons other programs add later without refreshing it); and sends KDE's
+  `/KIconLoader org.kde.KIconLoader.iconChanged(int)` on the session bus
+  (`send_kde_icon_theme_changed`). KDE's icon loader lists a theme's folders once, so without
+  that signal a KDE program keeps the folder list it read when it loaded the theme, so
+  `hicolor/<size>/apps` folders created later stay unseen. On the signal every KDE program
+  rebuilds its themes, as after an icon theme change in System Settings. With the themed
+  `Icon` name 1.19 wrote, a Plasma user saw a blank task bar icon after Add (GitHub issue
+  226; Plasma 5.27 and 6 test containers did not reproduce it). The full-path `Icon` does not
+  depend on any theme lookup; the refreshes keep lookups by the app id's name current. An entry an older release wrote is rewritten at the next launch (the launch
+  refresh compares bytes).
+- Plasma 5.27 and 6 show an AppImage's icon without any entry when nothing installed
+  matches the app id: libtaskmanager reads the window process's `APPDIR` and uses the
+  AppImage's root desktop file and the icon beside it. An installed entry takes precedence,
+  so an entry whose icon cannot be found replaces a working icon with the window's.
 - **Already in the menu** (`AddedElsewhere`): a `com.rtsoft.patchy.desktop` without the marker
   (a native install to `~/.local`), any desktop file in the user's applications folder whose
   `Exec` starts a `.AppImage` and that names Patchy (icon containing `com.rtsoft.patchy`, as
@@ -208,7 +225,8 @@ Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_ent
   rule at startup (`appimage_menu_entry_offer_needs_a_desktop_session`,
   `ui_appimage_menu_entry_startup_offer_follows_the_session`) (Linux, faked
   `APPIMAGE`/`APPDIR`, `MainWindowTestAccess::set_appimage_bundled_share`, which also skips
-  the cache tools).
+  the cache tools); the folder time and the KDE signal on a peer-to-peer D-Bus connection
+  (`appimage_menu_entry_tells_the_desktop_about_new_icons`).
 - GNOME check on the headless rig ([wayland.md](wayland.md)): give the shell and the AppImage the
   same scratch `XDG_DATA_HOME` and `XDG_DATA_DIRS=/usr/local/share:/usr/share` (a user Flatpak's
   export would otherwise provide the entry), add through a forwarded `--run-script` calling

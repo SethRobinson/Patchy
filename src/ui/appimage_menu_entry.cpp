@@ -12,6 +12,15 @@
 #include <QProcess>
 #include <QStandardPaths>
 
+#ifdef PATCHY_HAVE_QT_DBUS
+#include <QDBusConnection>
+#include <QDBusMessage>
+#endif
+
+#ifdef Q_OS_LINUX
+#include <sys/time.h>
+#endif
+
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -236,6 +245,18 @@ QStringList AppImageMenuEntryPaths::icon_files() const {
   return files;
 }
 
+QString appimage_menu_entry_icon_file(const AppImageMenuEntryPaths& paths) {
+  const auto names = appimage_menu_entry_icon_names();
+  const auto targets = paths.icon_files();
+  const auto index = names.indexOf(QStringLiteral("icons/hicolor/256x256/apps/") + QString::fromLatin1(kAppImageMenuEntryId) +
+                                   QStringLiteral(".png"));
+  if (index < 0 || !QDir::isAbsolutePath(targets[index]) || has_control_characters(targets[index]) ||
+      !QFileInfo::exists(QDir(paths.bundled_share).filePath(names[index]))) {
+    return {};
+  }
+  return targets[index];
+}
+
 QStringList appimage_menu_entry_icon_names() {
   // The sizes CMake installs (packaging/linux/icons) plus the scalable logo.
   static constexpr int kSizes[] = {16, 32, 48, 64, 128, 256, 512};
@@ -376,6 +397,7 @@ std::optional<QByteArray> build_appimage_desktop_entry(const AppImageMenuEntryPa
     return fail(AppImageMenuEntryStrings::tr("This AppImage contains no Patchy desktop file"));
   }
   const auto program = desktop_entry_exec_argument(paths.appimage_file);
+  const auto icon = appimage_menu_entry_icon_file(paths);
   QStringList lines;
   bool in_entry = false;
   bool wrote_exec = false;
@@ -389,6 +411,12 @@ std::optional<QByteArray> build_appimage_desktop_entry(const AppImageMenuEntryPa
       in_entry = trimmed == QLatin1String(kDesktopEntryGroup);
     } else if (trimmed.startsWith(QStringLiteral("TryExec=")) ||
                trimmed.startsWith(QString::fromLatin1(kAppImageMenuEntryMarkerKey) + QLatin1Char('='))) {
+      continue;
+    } else if (in_entry && !icon.isEmpty() && trimmed.startsWith(QStringLiteral("Icon="))) {
+      // The icon file itself: a desktop that loaded its icon theme before Add created
+      // the user's hicolor folders cannot find a themed name until it reloads, and showed
+      // a blank task bar icon (GitHub issue 226).
+      lines.push_back(QStringLiteral("Icon=") + desktop_string_value(icon));
       continue;
     } else if (trimmed.startsWith(QStringLiteral("Exec="))) {
       lines.push_back(QStringLiteral("Exec=") + exec_with_program(trimmed.mid(5), program));
@@ -455,17 +483,58 @@ AppImageMenuEntryResult refresh_appimage_menu_entry(const AppImageMenuEntryPaths
   return write_entry(paths);
 }
 
+#ifdef Q_OS_LINUX
+namespace {
+
+QString user_hicolor_dir(const AppImageMenuEntryPaths& paths) {
+  return QDir(paths.data_home).filePath(QStringLiteral("icons/hicolor"));
+}
+
+}  // namespace
+#endif
+
+bool mark_icon_theme_changed(const AppImageMenuEntryPaths& paths) {
+#ifdef Q_OS_LINUX
+  const auto hicolor = user_hicolor_dir(paths);
+  if (!QFileInfo(hicolor).isDir()) {
+    return false;
+  }
+  return ::utimes(QFile::encodeName(hicolor).constData(), nullptr) == 0;
+#else
+  (void)paths;
+  return false;
+#endif
+}
+
+#ifdef PATCHY_HAVE_QT_DBUS
+bool send_kde_icon_theme_changed(const QDBusConnection& connection) {
+  if (!connection.isConnected()) {
+    return false;
+  }
+  auto message = QDBusMessage::createSignal(QString::fromLatin1(kKdeIconLoaderPath),
+                                            QString::fromLatin1(kKdeIconLoaderInterface),
+                                            QStringLiteral("iconChanged"));
+  message << 0;  // KIconLoader::Desktop; every group is reloaded anyway
+  return connection.send(message);
+}
+#endif
+
 void refresh_desktop_menu_caches(const AppImageMenuEntryPaths& paths) {
 #ifdef Q_OS_LINUX
   if (const auto tool = QStandardPaths::findExecutable(QStringLiteral("update-desktop-database")); !tool.isEmpty()) {
     (void)QProcess::startDetached(tool, {QStringLiteral("-q"), applications_dir(paths.data_home)});
   }
-  const auto hicolor = QDir(paths.data_home).filePath(QStringLiteral("icons/hicolor"));
+  // Before the cache tool, so a refreshed cache ends up newer than the folder again.
+  (void)mark_icon_theme_changed(paths);
+  const auto hicolor = user_hicolor_dir(paths);
   if (QFileInfo::exists(QDir(hicolor).filePath(QStringLiteral("icon-theme.cache")))) {
     if (const auto tool = QStandardPaths::findExecutable(QStringLiteral("gtk-update-icon-cache")); !tool.isEmpty()) {
       (void)QProcess::startDetached(tool, {QStringLiteral("-q"), QStringLiteral("-t"), QStringLiteral("-f"), hicolor});
     }
   }
+#ifdef PATCHY_HAVE_QT_DBUS
+  (void)send_kde_icon_theme_changed(QDBusConnection::sessionBus());
+#endif
 #else
   (void)paths;
 #endif

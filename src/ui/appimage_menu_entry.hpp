@@ -13,6 +13,10 @@
 
 #include <optional>
 
+#ifdef PATCHY_HAVE_QT_DBUS
+class QDBusConnection;
+#endif
+
 namespace patchy::ui {
 
 // The desktop file id and icon name: the app id the window reports.
@@ -20,6 +24,10 @@ inline constexpr char kAppImageMenuEntryId[] = "com.rtsoft.patchy";
 // Marks a desktop file Patchy wrote, so Remove and the launch-time refresh never touch a
 // com.rtsoft.patchy.desktop someone else put there.
 inline constexpr char kAppImageMenuEntryMarkerKey[] = "X-Patchy-AppImage";
+// The D-Bus signal every KDE program's icon loader listens for (KIconLoader::emitChange):
+// on it they rebuild their icon themes and so see icon folders created since they started.
+inline constexpr char kKdeIconLoaderPath[] = "/KIconLoader";
+inline constexpr char kKdeIconLoaderInterface[] = "org.kde.KIconLoader";
 
 struct AppImageMenuEntryPaths {
   // The .AppImage file the entry starts; empty when Patchy is not running from one.
@@ -48,6 +56,10 @@ struct AppImageMenuEntryPaths {
 // The icon paths relative to a share folder (icons/hicolor/<size>/apps/...), in the order
 // Add copies them.
 [[nodiscard]] QStringList appimage_menu_entry_icon_names();
+// The entry's Icon value: the absolute path of the 256 px PNG Add copies below data_home,
+// so no desktop needs to reload its icon theme to show it. Empty (the shipped themed
+// name stays) when the AppImage has no such icon or the path cannot be written.
+[[nodiscard]] QString appimage_menu_entry_icon_file(const AppImageMenuEntryPaths& paths);
 
 enum class AppImageMenuEntryState {
   Unavailable,     // not running from an AppImage
@@ -73,8 +85,9 @@ enum class AppImageMenuEntryState {
 // True when `desktop_entry` is a desktop file that starts a Patchy AppImage.
 [[nodiscard]] bool desktop_entry_starts_patchy_appimage(const QByteArray& desktop_entry);
 
-// The shipped desktop file with Exec and TryExec naming the .AppImage file and the marker
-// key added. nullopt (and `error`) when the shipped file is missing or has no Exec line.
+// The shipped desktop file with Exec and TryExec naming the .AppImage file, Icon naming
+// appimage_menu_entry_icon_file(), and the marker key added. nullopt (and `error`) when
+// the shipped file is missing or has no Exec line.
 [[nodiscard]] std::optional<QByteArray> build_appimage_desktop_entry(const AppImageMenuEntryPaths& paths,
                                                                      QString* error = nullptr);
 
@@ -99,10 +112,23 @@ struct AppImageMenuEntryResult {
 // ships a different desktop file or icons. Consent was given when it was added.
 [[nodiscard]] AppImageMenuEntryResult refresh_appimage_menu_entry(const AppImageMenuEntryPaths& paths);
 
-// Asks the desktop to notice the change (update-desktop-database; gtk-update-icon-cache
-// only for an icon cache that already exists, since a new user cache would hide icons
-// other programs add later without refreshing it). Best effort: detached, Linux only,
-// silently skipped when a tool is not installed.
+// Asks the desktop to notice the change: update-desktop-database; a new modification
+// time on the user's icons/hicolor folder (GTK and Qt rescan an icon theme whose folder
+// changed); gtk-update-icon-cache only for an icon cache that already exists, since a new
+// user cache would hide icons other programs add later without refreshing it; and the
+// KDE icon loader signal on the session bus (KDE programs list an icon theme's folders
+// when they load it, so they miss folders created later; GitHub issue 226). Best effort:
+// detached, Linux only, silently skipped when a tool is not installed.
 void refresh_desktop_menu_caches(const AppImageMenuEntryPaths& paths);
+
+// Sets the user's icons/hicolor folder's modification time to now. False when it does
+// not exist or on other systems than Linux.
+[[nodiscard]] bool mark_icon_theme_changed(const AppImageMenuEntryPaths& paths);
+
+#ifdef PATCHY_HAVE_QT_DBUS
+// Sends the KDE icon loader's iconChanged signal on `connection`. False when it is not
+// connected or the send fails.
+bool send_kde_icon_theme_changed(const QDBusConnection& connection);
+#endif
 
 }  // namespace patchy::ui

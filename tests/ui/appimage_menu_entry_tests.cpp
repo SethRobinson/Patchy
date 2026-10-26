@@ -17,6 +17,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -25,12 +26,23 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPoint>
+#include <QSpinBox>
 #include <QStatusBar>
 #include <QString>
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QTimer>
 
+#ifdef PATCHY_HAVE_QT_DBUS
+#include <QDBusConnection>
+#include <QDBusServer>
+#endif
+
+#ifdef Q_OS_LINUX
+#include <sys/time.h>
+#endif
+
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -197,13 +209,19 @@ void appimage_menu_entry_writes_and_removes_only_its_files() {
   auto try_exec = paths.appimage_file;
   CHECK(desktop_value(entry, QStringLiteral("TryExec")) == try_exec.replace(QLatin1Char('\\'), QStringLiteral("\\\\")));
   CHECK(desktop_value(entry, QStringLiteral("X-Patchy-AppImage")) == QStringLiteral("true"));
-  // Everything else is the shipped file: the icon name the window's app id finds, the
-  // formats Patchy opens, the localized names.
-  for (const auto* key : {"Icon", "MimeType", "Name", "GenericName[ja]", "Categories", "StartupWMClass"}) {
+  // Everything else is the shipped file: the formats Patchy opens, the localized names.
+  for (const auto* key : {"MimeType", "Name", "GenericName[ja]", "Categories", "StartupWMClass"}) {
     CHECK(!desktop_value(shipped, QString::fromLatin1(key)).isEmpty());
     CHECK(desktop_value(entry, QString::fromLatin1(key)) == desktop_value(shipped, QString::fromLatin1(key)));
   }
-  CHECK(desktop_value(entry, QStringLiteral("Icon")) == QStringLiteral("com.rtsoft.patchy"));
+  // The icon is the copied 256 px PNG by its full path, not the shipped themed name: a
+  // running KDE Plasma did not see the new hicolor folders and showed a blank task bar
+  // icon (GitHub issue 226).
+  CHECK(desktop_value(shipped, QStringLiteral("Icon")) == QStringLiteral("com.rtsoft.patchy"));
+  const auto icon_file = QDir(paths.data_home).filePath(QStringLiteral("icons/hicolor/256x256/apps/com.rtsoft.patchy.png"));
+  CHECK(patchy::ui::appimage_menu_entry_icon_file(paths) == icon_file);
+  auto icon_value = icon_file;
+  CHECK(desktop_value(entry, QStringLiteral("Icon")) == icon_value.replace(QLatin1Char('\\'), QStringLiteral("\\\\")));
   CHECK(patchy::ui::desktop_entry_starts_patchy_appimage(entry));
 
   const auto names = patchy::ui::appimage_menu_entry_icon_names();
@@ -313,6 +331,57 @@ void appimage_menu_entry_detects_other_integrations() {
   write_bytes(packaged, read_bytes(QStringLiteral(PATCHY_SOURCE_DIR "/packaging/linux/com.rtsoft.patchy.desktop")));
   CHECK(patchy::ui::appimage_menu_entry_state(paths) == AppImageMenuEntryState::AddedElsewhere);
   CHECK(patchy::ui::appimage_menu_entry_provided_by(paths) == packaged);
+}
+
+// GitHub issue 226 follow-up: a running KDE Plasma lists the icon theme's folders once, so
+// the icons Add puts in folders that did not exist yet stayed invisible and the task bar
+// showed a blank icon. After a change Patchy gives the user's hicolor folder a new
+// modification time (GTK and Qt rescan a theme whose folder changed) and sends the signal
+// KDE's icon loaders reload their themes on.
+void appimage_menu_entry_tells_the_desktop_about_new_icons() {
+  EntryFixture fixture;
+  const auto& paths = fixture.paths;
+  const auto hicolor = QDir(paths.data_home).filePath(QStringLiteral("icons/hicolor"));
+  CHECK(!QFileInfo::exists(hicolor));
+  CHECK(!patchy::ui::mark_icon_theme_changed(paths));
+  CHECK(patchy::ui::add_appimage_menu_entry(paths).ok);
+#ifdef Q_OS_LINUX
+  const timeval old_times[2] = {{1000000000, 0}, {1000000000, 0}};
+  CHECK(::utimes(QFile::encodeName(hicolor).constData(), old_times) == 0);
+  CHECK(QFileInfo(hicolor).lastModified().toSecsSinceEpoch() == 1000000000);
+  const auto before = QDateTime::currentSecsSinceEpoch();
+  CHECK(patchy::ui::mark_icon_theme_changed(paths));
+  CHECK(QFileInfo(hicolor).lastModified().toSecsSinceEpoch() >= before - 1);
+#else
+  CHECK(!patchy::ui::mark_icon_theme_changed(paths));
+#endif
+  CHECK(patchy::ui::remove_appimage_menu_entry(paths).ok);
+
+#ifdef PATCHY_HAVE_QT_DBUS
+  // A peer-to-peer connection stands in for the session bus; the receiving side connects
+  // the way KIconLoader does (any sender, /KIconLoader, org.kde.KIconLoader.iconChanged(int)).
+  // A spin box's setValue(int) slot records the argument without a moc'd receiver.
+  QDBusServer server(QStringLiteral("unix:tmpdir=%1").arg(QDir::tempPath()));
+  CHECK(server.isConnected());
+  std::optional<QDBusConnection> desktop_side;
+  QObject::connect(&server, &QDBusServer::newConnection,
+                   [&desktop_side](const QDBusConnection& connection) { desktop_side = connection; });
+  const auto client_name = QStringLiteral("patchy_kde_icon_signal_test");
+  auto patchy_side = QDBusConnection::connectToPeer(server.address(), client_name);
+  CHECK(patchy_side.isConnected());
+  CHECK(process_events_until([&desktop_side] { return desktop_side.has_value(); }));
+  QSpinBox received;
+  received.setRange(-1, 9);
+  received.setValue(-1);
+  CHECK(desktop_side->connect(QString(), QStringLiteral("/KIconLoader"), QStringLiteral("org.kde.KIconLoader"),
+                              QStringLiteral("iconChanged"), &received, SLOT(setValue(int))));
+  CHECK(patchy::ui::send_kde_icon_theme_changed(patchy_side));
+  CHECK(process_events_until([&received] { return received.value() == 0; }));
+  QDBusConnection::disconnectFromPeer(client_name);
+  CHECK(!patchy::ui::send_kde_icon_theme_changed(QDBusConnection::connectToPeer(
+      QStringLiteral("unix:path=/nonexistent/patchy-no-bus"), QStringLiteral("patchy_kde_icon_no_bus"))));
+  QDBusConnection::disconnectFromPeer(QStringLiteral("patchy_kde_icon_no_bus"));
+#endif
 }
 
 // The Help item exists only for an AppImage run (never a native build, the Flatpak,
@@ -547,6 +616,7 @@ std::vector<patchy::test::TestCase> appimage_menu_entry_tests() {
       {"appimage_menu_entry_writes_and_removes_only_its_files", appimage_menu_entry_writes_and_removes_only_its_files},
       {"appimage_menu_entry_follows_a_moved_appimage", appimage_menu_entry_follows_a_moved_appimage},
       {"appimage_menu_entry_detects_other_integrations", appimage_menu_entry_detects_other_integrations},
+      {"appimage_menu_entry_tells_the_desktop_about_new_icons", appimage_menu_entry_tells_the_desktop_about_new_icons},
       {"ui_appimage_menu_entry_item_follows_the_environment", ui_appimage_menu_entry_item_follows_the_environment},
       {"appimage_menu_entry_offer_needs_a_desktop_session", appimage_menu_entry_offer_needs_a_desktop_session},
       {"ui_appimage_menu_entry_offer_dont_ask_again", ui_appimage_menu_entry_offer_dont_ask_again},
