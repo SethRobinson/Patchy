@@ -1553,7 +1553,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 20);
+  CHECK(captured == 21);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {
