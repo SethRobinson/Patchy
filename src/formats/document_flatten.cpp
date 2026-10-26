@@ -10,8 +10,10 @@
 #include "render/native_cmyk.hpp"
 #include "support/translate_noop.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
+#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -143,8 +145,20 @@ IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::si
   return indexed_rgba8_quantized(flatten_document_rgba8(document), max_colors, alpha_threshold);
 }
 
+IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::uint8_t alpha_threshold,
+                                               const QuantizeOptions& options) {
+  return indexed_rgba8_quantized(flatten_document_rgba8(document), alpha_threshold, options);
+}
+
 IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::size_t max_colors,
                                              std::uint8_t alpha_threshold) {
+  return indexed_rgba8_quantized(rgba, alpha_threshold, QuantizeOptions{max_colors, false, 100});
+}
+
+IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& source, std::uint8_t alpha_threshold,
+                                             const QuantizeOptions& options) {
+  const auto max_colors = options.max_colors;
+  const auto& rgba = source;
   bool has_transparency = false;
   for (std::int32_t y = 0; y < rgba.height() && !has_transparency; ++y) {
     for (std::int32_t x = 0; x < rgba.width(); ++x) {
@@ -163,6 +177,16 @@ IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::size_
   }
   PaletteLut lut;
   lut.build(palette.colors);
+  // Diffusion rewrites a copy to palette colors first (deterministic integer error); the
+  // exact lookup below then finds every visible pixel.
+  std::optional<PixelBuffer> diffused;
+  if (options.diffuse && options.diffusion_amount > 0) {
+    diffused.emplace(rgba);
+    (void)diffused->data();
+    (void)apply_palette_to_pixels(*diffused, lut, PaletteDither::FloydSteinberg, alpha_threshold,
+                                  options.diffusion_amount);
+  }
+  const auto& mapped = diffused.has_value() ? *diffused : rgba;
   std::unordered_map<std::uint32_t, int> exact_index;
   exact_index.reserve(palette.colors.size());
   for (int index = 0; index < static_cast<int>(palette.colors.size()); ++index) {
@@ -179,9 +203,9 @@ IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::size_
   }
 
   result.indexes.resize(static_cast<std::size_t>(result.width) * static_cast<std::size_t>(result.height));
-  for (std::int32_t y = 0; y < rgba.height(); ++y) {
-    for (std::int32_t x = 0; x < rgba.width(); ++x) {
-      const auto* px = rgba.pixel(x, y);
+  for (std::int32_t y = 0; y < mapped.height(); ++y) {
+    for (std::int32_t x = 0; x < mapped.width(); ++x) {
+      const auto* px = mapped.pixel(x, y);
       auto& out = result.indexes[static_cast<std::size_t>(y) * static_cast<std::size_t>(result.width) +
                                  static_cast<std::size_t>(x)];
       if (result.transparent_index >= 0 && px[3] < alpha_threshold) {

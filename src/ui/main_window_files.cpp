@@ -5377,6 +5377,7 @@ void MainWindow::export_for_web() {
   const auto extension = web_export_extension(job.format);
   const char* filter_name = job.format == WebExportFormat::Png    ? QT_TRANSLATE_NOOP("QObject", "PNG Image")
                             : job.format == WebExportFormat::Webp ? QT_TRANSLATE_NOOP("QObject", "WebP Image")
+                            : job.format == WebExportFormat::Gif  ? QT_TRANSLATE_NOOP("QObject", "GIF Image")
                                                                   : QT_TRANSLATE_NOOP("QObject", "JPEG Image");
   const auto filter = job.format == WebExportFormat::Jpeg
                           ? QStringLiteral("%1 (*.jpg *.jpeg)").arg(QCoreApplication::translate("QObject", filter_name))

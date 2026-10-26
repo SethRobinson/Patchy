@@ -455,6 +455,27 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
     }
     return false;
   }
+  // GIF and palette PNG quantization (docs/web-export.md); PNG takes them with pngColors "palette".
+  if ((extension == QStringLiteral("gif") || extension == QStringLiteral("png"))) {
+    if (key == QStringLiteral("colors")) {
+      reader.read_int(key, value, 2, 256, options.palette_colors);
+      return true;
+    }
+    if (key == QStringLiteral("dither")) {
+      reader.read_token(key, value, {QStringLiteral("none"), QStringLiteral("diffusion")},
+                        [&options](const QString& token) { options.palette_dither = token == QStringLiteral("diffusion"); });
+      return true;
+    }
+    if (key == QStringLiteral("ditherAmount")) {
+      reader.read_int(key, value, 0, 100, options.palette_dither_amount);
+      return true;
+    }
+  }
+  if (extension == QStringLiteral("png") && key == QStringLiteral("pngColors")) {
+    reader.read_token(key, value, {QStringLiteral("full"), QStringLiteral("palette")},
+                      [&options](const QString& token) { options.png_palette = token == QStringLiteral("palette"); });
+    return true;
+  }
   if (extension == QStringLiteral("gif")) {
     if (key == QStringLiteral("animate")) {
       reader.read_bool(key, value, options.gif_animate);
@@ -497,7 +518,10 @@ QString apply_script_image_save_options(const QString& method, const QString& ex
   std::stable_sort(keys.begin(), keys.end(), [](const QString& a, const QString& b) {
     return (a == QStringLiteral("lossless")) > (b == QStringLiteral("lossless"));
   });
+  bool palette_keys = false;
   for (const auto& key : keys) {
+    palette_keys = palette_keys || key == QStringLiteral("colors") || key == QStringLiteral("dither") ||
+                   key == QStringLiteral("ditherAmount");
     if (!apply_key(reader, normalized, key, object.property(key), options)) {
       reader.unknown(key, normalized);
     }
@@ -508,6 +532,11 @@ QString apply_script_image_save_options(const QString& method, const QString& ex
   if (options.tiff_layers.value_or(false) && options.export_cmyk) {
     return QCoreApplication::translate("patchy::ui::ScriptSaveOptions",
                                        "%1: layers needs colorMode: \"rgb\"; a TIFF with layers is saved in RGB.")
+        .arg(method);
+  }
+  if (normalized == QStringLiteral("png") && palette_keys && !options.png_palette) {
+    return QCoreApplication::translate("patchy::ui::ScriptSaveOptions",
+                                       "%1: colors, dither and ditherAmount need pngColors: \"palette\" for PNG.")
         .arg(method);
   }
   if (options.export_black_ink_only && !options.export_cmyk) {

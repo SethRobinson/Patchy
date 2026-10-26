@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "formats/document_flatten.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -65,5 +66,10 @@ void write_animation_file(std::int32_t width, std::int32_t height, std::span<con
 // one slot for transparency when the flatten has hidden pixels. No dithering.
 [[nodiscard]] std::vector<std::uint8_t> write(const Document& document);
 void write_file(const Document& document, const std::filesystem::path& path);
+// The same writer with a color count and optional error diffusion for RGB documents
+// (File > Export for Web, docs/web-export.md). Default QuantizeOptions write exactly the
+// bytes of write(document) (gif_encoder_bytes_are_stable); palette-mode documents keep
+// their palette and ignore the options.
+[[nodiscard]] std::vector<std::uint8_t> write(const Document& document, const QuantizeOptions& options);
 
 }  // namespace patchy::gif

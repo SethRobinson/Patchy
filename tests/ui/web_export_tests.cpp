@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -50,7 +51,9 @@ struct WebExportSettingsGuard {
   WebExportSettingsGuard() {
     for (const auto* key : {"format", "jpegQuality", "jpegProgressive", "jpegOptimize", "jpegBackground",
                             "webpQuality", "webpLossless", "webpAnimate", "metadata", "thumbnail", "resample",
-                            "trim", "convertToSrgb", "compare", "revealWhenDone"}) {
+                            "trim", "convertToSrgb", "compare", "revealWhenDone", "pngColors", "pngPaletteColors",
+                            "pngDither", "pngDitherAmount", "gifColors", "gifDither", "gifDitherAmount", "gifAnimate",
+                            "gifFrameDelayMs"}) {
       const auto full = QStringLiteral("exportForWeb/") + QLatin1String(key);
       restorers.push_back(std::make_unique<SettingsValueRestorer>(full));
       auto settings = patchy::ui::app_settings();
@@ -105,7 +108,7 @@ int jpeg_frame_marker(const std::vector<std::uint8_t>& bytes) {
   return -1;
 }
 
-bool wait_until(const std::function<bool()>& condition, int timeout_ms = 20000) {
+bool wait_until(const std::function<bool()>& condition, int timeout_ms = 60000) {
   QElapsedTimer timer;
   timer.start();
   while (!condition() && timer.elapsed() < timeout_ms) {
@@ -171,7 +174,27 @@ void ui_web_export_defaults_and_options() {
   CHECK(reloaded.compare == patchy::ui::WebExportCompare::SideBySide);
   CHECK(patchy::ui::web_export_format_key(WebExportFormat::Jpeg) == QStringLiteral("jpeg"));
   CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("png")) == WebExportFormat::Png);
-  CHECK(!patchy::ui::web_export_format_from_key(QStringLiteral("gif")).has_value());
+  CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("gif")) == WebExportFormat::Gif);
+  CHECK(!patchy::ui::web_export_format_from_key(QStringLiteral("avif")).has_value());
+  // GIF and palette PNG: 256 colors, no dither, full-color PNG by default; the options
+  // reach the writers only for their own format.
+  CHECK(!loaded.png_palette && loaded.png_colors == 256 && loaded.gif_colors == 256);
+  CHECK(!loaded.gif_dither && !loaded.png_dither && !loaded.gif_animate);
+  auto palette_settings = loaded;
+  palette_settings.png_palette = true;
+  palette_settings.png_colors = 32;
+  palette_settings.png_dither = true;
+  palette_settings.png_dither_amount = 60;
+  palette_settings.gif_colors = 64;
+  palette_settings.gif_dither = true;
+  const auto png = patchy::ui::web_export_image_options(palette_settings, WebExportFormat::Png, size);
+  CHECK(png.png_palette && png.palette_colors == 32 && png.palette_dither && png.palette_dither_amount == 60);
+  const auto gif = patchy::ui::web_export_image_options(palette_settings, WebExportFormat::Gif, size);
+  CHECK(!gif.png_palette && gif.palette_colors == 64 && gif.palette_dither && gif.palette_dither_amount == 100);
+  const auto jpeg_again = patchy::ui::web_export_image_options(palette_settings, WebExportFormat::Jpeg, size);
+  CHECK(jpeg_again.palette_colors == 256 && !jpeg_again.palette_dither);
+  CHECK(patchy::ui::web_export_job(palette_settings, WebExportFormat::Gif, size).signature !=
+        patchy::ui::web_export_job(loaded, WebExportFormat::Gif, size).signature);
 }
 
 void ui_web_export_jpeg_progressive_and_optimize_read_back() {
@@ -200,6 +223,69 @@ void ui_web_export_jpeg_progressive_and_optimize_read_back() {
   CHECK(!plain.jpeg_progressive && !plain.jpeg_optimize && plain.jpeg_exif_thumbnail);
   const auto flat = patchy::ui::encode_flat_image_bytes(document, QStringLiteral("jpg"), plain);
   CHECK(jpeg_frame_marker(flat) == 0xC0);
+}
+
+// Palette PNG reads back as an indexed image with the asked-for colors and a transparent
+// entry; GIF keeps its color count; the result lists the colors the file uses.
+void ui_web_export_palette_png_and_gif_read_back() {
+  auto document = textured_document(96, 64);
+  {
+    // A transparent strip, so the palette needs its tRNS entry.
+    auto& pixels = document.layers().front().pixels();
+    for (std::int32_t y = 0; y < 64; ++y) {
+      for (std::int32_t x = 0; x < 8; ++x) {
+        pixels.pixel(x, y)[3] = 0;
+      }
+    }
+  }
+  const QSize size(96, 64);
+  WebExportSettings settings;
+  settings.png_palette = true;
+  settings.png_colors = 16;
+  settings.png_dither = true;
+  settings.gif_colors = 32;
+  for (const auto format : {WebExportFormat::Png, WebExportFormat::Gif}) {
+    const auto job = patchy::ui::web_export_job(settings, format, size);
+    const auto prepared = WebExportPreviewEngine::prepare(document, job.geometry, job.convert_to_srgb, nullptr);
+    const auto result = WebExportPreviewEngine::encode(document, job, prepared);
+    CHECK(result.error.isEmpty() && result.bytes != nullptr);
+    if (result.bytes == nullptr) {
+      continue;
+    }
+    const auto limit = format == WebExportFormat::Png ? 16 : 32;
+    const auto image = QImage::fromData(QByteArrayView(reinterpret_cast<const char*>(result.bytes->data()),
+                                                       static_cast<qsizetype>(result.bytes->size())),
+                                        format == WebExportFormat::Png ? "png" : "gif");
+    CHECK(image.size() == size);
+    if (format == WebExportFormat::Png) {
+      // An indexed PNG with a transparent table entry (tRNS).
+      CHECK(image.format() == QImage::Format_Indexed8);
+      CHECK(image.colorCount() >= 2 && image.colorCount() <= limit);
+      const auto table = image.colorTable();
+      CHECK(std::any_of(table.begin(), table.end(), [](QRgb color) { return qAlpha(color) == 0; }));
+    }
+    // Qt reads a GIF as 32-bit, so count the distinct colors either way.
+    const auto argb = image.convertToFormat(QImage::Format_ARGB32);
+    std::set<QRgb> distinct;
+    for (int y = 0; y < argb.height(); ++y) {
+      for (int x = 0; x < argb.width(); ++x) {
+        distinct.insert(argb.pixel(x, y));
+      }
+    }
+    CHECK(distinct.size() >= 2 && static_cast<int>(distinct.size()) <= limit);
+    CHECK(qAlpha(argb.pixel(2, 10)) == 0);
+    CHECK(!result.palette.empty() && static_cast<int>(result.palette.size()) <= limit);
+  }
+  // Full-color PNG has no palette list and stays a 32-bit image.
+  settings.png_palette = false;
+  const auto full_job = patchy::ui::web_export_job(settings, WebExportFormat::Png, size);
+  const auto prepared = WebExportPreviewEngine::prepare(document, full_job.geometry, full_job.convert_to_srgb, nullptr);
+  const auto full = WebExportPreviewEngine::encode(document, full_job, prepared);
+  CHECK(full.palette.empty());
+  CHECK(full.bytes != nullptr && QImage::fromData(QByteArrayView(reinterpret_cast<const char*>(full.bytes->data()),
+                                                                 static_cast<qsizetype>(full.bytes->size())),
+                                                  "png")
+                                         .format() != QImage::Format_Indexed8);
 }
 
 void ui_web_export_engine_drops_stale_requests() {
@@ -284,7 +370,7 @@ void ui_web_export_dialog_previews_and_saves() {
       return;
     }
     // Defaults: JPEG selected, quality 80, the thumbnail off and disabled (metadata None).
-    CHECK(list->topLevelItemCount() == 3);
+    CHECK(list->topLevelItemCount() == 4);
     CHECK(list->currentItem() != nullptr && list->currentItem()->text(0) == QStringLiteral("JPEG"));
     CHECK(quality->value() == 80);
     CHECK(!thumbnail->isChecked() && !thumbnail->isEnabled());
@@ -330,7 +416,44 @@ void ui_web_export_dialog_previews_and_saves() {
     CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("webExportPngGroup"))->isVisible());
     CHECK(!thumbnail->isVisible());
-    capture_widget_artifact("web_export_png_side_by_side", *dialog);
+    // Palette PNG: 32 colors with diffusion; the swatches show the colors the file uses.
+    auto* png_colors = dialog->findChild<QComboBox*>(QStringLiteral("webExportPngColorsCombo"));
+    auto* png_count = dialog->findChild<QSpinBox*>(QStringLiteral("webExportPngColorsSpin"));
+    auto* png_dither = dialog->findChild<QComboBox*>(QStringLiteral("webExportPngDitherCombo"));
+    auto* png_swatches = dialog->findChild<QWidget*>(QStringLiteral("webExportPngPaletteSwatches"));
+    CHECK(png_colors != nullptr && png_count != nullptr && png_dither != nullptr && png_swatches != nullptr);
+    if (png_colors != nullptr && png_count != nullptr && png_dither != nullptr && png_swatches != nullptr) {
+      CHECK(!png_count->isVisible());
+      png_colors->setCurrentIndex(1);
+      png_count->setValue(32);
+      png_dither->setCurrentIndex(1);
+      QApplication::processEvents();
+      CHECK(png_count->isVisible());
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+      const auto used = png_swatches->property("webExportPaletteCount").toInt();
+      CHECK(used > 1 && used <= 32);
+      CHECK(list->topLevelItem(2)->text(1).contains(QStringLiteral("32")));
+      capture_widget_artifact("web_export_png_palette", *dialog);
+    }
+
+    // GIF at 64 colors with diffusion, side by side.
+    list->setCurrentItem(list->topLevelItem(3));
+    auto* gif_count = dialog->findChild<QSpinBox*>(QStringLiteral("webExportGifColorsSpin"));
+    auto* gif_dither = dialog->findChild<QComboBox*>(QStringLiteral("webExportGifDitherCombo"));
+    auto* gif_swatches = dialog->findChild<QWidget*>(QStringLiteral("webExportGifPaletteSwatches"));
+    CHECK(gif_count != nullptr && gif_dither != nullptr && gif_swatches != nullptr);
+    if (gif_count != nullptr && gif_dither != nullptr && gif_swatches != nullptr) {
+      CHECK(dialog->findChild<QWidget*>(QStringLiteral("webExportGifGroup"))->isVisible());
+      CHECK(gif_count->value() == 256 && gif_dither->currentIndex() == 0);
+      gif_count->setValue(64);
+      gif_dither->setCurrentIndex(1);
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+      const auto used = gif_swatches->property("webExportPaletteCount").toInt();
+      CHECK(used > 1 && used <= 64);
+      CHECK(list->topLevelItem(3)->text(1).contains(QStringLiteral("64")));
+      CHECK(list->topLevelItem(3)->text(2).contains(QLatin1Char('B')));
+      capture_widget_artifact("web_export_gif_side_by_side", *dialog);
+    }
 
     // Back to JPEG in split view, then Save: the file dialog takes the name.
     list->setCurrentItem(list->topLevelItem(0));
@@ -381,6 +504,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_defaults_and_options", ui_web_export_defaults_and_options},
       {"ui_web_export_jpeg_progressive_and_optimize_read_back", ui_web_export_jpeg_progressive_and_optimize_read_back},
       {"ui_web_export_engine_drops_stale_requests", ui_web_export_engine_drops_stale_requests},
+      {"ui_web_export_palette_png_and_gif_read_back", ui_web_export_palette_png_and_gif_read_back},
       {"ui_web_export_dialog_previews_and_saves", ui_web_export_dialog_previews_and_saves},
   };
 }

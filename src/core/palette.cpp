@@ -516,7 +516,8 @@ Palette quantize_to_palette(const PixelBuffer& pixels, std::size_t max_colors, s
 }
 
 Rect apply_palette_to_pixels(PixelBuffer& pixels, const PaletteLut& lut, PaletteDither dither,
-                             std::uint8_t alpha_threshold) {
+                             std::uint8_t alpha_threshold, int diffusion_amount) {
+  diffusion_amount = std::clamp(diffusion_amount, 0, 100);
   if (lut.empty() || pixels.width() <= 0 || pixels.height() <= 0 || pixels.format().channels < 3) {
     return Rect{};
   }
@@ -568,7 +569,7 @@ Rect apply_palette_to_pixels(PixelBuffer& pixels, const PaletteLut& lut, Palette
 
         const auto forward = left_to_right ? 1 : -1;
         for (std::size_t channel = 0; channel < 3; ++channel) {
-          const auto err = error[channel];
+          const auto err = diffusion_amount == 100 ? error[channel] : error[channel] * diffusion_amount / 100;
           if (err == 0) {
             continue;
           }

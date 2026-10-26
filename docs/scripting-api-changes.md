@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options `colors` (2..256), `dither` (`"none"`,
+`"diffusion"`) and `ditherAmount` (0..100) for `.gif`, and for `.png` with the new `pngColors`
+(`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette
+keys on a full-color PNG, other extensions or bad values throw ([web-export.md](web-export.md)).
+Permanent identifiers: the four keys and their tokens. Pinned by `ui_script_export_as_palette_keys`.
 2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options for `.jpg`/`.jpeg` take `progressive`
 (progressive scans), `optimizeCoding` (optimized Huffman tables), both default false so saves keep
 their bytes, and `thumbnail` (the EXIF IFD1 thumbnail, default true), for File > Export for Web
