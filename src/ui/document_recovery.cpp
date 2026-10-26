@@ -35,7 +35,8 @@ QString RecoveryInstanceFolder::recovery_root() {
   if (!override_dir.isEmpty()) {
     return QDir(override_dir).absolutePath();
   }
-  return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath(QStringLiteral("AutoRecover"));
+  // Local, not roaming: recovery belongs to this machine's sessions (app_data_migration.hpp).
+  return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath(QStringLiteral("AutoRecover"));
 }
 
 RecoveryInstanceFolder::RecoveryInstanceFolder(QString root) {

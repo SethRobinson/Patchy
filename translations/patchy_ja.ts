@@ -13063,6 +13063,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Encoding...</source>
         <translation>エンコード中...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>設定とデータのフォルダー:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>フォルダーを開く</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

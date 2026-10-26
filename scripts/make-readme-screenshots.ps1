@@ -248,7 +248,7 @@ foreach ($name in $jsToRun) {
     $proc = $null
     try {
         if ($spec.ColorScheme) {
-            $settingsFolder = Join-Path $env:PATCHY_SETTINGS_DIR 'Patchy'
+            $settingsFolder = Join-Path (Join-Path $env:PATCHY_SETTINGS_DIR 'RTsoft') 'Patchy'
             New-Item -ItemType Directory -Force $settingsFolder | Out-Null
             Set-Content -LiteralPath (Join-Path $settingsFolder 'Patchy.ini') -Value "[preferences]`ncolorScheme=$($spec.ColorScheme)" -Encoding UTF8
         }
@@ -270,7 +270,7 @@ foreach ($name in $jsToRun) {
             $patchyExe = Join-Path $hostDir 'patchy.exe'
             $pluginCopy = Join-Path $hostDir 'plugins\KPT5'
             Copy-Item -LiteralPath $spec.Fixture -Destination $pluginCopy -Recurse
-            $settingsFolder = Join-Path $env:PATCHY_SETTINGS_DIR 'Patchy'
+            $settingsFolder = Join-Path (Join-Path $env:PATCHY_SETTINGS_DIR 'RTsoft') 'Patchy'
             New-Item -ItemType Directory -Force $settingsFolder | Out-Null
             Set-Content -LiteralPath (Join-Path $settingsFolder 'Patchy.ini') -Value "[plugins]`nscreenSize=1024x768`n[preferences]`ncolorScheme=dark" -Encoding UTF8
             $env:PATCHY_8BF_DIALOG_SETTLE_MS = '5000'

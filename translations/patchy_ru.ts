@@ -13137,6 +13137,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Encoding...</source>
         <translation>Кодирование...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Папка настроек и данных:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Открыть папку</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

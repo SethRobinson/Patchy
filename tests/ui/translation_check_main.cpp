@@ -1,6 +1,7 @@
 // Build-time runtime checker. Never reads or writes the user's settings.
 #include "test_harness.hpp"
 #include "test_fonts.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/localization.hpp"
 #include <QApplication>
 #include <QDir>
@@ -19,7 +20,7 @@ int main(int argc, char** argv) {
   QApplication app(argc, argv);
   QTemporaryDir settings(QDir::current().filePath(QStringLiteral("translation-settings-XXXXXX")));
   if (!settings.isValid()) return 1;
-  QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings.path());
+  patchy::ui::set_app_settings_root(settings.path());
   qputenv("PATCHY_BRUSH_SETTINGS_FILE", settings.filePath(QStringLiteral("brushes.ini")).toUtf8());
   qputenv("PATCHY_RECENT_SETTINGS_FILE", settings.filePath(QStringLiteral("recent.ini")).toUtf8());
   app.setFont(patchy::test::visual_test_font());

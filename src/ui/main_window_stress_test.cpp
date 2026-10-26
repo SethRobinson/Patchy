@@ -44,7 +44,6 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_shape.hpp"
 #include "core/rect_utils.hpp"
-#include "ui/app_settings.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/cli_exit.hpp"
 #include "ui/custom_shape_library.hpp"
@@ -94,6 +93,7 @@
 #include <QRect>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStandardPaths>
 #include <QSize>
 #include <QString>
 #include <QStringLiteral>
@@ -3037,8 +3037,8 @@ StressReport StressTestRunner::run() {
 namespace {
 
 QString default_stress_report_dir() {
-  auto settings = app_settings();
-  return QFileInfo(settings.fileName()).absolutePath() + QStringLiteral("/stress-reports");
+  // Local, not roaming: this machine's timings (app_data_migration.hpp).
+  return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/stress-reports");
 }
 
 // Writes stress-<timestamp>.{json,txt} plus the stable stress-latest copies.

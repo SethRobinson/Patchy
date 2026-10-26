@@ -181,17 +181,40 @@ and macOS it deletes fonts the first is still drawing with.
 
 ## Per-user app-data folder
 
-`QStandardPaths::AppDataLocation` holds the dropped-font store (`user-fonts/`) and the
-user scripts folder (`scripts/`, `MainWindow::user_scripts_directory()`). Qt builds it
-from the organization name set in `src/app/main.cpp`: `%APPDATA%\RTsoft\Patchy` on
-Windows, `~/Library/Application Support/RTsoft/Patchy` on macOS,
-`~/.local/share/RTsoft/Patchy` on Linux. Preferences are separate: `app_settings()` names
-its own organization ("Patchy"), so `Patchy.ini` never moves with this name.
+Three per-user folders, all named from the organization name set in `src/app/main.cpp`:
 
-Releases through 0.98 used the organization name "Seth A. Robinson". Startup calls
-`app_data_migration::migrate_legacy_app_data()` (`src/ui/app_data_migration.{hpp,cpp}`)
-before the font restore: it merges the legacy folder into the current one without
-overwriting (identical leftovers are deleted, differing ones stay for the user), then
-removes the emptied legacy tree. Treat the organization name as a persisted identifier;
-changing it again means another migration step, not an edit to this one. Test:
-`ui_app_data_migration_merges_legacy_folder` in `tests/ui/app_shell_tests.cpp`.
+| Folder | Holds | Windows | macOS | Linux |
+|---|---|---|---|---|
+| AppDataLocation | `user-fonts/`, `scripts/` (`MainWindow::user_scripts_directory()`), `themes/`, `plugins/` | `%APPDATA%\RTsoft\Patchy` | `~/Library/Application Support/RTsoft/Patchy` | `~/.local/share/RTsoft/Patchy` |
+| Settings (`app_settings_file_path()`) | `Patchy.ini` and the libraries built beside it: `brushes/`, `brush-presets/`, `gradients/`, `looks/`, `patterns/`, `shapes/`, `styles/` | same as AppDataLocation | same as AppDataLocation | `~/.config/RTsoft/Patchy` |
+| AppLocalDataLocation | machine-specific data: `ai-models/` (downloads), `AutoRecover/`, `stress-reports/`, `updates/` | `%LOCALAPPDATA%\RTsoft\Patchy` | same as AppDataLocation | same as AppDataLocation |
+
+Local data stays out of Windows' roaming profile: models are hundreds of MB that download again,
+recovery and timings belong to one machine. The settings root is `<root>/RTsoft/Patchy`, where
+`<root>` is QSettings' user ini root on Windows and Linux (Flatpak:
+`~/.var/app/com.rtsoft.patchy/config`) and `~/Library/Application Support` on macOS, whose Qt
+ini root (`~/.config`) is no place for a Mac app's files. `set_app_settings_root()` redirects it
+(`PATCHY_SETTINGS_DIR`, the test suites); a bare `QSettings::setPath` no longer does on macOS. The
+About dialog (`src/ui/splash_dialog.cpp`) lists one "Settings and data folder" row when settings
+and data share a folder and separate rows otherwise (Linux, a `PATCHY_SETTINGS_DIR` run).
+
+Startup migrations in `src/ui/app_data_migration.{hpp,cpp}` merge each legacy folder into the
+current one without overwriting (identical leftovers are deleted, differing ones stay for the
+user), then remove the emptied legacy folder:
+
+- `migrate_legacy_settings()`: through 1.19 `app_settings()` named the organization "Patchy", so
+  settings and presets lived in `<Qt ini root>/Patchy` (`%APPDATA%\Patchy`, `~/.config/Patchy`).
+  It runs right after the `PATCHY_SETTINGS_DIR` redirect, before the first `app_settings()` read
+  (and in connector mode before the shared brush/recent file paths are captured). It never
+  removes the ini root.
+- `migrate_legacy_app_data()`: releases through 0.98 used the organization name
+  "Seth A. Robinson" for AppDataLocation. It runs before the font restore.
+- `migrate_local_app_data()`: through 1.19 `ai-models/` and `AutoRecover/` were in
+  AppDataLocation and `stress-reports/` beside Patchy.ini. It runs right after the previous one
+  and moves only those folders, never their parents; where the folders coincide it does nothing.
+
+Treat the organization name, the settings path and the local-data split as persisted
+identifiers; changing any again means another migration step, not an edit to these. Tests:
+`ui_app_data_migration_merges_legacy_folder`, `ui_app_settings_migration_moves_legacy_settings_folder`
+and `ui_app_data_migration_moves_machine_data_to_local` in
+`tests/ui/app_shell_tests_language_chrome.cpp`.

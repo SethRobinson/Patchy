@@ -72,8 +72,8 @@ count them (worst case one extra full copy, the same as an undo state).
 ## On disk
 
 `<root>/<pid>-<start ms>/` per running instance, where `<root>` is
-`PATCHY_RECOVERY_DIR` when set, else `<QStandardPaths::AppDataLocation>/AutoRecover`
-(`%APPDATA%\RTsoft\Patchy\AutoRecover` on Windows). The folder is created by the first
+`PATCHY_RECOVERY_DIR` when set, else `<QStandardPaths::AppLocalDataLocation>/AutoRecover`
+(`%LOCALAPPDATA%\RTsoft\Patchy\AutoRecover` on Windows, kept out of the roaming profile). The folder is created by the first
 write, never by construction, so an instance that never wrote leaves nothing behind.
 
 Inside, per session (Qt-free layout in `src/core/document_recovery_store.hpp`):

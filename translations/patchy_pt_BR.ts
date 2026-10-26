@@ -13100,6 +13100,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Encoding...</source>
         <translation>Codificando...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Pasta de configurações e dados:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Abrir pasta</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -30,7 +30,7 @@ async def test():
     out = ROOT / "test-artifacts" / ("flatpak-separate-" + str(time.time_ns()))
     out.mkdir(parents=True)
     settings = out / "settings"
-    ini = settings / "Patchy" / "Patchy.ini"
+    ini = settings / "RTsoft" / "Patchy" / "Patchy.ini"
     ini.parent.mkdir(parents=True)
     ini.write_text("[updates]\ncheckOnStartup=false\n", encoding="utf-8")
     sandbox = ["flatpak", "run", "--user", "--command=env", APP_ID]

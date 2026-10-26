@@ -426,9 +426,11 @@ int main(int argc, char* argv[]) {
     // Share brushes and recent paths with the artist, while keeping window preferences
     // isolated. Honor an automation settings root before capturing its filename.
     if (const auto root = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !root.isEmpty()) {
-      QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root);
+      patchy::ui::set_app_settings_root(root);
       qputenv("PATCHY_MCP_OWNED_SETTINGS", "1");  // a suite's connector: no update check (mcp_server.cpp)
     }
+    // The connector may run before the upgraded app ever has: bring the shared store across first.
+    patchy::ui::app_data_migration::migrate_legacy_settings();
     if (qEnvironmentVariableIsEmpty("PATCHY_BRUSH_SETTINGS_FILE"))
       qputenv("PATCHY_BRUSH_SETTINGS_FILE", patchy::ui::app_settings().fileName().toUtf8());
     if (qEnvironmentVariableIsEmpty("PATCHY_RECENT_SETTINGS_FILE"))
@@ -448,8 +450,10 @@ int main(int argc, char* argv[]) {
   // user's real Patchy settings (recent files, saved window geometry, panels).
   // Must stay ahead of apply_gui_scale_factor(), the first app_settings() read.
   if (const auto settings_dir = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !settings_dir.isEmpty()) {
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_dir);
+    patchy::ui::set_app_settings_root(settings_dir);
   }
+  // Moves the 1.19-era Patchy.ini and preset folders into RTsoft/Patchy (app_data_migration.hpp).
+  patchy::ui::app_data_migration::migrate_legacy_settings();
 #ifdef Q_OS_WASM
   const bool headless_mode = false;  // one tab is one instance; no platform choice
 #else
@@ -504,7 +508,7 @@ int main(int argc, char* argv[]) {
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
   app.setApplicationDisplayName(QString());
   // Keys the per-user app-data folder (fonts, scripts); see app_data_migration.hpp before
-  // changing it. Preferences name their own organization in app_settings().
+  // changing it. app_settings() builds its own path (app_settings_file_path()).
   app.setOrganizationName(QStringLiteral("RTsoft"));
 #ifndef Q_OS_MACOS
   // On macOS this call would replace the Dock icon with the edge-to-edge logo; the
@@ -529,9 +533,11 @@ int main(int argc, char* argv[]) {
     QFont::insertSubstitution(QString::fromLatin1(alias.missing), QString::fromLatin1(alias.bundled));
   }
 #endif
-  // Before anything reads AppDataLocation: moves 0.98-era fonts and scripts across.
+  // Before anything reads AppDataLocation: moves 0.98-era fonts and scripts across, then the
+  // machine-specific folders (models, recovery, stress reports) to AppLocalDataLocation.
   patchy::startup_trace::Scope migration_phase("app_data.migration");
   patchy::ui::app_data_migration::migrate_legacy_app_data();
+  patchy::ui::app_data_migration::migrate_local_app_data();
   migration_phase.end();
   patchy::startup_trace::Scope user_fonts_phase("fonts.user_store");
   patchy::ui::user_fonts::restore_user_fonts_at_startup();

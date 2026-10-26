@@ -340,7 +340,8 @@ qint64 high_quality_model_download_bytes() {
 namespace {
 
 QString default_downloaded_models_folder() {
-  return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath(QStringLiteral("ai-models"));
+  // Local, not roaming: hundreds of MB that download again (app_data_migration.hpp).
+  return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath(QStringLiteral("ai-models"));
 }
 
 }  // namespace

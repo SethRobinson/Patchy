@@ -1944,7 +1944,7 @@ int perf_pdf_page_cap() {
 // run out of the real user store.
 void isolate_perf_settings() {
   ensure_artifact_dir();
-  QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, QStringLiteral("test-artifacts/perf-settings"));
+  patchy::ui::set_app_settings_root(QStringLiteral("test-artifacts/perf-settings"));
 }
 
 void drive_perf_dialog(const std::shared_ptr<std::function<bool()>>& step, int attempts = 200000) {

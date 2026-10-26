@@ -13100,6 +13100,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Encoding...</source>
         <translation>Encodage...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Dossier des paramètres et des données :</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Ouvrir le dossier</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

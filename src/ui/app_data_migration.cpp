@@ -1,10 +1,13 @@
 #include "ui/app_data_migration.hpp"
 
+#include "ui/app_settings.hpp"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QSettings>
 #include <QStandardPaths>
 
 #include <algorithm>
@@ -59,7 +62,8 @@ void prune_empty_directories(QString dir, const QString& stop_at) {
 
 }  // namespace
 
-MigrationResult migrate_app_data_directory(const QString& legacy_dir, const QString& current_dir) {
+MigrationResult migrate_app_data_directory(const QString& legacy_dir, const QString& current_dir,
+                                           bool remove_empty_parent) {
   MigrationResult result;
   if (legacy_dir.isEmpty() || current_dir.isEmpty() ||
       QDir::cleanPath(legacy_dir) == QDir::cleanPath(current_dir)) {
@@ -106,7 +110,7 @@ MigrationResult migrate_app_data_directory(const QString& legacy_dir, const QStr
       QDir().rmdir(dir);
     }
   }
-  prune_empty_directories(legacy_dir, QFileInfo(legacy_dir).absolutePath());
+  prune_empty_directories(legacy_dir, remove_empty_parent ? QFileInfo(legacy_dir).absolutePath() : legacy_dir);
   result.completed = !QDir(legacy_dir).exists();
   return result;
 }
@@ -136,6 +140,65 @@ MigrationResult migrate_legacy_app_data() {
   }
   return migrate_app_data_directory(
       legacy, QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+#endif
+}
+
+QString legacy_settings_directory() {
+#ifdef Q_OS_WASM
+  return {};
+#else
+  const QSettings legacy(QSettings::IniFormat, QSettings::UserScope, QStringLiteral("Patchy"),
+                         QStringLiteral("Patchy"));
+  return QFileInfo(legacy.fileName()).absolutePath();
+#endif
+}
+
+MigrationResult migrate_legacy_settings() {
+#ifdef Q_OS_WASM
+  return {};
+#else
+  const auto legacy = legacy_settings_directory();
+  if (legacy.isEmpty() || !QDir(legacy).exists()) {
+    return {};
+  }
+  return migrate_app_data_directory(legacy, QFileInfo(app_settings_file_path()).absolutePath(),
+                                    /*remove_empty_parent=*/false);
+#endif
+}
+
+MigrationResult migrate_local_data(const QString& roaming_dir, const QString& local_dir,
+                                   const QString& settings_dir) {
+  MigrationResult total;
+  const auto merge = [&](const QString& from_root, const QString& name) {
+    if (from_root.isEmpty() || local_dir.isEmpty()) {
+      return;
+    }
+    const auto from = QDir(from_root).filePath(name);
+    const auto result = migrate_app_data_directory(from, QDir(local_dir).filePath(name),
+                                                   /*remove_empty_parent=*/false);
+    if (!result.legacy_found) {
+      return;
+    }
+    total.completed = (total.legacy_found ? total.completed : true) && result.completed;
+    total.legacy_found = true;
+    total.files_moved += result.files_moved;
+    total.duplicates_removed += result.duplicates_removed;
+    total.conflicts_kept += result.conflicts_kept;
+  };
+  for (const auto* name : {"ai-models", "AutoRecover", "stress-reports"}) {
+    merge(roaming_dir, QString::fromLatin1(name));
+  }
+  merge(settings_dir, QStringLiteral("stress-reports"));
+  return total;
+}
+
+MigrationResult migrate_local_app_data() {
+#ifdef Q_OS_WASM
+  return {};
+#else
+  return migrate_local_data(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation),
+                            QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation),
+                            QFileInfo(app_settings_file_path()).absolutePath());
 #endif
 }
 

@@ -13100,6 +13100,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Encoding...</source>
         <translation>Codifica in corso...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Cartella delle impostazioni e dei dati:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Apri cartella</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

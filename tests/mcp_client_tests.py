@@ -264,7 +264,7 @@ async def attached_workspace(exe):
         # deliberately deep, so put this socket directly in our artifact area.
         endpoint = str(OUT / ("s-" + uuid.uuid4().hex[:12]))
     settings = SESSION_TEMP / "attached-settings"
-    ini = settings / "Patchy" / "Patchy.ini"
+    ini = settings / "RTsoft" / "Patchy" / "Patchy.ini"
     ini.parent.mkdir(parents=True)
     ini.write_text("[updates]\ncheckOnStartup=false\n", encoding="utf-8")
     env = {**os.environ, **TEMP_ENV, "QT_QPA_PLATFORM": "offscreen",
@@ -412,7 +412,7 @@ async def attached_recovery(exe):
     if os.name != "nt":
         endpoint = str(OUT / ("r-" + uuid.uuid4().hex[:12]))
     settings = SESSION_TEMP / "recovery-settings"
-    ini = settings / "Patchy" / "Patchy.ini"
+    ini = settings / "RTsoft" / "Patchy" / "Patchy.ini"
     ini.parent.mkdir(parents=True)
     ini.write_text("[updates]\ncheckOnStartup=false\n", encoding="utf-8")
     env = {**os.environ, **TEMP_ENV, "QT_QPA_PLATFORM": "offscreen",
@@ -623,7 +623,7 @@ async def shared_recent_history(exe):
     app_exe = next(path for path in candidates if path.is_file())
     root = SESSION_TEMP / "recent-history"
     settings_root = root / "settings"
-    ini = settings_root / "Patchy" / "Patchy.ini"
+    ini = settings_root / "RTsoft" / "Patchy" / "Patchy.ini"
     ini.parent.mkdir(parents=True)
     ini.write_text("[view]\nvectorPreview=true\n[window]\nrecentHistorySentinel=keep\n", encoding="utf-8")
     env = {**os.environ, **TEMP_ENV, "PATCHY_SETTINGS_DIR": str(settings_root)}

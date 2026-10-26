@@ -13100,6 +13100,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Encoding...</source>
         <translation>Codificando...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Carpeta de configuración y datos:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Abrir carpeta</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

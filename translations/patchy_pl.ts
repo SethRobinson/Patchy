@@ -13137,6 +13137,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Encoding...</source>
         <translation>Kodowanie...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Folder ustawień i danych:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Otwórz folder</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

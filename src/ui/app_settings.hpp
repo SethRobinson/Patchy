@@ -14,6 +14,17 @@
 namespace patchy::ui {
 
 [[nodiscard]] QSettings app_settings();
+#ifndef Q_OS_WASM
+// Patchy.ini, beside the preset libraries: `<settings root>/RTsoft/Patchy/Patchy.ini`. The
+// default root makes it the AppDataLocation folder on Windows (`%APPDATA%`) and macOS
+// (`~/Library/Application Support`); Linux keeps config in `~/.config`. Through 1.19 it was
+// `<Qt user ini root>/Patchy/Patchy.ini`; see app_data_migration.hpp.
+[[nodiscard]] QString app_settings_file_path();
+// Redirects the settings root for isolated runs (PATCHY_SETTINGS_DIR, the test suites) and
+// points QSettings' user ini root there too, so the legacy-folder lookup follows. Call it
+// before the first app_settings() read; a QSettings::setPath call alone is not enough on macOS.
+void set_app_settings_root(const QString& root);
+#endif
 // Brush assets and recent paths persist across owned MCP workspaces.
 [[nodiscard]] QSettings brush_library_settings();
 [[nodiscard]] QSettings recent_history_settings();

@@ -13063,6 +13063,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Encoding...</source>
         <translation>인코딩 중...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>설정 및 데이터 폴더:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>폴더 열기</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

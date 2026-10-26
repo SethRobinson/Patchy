@@ -30,7 +30,7 @@ async def test(appimage: Path):
     out = ROOT / "test-artifacts" / ("appimage-separate-" + str(time.time_ns()))
     out.mkdir(parents=True)
     settings = out / "settings"
-    ini = settings / "Patchy" / "Patchy.ini"
+    ini = settings / "RTsoft" / "Patchy" / "Patchy.ini"
     ini.parent.mkdir(parents=True)
     ini.write_text("[updates]\ncheckOnStartup=false\n", encoding="utf-8")
     env = {key: value for key, value in os.environ.items() if key != "PATCHY_MCP_ENDPOINT"}

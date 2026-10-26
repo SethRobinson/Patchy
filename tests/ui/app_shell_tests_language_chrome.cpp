@@ -1193,7 +1193,7 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
     QApplication::processEvents();
     for (const char* source : {"Settings file:", "Open Settings Folder", "Could not open settings folder.",
                                "User data folder (fonts, scripts):", "Open Data Folder",
-                               "Could not open data folder."}) {
+                               "Could not open data folder.", "Settings and data folder:", "Open Folder"}) {
       const auto translated = QCoreApplication::translate("QObject", source);
       if (translated == QString::fromUtf8(source)) {
         std::cerr << "untranslated in " << language.code.toStdString() << ": " << source << "\n";
@@ -1338,6 +1338,19 @@ void ui_polygonal_lasso_tool_retranslates() {
   CHECK(action->toolTip().contains(QStringLiteral("Click to place points")));
 }
 
+// Points the settings root (and QSettings' user ini root) at `root`, and back at the suite's afterwards.
+struct IniRootOverride {
+  QString suite_root = QFileInfo(QFileInfo(QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                                     QStringLiteral("probe"), QStringLiteral("probe"))
+                                               .fileName())
+                                     .absolutePath())
+                           .absolutePath();
+  explicit IniRootOverride(const QString& root) { patchy::ui::set_app_settings_root(root); }
+  ~IniRootOverride() { patchy::ui::set_app_settings_root(suite_root); }
+  IniRootOverride(const IniRootOverride&) = delete;
+  IniRootOverride& operator=(const IniRootOverride&) = delete;
+};
+
 void ui_about_dialog_shows_labeled_external_links() {
   bool inspected = false;
   QTimer::singleShot(0, [&] {
@@ -1460,6 +1473,63 @@ void ui_about_dialog_shows_labeled_external_links() {
   CHECK(inspected);
 }
 
+// Where Patchy.ini sits in the data folder itself (Windows and macOS, app_settings_file_path())
+// the About dialog lists that folder once; the suite's own settings live elsewhere, so the test
+// above sees both rows, the layout Linux always gets.
+void ui_about_dialog_lists_shared_settings_and_data_folder_once() {
+  // Test mode keeps AppDataLocation, and so the settings this dialog may write, off the real profile.
+  struct StandardPathsTestMode {
+    StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(true); }
+    ~StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(false); }
+  } test_mode;
+  // The app's identity, which keys AppDataLocation (main.cpp sets it; the suite has its own).
+  struct AppIdentity {
+    QString organization = QCoreApplication::organizationName();
+    QString application = QCoreApplication::applicationName();
+    AppIdentity() {
+      QCoreApplication::setOrganizationName(QStringLiteral("RTsoft"));
+      QCoreApplication::setApplicationName(QStringLiteral("Patchy"));
+    }
+    ~AppIdentity() {
+      QCoreApplication::setOrganizationName(organization);
+      QCoreApplication::setApplicationName(application);
+    }
+  } identity;
+  const auto data_folder = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const auto organization_folder = QFileInfo(data_folder).absolutePath();
+  CHECK(QFileInfo(data_folder).fileName() == QStringLiteral("Patchy"));
+  CHECK(QFileInfo(organization_folder).fileName() == QStringLiteral("RTsoft"));
+  IniRootOverride override_root(QFileInfo(organization_folder).absolutePath());
+  CHECK(QDir::cleanPath(QFileInfo(patchy::ui::app_settings_file_path()).absolutePath()) ==
+        QDir::cleanPath(data_folder));
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(dialog->findChild<QLabel*>(QStringLiteral("splashSettingsCaption")) == nullptr);
+    CHECK(dialog->findChild<QLabel*>(QStringLiteral("splashSettingsPath")) == nullptr);
+    CHECK(dialog->findChild<QPushButton*>(QStringLiteral("splashOpenSettingsFolderButton")) == nullptr);
+    CHECK(dialog->findChildren<QLabel*>(QStringLiteral("splashDataCaption")).size() == 1);
+    auto* caption = dialog->findChild<QLabel*>(QStringLiteral("splashDataCaption"));
+    CHECK(caption != nullptr && caption->text() == QStringLiteral("Settings and data folder:"));
+    auto* path = dialog->findChild<QLabel*>(QStringLiteral("splashDataPath"));
+    CHECK(path != nullptr && path->text() == QDir::toNativeSeparators(data_folder));
+    auto* open_folder = dialog->findChild<QPushButton*>(QStringLiteral("splashOpenDataFolderButton"));
+    CHECK(open_folder != nullptr && open_folder->text() == QStringLiteral("Open Folder"));
+    CHECK(dialog->height() >= dialog->layout()->totalHeightForWidth(dialog->width()));
+    save_widget_artifact("ui_about_dialog_shared_folder", *dialog);
+    inspected = true;
+    dialog->accept();
+  });
+
+  patchy::ui::show_about_splash();
+  CHECK(inspected);
+}
+
 void ui_about_dialog_shows_memory_row() {
   bool inspected = false;
   QTimer::singleShot(0, [&] {
@@ -1554,6 +1624,121 @@ void ui_app_data_migration_merges_legacy_folder() {
   CHECK(legacy_dir.contains(QStringLiteral("Seth A. Robinson")));
   CHECK(QCoreApplication::organizationName() == QStringLiteral("RTsoft"));
   QCoreApplication::setOrganizationName(organization);
+}
+
+void ui_app_settings_migration_moves_legacy_settings_folder() {
+  namespace migration = patchy::ui::app_data_migration;
+  const auto same_path = [](const QString& a, const QString& b) {
+    return QDir::cleanPath(QFileInfo(a).absoluteFilePath()) == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
+  };
+  const auto write = [](const QString& path, const QByteArray& bytes) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(bytes);
+  };
+
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto root = temp.path();
+  {
+    IniRootOverride override_root(root);
+    const auto legacy = root + QStringLiteral("/Patchy");
+    const auto current = root + QStringLiteral("/RTsoft/Patchy");
+    // Preferences now share the RTsoft/Patchy folder; the legacy one was the "Patchy" organization's.
+    CHECK(same_path(patchy::ui::app_settings_file_path(), current + QStringLiteral("/Patchy.ini")));
+    CHECK(same_path(patchy::ui::app_settings().fileName(), current + QStringLiteral("/Patchy.ini")));
+    CHECK(same_path(migration::legacy_settings_directory(), legacy));
+#ifdef Q_OS_MACOS
+    // Unredirected, a Mac keeps settings in Application Support, not Qt's ~/.config ini root.
+    patchy::ui::set_app_settings_root({});
+    CHECK(same_path(patchy::ui::app_settings_file_path(),
+                    QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
+                        QStringLiteral("/RTsoft/Patchy/Patchy.ini")));
+    patchy::ui::set_app_settings_root(root);
+#endif
+
+    // No legacy folder: nothing happens.
+    auto result = migration::migrate_legacy_settings();
+    CHECK(!result.legacy_found);
+    CHECK(!QDir(current).exists());
+
+    write(legacy + QStringLiteral("/Patchy.ini"), "[preferences]\ncolorScheme=dark\n");
+    write(legacy + QStringLiteral("/brushes/tip.json"), "{\"name\":\"Tip\"}");
+    write(legacy + QStringLiteral("/patterns/pattern.png"), "png-bytes");
+    result = migration::migrate_legacy_settings();
+    CHECK(result.legacy_found && result.completed);
+    CHECK(result.files_moved == 3 && result.conflicts_kept == 0);
+    CHECK(!QDir(legacy).exists());
+    CHECK(QDir(root).exists());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("preferences/colorScheme")).toString() ==
+          QStringLiteral("dark"));
+    // The libraries keep resolving beside the settings file.
+    const auto settings_dir = QFileInfo(patchy::ui::app_settings().fileName()).absolutePath();
+    CHECK(QFileInfo::exists(settings_dir + QStringLiteral("/brushes/tip.json")));
+    CHECK(QFileInfo::exists(settings_dir + QStringLiteral("/patterns/pattern.png")));
+
+    // Idempotent once the legacy folder is gone.
+    CHECK(!migration::migrate_legacy_settings().legacy_found);
+  }
+
+  // The user ini root is never removed, even when the migration leaves it empty.
+  QTemporaryDir bare;
+  CHECK(bare.isValid());
+  {
+    IniRootOverride override_root(bare.path());
+    CHECK(QDir().mkpath(bare.path() + QStringLiteral("/Patchy/brushes")));
+    const auto result = migration::migrate_legacy_settings();
+    CHECK(result.legacy_found && result.completed);
+    CHECK(!QDir(bare.path() + QStringLiteral("/Patchy")).exists());
+    CHECK(QDir(bare.path()).exists());
+  }
+}
+
+void ui_app_data_migration_moves_machine_data_to_local() {
+  namespace migration = patchy::ui::app_data_migration;
+  const auto write = [](const QString& path, const QByteArray& bytes) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(bytes);
+  };
+  const auto read = [](const QString& path) {
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+  };
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto roaming = temp.path() + QStringLiteral("/Roaming/RTsoft/Patchy");
+  const auto local = temp.path() + QStringLiteral("/Local/RTsoft/Patchy");
+  const auto settings = temp.path() + QStringLiteral("/config/RTsoft/Patchy");
+
+  // Where the folders coincide (macOS, Linux AppData vs AppLocalData) nothing moves.
+  write(roaming + QStringLiteral("/ai-models/model.onnx"), "model");
+  CHECK(!migration::migrate_local_data(roaming, roaming, roaming).legacy_found);
+  CHECK(QFileInfo::exists(roaming + QStringLiteral("/ai-models/model.onnx")));
+
+  write(roaming + QStringLiteral("/AutoRecover/1234-5678/document.psd"), "recovery");
+  write(roaming + QStringLiteral("/stress-reports/stress-latest.json"), "roaming report");
+  write(roaming + QStringLiteral("/user-fonts/Dropped.ttf"), "font");
+  write(settings + QStringLiteral("/stress-reports/stress-old.json"), "settings report");
+  write(local + QStringLiteral("/stress-reports/stress-latest.json"), "local report");
+  const auto result = migration::migrate_local_data(roaming, local, settings);
+  CHECK(result.legacy_found);
+  CHECK(result.files_moved == 3);     // model.onnx, document.psd, stress-old.json
+  CHECK(result.conflicts_kept == 1);  // the roaming stress-latest.json
+  CHECK(!result.completed);
+  CHECK(read(local + QStringLiteral("/ai-models/model.onnx")) == "model");
+  CHECK(read(local + QStringLiteral("/AutoRecover/1234-5678/document.psd")) == "recovery");
+  CHECK(read(local + QStringLiteral("/stress-reports/stress-old.json")) == "settings report");
+  CHECK(read(local + QStringLiteral("/stress-reports/stress-latest.json")) == "local report");
+  CHECK(!QDir(roaming + QStringLiteral("/ai-models")).exists());
+  CHECK(!QDir(roaming + QStringLiteral("/AutoRecover")).exists());
+  CHECK(!QDir(settings + QStringLiteral("/stress-reports")).exists());
+  CHECK(read(roaming + QStringLiteral("/stress-reports/stress-latest.json")) == "roaming report");
+  // Everything else in the roaming and settings folders stays, and so do the folders.
+  CHECK(read(roaming + QStringLiteral("/user-fonts/Dropped.ttf")) == "font");
+  CHECK(QDir(settings).exists());
 }
 
 void ui_frameless_window_edges_resize() {
@@ -2341,8 +2526,12 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_filter_gallery_action_retranslates", ui_filter_gallery_action_retranslates},
       {"ui_polygonal_lasso_tool_retranslates", ui_polygonal_lasso_tool_retranslates},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
+      {"ui_about_dialog_lists_shared_settings_and_data_folder_once",
+       ui_about_dialog_lists_shared_settings_and_data_folder_once},
       {"ui_about_dialog_shows_memory_row", ui_about_dialog_shows_memory_row},
       {"ui_app_data_migration_merges_legacy_folder", ui_app_data_migration_merges_legacy_folder},
+      {"ui_app_settings_migration_moves_legacy_settings_folder", ui_app_settings_migration_moves_legacy_settings_folder},
+      {"ui_app_data_migration_moves_machine_data_to_local", ui_app_data_migration_moves_machine_data_to_local},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_maximized_title_bar_click_keeps_window_maximized", ui_maximized_title_bar_click_keeps_window_maximized},
       {"ui_window_chrome_controls_drive_window_state", ui_window_chrome_controls_drive_window_state},

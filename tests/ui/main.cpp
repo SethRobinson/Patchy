@@ -267,7 +267,7 @@ int main(int argc, char* argv[]) {
   ensure_artifact_dir();
   const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
   CHECK(QDir().mkpath(test_settings_path));
-  QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, test_settings_path);
+  patchy::ui::set_app_settings_root(test_settings_path);
   // The Linux suite runs inside the Flatpak SDK sandbox (docs/linux-testing.md), which
   // sets FLATPAK_ID to the SDK's id. This binary is not a Flatpak app: without this the
   // app code takes its "I am the installed Flatpak" paths (connector command line, MCP

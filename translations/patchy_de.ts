@@ -13100,6 +13100,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Encoding...</source>
         <translation>Wird kodiert...</translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation>Einstellungs- und Datenordner:</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Ordner öffnen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -2,7 +2,10 @@
 
 #include "ui/qt_paths.hpp"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QStandardPaths>
 
 #include <mutex>
 
@@ -126,10 +129,56 @@ QSettings app_settings() {
   return QSettings(QSettings::WebLocalStorageFormat, QSettings::UserScope, QStringLiteral("Patchy"),
                    QStringLiteral("Patchy"));
 #else
-  return QSettings(QSettings::IniFormat, QSettings::UserScope, QStringLiteral("Patchy"),
-                   QStringLiteral("Patchy"));
+  return QSettings(app_settings_file_path(), QSettings::IniFormat);
 #endif
 }
+
+#ifndef Q_OS_WASM
+namespace {
+
+std::mutex& settings_root_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+QString& settings_root_override() {
+  static QString root;
+  return root;
+}
+
+}  // namespace
+
+QString app_settings_file_path() {
+  QString root;
+  {
+    std::lock_guard lock(settings_root_mutex());
+    root = settings_root_override();
+  }
+  if (root.isEmpty()) {
+#ifdef Q_OS_MACOS
+    // Qt's ini root on macOS is ~/.config; a Mac app keeps its files in Application Support.
+    root = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+#else
+    // Qt's user-scope ini root (%APPDATA% on Windows, ~/.config on Linux).
+    const QSettings probe(QSettings::IniFormat, QSettings::UserScope, QStringLiteral("RTsoft"),
+                          QStringLiteral("Patchy"));
+    root = QFileInfo(QFileInfo(probe.fileName()).absolutePath()).absolutePath();
+#endif
+  }
+  return root + QStringLiteral("/RTsoft/Patchy/Patchy.ini");
+}
+
+void set_app_settings_root(const QString& root) {
+  const auto absolute = root.isEmpty() ? QString() : QDir(root).absolutePath();
+  {
+    std::lock_guard lock(settings_root_mutex());
+    settings_root_override() = absolute;
+  }
+  if (!absolute.isEmpty()) {
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, absolute);
+  }
+}
+#endif
 
 int normalize_gui_scale_percent(int stored) {
   if (stored <= 0) {

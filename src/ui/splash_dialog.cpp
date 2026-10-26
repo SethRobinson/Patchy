@@ -40,6 +40,18 @@
 namespace patchy::ui {
 namespace {
 
+#ifndef Q_OS_WASM
+bool same_folder(const QString& a, const QString& b) {
+#ifdef Q_OS_WIN
+  constexpr auto kCase = Qt::CaseInsensitive;
+#else
+  constexpr auto kCase = Qt::CaseSensitive;
+#endif
+  return !a.isEmpty() && QDir::cleanPath(QFileInfo(a).absoluteFilePath())
+                             .compare(QDir::cleanPath(QFileInfo(b).absoluteFilePath()), kCase) == 0;
+}
+#endif
+
 QString format_memory_mb(qint64 mb) {
   if (mb >= 1024) {
     return QObject::tr("%1 GB").arg(static_cast<double>(mb) / 1024.0, 0, 'f', 1);
@@ -295,17 +307,24 @@ public:
 
     auto settings = app_settings();
     const auto settings_file_path = settings.fileName();
-    add_folder_row(QObject::tr("Settings file:"), settings_file_path,
-                   QFileInfo(settings_file_path).absolutePath(), QObject::tr("Open Settings Folder"),
-                   QObject::tr("Could not open settings folder."), "splashSettingsCaption",
-                   "splashSettingsPath", "splashOpenSettingsFolderButton");
-
+    const auto settings_folder_path = QFileInfo(settings_file_path).absolutePath();
     // Dropped fonts and user scripts (QStandardPaths::AppDataLocation, keyed by the
     // organization name; see app_data_migration.hpp).
     const auto data_folder_path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    add_folder_row(QObject::tr("User data folder (fonts, scripts):"), data_folder_path, data_folder_path,
-                   QObject::tr("Open Data Folder"), QObject::tr("Could not open data folder."),
-                   "splashDataCaption", "splashDataPath", "splashOpenDataFolderButton");
+    if (same_folder(settings_folder_path, data_folder_path)) {
+      // Windows and macOS keep Patchy.ini in the data folder itself (app_settings_file_path());
+      // Linux splits config from data, and a PATCHY_SETTINGS_DIR run moves the settings away.
+      add_folder_row(QObject::tr("Settings and data folder:"), data_folder_path, data_folder_path,
+                     QObject::tr("Open Folder"), QObject::tr("Could not open data folder."),
+                     "splashDataCaption", "splashDataPath", "splashOpenDataFolderButton");
+    } else {
+      add_folder_row(QObject::tr("Settings file:"), settings_file_path, settings_folder_path,
+                     QObject::tr("Open Settings Folder"), QObject::tr("Could not open settings folder."),
+                     "splashSettingsCaption", "splashSettingsPath", "splashOpenSettingsFolderButton");
+      add_folder_row(QObject::tr("User data folder (fonts, scripts):"), data_folder_path, data_folder_path,
+                     QObject::tr("Open Data Folder"), QObject::tr("Could not open data folder."),
+                     "splashDataCaption", "splashDataPath", "splashOpenDataFolderButton");
+    }
 #ifdef Q_OS_WIN
     // Classic Photoshop .8bf filters (Windows only): the folder next to the
     // application, created with its README on first open (docs/plugins.md).

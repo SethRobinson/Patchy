@@ -13083,6 +13083,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Encoding...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Settings and data folder:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
