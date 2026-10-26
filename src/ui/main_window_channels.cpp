@@ -4,6 +4,7 @@
 #include "color/color_management.hpp"
 #include "core/layer.hpp"
 #include "ui/main_window.hpp"
+#include "ui/quick_mask_trace.hpp"
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolButton>
@@ -582,6 +583,7 @@ void MainWindow::set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId i
   canvas_->finish_free_transform();
   canvas_->finish_warp_transform();
   if (canvas_->quick_mask_active() && kind != ChannelPanel::RowKind::QuickMask) {
+    quick_mask_trace(QStringLiteral("leaving Quick Mask for channel row %1").arg(static_cast<int>(kind)));
     canvas_->set_quick_mask_active(false);
   }
   QString message;

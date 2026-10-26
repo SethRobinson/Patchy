@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/quick_mask_trace.hpp"
 
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
@@ -352,6 +353,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
       document_->height() == document->height();
   const bool quick_mask_was_cleared = quick_mask_active_ && !preserve_quick_mask;
   if (quick_mask_was_cleared) {
+    quick_mask_trace(QStringLiteral("Quick Mask off: the canvas's document was replaced"));
     quick_mask_active_ = false;
     quick_mask_pixels_ = {};
     primary_color_ = quick_mask_saved_primary_;

@@ -37,6 +37,7 @@
 #include "ui/new_document_dialog.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/warp_text_dialog.hpp"
+#include "ui/quick_mask_trace.hpp"
 #include "ui/update_checker.hpp"
 
 #include <QAction>
@@ -46,6 +47,9 @@
 #include <QDesktopServices>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QGuiApplication>
+#include <QInputMethodEvent>
+#include <QKeyEvent>
 #include <QHelpEvent>
 #include <QImage>
 #include <QKeySequence>
@@ -61,12 +65,14 @@
 #include <QString>
 #include <QStringLiteral>
 #include <QStyle>
+#include <QTimer>
 #include <QToolTip>
 #include <QUrl>
 #include <QWidget>
 #include <Qt>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdlib>
@@ -134,32 +140,119 @@ class ActionToolTipFilter final : public QObject {
   QMenu* menu_;
 };
 
-// One key press toggles a mode once (GitHub issue 437). On a Linux (KDE) desktop a
-// single tap of Q switched Quick Mask on and back off within about 50 ms, the
-// signature of one press arriving as two shortcut triggers. A keyboard
-// trigger that follows the previous one within kWindowMs is dropped; no deliberate
-// second tap is that fast, and the menu and the toolbox button are not affected
-// (they trigger the action directly, not through a Shortcut event). Held keys are
-// the action's autoRepeat(false).
+// One key press toggles a mode once (GitHub issue 437). On a Linux (KDE, ibus) desktop
+// a single tap of Q switched Quick Mask on and back off about 40 ms after the canvas
+// showed it: one press arriving as two shortcut triggers. On a large image the first
+// toggle and its repaint take long enough that the second trigger is handled well
+// after the press. A keyboard trigger is dropped when
+// - it comes within kWindowMs of the event loop being free again after the previous
+//   one (time spent toggling and repainting does not count), or
+// - the shortcut key was not released since the previous one (a doubled press), unless
+//   kReleaseFallbackMs passed (a release can be lost to another window).
+// No deliberate second tap is that fast, and the menu and the toolbox button are not
+// affected (they trigger the action directly, not through a Shortcut event). Held keys
+// are the action's autoRepeat(false).
 class ShortcutDoubleTriggerGuard final : public QObject {
  public:
   static constexpr qint64 kWindowMs = 200;
+  static constexpr qint64 kReleaseFallbackMs = 500;
 
-  explicit ShortcutDoubleTriggerGuard(QAction* action) : QObject(action) { action->installEventFilter(this); }
+  explicit ShortcutDoubleTriggerGuard(QAction* action) : QObject(action), action_(action) {
+    action->installEventFilter(this);
+    // Releases of the shortcut key, and the trace, reach the focus widget, not the action.
+    qApp->installEventFilter(this);
+    connect(action, &QAction::triggered, this, [this] {
+      if (!in_shortcut_) {
+        quick_mask_trace(QStringLiteral("triggered directly (menu, toolbox button or script)"));
+      }
+    });
+  }
 
   bool eventFilter(QObject* watched, QEvent* event) override {
-    if (event->type() == QEvent::Shortcut) {
-      if (last_trigger_.isValid() && last_trigger_.elapsed() < kWindowMs) {
-        event->accept();
-        return true;
+    const auto type = event->type();
+    if (watched == action_ && type == QEvent::Shortcut) {
+      return handle_shortcut(event);
+    }
+    if (type == QEvent::KeyRelease || type == QEvent::KeyPress || type == QEvent::ShortcutOverride) {
+      const auto* key_event = static_cast<const QKeyEvent*>(event);
+      if (is_shortcut_key(*key_event)) {
+        if (type == QEvent::KeyRelease && !key_event->isAutoRepeat()) {
+          key_released_ = true;
+        }
+        if (quick_mask_trace_enabled() && watched == QGuiApplication::focusObject()) {
+          trace_key_event(watched, *key_event);
+        }
       }
-      last_trigger_.start();
+    } else if (type == QEvent::InputMethod && quick_mask_trace_enabled() &&
+               watched == QGuiApplication::focusObject()) {
+      const auto* im_event = static_cast<const QInputMethodEvent*>(event);
+      quick_mask_trace(QStringLiteral("input method event to %1: commit '%2' preedit '%3'")
+                           .arg(object_label(watched), im_event->commitString(), im_event->preeditString()));
     }
     return QObject::eventFilter(watched, event);
   }
 
  private:
-  QElapsedTimer last_trigger_;
+  bool handle_shortcut(QEvent* event) {
+    const auto since = last_done_.isValid() ? last_done_.elapsed() : -1;
+    const bool too_soon = since >= 0 && since < kWindowMs;
+    const bool not_released = since >= 0 && !key_released_ && since < kReleaseFallbackMs;
+    if (too_soon || not_released) {
+      quick_mask_trace(QStringLiteral("shortcut trigger dropped: %1 ms after the previous one finished, key %2")
+                           .arg(since)
+                           .arg(key_released_ ? QStringLiteral("released") : QStringLiteral("not released")));
+      event->accept();
+      return true;
+    }
+    quick_mask_trace(QStringLiteral("shortcut trigger accepted (%1 ms after the previous one)").arg(since));
+    key_released_ = false;
+    in_shortcut_ = true;
+    static_cast<QObject*>(action_)->event(event);
+    in_shortcut_ = false;
+    last_done_.start();
+    // Once the event loop is free again (the repaint usually ran first), the window
+    // starts over: a doubled trigger queued behind a slow toggle lands inside it.
+    QTimer::singleShot(0, this, [this] { last_done_.start(); });
+    return true;
+  }
+
+  bool is_shortcut_key(const QKeyEvent& event) const {
+    const auto shortcuts = action_->shortcuts();
+    return std::any_of(shortcuts.begin(), shortcuts.end(), [&event](const QKeySequence& sequence) {
+      return sequence.count() == 1 && sequence[0].key() == event.key();
+    });
+  }
+
+  static QString object_label(const QObject* object) {
+    if (object == nullptr) {
+      return QStringLiteral("(none)");
+    }
+    auto label = QString::fromLatin1(object->metaObject()->className());
+    if (!object->objectName().isEmpty()) {
+      label += QStringLiteral(" '%1'").arg(object->objectName());
+    }
+    if (const auto* widget = qobject_cast<const QWidget*>(object); widget != nullptr) {
+      label += widget->testAttribute(Qt::WA_InputMethodEnabled) ? QStringLiteral(" (input method on)")
+                                                                 : QStringLiteral(" (input method off)");
+    }
+    return label;
+  }
+
+  static void trace_key_event(const QObject* receiver, const QKeyEvent& event) {
+    const auto type = event.type() == QEvent::KeyPress    ? QStringLiteral("press")
+                      : event.type() == QEvent::KeyRelease ? QStringLiteral("release")
+                                                           : QStringLiteral("shortcut override");
+    quick_mask_trace(QStringLiteral("key %1%2, time %3, spontaneous %4, to %5")
+                         .arg(type, event.isAutoRepeat() ? QStringLiteral(" (auto-repeat)") : QString())
+                         .arg(event.timestamp())
+                         .arg(event.spontaneous() ? 1 : 0)
+                         .arg(object_label(receiver)));
+  }
+
+  QAction* action_;
+  QElapsedTimer last_done_;
+  bool key_released_{true};
+  bool in_shortcut_{false};
 };
 
 }  // namespace

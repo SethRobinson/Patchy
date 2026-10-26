@@ -24,6 +24,7 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QTest>
+#include <QThread>
 #include <QToolButton>
 #include <algorithm>
 #include <atomic>
@@ -427,6 +428,75 @@ void ui_quick_mask_q_toggles_once_per_press() {
   QApplication::processEvents();
   CHECK(canvas->quick_mask_active() == !before);
   CHECK(!quick_mask->autoRepeat());
+}
+
+// The reporter's second Q came about 40 ms after the canvas showed Quick Mask on a
+// 3008x2000 image, so the toggle and its repaint had taken longer than the 200 ms
+// window of the first fix (GitHub issue 437). The window now starts when the event
+// loop is free again, and a press with no release since the previous one is dropped.
+void ui_quick_mask_q_ignores_a_doubled_press_after_a_slow_toggle() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer(
+      "Pixels", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 150, 220)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Quick Mask Slow"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->setFocus();
+  QApplication::processEvents();
+  auto* quick_mask = require_hotkey_action(window, QStringLiteral("select.quick_mask"));
+  constexpr int kWindowMs = 200;           // ShortcutDoubleTriggerGuard::kWindowMs
+  constexpr int kReleaseFallbackMs = 500;  // ShortcutDoubleTriggerGuard::kReleaseFallbackMs
+  bool slow = true;
+  // Stands in for a toggle and repaint on a large image: runs after MainWindow's own slot.
+  QObject::connect(quick_mask, &QAction::triggered, &window, [&slow] {
+    if (slow) {
+      QThread::msleep(kWindowMs + 120);
+    }
+  });
+
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  // The same tap again, handled right after the slow toggle: dropped.
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  CHECK(quick_mask->isChecked());
+  slow = false;
+
+  // A separate tap later leaves as usual.
+  process_events_for(kWindowMs + 60);
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(!canvas->quick_mask_active());
+
+  // A second press without a release in between is the same press: dropped.
+  process_events_for(kWindowMs + 60);
+  QTest::keyPress(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  process_events_for(kWindowMs + 60);
+  qt_sendShortcutOverrideEvent(canvas, 5000, Qt::Key_Q, Qt::NoModifier, QStringLiteral("q"), false);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  QTest::keyRelease(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(!canvas->quick_mask_active());
+
+  // A release lost to another window: after the fallback a press counts again.
+  process_events_for(kWindowMs + 60);
+  QTest::keyPress(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  process_events_for(kReleaseFallbackMs + 80);
+  qt_sendShortcutOverrideEvent(canvas, 9000, Qt::Key_Q, Qt::NoModifier, QStringLiteral("q"), false);
+  QApplication::processEvents();
+  CHECK(!canvas->quick_mask_active());
+  QTest::keyRelease(canvas, Qt::Key_Q);
+  QApplication::processEvents();
 }
 
 void ui_quick_mask_overlay_channels_and_tab_state_are_temporary() {
@@ -2093,6 +2163,8 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
       {"ui_quick_mask_feathered_round_trip_is_exact_and_temporary",
        ui_quick_mask_feathered_round_trip_is_exact_and_temporary},
       {"ui_quick_mask_q_toggles_once_per_press", ui_quick_mask_q_toggles_once_per_press},
+      {"ui_quick_mask_q_ignores_a_doubled_press_after_a_slow_toggle",
+       ui_quick_mask_q_ignores_a_doubled_press_after_a_slow_toggle},
       {"ui_quick_mask_overlay_channels_and_tab_state_are_temporary",
        ui_quick_mask_overlay_channels_and_tab_state_are_temporary},
       {"ui_quick_mask_brush_gestures_edit_outside_selection_with_selection_history",
