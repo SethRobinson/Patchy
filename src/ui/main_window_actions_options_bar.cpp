@@ -135,6 +135,41 @@ namespace patchy::ui {
 
 namespace {
 
+// The first and last columns `widget` paints inside `scan` over the bar's background, rendered
+// as it draws there (a column counts when it differs from the background as the separator test
+// reads it). Font metrics alone miss by up to 2 px on some platforms: macOS draws a label's
+// first glyph left of its tightBoundingRect, which put the separator beside it off center.
+std::optional<std::pair<int, int>> painted_ink_columns(const QWidget& widget, const QRect& scan) {
+  if (widget.width() <= 0 || widget.height() <= 0) {
+    return std::nullopt;
+  }
+  const QColor background = theme().options_bar_bg;
+  QImage image(widget.size(), QImage::Format_RGB32);
+  image.fill(background);
+  const_cast<QWidget&>(widget).render(&image, QPoint(), QRegion(), QWidget::DrawChildren);
+  const auto differs = [&background](QRgb pixel) {
+    return std::abs(qRed(pixel) - background.red()) + std::abs(qGreen(pixel) - background.green()) +
+               std::abs(qBlue(pixel) - background.blue()) >
+           30;
+  };
+  const QRect area = scan.intersected(image.rect());
+  int first = -1;
+  int last = -1;
+  for (int x = area.left(); x <= area.right(); ++x) {
+    for (int y = area.top(); y <= area.bottom(); ++y) {
+      if (differs(image.pixel(x, y))) {
+        first = first < 0 ? x : first;
+        last = x;
+        break;
+      }
+    }
+  }
+  if (first < 0) {
+    return std::nullopt;
+  }
+  return std::make_pair(first, last);
+}
+
 class CheckGlyphBox final : public QCheckBox {
 public:
   explicit CheckGlyphBox(const QString& text, QWidget* parent = nullptr) : QCheckBox(text, parent) {
@@ -151,9 +186,11 @@ public:
 
   // The glyph's left edge and the text's last inked column (options_bar_ink_insets).
   [[nodiscard]] QMargins ink_insets() const {
-    const QRect ink = fontMetrics().tightBoundingRect(text());
+    // The text as painted, inside the keyboard-focus outline (that must not move the line).
+    const auto painted = painted_ink_columns(*this, QRect(kTextLeft, 1, width() - kTextLeft - 1, height() - 2));
+    const int last = painted ? painted->second : kTextLeft + fontMetrics().tightBoundingRect(text()).right();
     // The box's antialiased 1 px outline reaches half a pixel left of kGlyphLeft.
-    return QMargins(kGlyphLeft - 1, 0, std::max(0, width() - 1 - (kTextLeft + ink.right())), 0);
+    return QMargins(kGlyphLeft - 1, 0, std::max(0, width() - 1 - last), 0);
   }
 
 protected:
@@ -239,6 +276,9 @@ QMargins options_bar_ink_insets(const QWidget& widget) {
   if (const auto* label = qobject_cast<const QLabel*>(&widget)) {
     if (label->textFormat() == Qt::RichText || label->text().isEmpty()) {
       return {};
+    }
+    if (const auto painted = painted_ink_columns(*label, label->rect())) {
+      return QMargins(painted->first, 0, label->width() - 1 - painted->second, 0);
     }
     const QRect contents = label->contentsRect().adjusted(label->margin(), 0, -label->margin(), 0);
     const int advance = label->fontMetrics().horizontalAdvance(label->text());
