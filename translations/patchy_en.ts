@@ -12727,6 +12727,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
 Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

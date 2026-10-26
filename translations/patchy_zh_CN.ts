@@ -12709,6 +12709,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>视图 &gt; 额外内容会显示或隐藏此处勾选的项目。
 每个项目自己的视图设置仍然有效。</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>JPEG 文件已损坏或被截断</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>此 JPEG 存储的是高于 8 位的 CMYK 采样，Patchy 无法打开</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>JPEG 图像太大，无法打开</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

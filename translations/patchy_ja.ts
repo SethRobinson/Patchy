@@ -12709,6 +12709,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>表示 &gt; エクストラは、ここでチェックした項目を表示または非表示にします。
 各項目の表示設定もそのまま適用されます。</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>JPEG ファイルが壊れているか途中で切れています</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>この JPEG は 8 ビットを超える CMYK サンプルを含んでいるため、Patchy では開けません</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>JPEG 画像が大きすぎるため開けません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

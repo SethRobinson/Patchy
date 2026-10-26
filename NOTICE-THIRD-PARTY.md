@@ -563,6 +563,31 @@ static `patchy_openjpeg` archive for the .jp2/.j2k formats (docs/hdr-formats.md)
 tools, plug-ins or JPIP code are included. OpenJPEG is BSD-2-Clause; the license is
 included at `src/formats/openjpeg/LICENSE`.
 
+## libjpeg-turbo 3.1.4.1
+
+`src/formats/libjpeg-turbo/` vendors the decompression sources of libjpeg-turbo 3.1.4.1
+(https://libjpeg-turbo.org, https://github.com/libjpeg-turbo/libjpeg-turbo), built as the
+static `patchy_libjpeg` archive that opens 12-bit and lossless JPEG files
+(docs/file-formats.md). No compressor, tools, TurboJPEG API or SIMD code are included, and
+the sources are unmodified (Patchy's build renames the library's global symbols with a
+forced-include header). libjpeg-turbo is covered by the IJG License, the Modified (3-clause)
+BSD License and, for parts of it, the zlib License; the license text is included at
+`src/formats/libjpeg-turbo/LICENSE.md` and the IJG README at
+`src/formats/libjpeg-turbo/README.ijg`.
+
+This software is based in part on the work of the Independent JPEG Group.
+
+## JPEG test fixtures (tests only)
+
+`test-fixtures/jpeg/testorig12.jpg` is the 12-bit test image of libjpeg-turbo 3.1.4.1
+(`testimages/testorig12.jpg`, IJG License; the same file is
+`jpeg-conformance/valid/testorig12.jpg` in https://github.com/imazen/codec-corpus, whose
+README lists that suite's licences as MIT / IJG+BSD per source). SHA-256
+`34790770f76db8e60a7765b52ca4edf5f16bc21bcb8c6045ca2efef39a8a013e`.
+`lossless16-rgb.jpg` and `lossless12-gray.jpg` are 32 x 24 synthetic gradients written by
+libjpeg-turbo for Patchy's tests (the formulas are in the test). They are test data only and
+are not distributed with Patchy.
+
 ## dav1d 1.5.4
 
 `src/formats/dav1d/` vendors the library sources of dav1d 1.5.4

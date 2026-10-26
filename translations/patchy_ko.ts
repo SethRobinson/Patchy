@@ -12709,6 +12709,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>보기 &gt; 표시자는 여기에서 선택한 항목을 표시하거나 숨깁니다.
 각 항목의 보기 설정도 그대로 적용됩니다.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>JPEG 파일이 손상되었거나 잘렸습니다</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>이 JPEG는 8비트보다 깊은 CMYK 샘플을 저장하고 있어 Patchy에서 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>JPEG 이미지가 너무 커서 열 수 없습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

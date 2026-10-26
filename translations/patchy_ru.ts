@@ -12779,6 +12779,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Вид &gt; Вспомогательные элементы показывает и скрывает отмеченные здесь элементы.
 Собственная настройка каждого элемента в меню «Вид» по-прежнему действует.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Файл JPEG повреждён или обрезан</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Этот JPEG хранит отсчёты CMYK глубиной более 8 бит, которые Patchy не может открыть</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>Изображение JPEG слишком велико для открытия</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

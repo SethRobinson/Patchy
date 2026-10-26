@@ -12744,6 +12744,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Ansicht &gt; Extras blendet die hier markierten Elemente ein und aus.
 Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Die JPEG-Datei ist beschädigt oder abgeschnitten</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Diese JPEG-Datei speichert CMYK-Werte mit mehr als 8 Bit, die Patchy nicht öffnen kann</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>Das JPEG-Bild ist zu groß zum Öffnen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

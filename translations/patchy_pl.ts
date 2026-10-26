@@ -12779,6 +12779,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Widok &gt; Dodatki pokazuje i ukrywa zaznaczone tu elementy.
 Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Plik JPEG jest uszkodzony lub ucięty</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Ten plik JPEG zawiera próbki CMYK o głębi większej niż 8 bitów, których Patchy nie może otworzyć</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>Obraz JPEG jest zbyt duży, aby go otworzyć</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

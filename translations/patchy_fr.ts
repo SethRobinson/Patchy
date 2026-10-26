@@ -12744,6 +12744,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Affichage &gt; Extras affiche et masque les éléments cochés ici.
 Le réglage propre de chaque élément dans le menu Affichage s&apos;applique toujours.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Le fichier JPEG est endommagé ou tronqué</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Ce JPEG contient des échantillons CMJN de plus de 8 bits, que Patchy ne peut pas ouvrir</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>L’image JPEG est trop grande pour être ouverte</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

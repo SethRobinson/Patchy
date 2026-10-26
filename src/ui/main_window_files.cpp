@@ -52,6 +52,7 @@
 #include "formats/exr_document_io.hpp"
 #include "formats/hdr_document_io.hpp"
 #include "formats/jp2_document_io.hpp"
+#include "formats/jpeg_deep_reader.hpp"
 #include "formats/avif_document_io.hpp"
 #include "formats/image_open_diagnosis.hpp"
 #include "formats/heif_document_io.hpp"
@@ -182,6 +183,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <future>
@@ -1197,6 +1199,40 @@ std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
   return std::vector<std::uint8_t>(bytes, bytes + data.size());
 }
 
+// A 12-bit or lossless JPEG (jpeg_deep_reader.hpp) as a gray or RGB QImage at 8 or 16 bits,
+// which the ordinary import path then opens as a document of that depth (#438).
+QImage qimage_from_deep_jpeg(const jpeg_deep::Image& decoded) {
+  const bool deep = decoded.output_bits == 16;
+  const bool gray = decoded.channels == 1;
+  QImage image(decoded.width, decoded.height,
+               gray ? (deep ? QImage::Format_Grayscale16 : QImage::Format_Grayscale8)
+                    : (deep ? QImage::Format_RGBX64 : QImage::Format_RGB888));
+  if (image.isNull()) {
+    return image;
+  }
+  const auto row_samples = static_cast<std::size_t>(decoded.width) * static_cast<std::size_t>(decoded.channels);
+  for (int y = 0; y < decoded.height; ++y) {
+    const auto* source = decoded.samples.data() + static_cast<std::size_t>(y) * row_samples;
+    if (gray && deep) {
+      std::memcpy(image.scanLine(y), source, row_samples * sizeof(std::uint16_t));
+    } else if (deep) {
+      auto* row = reinterpret_cast<std::uint16_t*>(image.scanLine(y));
+      for (int x = 0; x < decoded.width; ++x) {
+        row[x * 4] = source[x * 3];
+        row[x * 4 + 1] = source[x * 3 + 1];
+        row[x * 4 + 2] = source[x * 3 + 2];
+        row[x * 4 + 3] = 0xffff;
+      }
+    } else {
+      auto* row = image.scanLine(y);
+      for (std::size_t i = 0; i < row_samples; ++i) {
+        row[i] = static_cast<uchar>(source[i]);
+      }
+    }
+  }
+  return image;
+}
+
 // Qt reports every decode failure as "Unable to read image data" or "Unsupported image
 // format". When the bytes show the real reason, say that instead (GitHub issue 117).
 QString open_failure_reason(const QString& decoder_error, const QString& path, const QString& extension) {
@@ -1557,6 +1593,13 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
       const auto bytes = read_all_file_bytes(path);
       if (tiff_jpeg::is_jpeg_compressed_tiff(bytes)) {
         image = tiff_jpeg::read_jpeg_compressed_tiff(bytes).image;
+      }
+    }
+    if (image.isNull()) {
+      // Qt's JPEG plug-in reads 8-bit samples only; 12-bit and lossless JPEGs decode through
+      // the vendored libjpeg-turbo (#438). Its errors name the real reason.
+      if (const auto bytes = read_all_file_bytes(path); jpeg_deep::needs_deep_decoder(bytes)) {
+        image = qimage_from_deep_jpeg(jpeg_deep::read_deep_jpeg(bytes));
       }
     }
     if (image.isNull()) {
