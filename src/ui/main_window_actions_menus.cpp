@@ -44,6 +44,7 @@
 #include <QApplication>
 #include <QColor>
 #include <QDesktopServices>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QHelpEvent>
 #include <QImage>
@@ -131,6 +132,34 @@ class ActionToolTipFilter final : public QObject {
  private:
   QPointer<QAction> action_;
   QMenu* menu_;
+};
+
+// One key press toggles a mode once (GitHub issue 437). On a Linux (KDE) desktop a
+// single tap of Q switched Quick Mask on and back off within about 50 ms, the
+// signature of one press arriving as two shortcut triggers. A keyboard
+// trigger that follows the previous one within kWindowMs is dropped; no deliberate
+// second tap is that fast, and the menu and the toolbox button are not affected
+// (they trigger the action directly, not through a Shortcut event). Held keys are
+// the action's autoRepeat(false).
+class ShortcutDoubleTriggerGuard final : public QObject {
+ public:
+  static constexpr qint64 kWindowMs = 200;
+
+  explicit ShortcutDoubleTriggerGuard(QAction* action) : QObject(action) { action->installEventFilter(this); }
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Shortcut) {
+      if (last_trigger_.isValid() && last_trigger_.elapsed() < kWindowMs) {
+        event->accept();
+        return true;
+      }
+      last_trigger_.start();
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  QElapsedTimer last_trigger_;
 };
 
 }  // namespace
@@ -720,6 +749,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(inverse_selection_action, "select.inverse", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
   register_hotkey(quick_mask_action_, "select.quick_mask",
                   QKeySequence(Qt::Key_Q));
+  // Holding Q must not flicker the mode, and one press toggles it once (issue 437).
+  quick_mask_action_->setAutoRepeat(false);
+  new ShortcutDoubleTriggerGuard(quick_mask_action_);
   register_hotkey(grow_selection_action, "select.grow");
   register_hotkey(similar_selection_action, "select.similar");
   register_hotkey(expand_selection_action, "select.expand");

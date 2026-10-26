@@ -341,6 +341,80 @@ void ui_quick_mask_feathered_round_trip_is_exact_and_temporary() {
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 }
 
+// GitHub issue 437: one tap of Q toggled Quick Mask on and straight off again.
+// Q toggles once per press: held (auto-repeated) presses and a second trigger of
+// the same tap arriving right behind the first do nothing.
+void ui_quick_mask_q_toggles_once_per_press() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer(
+      "Pixels", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 150, 220)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Quick Mask Q"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->setFocus();
+  QApplication::processEvents();
+  auto* quick_mask = require_hotkey_action(window, QStringLiteral("select.quick_mask"));
+  constexpr qint64 kDoubleTriggerWindowMs = 200;  // ShortcutDoubleTriggerGuard::kWindowMs
+  const auto past_double_trigger_window = [] { process_events_for(kDoubleTriggerWindowMs + 60); };
+
+  // Holding Q: the first press enters, the auto-repeated presses that follow do not toggle.
+  QTest::keyPress(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  CHECK(quick_mask->isChecked());
+  past_double_trigger_window();
+  ulong timestamp = 1000;
+  for (int repeat = 0; repeat < 4; ++repeat) {
+    qt_sendShortcutOverrideEvent(canvas, ++timestamp, Qt::Key_Q, Qt::NoModifier, QStringLiteral("q"), true);
+    QApplication::processEvents();
+    CHECK(canvas->quick_mask_active());
+  }
+  QTest::keyRelease(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+
+  // The next tap leaves.
+  past_double_trigger_window();
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(!canvas->quick_mask_active());
+  CHECK(!quick_mask->isChecked());
+
+  // One tap that arrives as two triggers (the reporter's Linux desktop) enters once.
+  past_double_trigger_window();
+  QElapsedTimer since_first;
+  since_first.start();
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QTest::keyClick(canvas, Qt::Key_Q);
+  const bool within_window = since_first.elapsed() < kDoubleTriggerWindowMs;
+  QApplication::processEvents();
+  if (within_window) {
+    CHECK(canvas->quick_mask_active());
+    CHECK(quick_mask->isChecked());
+  } else {
+    std::cout << "[NOTE] two Q clicks took longer than the double-trigger window; "
+                 "the duplicate check was not exercised\n";
+  }
+
+  // A separate press later toggles as usual.
+  past_double_trigger_window();
+  QTest::keyClick(canvas, Qt::Key_Q);
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active() == !within_window);
+
+  // The menu command and the toolbox button trigger the action directly: never dropped.
+  const bool before = canvas->quick_mask_active();
+  quick_mask->trigger();
+  quick_mask->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active() == before);
+  quick_mask->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active() == !before);
+  CHECK(!quick_mask->autoRepeat());
+}
+
 void ui_quick_mask_overlay_channels_and_tab_state_are_temporary() {
   const auto make_document = [](QColor color) {
     patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
@@ -1960,6 +2034,7 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
       {"ui_magic_wand_sample_size_averages_the_seed", ui_magic_wand_sample_size_averages_the_seed},
       {"ui_quick_mask_feathered_round_trip_is_exact_and_temporary",
        ui_quick_mask_feathered_round_trip_is_exact_and_temporary},
+      {"ui_quick_mask_q_toggles_once_per_press", ui_quick_mask_q_toggles_once_per_press},
       {"ui_quick_mask_overlay_channels_and_tab_state_are_temporary",
        ui_quick_mask_overlay_channels_and_tab_state_are_temporary},
       {"ui_quick_mask_brush_gestures_edit_outside_selection_with_selection_history",
