@@ -13092,24 +13092,8 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation> s</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Ausgewählte Ebenen:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Zeit festlegen</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Benennt die ausgewählten Ebenen so um, dass sie mit dieser Frame-Zeit enden, z. B. &quot;blink 0.25s&quot;.</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Entfernen</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Entfernt die abschließende Frame-Zeit aus den Namen der ausgewählten Ebenen.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13124,12 +13108,80 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Stopp</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Spielt die sichtbaren Ebenen auf oberster Ebene als Bilder ab, von oben nach unten, wie beim Export als GIF- oder WebP-Animation. Eine Zeitangabe am Namensende, etwa &quot;blink 0.25s&quot;, legt die Bilddauer fest.</translation>
+        <source>Playback</source>
+        <translation>Wiedergabe</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Standard-Bilddauer:</translation>
+        <source>Frame delay:</source>
+        <translation>Bilddauer:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Wie lange jedes Bild angezeigt wird, wenn sein Ebenenname keine Zeit enthält. Der Export als animiertes GIF, WebP und PNG verwendet denselben Standardwert.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Benutzerdefiniert</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Übliche Bilddauern. Benutzerdefiniert ist jeder andere Wert, der im Feld eingegeben wird.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Zeiten in Ebenennamen ignorieren</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Zeigt jedes Bild für die obige Bilddauer an und überspringt Zeiten wie &quot;0.25s&quot; am Ende von Ebenennamen. Nur Vorschau: Der Export verwendet weiterhin die Zeiten in den Namen.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Ausgeblendete Ebenen abspielen</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Nimmt ausgeblendete Ebenen auf oberster Ebene als Bilder auf. Nur Vorschau: Der Export verwendet weiterhin die sichtbaren Ebenen.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Frame-Zeit in Ebenennamen</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>Die Zeit, die &quot;Zeit festlegen&quot; an das Ende der Ebenennamen schreibt.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Benennt die ausgewählten Ebenen, oder mit &quot;Auf alle Ebenen anwenden&quot; alle Ebenen auf oberster Ebene, so um, dass sie mit dieser Frame-Zeit enden, z. B. &quot;blink 0.25s&quot;.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Zeit entfernen</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Entfernt die Frame-Zeit am Ende der Namen der ausgewählten Ebenen, oder mit &quot;Auf alle Ebenen anwenden&quot; aller Ebenen auf oberster Ebene.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Auf alle Ebenen anwenden</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>&quot;Zeit festlegen&quot; und &quot;Zeit entfernen&quot; ändern alle Ebenen auf oberster Ebene statt nur der ausgewählten.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Bilder sind die Ebenen auf oberster Ebene, die oberste zuerst, so wie der Export als animiertes GIF, WebP und PNG sie schreibt. Eine Zeitangabe am Namensende, etwa &quot;blink 0.25s&quot;, legt die Bilddauer fest.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Keine Ebenen</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26061,18 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Vector Mask</source>
         <translation>Vektormaske</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Keine Ebenen</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Alle Ebenen enden bereits mit dieser Zeit</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Keine Frame-Zeiten auf den Ebenen</translation>
     </message>
 </context>
 <context>

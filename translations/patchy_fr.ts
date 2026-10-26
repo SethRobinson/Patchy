@@ -13092,24 +13092,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation> s</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Calques sélectionnés :</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Définir la durée</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Renomme les calques sélectionnés pour qu&apos;ils se terminent par cette durée d&apos;image, par exemple « clignement 0.25s ».</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Supprimer</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Supprime la durée d&apos;image à la fin du nom des calques sélectionnés.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13124,12 +13108,80 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Arrêter</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Lit les calques visibles de premier niveau comme des images, de haut en bas, comme l’export GIF et WebP animés. Une durée à la fin du nom du calque, comme &quot;blink 0.25s&quot;, définit la durée de cette image.</translation>
+        <source>Playback</source>
+        <translation>Lecture</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Durée d’image par défaut :</translation>
+        <source>Frame delay:</source>
+        <translation>Durée d&apos;image :</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Durée d&apos;affichage de chaque image quand le nom de son calque n&apos;indique pas de durée. L&apos;export GIF, WebP et PNG animés utilise la même valeur par défaut.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Personnalisée</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Durées d&apos;image courantes. Personnalisée correspond à toute autre valeur saisie dans le champ.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Ignorer les durées dans les noms de calque</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Affiche chaque image pendant la durée ci-dessus et ignore les durées comme « 0.25s » à la fin des noms de calque. Aperçu seulement : l&apos;export utilise toujours les durées des noms.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Lire les calques masqués</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Inclut les calques masqués de premier niveau comme images. Aperçu seulement : l&apos;export utilise toujours les calques visibles.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Durée d&apos;image dans les noms de calque</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>La durée que Définir la durée écrit à la fin des noms de calque.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Renomme les calques sélectionnés, ou tous les calques de premier niveau avec Appliquer à tous les calques, pour qu&apos;ils se terminent par cette durée d&apos;image, par exemple « clignement 0.25s ».</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Supprimer la durée</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Supprime la durée d&apos;image à la fin du nom des calques sélectionnés, ou de tous les calques de premier niveau avec Appliquer à tous les calques.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Appliquer à tous les calques</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>Définir la durée et Supprimer la durée modifient tous les calques de premier niveau au lieu des seuls calques sélectionnés.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Les images sont les calques de premier niveau, celui du haut en premier, comme les écrit l&apos;export GIF, WebP et PNG animés. Une durée à la fin du nom du calque, comme « blink 0.25s », définit la durée de cette image.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Aucun calque</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26061,18 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Vector Mask</source>
         <translation>Masque vectoriel</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Aucun calque</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Tous les calques se terminent déjà par cette durée</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Aucun calque n&apos;a de durée d&apos;image</translation>
     </message>
 </context>
 <context>

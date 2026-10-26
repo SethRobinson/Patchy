@@ -13057,24 +13057,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation> 초</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>선택한 레이어:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>시간 설정</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>선택한 레이어의 이름 끝에 &quot;blink 0.25s&quot;처럼 이 프레임 시간을 붙입니다.</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>제거</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>선택한 레이어 이름에서 후행 프레임 시간을 제거합니다.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13089,12 +13073,80 @@ Each item&apos;s own View setting still applies.</source>
         <translation>정지</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>애니메이션 GIF 및 WebP 내보내기처럼 표시된 최상위 레이어를 위에서부터 프레임으로 재생합니다. 레이어 이름 끝에 &quot;blink 0.25s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다.</translation>
+        <source>Playback</source>
+        <translation>재생</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>기본 프레임 지연:</translation>
+        <source>Frame delay:</source>
+        <translation>프레임 지연:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>레이어 이름에 시간이 없을 때 각 프레임이 표시되는 시간입니다. 애니메이션 GIF, WebP, PNG 내보내기도 같은 기본값을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 초</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>사용자 지정</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>자주 쓰는 프레임 지연입니다. 사용자 지정은 상자에 입력한 그 밖의 값입니다.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>레이어 이름의 시간 무시</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>모든 프레임을 위의 프레임 지연으로 재생하고 레이어 이름 끝의 &quot;0.25s&quot; 같은 시간을 건너뜁니다. 미리 보기 전용: 내보내기는 계속 이름의 시간을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>숨긴 레이어 재생</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>숨긴 최상위 레이어도 프레임에 포함합니다. 미리 보기 전용: 내보내기는 계속 보이는 레이어를 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>레이어 이름의 프레임 시간</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>시간 설정이 레이어 이름 끝에 쓰는 시간입니다.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>선택한 레이어(모든 레이어에 적용을 켜면 모든 최상위 레이어)의 이름이 &quot;blink 0.25s&quot;처럼 이 프레임 시간으로 끝나도록 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>시간 제거</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>선택한 레이어(모든 레이어에 적용을 켜면 모든 최상위 레이어)의 이름 끝에서 프레임 시간을 제거합니다.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>모든 레이어에 적용</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>시간 설정과 시간 제거가 선택한 레이어만이 아니라 모든 최상위 레이어를 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>애니메이션 GIF, WebP, PNG 내보내기와 같이 최상위 레이어가 위에서부터 프레임이 됩니다. 레이어 이름 끝에 &quot;blink 0.25s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>레이어가 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -25936,6 +25988,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>벡터 마스크</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>모든 레이어 이름 끝에 이미 해당 시간이 붙어 있습니다</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>프레임 시간이 있는 레이어가 없습니다.</translation>
     </message>
 </context>
 <context>

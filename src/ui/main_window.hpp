@@ -1567,9 +1567,9 @@ private:
   // or unchanged name, records one "Rename layer" undo step.
   void apply_layer_rename(LayerId id, const QString& name);
   // Animation Preview's name-token edits: stamps (a value) or strips (nullopt) the
-  // trailing frame-time token on the selected (else active) layers' names, as one
-  // undoable rename batch.
-  void set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms);
+  // trailing frame-time token on the selected (else active) layers' names, or on every
+  // top-level layer with all_layers, as one undoable rename batch.
+  void set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms, bool all_layers = false);
   // start_effect opens the dialog on that effect's `start_index` instance, turned on
   // (the footer menu) unless `enable_start_effect` is false (the panel's effect rows).
   void edit_active_layer_style(std::optional<LayerStyleEffect> start_effect = std::nullopt,

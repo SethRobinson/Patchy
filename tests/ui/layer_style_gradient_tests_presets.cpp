@@ -14,6 +14,7 @@
 #include "psd/asl_io.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "core/style_presets.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
@@ -1539,8 +1540,17 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     ++captured;
     picker.close();
     QApplication::processEvents();
+    // The animation preview is a non-modal tool window; built here without a document.
+    patchy::ui::AnimationPreviewWindow animation_preview([]() -> patchy::Document* { return nullptr; }, {}, {},
+                                                         nullptr);
+    animation_preview.show();
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_dialog_sweep_animation_preview_" + scheme, animation_preview);
+    ++captured;
+    animation_preview.close();
+    QApplication::processEvents();
   }
-  CHECK(captured == 16);
+  CHECK(captured == 18);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {
