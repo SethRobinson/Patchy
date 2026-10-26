@@ -1973,6 +1973,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the result; blank uses the spacing of the corners"));
   configure_toolbar_spinbox(perspective_crop_height_spin_, 78);
   add_option_widget(perspective_crop_height_spin_, {CanvasTool::PerspectiveCrop});
+  // Resolution is its own group after the W/H pair (GitHub issue 328 follow-up).
+  add_option_separator({CanvasTool::PerspectiveCrop});
   add_option_label(QT_TR_NOOP("Resolution:"), {CanvasTool::PerspectiveCrop});
   auto* perspective_resolution = new TrimmedDoubleSpinBox(toolbar);
   perspective_crop_resolution_spin_ = perspective_resolution;
@@ -2013,6 +2015,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
                                  "Turn the result a quarter turn: the top marker moves to the next side"));
   add_option_widget(perspective_crop_turn_button_, {CanvasTool::PerspectiveCrop});
+  // Show Grid is the bar's checkbox group, apart from the Turn action.
+  add_option_separator({CanvasTool::PerspectiveCrop});
   perspective_crop_grid_check_ = new CheckGlyphBox(tr("Show Grid"), toolbar);
   perspective_crop_grid_check_->setObjectName(QStringLiteral("perspectiveCropShowGridCheck"));
   perspective_crop_grid_check_->setChecked(current_perspective_crop_show_grid_);
