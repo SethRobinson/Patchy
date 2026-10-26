@@ -6,6 +6,7 @@
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/main_window.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/tool_cursors.hpp"
@@ -23,6 +24,7 @@
 #include <QPointF>
 #include <QPushButton>
 #include <QRect>
+#include <QStatusBar>
 #include <QStringList>
 #include <QToolBar>
 #include <QToolButton>
@@ -800,6 +802,29 @@ void ui_transform_session_undo_steps_back_through_drags() {
   CHECK(!canvas->warp_transform_active());
 }
 
+// Picking the Move tool names its drag gestures in the status bar (GitHub issue 446):
+// Shift+drag locks the move to one axis, Alt+drag duplicates, and a plain drag on empty
+// space draws the selection rectangle only with Auto-Select on.
+void ui_move_tool_status_hint_names_drag_gestures() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1500, 780);
+  QApplication::processEvents();
+  require_action(window, "toolBrushAction")->trigger();
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  const auto message = window.statusBar()->currentMessage();
+  std::printf("toolMoveAction: %s\n", message.toStdString().c_str());
+  save_stacked_artifact("issue446_move_status_hint", {window.statusBar()->grab().toImage()});
+  const auto alt = patchy::ui::alt_key_name();
+  const auto ctrl = patchy::ui::ctrl_key_name();
+  CHECK(message.startsWith(QStringLiteral("Move: drag to move, Shift+drag keeps it horizontal or vertical, ") + alt +
+                           QStringLiteral("+drag duplicates.")));
+  CHECK(message.contains(ctrl + QStringLiteral("+click selects a layer, Shift+click toggles it.")));
+  CHECK(message.contains(QStringLiteral("as does a drag on empty space with Auto-Select on.")));
+  CHECK(!message.contains(QLatin1Char('%')));
+}
+
 // Posts `count` drag moves (`step` apart, starting one step past `from`) the way a
 // window system queues them behind a slow frame, without delivering them.
 void post_drag_moves(patchy::ui::CanvasWidget& canvas, QPoint from, QPoint step, int count) {
@@ -909,6 +934,7 @@ std::vector<patchy::test::TestCase> move_transform_zones_tests() {
       {"ui_transform_zone_corner_rotate_cursors_match_each_corner",
        ui_transform_zone_corner_rotate_cursors_match_each_corner},
       {"ui_move_cursor_shows_drag_only_where_a_press_moves", ui_move_cursor_shows_drag_only_where_a_press_moves},
+      {"ui_move_tool_status_hint_names_drag_gestures", ui_move_tool_status_hint_names_drag_gestures},
       {"ui_move_drag_coalesces_queued_moves", ui_move_drag_coalesces_queued_moves},
       {"ui_free_transform_drag_coalesces_queued_moves", ui_free_transform_drag_coalesces_queued_moves},
   };

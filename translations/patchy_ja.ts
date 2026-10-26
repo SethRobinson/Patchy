@@ -20,7 +20,7 @@
         <translation>この AppImage には Patchy の .desktop ファイルが含まれていません</translation>
     </message>
     <message>
-        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <source>This AppImage's desktop file has no Exec line</source>
         <translation>この AppImage の .desktop ファイルに Exec 行がありません</translation>
     </message>
     <message>
@@ -40,7 +40,7 @@
         <translation>%1 を削除できませんでした</translation>
     </message>
     <message>
-        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <source>The AppImage's file name cannot be used in a menu entry</source>
         <translation>AppImage のファイル名はメニュー項目に使用できません</translation>
     </message>
 </context>
@@ -90,15 +90,15 @@
         <translation>見えない透かしを追加</translation>
     </message>
     <message>
-        <source>Hides a short message in the active layer&apos;s pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
+        <source>Hides a short message in the active layer's pixels with Adobe TrustMark. It survives most resizing, JPEG compression and sharing, and the change is too small to see.</source>
         <translation>Adobe TrustMark で、アクティブなレイヤーのピクセルに短いメッセージを埋め込みます。ほとんどのサイズ変更、JPEG 圧縮、共有に耐え、変化は目に見えないほど小さいです。</translation>
     </message>
     <message>
-        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy&apos;s File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
+        <source>TrustMark has no key: anyone with a free TrustMark reader, Patchy's File Info included, can read the message. Use it to label an image or point to a record of it, not to hide anything or to prove ownership on its own.</source>
         <translation>TrustMark には鍵がありません。Patchy のファイル情報を含め、無料の TrustMark リーダーがあれば誰でもメッセージを読めます。画像にラベルを付けたり、その記録を示したりするために使い、何かを隠したり、それだけで所有権を証明したりする目的には使わないでください。</translation>
     </message>
     <message>
-        <source>How much error correction protects the message. Standard is TrustMark&apos;s default.</source>
+        <source>How much error correction protects the message. Standard is TrustMark's default.</source>
         <translation>メッセージを守る誤り訂正の強さです。標準が TrustMark の既定値です。</translation>
     </message>
     <message>
@@ -122,7 +122,7 @@
         <translation>強さ:</translation>
     </message>
     <message>
-        <source>100% is TrustMark&apos;s default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
+        <source>100% is TrustMark's default. Lower is less visible but easier to lose; Adobe uses 150% for prints.</source>
         <translation>100% が TrustMark の既定値です。低いほど目立ちませんが失われやすくなります。Adobe は印刷物に 150% を使います。</translation>
     </message>
     <message>
@@ -138,7 +138,7 @@
         <translation>残り %1 / %2 文字</translation>
     </message>
     <message>
-        <source>Needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2.</source>
+        <source>Needs the watermark models (Adobe's, MIT License): a %1 MB download from %2.</source>
         <translation>透かしモデル (Adobe 製、MIT ライセンス) が必要です: %2 から %1 MB のダウンロード。</translation>
     </message>
 </context>
@@ -229,7 +229,7 @@
         <translation>ベクターレイヤーを編集可能なまま保持</translation>
     </message>
     <message>
-        <source>These layers keep their own effects and stay separate in a vector merge. Turning off &quot;Keep vector layers editable&quot; rasterizes merged artwork.</source>
+        <source>These layers keep their own effects and stay separate in a vector merge. Turning off "Keep vector layers editable" rasterizes merged artwork.</source>
         <translation>これらのレイヤーは個別の効果を保持するため、ベクターとして結合する際も分かれたままになります。「ベクターレイヤーを編集可能なまま保持」をオフにすると、結合するアートワークがラスタライズされます。</translation>
     </message>
     <message>
@@ -269,11 +269,11 @@
         <translation>保持されたベクターデータは編集できません。</translation>
     </message>
     <message>
-        <source>This compound vector&apos;s opacity requires it to stay separate.</source>
+        <source>This compound vector's opacity requires it to stay separate.</source>
         <translation>この複合ベクターの不透明度を維持するには、分離しておく必要があります。</translation>
     </message>
     <message>
-        <source>This group&apos;s appearance prevents moving shapes across its boundary.</source>
+        <source>This group's appearance prevents moving shapes across its boundary.</source>
         <translation>このグループの外観を維持するため、境界を越えてシェイプを移動できません。</translation>
     </message>
     <message>
@@ -597,11 +597,11 @@ RGB: %2, %3, %4</translation>
         <translation>4096 UTF-8バイト以内の1行で入力してください。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: invalid Gaussian blur radius; effect skipped</source>
+        <source>Layer '%1': invalid Gaussian blur radius; effect skipped</source>
         <translation>レイヤー「%1」: ぼかし（ガウス）の半径が無効なため、効果をスキップしました。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos;: Gaussian blur could not be applied; original pixels kept</source>
+        <source>Layer '%1': Gaussian blur could not be applied; original pixels kept</source>
         <translation>レイヤー「%1」: ぼかし（ガウス）を適用できなかったため、元のピクセルを保持しました。</translation>
     </message>
     <message>
@@ -649,7 +649,7 @@ RGB: %2, %3, %4</translation>
         <translation>指定したファイルを開いて &lt;path&gt; に保存し (形式は拡張子に従います)、終了します。無人実行のためプロンプトは表示されず、実行中のインスタンスも再利用されません。</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
+        <source>With --export: append this text to every text layer, re-rendering each through Patchy's text engine, before saving.</source>
         <translation>--export と併用: 保存前にこのテキストをすべてのテキストレイヤーに追加し、各レイヤーを Patchy のテキストエンジンで再レンダリングします。</translation>
     </message>
     <message>
@@ -721,7 +721,7 @@ RGB: %2, %3, %4</translation>
         <translation>圧縮 (RTPACK zlib コンテナ)</translation>
     </message>
     <message>
-        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack&apos;s rule): a transparent image is written lossless instead.</source>
+        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack's rule): a transparent image is written lossless instead.</source>
         <translation>テクスチャは 2 のべき乗にパディングされ、本来のサイズがヘッダーに記録されるため、再度開くと本来のサイズで開きます。JPEG は透明部分のない画像にのみ適用されます (RTPack のルール): 透明な画像は代わりに可逆圧縮で書き出されます。</translation>
     </message>
     <message>
@@ -793,7 +793,7 @@ RGB: %2, %3, %4</translation>
         <translation> 秒</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like "blink 0.25s", overrides the default delay for that frame. The animation loops forever.</source>
         <translation>表示されているトップレベルの各レイヤーが 1 フレームになり、いちばん上のレイヤーが最初のフレームです。非表示のレイヤーは使われません。レイヤー名が「blink 0.25s」のように時間で終わる場合、そのフレームでは既定のフレーム間隔の代わりにその時間が使われます。アニメーションは無限にループします。</translation>
     </message>
     <message>
@@ -1461,11 +1461,11 @@ RGB: %2, %3, %4</translation>
         <translation>レイヤーがドロップシャドウをノックアウト</translation>
     </message>
     <message>
-        <source>Hide the shadow under the layer&apos;s own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
+        <source>Hide the shadow under the layer's own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
         <translation>レイヤー自身の形状の下でシャドウを隠し、ノックアウトされた内容や半透明の内容から Photoshop と同様に透けて見えないようにします</translation>
     </message>
     <message>
-        <source>Blend the stroke against the layer&apos;s own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
+        <source>Blend the stroke against the layer's own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
         <translation>境界線をレイヤー自身の内容の上に合成します。オフの場合は境界線の帯からレイヤー内容をノックアウトし、Photoshop と同様に下のレイヤーと合成します</translation>
     </message>
     <message>
@@ -1869,7 +1869,7 @@ RGB: %2, %3, %4</translation>
         <translation>ルックを削除</translation>
     </message>
     <message>
-        <source>Delete Look &quot;%1&quot;?</source>
+        <source>Delete Look "%1"?</source>
         <translation>ルック「%1」を削除しますか？</translation>
     </message>
     <message>
@@ -2281,7 +2281,7 @@ RGB: %2, %3, %4</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
+        <source>Seth's site: %1</source>
         <translation>Seth のサイト: %1</translation>
     </message>
     <message>
@@ -2393,11 +2393,11 @@ RGB: %2, %3, %4</translation>
         <translation>%1 は外部ファイルにリンクされたスマートオブジェクトです。Patchy はこれを保持し、ソースファイルが利用可能な場合はディスクから更新できます。</translation>
     </message>
     <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's preview (rasterize the layer to edit it here).</source>
         <translation>%1 はスマートフィルターを持つスマートオブジェクトです。Patchy はそれらを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
     </message>
     <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop's preview (rasterize the layer to edit it here).</source>
         <translation>%1 はワープまたは遠近変形を持つスマートオブジェクトです。Patchy はそれを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
     </message>
     <message>
@@ -2409,7 +2409,7 @@ RGB: %2, %3, %4</translation>
         <translation>%1 には、Patchy で描画または編集できない Photoshop のサテン輪郭設定（カスタムカーブまたはアンチエイリアス）が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はアンチエイリアスなしのリニア輪郭が使用されます。</translation>
     </message>
     <message>
-        <source>Pattern &quot;%1&quot; is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
+        <source>Pattern "%1" is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
         <translation>パターン「%1」はこのドキュメントに埋め込まれていないため、別のパターンを選択するまでこのパターンを参照する効果は描画できません。</translation>
     </message>
     <message>
@@ -2649,7 +2649,7 @@ RGB: %2, %3, %4</translation>
         <translation>内側の効果をグループとして描画</translation>
     </message>
     <message>
-        <source>Put the layer&apos;s blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
+        <source>Put the layer's blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
         <translation>オーバーレイ・サテン・光彩（内側）をそれぞれの描画モードで合成せず、レイヤーの描画モードでまとめて合成します</translation>
     </message>
     <message>
@@ -2661,7 +2661,7 @@ RGB: %2, %3, %4</translation>
         <translation>チェックを外したチャンネルは合成されず、下のレイヤーの値を保持します</translation>
     </message>
     <message>
-        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file&apos;s color mode</source>
+        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file's color mode</source>
         <translation>このレイヤーには、このファイルのカラーモードでは Patchy が編集できない Photoshop のチャンネル制限が保持されています</translation>
     </message>
     <message>
@@ -2897,7 +2897,7 @@ RGB: %2, %3, %4</translation>
         <translation>編集可能な既定値に置き換え</translation>
     </message>
     <message>
-        <source>This folder&apos;s closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
+        <source>This folder's closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
         <translation>このフォルダーの末尾にある PSD レコードには、別の「ブレンド条件 (Blend If)」データが含まれています。Patchy はその境界データを変更せずに保持します。以下のコントロールで編集されるのは表示側のフォルダーレコードのみです。</translation>
     </message>
     <message>
@@ -3426,11 +3426,11 @@ RGB: %2, %3, %4</translation>
         <translation>フォントが見つかりません</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate the font &quot;%1&quot;. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>Patchy can't locate the font "%1". Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>Patchy はフォント「%1」を見つけられません。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <source>Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy は次のフォントを見つけられません: %1。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
     </message>
     <message>
@@ -4019,8 +4019,8 @@ Flow: %6
         <translation>プリンターを使用できません</translation>
     </message>
     <message>
-        <source>Windows cannot read the settings for &quot;%1&quot;. The printer driver may need to be repaired or reinstalled.</source>
-        <translation>Windows は &quot;%1&quot; の設定を読み取れません。プリンタードライバーの修復または再インストールが必要な可能性があります。</translation>
+        <source>Windows cannot read the settings for "%1". The printer driver may need to be repaired or reinstalled.</source>
+        <translation>Windows は "%1" の設定を読み取れません。プリンタードライバーの修復または再インストールが必要な可能性があります。</translation>
     </message>
     <message>
         <source>Image pixels locked</source>
@@ -4121,7 +4121,7 @@ Mixed selection</source>
         <translation>%1 のコピー</translation>
     </message>
     <message>
-        <source>Delete brush tip &quot;%1&quot;?</source>
+        <source>Delete brush tip "%1"?</source>
         <translation>ブラシ先端「%1」を削除しますか?</translation>
     </message>
     <message>
@@ -4681,7 +4681,7 @@ Mixed selection</source>
         <translation>画像として開く</translation>
     </message>
     <message>
-        <source>Open the selected pattern&apos;s texture as a new image</source>
+        <source>Open the selected pattern's texture as a new image</source>
         <translation>選択したパターンのテクスチャを新しい画像として開きます</translation>
     </message>
     <message>
@@ -4689,7 +4689,7 @@ Mixed selection</source>
         <translation>ドラッグでパン、マウスホイールでズーム、ダブルクリックで表示をリセットします。</translation>
     </message>
     <message>
-        <source>Could not load the selected pattern&apos;s texture.</source>
+        <source>Could not load the selected pattern's texture.</source>
         <translation>選択したパターンのテクスチャを読み込めませんでした。</translation>
     </message>
     <message>
@@ -4715,7 +4715,7 @@ Mixed selection</source>
         </translation>
     </message>
     <message>
-        <source>Delete pattern &quot;%1&quot;?</source>
+        <source>Delete pattern "%1"?</source>
         <translation>パターン「%1」を削除しますか？</translation>
     </message>
     <message numerus="yes">
@@ -4863,7 +4863,7 @@ Mixed selection</source>
         </translation>
     </message>
     <message>
-        <source>Delete style &quot;%1&quot;?</source>
+        <source>Delete style "%1"?</source>
         <translation>スタイル「%1」を削除しますか?</translation>
     </message>
     <message numerus="yes">
@@ -5841,7 +5841,7 @@ Mixed selection</source>
         <translation>レイヤーに整列</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
+        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
         <translation>タイルの基準をレイヤーの位置に合わせます。オフの場合はドキュメントの原点に合わせます</translation>
     </message>
     <message>
@@ -5980,11 +5980,11 @@ Mixed selection</source>
         <translation>フォントが見つからないテキストは、代替フォントにせず画像として書き出す</translation>
     </message>
     <message>
-        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer&apos;s pixels instead.</source>
+        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer's pixels instead.</source>
         <translation>オフの場合、インストールされていないフォントのテキストは代替フォントの編集可能なテキストとして書き出されるため、キャンバスと見た目が異なることがあります。オンの場合、そのテキストはレイヤーのピクセルの画像として書き出されます。</translation>
     </message>
     <message>
-        <source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source>
+        <source>The page is sized from the document's resolution, so it prints at the image's own size.</source>
         <translation>ページサイズはドキュメントの解像度から決まるため、画像本来のサイズで印刷されます。</translation>
     </message>
     <message>
@@ -6104,7 +6104,7 @@ Mixed selection</source>
         <translation>ページごとに統合された画像</translation>
     </message>
     <message>
-        <source>Some artwork could not be kept editable; reimport with &quot;Flattened image per page&quot; for an exact copy.</source>
+        <source>Some artwork could not be kept editable; reimport with "Flattened image per page" for an exact copy.</source>
         <translation>一部のアートワークは編集可能な形式で保持できませんでした。正確な複製には「ページごとに統合された画像」で再読み込みしてください。</translation>
     </message>
     <message>
@@ -6329,11 +6329,11 @@ Mixed selection</source>
         <translation>プリセットの名前を入力してください。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <source>"%1" is a built-in preset. Choose another name.</source>
         <translation>「%1」は組み込みのプリセットです。別の名前を選んでください。</translation>
     </message>
     <message>
-        <source>Replace the preset &quot;%1&quot;?</source>
+        <source>Replace the preset "%1"?</source>
         <translation>プリセット「%1」を置き換えますか?</translation>
     </message>
     <message>
@@ -6341,7 +6341,7 @@ Mixed selection</source>
         <translation>トレースプリセットを削除</translation>
     </message>
     <message>
-        <source>Delete the preset &quot;%1&quot;?</source>
+        <source>Delete the preset "%1"?</source>
         <translation>プリセット「%1」を削除しますか?</translation>
     </message>
     <message>
@@ -6445,7 +6445,7 @@ Mixed selection</source>
         <translation>フォルダーを選択</translation>
     </message>
     <message>
-        <source>The folder &quot;%1&quot; could not be created.</source>
+        <source>The folder "%1" could not be created.</source>
         <translation>フォルダー「%1」を作成できませんでした。</translation>
     </message>
     <message>
@@ -7005,7 +7005,7 @@ Mixed selection</source>
         <translation>Aseprite のセルデータを展開できませんでした。</translation>
     </message>
     <message>
-        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel&apos;s Load Palette File instead.</source>
+        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel's Load Palette File instead.</source>
         <translation>これは Adobe スウォッチパレット (.ase) であり、Aseprite 画像ではありません。代わりにパレットパネルの「パレットファイルを読み込み」から読み込んでください。</translation>
     </message>
     <message>
@@ -7237,7 +7237,7 @@ Mixed selection</source>
         <translation>HEIF のデコードオプションを初期化できません。</translation>
     </message>
     <message>
-        <source>This HEIF image&apos;s dimensions are not supported</source>
+        <source>This HEIF image's dimensions are not supported</source>
         <translation>この HEIF 画像のサイズには対応していません。</translation>
     </message>
     <message>
@@ -7353,7 +7353,7 @@ Mixed selection</source>
         <translation>JPEG XR 画像は Windows でのみ保存できます。</translation>
     </message>
     <message>
-        <source>This JPEG XR image&apos;s dimensions are not supported</source>
+        <source>This JPEG XR image's dimensions are not supported</source>
         <translation>この JPEG XR 画像のサイズには対応していません。</translation>
     </message>
     <message>
@@ -7545,7 +7545,7 @@ Mixed selection</source>
         <translation>PDF の画像の透明マスクが大きすぎて読み込めないため、画像は不透明として読み込まれました。</translation>
     </message>
     <message>
-        <source>A PDF image&apos;s transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
+        <source>A PDF image's transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
         <translation>PDF の画像の透明マスクが Patchy でデコードできないコーデックを使用しているため、画像は不透明として読み込まれました。</translation>
     </message>
     <message>
@@ -7613,7 +7613,7 @@ Mixed selection</source>
         <translation>Proton テクスチャが不明な RTPACK 圧縮タイプを使用しています</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s zlib payload is damaged</source>
+        <source>Proton texture's zlib payload is damaged</source>
         <translation>Proton テクスチャの zlib ペイロードが破損しています</translation>
     </message>
     <message>
@@ -7625,15 +7625,15 @@ Mixed selection</source>
         <translation>PVRTC 圧縮の Proton テクスチャは開けません。先に元画像を RTPack -8888 で書き出し直してください</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded payload is neither a JPEG nor raw RGB pixels</source>
+        <source>Proton texture's embedded payload is neither a JPEG nor raw RGB pixels</source>
         <translation>Proton テクスチャの埋め込みペイロードが JPEG でも非圧縮の RGB ピクセルでもありません</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded JPEG could not be read</source>
+        <source>Proton texture's embedded JPEG could not be read</source>
         <translation>Proton テクスチャに埋め込まれた JPEG を読み込めませんでした</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s embedded JPEG could not be decoded</source>
+        <source>Proton texture's embedded JPEG could not be decoded</source>
         <translation>Proton テクスチャに埋め込まれた JPEG をデコードできませんでした</translation>
     </message>
     <message>
@@ -7657,7 +7657,7 @@ Mixed selection</source>
         <translation>記録されている元の高さが無効なため、テクスチャの高さを使用します</translation>
     </message>
     <message>
-        <source>Proton texture&apos;s first mip level does not match the texture size</source>
+        <source>Proton texture's first mip level does not match the texture size</source>
         <translation>Proton テクスチャの最初のミップレベルがテクスチャサイズと一致しません</translation>
     </message>
     <message>
@@ -7669,7 +7669,7 @@ Mixed selection</source>
         <translation>空のドキュメントは Proton テクスチャとして書き込めません</translation>
     </message>
     <message>
-        <source>JPEG-encoded Proton textures need the application&apos;s JPEG encoder, which is not installed</source>
+        <source>JPEG-encoded Proton textures need the application's JPEG encoder, which is not installed</source>
         <translation>JPEG エンコードの Proton テクスチャにはアプリケーションの JPEG エンコーダーが必要ですが、インストールされていません</translation>
     </message>
     <message>
@@ -7829,7 +7829,7 @@ Mixed selection</source>
         <translation>SVG に使用できる幅/高さまたは viewBox がないため、300 x 150 で開きました</translation>
     </message>
     <message>
-        <source>SVG canvas was scaled down to Patchy&apos;s 30000 px document limit</source>
+        <source>SVG canvas was scaled down to Patchy's 30000 px document limit</source>
         <translation>SVG のカンバスは Patchy のドキュメント上限である 30000 px に縮小されました</translation>
     </message>
     <message>
@@ -7861,7 +7861,7 @@ Mixed selection</source>
         <translation>SVG 書き出し用の埋め込み PNG をエンコードできませんでした</translation>
     </message>
     <message>
-        <source>A pattern fill&apos;s tile was missing and exported as gray</source>
+        <source>A pattern fill's tile was missing and exported as gray</source>
         <translation>パターン塗りのタイルが見つからないため、グレーとして書き出されました</translation>
     </message>
     <message>
@@ -8463,7 +8463,7 @@ Mixed selection</source>
         <translation>幅と高さの比率を保つ</translation>
     </message>
     <message>
-        <source>Softens the whole shape, stroke included, like Photoshop&apos;s vector mask feather</source>
+        <source>Softens the whole shape, stroke included, like Photoshop's vector mask feather</source>
         <translation>Photoshop のベクトルマスクのぼかしのように、線を含むシェイプ全体をやわらかくします</translation>
     </message>
     <message>
@@ -8471,7 +8471,7 @@ Mixed selection</source>
         <translation>ぼかし:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
+        <source>Below 100% the fill shows through everywhere, like Photoshop's vector mask density</source>
         <translation>100% 未満では Photoshop のベクトルマスクの濃度のように塗りが全体に透けて見えます</translation>
     </message>
     <message>
@@ -8633,7 +8633,7 @@ Mixed selection</source>
         </translation>
     </message>
     <message>
-        <source>About %1 GB of memory, more than half of this computer&apos;s %2 GB. Fewer pages or a lower resolution will open faster.</source>
+        <source>About %1 GB of memory, more than half of this computer's %2 GB. Fewer pages or a lower resolution will open faster.</source>
         <translation>約 %1 GB のメモリを使用します。このコンピューターの %2 GB の半分を超えています。ページ数を減らすか解像度を下げると、より速く開けます。</translation>
     </message>
     <message>
@@ -8847,11 +8847,11 @@ Mixed selection</source>
         <translation>カンバス外に完全に出たレイヤーも削除する</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <source>Patchy can't locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy は次のフォントを見つけられません: %1。次のフォントにはテキストのグリフがありません: %2。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
     </message>
     <message>
-        <source>The font &quot;%1&quot; has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>The font "%1" has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>フォント「%1」にはこのテキストのグリフがありません。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
     </message>
     <message>
@@ -8903,7 +8903,7 @@ Mixed selection</source>
         <translation>再生回数:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like "blink 0.033s", sets that frame's delay. Play count includes the first play.</source>
         <translation>表示されている最上位レイヤーを、上から順に1フレームずつ書き出します。「blink 0.033s」のように名前の末尾に時間を指定すると、そのフレームの表示時間になります。再生回数には初回の再生も含まれます。</translation>
     </message>
     <message>
@@ -9101,7 +9101,7 @@ Mixed selection</source>
         <translation>32 ビット画像をチャンネルあたり 16 ビットに変換しました。Web 版で編集できるのは 16 ビットまでです。</translation>
     </message>
     <message>
-        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <source>This document's preserved text engine cannot store new area text.</source>
         <translation>このドキュメントに保持されているテキストエンジンのデータでは、新しい図形内テキストを保存できません。</translation>
     </message>
     <message>
@@ -9125,8 +9125,8 @@ Mixed selection</source>
         <translation>DDS のピクセル形式のビットマスクがピクセルサイズに収まりません</translation>
     </message>
     <message>
-        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
-        <translation>DDS テクスチャではありません: シグネチャ &apos;DDS &apos; がありません</translation>
+        <source>Not a DDS texture: the 'DDS ' signature is missing</source>
+        <translation>DDS テクスチャではありません: シグネチャ 'DDS ' がありません</translation>
     </message>
     <message>
         <source>DDS texture is truncated: the header is incomplete</source>
@@ -9729,7 +9729,7 @@ Mixed selection</source>
         <translation>ソフトウェア:</translation>
     </message>
     <message>
-        <source>The file also carries a maker note: the camera maker&apos;s private data, which often includes serial numbers.</source>
+        <source>The file also carries a maker note: the camera maker's private data, which often includes serial numbers.</source>
         <translation>このファイルにはメーカーノートも含まれています。これはカメラメーカー独自のデータで、シリアル番号が含まれていることがよくあります。</translation>
     </message>
     <message>
@@ -10061,7 +10061,7 @@ Mixed selection</source>
         <translation>労力:</translation>
     </message>
     <message>
-        <source>Patchy does not use JPEG XL&apos;s patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
+        <source>Patchy does not use JPEG XL's patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
         <translation>Patchy は JPEG XL のパッチおよびドット符号化ツールを使用しないため、繰り返しのテキストや小さな点を含む画像は、他のエンコーダーよりやや大きくなることがあります。</translation>
     </message>
     <message>
@@ -10077,7 +10077,7 @@ Mixed selection</source>
         <translation>CMYK 画像: プロファイル %1 で RGB に変換しました</translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
+        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
         <translation>ファイルの CMYK プロファイル %1 は、CMYK の保存に使われる作業用 CMYK プロファイル %2 と異なります</translation>
     </message>
     <message>
@@ -10333,7 +10333,7 @@ Mixed selection</source>
         <translation>このビルドの Patchy は HEIC 画像をデコードできません。</translation>
     </message>
     <message>
-        <source>This build of Patchy cannot decode HEIC images because the system&apos;s libheif library is not installed. Install it and try again.
+        <source>This build of Patchy cannot decode HEIC images because the system's libheif library is not installed. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif1
 Fedora: sudo dnf install libheif</source>
         <translation>システムの libheif ライブラリがインストールされていないため、このビルドの Patchy は HEIC 画像をデコードできません。インストールしてから、もう一度お試しください。
@@ -10345,7 +10345,7 @@ Fedora: sudo dnf install libheif</translation>
         <translation>インストールされている libheif ライブラリが古すぎるため、このビルドの Patchy は HEIC 画像をデコードできません。Patchy には libheif 1.12 以降が必要です。</translation>
     </message>
     <message>
-        <source>The system&apos;s libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
+        <source>The system's libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation>システムの libheif ライブラリに HEVC デコーダープラグインがないため、Patchy は HEIC 画像をデコードできません。インストールしてから、もう一度お試しください。
@@ -10353,7 +10353,7 @@ Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
-        <source>This HEIC image&apos;s bit depth is not supported by the installed libheif library.</source>
+        <source>This HEIC image's bit depth is not supported by the installed libheif library.</source>
         <translation>この HEIC 画像のビット深度は、インストールされている libheif ライブラリではサポートされていません。</translation>
     </message>
     <message>
@@ -10401,7 +10401,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>%1～%2 ppi の解像度を入力してください。</translation>
     </message>
     <message>
-        <source>Indexed color needs &quot;Flattened image per page&quot;: shapes, text and images cannot be converted to a palette.</source>
+        <source>Indexed color needs "Flattened image per page": shapes, text and images cannot be converted to a palette.</source>
         <translation>インデックスカラーには「ページごとに統合された画像」が必要です。シェイプ、テキスト、画像はパレットに変換できません。</translation>
     </message>
     <message>
@@ -10513,7 +10513,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>深く</translation>
     </message>
     <message>
-        <source>Shallow cuts through the layers below to the bottom of this layer&apos;s group; Deep cuts through to the Background, or to transparency without one</source>
+        <source>Shallow cuts through the layers below to the bottom of this layer's group; Deep cuts through to the Background, or to transparency without one</source>
         <translation>浅くはこのレイヤーのグループの最下部まで下のレイヤーを抜き、深くは背景まで（背景がなければ透明まで）抜きます</translation>
     </message>
     <message>
@@ -10569,7 +10569,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>置き換え先：</translation>
     </message>
     <message>
-        <source>Don&apos;t show when opening documents</source>
+        <source>Don't show when opening documents</source>
         <translation>ドキュメントを開くときに表示しない</translation>
     </message>
     <message>
@@ -10589,15 +10589,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>テキストレイヤー。このコンピューターにフォントがありません: %1。</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <source>The TIFF's Photoshop layer records are damaged</source>
         <translation>TIFF の Photoshop レイヤーレコードが壊れています</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <source>The TIFF's Photoshop layer data mixes byte orders</source>
         <translation>TIFF の Photoshop レイヤーデータでバイト順序が混在しています</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <source>The TIFF's Photoshop layer data is cut short</source>
         <translation>TIFF の Photoshop レイヤーデータが途中で切れています</translation>
     </message>
     <message>
@@ -10609,7 +10609,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Patchy がレイヤーを読み込める TIFF ファイルではありません</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s first directory is damaged</source>
+        <source>The TIFF's first directory is damaged</source>
         <translation>TIFF の最初のディレクトリが壊れています</translation>
     </message>
     <message>
@@ -10617,7 +10617,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>TIFF に Photoshop のレイヤーデータがありません</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <source>The TIFF's first directory lacks its image size or color layout</source>
         <translation>TIFF の最初のディレクトリに画像サイズまたはカラー構成がありません</translation>
     </message>
     <message>
@@ -10625,7 +10625,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Patchy が TIFF のレイヤーを読み込めるのは 8 ビット、16 ビット、32 ビット浮動小数点だけです</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <source>The TIFF's Photoshop layer data holds no layers</source>
         <translation>TIFF の Photoshop レイヤーデータにレイヤーがありません</translation>
     </message>
     <message>
@@ -10633,7 +10633,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>この TIFF はレイヤーを IBM PC のバイト順序で保存しており、そのレイヤーデータの一部は Patchy がまだ変換できない形式です。Patchy はその部分を省いたため、一部のレイヤーは Photoshop と見た目が異なる場合があります。</translation>
     </message>
     <message>
-        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <source>The TIFF's Photoshop layer data is too large</source>
         <translation>TIFF の Photoshop レイヤーデータが大きすぎます</translation>
     </message>
     <message>
@@ -10685,7 +10685,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Photoshop と Patchy はレイヤーを開きます。ほかのアプリでは統合された画像が表示されます。レイヤーなしの場合、Patchy は統合したコピーを保存し、このドキュメントのレイヤーはそのまま残ります。</translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>ファイルの CMYK プロファイル %1 は、CMYK 校正と JPEG、TIFF、PDF の CMYK 保存に使われる作業用 CMYK プロファイル %2 と異なります</translation>
     </message>
     <message>
@@ -11028,23 +11028,23 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>すべてのスマートフィルターを削除</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <source>Patchy can't render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
         <translation>実行されることになるスマートフィルターの中に、Patchy で描画できないものがあります。ファイルを Photoshop で開くと Photoshop が描画します。</translation>
     </message>
     <message>
-        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or hide all Smart Filters.</source>
         <translation>このフィルターを非表示にすると、Patchy で描画できないスマートフィルターが実行されたまま残ります。先にそれらを非表示にするか削除するか、すべてのスマートフィルターを非表示にしてください。</translation>
     </message>
     <message>
-        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or delete all Smart Filters.</source>
         <translation>このフィルターを削除すると、Patchy で描画できないスマートフィルターが実行されたまま残ります。先にそれらを非表示にするか削除するか、すべてのスマートフィルターを削除してください。</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <source>Patchy can't edit this filter's settings. It is preserved unchanged.</source>
         <translation>Patchy ではこのフィルターの設定を編集できません。変更されずに保持されます。</translation>
     </message>
     <message>
-        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <source>This stack runs Smart Filters that Patchy can't render, so their settings can't change here. Hide or delete those filters first.</source>
         <translation>このスタックは Patchy で描画できないスマートフィルターを実行するため、ここでは設定を変更できません。先にそれらのフィルターを非表示にするか削除してください。</translation>
     </message>
     <message>
@@ -11320,7 +11320,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: "Radius 3 px".</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11504,7 +11504,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>アートボードへの自動ネストとアートボードからの自動解除を防止</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop's Color and Vibrance). They have no effect here and are saved unchanged.</source>
         <translation>一部の調整レイヤーは、Patchy がまだ適用できない種類（Photoshop のカラーと自然な彩度など）を使用しています。ここでは効果がなく、変更されずに保存されます。</translation>
     </message>
     <message>
@@ -11578,7 +11578,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>再リンク...</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
+        <source>Used by layer "%1"</source>
         <translation>レイヤー「%1」で使用</translation>
     </message>
     <message numerus="yes">
@@ -11973,7 +11973,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>コンテンツ認証情報:</translation>
     </message>
     <message>
-        <source>The file&apos;s metadata declares no watermark.</source>
+        <source>The file's metadata declares no watermark.</source>
         <translation>ファイルのメタデータに透かしの宣言はありません。</translation>
     </message>
     <message>
@@ -12029,7 +12029,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>スマートフィルターの行を展開</translation>
     </message>
     <message>
-        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe&apos;s, MIT License): a %1 MB download from %2, made only when you ask.</source>
+        <source>Adobe TrustMark, the open watermark behind durable Content Credentials, needs the watermark models (Adobe's, MIT License): a %1 MB download from %2, made only when you ask.</source>
         <translation>永続的な Content Credentials を支えるオープンな透かし Adobe TrustMark には、透かしモデル (Adobe 製、MIT ライセンス) が必要です: %2 から %1 MB のダウンロードで、求めたときだけ行います。</translation>
     </message>
     <message>
@@ -12065,7 +12065,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>ICC プロファイル (*.icc *.icm)</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not an RGB profile Patchy can use.</source>
+        <source>"%1" is not an RGB profile Patchy can use.</source>
         <translation>「%1」は Patchy で使用できる RGB プロファイルではありません。</translation>
     </message>
     <message>
@@ -12146,7 +12146,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Saved</source>
-        <comment>new document template group of the user&apos;s own presets</comment>
+        <comment>new document template group of the user's own presets</comment>
         <translation>保存済み</translation>
     </message>
     <message>
@@ -12154,7 +12154,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>無題-1</translation>
     </message>
     <message>
-        <source>The document&apos;s tab title and the file name Save As suggests</source>
+        <source>The document's tab title and the file name Save As suggests</source>
         <translation>ドキュメントのタブのタイトルと、「別名で保存」が提案するファイル名</translation>
     </message>
     <message>
@@ -12348,7 +12348,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>左右にドラッグしてズームします。クリックで拡大、%ALT%クリックで縮小します。スペースキーを押したままにするか中ボタンで移動します。</translation>
     </message>
     <message>
-        <source>Don&apos;t Show Again</source>
+        <source>Don't Show Again</source>
         <translation>今後表示しない</translation>
     </message>
     <message>
@@ -12440,11 +12440,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>一部のレイヤーは、GIMP の合成方法どおり下のレイヤーがある所にだけ表示されます。そのレイヤーへのクリッピングマスクとして開きました。</translation>
     </message>
     <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers' pixels.</source>
         <translation>Patchy で再現できる GIMP のレイヤー効果（ガウスぼかしと、レベル、色相-彩度、脱色などの色フィルター）は、各レイヤーのピクセルに適用しました。</translation>
     </message>
     <message>
-        <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
+        <source>Layers in GIMP's Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
         <translation>GIMP の消去または分割モードのレイヤーはマスクになりました。各レイヤーの下のレイヤーは、その名前のグループに入り、消去していた所がマスクされています。</translation>
     </message>
     <message>
@@ -12580,7 +12580,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Camera Raw フィルター</translation>
     </message>
     <message>
-        <source>Neutralize the layer&apos;s average color</source>
+        <source>Neutralize the layer's average color</source>
         <translation>レイヤーの平均色をニュートラルにします</translation>
     </message>
     <message>
@@ -12705,7 +12705,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>View &gt; Extras shows and hides the items ticked here.
-Each item&apos;s own View setting still applies.</source>
+Each item's own View setting still applies.</source>
         <translation>表示 &gt; エクストラは、ここでチェックした項目を表示または非表示にします。
 各項目の表示設定もそのまま適用されます。</translation>
     </message>
@@ -12783,30 +12783,30 @@ Each item&apos;s own View setting still applies.</source>
         <translation>テーマファイル形式 %1 はこのビルドでは対応していません（想定: %2）。</translation>
     </message>
     <message>
-        <source>Theme file is missing a valid &quot;base&quot; (must be &quot;dark&quot; or &quot;light&quot;).</source>
-        <translation>テーマファイルに有効な &quot;base&quot; がありません（&quot;dark&quot; または &quot;light&quot; が必要です）。</translation>
+        <source>Theme file is missing a valid "base" (must be "dark" or "light").</source>
+        <translation>テーマファイルに有効な "base" がありません（"dark" または "light" が必要です）。</translation>
     </message>
     <message>
-        <source>Theme file&apos;s &quot;roles&quot; is not an object.</source>
-        <translation>テーマファイルの &quot;roles&quot; がオブジェクトではありません。</translation>
+        <source>Theme file's "roles" is not an object.</source>
+        <translation>テーマファイルの "roles" がオブジェクトではありません。</translation>
     </message>
     <message>
-        <source>Unknown color role &quot;%1&quot; (ignored).</source>
-        <translation>不明なカラーロール &quot;%1&quot;（無視されます）。</translation>
+        <source>Unknown color role "%1" (ignored).</source>
+        <translation>不明なカラーロール "%1"（無視されます）。</translation>
     </message>
     <message>
-        <source>Invalid color &quot;%1&quot; for role &quot;%2&quot; (expected #RRGGBB or #RRGGBBAA).</source>
-        <translation>ロール &quot;%2&quot; の色 &quot;%1&quot; が無効です（#RRGGBB または #RRGGBBAA が必要です）。</translation>
+        <source>Invalid color "%1" for role "%2" (expected #RRGGBB or #RRGGBBAA).</source>
+        <translation>ロール "%2" の色 "%1" が無効です（#RRGGBB または #RRGGBBAA が必要です）。</translation>
     </message>
     <message>
-        <source>Theme file &quot;%1&quot; could not be read.</source>
-        <translation>テーマファイル &quot;%1&quot; を読み込めませんでした。</translation>
+        <source>Theme file "%1" could not be read.</source>
+        <translation>テーマファイル "%1" を読み込めませんでした。</translation>
     </message>
 </context>
 <context>
     <name>VectorPreview</name>
     <message>
-        <source>Dynamic Vector Preview: using the document&apos;s pixel view.</source>
+        <source>Dynamic Vector Preview: using the document's pixel view.</source>
         <translation>動的ベクトルプレビュー: ドキュメントのピクセル表示を使用しています。</translation>
     </message>
     <message>
@@ -12865,7 +12865,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>未確認</translation>
     </message>
     <message>
-        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners&apos; tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
+        <source>Some watermarks, such as Google SynthID and Digimarc, can only be read with their owners' tools, so no scan here can find them. Not found means only that none of the kinds above was found.</source>
         <translation>Google SynthID や Digimarc などの透かしは所有者のツールでしか読み取れないため、ここでのスキャンでは見つかりません。未検出は、上記の種類がどれも見つからなかったことだけを意味します。</translation>
     </message>
 </context>
@@ -13035,15 +13035,15 @@ Each item&apos;s own View setting still applies.</source>
         <translation>削除</translation>
     </message>
     <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <source>Renames the selected layers to end with this frame time, like "blink 0.25s".</source>
         <translation>選択したレイヤーの名前を「blink 0.25s」のようにこのフレーム時間で終わるよう変更します。</translation>
     </message>
     <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
+        <source>Removes the trailing frame time from the selected layers' names.</source>
         <translation>選択したレイヤー名の末尾のフレーム時間を取り除きます。</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like "blink 0.25s", sets that frame's delay.</source>
         <translation>アニメーションGIFやWebPの書き出しと同様に、表示されている最上位レイヤーを上から順にフレームとして再生します。「blink 0.25s」のようにレイヤー名の末尾に時間を指定すると、そのフレームの表示時間になります。</translation>
     </message>
     <message>
@@ -13446,7 +13446,7 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::BrushTipLibrary</name>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>「%1」を開けませんでした。</translation>
     </message>
     <message>
@@ -13454,11 +13454,11 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ブラシ %1</translation>
     </message>
     <message>
-        <source>Could not save brush &quot;%1&quot;.</source>
+        <source>Could not save brush "%1".</source>
         <translation>ブラシ「%1」を保存できませんでした。</translation>
     </message>
     <message>
-        <source>No brush tips could be imported from &quot;%1&quot;.</source>
+        <source>No brush tips could be imported from "%1".</source>
         <translation>「%1」からブラシ先端を読み込めませんでした。</translation>
     </message>
 </context>
@@ -13596,7 +13596,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>変形する編集可能なピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can&apos;t be transformed. Rasterize the layer first.</source>
+        <source>This smart object is preview-only and can't be transformed. Rasterize the layer first.</source>
         <translation>このスマートオブジェクトはプレビュー専用のため変形できません。先にレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
@@ -13708,15 +13708,15 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ワープするには編集可能なピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <source>Text layers use Warp Text (the Type tool&apos;s Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
+        <source>Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
         <translation>テキストレイヤーはワープテキスト（文字ツールのワープ...ボタン）を使用します。カスタムメッシュにするには、スマートオブジェクトに変換するかラスタライズしてください。</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can&apos;t be warped. Rasterize the layer first.</source>
+        <source>This smart object is preview-only and can't be warped. Rasterize the layer first.</source>
         <translation>このスマートオブジェクトはプレビュー専用のためワープできません。先にレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
-        <source>This smart object&apos;s contents can&apos;t be decoded for warping</source>
+        <source>This smart object's contents can't be decoded for warping</source>
         <translation>このスマートオブジェクトのコンテンツをワープ用にデコードできません</translation>
     </message>
     <message>
@@ -13908,11 +13908,11 @@ Each item&apos;s own View setting still applies.</source>
         <translation>なげなわ</translation>
     </message>
     <message>
-        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
-        <source>Shape layers can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Shape layers can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>シェイプレイヤーには描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
@@ -13964,11 +13964,11 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ベクトルマスクに追加</translation>
     </message>
     <message>
-        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <source>This layer's vector data is preserved but can't be edited.</source>
         <translation>このレイヤーのベクトルデータは保持されていますが編集できません。</translation>
     </message>
     <message>
-        <source>Shape layers and vector masks can&apos;t be warped. Convert to a smart object or rasterize first.</source>
+        <source>Shape layers and vector masks can't be warped. Convert to a smart object or rasterize first.</source>
         <translation>シェイプレイヤーとベクトルマスクはワープできません。スマートオブジェクトに変換するか、先にラスタライズしてください。</translation>
     </message>
     <message>
@@ -14376,7 +14376,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ゆがめるにはレイヤーをラスタライズしてください</translation>
     </message>
     <message>
-        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <source>A smart object in perspective can't be warped. Rasterize the layer first.</source>
         <translation>遠近法を適用したスマートオブジェクトはワープできません。先にレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
@@ -14719,7 +14719,7 @@ Each item&apos;s own View setting still applies.</source>
     <name>patchy::ui::FontPickerCombo</name>
     <message>
         <source>The quick brown fox jumps over the lazy dog. 0123456789</source>
-        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font&apos;s Latin glyph coverage).</extracomment>
+        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font's Latin glyph coverage).</extracomment>
         <translation>The quick brown fox jumps over the lazy dog. 0123456789</translation>
     </message>
     <message>
@@ -14734,8 +14734,8 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
     <message>
-        <source>G&apos;MIC Filter Library</source>
-        <translation>G&apos;MIC フィルターライブラリ</translation>
+        <source>G'MIC Filter Library</source>
+        <translation>G'MIC フィルターライブラリ</translation>
     </message>
     <message>
         <source>Search filters...</source>
@@ -14746,8 +14746,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>リセット</translation>
     </message>
     <message>
-        <source>Filters from G&apos;MIC %1 (gmic.eu)</source>
-        <translation>G&apos;MIC %1 のフィルター (gmic.eu)</translation>
+        <source>Filters from G'MIC %1 (gmic.eu)</source>
+        <translation>G'MIC %1 のフィルター (gmic.eu)</translation>
     </message>
     <message>
         <source>Select a filter</source>
@@ -14790,38 +14790,38 @@ Each item&apos;s own View setting still applies.</source>
         <translation>フィルターが処理するレイヤーです。1 枚の画像用のフィルターは、選んだ各レイヤーに順番に適用されます。複数レイヤー用のフィルター (Blend フィルターなど) はレイヤーを組み合わせます。ロックされたレイヤー、テキスト、シェイプ、スマートオブジェクトのレイヤーは読み取られますが、変更されることはありません。</translation>
     </message>
     <message>
-        <source>About G&apos;MIC...</source>
-        <translation>G&apos;MIC について...</translation>
+        <source>About G'MIC...</source>
+        <translation>G'MIC について...</translation>
     </message>
     <message>
-        <source>About G&apos;MIC</source>
-        <translation>G&apos;MIC について</translation>
+        <source>About G'MIC</source>
+        <translation>G'MIC について</translation>
     </message>
     <message>
-        <source>G&apos;MIC %1</source>
-        <translation>G&apos;MIC %1</translation>
+        <source>G'MIC %1</source>
+        <translation>G'MIC %1</translation>
     </message>
     <message numerus="yes">
-        <source>G&apos;MIC (GREYC&apos;s Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
+        <source>G'MIC (GREYC's Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
         <translation>
-            <numerusform>G&apos;MIC (GREYC&apos;s Magic for Image Computing) は、画像処理のための無料のオープンソースフレームワークです。Patchy はそのインタープリターと標準ライブラリの %n 個のフィルターを搭載し、この Patchy のダイアログで実行します。</numerusform>
+            <numerusform>G'MIC (GREYC's Magic for Image Computing) は、画像処理のための無料のオープンソースフレームワークです。Patchy はそのインタープリターと標準ライブラリの %n 個のフィルターを搭載し、この Patchy のダイアログで実行します。</numerusform>
         </translation>
     </message>
     <message>
-        <source>G&apos;MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
-        <translation>G&apos;MIC は、フランス・カーンにある GREYC 研究所の Image Team と David Tschumperlé が開発しており、フィルターは多くの貢献者が書いています。ほとんどのフィルターは、設定の最後に作者を記載しています。</translation>
+        <source>G'MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
+        <translation>G'MIC は、フランス・カーンにある GREYC 研究所の Image Team と David Tschumperlé が開発しており、フィルターは多くの貢献者が書いています。ほとんどのフィルターは、設定の最後に作者を記載しています。</translation>
     </message>
     <message>
-        <source>How to say it: its author pronounces it like the English word &quot;gimmick&quot;, a nod to the magic in its name, and says any pronunciation is fine.</source>
+        <source>How to say it: its author pronounces it like the English word "gimmick", a nod to the magic in its name, and says any pronunciation is fine.</source>
         <translation>読み方: 作者は英語の「gimmick」(ギミック) のように発音しています。名前に含まれる「魔法」にちなんだもので、どの読み方でも構わないとのことです。</translation>
     </message>
     <message>
-        <source>G&apos;MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G&apos;MIC team.</source>
-        <translation>G&apos;MIC は CeCILL-C ライセンスで配布されており、ライセンス文は Patchy に同梱されています。Patchy でのフィルターの実行に関する質問は、G&apos;MIC チームではなく Patchy へお寄せください。</translation>
+        <source>G'MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G'MIC team.</source>
+        <translation>G'MIC は CeCILL-C ライセンスで配布されており、ライセンス文は Patchy に同梱されています。Patchy でのフィルターの実行に関する質問は、G'MIC チームではなく Patchy へお寄せください。</translation>
     </message>
     <message>
-        <source>Visit the G&apos;MIC website (gmic.eu)</source>
-        <translation>G&apos;MIC の Web サイトを開く (gmic.eu)</translation>
+        <source>Visit the G'MIC website (gmic.eu)</source>
+        <translation>G'MIC の Web サイトを開く (gmic.eu)</translation>
     </message>
 </context>
 <context>
@@ -14988,7 +14988,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>プラグインのウィンドウを表示</translation>
     </message>
     <message>
-        <source>Brings the plug-in&apos;s window back in front of Patchy.</source>
+        <source>Brings the plug-in's window back in front of Patchy.</source>
         <translation>プラグインのウィンドウを Patchy の前面に戻します。</translation>
     </message>
     <message>
@@ -15000,13 +15000,13 @@ Each item&apos;s own View setting still applies.</source>
         <translation>プラグインを強制停止</translation>
     </message>
     <message>
-        <source>Ends the plug-in without applying it. Use it only if the plug-in&apos;s window has stopped responding.</source>
+        <source>Ends the plug-in without applying it. Use it only if the plug-in's window has stopped responding.</source>
         <extracomment>Tooltip of the stop button while a plug-in is loading or waits for the user in its own window.</extracomment>
         <translation>プラグインを適用せずに終了します。プラグインのウィンドウが応答しなくなった場合にのみ使用してください。</translation>
     </message>
     <message>
         <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
-        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <extracomment>%1 is the plug-in's name; shown while its own settings window is open.</extracomment>
         <translation>%1 は独自のウィンドウで開いています。そこで設定を調整し、その OK ボタンをクリックすると、このレイヤーに適用されます。</translation>
     </message>
     <message>
@@ -15165,7 +15165,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>レイヤーサムネイルをレイヤー内容にズームする</translation>
     </message>
     <message>
-        <source>When enabled, layer thumbnails crop to the layer&apos;s visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
+        <source>When enabled, layer thumbnails crop to the layer's visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
         <translation>有効にすると、レイヤーサムネイルはキャンバス全体ではなくレイヤーの可視ピクセルに切り抜かれ、小さなレイヤーもサムネイルいっぱいに表示されます。</translation>
     </message>
     <message>
@@ -15757,7 +15757,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation>PDF レイヤーの保存</translation>
     </message>
     <message>
-        <source>How should this document&apos;s layers be written to the PDF?</source>
+        <source>How should this document's layers be written to the PDF?</source>
         <translation>このドキュメントのレイヤーを PDF にどのように書き出しますか?</translation>
     </message>
     <message>
@@ -15863,7 +15863,7 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>レギュラー</translation>
     </message>
     <message>
-        <source>Thicken the current face synthetically instead of switching to the family&apos;s bold face</source>
+        <source>Thicken the current face synthetically instead of switching to the family's bold face</source>
         <translation>ファミリーのボールド書体に切り替えず、現在の書体を擬似的に太らせます</translation>
     </message>
     <message>
@@ -15871,7 +15871,7 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>疑似イタリック</translation>
     </message>
     <message>
-        <source>Slant the current face synthetically instead of switching to the family&apos;s italic face</source>
+        <source>Slant the current face synthetically instead of switching to the family's italic face</source>
         <translation>ファミリーのイタリック書体に切り替えず、現在の書体を擬似的に傾けます</translation>
     </message>
     <message>
@@ -16031,7 +16031,7 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>一部のレイヤーにパレット外の色が含まれているため、キャンバスではパレットにスナップして表示しています (フィルター、色調補正、貼り付け、テキストなどが原因になります)。</translation>
     </message>
     <message>
-        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers&apos; original colors?</source>
+        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers' original colors?</source>
         <translation>スナップされた色を確定してパレット化された見た目を維持しますか？それともレイヤーの元の色に戻しますか？</translation>
     </message>
     <message>
@@ -16089,7 +16089,7 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>すべてのインデックス画像でこの選択を使う</translation>
     </message>
     <message>
-        <source>Editing with the image&apos;s palette</source>
+        <source>Editing with the image's palette</source>
         <translation>画像のパレットで編集しています</translation>
     </message>
     <message numerus="yes">
@@ -17298,8 +17298,8 @@ RGB: -
         <translation>この状態から新規ドキュメントを作成</translation>
     </message>
     <message>
-        <source>Created new document from &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; から新規ドキュメントを作成しました</translation>
+        <source>Created new document from "%1"</source>
+        <translation>"%1" から新規ドキュメントを作成しました</translation>
     </message>
     <message>
         <source>Reopened %1</source>
@@ -17916,11 +17916,11 @@ To update, paste this into a terminal:
         <translation>レイヤースタイルを更新しました</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; will open as a new image when the Layer Style dialog closes</source>
+        <source>"%1" will open as a new image when the Layer Style dialog closes</source>
         <translation>レイヤースタイルダイアログを閉じると「%1」が新しい画像として開きます</translation>
     </message>
     <message>
-        <source>Opened pattern &quot;%1&quot; as a new image</source>
+        <source>Opened pattern "%1" as a new image</source>
         <translation>パターン「%1」を新しい画像として開きました</translation>
     </message>
     <message>
@@ -17952,15 +17952,15 @@ To update, paste this into a terminal:
         <translation>スマートオブジェクトに描画しますか？</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a smart object, so its pixels can&apos;t be painted directly.</source>
-        <translation>&quot;%1&quot; はスマートオブジェクトのため、ピクセルに直接描画できません。</translation>
+        <source>"%1" is a smart object, so its pixels can't be painted directly.</source>
+        <translation>"%1" はスマートオブジェクトのため、ピクセルに直接描画できません。</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels, or open the smart object&apos;s contents in their own tab and draw there.</source>
+        <source>Rasterize the layer to paint on its pixels, or open the smart object's contents in their own tab and draw there.</source>
         <translation>ピクセルに描画するにはレイヤーをラスタライズするか、スマートオブジェクトの内容を専用のタブで開いてそこに描画してください。</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels. This smart object&apos;s contents can&apos;t be edited in Patchy.</source>
+        <source>Rasterize the layer to paint on its pixels. This smart object's contents can't be edited in Patchy.</source>
         <translation>ピクセルに描画するにはレイヤーをラスタライズしてください。このスマートオブジェクトの内容は Patchy では編集できません。</translation>
     </message>
     <message>
@@ -17972,7 +17972,7 @@ To update, paste this into a terminal:
         <translation>レイヤーをラスタライズしました。もう一度描画してください。</translation>
     </message>
     <message>
-        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
         <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
@@ -17984,27 +17984,27 @@ To update, paste this into a terminal:
         <translation>レイヤーをラスタライズしますか？</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
-        <translation>&quot;%1&quot; はテキストレイヤーです。ピクセルはテキストから再生成されるため、%2 による変更は次にテキストを編集したときに失われます。</translation>
+        <source>"%1" is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
+        <translation>"%1" はテキストレイヤーです。ピクセルはテキストから再生成されるため、%2 による変更は次にテキストを編集したときに失われます。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
-        <translation>&quot;%1&quot; はシェイプレイヤーです。ピクセルはシェイプから再生成されるため、%2 による変更は次にシェイプを編集したときに失われます。</translation>
+        <source>"%1" is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
+        <translation>"%1" はシェイプレイヤーです。ピクセルはシェイプから再生成されるため、%2 による変更は次にシェイプを編集したときに失われます。</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can&apos;t be edited again.</source>
+        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can't be edited again.</source>
         <translation>テキストを編集可能なまま保つには、レイヤーをスマートオブジェクトに変換してください。または、通常のピクセルにラスタライズできます。ラスタライズしたテキストは再編集できません。</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can't be edited as a vector again.</source>
         <translation>シェイプを編集可能なまま保つには、レイヤーをスマートオブジェクトに変換してください。または、通常のピクセルにラスタライズできます。ラスタライズしたシェイプはベクターとして再編集できません。</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can&apos;t be edited again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can't be edited again.</source>
         <translation>%1 を使うにはレイヤーを通常のピクセルにラスタライズしてください。ラスタライズしたテキストは再編集できません。</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can't be edited as a vector again.</source>
         <translation>%1 を使うにはレイヤーを通常のピクセルにラスタライズしてください。ラスタライズしたシェイプはベクターとして再編集できません。</translation>
     </message>
     <message>
@@ -18232,7 +18232,7 @@ To update, paste this into a terminal:
         <translation>消去するものがありません</translation>
     </message>
     <message>
-        <source>Text and smart object layers can&apos;t be cleared. Deselect first, then Delete removes the layer.</source>
+        <source>Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer.</source>
         <translation>テキストレイヤーとスマートオブジェクトレイヤーは消去できません。選択を解除してから Delete キーでレイヤーを削除してください。</translation>
     </message>
     <message>
@@ -18294,11 +18294,11 @@ To update, paste this into a terminal:
         <translation>スマートオブジェクトの内容を %1 に書き出しました</translation>
     </message>
     <message>
-        <source>This smart object has Smart Filters; Patchy keeps Photoshop&apos;s preview (rasterize to edit pixels)</source>
+        <source>This smart object has Smart Filters; Patchy keeps Photoshop's preview (rasterize to edit pixels)</source>
         <translation>このスマートオブジェクトにはスマートフィルターが適用されています。Patchy は Photoshop のプレビューを保持します (ピクセルを編集するにはラスタライズしてください)</translation>
     </message>
     <message>
-        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop&apos;s preview</source>
+        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop's preview</source>
         <translation>このスマートオブジェクトにはワープまたは遠近変形が適用されています。Patchy は Photoshop のプレビューを保持します</translation>
     </message>
     <message>
@@ -18310,11 +18310,11 @@ To update, paste this into a terminal:
         <translation>スマートフィルターのキャッシュデータを安全に複製できませんでした</translation>
     </message>
     <message>
-        <source>This smart object&apos;s contents are not embedded in the document</source>
+        <source>This smart object's contents are not embedded in the document</source>
         <translation>このスマートオブジェクトの内容はドキュメントに埋め込まれていません</translation>
     </message>
     <message>
-        <source>Patchy can&apos;t re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
+        <source>Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
         <translation>Patchy は %1 の内容を再エンコードできません。「スマートオブジェクトの内容を書き出し」を使うか、レイヤーをラスタライズしてください</translation>
     </message>
     <message>
@@ -18342,7 +18342,7 @@ To update, paste this into a terminal:
         <translation>内容を %1 として再エンコードできませんでした</translation>
     </message>
     <message>
-        <source>These contents can&apos;t be re-encoded</source>
+        <source>These contents can't be re-encoded</source>
         <translation>この内容は再エンコードできません</translation>
     </message>
     <message>
@@ -20352,7 +20352,7 @@ Clipped to the layer below</source>
         <translation>レイヤーに整列</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
+        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
         <translation>タイルの基準をレイヤーの位置に合わせます。オフの場合はドキュメントの原点に合わせます</translation>
     </message>
     <message>
@@ -20500,7 +20500,7 @@ Clipped to the layer below</source>
         <translation>ベクトルマスクを操作するレイヤーを選択してください</translation>
     </message>
     <message>
-        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <source>This layer's vector data is preserved but can't be edited.</source>
         <translation>このレイヤーのベクトルデータは保持されていますが編集できません。</translation>
     </message>
     <message>
@@ -20992,7 +20992,7 @@ Clipped to the layer below</source>
         <translation>Affinity の画像レイヤー</translation>
     </message>
     <message numerus="yes">
-        <source>This document places %n image file(s) as Affinity &quot;Image&quot; layers.</source>
+        <source>This document places %n image file(s) as Affinity "Image" layers.</source>
         <translation>
             <numerusform>このドキュメントは %n 個の画像ファイルを Affinity の「画像」レイヤーとして配置しています。</numerusform>
         </translation>
@@ -21022,7 +21022,7 @@ Clipped to the layer below</source>
         <translation>ピクセルレイヤーに変換</translation>
     </message>
     <message>
-        <source>Affinity documents place image files as &quot;Image&quot; layers. Smart objects keep each placed file&apos;s full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
+        <source>Affinity documents place image files as "Image" layers. Smart objects keep each placed file's full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
         <translation>Affinity のドキュメントは画像ファイルを「画像」レイヤーとして配置します。スマートオブジェクトは再編集や PSD 書き出しのために各ファイルのフル解像度の元データを保持し、ピクセルレイヤーは配置サイズのピクセルだけを保持します。</translation>
     </message>
     <message>
@@ -21244,7 +21244,7 @@ Clipped to the layer below</source>
         <translation>レイヤーのグループ解除</translation>
     </message>
     <message>
-        <source>Release the selected folder&apos;s layers into their parent</source>
+        <source>Release the selected folder's layers into their parent</source>
         <translation>選択したフォルダーのレイヤーを親階層に戻します</translation>
     </message>
     <message>
@@ -21706,7 +21706,7 @@ Clipped to the layer below</source>
         <translation>欧文を回転（縦書き）</translation>
     </message>
     <message>
-        <source>Lay Latin letters on their side along the column instead of upright (Photoshop&apos;s Standard Vertical Roman Alignment)</source>
+        <source>Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)</source>
         <translation>欧文を立てずに行に沿って横倒しにします（Photoshop の縦中横ではなく標準の縦組み欧文回転）</translation>
     </message>
     <message>
@@ -21718,7 +21718,7 @@ Clipped to the layer below</source>
         <translation>アクティブなシェイプの幅</translation>
     </message>
     <message>
-        <source>Keep the shape&apos;s width and height in proportion</source>
+        <source>Keep the shape's width and height in proportion</source>
         <translation>シェイプの幅と高さの比率を保つ</translation>
     </message>
     <message>
@@ -21742,7 +21742,7 @@ Clipped to the layer below</source>
         <translation>シェイプの外観...</translation>
     </message>
     <message>
-        <source>Edit the active shape layer&apos;s fill, stroke, opacity, and edge</source>
+        <source>Edit the active shape layer's fill, stroke, opacity, and edge</source>
         <translation>アクティブなシェイプレイヤーの塗り、線、不透明度、エッジを編集</translation>
     </message>
     <message>
@@ -21896,7 +21896,7 @@ Clipped to the layer below</source>
         <translation>ドラッグ中に変形の値を表示</translation>
     </message>
     <message>
-        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point&apos;s position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
+        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point's position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
         <translation>移動、拡大縮小、回転の間、ポインターの横に小さな表示を出します。基準点の位置とオフセット、幅と高さと拡大縮小率、または角度と回転量を示します。</translation>
     </message>
     <message>
@@ -22036,7 +22036,7 @@ Clipped to the layer below</source>
         <translation>変形をピクセルグリッドにスナップ</translation>
     </message>
     <message>
-        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop's "Snap Vector Tools and Transforms to Pixel Grid". Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
         <translation>自由変形バーに入力した位置とサイズは、Photoshop の「ベクトルツールと変形をピクセルグリッドにスナップ」と同様に整数ピクセルに揃います。回転した変形はスナップされません。オフにすると、3.4 px のような小数の入力はそのまま保持され、ピクセルが再サンプルされます。</translation>
     </message>
     <message>
@@ -22064,7 +22064,7 @@ Clipped to the layer below</source>
         <translation>トーン一致</translation>
     </message>
     <message>
-        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <source>How strongly the fill's brightness is smoothed to its own edges (0 keeps the raw fill)</source>
         <translation>塗りつぶしの明るさをその縁に合わせて滑らかにする強さ (0 で生の塗りつぶしを保持)</translation>
     </message>
     <message>
@@ -22108,7 +22108,7 @@ Clipped to the layer below</source>
         <translation>最寄りの端でオブジェクトを除去しました (ソース %1/%2)</translation>
     </message>
     <message>
-        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <source>Softens the fill's edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
         <translation>選択範囲自身のぼかしに加えて、塗りつぶしの縁を選択範囲の外側へぼかします。塗りつぶし範囲はぼかしの分だけ広がるため、選択範囲が縁に接している場合は小さくしてください</translation>
     </message>
     <message>
@@ -22116,7 +22116,7 @@ Clipped to the layer below</source>
         <translation>新規レイヤーに複製</translation>
     </message>
     <message>
-        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <source>Copies this variation's filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
         <translation>このバリエーションの塗りつぶし範囲を上の新しい非表示レイヤーにコピーし、複数のバリエーションを保存して比較できるようにします</translation>
     </message>
     <message>
@@ -22136,8 +22136,8 @@ Clipped to the layer below</source>
         <translation>オブジェクトを除去 バリエーション %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>バリエーション %1 を非表示レイヤー &quot;%2&quot; にコピーしました</translation>
+        <source>Copied variation %1 to the hidden layer "%2"</source>
+        <translation>バリエーション %1 を非表示レイヤー "%2" にコピーしました</translation>
     </message>
     <message>
         <source>&amp;Files as Layers...</source>
@@ -22232,7 +22232,7 @@ Clipped to the layer below</source>
         </translation>
     </message>
     <message>
-        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <source>How far a pixel's color may differ from the clicked color and still be filled</source>
         <translation>クリックした色からどれだけ離れた色までを塗りつぶすか</translation>
     </message>
     <message>
@@ -22260,7 +22260,7 @@ Clipped to the layer below</source>
         <translation>1 行目インデント:</translation>
     </message>
     <message>
-        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <source>Indent of each paragraph's first line; negative with a left indent makes a hanging indent</source>
         <translation>各段落の 1 行目のインデント。左インデントと組み合わせて負の値にするとぶら下げインデントになります</translation>
     </message>
     <message>
@@ -22268,7 +22268,7 @@ Clipped to the layer below</source>
         <translation>左インデント:</translation>
     </message>
     <message>
-        <source>Space between the box edge and every line&apos;s start</source>
+        <source>Space between the box edge and every line's start</source>
         <translation>テキストボックスの端と各行の先頭との間隔</translation>
     </message>
     <message>
@@ -22276,7 +22276,7 @@ Clipped to the layer below</source>
         <translation>右インデント:</translation>
     </message>
     <message>
-        <source>Space between every line&apos;s end and the box edge</source>
+        <source>Space between every line's end and the box edge</source>
         <translation>各行の末尾とテキストボックスの端との間隔</translation>
     </message>
     <message>
@@ -22320,15 +22320,15 @@ Clipped to the layer below</source>
         <translation>このスマートオブジェクトをレイヤーに変換する前に、スマートフィルターを削除してください</translation>
     </message>
     <message>
-        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <source>A warped or perspective Smart Object can't be converted to layers; rasterize it instead</source>
         <translation>ワープまたは遠近法が適用されたスマートオブジェクトはレイヤーに変換できません。代わりにラスタライズしてください</translation>
     </message>
     <message>
-        <source>The smart object&apos;s contents have no layers to convert</source>
+        <source>The smart object's contents have no layers to convert</source>
         <translation>スマートオブジェクトの内容に変換できるレイヤーがありません</translation>
     </message>
     <message>
-        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
+        <source>The contents contain Smart Filters, which can't be moved out of the Smart Object yet</source>
         <translation>内容にスマートフィルターが含まれているため、まだスマートオブジェクトの外に移動できません</translation>
     </message>
     <message>
@@ -22435,7 +22435,7 @@ Clipped to the layer below</source>
     </message>
     <message>
         <source>%1 via Patchy</source>
-        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in's name.</extracomment>
         <translation>%1 (Patchy 経由)</translation>
     </message>
     <message>
@@ -22479,12 +22479,12 @@ Clipped to the layer below</source>
         <translation>テーマを削除</translation>
     </message>
     <message>
-        <source>Delete the theme &quot;%1&quot;? Its file is removed from the themes folder.</source>
-        <translation>テーマ &quot;%1&quot; を削除しますか？ファイルはテーマフォルダーから削除されます。</translation>
+        <source>Delete the theme "%1"? Its file is removed from the themes folder.</source>
+        <translation>テーマ "%1" を削除しますか？ファイルはテーマフォルダーから削除されます。</translation>
     </message>
     <message>
-        <source>Could not delete &quot;%1&quot;.</source>
-        <translation>&quot;%1&quot; を削除できませんでした。</translation>
+        <source>Could not delete "%1".</source>
+        <translation>"%1" を削除できませんでした。</translation>
     </message>
     <message>
         <source>Import Theme</source>
@@ -22495,7 +22495,7 @@ Clipped to the layer below</source>
         <translation>Patchy テーマ (*.patchytheme)</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>「%1」を開けませんでした。</translation>
     </message>
     <message>
@@ -22662,44 +22662,44 @@ Clipped to the layer below</source>
         <translation>配置位置またはサイズが範囲外です</translation>
     </message>
     <message>
-        <source>text layer &quot;%1&quot;</source>
-        <translation>テキストレイヤー &quot;%1&quot;</translation>
+        <source>text layer "%1"</source>
+        <translation>テキストレイヤー "%1"</translation>
     </message>
     <message>
-        <source>pixel layer &quot;%1&quot;</source>
-        <translation>ピクセルレイヤー &quot;%1&quot;</translation>
+        <source>pixel layer "%1"</source>
+        <translation>ピクセルレイヤー "%1"</translation>
     </message>
     <message>
-        <source>smart object &quot;%1&quot;</source>
-        <translation>スマートオブジェクト &quot;%1&quot;</translation>
+        <source>smart object "%1"</source>
+        <translation>スマートオブジェクト "%1"</translation>
     </message>
     <message>
-        <source>adjustment layer &quot;%1&quot; and the layers below it</source>
-        <translation>調整レイヤー &quot;%1&quot; とその下のレイヤー</translation>
+        <source>adjustment layer "%1" and the layers below it</source>
+        <translation>調整レイヤー "%1" とその下のレイヤー</translation>
     </message>
     <message>
-        <source>the blend mode of &quot;%1&quot; and the layers below it</source>
-        <translation>&quot;%1&quot; の描画モードとその下のレイヤー</translation>
+        <source>the blend mode of "%1" and the layers below it</source>
+        <translation>"%1" の描画モードとその下のレイヤー</translation>
     </message>
     <message>
-        <source>shape layer &quot;%1&quot; (its styles or fill options)</source>
-        <translation>シェイプレイヤー &quot;%1&quot; (スタイルまたは塗りオプション)</translation>
+        <source>shape layer "%1" (its styles or fill options)</source>
+        <translation>シェイプレイヤー "%1" (スタイルまたは塗りオプション)</translation>
     </message>
     <message>
-        <source>group &quot;%1&quot; (its styles or masks)</source>
-        <translation>グループ &quot;%1&quot; (スタイルまたはマスク)</translation>
+        <source>group "%1" (its styles or masks)</source>
+        <translation>グループ "%1" (スタイルまたはマスク)</translation>
     </message>
     <message>
-        <source>clipping mask group &quot;%1&quot;</source>
-        <translation>クリッピングマスクグループ &quot;%1&quot;</translation>
+        <source>clipping mask group "%1"</source>
+        <translation>クリッピングマスクグループ "%1"</translation>
     </message>
     <message>
-        <source>the layer mask on &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; のレイヤーマスク</translation>
+        <source>the layer mask on "%1"</source>
+        <translation>"%1" のレイヤーマスク</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; (merged under an adjustment layer or blend mode)</source>
-        <translation>&quot;%1&quot; (調整レイヤーまたは描画モードの下で結合)</translation>
+        <source>"%1" (merged under an adjustment layer or blend mode)</source>
+        <translation>"%1" (調整レイヤーまたは描画モードの下で結合)</translation>
     </message>
     <message numerus="yes">
         <source>%1 and %n more</source>
@@ -22840,7 +22840,7 @@ Baked into images: %1.</source>
         <translation>切り抜き枠の幅</translation>
     </message>
     <message>
-        <source>Keep the crop box&apos;s width and height in proportion</source>
+        <source>Keep the crop box's width and height in proportion</source>
         <translation>切り抜き枠の幅と高さの比率を保つ</translation>
     </message>
     <message>
@@ -22984,7 +22984,7 @@ Baked into images: %1.</source>
         <translation>アイコンを %1 に保存しました</translation>
     </message>
     <message numerus="yes">
-        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <source>%n recovered document(s) could not be moved to this session's recovery folder; the copies stay in %1</source>
         <translation>
             <numerusform>%n 件の復元した書類をこのセッションの復元フォルダーに移動できませんでした。コピーは %1 に残っています</numerusform>
         </translation>
@@ -23162,7 +23162,7 @@ Baked into images: %1.</source>
         <translation>ダウンロードしたファイルが Patchy の参照する場所にありません</translation>
     </message>
     <message>
-        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool&apos;s options bar.</source>
+        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool's options bar.</source>
         <translation>ダウンロードした高品質モデルを削除します。オブジェクト選択は組み込みモデルを使用するようになります。ツールのオプションバーからいつでも再ダウンロードできます。</translation>
     </message>
     <message>
@@ -23250,16 +23250,16 @@ You can still download it in your browser.</source>
 ブラウザーからダウンロードすることもできます。</translation>
     </message>
     <message>
-        <source>G&apos;&amp;MIC Filter Library...</source>
-        <translation>G&apos;MIC フィルターライブラリ(&amp;M)...</translation>
+        <source>G'&amp;MIC Filter Library...</source>
+        <translation>G'MIC フィルターライブラリ(&amp;M)...</translation>
     </message>
     <message>
-        <source>Browse and apply filters from the G&apos;MIC library</source>
-        <translation>G&apos;MIC ライブラリのフィルターを参照して適用</translation>
+        <source>Browse and apply filters from the G'MIC library</source>
+        <translation>G'MIC ライブラリのフィルターを参照して適用</translation>
     </message>
     <message>
-        <source>This G&apos;MIC filter is not available</source>
-        <translation>この G&apos;MIC フィルターは利用できません</translation>
+        <source>This G'MIC filter is not available</source>
+        <translation>この G'MIC フィルターは利用できません</translation>
     </message>
     <message>
         <source>Rasterize the Smart Object before using %1</source>
@@ -23270,8 +23270,8 @@ You can still download it in your browser.</source>
         <translation>フィルターは画像を返しませんでした。</translation>
     </message>
     <message>
-        <source>G&apos;MIC Filter Library</source>
-        <translation>G&apos;MIC フィルターライブラリ</translation>
+        <source>G'MIC Filter Library</source>
+        <translation>G'MIC フィルターライブラリ</translation>
     </message>
     <message>
         <source>%1 could not be applied.
@@ -23294,7 +23294,7 @@ You can still download it in your browser.</source>
         <translation>%1 はこれらのレイヤーに約 %2 MB のメモリを必要とし、このコンピューターで確保できる量を超えています。入力レイヤーを減らすか、画像を小さくしてください。</translation>
     </message>
     <message>
-        <source>Don&apos;t ask again about version %1</source>
+        <source>Don't ask again about version %1</source>
         <translation>バージョン %1 については今後確認しない</translation>
     </message>
     <message>
@@ -23400,7 +23400,7 @@ You can still download it in your browser.</source>
         <translation>CMYK プロファイル</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is not a CMYK profile Patchy can use.</source>
+        <source>"%1" is not a CMYK profile Patchy can use.</source>
         <translation>「%1」は Patchy で使用できる CMYK プロファイルではありません。</translation>
     </message>
     <message>
@@ -23612,7 +23612,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>黒いテキストとグレーの領域をブラックインキだけで印刷し、小さな文字を印刷でもシャープに保ちます。カラーの領域はこれまでどおりプロファイルで色分解されます。</translation>
     </message>
     <message>
-        <source>Don&apos;t show this again</source>
+        <source>Don't show this again</source>
         <translation>今後表示しない</translation>
     </message>
     <message>
@@ -23689,16 +23689,16 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>前回のフィルター: %1</translation>
     </message>
     <message>
-        <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
-        <translation>G&apos;MIC フィルターライブラリ（400 近いフィルター）は、Windows、macOS、Linux 向けデスクトップ版 Patchy に含まれています。</translation>
+        <source>The G'MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
+        <translation>G'MIC フィルターライブラリ（400 近いフィルター）は、Windows、macOS、Linux 向けデスクトップ版 Patchy に含まれています。</translation>
     </message>
     <message>
         <source>Get the Desktop Version</source>
         <translation>デスクトップ版を入手</translation>
     </message>
     <message>
-        <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>
-        <translation>400 近い G&apos;MIC フィルター（デスクトップ版 Patchy）</translation>
+        <source>Nearly 400 G'MIC filters, in the desktop version of Patchy</source>
+        <translation>400 近い G'MIC フィルター（デスクトップ版 Patchy）</translation>
     </message>
     <message>
         <source>Rotate Layer &amp;Right</source>
@@ -24197,7 +24197,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>回転と反転(&amp;T)</translation>
     </message>
     <message>
-        <source>Shows the desktop&apos;s own title bar and window frame instead of Patchy&apos;s window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
+        <source>Shows the desktop's own title bar and window frame instead of Patchy's window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
         <translation>メニューバー内の Patchy のウィンドウ操作ボタンの代わりに、デスクトップ自身のタイトルバーとウィンドウ枠を表示します。デスクトップがアプリケーションのメニューをグローバルメニューバーに表示する場合は、既定でオンになります。次回 Patchy を起動したときに有効になります。</translation>
     </message>
     <message>
@@ -24229,7 +24229,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>Esc キーでテキストを確定</translation>
     </message>
     <message>
-        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar&apos;s Cancel button discards the edit. When off, Esc cancels the edit.</source>
+        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar's Cancel button discards the edit. When off, Esc cancels the edit.</source>
         <translation>オンにすると、Esc キーで入力中のテキストを %CTRL%+Enter と同じように確定し、オプションバーのキャンセルボタンで編集を破棄します。オフにすると、Esc キーで編集をキャンセルします。</translation>
     </message>
     <message>
@@ -24281,7 +24281,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>文字 &gt; 見つからないフォントを解決 で、同じダイアログをいつでも開けます。</translation>
     </message>
     <message>
-        <source>The following fonts are missing for text layer &quot;%1&quot;: %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
+        <source>The following fonts are missing for text layer "%1": %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
         <translation>テキストレイヤー「%1」に次のフォントがありません: %2。再レンダリングせず、既存のピクセルを変形します。続行しますか?</translation>
     </message>
     <message numerus="yes">
@@ -24319,11 +24319,11 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>毎日</translation>
     </message>
     <message>
-        <source>Width part of the selection&apos;s aspect ratio</source>
+        <source>Width part of the selection's aspect ratio</source>
         <translation>選択範囲の縦横比の幅</translation>
     </message>
     <message>
-        <source>Height part of the selection&apos;s aspect ratio</source>
+        <source>Height part of the selection's aspect ratio</source>
         <translation>選択範囲の縦横比の高さ</translation>
     </message>
     <message>
@@ -24407,7 +24407,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>この CMYK ファイルは 画像 &gt; モード &gt; CMYK 校正 で開かれています。</translation>
     </message>
     <message>
-        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file's inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
         <translation>CMYK 校正はエミュレーションです。Patchy は RGB で編集します。開くときにファイルのインキを RGB に変換し、CMYK カラープロファイルを通して印刷結果を表示し、保存するときに CMYK に戻します。そのため、色やインキの値は Photoshop などの本来の CMYK エディターとわずかに異なることがあります。CMYK の PSD のうち変更しないレイヤーは元のインキを保ちます。</translation>
     </message>
     <message>
@@ -24447,7 +24447,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>Patchy をアプリケーションメニューから削除しました</translation>
     </message>
     <message>
-        <source>Don&apos;t Ask Again</source>
+        <source>Don't Ask Again</source>
         <translation>今後確認しない</translation>
     </message>
     <message>
@@ -24713,7 +24713,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>変形コントロール</translation>
     </message>
     <message>
-        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <source>Artboards can't be cleared. Deselect first, then Delete removes the artboard.</source>
         <translation>アートボードは消去できません。選択を解除してから Delete キーでアートボードを削除してください。</translation>
     </message>
     <message>
@@ -25009,7 +25009,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>解像度:</translation>
     </message>
     <message>
-        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
+        <source>Resolution of the result in pixels per inch; blank keeps the document's</source>
         <translation>結果の解像度 (pixel/inch)。空欄の場合はドキュメントの解像度のままです</translation>
     </message>
     <message>
@@ -25081,7 +25081,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>遠近法の切り抜き: ボックスをドラッグするか 4 つの角をクリックし、角または辺を範囲の縁に合わせてドラッグします。内側をドラッグすると移動、角のすぐ外側をドラッグすると回転します (Shift で 15 度単位)。矢印は結果の上側を示します。Enter で切り抜いて補正、Esc で角を消去します。</translation>
     </message>
     <message>
-        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
+        <source>Size of the tool palette's icons and buttons, relative to the interface scale.</source>
         <translation>ツールパレットのアイコンとボタンのサイズです。インターフェースの拡大率に対する相対値です。</translation>
     </message>
     <message>
@@ -25118,7 +25118,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>見えない透かしを追加(&amp;V)...</translation>
     </message>
     <message>
-        <source>Hide a short message that anyone can read in the active layer&apos;s pixels with Adobe TrustMark</source>
+        <source>Hide a short message that anyone can read in the active layer's pixels with Adobe TrustMark</source>
         <translation>Adobe TrustMark で、誰でも読める短いメッセージをアクティブなレイヤーのピクセルに埋め込む</translation>
     </message>
     <message>
@@ -25222,7 +25222,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>保存時に見えない透かしを追加:</translation>
     </message>
     <message>
-        <source>Only the saved file&apos;s pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
+        <source>Only the saved file's pixels are marked; the open document and its history do not change. PNG, JPEG, WebP, BMP, JPEG XL, AVIF and TIFF without layers are marked, and so are exports. Layered files (PSD, PSB, TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under 128 pixels and images that already carry your text are skipped.</source>
         <translation>透かしが入るのは保存したファイルのピクセルだけで、開いているドキュメントとその履歴は変わりません。PNG、JPEG、WebP、BMP、JPEG XL、AVIF、レイヤーのない TIFF に入り、書き出しにも入ります。レイヤーのあるファイル（PSD、PSB、レイヤー付き TIFF）には入りません。気づかないうちにレイヤーのピクセルが変わってしまうためです。128 ピクセル未満の画像と、すでにあなたのテキストが入っている画像はスキップされます。</translation>
     </message>
     <message>
@@ -25378,7 +25378,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>オブジェクト選択の高品質モデル: 未ダウンロード (%2 から %1 MB)</translation>
     </message>
     <message>
-        <source>Downloads the Adobe TrustMark watermark models (Adobe&apos;s, MIT License; %1 MB from %2). File Info&apos;s Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
+        <source>Downloads the Adobe TrustMark watermark models (Adobe's, MIT License; %1 MB from %2). File Info's Scan for Watermarks then reads TrustMark watermarks, and Image &gt; Add Invisible Watermark can add one.</source>
         <translation>Adobe TrustMark の透かしモデルをダウンロードします (Adobe 製、MIT ライセンス、%2 から %1 MB)。ファイル情報の「透かしをスキャン」で TrustMark の透かしを読み取れ、「イメージ &gt; 不可視の透かしを追加」で透かしを追加できます。</translation>
     </message>
     <message>
@@ -25518,20 +25518,20 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>補正した瞳孔をどれだけ暗くするか</translation>
     </message>
     <message>
-        <source>shape layer &quot;%1&quot;</source>
-        <translation>シェイプレイヤー &quot;%1&quot;</translation>
+        <source>shape layer "%1"</source>
+        <translation>シェイプレイヤー "%1"</translation>
     </message>
     <message>
-        <source>the blend mode of &quot;%1&quot; (only Krita reads it)</source>
-        <translation>&quot;%1&quot; の描画モード (Krita のみが読み込みます)</translation>
+        <source>the blend mode of "%1" (only Krita reads it)</source>
+        <translation>"%1" の描画モード (Krita のみが読み込みます)</translation>
     </message>
     <message>
-        <source>the layer style of &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; のレイヤースタイル</translation>
+        <source>the layer style of "%1"</source>
+        <translation>"%1" のレイヤースタイル</translation>
     </message>
     <message>
-        <source>the blending options of &quot;%1&quot;</source>
-        <translation>&quot;%1&quot; の描画オプション</translation>
+        <source>the blending options of "%1"</source>
+        <translation>"%1" の描画オプション</translation>
     </message>
     <message>
         <source>32-bit channels (saved at 16 bits)</source>
@@ -25562,7 +25562,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>一部の内容が焼き込まれます</translation>
     </message>
     <message>
-        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document&apos;s content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
+        <source>OpenRaster keeps layers, groups, opacity and blend modes, but some of this document's content cannot be stored as it is. Continue saving with it baked into layer pixels or left out? To keep everything editable, also save a Photoshop document (.psd).
 
 Changed: %1.</source>
         <translation>OpenRaster はレイヤー、グループ、不透明度、描画モードを保持しますが、このドキュメントの一部の内容はそのままでは保存できません。それらをレイヤーのピクセルに焼き込むか省いて保存を続けますか？すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) も保存してください。
@@ -25574,7 +25574,7 @@ Changed: %1.</source>
         <translation>描画モードがサポートされていません</translation>
     </message>
     <message numerus="yes">
-        <source>%1 files can&apos;t store these blend modes: %2 (%n layer(s)).</source>
+        <source>%1 files can't store these blend modes: %2 (%n layer(s)).</source>
         <translation>
             <numerusform>%1 ファイルには次の描画モードを保存できません: %2 (%n 個のレイヤー)。</numerusform>
         </translation>
@@ -25768,11 +25768,11 @@ The open document keeps its blend modes either way.</source>
         <translation>プリセットの名前を入力してください。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
+        <source>"%1" is a built-in preset. Choose another name.</source>
         <translation>「%1」は組み込みのプリセットです。別の名前を選んでください。</translation>
     </message>
     <message>
-        <source>Replace the preset &quot;%1&quot;?</source>
+        <source>Replace the preset "%1"?</source>
         <translation>プリセット「%1」を置き換えますか?</translation>
     </message>
     <message>
@@ -25780,7 +25780,7 @@ The open document keeps its blend modes either way.</source>
         <translation>ガイドレイアウトのプリセットを削除</translation>
     </message>
     <message>
-        <source>Delete the preset &quot;%1&quot;?</source>
+        <source>Delete the preset "%1"?</source>
         <translation>プリセット「%1」を削除しますか?</translation>
     </message>
     <message>
@@ -25922,6 +25922,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Preview the source under the brush before you paint</source>
         <translation>ペイントする前にブラシの下にソースをプレビューします</translation>
+    </message>
+<message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>移動: ドラッグで移動、Shift+ドラッグで水平または垂直に移動、%ALT%+ドラッグで複製します。%CTRL%+クリックでレイヤーを選択、Shift+クリックで切り替えます。%CTRL%+ドラッグで矩形選択します。自動選択がオンなら空いた場所のドラッグでも選択します。</translation>
     </message>
 </context>
 <context>
@@ -26131,7 +26135,7 @@ The open document keeps its blend modes either way.</source>
         <translation>抽出</translation>
     </message>
     <message>
-        <source>Build the palette from the image&apos;s colors</source>
+        <source>Build the palette from the image's colors</source>
         <translation>画像の色からパレットを作成します</translation>
     </message>
     <message>
@@ -26147,7 +26151,7 @@ The open document keeps its blend modes either way.</source>
         <translation>コピー</translation>
     </message>
     <message>
-        <source>Copy the selected color&apos;s hex code to the clipboard</source>
+        <source>Copy the selected color's hex code to the clipboard</source>
         <translation>選択した色の 16 進コードをクリップボードにコピーします</translation>
     </message>
     <message>
@@ -26375,7 +26379,7 @@ The open document keeps its blend modes either way.</source>
         <translation>%CTRL%+クリックまたは %CTRL%+Enter でパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation>
     </message>
     <message>
-        <source>This is the document&apos;s clipping path.</source>
+        <source>This is the document's clipping path.</source>
         <translation>このパスはドキュメントのクリッピングパスです。</translation>
     </message>
     <message>
@@ -26383,7 +26387,7 @@ The open document keeps its blend modes either way.</source>
         <translation>一時的な作業用パス。ダブルクリックで名前付きパスとして保存します。</translation>
     </message>
     <message>
-        <source>The active layer&apos;s path (shape or vector mask).</source>
+        <source>The active layer's path (shape or vector mask).</source>
         <translation>アクティブレイヤーのパス（シェイプまたはベクトルマスク）。</translation>
     </message>
 </context>
@@ -26394,19 +26398,19 @@ The open document keeps its blend modes either way.</source>
         <translation>無題のパターン</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>「%1」を開けませんでした。</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot;.</source>
+        <source>Could not read "%1".</source>
         <translation>「%1」を読み込めませんでした。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to import safely.</source>
+        <source>"%1" is too large to import safely.</source>
         <translation>「%1」は安全に読み込めるサイズを超えています。</translation>
     </message>
     <message>
-        <source>Could not import patterns from &quot;%1&quot;. The file is not a supported Photoshop PAT file or is damaged.</source>
+        <source>Could not import patterns from "%1". The file is not a supported Photoshop PAT file or is damaged.</source>
         <translation>「%1」からパターンを読み込めませんでした。このファイルは対応する Photoshop PAT ファイルではないか、破損しています。</translation>
     </message>
     <message>
@@ -26414,19 +26418,19 @@ The open document keeps its blend modes either way.</source>
         <translation>未対応または破損したデータが含まれているため、一部のパターンデータをスキップまたは修復しました。</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot; as an image.</source>
+        <source>Could not read "%1" as an image.</source>
         <translation>「%1」を画像として読み込めませんでした。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to use as a pattern (over 8 million pixels).</source>
+        <source>"%1" is too large to use as a pattern (over 8 million pixels).</source>
         <translation>「%1」は大きすぎてパターンとして使用できません (800 万ピクセル超)。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
+        <source>"%1" is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
         <translation>「%1」は大きすぎてパターンとして使用できません (幅または高さが 30,000 ピクセル超)。</translation>
     </message>
     <message>
-        <source>Animated image &quot;%1&quot;: imported the first frame only.</source>
+        <source>Animated image "%1": imported the first frame only.</source>
         <translation>アニメーション画像「%1」: 最初のフレームのみ読み込みました。</translation>
     </message>
     <message>
@@ -26438,19 +26442,19 @@ The open document keeps its blend modes either way.</source>
         <translation>パターン %1</translation>
     </message>
     <message>
-        <source>Skipped pattern &quot;%1&quot; because its pixels could not be decoded.</source>
+        <source>Skipped pattern "%1" because its pixels could not be decoded.</source>
         <translation>ピクセルをデコードできなかったため、パターン「%1」をスキップしました。</translation>
     </message>
     <message>
-        <source>Pattern &quot;%1&quot; used an id already assigned to different pixels; it was imported with a new id.</source>
+        <source>Pattern "%1" used an id already assigned to different pixels; it was imported with a new id.</source>
         <translation>パターン「%1」の ID は別のピクセルに割り当て済みだったため、新しい ID で読み込みました。</translation>
     </message>
     <message>
-        <source>Could not save pattern &quot;%1&quot;.</source>
+        <source>Could not save pattern "%1".</source>
         <translation>パターン「%1」を保存できませんでした。</translation>
     </message>
     <message>
-        <source>No patterns could be imported from &quot;%1&quot;.</source>
+        <source>No patterns could be imported from "%1".</source>
         <translation>「%1」からパターンを読み込めませんでした。</translation>
     </message>
     <message>
@@ -26549,7 +26553,7 @@ The open document keeps its blend modes either way.</source>
         <translation>現在のウィンドウからアイコンを設定</translation>
     </message>
     <message>
-        <source>Captures the running script&apos;s window (or the active image) as this script&apos;s icon.</source>
+        <source>Captures the running script's window (or the active image) as this script's icon.</source>
         <translation>実行中のスクリプトのウィンドウ (またはアクティブな画像) をこのスクリプトのアイコンとして取り込みます。</translation>
     </message>
     <message>
@@ -26661,7 +26665,7 @@ The open document keeps its blend modes either way.</source>
         <translation>ホットキーを割り当て...</translation>
     </message>
     <message>
-        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <source>Opens Preferences &gt; Hotkeys at this script's row.</source>
         <translation>環境設定 &gt; ホットキーをこのスクリプトの行で開きます。</translation>
     </message>
     <message>
@@ -26764,8 +26768,8 @@ The open document keeps its blend modes either way.</source>
         <translation>スクリプトを停止</translation>
     </message>
     <message>
-        <source>Stop &quot;%1&quot;?</source>
-        <translation>&quot;%1&quot; を停止しますか?</translation>
+        <source>Stop "%1"?</source>
+        <translation>"%1" を停止しますか?</translation>
     </message>
     <message>
         <source>Undo the changes it made</source>
@@ -26828,12 +26832,12 @@ The open document keeps its blend modes either way.</source>
         <translation>showDialog: spec.fields は配列である必要があります</translation>
     </message>
     <message>
-        <source>showDialog: every field needs a non-empty &quot;key&quot;</source>
-        <translation>showDialog: すべてのフィールドに空でない &quot;key&quot; が必要です</translation>
+        <source>showDialog: every field needs a non-empty "key"</source>
+        <translation>showDialog: すべてのフィールドに空でない "key" が必要です</translation>
     </message>
     <message>
-        <source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, color, folder, or file)</source>
-        <translation>showDialog: 不明なフィールドタイプ &quot;%1&quot; です (number、slider、checkbox、choice、text、color、folder、file のいずれかを使用してください)</translation>
+        <source>showDialog: unknown field type "%1" (use number, slider, checkbox, choice, text, color, folder, or file)</source>
+        <translation>showDialog: 不明なフィールドタイプ "%1" です (number、slider、checkbox、choice、text、color、folder、file のいずれかを使用してください)</translation>
     </message>
     <message>
         <source>Browse...</source>
@@ -26904,8 +26908,8 @@ The open document keeps its blend modes either way.</source>
         <translation>applyFilter にはピクセルレイヤーが必要です。</translation>
     </message>
     <message>
-        <source>Invalid color: %1 (use &quot;#rrggbb&quot; or a named color)</source>
-        <translation>無効な色です: %1 (&quot;#rrggbb&quot; または色名を使用してください)</translation>
+        <source>Invalid color: %1 (use "#rrggbb" or a named color)</source>
+        <translation>無効な色です: %1 ("#rrggbb" または色名を使用してください)</translation>
     </message>
     <message>
         <source>This layer is not a text layer.</source>
@@ -27216,20 +27220,20 @@ The open document keeps its blend modes either way.</source>
         <translation>不明な描画モード: %1</translation>
     </message>
     <message>
-        <source>textOrientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
-        <translation>textOrientation は &apos;horizontal&apos; または &apos;vertical&apos; でなければなりません。</translation>
+        <source>textOrientation must be 'horizontal' or 'vertical'.</source>
+        <translation>textOrientation は 'horizontal' または 'vertical' でなければなりません。</translation>
     </message>
     <message>
-        <source>textDirection must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
-        <translation>textDirection は &apos;auto&apos;、&apos;ltr&apos;、&apos;rtl&apos; のいずれかでなければなりません。</translation>
+        <source>textDirection must be 'auto', 'ltr' or 'rtl'.</source>
+        <translation>textDirection は 'auto'、'ltr'、'rtl' のいずれかでなければなりません。</translation>
     </message>
     <message>
-        <source>orientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
-        <translation>orientation は &apos;horizontal&apos; または &apos;vertical&apos; でなければなりません。</translation>
+        <source>orientation must be 'horizontal' or 'vertical'.</source>
+        <translation>orientation は 'horizontal' または 'vertical' でなければなりません。</translation>
     </message>
     <message>
-        <source>direction must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
-        <translation>direction は &apos;auto&apos;、&apos;ltr&apos;、&apos;rtl&apos; のいずれかでなければなりません。</translation>
+        <source>direction must be 'auto', 'ltr' or 'rtl'.</source>
+        <translation>direction は 'auto'、'ltr'、'rtl' のいずれかでなければなりません。</translation>
     </message>
     <message>
         <source>exportPdf needs one open document or an array of them.</source>
@@ -27248,15 +27252,15 @@ The open document keeps its blend modes either way.</source>
         <translation>ドキュメントの 1 つがすでに閉じられています。</translation>
     </message>
     <message>
-        <source>exportPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
-        <translation>exportPdf の imageQuality は &quot;lossless&quot;、&quot;high&quot;、&quot;medium&quot;、&quot;low&quot; のいずれかでなければなりません。</translation>
+        <source>exportPdf imageQuality must be "lossless", "high", "medium", or "low".</source>
+        <translation>exportPdf の imageQuality は "lossless"、"high"、"medium"、"low" のいずれかでなければなりません。</translation>
     </message>
     <message>
         <source>removeObject: unknown option %1.</source>
         <translation>removeObject: 不明なオプション %1。</translation>
     </message>
     <message>
-        <source>removeObject needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <source>removeObject needs the document's active layer (set doc.activeLayer first).</source>
         <translation>removeObject にはドキュメントのアクティブレイヤーが必要です (先に doc.activeLayer を設定してください)。</translation>
     </message>
     <message>
@@ -27276,8 +27280,8 @@ The open document keeps its blend modes either way.</source>
         <translation>%1: layers はこのドキュメントのレイヤーの空でない配列である必要があります。</translation>
     </message>
     <message>
-        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
-        <translation>%1: alignTo は &quot;selection&quot; または &quot;canvas&quot; である必要があります。</translation>
+        <source>%1: alignTo must be "selection" or "canvas".</source>
+        <translation>%1: alignTo は "selection" または "canvas" である必要があります。</translation>
     </message>
     <message>
         <source>%1: unknown option %2.</source>
@@ -27320,8 +27324,8 @@ The open document keeps its blend modes either way.</source>
         <translation>intervalMinutes は 5、10、15、30、60 のいずれかにしてください</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
+        <source>textAlign must be 'left', 'center', 'right' or 'justify'.</source>
+        <translation>textAlign は 'left'、'center'、'right'、'justify' のいずれかにしてください。</translation>
     </message>
     <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
@@ -27352,8 +27356,8 @@ The open document keeps its blend modes either way.</source>
         <translation>box は {width, height} で、それぞれ 16 ドキュメントピクセル以上にしてください。</translation>
     </message>
     <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
+        <source>align must be 'left', 'center', 'right' or 'justify'.</source>
+        <translation>align は 'left'、'center'、'right'、'justify' のいずれかにしてください。</translation>
     </message>
     <message>
         <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
@@ -27464,24 +27468,24 @@ The open document keeps its blend modes either way.</source>
         <translation>%1 には出力パスが必要です。</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
-        <translation>patchy.scripts.install: オプションは {hotkey: &quot;Ctrl+Alt+D&quot;} のようなオブジェクトでなければなりません。</translation>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: "Ctrl+Alt+D"}.</source>
+        <translation>patchy.scripts.install: オプションは {hotkey: "Ctrl+Alt+D"} のようなオブジェクトでなければなりません。</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
-        <translation>patchy.scripts.install: hotkey は &quot;Ctrl+Alt+D&quot; のような文字列でなければなりません。</translation>
+        <source>patchy.scripts.install: hotkey must be a string such as "Ctrl+Alt+D".</source>
+        <translation>patchy.scripts.install: hotkey は "Ctrl+Alt+D" のような文字列でなければなりません。</translation>
     </message>
     <message>
-        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
-        <translation>patchy.scripts: &quot;%1&quot; にスクリプトがありません (先にインストールするか rescan() を呼んでください)。</translation>
+        <source>patchy.scripts: no script at "%1" (install it or call rescan() first).</source>
+        <translation>patchy.scripts: "%1" にスクリプトがありません (先にインストールするか rescan() を呼んでください)。</translation>
     </message>
     <message>
-        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
-        <translation>patchy.scripts: &quot;%1&quot; は Patchy が割り当てられるショートカットではありません (&quot;Ctrl+Alt+D&quot; のような Qt のポータブル表記を使ってください)。</translation>
+        <source>patchy.scripts: "%1" is not a shortcut Patchy can bind (use Qt's portable spelling, such as "Ctrl+Alt+D").</source>
+        <translation>patchy.scripts: "%1" は Patchy が割り当てられるショートカットではありません ("Ctrl+Alt+D" のような Qt のポータブル表記を使ってください)。</translation>
     </message>
     <message>
-        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
-        <translation>patchy.scripts: スクリプトのパスはユーザースクリプトフォルダー内の .js ファイルパス (&quot;Mine/export.js&quot;) でなければなりません。&quot;%1&quot; は使えません。</translation>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder ("Mine/export.js"), not "%1".</source>
+        <translation>patchy.scripts: スクリプトのパスはユーザースクリプトフォルダー内の .js ファイルパス ("Mine/export.js") でなければなりません。"%1" は使えません。</translation>
     </message>
     <message>
         <source>patchy.scripts: could not create the folder for %1.</source>
@@ -27544,8 +27548,8 @@ The open document keeps its blend modes either way.</source>
         <translation>removeBackground のオプションが無効です: %1。</translation>
     </message>
     <message>
-        <source>setFileInfo needs an object such as {title: &quot;Harbor&quot;}.</source>
-        <translation>setFileInfo には {title: &quot;Harbor&quot;} のようなオブジェクトを指定してください。</translation>
+        <source>setFileInfo needs an object such as {title: "Harbor"}.</source>
+        <translation>setFileInfo には {title: "Harbor"} のようなオブジェクトを指定してください。</translation>
     </message>
     <message>
         <source>setFileInfo: %1 must be %2.</source>
@@ -27596,12 +27600,12 @@ The open document keeps its blend modes either way.</source>
         <translation>高品質モデルをダウンロードできませんでした: %1</translation>
     </message>
     <message>
-        <source>G&apos;MIC filters are not available in this build.</source>
-        <translation>このビルドでは G&apos;MIC フィルターを利用できません。</translation>
+        <source>G'MIC filters are not available in this build.</source>
+        <translation>このビルドでは G'MIC フィルターを利用できません。</translation>
     </message>
     <message>
-        <source>Unknown G&apos;MIC filter: %1</source>
-        <translation>不明な G&apos;MIC フィルター: %1</translation>
+        <source>Unknown G'MIC filter: %1</source>
+        <translation>不明な G'MIC フィルター: %1</translation>
     </message>
     <message>
         <source>applyGmic: %1 is not a valid value for %2.</source>
@@ -27624,12 +27628,12 @@ The open document keeps its blend modes either way.</source>
         <translation>applyGmic: 不明な inputLayers の値 %1。</translation>
     </message>
     <message>
-        <source>G&apos;MIC filter %1 was cancelled.</source>
-        <translation>G&apos;MIC フィルター %1 はキャンセルされました。</translation>
+        <source>G'MIC filter %1 was cancelled.</source>
+        <translation>G'MIC フィルター %1 はキャンセルされました。</translation>
     </message>
     <message>
-        <source>G&apos;MIC filter %1 failed: %2</source>
-        <translation>G&apos;MIC フィルター %1 が失敗しました: %2</translation>
+        <source>G'MIC filter %1 failed: %2</source>
+        <translation>G'MIC フィルター %1 が失敗しました: %2</translation>
     </message>
     <message>
         <source>CMYK values are percentages from 0 to 100</source>
@@ -27652,12 +27656,12 @@ The open document keeps its blend modes either way.</source>
         <translation>アートボードでキャンバスを %1 x %1 px より大きくすることはできません。</translation>
     </message>
     <message>
-        <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
-        <translation>exportPdf の pages は &quot;artboards&quot;、&quot;groups&quot;、&quot;canvas&quot; のいずれかである必要があります。</translation>
+        <source>exportPdf pages must be "artboards", "groups" or "canvas".</source>
+        <translation>exportPdf の pages は "artboards"、"groups"、"canvas" のいずれかである必要があります。</translation>
     </message>
     <message>
-        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
-        <translation>不明なパネル &quot;%1&quot; です。パネル: %2。</translation>
+        <source>Unknown panel "%1". Panels: %2.</source>
+        <translation>不明なパネル "%1" です。パネル: %2。</translation>
     </message>
     <message>
         <source>Unknown layer color label: %1</source>
@@ -27700,8 +27704,8 @@ The open document keeps its blend modes either way.</source>
         <translation>trim のオプションはオブジェクトである必要があります。</translation>
     </message>
     <message>
-        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
-        <translation>trim の basedOn は &quot;transparent&quot;、&quot;topLeft&quot;、&quot;bottomRight&quot; のいずれかである必要があります。</translation>
+        <source>trim basedOn must be one of "transparent", "topLeft", "bottomRight".</source>
+        <translation>trim の basedOn は "transparent"、"topLeft"、"bottomRight" のいずれかである必要があります。</translation>
     </message>
     <message>
         <source>trim does not apply to a document with artboards.</source>
@@ -27728,8 +27732,8 @@ The open document keeps its blend modes either way.</source>
         <translation>TrustMark を実行できませんでした: %1</translation>
     </message>
     <message>
-        <source>addInvisibleWatermark options must be an object such as {text: &quot;Patchy&quot;}.</source>
-        <translation>addInvisibleWatermark のオプションは {text: &quot;Patchy&quot;} のようなオブジェクトにしてください。</translation>
+        <source>addInvisibleWatermark options must be an object such as {text: "Patchy"}.</source>
+        <translation>addInvisibleWatermark のオプションは {text: "Patchy"} のようなオブジェクトにしてください。</translation>
     </message>
     <message>
         <source>addInvisibleWatermark: unknown schema %1.</source>
@@ -27784,28 +27788,28 @@ The open document keeps its blend modes either way.</source>
         <translation>透かしを追加できませんでした: %1</translation>
     </message>
     <message>
-        <source>setWatermarkPreferences takes an object such as {addOnSave: &quot;ask&quot;}.</source>
-        <translation>setWatermarkPreferences には {addOnSave: &quot;ask&quot;} のようなオブジェクトを渡してください。</translation>
+        <source>setWatermarkPreferences takes an object such as {addOnSave: "ask"}.</source>
+        <translation>setWatermarkPreferences には {addOnSave: "ask"} のようなオブジェクトを渡してください。</translation>
     </message>
     <message>
         <source>setWatermarkPreferences: text must be printable ASCII of at most %1 characters.</source>
         <translation>setWatermarkPreferences: text は最大 %1 文字の印字可能な ASCII にしてください。</translation>
     </message>
     <message>
-        <source>setWatermarkPreferences: addOnSave must be &quot;never&quot;, &quot;ask&quot; or &quot;always&quot;.</source>
-        <translation>setWatermarkPreferences: addOnSave は &quot;never&quot;、&quot;ask&quot;、&quot;always&quot; のいずれかにしてください。</translation>
+        <source>setWatermarkPreferences: addOnSave must be "never", "ask" or "always".</source>
+        <translation>setWatermarkPreferences: addOnSave は "never"、"ask"、"always" のいずれかにしてください。</translation>
     </message>
     <message>
         <source>setWatermarkPreferences: unknown option %1.</source>
         <translation>setWatermarkPreferences: 不明なオプション %1。</translation>
     </message>
     <message>
-        <source>setSaveMetadataPreferences takes an object such as {mode: &quot;basic&quot;}.</source>
-        <translation>setSaveMetadataPreferences には {mode: &quot;basic&quot;} のようなオブジェクトを渡してください。</translation>
+        <source>setSaveMetadataPreferences takes an object such as {mode: "basic"}.</source>
+        <translation>setSaveMetadataPreferences には {mode: "basic"} のようなオブジェクトを渡してください。</translation>
     </message>
     <message>
-        <source>setSaveMetadataPreferences: mode must be &quot;none&quot;, &quot;basic&quot; or &quot;personal&quot;.</source>
-        <translation>setSaveMetadataPreferences: mode は &quot;none&quot;、&quot;basic&quot;、&quot;personal&quot; のいずれかにしてください。</translation>
+        <source>setSaveMetadataPreferences: mode must be "none", "basic" or "personal".</source>
+        <translation>setSaveMetadataPreferences: mode は "none"、"basic"、"personal" のいずれかにしてください。</translation>
     </message>
     <message>
         <source>setSaveMetadataPreferences: unknown option %1.</source>
@@ -27816,16 +27820,16 @@ The open document keeps its blend modes either way.</source>
         <translation>convertToProfile のオプションはオブジェクトでなければなりません。</translation>
     </message>
     <message>
-        <source>intent must be &quot;perceptual&quot;, &quot;relative-colorimetric&quot;, &quot;saturation&quot; or &quot;absolute-colorimetric&quot;.</source>
-        <translation>intent は &quot;perceptual&quot;、&quot;relative-colorimetric&quot;、&quot;saturation&quot;、&quot;absolute-colorimetric&quot; のいずれかでなければなりません。</translation>
+        <source>intent must be "perceptual", "relative-colorimetric", "saturation" or "absolute-colorimetric".</source>
+        <translation>intent は "perceptual"、"relative-colorimetric"、"saturation"、"absolute-colorimetric" のいずれかでなければなりません。</translation>
     </message>
     <message>
         <source>blackPointCompensation must be true or false.</source>
         <translation>blackPointCompensation は true か false でなければなりません。</translation>
     </message>
     <message>
-        <source>convertToProfile takes &quot;sRGB&quot; or the path of an RGB profile file: %1</source>
-        <translation>convertToProfile には &quot;sRGB&quot; または RGB プロファイルファイルのパスを指定します: %1</translation>
+        <source>convertToProfile takes "sRGB" or the path of an RGB profile file: %1</source>
+        <translation>convertToProfile には "sRGB" または RGB プロファイルファイルのパスを指定します: %1</translation>
     </message>
     <message>
         <source>Convert an Indexed document to RGB Color first.</source>
@@ -27860,15 +27864,15 @@ The open document keeps its blend modes either way.</source>
         <translation>newDocument の name には、ファイル名に使える文字を 1 つ以上含めてください。</translation>
     </message>
     <message>
-        <source>newDocument colorMode must be &quot;rgb&quot; or &quot;cmykProof&quot;.</source>
-        <translation>newDocument の colorMode は &quot;rgb&quot; または &quot;cmykProof&quot; にしてください。</translation>
+        <source>newDocument colorMode must be "rgb" or "cmykProof".</source>
+        <translation>newDocument の colorMode は "rgb" または "cmykProof" にしてください。</translation>
     </message>
     <message>
         <source>CMYK Proof needs a CMYK profile. Choose one in Preferences.</source>
         <translation>CMYK 校正には CMYK プロファイルが必要です。環境設定で選択してください。</translation>
     </message>
     <message>
-        <source>redEye needs the document&apos;s active layer (set doc.activeLayer first).</source>
+        <source>redEye needs the document's active layer (set doc.activeLayer first).</source>
         <translation>redEye にはドキュメントのアクティブレイヤーが必要です (先に doc.activeLayer を設定してください)。</translation>
     </message>
     <message>
@@ -27911,44 +27915,44 @@ The open document keeps its blend modes either way.</source>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
     <message>
-        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
-        <translation>%1: オプション &quot;%2&quot; は %3 から %4 までの整数でなければなりません。</translation>
+        <source>%1: option "%2" must be an integer from %3 to %4.</source>
+        <translation>%1: オプション "%2" は %3 から %4 までの整数でなければなりません。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be true or false.</source>
-        <translation>%1: オプション &quot;%2&quot; は true または false でなければなりません。</translation>
+        <source>%1: option "%2" must be true or false.</source>
+        <translation>%1: オプション "%2" は true または false でなければなりません。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be a string.</source>
-        <translation>%1: オプション &quot;%2&quot; は文字列でなければなりません。</translation>
+        <source>%1: option "%2" must be a string.</source>
+        <translation>%1: オプション "%2" は文字列でなければなりません。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be one of %3.</source>
-        <translation>%1: オプション &quot;%2&quot; は %3 のいずれかでなければなりません。</translation>
+        <source>%1: option "%2" must be one of %3.</source>
+        <translation>%1: オプション "%2" は %3 のいずれかでなければなりません。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
-        <translation>%1: オプション &quot;%2&quot; は .%3 ファイルには適用されません。</translation>
+        <source>%1: option "%2" does not apply to a .%3 file.</source>
+        <translation>%1: オプション "%2" は .%3 ファイルには適用されません。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
-        <translation>%1: オプション &quot;%2&quot; は %3 のサイズからなる空でない配列でなければなりません。</translation>
+        <source>%1: option "%2" must be a non-empty array of sizes from %3.</source>
+        <translation>%1: オプション "%2" は %3 のサイズからなる空でない配列でなければなりません。</translation>
     </message>
     <message>
-        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
-        <translation>%1: オプション &quot;%2&quot; は 0 から 255 までの整数の {x, y} オブジェクトでなければなりません。</translation>
+        <source>%1: option "%2" must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: オプション "%2" は 0 から 255 までの整数の {x, y} オブジェクトでなければなりません。</translation>
     </message>
     <message>
         <source>%1: options must be an object such as {quality: 85}.</source>
         <translation>%1: オプションは {quality: 85} のようなオブジェクトでなければなりません。</translation>
     </message>
     <message>
-        <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
-        <translation>%1: blackInkOnly には colorMode: &quot;cmyk&quot; が必要です。</translation>
+        <source>%1: blackInkOnly needs colorMode: "cmyk".</source>
+        <translation>%1: blackInkOnly には colorMode: "cmyk" が必要です。</translation>
     </message>
     <message>
-        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
-        <translation>%1: layers には colorMode: &quot;rgb&quot; が必要です。レイヤー付き TIFF は RGB で保存されます。</translation>
+        <source>%1: layers needs colorMode: "rgb"; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers には colorMode: "rgb" が必要です。レイヤー付き TIFF は RGB で保存されます。</translation>
     </message>
 </context>
 <context>
@@ -27970,7 +27974,7 @@ The open document keeps its blend modes either way.</source>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
+        <source>Seth's site: %1</source>
         <translation>Seth のサイト: %1</translation>
     </message>
     <message>
@@ -28022,8 +28026,8 @@ The open document keeps its blend modes either way.</source>
         <translation>無料 · Windows、macOS、Linux</translation>
     </message>
     <message>
-        <source>More features, nearly 400 G&apos;MIC filters, faster editing, and full access to your system fonts.</source>
-        <translation>より多くの機能、400 近い G&apos;MIC フィルター、高速な編集、システムフォントへのフルアクセス。</translation>
+        <source>More features, nearly 400 G'MIC filters, faster editing, and full access to your system fonts.</source>
+        <translation>より多くの機能、400 近い G'MIC フィルター、高速な編集、システムフォントへのフルアクセス。</translation>
     </message>
     <message>
         <source>Remove from Recent Files</source>
@@ -28133,7 +28137,7 @@ The open document keeps its blend modes either way.</source>
         <translation>Photoshop スタイル (*.asl)</translation>
     </message>
     <message numerus="yes">
-        <source>Exported %n style(s) to &quot;%1&quot;.</source>
+        <source>Exported %n style(s) to "%1".</source>
         <translation>
             <numerusform>%n 個のスタイルを「%1」に書き出しました。</numerusform>
         </translation>
@@ -28154,19 +28158,19 @@ The open document keeps its blend modes either way.</source>
         <translation>無題のスタイル</translation>
     </message>
     <message>
-        <source>Could not open &quot;%1&quot;.</source>
+        <source>Could not open "%1".</source>
         <translation>「%1」を開けませんでした。</translation>
     </message>
     <message>
-        <source>Could not read &quot;%1&quot;.</source>
+        <source>Could not read "%1".</source>
         <translation>「%1」を読み込めませんでした。</translation>
     </message>
     <message>
-        <source>&quot;%1&quot; is too large to import safely.</source>
+        <source>"%1" is too large to import safely.</source>
         <translation>「%1」は大きすぎるため安全に読み込めません。</translation>
     </message>
     <message>
-        <source>Could not import styles from &quot;%1&quot;. The file is not a supported Photoshop ASL file or is damaged.</source>
+        <source>Could not import styles from "%1". The file is not a supported Photoshop ASL file or is damaged.</source>
         <translation>「%1」からスタイルを読み込めませんでした。サポートされていない Photoshop ASL ファイルか、破損しています。</translation>
     </message>
     <message>
@@ -28178,15 +28182,15 @@ The open document keeps its blend modes either way.</source>
         <translation>スタイル %1</translation>
     </message>
     <message>
-        <source>Style &quot;%1&quot; used an id already assigned to a different style; it was imported with a new id.</source>
+        <source>Style "%1" used an id already assigned to a different style; it was imported with a new id.</source>
         <translation>スタイル「%1」の ID は別のスタイルに割り当て済みだったため、新しい ID で読み込みました。</translation>
     </message>
     <message>
-        <source>Could not save style &quot;%1&quot;.</source>
+        <source>Could not save style "%1".</source>
         <translation>スタイル「%1」を保存できませんでした。</translation>
     </message>
     <message>
-        <source>No styles could be imported from &quot;%1&quot;.</source>
+        <source>No styles could be imported from "%1".</source>
         <translation>「%1」から読み込めるスタイルがありませんでした。</translation>
     </message>
     <message>
@@ -28194,7 +28198,7 @@ The open document keeps its blend modes either way.</source>
         <translation>書き出すスタイルがありません。</translation>
     </message>
     <message>
-        <source>Could not write &quot;%1&quot;.</source>
+        <source>Could not write "%1".</source>
         <translation>「%1」に書き込めませんでした。</translation>
     </message>
     <message>
