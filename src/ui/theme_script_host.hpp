@@ -126,6 +126,7 @@ class ThemeScriptHost final : public QObject {
   // QSS rules for the panel and dialog backgrounds; revision() moves whenever they change.
   [[nodiscard]] QString panel_background_stylesheet() const { return panel_stylesheet_; }
   [[nodiscard]] int panel_background_revision() const { return panel_revision_; }
+  [[nodiscard]] QString dialog_background_stylesheet() const { return dialog_stylesheet_; }
   // Script output and errors, newest last (capped).
   [[nodiscard]] QStringList log() const { return log_; }
 
@@ -191,6 +192,8 @@ class ThemeScriptHost final : public QObject {
   QHash<QString, QCursor> cursors_;
   QHash<QString, PanelBackground> panels_;
   QString panel_stylesheet_;
+  QString dialog_stylesheet_;  // rules with %1 for the dialog's own selector
+  QObject* dialog_filter_ = nullptr;
   int panel_revision_ = 0;
   QStringList log_;
   int timeouts_ = 0;
@@ -220,5 +223,8 @@ class ThemeScriptHost final : public QObject {
 // The panel backgrounds' QSS, appended to the window sheet, and its revision.
 [[nodiscard]] QString theme_panel_background_stylesheet();
 [[nodiscard]] int theme_panel_background_revision();
+// The "dialogs" background rules, with %1 standing for each dialog's selector; an
+// application event filter appends them to every dialog's own sheet as it shows.
+[[nodiscard]] QString theme_dialog_background_stylesheet();
 
 }  // namespace patchy::ui

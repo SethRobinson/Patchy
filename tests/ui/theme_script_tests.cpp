@@ -423,6 +423,7 @@ void ui_theme_cursors_backgrounds_and_splash() {
                                                       {QStringLiteral("hotY"), 3}}}}}},
                 QByteArrayLiteral("patchy.theme.setToolCursor('crop', 'images/pic.png', 1, 1);\n"
                                   "patchy.theme.setPanelBackground('layers', 'images/pic.png', 'tile', 0.25);\n"
+                                  "patchy.theme.setPanelBackground('dialogs', 'images/pic.png', 'center');\n"
                                   "patchy.theme.on('startup', function () { patchy.theme.showSplash('images/pic.png', 900); });\n"));
   patchy::ui::MainWindow window;
   show_window(window);
@@ -439,6 +440,16 @@ void ui_theme_cursors_backgrounds_and_splash() {
   CHECK(canvas->cursor().pixmap().size() == QSize(16, 12));
   CHECK(patchy::ui::theme_panel_background_stylesheet().contains(QStringLiteral("QWidget#layersPanel")));
   CHECK(window.styleSheet().contains(QStringLiteral("patchy-theme-cache/panel-")));
+  // A dialog that styles itself still gets the "dialogs" background, in its own sheet.
+  {
+    QDialog dialog(&window);
+    dialog.setObjectName(QStringLiteral("themeBackgroundProbeDialog"));
+    dialog.setStyleSheet(QStringLiteral("QDialog#themeBackgroundProbeDialog { background: #203040; }"));
+    dialog.show();
+    QApplication::processEvents();
+    CHECK(dialog.styleSheet().contains(QStringLiteral("QDialog#themeBackgroundProbeDialog { background-image")));
+    dialog.hide();
+  }
 
   patchy::ui::fire_theme_event(ThemeSoundEvent::Startup);
   process_events_for(50);
@@ -451,6 +462,14 @@ void ui_theme_cursors_backgrounds_and_splash() {
   canvas->refresh_tool_cursor();
   CHECK(canvas->cursor().shape() == Qt::CrossCursor);
   CHECK(!window.styleSheet().contains(QStringLiteral("patchy-theme-cache/panel-")));
+  {
+    QDialog dialog(&window);
+    dialog.setObjectName(QStringLiteral("themeBackgroundProbeDialog"));
+    dialog.show();
+    QApplication::processEvents();
+    CHECK(!dialog.styleSheet().contains(QStringLiteral("patchy-theme-cache/panel-")));
+    dialog.hide();
+  }
 }
 
 void ui_theme_script_events_reach_the_script() {

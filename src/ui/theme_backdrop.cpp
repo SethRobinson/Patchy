@@ -127,6 +127,9 @@ QString theme_cache_png_url(const QImage& image, const QString& prefix) {
     return {};
   }
   const auto path = directory.filePath(QStringLiteral("%1-%2.png").arg(prefix, QString::fromLatin1(digest)));
+  if (path.contains(QLatin1Char('@'))) {
+    return {};  // the stylesheet's @token pass would read it as a color role
+  }
   if (!QFileInfo::exists(path)) {
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(png) != png.size() || !file.commit()) {

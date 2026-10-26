@@ -11,6 +11,8 @@
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDialog>
+#include <QEvent>
 #include <QJSEngine>
 #include <QJsonObject>
 #include <QKeySequence>
@@ -62,6 +64,38 @@ const QHash<QString, QString>& panel_selectors() {
   };
   return selectors;
 }
+
+// Appends the theme's "dialogs" background to a dialog's own sheet as it shows, and
+// takes the previous addition out first, so a change or a removal reaches the next show.
+class DialogBackgroundFilter final : public QObject {
+ public:
+  using QObject::QObject;
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() != QEvent::Show) {
+      return false;
+    }
+    auto* dialog = qobject_cast<QDialog*>(watched);
+    const auto* host = ThemeScriptHost::existing();
+    if (dialog == nullptr || host == nullptr) {
+      return false;
+    }
+    static const char* const kAdded = "patchy.themeDialogBackground";
+    const auto selector = dialog->objectName().isEmpty() ? QStringLiteral("QDialog")
+                                                         : QStringLiteral("QDialog#") + dialog->objectName();
+    const auto addition = host->dialog_background_stylesheet().arg(selector);
+    auto sheet = dialog->styleSheet();
+    if (const auto previous = dialog->property(kAdded).toString(); !previous.isEmpty() && sheet.endsWith(previous)) {
+      sheet.chop(previous.size());
+    }
+    dialog->setProperty(kAdded, addition);
+    if (sheet + addition != dialog->styleSheet()) {
+      dialog->setStyleSheet(sheet + addition);
+    }
+    return false;
+  }
+};
 
 // The prelude runs once per engine. It returns the globals to install (patchy, the
 // timer functions, console) and the three entry points C++ calls; the bridge stays in
@@ -471,22 +505,37 @@ bool ThemeScriptHost::set_panel_background(const QString& panel, const QString& 
 }
 
 void ThemeScriptHost::rebuild_panel_stylesheet() {
+  const auto rule = [](const QString& selector, const PanelBackground& background) {
+    if (background.mode == QStringLiteral("stretch")) {
+      return QStringLiteral("%1 { border-image: url(%2) 0 0 0 0 stretch stretch; }\n").arg(selector, background.url);
+    }
+    if (background.mode == QStringLiteral("center")) {
+      return QStringLiteral("%1 { background-image: url(%2); background-repeat: no-repeat; "
+                            "background-position: center; }\n")
+          .arg(selector, background.url);
+    }
+    return QStringLiteral("%1 { background-image: url(%2); background-repeat: repeat-xy; }\n")
+        .arg(selector, background.url);
+  };
   QString sheet;
   auto names = panels_.keys();
   names.sort();
   for (const auto& panel : names) {
-    const auto& background = panels_.value(panel);
-    const auto selector = panel_selectors().value(panel);
-    if (background.mode == QStringLiteral("stretch")) {
-      sheet += QStringLiteral("%1 { border-image: url(%2) 0 0 0 0 stretch stretch; }\n").arg(selector, background.url);
-    } else if (background.mode == QStringLiteral("center")) {
-      sheet += QStringLiteral("%1 { background-image: url(%2); background-repeat: no-repeat; "
-                              "background-position: center; }\n")
-                   .arg(selector, background.url);
-    } else {
-      sheet += QStringLiteral("%1 { background-image: url(%2); background-repeat: repeat-xy; }\n")
-                   .arg(selector, background.url);
-    }
+    sheet += rule(panel_selectors().value(panel), panels_.value(panel));
+  }
+  // Every dialog styles itself (QDialog#name { background: ... } in its own sheet, which
+  // a window-level rule cannot beat), so "dialogs" also goes into each dialog's own
+  // sheet as it shows (DialogBackgroundFilter); %1 is the dialog's selector.
+  const auto dialogs = panels_.constFind(QStringLiteral("dialogs"));
+  dialog_stylesheet_ = dialogs == panels_.constEnd()
+                           ? QString()
+                           : QStringLiteral("\n") + rule(QStringLiteral("%1"), dialogs.value()) +
+                                 rule(QStringLiteral("QWidget#dialogChromeContent"), dialogs.value());
+  if (!dialog_stylesheet_.isEmpty() && dialog_filter_ == nullptr) {
+    // Installed the first time a theme sets one, kept for the session; it only reads
+    // Show events of dialogs.
+    dialog_filter_ = new DialogBackgroundFilter(this);
+    QCoreApplication::instance()->installEventFilter(dialog_filter_);
   }
   if (sheet != panel_stylesheet_) {
     panel_stylesheet_ = sheet;
@@ -759,6 +808,11 @@ std::optional<QCursor> theme_tool_cursor(CanvasTool tool) {
 QString theme_panel_background_stylesheet() {
   const auto* host = ThemeScriptHost::existing();
   return host == nullptr ? QString() : host->panel_background_stylesheet();
+}
+
+QString theme_dialog_background_stylesheet() {
+  const auto* host = ThemeScriptHost::existing();
+  return host == nullptr ? QString() : host->dialog_background_stylesheet();
 }
 
 int theme_panel_background_revision() {
