@@ -46,6 +46,7 @@
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/appearance_properties.hpp"
 #include "ui/shape_create_dialog.hpp"
+#include "ui/mask_properties_dialog.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/localization.hpp"
 
@@ -1179,7 +1180,10 @@ void MainWindow::add_vector_mask(bool hide_all, bool from_work_path) {
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
-  statusBar()->showMessage(tr("Added a vector mask"));
+  // An empty Reveal All or Hide All mask has nothing to select yet: say how to fill it.
+  statusBar()->showMessage(from_work_path ? tr("Added a vector mask")
+                                          : tr("Added a vector mask. Draw a path or shape with the Pen or a "
+                                               "shape tool to mask the layer"));
 }
 
 void MainWindow::delete_active_vector_mask() {
@@ -1240,6 +1244,111 @@ void MainWindow::rasterize_active_vector_mask() {
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Rasterized the vector mask into the layer mask"));
+}
+
+void MainWindow::set_active_layer_vector_mask_linked(bool linked) {
+  auto* layer = vector_mask_command_layer(true);
+  if (layer == nullptr) {
+    refresh_layer_list();
+    return;
+  }
+  if (layer->vector_mask()->unlinked == !linked) {
+    return;
+  }
+  push_undo_snapshot(linked ? tr("Link vector mask") : tr("Unlink vector mask"));
+  auto mask = *layer->vector_mask();
+  mask.unlinked = !linked;
+  layer->set_vector_mask(std::move(mask));
+  mark_layer_vector_block_dirty(*layer);
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(linked ? tr("Layer and vector mask linked") : tr("Layer and vector mask unlinked"));
+}
+
+void MainWindow::edit_layer_mask_properties(LayerId id, bool vector_mask) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (refuse_layer_dialog_during_transform() || !has_active_document() || canvas_ == nullptr) {
+    return;
+  }
+  const auto* layer = std::as_const(document()).find_layer(id);
+  if (layer == nullptr || (vector_mask ? layer->vector_mask() == nullptr : !layer->mask().has_value())) {
+    return;
+  }
+  if (vector_mask && !vector_lock_reason(*layer).empty()) {
+    show_status_error(tr("This layer's vector data is preserved but can't be edited."));
+    return;
+  }
+  if (layer_id_locks_image_pixels(id)) {
+    show_status_error(tr("Layer pixels are locked."));
+    return;
+  }
+  const Layer original = *layer;
+  const auto density = vector_mask ? original.vector_mask()->density : original.mask()->density;
+  const auto feather = vector_mask ? original.vector_mask()->feather : original.mask()->feather;
+  const MaskPropertiesValues initial{static_cast<int>(std::lround(density * 100.0 / 255.0)),
+                                     static_cast<int>(std::lround(feather))};
+  const QPointer<CanvasWidget> target_canvas(canvas_);
+  // Writes `values` over the original mask; a field the dialog did not move keeps
+  // its exact stored value (a fractional PSD feather, a density between percents).
+  const auto apply = [this, id, vector_mask, &original, initial, target_canvas](const MaskPropertiesValues& values) {
+    if (!target_canvas || canvas_ != target_canvas) {
+      return;
+    }
+    auto* target = document().find_layer(id);
+    if (target == nullptr) {
+      return;
+    }
+    *target = original;
+    const auto canvas = Rect::from_size(document().width(), document().height());
+    const auto density_raw = static_cast<std::uint8_t>(std::lround(values.density_percent * 255.0 / 100.0));
+    if (vector_mask) {
+      auto mask = *original.vector_mask();
+      if (values.density_percent != initial.density_percent) mask.density = density_raw;
+      if (values.feather != initial.feather) mask.feather = values.feather;
+      target->set_vector_mask(std::move(mask));
+      mark_layer_vector_block_dirty(*target);
+      update_vector_mask_raster(*target, canvas);
+    } else {
+      auto& mask = target->mask();
+      if (values.density_percent != initial.density_percent) mask->density = density_raw;
+      if (values.feather != initial.feather) mask->feather = values.feather;
+      sync_layer_mask_feather_canvas(*target, canvas);
+    }
+    canvas_->document_changed();
+    refresh_layer_thumbnails();
+  };
+  const auto restore = [this, id, &original, target_canvas] {
+    if (!target_canvas || canvas_ != target_canvas) {
+      return;
+    }
+    if (auto* target = document().find_layer(id); target != nullptr) {
+      *target = original;
+    }
+    canvas_->document_changed();
+    refresh_layer_thumbnails();
+  };
+  std::optional<MaskPropertiesValues> accepted;
+  {
+    auto edit_lock = lock_preview_dialog_edits();
+    accepted = request_mask_properties(this, vector_mask, QString::fromStdString(original.name()), initial, apply);
+  }
+  restore();
+  if (!target_canvas || canvas_ != target_canvas) {
+    return;
+  }
+  if (!accepted.has_value() || (accepted->density_percent == initial.density_percent &&
+                                accepted->feather == initial.feather)) {
+    refresh_layer_controls();
+    return;
+  }
+  push_undo_snapshot(vector_mask ? tr("Vector mask properties") : tr("Layer mask properties"));
+  apply(*accepted);
+  refresh_layer_controls();
+  statusBar()->showMessage(vector_mask ? tr("Changed the vector mask's density and feather")
+                                       : tr("Changed the layer mask's density and feather"));
 }
 
 void MainWindow::populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix) {

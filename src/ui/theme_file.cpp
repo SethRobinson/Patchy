@@ -1,8 +1,11 @@
 #include "ui/theme_file.hpp"
 
+#include "ui/theme_package.hpp"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QIODevice>
 #include <QJsonDocument>
@@ -64,6 +67,60 @@ const QHash<QString, QColor ThemePalette::*>& role_members() {
     return table;
   }();
   return members;
+}
+
+// The package keys (docs/theme-files.md, "Theme packages"). A bad value is a
+// warning, never an error: the colors still load and the key keeps its default.
+void parse_package_options(const QJsonObject& object, ThemePackageOptions& options, QStringList& warnings) {
+  const auto recolor = object.value(QStringLiteral("recolorIcons"));
+  if (recolor.isBool()) {
+    options.recolor_icons = recolor.toBool();
+  } else if (!recolor.isUndefined()) {
+    warnings.push_back(QCoreApplication::translate("ThemeFile", "\"recolorIcons\" must be true or false (ignored)."));
+  }
+  const auto scaling = object.value(QStringLiteral("iconScaling"));
+  if (scaling.toString() == QStringLiteral("smooth")) {
+    options.icon_scaling = ThemeIconScaling::Smooth;
+  } else if (scaling.toString() == QStringLiteral("nearest")) {
+    options.icon_scaling = ThemeIconScaling::Nearest;
+  } else if (!scaling.isUndefined()) {
+    warnings.push_back(
+        QCoreApplication::translate("ThemeFile", "\"iconScaling\" must be \"smooth\" or \"nearest\" (ignored)."));
+  }
+  const auto backdrop = object.value(QStringLiteral("backdrop"));
+  if (backdrop.isUndefined()) {
+    return;
+  }
+  if (!backdrop.isObject()) {
+    warnings.push_back(QCoreApplication::translate("ThemeFile", "\"backdrop\" is not an object (ignored)."));
+    return;
+  }
+  const auto backdrop_object = backdrop.toObject();
+  options.backdrop_image = backdrop_object.value(QStringLiteral("image")).toString();
+  const auto mode = backdrop_object.value(QStringLiteral("mode")).toString(QStringLiteral("tile"));
+  if (mode == QStringLiteral("tile")) {
+    options.backdrop_mode = ThemeBackdropMode::Tile;
+  } else if (mode == QStringLiteral("stretch")) {
+    options.backdrop_mode = ThemeBackdropMode::Stretch;
+  } else if (mode == QStringLiteral("center")) {
+    options.backdrop_mode = ThemeBackdropMode::Center;
+  } else {
+    warnings.push_back(QCoreApplication::translate(
+        "ThemeFile", "Backdrop mode \"%1\" is not \"tile\", \"stretch\" or \"center\" (tiling instead).")
+                           .arg(mode));
+  }
+}
+
+[[nodiscard]] QString backdrop_mode_token(ThemeBackdropMode mode) {
+  switch (mode) {
+    case ThemeBackdropMode::Stretch:
+      return QStringLiteral("stretch");
+    case ThemeBackdropMode::Center:
+      return QStringLiteral("center");
+    case ThemeBackdropMode::Tile:
+      break;
+  }
+  return QStringLiteral("tile");
 }
 
 }  // namespace
@@ -138,6 +195,7 @@ ThemeLoadResult load_theme_from_json(const QByteArray& json) {
   custom_theme.base = *base;
   custom_theme.name = object.value(QStringLiteral("name")).toString();
   custom_theme.palette = theme(*base);  // seed: every role the file omits keeps this value.
+  parse_package_options(object, custom_theme.options, result.warnings);
 
   const auto& members = role_members();
   const auto roles_object = roles_value.toObject();
@@ -163,7 +221,8 @@ ThemeLoadResult load_theme_from_json(const QByteArray& json) {
   return result;
 }
 
-QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base, const QString& name) {
+QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base, const QString& name,
+                                   const ThemePackageOptions* options) {
   QJsonObject roles_object;
   for (const auto& [role_name, member] : theme_palette_roles()) {
     roles_object.insert(QString(role_name), color_to_hex(palette.*member));
@@ -174,6 +233,20 @@ QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base
   object.insert(QStringLiteral("name"), name);
   object.insert(QStringLiteral("base"), base_token(base));
   object.insert(QStringLiteral("roles"), roles_object);
+  if (options != nullptr) {
+    if (!options->recolor_icons) {
+      object.insert(QStringLiteral("recolorIcons"), false);
+    }
+    if (options->icon_scaling == ThemeIconScaling::Nearest) {
+      object.insert(QStringLiteral("iconScaling"), QStringLiteral("nearest"));
+    }
+    if (!options->backdrop_image.isEmpty()) {
+      QJsonObject backdrop;
+      backdrop.insert(QStringLiteral("image"), options->backdrop_image);
+      backdrop.insert(QStringLiteral("mode"), backdrop_mode_token(options->backdrop_mode));
+      object.insert(QStringLiteral("backdrop"), backdrop);
+    }
+  }
   return QJsonDocument(object).toJson(QJsonDocument::Indented);
 }
 
@@ -202,6 +275,15 @@ QString theme_file_path_for_id(const QString& id) {
 
 ThemeLoadResult load_theme_by_id(const QString& id) {
   const auto path = theme_file_path_for_id(id);
+  if (!path.isEmpty() && !is_bundled_theme_id(id)) {
+    const QFileInfo info(path);
+    if (info.isDir()) {
+      return load_theme_package_directory(path);
+    }
+    if (is_theme_package_zip_name(id)) {
+      return load_theme_package_zip_file(path);
+    }
+  }
   QFile file(path);
   if (path.isEmpty() || !file.open(QIODevice::ReadOnly)) {
     ThemeLoadResult result;
@@ -209,6 +291,30 @@ ThemeLoadResult load_theme_by_id(const QString& id) {
     return result;
   }
   return load_theme_from_json(file.readAll());
+}
+
+bool is_theme_package_directory_id(const QString& id) {
+  if (id.isEmpty() || is_bundled_theme_id(id)) {
+    return false;
+  }
+  const auto path = theme_file_path_for_id(id);
+  return !path.isEmpty() && QFileInfo(path).isDir();
+}
+
+QStringList user_theme_ids() {
+  const auto directory = user_themes_directory();
+  if (directory.isEmpty()) {
+    return {};
+  }
+  const QDir dir(directory);
+  QStringList ids = dir.entryList({QStringLiteral("*.patchytheme"), QStringLiteral("*.zip")}, QDir::Files, QDir::Name);
+  for (const auto& folder : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+    if (QFileInfo(QDir(dir.filePath(folder)).filePath(QString(kThemePackageManifest))).isFile()) {
+      ids.push_back(folder);
+    }
+  }
+  ids.sort(Qt::CaseInsensitive);
+  return ids;
 }
 
 QString user_themes_directory() {

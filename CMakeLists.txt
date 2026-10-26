@@ -624,6 +624,7 @@ add_library(patchy_formats
   src/formats/jxr_document_io.cpp
   src/formats/layered_blend_support.cpp
   src/formats/metadata/exif_tags.cpp
+  src/formats/metadata/gimp_image_metadata.cpp
   src/formats/metadata/iptc_iim.cpp
   src/formats/metadata/jumbf.cpp
   src/formats/metadata/metadata_containers.cpp
@@ -1184,6 +1185,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/artboard_preset_picker.cpp
   src/ui/canvas_widget_crop.cpp
   src/ui/canvas_widget_perspective_crop.cpp
+  src/ui/canvas_widget_ruler.cpp
+      src/ui/ruler_tool.hpp
+      src/ui/ruler_tool.cpp
       src/ui/canvas_widget_cursors.cpp
       src/ui/canvas_widget_draw_tools.cpp
       src/ui/eyedropper_sample_overlay.hpp
@@ -1278,6 +1282,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/image_save_option_keys.hpp
       src/ui/image_save_option_keys.cpp
       src/ui/image_save_options_dialog.cpp
+      src/ui/web_export.hpp
+      src/ui/web_export.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_style_dialog_controls.cpp
       src/ui/layer_style_dialog_controls.hpp
@@ -1314,6 +1320,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/options_flow_layout.cpp
       src/ui/tool_palette_footer.hpp
       src/ui/tool_palette_footer.cpp
+      src/ui/tool_palette_customization.hpp
+      src/ui/tool_palette_customization.cpp
+      src/ui/tool_palette_layout.hpp
+      src/ui/tool_palette_layout.cpp
       src/ui/main_window_actions_tool_palette.cpp
       src/ui/main_window_adjustments.cpp
       src/ui/main_window_channels.cpp
@@ -1386,6 +1396,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/appearance_properties.cpp
       src/ui/shape_create_dialog.hpp
       src/ui/shape_create_dialog.cpp
+      src/ui/mask_properties_dialog.hpp
+      src/ui/mask_properties_dialog.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/unit_spin_box.hpp
@@ -1507,6 +1519,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/style_manager_dialog.cpp
       src/ui/theme_file.hpp
       src/ui/theme_file.cpp
+      src/ui/theme_backdrop.hpp
+      src/ui/theme_backdrop.cpp
+      src/ui/theme_package.hpp
+      src/ui/theme_package.cpp
+      src/ui/theme_sounds.hpp
+      src/ui/theme_sounds.cpp
       src/ui/theme_manager.hpp
       src/ui/theme_manager.cpp
       src/ui/theme_palette.hpp
@@ -2342,6 +2360,8 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/crop_tool_tests.cpp
+      tests/ui/ruler_tool_tests.cpp
+      tests/ui/tool_palette_customize_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/deep_operation_audit_tests.cpp
@@ -2393,6 +2413,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/float_window_tests.cpp
       tests/ui/document_rename_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
+      tests/ui/vector_mask_editing_tests.cpp
       tests/ui/batch_appearance_tests.cpp
       tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
@@ -2420,6 +2441,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/clone_source_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
+      tests/ui/web_export_tests.cpp
       tests/ui/rgb_profile_tests.cpp
       tests/ui/new_document_options_tests.cpp
       tests/ui/watermark_tests.cpp
@@ -2429,6 +2451,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/open_with_registration_tests.cpp
       tests/ui/composite_render_tests.cpp
+      tests/ui/theme_package_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

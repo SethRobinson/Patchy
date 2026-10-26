@@ -391,6 +391,8 @@ int main(int argc, char* argv[]) {
            alignment_tests,
            selection_marquee_lasso_tests,
            crop_tool_tests,
+           ruler_tool_tests,
+           tool_palette_customize_tests,
            unit_spin_box_tests,
            clipboard_free_transform_tests,
            deep_operation_audit_tests,
@@ -423,6 +425,7 @@ int main(int argc, char* argv[]) {
            misc_visuals_outline_stress_tests,
            float_window_tests,
            vector_shape_tool_tests,
+           vector_mask_editing_tests,
            batch_appearance_tests,
            vector_preview_tests,
            vector_point_editing_tests,
@@ -447,6 +450,7 @@ int main(int argc, char* argv[]) {
            clone_source_tests,
            history_stroke_patch_tests,
            file_info_tests,
+           web_export_tests,
            rgb_profile_ui_tests,
            new_document_options_ui_tests,
            watermark_tests,
@@ -456,6 +460,7 @@ int main(int argc, char* argv[]) {
            appimage_menu_entry_tests,
            open_with_registration_tests,
            composite_render_tests,
+           theme_package_tests,
            readme_screenshot_tests,
        }) {
     auto group = registration();

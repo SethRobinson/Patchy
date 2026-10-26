@@ -21,6 +21,22 @@ Every entry below is API 1.
 back. Another `caps` or `script` value throws. Permanent identifiers: those keys and values. Pinned by
 `ui_text_underline_and_strikethrough_match_photoshop_if_available` and its siblings in
 tests/ui/text_character_styles_tests.cpp.
+2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options `colors` (2..256), `dither` (`"none"`,
+`"diffusion"`) and `ditherAmount` (0..100) for `.gif`, and for `.png` with the new `pngColors`
+(`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette
+keys on a full-color PNG, other extensions or bad values throw ([web-export.md](web-export.md)).
+Permanent identifiers: the four keys and their tokens. Pinned by `ui_script_export_as_palette_keys`.
+2026-10-26 (additive): `patchy.ui.toolPalette` reads and sets Customize Tool Palette (GitHub issues
+213, 316 and 199; [tool-palette.md](tool-palette.md#customizing-the-palette)): `{hiddenTools, layout,
+wheelScroll, showGearButton, hiddenLayerButtons}`, any subset on assignment, applied live and saved;
+unknown ids or layouts throw. Permanent identifiers: the property and its keys, the layouts
+`oneColumn` and `twoColumns`, the tool hotkey ids and the layer button ids. Pinned by
+`ui_script_tool_palette_reads_and_sets`.
+2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options for `.jpg`/`.jpeg` take `progressive`
+(progressive scans), `optimizeCoding` (optimized Huffman tables), both default false so saves keep
+their bytes, and `thumbnail` (the EXIF IFD1 thumbnail, default true), for File > Export for Web
+([web-export.md](web-export.md)). Wrong types or other extensions throw. Permanent identifiers: the
+three keys. Pinned by `ui_script_export_as_jpeg_coding_options`.
 2026-10-26 (additive): `doc.trim` takes `tolerance` (0..255, default 0 = the exact match it always
 made; GitHub issue 297): Transparent Pixels then cuts alpha up to it, a corner color every pixel whose
 channels (alpha included) are all within it of the corner, in 8-bit units at every depth. Out of range

@@ -63,7 +63,8 @@ nesting past 64 and hostile counts read as damage. Truncated and mutated files a
 
 With deep editing off every precision opens at 8 bits with a notice. Gray layers widen to
 RGB; indexed layers expand through the colormap (at most 256 entries), alpha on or off at
-128 as GIMP renders it, and the colormap becomes the document's attached palette. Masks,
+128 as GIMP renders it, and the colormap becomes the document's attached palette in file order,
+so the open path offers Palette mode as for an indexed PNG ([palette-mode.md](palette-mode.md)). Masks,
 channels and the selection are coverage: their values are kept whatever the curve. The
 `icc-profile` parasite becomes the embedded profile of an RGB image, which the open path
 converts to sRGB like every format ([rgb-profiles.md](rgb-profiles.md)). Known gap: 8 and
@@ -190,7 +191,32 @@ a few pixels of GIMP's (`ui_xcf_text_layers_stay_editable`); its glyphs are Patc
 - Guides (off-canvas ones kept from version 15), resolution (72 ppi without one), unit
   (millimeters show as centimeters, points and picas as themselves).
 - Parasites: `gimp-comment` to the File Info comment, `exif-data` to Exif, `gimp-metadata`
-  (`GIMP_XMP_1` + packet) to XMP. GIMP 2.10's `gimp-image-metadata` tag list is not read.
+  (`GIMP_XMP_1` + packet) to XMP, then `gimp-image-metadata` (GIMP 2.10 and 3.x keep the
+  image's metadata there) fills what those left out: Exif only without `exif-data`, XMP
+  properties the packet lacks, IPTC-IIM always. The open path keeps this File Info (it does
+  not rescan the file, as it does flat formats).
+
+### gimp-image-metadata
+
+`metadata::parse_gimp_image_metadata` (`src/formats/metadata/gimp_image_metadata.cpp`) reads
+the XML list of exiv2 keys, `<tag name="Xmp.dc.title">lang="x-default" Title</tag>`, with
+`<namespace prefix url>` entries (exiv2's own prefixes as fallback) and `encoding="base64"`
+values. A malformed list yields nothing.
+
+- `Xmp.*` becomes an XMP packet: `lang="..."` values are lang-alt items, a repeated tag adds
+  array items, `type="Bag"` (or Seq/Alt) declares an array, `[n]` and `/prefix:Field` paths
+  build arrays of structs and struct fields, and properties the schema makes arrays
+  (dc:subject, dc:creator, photoshop:SupplementalCategories, the IPTC Extension and PLUS
+  lists) are arrays even with one tag. Empty containers are dropped, and so are the
+  top-level `Xmp.iptc.Ci*` copies GIMP writes beside CreatorContactInfo. Unknown namespaces
+  (DICOM) keep their prefix.
+- `Exif.Image`, `Exif.Photo`, `Exif.GPSInfo` and `Exif.Iop` become a big-endian TIFF stream
+  by tag name (exiv2's names are the specification's): ASCII as is, numbers and `n/d`
+  rationals by the tag's type, UNDEFINED bytes from exiv2's decimal list, UserComment with
+  its character code. Image-structure tags, pointers, thumbnails and the MakerNote are
+  left out, as are values whose type cannot be told.
+- `Iptc.Application2.*` becomes IPTC-IIM by exiv2's dataset names; dates lose their
+  hyphens (CCYYMMDD) and times their colons (HHMMSS+HHMM).
 
 ## Rendering against GIMP
 

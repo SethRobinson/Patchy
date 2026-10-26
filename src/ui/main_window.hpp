@@ -29,6 +29,7 @@
 #include "ui/view_extras.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/text_paragraph_metrics.hpp"
+#include "ui/tool_palette_customization.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/update_installer.hpp"
 
@@ -62,6 +63,7 @@
 #include <utility>
 #include <vector>
 
+class QAbstractButton;
 class QAction;
 class QActionGroup;
 class QCheckBox;
@@ -93,6 +95,7 @@ class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
 class ToolPaletteFooter;
+class ToolPaletteLayout;
 class ArtboardPresetPicker;
 enum class LayerCtrlClickTarget;
 }  // namespace patchy::ui
@@ -217,6 +220,15 @@ public:
   void apply_text_family_to_format(QTextCharFormat& format, const QString& family) const;
   explicit MainWindow(QWidget* parent = nullptr);
   ~MainWindow() override;
+  // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md): opens the
+  // dialog (non-modal; a second call brings the open one forward on that tab), and applies and
+  // stores a choice live.
+  void show_tool_palette_customization(ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools);
+  void apply_tool_palette_customization(const ToolPaletteCustomization& customization);
+  [[nodiscard]] const ToolPaletteCustomization& tool_palette_customization() const noexcept {
+    return tool_palette_customization_;
+  }
+  [[nodiscard]] ToolPaletteLayout* tool_palette_layout() const noexcept { return tool_palette_layout_; }
   // True where Patchy draws its own window frame (Windows, and Linux unless the
   // "Use the system title bar" preference is on): the frameless flag, the chrome buttons
   // in the menu-bar row, and the edge-resize machinery. macOS uses the native frame and
@@ -416,7 +428,8 @@ public:
   // Scans the script folders, refreshes the commands, and rebuilds an open Script
   // Manager tree: what every path that changes the folders calls afterwards.
   ScriptScan rescan_scripts();
-  enum class PreferencesPage { Application, Hotkeys };
+  // Last opens the page the dialog was closed on (preferences/lastPage).
+  enum class PreferencesPage { Last, Application, Hotkeys };
   // Preferences opened on the Hotkeys page with its search field prefilled (the Script
   // Manager's "Assign Hotkey..." passes the script's display name).
   void show_hotkey_preferences(const QString& search = QString()) { show_preferences(PreferencesPage::Hotkeys, search); }
@@ -448,12 +461,21 @@ public:
   // The toolbar right-click menu: the panel and toolbar toggles and Reset Panels.
   QMenu* createPopupMenu() override;
 
+  // View > Screen Mode (GitHub issue 212; docs/screen-modes.md):
+  // Standard, the window full screen with every bar and panel, or full screen with the
+  // canvas alone. F cycles them, Esc returns to Standard; never persisted.
+  enum class ScreenMode { Standard, FullScreenWithMenus, FullScreen };
+  [[nodiscard]] ScreenMode screen_mode() const noexcept { return screen_mode_; }
+  void set_screen_mode(ScreenMode mode);
+  void cycle_screen_mode();
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
   void changeEvent(QEvent* event) override;
   void closeEvent(QCloseEvent* event) override;
   void showEvent(QShowEvent* event) override;
+  void keyPressEvent(QKeyEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
@@ -555,6 +577,31 @@ private:
   void resync_native_frame_geometry();
   void restore_maximized_under_cursor(QPoint global_cursor);
   void restore_window_from_maximize();
+  // Screen modes (main_window_chrome.cpp). What Standard showed, captured on leaving it.
+  struct StandardScreenChrome {
+    bool maximized{false};
+    QRect normal_geometry;
+    bool menu_bar{true};
+    bool panel_column{true};
+    int panel_column_width{0};
+    bool tab_bar{true};
+    bool status_bar{true};
+    std::vector<std::pair<QPointer<QToolBar>, bool>> toolbars;
+  };
+  void build_screen_mode_actions(QMenu& view_menu);
+  void apply_screen_mode_chrome(ScreenMode mode);
+  void restore_standard_screen_chrome();
+  void set_screen_mode_shortcut_host(bool host);
+  void refresh_screen_mode_actions();
+  // The tool palette footer's screen mode button (GitHub issue 212): icon and tooltip
+  // follow the current mode and the cycle command's key.
+  void refresh_screen_mode_button();
+  void show_screen_mode_hint();
+  void hide_screen_mode_hint();
+  void schedule_screen_mode_window_state_sync();
+  void sync_screen_mode_to_window_state();
+  // True when Escape left a full-screen mode (the canvas's unused Escape, keyPressEvent).
+  bool exit_full_screen_on_escape();
   // True where a press on the menu bar acts as the window title bar: not over a menu
   // title and not over the minimize/maximize/close controls. Shared by the Win32
   // WM_NCHITTEST path (HTCAPTION, so the OS owns drag, double-click and snap) and the
@@ -1075,6 +1122,8 @@ private:
   void run_save_write(const QString& path, bool on_worker, bool show_progress,
                       const std::function<void(SaveProgress&)>& write);
   void export_flat_image();
+  // File > Export for Web (docs/web-export.md): the live-preview dialog, then the file name.
+  void export_for_web();
   void export_multipage_pdf();
   // File > Export Documents to Folder: the checked open documents as numbered
   // flattened image files (the document-level sibling of export_image_sequence).
@@ -1115,7 +1164,7 @@ private:
   void page_setup();
   void print_document();
   // hotkey_search prefills the Hotkeys page's search field (used with PreferencesPage::Hotkeys).
-  void show_preferences(PreferencesPage page = PreferencesPage::Application, const QString& hotkey_search = QString());
+  void show_preferences(PreferencesPage page = PreferencesPage::Last, const QString& hotkey_search = QString());
   // Re-applies the whole UI for a new color scheme, live. Connected to
   // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
   // the steps have to run in.
@@ -1732,6 +1781,9 @@ private:
   void add_vector_mask(bool hide_all, bool from_work_path);
   void delete_active_vector_mask();
   void set_active_layer_vector_mask_disabled(bool disabled);
+  void set_active_layer_vector_mask_linked(bool linked);
+  // Density and Feather of a layer's raster or vector mask (mask_properties_dialog.hpp).
+  void edit_layer_mask_properties(patchy::LayerId id, bool vector_mask);
   void rasterize_active_vector_mask();
   void populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix = {});
   // Paths panel (main_window_paths.cpp).
@@ -2006,6 +2058,12 @@ private:
   // TR, BR, BL) onto the options bar's W x H (blank: the quad's own edge lengths) and sets
   // its Resolution when one is given. One undo step.
   void commit_perspective_crop_quad(const std::array<QPointF, 4>& quad);
+  // Ruler (GitHub issue 331, docs/pick-tool.md): Straighten Layer turns the active layer
+  // so the line lies on the nearest axis (one undo step); Straighten Image turns the whole
+  // document and crops it to the largest rectangle of its own shape. Both clear the line.
+  void straighten_with_ruler(bool whole_image);
+  // The Ruler bar's values and button states from the active canvas's line.
+  void refresh_ruler_readout();
   void rotate_canvas_clockwise();
   void rotate_canvas_counterclockwise();
   // Image > Rotate 180 / Flip Horizontal / Flip Vertical (GitHub issue 139).
@@ -2457,7 +2515,16 @@ private:
   bool recent_menus_stale_{false};
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
-                           QKeySequence shortcut);
+                           QKeySequence shortcut, int cluster);
+  // What the Customize Tool Palette dialog lists, read from the palette and the footer.
+  [[nodiscard]] ToolPaletteCatalog tool_palette_catalog() const;
+  // The palette's right-click menu: Customize Tool Palette..., then the panel list.
+  void show_tool_palette_context_menu(const QPoint& global_position);
+  // Shows the Layers footer buttons the customization keeps (GitHub issue 199).
+  void apply_layer_footer_visibility();
+  // The Layers footer buttons' right-click menu: a tick per button, Show All Buttons and
+  // Customize Tool Palette... on its Layers buttons tab.
+  void show_layer_footer_menu(const QPoint& global_position);
   // Rebuilds the History panel from the active session's stacks (oldest state
   // at the top, current state highlighted, redone-away future states dimmed),
   // or clears it when no session is active.
@@ -2727,6 +2794,17 @@ private:
   ColorWellSwatch* primary_color_button_{nullptr};
   ColorWellSwatch* secondary_color_button_{nullptr};
   ToolPaletteFooter* tool_palette_footer_{nullptr};
+  // Customize Tool Palette: the palette's items (tool_palette_layout.hpp), the current
+  // choice, the dialog's action, and the Layers footer buttons by permanent id.
+  ToolPaletteLayout* tool_palette_layout_{nullptr};
+  ToolPaletteCustomization tool_palette_customization_;
+  QAction* customize_tool_palette_action_{nullptr};
+  struct LayerFooterButton {
+    const char* id;
+    QAbstractButton* button;
+    const char* name_source;
+  };
+  std::vector<LayerFooterButton> layer_footer_buttons_;
   // The toolbar icon size's factor (Preferences; app_settings.hpp), 1 at Normal.
   double tool_palette_factor_{1.0};
   QDialog* color_dialog_{nullptr};
@@ -2824,6 +2902,11 @@ private:
   QToolButton* perspective_crop_turn_button_{nullptr};
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
+  // Ruler bar (GitHub issue 331): X, Y, W, H, A, L1, L2 values, then the buttons.
+  std::array<QLabel*, 7> ruler_readout_labels_{};
+  QPushButton* ruler_straighten_layer_button_{nullptr};
+  QPushButton* ruler_straighten_image_button_{nullptr};
+  QPushButton* ruler_clear_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   // Show Overlay on the bar (GitHub issue 426), the same setting as the popup's checkbox.
   QCheckBox* clone_overlay_check_{nullptr};
@@ -3157,6 +3240,24 @@ private:
   QPointer<CanvasWidget> preview_dialog_edit_lock_canvas_;
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
+  ScreenMode screen_mode_{ScreenMode::Standard};
+  std::optional<StandardScreenChrome> standard_screen_chrome_;
+  QAction* screen_mode_standard_action_{nullptr};
+  QAction* screen_mode_full_with_menus_action_{nullptr};
+  QAction* screen_mode_full_action_{nullptr};
+  QAction* screen_mode_cycle_action_{nullptr};
+  QToolButton* screen_mode_button_{nullptr};
+  // The canvas right-click menu's Exit Full Screen (screen_mode_context_actions).
+  QAction* exit_full_screen_action_{nullptr};
+  // Registered actions added to the window while Full Screen hides the bars that
+  // carry them, so their shortcuts keep matching; removed again on leaving.
+  QList<QPointer<QAction>> screen_mode_hosted_actions_;
+  QWidget* screen_mode_hint_{nullptr};
+  bool applying_screen_mode_{false};
+  bool screen_mode_sync_pending_{false};
+  // Since the last screen-mode change: a window-state report inside the window
+  // system's transition (macOS animates into full screen) is not a user's exit.
+  QElapsedTimer screen_mode_changed_timer_;
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};
   QMenu* recent_folders_menu_{nullptr};

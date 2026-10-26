@@ -12755,6 +12755,282 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>開啟文件時不顯示（可在 偏好設定 &gt; 應用程式 中重新開啟）</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>品質 %1，漸進式</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>品質 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>無失真</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1，動畫</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>全彩</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>匯出為網頁格式</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>大小為依各格式自身設定實際編碼後的檔案大小，變更設定時會更新。</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 設定</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>漸進式（載入時先顯示粗略影像）</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>最佳化編碼（檔案更小，影像相同）</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>填滿透明區域（JPEG 不支援透明）</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 設定</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>每個可見的頂層圖層成為一個影格，最上面的圖層在前。</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 設定</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>全彩，無失真。保留透明度。</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>影像尺寸</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>（原始 %1 x %2）</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>像素畫（整像素）</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>像素畫以整像素放大且不平滑，讓精靈保持清晰。</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>中繼資料和色彩</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>要包含的檔案資訊中繼資料。「無」寫出的檔案最小。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>包含縮圖（約 5 到 10 KB）</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>在 EXIF 資料中加入小型預覽影像。僅在檔案保留 EXIF 中繼資料時寫入。</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>轉換為 sRGB（從 %1）</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>瀏覽器會將未標記的影像顯示為 sRGB。取消勾選時，檔案會保留其色彩描述檔。</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB，不需要描述檔</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>比較:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>分割</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>並排</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>僅結果</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>將所有設定還原為預設值</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>失敗</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>正在編碼...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>輸出 %1 x %2，%3 %4（未壓縮 %6 的 %5%）</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1：正在編碼...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>編碼失敗：%1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>正在編碼 %1...</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>尺標工具</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>圖層與向量圖遮色片已連結。按一下可取消連結。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>圖層與向量圖遮色片未連結。按一下可建立連結。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>向量圖遮色片內容</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>圖層遮色片內容</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>遮色片隱藏區域的不透明度。低於 100% 時圖層會透過這些區域顯示。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>以此像素數柔化遮色片邊緣</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n 色，擴散</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n 色，無遞色</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>調色盤最多可容納的色彩數。色彩較少的影像會原樣保留其色彩。</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>擴散</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>擴散會混合相鄰的調色盤色彩，讓漸層的色帶更少。檔案通常會變大。</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>檔案使用的色彩</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>調色盤</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>調色盤最多寫出 256 種色彩，對平面圖形、標誌和螢幕截圖要小得多。</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>不透明度低於 50% 的像素會變為透明。</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 設定</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>圖層名稱以 0.25s 這類時間結尾時，即為該影格的延遲。</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>影格延遲:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>自訂工具面板</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>勾選要顯示的工具。隱藏的工具保留其快捷鍵。</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>版面</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>單欄</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>雙欄，工具並排</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>放不下時用滑鼠滾輪捲動面板</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>否則用 &gt; 箭頭展開更多欄。</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>在面板上顯示齒輪按鈕</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>工具</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>勾選圖層面板顯示的按鈕。隱藏按鈕的命令仍在選單中。</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>圖層按鈕</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>還原預設值</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12847,6 +13123,98 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>無法讀取主題檔案 &quot;%1&quot;。</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; 必須是 true 或 false(已忽略)。</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; 必須是 &quot;smooth&quot; 或 &quot;nearest&quot;(已忽略)。</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; 不是物件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>背景模式 &quot;%1&quot; 不是 &quot;tile&quot;、&quot;stretch&quot; 或 &quot;center&quot;(改為並排)。</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>佈景主題套件中沒有 theme.json。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>圖示 &quot;%1&quot; 與任何內建圖示都不相符(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>圖示 &quot;%1&quot; 不是 SVG、PNG 或 BMP 檔案(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>無法讀取圖示 &quot;%1&quot;(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>音效 &quot;%1&quot; 不對應任何音效事件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>音效 &quot;%1&quot; 不是 WAV 檔案(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>背景影像 &quot;%1&quot; 不在套件中(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>無法讀取背景影像 &quot;%1&quot;(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>無法讀取佈景主題資料夾 &quot;%1&quot;。</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>佈景主題套件 &quot;%1&quot; 含有指向套件外的路徑:%2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>佈景主題套件 &quot;%1&quot; 超出佈景主題套件的限制。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>佈景主題資料夾 &quot;%1&quot; 中沒有可讀取的 theme.json。</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>佈景主題套件超出佈景主題套件的限制。</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>佈景主題套件不是可讀取的 zip 檔案。</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>佈景主題套件使用了 Patchy 無法讀取的加密或壓縮方式。</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>佈景主題套件中的某個檔案已損毀。</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>佈景主題套件含有指向套件外的路徑:%1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>無法建立資料夾 &quot;%1&quot;。</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>無法寫入 &quot;%1&quot;。</translation>
     </message>
 </context>
 <context>
@@ -14568,6 +14936,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>正在隱藏額外內容</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>拉直圖層</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>向量圖遮色片還沒有可移動的路徑。請用筆型工具或形狀工具繪製一條。</translation>
     </message>
 </context>
 <context>
@@ -26002,6 +26378,300 @@ The open document keeps its blend modes either way.</source>
         <translation>沒有圖層帶有影格時間</translation>
     </message>
     <message>
+        <source>Screen &amp;Mode</source>
+        <translation>螢幕模式(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>標準(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>含選單的全螢幕(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>全螢幕(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>切換螢幕模式(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>結束全螢幕</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>按 %1 或 Esc 結束全螢幕</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>按 Esc 結束全螢幕</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>沒有可修剪的內容：在容許度範圍內每個像素都是透明的。請降低容許度。</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>沒有可修剪的內容：每個像素都在修剪顏色的容許度範圍內。請降低容許度。</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>匯出為網頁格式(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>匯出為網頁格式</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>起點的水平位置</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>起點的垂直位置</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>從起點到終點的水平距離</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>從起點到終點的垂直距離 (向下為正)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>線條相對水平方向的逆時針角度；有兩條邊時為兩邊之間的角度</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>線條長度</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>第二條邊的長度 (%ALT%+拖曳端點可新增)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>拉直圖層</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>旋轉目前圖層使線條水平 (更接近垂直時則使其垂直)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>拉直影像</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>旋轉整個影像使線條水平，並裁掉空白的角落</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>移除測量線</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>尺標工具</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>拖曳以測量，Shift 保持 45 度。拖曳端點或線條可調整，%ALT%+拖曳端點可測量角度。</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>尺標工具：拖曳以測量，Shift 保持 45 度。拖曳端點或線條可調整，%ALT%+拖曳端點可新增第二條邊並測量兩邊之間的角度。拉直會使線條水平。</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>滴管工具</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>循環切換滴管工具</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>請先用尺標工具畫一條線</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>線條已經是直的</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>請選取要拉直的圖層</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>已將圖層逆時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>已將圖層順時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>已將影像逆時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>已將影像順時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>正在編輯向量圖遮色片：用筆型工具或形狀工具繪製路徑或形狀來遮蓋圖層</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>取消連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>遮色片內容...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>已增加向量圖遮色片。用筆型工具或形狀工具繪製路徑或形狀來遮蓋圖層</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>取消連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>已連結圖層與向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>已取消連結圖層與向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>向量圖遮色片內容</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>圖層遮色片內容</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>已變更向量圖遮色片的濃度和羽化</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>已變更圖層遮色片的濃度和羽化</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>匯出佈景主題套件...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>將所選佈景主題連同其圖示、影像和音效儲存為 .zip 套件。</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>匯出圖示範本...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>將每個內建圖示以 SVG 檔案寫入一個資料夾,作為佈景主題 icons/ 資料夾的起點。</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>播放佈景主題音效</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>播放佈景主題套件內含的音效,例如儲存完成時。沒有音效的佈景主題保持靜音。</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>要刪除佈景主題 &quot;%1&quot; 嗎?其資料夾會移到資源回收筒。</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy 佈景主題 (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>匯出佈景主題套件</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy 佈景主題套件 (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>匯出圖示範本</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>已將 %n 個圖示寫入 %1。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>螢幕模式：%1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>按一下切換到下一個模式。按住或按右鍵可選擇模式。</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>自訂工具面板...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>選取</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>繪畫</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>修飾</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>繪製與文字</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>檢視</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>顯示所有按鈕</translation>
+    </message>
+    <message>
         <source>All Caps</source>
         <translation>全部大寫字母</translation>
     </message>
@@ -28022,6 +28692,10 @@ The open document keeps its blend modes either way.</source>
         <translation>trim 的 tolerance 必須是 0 到 255 之間的數字。</translation>
     </message>
     <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette：未知的值「%1」。</translation>
+    </message>
+    <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1：第 %2 段的 %3 必須是 &apos;%4&apos;、&apos;%5&apos; 或 &apos;none&apos;。</translation>
     </message>
@@ -28067,6 +28741,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1：layers 需要 colorMode: &quot;rgb&quot;；含圖層的 TIFF 會以 RGB 儲存。</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1：PNG 的 colors、dither 和 ditherAmount 需要 pngColors: &quot;palette&quot;。</translation>
     </message>
 </context>
 <context>

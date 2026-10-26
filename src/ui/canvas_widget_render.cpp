@@ -724,7 +724,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   ZoomTraceScope trace("paint", zoom_);
   QPainter painter(this);
   const auto exposed_rect = event != nullptr ? event->rect() : rect();
-  painter.fillRect(exposed_rect, backdrop_color());
+  fill_pasteboard(painter, QRectF(exposed_rect));
 
   if (document_ == nullptr || document_->width() == 0 || document_->height() == 0) {
     painter.setPen(theme().canvas_empty_text);
@@ -1102,6 +1102,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_shape_preview(painter, exposed_rect);
   draw_crop_overlay(painter);
   draw_perspective_crop_overlay(painter);
+  draw_ruler_overlay(painter);
   draw_move_layer_selection(painter);
   draw_drag_size_readout(painter);
   draw_transform_drag_readout(painter);

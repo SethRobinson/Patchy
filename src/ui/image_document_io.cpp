@@ -53,12 +53,15 @@
 #include <QJsonDocument>
 #include <QByteArray>
 #include <QColor>
+#include <QDir>
+#include <QFile>
 #include <QImage>
 #include <QImageWriter>
 #include <QObject>
 #include <QPainter>
 #include <QSaveFile>
 #include <QString>
+#include <QTemporaryDir>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -1825,6 +1828,35 @@ namespace {
 // Flattens a palette-mode document into an 8-bit indexed image carrying the
 // document palette in file order (plus one transparent slot when the flatten
 // has hidden pixels and the table has room; Qt's PNG writer emits it as tRNS).
+// The GIF and palette PNG quantization the options ask for (docs/web-export.md).
+[[nodiscard]] QuantizeOptions palette_quantize_options(const ImageSaveOptions& options) {
+  return QuantizeOptions{static_cast<std::size_t>(std::clamp(options.palette_colors, 2, 256)),
+                         options.palette_dither, std::clamp(options.palette_dither_amount, 0, 100)};
+}
+
+// A palette PNG of an RGB document: the GIF writer's quantized colors (exact colors when they
+// fit, else median cut, optional error diffusion) plus one fully transparent entry for pixels
+// below 50% alpha, which Qt's PNG writer stores as tRNS.
+[[nodiscard]] QImage quantized_png8_image(const Document& document, const ImageSaveOptions& options) {
+  const auto indexed =
+      indexed_flatten_quantized(document, gif::kQuantizeAlphaThreshold, palette_quantize_options(options));
+  QList<QRgb> table;
+  table.reserve(static_cast<qsizetype>(indexed.palette.size()));
+  for (std::size_t index = 0; index < indexed.palette.size(); ++index) {
+    const auto& color = indexed.palette[index];
+    table.append(static_cast<int>(index) == indexed.transparent_index ? qRgba(0, 0, 0, 0)
+                                                                      : qRgb(color.red, color.green, color.blue));
+  }
+  QImage image(indexed.width, indexed.height, QImage::Format_Indexed8);
+  image.setColorTable(table);
+  for (std::int32_t y = 0; y < indexed.height; ++y) {
+    std::memcpy(image.scanLine(y),
+                indexed.indexes.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(indexed.width),
+                static_cast<std::size_t>(indexed.width));
+  }
+  return image;
+}
+
 [[nodiscard]] QImage indexed_png8_image(const Document& document) {
   const auto& editing = *document.palette_editing();
   const auto& colors = editing.palette.colors;
@@ -2328,10 +2360,39 @@ void add_jpeg_exif_thumbnail(metadata::SaveMetadata& metadata, const QImage& ima
   }
 }
 
+// The JPEG coding choices of ImageSaveOptions (progressive scans, optimized Huffman tables,
+// the EXIF thumbnail); the defaults are what Save has always written.
+struct JpegCoding {
+  bool progressive{false};
+  bool optimize{false};
+  bool exif_thumbnail{true};
+};
+
+[[nodiscard]] JpegCoding jpeg_coding_for(const ImageSaveOptions& options) noexcept {
+  return JpegCoding{options.jpeg_progressive, options.jpeg_optimize, options.jpeg_exif_thumbnail};
+}
+
+void configure_image_writer(QImageWriter& writer, bool jpeg, int quality, const JpegCoding& coding) {
+  if (quality >= 0) {
+    writer.setQuality(quality);
+  }
+  if (jpeg) {
+    // Only set when asked for, so a plain save never depends on the plug-in's handling
+    // of the two options.
+    if (coding.optimize) {
+      writer.setOptimizedWrite(true);
+    }
+    if (coding.progressive) {
+      writer.setProgressiveScanWrite(true);
+    }
+  }
+}
+
 void write_qimage_atomically(const QImage& image, const QString& path, const std::string& format, int quality,
-                             std::optional<metadata::SaveMetadata> metadata = std::nullopt) {
+                             std::optional<metadata::SaveMetadata> metadata = std::nullopt,
+                             const JpegCoding& coding = {}) {
   const bool jpeg = format == "jpg" || format == "jpeg" || format == "jpe" || format == "jfif";
-  if (metadata.has_value() && !metadata->exif.empty() && jpeg &&
+  if (metadata.has_value() && !metadata->exif.empty() && jpeg && coding.exif_thumbnail &&
       image.format() != QImage::Format_CMYK8888) {
     add_jpeg_exif_thumbnail(*metadata, image);
   }
@@ -2340,9 +2401,7 @@ void write_qimage_atomically(const QImage& image, const QString& path, const std
     QBuffer buffer;
     buffer.open(QIODevice::WriteOnly);
     QImageWriter writer(&buffer, QByteArray::fromStdString(format));
-    if (quality >= 0) {
-      writer.setQuality(quality);
-    }
+    configure_image_writer(writer, jpeg, quality, coding);
     if (!writer.write(image)) {
       throw std::runtime_error(writer.errorString().toStdString());
     }
@@ -2359,9 +2418,7 @@ void write_qimage_atomically(const QImage& image, const QString& path, const std
     throw std::runtime_error(file.errorString().toStdString());
   }
   QImageWriter writer(&file, QByteArray::fromStdString(format));
-  if (quality >= 0) {
-    writer.setQuality(quality);
-  }
+  configure_image_writer(writer, jpeg, quality, coding);
   if (!writer.write(image)) {
     file.cancelWriting();
     throw std::runtime_error(writer.errorString().toStdString());
@@ -2408,7 +2465,8 @@ QImage cmyk_export_qimage(const Document& document, const CmykWorkingSpace& spac
 void write_flat_qimage(const Document& document, const ImageSaveOptions& options, const QImage& image,
                        const QString& path, const std::string& format, int quality) {
   write_qimage_atomically(image, path, format, quality,
-                          save_metadata_for(document, options, format, image.width(), image.height()));
+                          save_metadata_for(document, options, format, image.width(), image.height()),
+                          jpeg_coding_for(options));
 }
 
 // The native flat writers, the animated GIF/WebP/JPEG XL writers and the export-transform
@@ -2419,7 +2477,7 @@ void write_flat_qimage(const Document& document, const ImageSaveOptions& options
                                                    const ImageSaveOptions& options) {
   return export_transform_requested(options) || options.export_cmyk || lower == "gif" ||
          (lower == "webp" && options.webp_animate) || (jxl::is_jxl_extension(lower) && options.jxl_animate) ||
-         ((lower == "png" || lower == "apng") && options.apng_animate) || lower == "tga" || lower == "pcx" || lower == "lbm" || lower == "iff" || lower == "bbm" ||
+         ((lower == "png" || lower == "apng") && (options.apng_animate || options.png_palette)) || lower == "tga" || lower == "pcx" || lower == "lbm" || lower == "iff" || lower == "bbm" ||
          lower == "ico" || lower == "cur" || jxr::is_jxr_extension(lower) || rttex::is_rttex_extension(lower) ||
          dds::is_dds_extension(lower) || is_bmp_extension(extension);
 }
@@ -2601,7 +2659,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     return;
   }
   if (lower == "gif") {
-    auto bytes = gif::write(document);
+    auto bytes = gif::write(document, palette_quantize_options(options));
     if (const auto metadata = save_metadata_for(document, options, lower, document.width(), document.height())) {
       bytes = metadata::inject_metadata(std::move(bytes), lower, *metadata);
     }
@@ -2654,7 +2712,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     metadata.icc = space->profile_bytes();
     write_qimage_atomically(image, path, lower,
                             is_jpeg_extension(extension_bytes) ? std::clamp(options.jpeg_quality, 0, 100) : -1,
-                            metadata);
+                            metadata, jpeg_coding_for(options));
     return;
   }
   if (is_bmp_extension(extension_bytes)) {
@@ -2668,6 +2726,11 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   if (extension.compare(QStringLiteral("png"), Qt::CaseInsensitive) == 0 &&
       document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty()) {
     write_flat_qimage(document, options, indexed_png8_image(document), path, lower, -1);
+    return;
+  }
+  // Palette PNG (Export for Web): the GIF quantizer's colors, one transparent entry (tRNS).
+  if (extension.compare(QStringLiteral("png"), Qt::CaseInsensitive) == 0 && options.png_palette) {
+    write_flat_qimage(document, options, quantized_png8_image(document, options), path, lower, -1);
     return;
   }
 
@@ -2692,6 +2755,45 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   }
   write_flat_qimage(document, options, flat_export_qimage(document, image_format_preserves_alpha(extension_bytes)),
                     path, lower, quality);
+}
+
+Document export_transformed_document(const Document& document, const ImageSaveOptions& options,
+                                     std::vector<std::string>* notices) {
+  std::optional<Document> narrowed;
+  return export_stand_in_document(document_for_8bit_writer(document, narrowed), options, notices);
+}
+
+ImageSaveOptions without_export_transforms(ImageSaveOptions options) {
+  options.export_scale = 1;
+  options.export_trim_transparent = false;
+  options.export_width = 0;
+  options.export_height = 0;
+  options.export_fill_transparent = false;
+  return options;
+}
+
+std::vector<std::uint8_t> encode_flat_image_bytes(const Document& document, const QString& extension,
+                                                  const ImageSaveOptions& options,
+                                                  std::vector<std::string>* notices) {
+  // Through write_flat_image_file into a private folder, so the bytes are exactly what an
+  // export of the same options writes, for every format and its animated forms.
+  const QTemporaryDir directory(QDir::temp().filePath(QStringLiteral("patchy-encode-XXXXXX")));
+  if (!directory.isValid()) {
+    throw std::runtime_error(directory.errorString().toStdString());
+  }
+  const auto path = directory.filePath(QStringLiteral("encoded.") + extension);
+  write_flat_image_file(document, path, extension, options, notices);
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+  const auto bytes = file.readAll();
+  return {reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+          reinterpret_cast<const std::uint8_t*>(bytes.constData()) + bytes.size()};
+}
+
+void write_encoded_image_file(const QString& path, std::span<const std::uint8_t> bytes) {
+  write_bytes_with_save_file(path, bytes);
 }
 
 namespace {
@@ -2818,7 +2920,7 @@ static void write_animated_layers(const Document& document, const QString& path,
     auto indexed = palette_mode
                        ? indexed_rgba8_with_palette(rgba, document.palette_editing()->palette.colors,
                                                     document.palette_editing()->alpha_threshold)
-                       : indexed_rgba8_quantized(rgba, 256, gif::kQuantizeAlphaThreshold);
+                       : indexed_rgba8_quantized(rgba, gif::kQuantizeAlphaThreshold, palette_quantize_options(options));
     gif::GifFrame frame;
     frame.palette = std::move(indexed.palette);
     frame.transparent_index = indexed.transparent_index;

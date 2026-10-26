@@ -2,6 +2,7 @@
 
 #include "ui/build_info.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_backdrop.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/splash_artwork.hpp"
@@ -9,6 +10,10 @@
 #include "ui/recent_file_list.hpp"
 
 #include <QEvent>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QStyle>
+#include <QStyleOption>
 
 #include <QDir>
 #include <QDesktopServices>
@@ -498,6 +503,14 @@ void StartPanel::changeEvent(QEvent* event) {
   for (auto* child : findChildren<QObject*>()) apply_bound_translation(child);
   for (const auto& callback : retranslation_callbacks_) callback();
   rebuild_recent_rows();
+}
+
+void StartPanel::paintEvent(QPaintEvent* event) {
+  QPainter painter(this);
+  QStyleOption option;
+  option.initFrom(this);
+  style()->drawPrimitive(QStyle::PE_Widget, &option, &painter, this);
+  paint_theme_backdrop(painter, event != nullptr ? event->rect() : rect(), *this, theme().canvas_backdrop);
 }
 
 void StartPanel::showEvent(QShowEvent* event) {

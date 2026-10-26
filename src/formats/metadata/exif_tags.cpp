@@ -596,6 +596,32 @@ std::string_view exif_tag_name(IfdKind kind, std::uint16_t tag) noexcept {
   return found != nullptr ? found->name : std::string_view{};
 }
 
+std::optional<std::uint16_t> exif_tag_by_name(IfdKind kind, std::string_view name) noexcept {
+  std::span<const TagName> table;
+  switch (kind) {
+    case IfdKind::Ifd0:
+      table = kImageTags;
+      break;
+    case IfdKind::Exif:
+      table = kExifTags;
+      break;
+    case IfdKind::Gps:
+      table = kGpsTags;
+      break;
+    case IfdKind::Interop:
+      table = kInteropTags;
+      break;
+    default:
+      return std::nullopt;
+  }
+  for (const auto& entry : table) {
+    if (entry.name == name) {
+      return entry.tag;
+    }
+  }
+  return std::nullopt;
+}
+
 std::string exif_tag_display_name(IfdKind kind, std::uint16_t tag) {
   const auto name = exif_tag_name(kind, tag);
   if (!name.empty()) {

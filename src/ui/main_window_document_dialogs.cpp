@@ -1831,9 +1831,18 @@ void MainWindow::trim_canvas_dialog() {
   }
   const auto bounds = trim_bounds(composite, settings->basis, settings->sides, settings->tolerance);
   if (!bounds.has_value()) {
-    statusBar()->showMessage(settings->basis == TrimBasis::TransparentPixels
-                                 ? tr("Nothing to trim: the image has no visible pixels")
-                                 : tr("Nothing to trim: the whole image is one color"));
+    // With a tolerance, "every pixel matches" usually means the tolerance is too high, not
+    // that the image is blank or one color.
+    const auto transparent = settings->basis == TrimBasis::TransparentPixels;
+    if (settings->tolerance > 0) {
+      statusBar()->showMessage(
+          transparent ? tr("Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.")
+                      : tr("Nothing to trim: every pixel is within the tolerance of the trim color. Lower the "
+                           "Tolerance."));
+    } else {
+      statusBar()->showMessage(transparent ? tr("Nothing to trim: the image has no visible pixels")
+                                           : tr("Nothing to trim: the whole image is one color"));
+    }
     return;
   }
   auto& doc = document();

@@ -17,6 +17,9 @@ namespace patchy::metadata {
 // The tag's specification name, or empty when unknown.
 [[nodiscard]] std::string_view exif_tag_name(IfdKind kind, std::uint16_t tag) noexcept;
 
+// The tag with this specification name in the directory's own table (IFD0, Exif,
+// GPS or Interop), or nullopt.
+[[nodiscard]] std::optional<std::uint16_t> exif_tag_by_name(IfdKind kind, std::string_view name) noexcept;
 // Display name: the specification name, or "Tag 0x1234" when unknown.
 [[nodiscard]] std::string exif_tag_display_name(IfdKind kind, std::uint16_t tag);
 

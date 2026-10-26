@@ -12825,6 +12825,286 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Не показывать при открытии документов (снова включается в Настройки &gt; Приложение)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>Качество %1, прогрессивный</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>Качество %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>Без потерь</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, анимация</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>Полноцветный</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Экспорт для веба</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>Размеры соответствуют реально закодированным файлам с настройками каждого формата и обновляются при их изменении.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>Параметры JPEG</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>Прогрессивный (при загрузке сначала показывает грубое изображение)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>Оптимизировать кодирование (меньше файл, то же изображение)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>Заполняет прозрачные области (в JPEG нет прозрачности)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>Параметры WebP</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>Каждый видимый слой верхнего уровня становится одним кадром, верхний слой первый.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>Параметры PNG</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>Полноцветный, без потерь. Прозрачность сохраняется.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Размер изображения</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>от %1 x %2</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>Пиксель-арт (целые пиксели)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>Пиксель-арт увеличивает на целые пиксели без сглаживания, поэтому спрайты остаются чёткими.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>Метаданные и цвет</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>Метаданные сведений о файле для включения. «Нет» даёт самый маленький файл.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>Включить миниатюру (около 5–10 КБ)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>Добавляет небольшое изображение предпросмотра в данные EXIF. Записывается, только если файл сохраняет метаданные EXIF.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>Преобразовать в sRGB (из %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>Браузеры показывают изображения без профиля как sRGB. Если флажок снят, файл сохраняет свой цветовой профиль.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB, профиль не нужен</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>Сравнить:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>Разделение</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>Рядом</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>Только результат</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>Вернуть все настройки по умолчанию</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>ошибка</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>кодирование...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>Результат %1 x %2, %3 %4 (%5% от %6 без сжатия)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: кодирование...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>Ошибка кодирования: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>Кодирование %1...</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Линейка</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Слой и векторная маска связаны. Нажмите, чтобы отменить связь.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Слой и векторная маска не связаны. Нажмите, чтобы связать.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Свойства векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Свойства маски слоя</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Непрозрачность скрытых маской областей. Ниже 100% слой просвечивает сквозь них.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Смягчает края маски на это число пикселей</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n цвет, диффузия</numerusform>
+            <numerusform>%n цвета, диффузия</numerusform>
+            <numerusform>%n цветов, диффузия</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n цвет, без дизеринга</numerusform>
+            <numerusform>%n цвета, без дизеринга</numerusform>
+            <numerusform>%n цветов, без дизеринга</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>Наибольшее число цветов в палитре. Изображение с меньшим числом цветов сохраняет их точно.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Диффузия</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>Диффузия смешивает соседние цвета палитры, чтобы на градиентах было меньше полос. Обычно файл становится больше.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>Цвета, которые использует файл</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Палитра</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Палитра записывает до 256 цветов, намного меньше для плоской графики, логотипов и снимков экрана.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>Пиксели с непрозрачностью ниже 50% становятся прозрачными.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>Параметры GIF</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Имя слоя, оканчивающееся временем, например 0.25s, задаёт задержку этого кадра.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Задержка кадра:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Настройка палитры инструментов</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Отметьте инструменты, которые нужно показать. Скрытые инструменты сохраняют сочетания клавиш.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Расположение</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Один столбец</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Два столбца, инструменты рядом</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>Колесо мыши прокручивает палитру, когда она не помещается</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Иначе стрелка &gt; открывает дополнительные столбцы.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Показывать кнопку с шестерёнкой на палитре</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Инструменты</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Отметьте кнопки, которые показывает панель «Слои». Команды скрытых кнопок остаются в меню.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Кнопки слоёв</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Восстановить по умолчанию</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12917,6 +13197,98 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>Не удалось прочитать файл темы «%1».</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; должно быть true или false (пропущено).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; должно быть &quot;smooth&quot; или &quot;nearest&quot; (пропущено).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; не является объектом (пропущено).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>Режим фона &quot;%1&quot; не равен &quot;tile&quot;, &quot;stretch&quot; или &quot;center&quot; (используется мозаика).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>В пакете темы нет theme.json.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>Значок &quot;%1&quot; не совпадает ни с одним встроенным значком (пропущен).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>Значок &quot;%1&quot; не является файлом SVG, PNG или BMP (пропущен).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Не удалось прочитать значок &quot;%1&quot; (пропущен).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>Звук &quot;%1&quot; не соответствует ни одному звуковому событию (пропущен).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>Звук &quot;%1&quot; не является файлом WAV (пропущен).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>Фоновое изображение &quot;%1&quot; отсутствует в пакете (пропущено).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Не удалось прочитать фоновое изображение &quot;%1&quot; (пропущено).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>Не удалось прочитать папку темы &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>Пакет темы &quot;%1&quot; содержит путь за пределами пакета: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>Пакет темы &quot;%1&quot; превышает ограничения для пакетов тем.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>В папке темы &quot;%1&quot; нет читаемого theme.json.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>Пакет темы превышает ограничения для пакетов тем.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>Пакет темы не является читаемым zip-файлом.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>Пакет темы использует шифрование или метод сжатия, который Patchy не может прочитать.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>Файл в пакете темы повреждён.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>Пакет темы содержит путь за пределами пакета: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>Не удалось создать папку &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>Не удалось записать &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>
@@ -14638,6 +15010,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>Вспомогательные элементы скрыты</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Выровнять слой</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>У векторной маски пока нет контура для перемещения. Нарисуйте его инструментом «Перо» или инструментом фигуры.</translation>
     </message>
 </context>
 <context>
@@ -26148,6 +26528,302 @@ The open document keeps its blend modes either way.</source>
         <translation>Ни у одного слоя нет времени кадра</translation>
     </message>
     <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Режим &amp;экрана</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Стандартный</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Полный экран с &amp;меню</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Полный экран</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>П&amp;ереключить режим экрана</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Нажмите %1 или Esc, чтобы выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Нажмите Esc, чтобы выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели прозрачны в пределах допуска. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели в пределах допуска от цвета обрезки. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Экспорт для &amp;веба...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Экспорт для веба</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Угол:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Горизонтальное положение начальной точки</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Вертикальное положение начальной точки</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Расстояние по горизонтали от начальной точки до конечной</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Расстояние по вертикали от начальной точки до конечной (вниз положительно)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Угол линии против часовой стрелки от горизонтали; при двух сторонах угол между ними</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Длина линии</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Длина второй стороны (%ALT%+перетаскивание конца добавляет её)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Выровнять слой</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Повернуть активный слой так, чтобы линия стала горизонтальной (или вертикальной, если она ближе к вертикали)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Выровнять изображение</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Повернуть всё изображение так, чтобы линия стала горизонтальной, и обрезать пустые углы</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Удалить измерительную линию</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Линейка</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Перетащите, чтобы измерить, Shift удерживает шаг 45 градусов. Перетащите конец или линию, чтобы изменить её, %ALT%+перетаскивание конца измеряет угол.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Линейка: перетащите, чтобы измерить, Shift удерживает шаг 45 градусов. Перетащите конец или линию, чтобы изменить её, %ALT%+перетаскивание конца добавляет вторую сторону и измеряет угол между ними. Выровнять делает линию горизонтальной.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Инструменты выбора цвета</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Сменить инструмент выбора цвета</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Сначала проведите линию Линейкой</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>Линия уже ровная</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Выберите слой для выравнивания</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Слой выровнен поворотом на %1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Слой выровнен поворотом на %1 градус по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Изображение выровнено поворотом на %1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Изображение выровнено поворотом на %1 градус по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Редактирование векторной маски: нарисуйте контур или фигуру инструментом «Перо» или инструментом фигуры, чтобы замаскировать слой</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Отменить связь векторной маски</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Связать векторную маску</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Свойства маски...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Добавлена векторная маска. Нарисуйте контур или фигуру инструментом «Перо» или инструментом фигуры, чтобы замаскировать слой</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Связать векторную маску</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Отменить связь векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Слой и векторная маска связаны</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Связь слоя и векторной маски отменена</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Свойства векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Свойства маски слоя</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Изменены плотность и растушёвка векторной маски</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Изменены плотность и растушёвка маски слоя</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>Экспортировать пакет темы...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>Сохранить выбранную тему как пакет .zip со значками, изображениями и звуками.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>Экспортировать шаблон значков...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>Записать каждый встроенный значок как файл SVG в папку, чтобы начать с него папку icons/ темы.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>Воспроизводить звуки темы</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>Воспроизводить звуки из пакета темы, например по завершении сохранения. Темы без звуков остаются беззвучными.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>Удалить тему &quot;%1&quot;? Её папка будет перемещена в корзину.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Темы Patchy (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>Экспорт пакета темы</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Пакет темы Patchy (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>Экспорт шаблона значков</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>Записан %n значок в %1.</numerusform>
+            <numerusform>Записано %n значка в %1.</numerusform>
+            <numerusform>Записано %n значков в %1.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Режим экрана: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Щелкните, чтобы перейти к следующему режиму. Удерживайте или щелкните правой кнопкой, чтобы выбрать режим.</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Настройка палитры инструментов...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Выделение</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Рисование</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Ретушь</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Контуры и текст</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Просмотр</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Показать все кнопки</translation>
+    </message>
+    <message>
         <source>All Caps</source>
         <translation>Все прописные</translation>
     </message>
@@ -28170,6 +28846,10 @@ The open document keeps its blend modes either way.</source>
         <translation>trim tolerance должен быть числом от 0 до 255.</translation>
     </message>
     <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: неизвестное значение &quot;%1&quot;.</translation>
+    </message>
+    <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: текстовый фрагмент %2: %3 должен быть &apos;%4&apos;, &apos;%5&apos; или &apos;none&apos;.</translation>
     </message>
@@ -28215,6 +28895,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: для layers нужен colorMode: &quot;rgb&quot;; TIFF со слоями сохраняется в RGB.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: для PNG параметрам colors, dither и ditherAmount нужен pngColors: &quot;palette&quot;.</translation>
     </message>
 </context>
 <context>

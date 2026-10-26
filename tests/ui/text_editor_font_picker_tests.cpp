@@ -2455,10 +2455,7 @@ void ui_text_escape_commits_preference() {
         return;
       }
       saw_dialog = true;
-      if (auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget")); tabs != nullptr) {
-        tabs->setCurrentIndex(1);  // Tools
-        QApplication::processEvents();
-      }
+      select_preferences_page(*dialog, QStringLiteral("Tools"));
       auto* tools_group = dialog->findChild<QWidget*>(QStringLiteral("preferencesToolsGroup"));
       auto* check = tools_group != nullptr
                         ? tools_group->findChild<QCheckBox*>(QStringLiteral("preferencesEscapeCommitsTextCheck"))

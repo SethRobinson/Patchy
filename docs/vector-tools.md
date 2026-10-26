@@ -102,15 +102,42 @@ the active shape layer (a press picks another), else the work path.
 
 ## Vector mask UI
 
-Layers with a vector mask get a third row thumbnail (grayscale coverage,
-density and disabled-cross conventions). Click targets the mask path for
-pen/path tools (raster painting refuses), Ctrl-click loads the coverage as a
-selection, Alt-click toggles the grayscale view, Shift-click disables.
-Layer > Vector Mask: Reveal All (empty path = full coverage), Hide All
-(inverted empty path), Current Path (copies the work path), Delete, Disable,
+Layers with a vector mask get a link chain (`layerVectorMaskLinkButton`) and a
+third row thumbnail (grayscale coverage, density and disabled-cross
+conventions; `refresh_layer_thumbnails` redraws it from the render revision).
+Click targets the mask path for pen/path tools (raster painting refuses) and
+never toggles back (#447: adding a mask already targets it, so a toggle turned
+the first click into "edit the pixels"; the content thumbnail returns). The
+target border is the `layerTargetActive` QSS rule shared with the other
+thumbnails. Ctrl-click loads the coverage as a selection, Alt-click toggles the
+grayscale view, Shift-click disables, double-click opens Mask Properties
+(below). Layer > Vector Mask: Reveal All (empty path = full coverage), Hide All
+(inverted empty path; the first shape drawn into it clears the inversion, so
+drawing reveals, `add_subpaths_to_vector_mask`), Current Path (copies the work path), Delete, Disable,
 Rasterize (bakes coverage, density and any raster mask multiplied in, into
-the layer mask). While the vector-mask target is active, shape drags and pen
-commits append subpaths to the mask path.
+the layer mask). An empty mask's status message names the Pen and shape tools.
+
+While the vector-mask target is active, everything on the mask path works as
+on a work path, each gesture one undo step with live coverage: shape drags
+(Path or Shape mode) and pen commits append subpaths, Path Select and Direct
+Select (and the Pen's Ctrl latch) move and edit them, Delete removes the
+selection, Ctrl+T runs the path transform, and the Paths panel selects the
+transient "<layer> Vector Mask" row; a click on that row (even already
+selected) targets the mask (tests/ui/vector_mask_editing_tests.cpp).
+
+Link (`LayerVectorMask::unlinked`, vmsk bit 1): the chain or the thumbnail menu
+toggles it, one undo step. A linked mask follows Move and Free Transform; an
+unlinked one stays (`translate_moved_layer_metadata`,
+`transform_keeping_unlinked_vector_mask` in canvas_widget_transform.cpp). Move
+with an unlinked mask targeted drags only the mask path
+(`handle_move_vector_mask_press` latches the path-edit handlers as Path Select).
+
+Mask Properties (`mask_properties_dialog.cpp`, `edit_layer_mask_properties`):
+a double-click on the vector mask or layer mask thumbnail, or the thumbnail
+menu, opens a non-modal Density (0 to 100%) and Feather (0 to 1000 px) dialog
+for that mask. Edits preview live under the preview-dialog edit lock; OK is
+one undo step, Cancel restores; a field left alone keeps its exact stored
+value.
 
 ## Paths panel
 

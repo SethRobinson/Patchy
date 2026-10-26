@@ -305,6 +305,10 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
     }
     add_backdrop_color_menu_entries(*menu);
   }
+  // Exit Full Screen, last and anywhere, while a full-screen mode hides the menus.
+  if (screen_mode_context_actions_callback_) {
+    append_section(screen_mode_context_actions_callback_());
+  }
   if (menu->isEmpty()) {
     canvas_context_menu_.clear();
     menu->deleteLater();

@@ -19,6 +19,12 @@ for presets) and the `colorMode` tokens `rgb` and `cmykProof` are contracts too;
 
 ## Templates, Recent row and search
 
+Layout (GitHub issue 342): one row across the top holds the search field (400 px fixed) and
+the group chips (a `FlowLayout` in `newDocumentChipRow`, wrapping to another row when a
+translation does not fit); below it the template list frame and the settings pane start at
+the same top. `ui_new_document_dialog_fits_short_screens` pins the top row, the five columns,
+every group unscrolled and the dialog's height.
+
 A Recent row (`newDocumentRecentList`) is the top section of the framed list area
 (`newDocumentListFrame`, GitHub issue 342), above a divider, a caption naming the group or
 "Search results" (`newDocumentGroupLabel`) and the group's grid, on every group and through a
@@ -109,7 +115,7 @@ menu (`newDocumentDeletePresetAction`) removes it without a prompt; templates ca
 `reset_document` adds the transparent "Paint Layer" above the Background unless told not
 to; then the document is the Background alone, selected. The default is the Preferences
 checkbox "Add an empty layer above the Background in new documents"
-(`preferencesNewDocumentEmptyLayerCheck`, Application tab, key `newDocument/addEmptyLayer`,
+(`preferencesNewDocumentEmptyLayerCheck`, Application page, key `newDocument/addEmptyLayer`,
 default on). The dialog's "Empty layer above Background" (`newDocumentEmptyLayerCheck`, above
 Artboards) decides for one document: it opens at the preference every time, never writes it,
 and is not stored in Recent cards or saved presets (it follows Preferences). It reaches

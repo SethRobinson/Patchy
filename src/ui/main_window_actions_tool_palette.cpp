@@ -33,11 +33,15 @@
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/tool_palette_customization.hpp"
 #include "ui/tool_palette_footer.hpp"
+#include "ui/tool_palette_layout.hpp"
 
 #include <QAction>
 #include <QActionGroup>
+#include <QDialog>
 #include <QEvent>
+#include <QHBoxLayout>
 #include <QCoreApplication>
 #include <QIcon>
 #include <QKeySequence>
@@ -60,6 +64,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QVariant>
+#include <QTabWidget>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidget>
@@ -69,6 +74,7 @@
 #include <algorithm>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <qlatin1stringview.h>
 #include <utility>
 
@@ -136,6 +142,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fill");
     case CanvasTool::Eyedropper:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pick");
+    case CanvasTool::Ruler:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ruler");
     case CanvasTool::Text:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type");
     case CanvasTool::Pan:
@@ -232,6 +240,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.fill");
     case CanvasTool::Eyedropper:
       return QStringLiteral("tools.eyedropper");
+    case CanvasTool::Ruler:
+      return QStringLiteral("tools.ruler");
     case CanvasTool::Text:
       return QStringLiteral("tools.type");
     case CanvasTool::Pan:
@@ -307,6 +317,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag a box or click four corners around a skewed area, then drag the "
              "corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a "
              "rectangle.");
+    case CanvasTool::Ruler:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust "
+             "it, %ALT%+drag an end to measure an angle.");
     default:
       return nullptr;
   }
@@ -340,6 +353,10 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it "
              "(Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc "
              "clears the corners.");
+    case CanvasTool::Ruler:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to "
+             "adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten "
+             "levels the line.");
     case CanvasTool::AddAnchor:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Anchor Point: click a path segment to insert a point.");
     case CanvasTool::DeleteAnchor:
@@ -419,6 +436,19 @@ QString tool_action_object_name(CanvasTool tool) {
   name.remove(QLatin1Char(' '));
   return QStringLiteral("tool") + name + QStringLiteral("Action");
 }
+
+// A plain tool's palette button: "brushToolButton", "zoomToolButton".
+QString plain_tool_button_object_name(CanvasTool tool) {
+  auto name = QString::fromLatin1(tool_action_source(tool));
+  name.remove(QLatin1Char(' '));
+  if (!name.isEmpty()) {
+    name[0] = name[0].toLower();
+  }
+  return name + QStringLiteral("ToolButton");
+}
+
+// The gear's icon, a little smaller than the tools' (its row is shorter).
+int customize_button_icon_extent(double factor) { return tool_palette_length(14, factor); }
 
 class MouseDoubleClickFilter final : public QObject {
 public:
@@ -502,23 +532,29 @@ constexpr int kFlyoutMarkerGap = 3;
 
 // Paints the marker over the menu: the menu paints itself first (the event is resent to
 // it), then the square goes on the current tool's row, in the text color of a highlighted
-// row so it stays visible there.
+// row so it stays visible there. The current entry is the one the button shows, or what
+// `current` returns (the screen mode button, whose entries are the View menu's actions).
 class ToolFlyoutCurrentMarker final : public QObject {
 public:
-  ToolFlyoutCurrentMarker(QToolButton* button, QMenu* menu) : QObject(menu), button_(button) {
+  ToolFlyoutCurrentMarker(QToolButton* button, QMenu* menu)
+      : ToolFlyoutCurrentMarker(menu, [button = QPointer<QToolButton>(button)]() -> QAction* {
+          return button != nullptr ? button->defaultAction() : nullptr;
+        }) {}
+  ToolFlyoutCurrentMarker(QMenu* menu, std::function<QAction*()> current)
+      : QObject(menu), current_(std::move(current)) {
     menu->installEventFilter(this);
   }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    if (event->type() != QEvent::Paint || painting_ || button_ == nullptr) {
+    if (event->type() != QEvent::Paint || painting_ || !current_) {
       return QObject::eventFilter(watched, event);
     }
     auto* menu = static_cast<QMenu*>(watched);
     painting_ = true;
     QCoreApplication::sendEvent(menu, event);
     painting_ = false;
-    auto* current = button_->defaultAction();
+    auto* current = current_();
     const QRect row = current != nullptr && current->isVisible() ? menu->actionGeometry(current) : QRect();
     if (row.isValid()) {
       const auto& colors = theme();
@@ -531,7 +567,7 @@ protected:
   }
 
 private:
-  QPointer<QToolButton> button_;
+  std::function<QAction*()> current_;
   bool painting_{false};
 };
 
@@ -754,7 +790,8 @@ private:
 
   // The width the columns Qt filled actually need: the rightmost visible
   // tool button's right edge plus the layout's right margin. The footer and
-  // the extension button are not tools.
+  // the extension button are not tools. A two-column row holds its buttons, so
+  // their edges are mapped into the bar.
   int used_columns_width() const {
     if (palette_ == nullptr) {
       return 0;
@@ -762,10 +799,11 @@ private:
     const auto* footer = palette_->findChild<QWidget*>(QStringLiteral("toolPaletteFooter"));
     int right = 0;
     for (const auto* button : palette_->findChildren<QToolButton*>()) {
-      if (button == extension_ || button->isHidden() || (footer != nullptr && footer->isAncestorOf(button))) {
+      if (button == extension_ || !button->isVisibleTo(palette_) ||
+          (footer != nullptr && footer->isAncestorOf(button))) {
         continue;
       }
-      right = std::max(right, button->geometry().right() + 1);
+      right = std::max(right, button->mapTo(palette_.data(), QPoint(button->width(), 0)).x());
     }
     if (right <= 0) {
       return palette_->width();
@@ -1004,6 +1042,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::PerspectiveCrop:
       name = "tool-perspective-crop";
       break;
+    case CanvasTool::Ruler:
+      name = "tool-ruler";
+      break;
     case CanvasTool::AddAnchor:
       name = "tool-add-anchor";
       break;
@@ -1046,8 +1087,47 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   auto* tool_group = new QActionGroup(this);
   tool_group->setExclusive(true);
   tool_action_group_ = tool_group;
+
+  // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md,
+  // "Customizing the palette"): the gear above the tools, Window > Customize Tool
+  // Palette..., and the palette's right-click menu all open the dialog.
+  tool_palette_customization_ = stored_tool_palette_customization();
+  customize_tool_palette_action_ = new QAction(tr("Customize Tool Palette..."), this);
+  customize_tool_palette_action_->setObjectName(QStringLiteral("windowCustomizeToolPaletteAction"));
+  bind_action_text(customize_tool_palette_action_,
+                   QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Customize Tool Palette..."));
+  customize_tool_palette_action_->setIcon(simple_icon(QStringLiteral("gear")));
+  customize_tool_palette_action_->setMenuRole(QAction::NoRole);
+  customize_tool_palette_action_->setProperty(kWorksWithoutDocumentProperty, true);
+  register_hotkey(customize_tool_palette_action_, "window.customize_tool_palette", QKeySequence());
+  connect(customize_tool_palette_action_, &QAction::triggered, this,
+          [this] { show_tool_palette_customization(ToolPaletteCustomizeTab::Tools); });
+  if (ctx.window_menu != nullptr && window_panels_separator_ != nullptr) {
+    ctx.window_menu->insertAction(window_panels_separator_, customize_tool_palette_action_);
+  }
+  // The gear sits in a holder: a QToolButton whose parent is the toolbar always draws the
+  // bar's icon size, and the gear's row is shorter than a tool's.
+  auto* customize_holder = new QWidget(tool_palette);
+  customize_holder->setObjectName(QStringLiteral("toolPaletteCustomizeHolder"));
+  auto* customize_holder_layout = new QHBoxLayout(customize_holder);
+  customize_holder_layout->setContentsMargins(0, 0, 0, 0);
+  auto* customize_button = new QToolButton(customize_holder);
+  customize_button->setObjectName(QStringLiteral("toolPaletteCustomizeButton"));
+  customize_button->setDefaultAction(customize_tool_palette_action_);
+  customize_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  customize_button->setAutoRaise(true);
+  customize_button->setFocusPolicy(Qt::NoFocus);
+  const int customize_icon = customize_button_icon_extent(tool_palette_factor_);
+  customize_button->setIconSize(QSize(customize_icon, customize_icon));
+  customize_holder_layout->addWidget(customize_button);
+  auto* palette_stash = new QWidget(this);
+  palette_stash->setObjectName(QStringLiteral("toolPaletteStash"));
+  palette_stash->hide();
+  tool_palette_layout_ = new ToolPaletteLayout(tool_palette, customize_holder, palette_stash);
+
   // The palette is ordered in clusters split by separators: select, paint,
   // retouch, draw/type, view. Tools sharing a slot get a flyout button.
+  int cluster = 0;
   const auto create_flyout_tool_action =
       [this, tool_group](QMenu* menu, const QString& label, CanvasTool tool, QKeySequence shortcut) {
         auto* action = new QAction(label, this);
@@ -1056,6 +1136,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
         action->setCheckable(true);
         action->setData(static_cast<int>(tool));
         action->setObjectName(tool_action_object_name(tool));
+        action->setProperty(kToolPaletteToolIdProperty, tool_hotkey_id(tool));
         if (const auto* detail = tool_tooltip_detail_source(tool); detail != nullptr) {
           action->setProperty(kActionTooltipDetailProperty, QString::fromLatin1(detail));
         }
@@ -1073,17 +1154,16 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   // actions that share a sequence, so the members carry no Shift default of their
   // own; a user override that puts Shift+<letter> back on a member wins through
   // the registry's resolution and suppresses the cycle default.
-  const auto configure_tool_flyout = [this](QToolBar* palette, QMenu* menu, QToolButton* button,
-                                            QAction* default_action, const QList<QAction*>& actions,
-                                            const char* cycle_source, const char* cycle_object_name,
-                                            const char* cycle_id, QKeySequence cycle_shortcut) {
+  const auto configure_tool_flyout = [this, &cluster](QToolBar* palette, QMenu* menu, QToolButton* button,
+                                                      QAction* default_action, const QList<QAction*>& actions,
+                                                      const char* cycle_source, const char* cycle_object_name,
+                                                      const char* cycle_id, QKeySequence cycle_shortcut) {
     button->setProperty("toolFlyout", true);
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setPopupMode(QToolButton::DelayedPopup);
     button->setMenu(menu);
     button->setDefaultAction(default_action);
     button->setToolTip(default_action->toolTip());
-    palette->addWidget(button);
     // Press-and-hold opens the flyout after SH_ToolButton_PopupDelay (the
     // InteractionHintsStyle in main.cpp). A left double-click is the second
     // way in: Qt would otherwise route the pair's second press back to
@@ -1113,13 +1193,17 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     new ToolFlyoutCurrentMarker(button, menu);
     menu->setStyleSheet(tool_flyout_menu_style(palette->iconSize().width()));
     for (auto* action : actions) {
-      QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
+      // A member hidden from the flyout still works from its own key; the button keeps
+      // showing a member that is on the palette.
+      QObject::connect(action, &QAction::triggered, button, [this, button, menu, action] {
+        if (tool_palette_layout_ != nullptr && tool_palette_layout_->tool_hidden(action)) {
+          return;
+        }
         button->setDefaultAction(action);
         button->setMenu(menu);
         button->setToolTip(action->toolTip());
       });
     }
-    const QList<QAction*> members = actions;
     auto* cycle = new QAction(tr(cycle_source), this);
     bind_action_text(cycle, cycle_source);
     cycle->setObjectName(QString::fromLatin1(cycle_object_name));
@@ -1130,7 +1214,13 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // Listed after the members so the flyout shows the key that walks it.
     menu->addSeparator();
     menu->addAction(cycle);
-    QObject::connect(cycle, &QAction::triggered, button, [button, members] {
+    // The cycle walks the members the flyout shows (ToolPaletteLayout::cycle_members).
+    QObject::connect(cycle, &QAction::triggered, button, [this, button, all_members = actions] {
+      const auto members =
+          tool_palette_layout_ != nullptr ? tool_palette_layout_->cycle_members(button) : all_members;
+      if (members.isEmpty()) {
+        return;
+      }
       int current = -1;
       for (int i = 0; i < members.size(); ++i) {
         if (members[i]->isChecked()) {
@@ -1142,6 +1232,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
       }
       members[(current + 1) % members.size()]->trigger();
     });
+    tool_palette_layout_->add_slot(cluster, button, menu, actions, cycle);
   };
 
   // Move and Artboard share a slot, as in Photoshop (docs/artboards.md).
@@ -1214,10 +1305,11 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   configure_tool_flyout(tool_palette, crop_menu, crop_tool_button, crop_action, {crop_action, perspective_crop_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Crop Tools"),
                         "toolCycleCropAction", "tools.cycle.crop", QKeySequence(Qt::SHIFT | Qt::Key_C));
-  tool_palette->addSeparator();
+  ++cluster;
 
-  add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
-  add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
+  add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B), cluster)
+      ->setChecked(true);
+  add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E), cluster);
   auto* gradient_menu = new QMenu(tr("Fill Tools"), tool_palette);
   gradient_menu->setObjectName(QStringLiteral("gradientToolMenu"));
   bind_widget_text(gradient_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fill Tools"));
@@ -1231,7 +1323,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                         {gradient_action, fill_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Fill Tools"),
                         "toolCycleFillAction", "tools.cycle.gradient", QKeySequence(Qt::SHIFT | Qt::Key_G));
-  tool_palette->addSeparator();
+  ++cluster;
 
   auto* stamp_menu = new QMenu(tr("Stamp Tools"), tool_palette);
   stamp_menu->setObjectName(QStringLiteral("stampToolMenu"));
@@ -1294,7 +1386,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                         {dodge_action, burn_action, sponge_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Toning Tools"),
                         "toolCycleToningAction", "tools.cycle.tone", QKeySequence(Qt::SHIFT | Qt::Key_O));
-  tool_palette->addSeparator();
+  ++cluster;
 
   // The Pen Tools flyout: the Pen (default, and what P re-selects) plus the
   // dedicated Add/Delete/Convert anchor tools Photoshop users look for.
@@ -1350,15 +1442,24 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                          line_tool_action, custom_shape_tool_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Shape Tools"),
                         "toolCycleShapeAction", "tools.cycle.shape", QKeySequence(Qt::SHIFT | Qt::Key_U));
-  type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
-  tool_palette->addSeparator();
+  type_tool_action_ =
+      add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T), cluster);
+  ++cluster;
 
-  add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
-  add_tool_action(tool_palette, tool_group, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H));
-  auto* zoom_tool_action = add_tool_action(tool_palette, tool_group, tr("Zoom"), CanvasTool::Zoom, QKeySequence(Qt::Key_Z));
-  if (auto* zoom_button = qobject_cast<QToolButton*>(tool_palette->widgetForAction(zoom_tool_action));
-      zoom_button != nullptr) {
-    zoom_button->setObjectName(QStringLiteral("zoomToolButton"));
+  // Pick and Ruler share a slot, as in Photoshop (docs/pick-tool.md, GitHub issue 331).
+  auto* pick_menu = new QMenu(tr("Pick Tools"), tool_palette);
+  pick_menu->setObjectName(QStringLiteral("pickToolMenu"));
+  bind_widget_text(pick_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pick Tools"));
+  auto* pick_action = create_flyout_tool_action(pick_menu, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
+  auto* ruler_action = create_flyout_tool_action(pick_menu, tr("Ruler"), CanvasTool::Ruler, QKeySequence());
+  auto* pick_tool_button = new QToolButton(tool_palette);
+  pick_tool_button->setObjectName(QStringLiteral("pickToolButton"));
+  configure_tool_flyout(tool_palette, pick_menu, pick_tool_button, pick_action, {pick_action, ruler_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Pick Tools"),
+                        "toolCyclePickAction", "tools.cycle.pick", QKeySequence(Qt::SHIFT | Qt::Key_I));
+  add_tool_action(tool_palette, tool_group, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H), cluster);
+  add_tool_action(tool_palette, tool_group, tr("Zoom"), CanvasTool::Zoom, QKeySequence(Qt::Key_Z), cluster);
+  if (auto* zoom_button = findChild<QToolButton*>(QStringLiteral("zoomToolButton")); zoom_button != nullptr) {
     zoom_button->installEventFilter(new MouseDoubleClickFilter(
         [this] {
           if (canvas_ != nullptr) {
@@ -1447,6 +1548,63 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   secondary_color_button_ = tool_palette_footer_->background();
   primary_color_button_->setToolTip(tr("Foreground color"));
   secondary_color_button_->setToolTip(tr("Background color"));
+  // Screen modes (GitHub issue 212; docs/tool-palette.md): one flyout-style button under
+  // Quick Mask whose icon shows the current mode. A click cycles like F; a hold, a
+  // double-click or a right-click opens the View > Screen Mode actions, so the check marks
+  // live in one place. A double-click's first click has already cycled.
+  if (screen_mode_standard_action_ != nullptr && screen_mode_cycle_action_ != nullptr) {
+    auto* button = new QToolButton(tool_palette_footer_);
+    screen_mode_button_ = button;
+    button->setObjectName(QStringLiteral("screenModeButton"));
+    button->setAutoRaise(true);
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setProperty("toolFlyout", true);
+    button->setPopupMode(QToolButton::DelayedPopup);
+    auto* menu = new QMenu(button);
+    menu->setObjectName(QStringLiteral("screenModeFlyoutMenu"));
+    menu->addActions({screen_mode_standard_action_, screen_mode_full_with_menus_action_, screen_mode_full_action_});
+    menu->addSeparator();
+    menu->addAction(screen_mode_cycle_action_);
+    button->setMenu(menu);
+    const auto open_menu = [button] {
+      if (button->isEnabled()) {
+        button->showMenu();
+      }
+    };
+    button->installEventFilter(new ToolButtonPressFilter(open_menu, open_menu, button));
+    new ToolFlyoutMenuPlacement(button, menu);
+    // Like a tool flyout: each mode's icon at the palette's icon size and the accent
+    // marker on the current mode. The menu bar keeps its menus icon-free
+    // (hide_menu_action_icons), so the shared actions show their icons only while this
+    // menu is open.
+    new ToolFlyoutCurrentMarker(menu, [this]() -> QAction* {
+      switch (screen_mode_) {
+        case ScreenMode::FullScreenWithMenus:
+          return screen_mode_full_with_menus_action_;
+        case ScreenMode::FullScreen:
+          return screen_mode_full_action_;
+        case ScreenMode::Standard:
+          break;
+      }
+      return screen_mode_standard_action_;
+    });
+    const QList<QAction*> mode_actions{screen_mode_standard_action_, screen_mode_full_with_menus_action_,
+                                       screen_mode_full_action_};
+    const auto show_mode_icons = [mode_actions](bool shown) {
+      for (auto* action : mode_actions) {
+        action->setIconVisibleInMenu(shown);
+      }
+    };
+    connect(menu, &QMenu::aboutToShow, this, [show_mode_icons] { show_mode_icons(true); });
+    connect(menu, &QMenu::aboutToHide, this, [show_mode_icons] { show_mode_icons(false); });
+    menu->setStyleSheet(tool_flyout_menu_style(tool_palette->iconSize().width()));
+    connect(button, &QToolButton::clicked, this, [this] { cycle_screen_mode(); });
+    // A rebound cycle key shows in the tooltip at once.
+    connect(screen_mode_cycle_action_, &QAction::changed, this, [this] { refresh_screen_mode_button(); });
+    register_retranslation([this] { refresh_screen_mode_button(); });
+    tool_palette_footer_->set_screen_mode_button(button);
+    refresh_screen_mode_button();
+  }
   new ToolPaletteFooterPlacer(tool_palette, tool_palette_footer_,
                               tool_palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button")));
   connect(primary_color_button_, &QPushButton::clicked, this, [this] { choose_primary_color(); });
@@ -1469,38 +1627,135 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     new ToolPaletteExpansionReservation(tool_palette, extension_button);
   }
 
+  // A right-click on the palette's empty space or a separator: Customize Tool Palette...
+  // first, then the panel and toolbar list every toolbar's menu has (tool buttons swallow
+  // their own right-clicks, GitHub issue 388).
+  tool_palette->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(tool_palette, &QWidget::customContextMenuRequested, this, [this, tool_palette](const QPoint& position) {
+    show_tool_palette_context_menu(tool_palette->mapToGlobal(position));
+  });
+  tool_palette_layout_->apply(tool_palette_customization_);
+
   // Export the cross-phase locals bind_action_translations() still needs.
   ctx.tool_palette = tool_palette;
   ctx.default_colors_action = default_colors_action;
   ctx.swap_colors_action = swap_colors_action;
 }
 
+ToolPaletteCatalog MainWindow::tool_palette_catalog() const {
+  // The clusters' headings in the dialog, in palette order.
+  static constexpr const char* kClusterNames[] = {
+      QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Select"), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paint"),
+      QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Retouch"),
+      QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Draw and Type"), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "View")};
+  constexpr int kClusterNameCount = static_cast<int>(std::size(kClusterNames));
+  ToolPaletteCatalog catalog;
+  if (tool_palette_layout_ != nullptr) {
+    for (const auto& slot : tool_palette_layout_->entries()) {
+      while (static_cast<int>(catalog.clusters.size()) <= slot.cluster) {
+        const int index = std::min(static_cast<int>(catalog.clusters.size()), kClusterNameCount - 1);
+        catalog.clusters.push_back({tr(kClusterNames[index]), {}});
+      }
+      ToolPaletteCatalogSlot entry;
+      entry.flyout = slot.menu != nullptr;
+      for (const auto* member : slot.members) {
+        entry.members.push_back({member->property(kToolPaletteToolIdProperty).toString(), clean_action_text(member),
+                                 member->icon(), member->shortcut().toString(QKeySequence::NativeText)});
+      }
+      if (entry.members.empty()) {
+        continue;
+      }
+      entry.name = entry.flyout ? slot.menu->title() : entry.members.front().name;
+      entry.shortcut = entry.members.front().shortcut;
+      catalog.clusters[static_cast<std::size_t>(slot.cluster)].entries.push_back(std::move(entry));
+    }
+  }
+  for (const auto& footer : layer_footer_buttons_) {
+    catalog.layer_buttons.push_back({QString::fromLatin1(footer.id), tr(footer.name_source), footer.button->icon()});
+  }
+  if (customize_tool_palette_action_ != nullptr) {
+    catalog.customize_icon = customize_tool_palette_action_->icon();
+  }
+  if (primary_color_button_ != nullptr && secondary_color_button_ != nullptr) {
+    catalog.foreground = primary_color_button_->color();
+    catalog.background = secondary_color_button_->color();
+  }
+  return catalog;
+}
+
+void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab) {
+  // One dialog at a time: a second way in brings the open one forward on its tab.
+  if (auto* open = findChild<QDialog*>(QStringLiteral("toolPaletteCustomizeDialog")); open != nullptr) {
+    if (auto* tabs = open->findChild<QTabWidget*>(QStringLiteral("toolPaletteCustomizeTabs")); tabs != nullptr) {
+      tabs->setCurrentIndex(tab == ToolPaletteCustomizeTab::LayerButtons ? 1 : 0);
+    }
+    open->raise();
+    open->activateWindow();
+    return;
+  }
+  const auto catalog = tool_palette_catalog();
+  if (const auto chosen = request_tool_palette_customization(this, catalog, tool_palette_customization_, tab);
+      chosen.has_value()) {
+    apply_tool_palette_customization(*chosen);
+  }
+}
+
+void MainWindow::apply_tool_palette_customization(const ToolPaletteCustomization& customization) {
+  tool_palette_customization_ = normalized_tool_palette_customization(customization);
+  set_stored_tool_palette_customization(tool_palette_customization_);
+  if (tool_palette_layout_ != nullptr) {
+    tool_palette_layout_->apply(tool_palette_customization_);
+  }
+  apply_layer_footer_visibility();
+}
+
+void MainWindow::show_tool_palette_context_menu(const QPoint& global_position) {
+  auto* menu = createPopupMenu();
+  if (menu == nullptr) {
+    menu = new QMenu(this);
+  }
+  auto* first = menu->actions().value(0);
+  menu->insertAction(first, customize_tool_palette_action_);
+  if (first != nullptr) {
+    menu->insertSeparator(first);
+  }
+  menu->setAttribute(Qt::WA_DeleteOnClose);
+  menu->popup(global_position);
+}
+
 QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
-                                     QKeySequence shortcut) {
-  auto* action = palette->addAction(label);
+                                     QKeySequence shortcut, int cluster) {
+  auto* action = new QAction(label, palette);
   bind_action_text(action, tool_action_source(tool));
   action->setIcon(tool_icon(tool));
   action->setCheckable(true);
   action->setData(static_cast<int>(tool));
   action->setObjectName(tool_action_object_name(tool));
+  action->setProperty(kToolPaletteToolIdProperty, tool_hotkey_id(tool));
   if (const auto* detail = tool_tooltip_detail_source(tool); detail != nullptr) {
     action->setProperty(kActionTooltipDetailProperty, QString::fromLatin1(detail));
   }
   register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
   group->addAction(action);
+  // The window holds the action, so its shortcut works while the tool is hidden from the
+  // palette (Customize Tool Palette); the palette shows it through the slot's button.
+  addAction(action);
   register_tool_action(action);
+  auto* button = new QToolButton(palette);
+  button->setObjectName(plain_tool_button_object_name(tool));
+  button->setFocusPolicy(Qt::NoFocus);
+  button->setDefaultAction(action);
   // A right-click selects the tool like a left click and opens no toolbar menu, as a
   // right-click on a flyout button does (GitHub issue 388). The filter sees events
   // before Qt's disabled check, so a disabled button stays inert.
-  if (auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action)); button != nullptr) {
-    button->installEventFilter(new ToolButtonPressFilter(
-        [button, action] {
-          if (button->isEnabled() && action->isEnabled()) {
-            action->trigger();
-          }
-        },
-        {}, button));
-  }
+  button->installEventFilter(new ToolButtonPressFilter(
+      [button, action] {
+        if (button->isEnabled() && action->isEnabled()) {
+          action->trigger();
+        }
+      },
+      {}, button));
+  tool_palette_layout_->add_slot(cluster, button, nullptr, {action}, nullptr);
   return action;
 }
 
@@ -1527,10 +1782,16 @@ void MainWindow::apply_tool_palette_factor(double factor) {
   if (tool_palette_footer_ != nullptr) {
     tool_palette_footer_->set_scale(factor);
   }
-  for (auto* button : palette->findChildren<QToolButton*>()) {
+  // Every flyout, the ones a customization keeps off the palette included.
+  for (auto* button : findChildren<QToolButton*>()) {
     if (button->property("toolFlyout").toBool() && button->menu() != nullptr) {
       button->menu()->setStyleSheet(tool_flyout_menu_style(icon_extent));
     }
+  }
+  if (auto* customize_button = palette->findChild<QToolButton*>(QStringLiteral("toolPaletteCustomizeButton"));
+      customize_button != nullptr) {
+    const int customize_icon = customize_button_icon_extent(factor);
+    customize_button->setIconSize(QSize(customize_icon, customize_icon));
   }
   setStyleSheet(photoshop_style(factor));
 }

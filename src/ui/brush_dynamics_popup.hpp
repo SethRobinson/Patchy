@@ -97,7 +97,7 @@ private:
   bool loading_{false};
 };
 
-// Options-bar "Dynamics" button for the Brush tool: opens a popup hosting a BrushDynamicsPanel
+// Options-bar Dynamics button for the Brush tool (a sliders icon, checked while open): opens a popup hosting a BrushDynamicsPanel
 // for the active bitmap tip, or for the procedural Round brush's session-only dynamics. Edits
 // are debounced and emitted via dynamics_edited; MainWindow persists bitmap-tip values to the
 // library sidecar, while Round values live in the window for the session and reset on launch.
@@ -126,6 +126,7 @@ signals:
 
 private:
   void show_popup();
+  void sync_checked();
   void schedule_emit();
   [[nodiscard]] bool edit_pending() const;
   void refresh_active_indicator();

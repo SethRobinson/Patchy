@@ -17,6 +17,7 @@
 #include "formats/format_registry.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/theme_sounds.hpp"
 #include "ui/document_order_list.hpp"
 #include "ui/main_window.hpp"
 #include "ui/save_metadata_settings.hpp"
@@ -77,6 +78,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/web_export.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/raw_develop_settings.hpp"
 #include "ui/script_engine.hpp"
@@ -1329,14 +1331,15 @@ bool has_visible_top_level_layer(const Document& document) {
   return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); });
 }
 
-// File Info (docs/file-info.md): PSD/PSB metadata was lifted by the PSD reader; every
-// other format is scanned here from the file bytes. The source RGB profile becomes the
-// document's embedded profile only when the pixels are still in the file's color space.
+// File Info (docs/file-info.md): the PSD reader lifted PSD/PSB metadata and the XCF reader
+// read XCF parasites; every other format is scanned here from the file bytes. The source
+// RGB profile becomes the document's embedded profile only when the pixels are still in
+// the file's color space.
 void capture_file_info(Document& opened, const QString& path, bool pixels_in_source_space,
                        bool orientation_applied) {
   const QFileInfo file(path);
   auto& info = opened.file_info();
-  if (info.source_format == "PSD" || info.source_format == "PSB") {
+  if (info.source_format == "PSD" || info.source_format == "PSB" || info.source_format == "XCF") {
     info.source_file_size = static_cast<std::uint64_t>(std::max<qint64>(0, file.size()));
     return;
   }
@@ -4172,6 +4175,7 @@ void MainWindow::export_sprite_sheet() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
+    play_theme_sound(ThemeSoundEvent::ExportDone);
     if (image_options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -4310,6 +4314,7 @@ void MainWindow::export_image_sequence() {
     }
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()));
+    play_theme_sound(ThemeSoundEvent::ExportDone);
     if (image_options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(directory.absolutePath(), /*is_file*/ false);
     }
@@ -4356,6 +4361,7 @@ void MainWindow::export_animated_gif() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
+    play_theme_sound(ThemeSoundEvent::ExportDone);
     if (options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -4403,6 +4409,7 @@ void MainWindow::export_animated_webp() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
+    play_theme_sound(ThemeSoundEvent::ExportDone);
     if (options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -4450,6 +4457,7 @@ void MainWindow::export_animated_png() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
+    play_theme_sound(ThemeSoundEvent::ExportDone);
     if (options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -5235,11 +5243,13 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
                                     : tr("Saved flattened copy %1"))
                                    .arg(path) +
                                export_notes_suffix);
+      play_theme_sound(ThemeSoundEvent::SaveDone);
       return true;
     }
     statusBar()->showMessage(
         (effective_image_options.export_cmyk || cmyk_psd ? tr("Saved %1 in CMYK") : tr("Saved %1")).arg(path) +
         export_notes_suffix);
+    play_theme_sound(ThemeSoundEvent::SaveDone);
     if (linked_external_child) {
       if (auto* saved_session = session_with_id(saving_session_id)) {
         refresh_external_smart_object_after_save(*saved_session);
@@ -5339,7 +5349,76 @@ void MainWindow::export_flat_image() {
     }
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
+    play_theme_sound(ThemeSoundEvent::ExportDone);
     if (effective_image_options.export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(path, /*is_file*/ true);
+    }
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+  }
+}
+
+// File > Export for Web (docs/web-export.md): the dialog previews every web format on a
+// snapshot and hands back the bytes it encoded at the chosen settings; this asks for the
+// file name and writes them, encoding here only when the dialog had no current result.
+void MainWindow::export_for_web() {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  finish_active_text_editor();
+  if (animation_preview_window_ != nullptr) animation_preview_window_->stop_playback_for(&document());
+  auto snapshot = std::make_shared<const Document>(std::as_const(document()));
+  const auto choice = request_web_export(this, snapshot);
+  if (!choice.has_value() || !has_active_document()) {
+    return;
+  }
+  const auto& job = choice->job;
+  const auto extension = web_export_extension(job.format);
+  const char* filter_name = job.format == WebExportFormat::Png    ? QT_TRANSLATE_NOOP("QObject", "PNG Image")
+                            : job.format == WebExportFormat::Webp ? QT_TRANSLATE_NOOP("QObject", "WebP Image")
+                            : job.format == WebExportFormat::Gif  ? QT_TRANSLATE_NOOP("QObject", "GIF Image")
+                                                                  : QT_TRANSLATE_NOOP("QObject", "JPEG Image");
+  const auto filter = job.format == WebExportFormat::Jpeg
+                          ? QStringLiteral("%1 (*.jpg *.jpeg)").arg(QCoreApplication::translate("QObject", filter_name))
+                          : QStringLiteral("%1 (*.%2)").arg(QCoreApplication::translate("QObject", filter_name), extension);
+  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
+  auto path = get_save_file_name(this, tr("Export for Web"),
+                                 file_dialog_initial_path(QString(), base_name + QLatin1Char('.') + extension), filter,
+                                 nullptr, QStringLiteral("exportForWebFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  // The extension follows the format the dialog encoded.
+  const auto suffix = QFileInfo(path).suffix().toLower();
+  const bool suffix_matches = suffix == extension || (job.format == WebExportFormat::Jpeg && suffix == QStringLiteral("jpeg"));
+  if (!suffix_matches) {
+    path += QLatin1Char('.') + extension;
+  }
+  try {
+    std::vector<std::string> notices;
+    if (choice->bytes != nullptr) {
+      notices = choice->notices;
+      write_encoded_image_file(path, *choice->bytes);
+    } else {
+      run_save_write(path, /*on_worker*/ true, /*show_progress*/ true,
+                     [&snapshot, &job, &path, &notices](SaveProgress& progress) {
+                       const ScopedSaveProgress scope(progress);
+                       std::optional<Document> narrowed;
+                       const auto& source = document_for_8bit_writer(*snapshot, narrowed);
+                       const auto prepared =
+                           job.animate ? nullptr
+                                       : WebExportPreviewEngine::prepare(source, job.geometry, job.convert_to_srgb,
+                                                                         &notices);
+                       const auto result = WebExportPreviewEngine::encode(source, job, prepared);
+                       write_encoded_image_file(path, *result.bytes);
+                     });
+    }
+    offer_browser_download_for_saved_file(path);
+    remember_save_directory_for_path(path);
+    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(notices));
+    if (choice->settings.reveal_when_done) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
   } catch (const std::exception& error) {
@@ -5432,6 +5511,7 @@ void MainWindow::export_multipage_pdf() {
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %n page(s) to %1", nullptr, page_count).arg(path) +
                              export_notes_suffix_for(writer_notices));
+    play_theme_sound(ThemeSoundEvent::ExportDone);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));

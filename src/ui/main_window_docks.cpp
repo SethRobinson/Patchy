@@ -60,7 +60,10 @@
 #include <QEvent>
 #include <QFrame>
 #include <QGuiApplication>
+#include <QCheckBox>
 #include <QHBoxLayout>
+#include <QSignalBlocker>
+#include <QWidgetAction>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLatin1String>
@@ -821,6 +824,95 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
   menu.exec(global_position);
 }
 
+void MainWindow::apply_layer_footer_visibility() {
+  const auto& hidden = tool_palette_customization_.hidden_layer_buttons;
+  for (const auto& footer : layer_footer_buttons_) {
+    // A hidden button leaves the footer's wrapping row, so the rest share the room.
+    footer.button->setVisible(!hidden.contains(QLatin1String(footer.id)));
+  }
+  if (!layer_footer_buttons_.empty()) {
+    update_right_dock_minimum_width();
+  }
+}
+
+void MainWindow::show_layer_footer_menu(const QPoint& global_position) {
+  auto* menu = new QMenu(this);
+  menu->setObjectName(QStringLiteral("layerFooterButtonsMenu"));
+  menu->setAttribute(Qt::WA_DeleteOnClose);
+  const auto& hidden = tool_palette_customization_.hidden_layer_buttons;
+  // A row per button: a checkbox with the button's icon and name, so the tick and the icon
+  // both show (a menu item draws one or the other) and several can change before the menu
+  // closes. The row's action carries the same checked state for keyboard and scripts.
+  std::vector<std::pair<QWidgetAction*, QCheckBox*>> rows;
+  for (const auto& footer : layer_footer_buttons_) {
+    const auto id = QString::fromLatin1(footer.id);
+    auto* action = new QWidgetAction(menu);
+    action->setObjectName(QStringLiteral("layerFooterToggle_") + id);
+    action->setText(tr(footer.name_source));
+    action->setCheckable(true);
+    action->setChecked(!hidden.contains(id));
+    auto* row = new QWidget(menu);
+    row->setObjectName(QStringLiteral("layerFooterToggleRow"));
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(10, 3, 24, 3);
+    auto* box = new QCheckBox(tr(footer.name_source), row);
+    box->setObjectName(QStringLiteral("layerFooterToggleBox_") + id);
+    box->setIcon(footer.button->icon());
+    box->setIconSize(QSize(18, 18));
+    box->setChecked(action->isChecked());
+    row_layout->addWidget(box);
+    action->setDefaultWidget(row);
+    menu->addAction(action);
+    rows.emplace_back(action, box);
+  }
+  // The last button shown stays: the menu opens from the buttons.
+  const auto refresh_rows = [rows] {
+    const auto shown = std::count_if(rows.begin(), rows.end(), [](const auto& row) { return row.first->isChecked(); });
+    for (const auto& [action, box] : rows) {
+      const bool enabled = !action->isChecked() || shown > 1;
+      action->setEnabled(enabled);
+      box->setEnabled(enabled);
+    }
+  };
+  refresh_rows();
+  for (const auto& [action, box] : rows) {
+    const auto id = action->objectName().mid(QStringLiteral("layerFooterToggle_").size());
+    const auto set_shown = [this, id, action, box, refresh_rows](bool checked) {
+      {
+        const QSignalBlocker block_action(action);
+        const QSignalBlocker block_box(box);
+        action->setChecked(checked);
+        box->setChecked(checked);
+      }
+      refresh_rows();
+      auto customization = tool_palette_customization_;
+      customization.hidden_layer_buttons.removeAll(id);
+      if (!checked) {
+        customization.hidden_layer_buttons.push_back(id);
+      }
+      apply_tool_palette_customization(customization);
+    };
+    connect(box, &QCheckBox::clicked, this, set_shown);
+    connect(action, &QAction::triggered, this, set_shown);
+  }
+  menu->addSeparator();
+  auto* show_all = menu->addAction(tr("Show All Buttons"));
+  show_all->setObjectName(QStringLiteral("layerFooterShowAllAction"));
+  show_all->setEnabled(!hidden.isEmpty());
+  connect(show_all, &QAction::triggered, this, [this] {
+    auto customization = tool_palette_customization_;
+    customization.hidden_layer_buttons.clear();
+    apply_tool_palette_customization(customization);
+  });
+  auto* customize = menu->addAction(tr("Customize Tool Palette..."));
+  customize->setObjectName(QStringLiteral("layerFooterCustomizeAction"));
+  // After the menu closes: the dialog runs its own loop.
+  connect(customize, &QAction::triggered, this, [this] {
+    QTimer::singleShot(0, this, [this] { show_tool_palette_customization(ToolPaletteCustomizeTab::LayerButtons); });
+  });
+  menu->popup(global_position);
+}
+
 QMenu* MainWindow::createPopupMenu() {
   if (window_panel_actions_.empty()) {
     return QMainWindow::createPopupMenu();
@@ -1242,15 +1334,15 @@ void MainWindow::create_docks() {
       return;
     }
     if (target == LayerCtrlClickTarget::VectorMaskThumbnail) {
-      const auto editing_vector_mask_already =
-          was_active && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask;
-      set_layer_edit_target_ui(editing_vector_mask_already
-                                   ? CanvasWidget::LayerEditTarget::Content
-                                   : CanvasWidget::LayerEditTarget::VectorMask,
-                               true);
-      if (!editing_vector_mask_already) {
-        statusBar()->showMessage(tr("Editing the vector mask path with the pen and path tools"));
-      }
+      // Always targets, never toggles back to the pixels (#447): adding a mask already
+      // targets it, so a toggle made the natural first click turn editing off and the Pen
+      // drew a work path. The content thumbnail returns to the pixels.
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::VectorMask, false);
+      const auto* mask = std::as_const(*layer).vector_mask();
+      statusBar()->showMessage(
+          mask != nullptr && mask->path.subpaths.empty()
+              ? tr("Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer")
+              : tr("Editing the vector mask path with the pen and path tools"));
       return;
     }
     const auto editing_mask_already =
@@ -1320,6 +1412,28 @@ void MainWindow::create_docks() {
       return;
     }
     zoom_canvas_to_layer_content(layer_id);
+  });
+  layer_list->set_mask_thumbnail_double_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
+    const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    if (layer_id == 0 || canvas_ == nullptr) {
+      return;
+    }
+    const bool vector_mask = target == LayerCtrlClickTarget::VectorMaskThumbnail;
+    // The double-click's first click toggles a targeted layer mask back to the pixels;
+    // the mask is the target while its properties are open.
+    if (document().active_layer_id() != layer_id) {
+      document().set_active_layer(layer_id);
+    }
+    set_layer_edit_target_ui(vector_mask ? CanvasWidget::LayerEditTarget::VectorMask
+                                         : CanvasWidget::LayerEditTarget::Mask,
+                             false);
+    // The dialog runs its own loop: leave the thumbnail's event first.
+    const auto session_id = session().session_id;
+    QTimer::singleShot(0, this, [this, layer_id, vector_mask, session_id] {
+      if (has_active_document() && session().session_id == session_id) {
+        edit_layer_mask_properties(layer_id, vector_mask);
+      }
+    });
   });
   layer_list->set_smart_filter_double_click_callback(
       [this](QListWidgetItem* item, std::size_t execution_index) {
@@ -1658,6 +1772,23 @@ void MainWindow::create_docks() {
   // refresh_layer_styles_button_state own it.
   add_mask_button->setEnabled(false);
   styles_button->setEnabled(false);
+  // Customize Tool Palette's Layers buttons (GitHub issue 199): each button by its permanent
+  // id and its tooltip's name; a right-click on any of them opens the show/hide menu.
+  layer_footer_buttons_ = {{"new_layer", add_button, QT_TR_NOOP("New Layer")},
+                           {"new_folder", add_folder_button, QT_TR_NOOP("New Folder")},
+                           {"new_adjustment", adjustment_button, QT_TR_NOOP("New Fill or Adjustment Layer")},
+                           {"layer_styles", styles_button, QT_TR_NOOP("Layer Styles")},
+                           {"add_mask", add_mask_button, QT_TR_NOOP("Add Layer Mask")},
+                           {"duplicate", duplicate_button, QT_TR_NOOP("Duplicate Layer")},
+                           {"animation", animation_button, QT_TR_NOOP("Animation Preview")},
+                           {"delete", delete_button, QT_TR_NOOP("Delete Layer")}};
+  for (const auto& footer : layer_footer_buttons_) {
+    auto* button = footer.button;
+    button->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(button, &QWidget::customContextMenuRequested, this,
+            [this, button](const QPoint& position) { show_layer_footer_menu(button->mapToGlobal(position)); });
+  }
+  apply_layer_footer_visibility();
 
   tab_specs.push_back(PanelSpec{.id = QStringLiteral("layersDock"),
                                 .object_prefix = QStringLiteral("layers"),

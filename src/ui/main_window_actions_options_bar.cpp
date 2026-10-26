@@ -73,12 +73,15 @@
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHash>
 #include <QIcon>
+#include <QImage>
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMargins>
 #include <QMouseEvent>
 #include <QLatin1String>
 #include <QMenu>
@@ -146,6 +149,13 @@ public:
     return QSize(std::max(58, text_width + 34), 24);
   }
 
+  // The glyph's left edge and the text's last inked column (options_bar_ink_insets).
+  [[nodiscard]] QMargins ink_insets() const {
+    const QRect ink = fontMetrics().tightBoundingRect(text());
+    // The box's antialiased 1 px outline reaches half a pixel left of kGlyphLeft.
+    return QMargins(kGlyphLeft - 1, 0, std::max(0, width() - 1 - (kTextLeft + ink.right())), 0);
+  }
+
 protected:
   void paintEvent(QPaintEvent* event) override {
     Q_UNUSED(event);
@@ -157,7 +167,7 @@ protected:
     // frame behind it: Auto-Select and Anti-alias once did and read as buttons
     // beside their plain neighbours (GitHub issue 167).
     const auto& colors = theme();
-    const QRect box(7, (height() - 14) / 2, 14, 14);
+    const QRect box(kGlyphLeft, (height() - 14) / 2, 14, 14);
     painter.setBrush(isChecked() ? colors.accent : colors.checkbox_compact_bg);
     painter.setPen(
         QPen(isChecked() ? colors.checkbox_accent_border : colors.checkbox_compact_border, 1));
@@ -169,8 +179,7 @@ protected:
     }
 
     painter.setPen(isEnabled() ? colors.text_bright : colors.text_disabled);
-    painter.drawText(QRect(box.right() + 7, 0, width() - box.right() - 10, height()), Qt::AlignVCenter | Qt::AlignLeft,
-                     text());
+    painter.drawText(QRect(kTextLeft, 0, width() - kTextLeft - 3, height()), Qt::AlignVCenter | Qt::AlignLeft, text());
 
     // Keyboard focus only: the bar's focus outline around the glyph and its text (GitHub
     // issue 440). A click focuses without it, so the box never reads as a framed button.
@@ -181,7 +190,95 @@ protected:
       painter.drawRect(rect().adjusted(0, 0, -1, -1));
     }
   }
+
+private:
+  static constexpr int kGlyphLeft = 7;
+  static constexpr int kTextLeft = kGlyphLeft + 14 + 6;  // box.right() + 7
 };
+
+// The columns inside the icon's pixmap that hold any ink, cached per icon and size.
+std::pair<int, int> icon_ink_columns(const QIcon& icon, const QSize& size) {
+  static QHash<QString, std::pair<int, int>> cache;
+  const QString key = QString::number(icon.cacheKey()) + QLatin1Char('/') + QString::number(size.width()) +
+                      QLatin1Char('x') + QString::number(size.height());
+  if (const auto found = cache.constFind(key); found != cache.constEnd()) {
+    return *found;
+  }
+  const QImage image = icon.pixmap(size, 1.0).toImage().convertToFormat(QImage::Format_ARGB32);
+  int first = -1;
+  int last = -1;
+  for (int x = 0; x < image.width(); ++x) {
+    for (int y = 0; y < image.height(); ++y) {
+      if (qAlpha(image.pixel(x, y)) > 16) {
+        first = first < 0 ? x : first;
+        last = x;
+        break;
+      }
+    }
+  }
+  const auto columns = first < 0 ? std::make_pair(0, size.width() - 1) : std::make_pair(first, last);
+  cache.insert(key, columns);
+  return columns;
+}
+
+// How far a bar control's visible ink sits inside its box on the left and right, so each
+// separator's line can sit halfway between the ink on either side (GitHub issue 181
+// follow-up; FlowLayout::set_ink_insets). Fields, push buttons, swatches and
+// pickers draw their frame at the box edge: zero.
+QMargins options_bar_ink_insets(const QWidget& widget) {
+  if (const auto* check = dynamic_cast<const CheckGlyphBox*>(&widget)) {
+    return check->ink_insets();
+  }
+  const auto text_insets = [&widget](const QString& text, int text_x) {
+    const QRect ink = widget.fontMetrics().tightBoundingRect(text);
+    if (text.trimmed().isEmpty() || ink.isEmpty()) {
+      return QMargins();
+    }
+    return QMargins(std::max(0, text_x + ink.left()), 0, std::max(0, widget.width() - 1 - (text_x + ink.right())), 0);
+  };
+  if (const auto* label = qobject_cast<const QLabel*>(&widget)) {
+    if (label->textFormat() == Qt::RichText || label->text().isEmpty()) {
+      return {};
+    }
+    const QRect contents = label->contentsRect().adjusted(label->margin(), 0, -label->margin(), 0);
+    const int advance = label->fontMetrics().horizontalAdvance(label->text());
+    // QLabel's own indent (QLabelPrivate::documentRect): half an 'x' once it has a frame.
+    int indent = label->indent();
+    if (indent < 0 && label->frameWidth() > 0) {
+      indent = label->fontMetrics().horizontalAdvance(QLatin1Char('x')) / 2 - label->margin();
+    }
+    // No horizontal flag reads as left (QStyle::visualAlignment), the bar's labels included.
+    const auto align = label->alignment();
+    int text_x = contents.left() + std::max(0, indent);
+    if ((align & Qt::AlignHCenter) != 0) {
+      text_x = contents.left() + (contents.width() - advance) / 2;
+    } else if ((align & Qt::AlignRight) != 0) {
+      text_x = contents.right() + 1 - std::max(0, indent) - advance;
+    }
+    return text_insets(label->text(), text_x);
+  }
+  // A plain tool button shows a transparent frame until it is hovered or checked, so its
+  // icon or text is the ink; so does the Dynamics icon toggle. Other subclasses (the tip and
+  // preset pickers) and swatches are framed.
+  const auto* button = qobject_cast<const QToolButton*>(&widget);
+  if (button == nullptr ||
+      (button->metaObject() != &QToolButton::staticMetaObject &&
+       qobject_cast<const BrushDynamicsButton*>(button) == nullptr) ||
+      button->property("optionsBarSwatch").toBool()) {
+    return {};
+  }
+  if (button->toolButtonStyle() == Qt::ToolButtonIconOnly && !button->icon().isNull()) {
+    const QSize shown = button->icon().actualSize(button->iconSize());
+    const int icon_x = (button->width() - shown.width()) / 2;
+    const auto [first, last] = icon_ink_columns(button->icon(), shown);
+    return QMargins(icon_x + first, 0, std::max(0, button->width() - 1 - (icon_x + last)), 0);
+  }
+  if (button->toolButtonStyle() == Qt::ToolButtonTextOnly || button->icon().isNull()) {
+    const QString text = button->text();
+    return text_insets(text, (button->width() - button->fontMetrics().horizontalAdvance(text)) / 2);
+  }
+  return {};
+}
 
 // Photoshop's Useful Mixer Brush Combinations as Wet/Load/Mix triples,
 // VERIFIED against Photoshop 2026 on 2026-08-14 by selecting each preset in
@@ -720,12 +817,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   transform_option_actions_.clear();
   warp_option_actions_.clear();
   transform_session_actions_.clear();
+  // Separator lines sit halfway between the ink on either side (GitHub issue 181 follow-up).
+  options_flow->set_ink_insets(options_bar_ink_insets);
   const auto make_option_separator = [options_content, options_flow]() -> QWidget* {
-    auto* line = new QFrame(options_content);
-    line->setObjectName(QStringLiteral("optionSeparator"));
-    line->setFrameShape(QFrame::VLine);
-    line->setFrameShadow(QFrame::Plain);
-    line->setFixedHeight(24);
+    auto* line = new OptionsBarSeparator(options_content);
     options_flow->addWidget(line);
     return line;
   };
@@ -2156,12 +2251,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   move_show_transform_controls_check_ = new CheckGlyphBox(tr("Transform Controls"), toolbar);
   move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
   bind_tooltip(move_show_transform_controls_check_, QT_TR_NOOP("Show transform controls when selecting a layer with Move"));
-  move_show_transform_controls_check_->setChecked(canvas_defaults->show_transform_controls());
+  // One app-wide choice (tools/showTransformControls), read here so the start panel
+  // shows it before any canvas exists.
+  move_show_transform_controls_check_->setChecked(
+      app_settings()
+          .value(QStringLiteral("tools/showTransformControls"), canvas_defaults->show_transform_controls())
+          .toBool());
   add_option_widget(move_show_transform_controls_check_, {CanvasTool::Move});
   connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (canvas_ != nullptr) {
-      canvas_->set_show_transform_controls(checked);
+    // Every open document follows, so a tab switch never flips the box back.
+    for (const auto& session : sessions_) {
+      if (session->canvas != nullptr) {
+        session->canvas->set_show_transform_controls(checked);
+      }
     }
+    // Written here, by the user's click, rather than by save_tool_settings, like
+    // Auto-Select: a click with no document open (no canvas to save from) still
+    // counts, and a canvas flag set directly (tests, the stress harness) never leaks.
+    app_settings().setValue(QStringLiteral("tools/showTransformControls"), checked);
   });
   // Snap mirrors View > Snap: one persisted setting (view/snapEnabled), two
   // surfaces. The action owns the state; the checkbox follows its toggled signal.
@@ -2318,10 +2425,85 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       brush_preset_combo_,
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
        CanvasTool::Eraser});
+  // The tip and its Dynamics join the Preset group at the start of the bar: what the brush
+  // is comes before how it paints (GitHub issue 364 follow-up). Pattern Stamp has no Preset,
+  // so its bar starts with Tip.
+  add_option_label(QT_TR_NOOP("Tip:"),
+                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
+                   CanvasTool::Eraser});
+  brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
+  // The options bar is built after load_tool_settings() reset the active tip to Round.
+  brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
+  add_option_widget(brush_tip_picker_,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
+                     CanvasTool::Eraser});
+  connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
+          [this](const QString& id) { set_active_brush_tip(id, true); });
+  connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
+          [this] { import_brush_tips_from_abr(); });
+  connect(brush_tip_picker_, &BrushTipPicker::define_requested, this,
+          [this] { define_brush_tip_from_selection(); });
+  connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
+  connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
+    // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
+    // Re-applying after a library edit must not reset Flow/Airbrush to imported tool settings.
+    if (!active_automation_brush_) set_active_brush_tip(active_brush_tip_id_, false, false);
+  });
+  QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
+  register_retranslation([tip_picker] {
+    if (tip_picker != nullptr) {
+      tip_picker->refresh();
+    }
+  });
+
+  brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
+  add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
+  connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
+          [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
+                 double base_roundness) {
+            if (is_builtin_brush_tip_id(tip_id)) {
+              // Session-only: the Round and Square brushes' dynamics live in the window, not
+              // the library, and deliberately reset on the next launch.
+              round_brush_dynamics_ = dynamics;
+              round_brush_base_angle_degrees_ = base_angle;
+              round_brush_base_roundness_ = base_roundness;
+              if (canvas_ != nullptr &&
+                  (active_preset_tip_ || active_brush_tip_id_.isEmpty() ||
+                   is_builtin_brush_tip_id(active_brush_tip_id_))) {
+                canvas_->set_brush_dynamics(dynamics);
+                canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+              }
+              return;
+            }
+            if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
+              canvas_->set_brush_dynamics(dynamics);
+              canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+            }
+            // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
+            brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
+          });
+  // The options bar is built after load_tool_settings() already selected the startup tip, so
+  // seed the button's model now (Round session values, or the entry if a tip is active).
+  if (active_brush_tip_id_.isEmpty() || is_builtin_brush_tip_id(active_brush_tip_id_)) {
+    brush_dynamics_button_->set_round_session(
+        active_brush_tip_id_.isEmpty() ? builtin_round_brush_tip_id() : active_brush_tip_id_, round_brush_dynamics_,
+                                              round_brush_base_angle_degrees_,
+                                              round_brush_base_roundness_);
+  } else if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_);
+             entry != nullptr) {
+    brush_dynamics_button_->set_active_entry(entry);
+  }
+  QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
+  register_retranslation([dynamics_button] {
+    if (dynamics_button != nullptr) {
+      dynamics_button->retranslate();
+    }
+  });
+
   // Separators follow the grouping rules in docs/options-bar.md; a group a tool or mode hides
   // drops its separator by itself (stray_option_separators).
-  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing,
-                        CanvasTool::Smudge, CanvasTool::Eraser});
+  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone,
+                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
 
   // Mode sits FIRST for the shape tools so it never moves when the Pixels-mode
   // brush controls below appear (Seth, September 2026).
@@ -2832,81 +3014,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
 
-  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Eraser});
-  add_option_label(QT_TR_NOOP("Tip:"),
-                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                   CanvasTool::Eraser});
   (void)brush_automation_library();
   refresh_automation_brush_presets();
   register_retranslation([this] { refresh_automation_brush_presets(); });
-  brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
-  // The options bar is built after load_tool_settings() reset the active tip to Round.
-  brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
-  add_option_widget(brush_tip_picker_,
-                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                     CanvasTool::Eraser});
-  connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
-          [this](const QString& id) { set_active_brush_tip(id, true); });
-  connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
-          [this] { import_brush_tips_from_abr(); });
-  connect(brush_tip_picker_, &BrushTipPicker::define_requested, this,
-          [this] { define_brush_tip_from_selection(); });
-  connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
-  connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
-    // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
-    // Re-applying after a library edit must not reset Flow/Airbrush to imported tool settings.
-    if (!active_automation_brush_) set_active_brush_tip(active_brush_tip_id_, false, false);
-  });
-  QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
-  register_retranslation([tip_picker] {
-    if (tip_picker != nullptr) {
-      tip_picker->refresh();
-    }
-  });
-
-  brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
-  add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
-  connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
-          [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
-                 double base_roundness) {
-            if (is_builtin_brush_tip_id(tip_id)) {
-              // Session-only: the Round and Square brushes' dynamics live in the window, not
-              // the library, and deliberately reset on the next launch.
-              round_brush_dynamics_ = dynamics;
-              round_brush_base_angle_degrees_ = base_angle;
-              round_brush_base_roundness_ = base_roundness;
-              if (canvas_ != nullptr &&
-                  (active_preset_tip_ || active_brush_tip_id_.isEmpty() ||
-                   is_builtin_brush_tip_id(active_brush_tip_id_))) {
-                canvas_->set_brush_dynamics(dynamics);
-                canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
-              }
-              return;
-            }
-            if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
-              canvas_->set_brush_dynamics(dynamics);
-              canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
-            }
-            // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
-            brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
-          });
-  // The options bar is built after load_tool_settings() already selected the startup tip, so
-  // seed the button's model now (Round session values, or the entry if a tip is active).
-  if (active_brush_tip_id_.isEmpty() || is_builtin_brush_tip_id(active_brush_tip_id_)) {
-    brush_dynamics_button_->set_round_session(
-        active_brush_tip_id_.isEmpty() ? builtin_round_brush_tip_id() : active_brush_tip_id_, round_brush_dynamics_,
-                                              round_brush_base_angle_degrees_,
-                                              round_brush_base_roundness_);
-  } else if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_);
-             entry != nullptr) {
-    brush_dynamics_button_->set_active_entry(entry);
-  }
-  QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
-  register_retranslation([dynamics_button] {
-    if (dynamics_button != nullptr) {
-      dynamics_button->retranslate();
-    }
-  });
 
   add_option_separator({CanvasTool::PatternStamp});
   auto* pattern_label = add_option_label(QT_TR_NOOP("Pattern:"), {CanvasTool::PatternStamp});
@@ -3792,6 +3902,67 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
         const auto token = eyedropper_layers_combo->itemData(index).toString().toStdString();
         eyedropper_layers_combo->setItemText(index, sample_layers_text(sample_layers_from_settings(token, std::nullopt)));
       }
+    }
+  });
+
+  // Ruler (GitHub issue 331, docs/pick-tool.md): the measured values in the ruler unit,
+  // then Straighten Layer, Straighten Image and Clear. The values are text, not fields:
+  // the line is adjusted on the canvas.
+  static constexpr std::array<const char*, 7> kRulerReadoutLabels{
+      QT_TR_NOOP("X:"), QT_TR_NOOP("Y:"), QT_TR_NOOP("W:"), QT_TR_NOOP("H:"),
+      QT_TR_NOOP("A:"), QT_TR_NOOP("L1:"), QT_TR_NOOP("L2:")};
+  static constexpr std::array<const char*, 7> kRulerReadoutTooltips{
+      QT_TR_NOOP("Horizontal position of the start point"),
+      QT_TR_NOOP("Vertical position of the start point"),
+      QT_TR_NOOP("Horizontal distance from the start point to the end"),
+      QT_TR_NOOP("Vertical distance from the start point to the end (down is positive)"),
+      QT_TR_NOOP("Angle of the line, counterclockwise from horizontal; with two legs, the angle between them"),
+      QT_TR_NOOP("Length of the line"),
+      QT_TR_NOOP("Length of the second leg (%ALT%+drag an end to add one)")};
+  static constexpr std::array<const char*, 7> kRulerReadoutNames{
+      "rulerReadoutX", "rulerReadoutY", "rulerReadoutW", "rulerReadoutH",
+      "rulerReadoutA", "rulerReadoutL1", "rulerReadoutL2"};
+  for (std::size_t i = 0; i < kRulerReadoutLabels.size(); ++i) {
+    add_option_label(kRulerReadoutLabels[i], {CanvasTool::Ruler});
+    auto* value = new QLabel(toolbar);
+    value->setObjectName(QString::fromLatin1(kRulerReadoutNames[i]));
+    value->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    // Room for a typical value, so the bar does not jump while a drag changes it.
+    value->setMinimumWidth(value->fontMetrics().horizontalAdvance(QStringLiteral("-0000.0 px")));
+    QPointer<QLabel> guarded(value);
+    const auto apply_tooltip = [guarded, tooltip = kRulerReadoutTooltips[i]] {
+      if (guarded != nullptr) {
+        guarded->setToolTip(resolve_modifier_names(tr(tooltip)));
+      }
+    };
+    apply_tooltip();
+    register_retranslation(apply_tooltip);
+    add_option_widget(value, {CanvasTool::Ruler});
+    ruler_readout_labels_[i] = value;
+  }
+  add_option_separator({CanvasTool::Ruler});
+  ruler_straighten_layer_button_ = new QPushButton(tr("Straighten Layer"), toolbar);
+  ruler_straighten_layer_button_->setObjectName(QStringLiteral("rulerStraightenLayerButton"));
+  bind_widget_text(ruler_straighten_layer_button_, QT_TR_NOOP("Straighten Layer"));
+  bind_tooltip(ruler_straighten_layer_button_,
+               QT_TR_NOOP("Rotate the active layer so the line is level (or upright, when it is closer to vertical)"));
+  add_option_widget(ruler_straighten_layer_button_, {CanvasTool::Ruler});
+  ruler_straighten_image_button_ = new QPushButton(tr("Straighten Image"), toolbar);
+  ruler_straighten_image_button_->setObjectName(QStringLiteral("rulerStraightenImageButton"));
+  bind_widget_text(ruler_straighten_image_button_, QT_TR_NOOP("Straighten Image"));
+  bind_tooltip(ruler_straighten_image_button_,
+               QT_TR_NOOP("Rotate the whole image so the line is level, and crop away the empty corners"));
+  add_option_widget(ruler_straighten_image_button_, {CanvasTool::Ruler});
+  ruler_clear_button_ = new QPushButton(tr("Clear"), toolbar);
+  ruler_clear_button_->setObjectName(QStringLiteral("rulerClearButton"));
+  bind_widget_text(ruler_clear_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear"));
+  bind_tooltip(ruler_clear_button_, QT_TR_NOOP("Remove the measuring line"));
+  add_option_widget(ruler_clear_button_, {CanvasTool::Ruler});
+  connect(ruler_straighten_layer_button_, &QPushButton::clicked, this, [this] { straighten_with_ruler(false); });
+  connect(ruler_straighten_image_button_, &QPushButton::clicked, this, [this] { straighten_with_ruler(true); });
+  connect(ruler_clear_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->clear_ruler_line();
     }
   });
 

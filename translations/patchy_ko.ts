@@ -12755,6 +12755,282 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>문서를 열 때 표시 안 함 (환경설정 &gt; 애플리케이션에서 다시 켤 수 있음)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>품질 %1, 프로그레시브</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>품질 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>무손실</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, 애니메이션</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>풀 컬러</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>웹용으로 내보내기</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>크기는 각 형식의 설정으로 실제 인코딩한 파일의 크기이며 설정을 바꾸면 업데이트됩니다.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 설정</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>프로그레시브(로드하는 동안 대략적인 이미지를 먼저 표시)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>코딩 최적화(같은 이미지, 더 작은 파일)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>투명한 영역을 채웁니다(JPEG에는 투명도가 없음)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 설정</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>보이는 각 최상위 레이어가 한 프레임이 되며 맨 위 레이어가 처음입니다.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 설정</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>풀 컬러, 무손실. 투명도가 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>이미지 크기</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>(원본 %1 x %2)</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>픽셀 아트(정수 픽셀)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>픽셀 아트는 부드럽게 하지 않고 정수 픽셀 단위로 확대하므로 스프라이트가 선명하게 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>메타데이터 및 색상</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>포함할 파일 정보 메타데이터입니다. 없음은 가장 작은 파일을 씁니다.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>미리 보기 이미지 포함(약 5~10KB)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>EXIF 데이터에 작은 미리 보기 이미지를 추가합니다. 파일에 EXIF 메타데이터가 남을 때만 기록됩니다.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>sRGB로 변환(원본: %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>브라우저는 프로필이 없는 이미지를 sRGB로 표시합니다. 선택을 해제하면 파일에 색상 프로필이 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB, 프로필 필요 없음</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>비교:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>분할</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>나란히</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>결과만</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>모든 설정을 기본값으로 되돌리기</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>실패</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>인코딩 중...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>출력 %1 x %2, %3 %4(비압축 %6의 %5%)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: 인코딩 중...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>인코딩 실패: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>%1 인코딩 중...</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>자</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>레이어와 벡터 마스크가 연결되어 있습니다. 연결을 해제하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>레이어와 벡터 마스크가 연결 해제되었습니다. 연결하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>마스크로 숨겨진 영역의 불투명도입니다. 100% 미만이면 그 영역에서도 레이어가 비쳐 보입니다.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>마스크 가장자리를 이 픽셀 수만큼 부드럽게 합니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n색, 확산</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n색, 디더링 없음</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>팔레트에 담을 최대 색 수입니다. 이보다 색이 적은 이미지는 색이 그대로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>확산</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>인접한 팔레트 색을 섞어 그라디언트의 띠를 줄입니다. 보통 파일이 커집니다.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>파일이 사용하는 색</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>팔레트</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>팔레트는 최대 256색으로 저장하며, 단색 그래픽, 로고, 스크린샷에서 훨씬 작아집니다.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>불투명도 50% 미만의 픽셀은 투명해집니다.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 설정</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>레이어 이름이 0.25s 같은 시간으로 끝나면 그 프레임의 지연 시간이 됩니다.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>프레임 지연:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>도구 팔레트 사용자 지정</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>표시할 도구를 선택하세요. 숨긴 도구도 단축키는 그대로 사용할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>배치</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>한 열</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>두 열, 도구를 나란히</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>넘칠 때 마우스 휠로 팔레트 스크롤</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>끄면 &gt; 화살표로 열을 더 엽니다.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>팔레트에 톱니바퀴 버튼 표시</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>도구</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>레이어 패널에 표시할 버튼을 선택하세요. 숨긴 버튼의 명령은 메뉴에 남습니다.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>레이어 버튼</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>기본값으로 재설정</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12847,6 +13123,98 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>테마 파일 &quot;%1&quot;을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot;는 true 또는 false여야 합니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot;은 &quot;smooth&quot; 또는 &quot;nearest&quot;여야 합니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot;이 객체가 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>배경 모드 &quot;%1&quot;은(는) &quot;tile&quot;, &quot;stretch&quot;, &quot;center&quot;가 아닙니다(대신 바둑판식으로 배치).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>테마 패키지에 theme.json이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;과(와) 일치하는 기본 제공 아이콘이 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;은(는) SVG, PNG, BMP 파일이 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;을(를) 읽을 수 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>사운드 &quot;%1&quot;이(가) 가리키는 사운드 이벤트가 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>사운드 &quot;%1&quot;은(는) WAV 파일이 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>배경 이미지 &quot;%1&quot;이(가) 패키지에 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>배경 이미지 &quot;%1&quot;을(를) 읽을 수 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>테마 폴더 &quot;%1&quot;을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>테마 패키지 &quot;%1&quot;에 패키지 밖을 가리키는 경로가 있습니다: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>테마 패키지 &quot;%1&quot;이(가) 테마 패키지 한도를 넘습니다.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>테마 폴더 &quot;%1&quot;에 읽을 수 있는 theme.json이 없습니다.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>테마 패키지가 테마 패키지 한도를 넘습니다.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>테마 패키지가 읽을 수 있는 zip 파일이 아닙니다.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>테마 패키지가 Patchy에서 읽을 수 없는 암호화나 압축 방식을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>테마 패키지의 파일이 손상되었습니다.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>테마 패키지에 패키지 밖을 가리키는 경로가 있습니다: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>폴더 &quot;%1&quot;을(를) 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot;을(를) 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -14568,6 +14936,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>표시자를 숨깁니다</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>벡터 마스크에 아직 이동할 패스가 없습니다. 펜이나 모양 도구로 그리세요.</translation>
     </message>
 </context>
 <context>
@@ -26002,6 +26378,300 @@ The open document keeps its blend modes either way.</source>
         <translation>프레임 시간이 있는 레이어가 없습니다.</translation>
     </message>
     <message>
+        <source>Screen &amp;Mode</source>
+        <translation>화면 모드(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>표준(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>메뉴가 있는 전체 화면(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>전체 화면(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>화면 모드 전환(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>전체 화면 종료</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>%1 또는 Esc 키를 누르면 전체 화면이 종료됩니다</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Esc 키를 누르면 전체 화면이 종료됩니다</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>재단할 것이 없습니다: 모든 픽셀이 허용치 안에서 투명합니다. 허용치를 낮추세요.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>재단할 것이 없습니다: 모든 픽셀이 재단 색상의 허용치 안에 있습니다. 허용치를 낮추세요.</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>웹용으로 내보내기(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>웹용으로 내보내기</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>각도:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>시작점의 가로 위치</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>시작점의 세로 위치</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>시작점에서 끝점까지의 가로 거리</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>시작점에서 끝점까지의 세로 거리 (아래쪽이 양수)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>가로선에서 시계 반대 방향으로 잰 선의 각도. 두 변이 있으면 그 사이의 각도</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>선의 길이</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>두 번째 변의 길이 (끝을 %ALT%+드래그하면 추가)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>선이 수평이 되도록 활성 레이어를 회전 (세로에 더 가까우면 수직으로)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>이미지 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>선이 수평이 되도록 이미지 전체를 회전하고 빈 모서리를 잘라 냅니다</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>측정선 제거</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>자</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>드래그하여 측정하고 Shift는 45도 단위로 고정합니다. 끝이나 선을 드래그해 조정하고, 끝을 %ALT%+드래그하면 각도를 잽니다.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>자: 드래그하여 측정하고 Shift는 45도 단위로 고정합니다. 끝이나 선을 드래그해 조정하고, 끝을 %ALT%+드래그하면 두 번째 변을 추가해 사이 각도를 잽니다. 수평 맞추기는 선을 수평으로 만듭니다.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>색상 선택 도구</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>색상 선택 도구 전환</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>먼저 자로 선을 그리세요</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>선이 이미 반듯합니다</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>수평을 맞출 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>레이어를 시계 반대 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>레이어를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>이미지를 시계 반대 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>이미지를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크 편집 중: 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>마스크 속성...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크를 추가했습니다. 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>레이어와 벡터 마스크가 연결됨</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>레이어와 벡터 마스크 연결 해제됨</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>벡터 마스크의 밀도와 페더를 변경했습니다</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>레이어 마스크의 밀도와 페더를 변경했습니다</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>테마 패키지 내보내기...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>선택한 테마를 아이콘, 이미지, 사운드와 함께 .zip 패키지로 저장합니다.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>아이콘 템플릿 내보내기...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>모든 기본 제공 아이콘을 SVG 파일로 폴더에 씁니다. 테마의 icons/ 폴더를 시작할 때 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>테마 사운드 재생</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>테마 패키지에 포함된 사운드를 재생합니다(예: 저장이 끝났을 때). 사운드가 없는 테마는 소리가 나지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>테마 &quot;%1&quot;을(를) 삭제할까요? 폴더는 휴지통으로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy 테마 (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>테마 패키지 내보내기</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy 테마 패키지 (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>아이콘 템플릿 내보내기</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>아이콘 %n개를 %1에 썼습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>화면 모드: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>클릭하면 다음 모드로 바뀝니다. 길게 누르거나 마우스 오른쪽 버튼을 클릭하면 모드를 고를 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>도구 팔레트 사용자 지정...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>선택</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>페인트</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>리터치</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>그리기와 문자</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>보기</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>모든 버튼 표시</translation>
+    </message>
+    <message>
         <source>All Caps</source>
         <translation>모두 대문자</translation>
     </message>
@@ -28022,6 +28692,10 @@ The open document keeps its blend modes either way.</source>
         <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
     </message>
     <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: 알 수 없는 값 &quot;%1&quot;입니다.</translation>
+    </message>
+    <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: 텍스트 구간 %2의 %3은(는) &apos;%4&apos;, &apos;%5&apos; 또는 &apos;none&apos;이어야 합니다.</translation>
     </message>
@@ -28067,6 +28741,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers에는 colorMode: &quot;rgb&quot;가 필요합니다. 레이어가 있는 TIFF는 RGB로 저장됩니다.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: PNG에서 colors, dither, ditherAmount에는 pngColors: &quot;palette&quot;가 필요합니다.</translation>
     </message>
 </context>
 <context>

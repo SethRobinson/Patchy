@@ -12755,6 +12755,282 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>ドキュメントを開くときに表示しない (環境設定 &gt; アプリケーションで再度オンにできます)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>品質 %1、プログレッシブ</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>品質 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>可逆圧縮</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1、アニメーション</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>フルカラー</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Web 用に書き出し</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>サイズは各形式の設定で実際にエンコードしたファイルのもので、設定を変えると更新されます。</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 設定</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>プログレッシブ (読み込み中にまず粗い画像を表示)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>符号化を最適化 (同じ画像で小さいファイル)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>透明部分を塗りつぶします (JPEG は透明を保持できません)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 設定</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>表示中の最上位レイヤーがそれぞれ 1 フレームになり、一番上のレイヤーが最初です。</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 設定</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>フルカラー、可逆圧縮。透明部分は保持されます。</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>画像サイズ</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>(元: %1 x %2)</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>ピクセルアート (整数ピクセル)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>ピクセルアートは整数ピクセル単位で滑らかにせずに拡大するので、スプライトがくっきり保たれます。</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>メタデータとカラー</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>含めるファイル情報のメタデータ。なしにすると最も小さいファイルになります。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>サムネールを含める (約 5〜10 KB)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>EXIF データに小さなプレビュー画像を追加します。ファイルが EXIF メタデータを保持する場合にのみ書き込まれます。</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>sRGB に変換 (元: %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>ブラウザーはプロファイルのない画像を sRGB として表示します。オフにすると、ファイルはカラープロファイルを保持します。</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB、プロファイル不要</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>比較:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>分割</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>並べて表示</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>結果のみ</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>すべての設定を初期値に戻す</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>失敗</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>エンコード中...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>出力 %1 x %2、%3 %4 (非圧縮 %6 の %5%)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: エンコード中...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>エンコードに失敗しました: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>%1 をエンコード中...</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>ものさし</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>レイヤーとベクトルマスクはリンクされています。クリックでリンクを解除します。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>レイヤーとベクトルマスクはリンクされていません。クリックでリンクします。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>ベクトルマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>レイヤーマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>マスクで隠れた部分の不透明度です。100%未満ではその部分にもレイヤーが透けて見えます。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>マスクの境界をこのピクセル数だけぼかします</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n 色、誤差拡散</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n 色、ディザなし</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>パレットに入れる最大の色数。これより色の少ない画像は色がそのまま保たれます。</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>誤差拡散</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>隣り合うパレット色を混ぜて、グラデーションの縞を減らします。通常はファイルが大きくなります。</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>ファイルが使う色</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>パレット</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>パレットは最大 256 色で書き出し、ベタ塗りのグラフィック、ロゴ、スクリーンショットではずっと小さくなります。</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>不透明度 50% 未満のピクセルは透明になります。</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 設定</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>レイヤー名が 0.25s のような時間で終わると、そのフレームの表示時間になります。</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレームの表示時間:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>ツールパレットのカスタマイズ</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>表示するツールにチェックを入れます。非表示のツールもショートカットは使えます。</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>レイアウト</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>1 列</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>2 列（ツールを横に並べる）</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>はみ出したときはマウスホイールでパレットをスクロール</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>オフのときは &gt; 矢印で列を追加表示します。</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>パレットに歯車ボタンを表示</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>ツール</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>レイヤーパネルに表示するボタンにチェックを入れます。非表示のボタンのコマンドはメニューに残ります。</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>レイヤーのボタン</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>初期設定に戻す</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12847,6 +13123,98 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>テーマファイル &quot;%1&quot; を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; には true か false を指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; には &quot;smooth&quot; か &quot;nearest&quot; を指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; がオブジェクトではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>背景モード &quot;%1&quot; は &quot;tile&quot;、&quot;stretch&quot;、&quot;center&quot; のいずれでもありません (タイル表示にします)。</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>テーマパッケージに theme.json がありません。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>アイコン &quot;%1&quot; に一致する組み込みアイコンがありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>アイコン &quot;%1&quot; は SVG、PNG、BMP ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>アイコン &quot;%1&quot; を読み込めませんでした (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>サウンド &quot;%1&quot; はどのサウンドイベントにも対応していません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>サウンド &quot;%1&quot; は WAV ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>背景画像 &quot;%1&quot; がパッケージ内にありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>背景画像 &quot;%1&quot; を読み込めませんでした (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>テーマフォルダー &quot;%1&quot; を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>テーマパッケージ &quot;%1&quot; にパッケージ外を指すパスがあります: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>テーマパッケージ &quot;%1&quot; がテーマパッケージの上限を超えています。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>テーマフォルダー &quot;%1&quot; に読み込める theme.json がありません。</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>テーマパッケージがテーマパッケージの上限を超えています。</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>テーマパッケージは読み込める zip ファイルではありません。</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>テーマパッケージは Patchy が読み込めない暗号化または圧縮方式を使っています。</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>テーマパッケージ内のファイルが破損しています。</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>テーマパッケージにパッケージ外を指すパスがあります: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>フォルダー &quot;%1&quot; を作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot; を書き込めませんでした。</translation>
     </message>
 </context>
 <context>
@@ -14568,6 +14936,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>エクストラを非表示にしています</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>レイヤーを水平に補正</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>ベクトルマスクにはまだ移動するパスがありません。ペンまたはシェイプツールで描いてください。</translation>
     </message>
 </context>
 <context>
@@ -26002,6 +26378,300 @@ The open document keeps its blend modes either way.</source>
         <translation>フレーム時間のあるレイヤーはありません</translation>
     </message>
     <message>
+        <source>Screen &amp;Mode</source>
+        <translation>スクリーンモード(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>標準(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>メニュー付きフルスクリーン(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>フルスクリーン(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>スクリーンモードを切り替え(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>フルスクリーンを終了</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>%1 または Esc キーでフルスクリーンを終了します</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Esc キーでフルスクリーンを終了します</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>トリミングするものがありません: すべてのピクセルが許容値の範囲で透明です。許容値を下げてください。</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>トリミングするものがありません: すべてのピクセルが基準色の許容値の範囲内です。許容値を下げてください。</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Web 用に書き出し(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Web 用に書き出し</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>始点の水平位置</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>始点の垂直位置</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>始点から終点までの水平距離</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>始点から終点までの垂直距離 (下向きが正)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>水平から反時計回りに測った線の角度。2 本の辺があるときはその間の角度</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>線の長さ</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>2 本目の辺の長さ (端を %ALT%+ドラッグで追加)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>レイヤーを水平に補正</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>線が水平になるようにアクティブレイヤーを回転 (垂直に近い場合は垂直に)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>画像を水平に補正</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>線が水平になるように画像全体を回転し、空いた角を切り抜きます</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>計測線を削除</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>ものさし</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>ドラッグで計測、Shift で 45 度刻み。端または線をドラッグして調整、端を %ALT%+ドラッグで角度を計測します。</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>ものさし: ドラッグで計測、Shift で 45 度刻み。端または線をドラッグして調整、端を %ALT%+ドラッグで 2 本目の辺を追加して間の角度を計測します。水平に補正で線を水平にします。</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>スポイトツール</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>スポイトツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>先にものさしで線を引いてください</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>線はすでにまっすぐです</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>補正するレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>レイヤーを反時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>レイヤーを時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>画像を反時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>画像を時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>ベクトルマスクを編集中: ペンまたはシェイプツールでパスやシェイプを描いてレイヤーをマスクします</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>ベクトルマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>ベクトルマスクをリンク</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>マスクのプロパティ...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>ベクトルマスクを追加しました。ペンまたはシェイプツールでパスやシェイプを描いてレイヤーをマスクします</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>ベクトルマスクをリンク</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>ベクトルマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>レイヤーとベクトルマスクをリンクしました</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>レイヤーとベクトルマスクのリンクを解除しました</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>ベクトルマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>レイヤーマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>ベクトルマスクの密度とぼかしを変更しました</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>レイヤーマスクの密度とぼかしを変更しました</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>テーマパッケージを書き出し...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>選択中のテーマを、アイコン、画像、サウンドを含む .zip パッケージとして保存します。</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>アイコンテンプレートを書き出し...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>すべての組み込みアイコンを SVG ファイルとしてフォルダーに書き出します。テーマの icons/ フォルダーの土台にしてください。</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>テーマのサウンドを再生</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>テーマパッケージに含まれるサウンドを再生します (保存の完了時など)。サウンドのないテーマでは何も鳴りません。</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>テーマ &quot;%1&quot; を削除しますか? フォルダーはごみ箱に移動します。</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy テーマ (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>テーマパッケージを書き出し</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy テーマパッケージ (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>アイコンテンプレートを書き出し</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>%n 個のアイコンを %1 に書き出しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>スクリーンモード: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>クリックで次のモードに切り替えます。長押しまたは右クリックでモードを選べます。</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>ツールパレットのカスタマイズ...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>選択</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>ペイント</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>レタッチ</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>描画とテキスト</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>表示</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>すべてのボタンを表示</translation>
+    </message>
+    <message>
         <source>All Caps</source>
         <translation>すべて大文字</translation>
     </message>
@@ -28022,6 +28692,10 @@ The open document keeps its blend modes either way.</source>
         <translation>trim の tolerance は 0 から 255 の数値である必要があります。</translation>
     </message>
     <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: 不明な値 &quot;%1&quot; です。</translation>
+    </message>
+    <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: ラン %2 の %3 は &apos;%4&apos;、&apos;%5&apos;、&apos;none&apos; のいずれかにしてください。</translation>
     </message>
@@ -28067,6 +28741,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers には colorMode: &quot;rgb&quot; が必要です。レイヤー付き TIFF は RGB で保存されます。</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: PNG で colors、dither、ditherAmount を使うには pngColors: &quot;palette&quot; が必要です。</translation>
     </message>
 </context>
 <context>

@@ -142,7 +142,8 @@ QString photoshop_style_template() {
       border-color: @field_border_disabled;
     }
     QToolButton#brushDynamicsButton {
-      padding: 2px 6px;
+      padding: 2px 3px;
+      min-width: 16px;
       min-height: 20px;
       max-height: 20px;
     }
@@ -243,6 +244,20 @@ QString photoshop_style_template() {
       max-height: @tp(24)px;
       padding: 1px;
     }
+    /* The Layers footer menu's checkbox rows sit on the menu's own background. */
+    QMenu#layerFooterButtonsMenu QWidget#layerFooterToggleRow, QMenu#layerFooterButtonsMenu QCheckBox {
+      background: transparent;
+    }
+    /* The gear's holder and the two-column rows only arrange buttons: the bar shows through. */
+    QToolBar#toolPalette QWidget#toolPaletteCustomizeHolder, QToolBar#toolPalette QWidget#toolPaletteRow {
+      background: transparent;
+    }
+    /* The gear above the tools (Customize Tool Palette) sits in a shorter row. */
+    QToolBar#toolPalette QToolButton#toolPaletteCustomizeButton {
+      min-height: @tp(16)px;
+      max-height: @tp(16)px;
+      padding: 0;
+    }
     QToolBar#toolPalette QPushButton {
       min-width: @tp(26)px;
       max-width: @tp(26)px;
@@ -277,6 +292,14 @@ QString photoshop_style_template() {
       max-width: @tf(32)px;
       min-height: @tf(22)px;
       max-height: @tf(22)px;
+    }
+    /* The screen mode button's row under Quick Mask (GitHub issue 212): a 36 x 21 box,
+       which still fits the row when the footer factor rounds it down (Smallest). */
+    QToolBar#toolPalette QToolButton#screenModeButton {
+      min-width: @tf(32)px;
+      max-width: @tf(32)px;
+      min-height: @tf(17)px;
+      max-height: @tf(17)px;
     }
     QToolBar#toolPalette QToolButton#qt_toolbar_ext_button {
       min-height: 14px;
@@ -591,6 +614,25 @@ QString photoshop_style_template() {
       color: @text_on_accent;
       border: 1px solid @category_selected_border;
     }
+    /* Customize Tool Palette's tickable rows (the rule above hides list indicators). */
+    QTreeWidget#toolPaletteCustomizeTree::indicator, QListWidget#layerFooterButtonsList::indicator {
+      width: 12px;
+      height: 12px;
+      max-width: 12px;
+      max-height: 12px;
+      background: @checkbox_indicator_bg;
+      border: 1px solid @checkbox_indicator_border;
+    }
+    QTreeWidget#toolPaletteCustomizeTree::indicator:checked, QListWidget#layerFooterButtonsList::indicator:checked {
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(checkmark));
+    }
+    QTreeWidget#toolPaletteCustomizeTree::indicator:indeterminate {
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(spin-minus));
+    }
     QListWidget#layerStyleCategoryList::indicator {
       width: 0;
       height: 0;
@@ -626,6 +668,7 @@ QString photoshop_style_template() {
     }
     QLabel#layerContentThumbnail[layerTargetActive="true"],
     QLabel#layerMaskThumbnail[layerTargetActive="true"],
+    QLabel#layerVectorMaskThumbnail[layerTargetActive="true"],
     QLabel#layerSmartFilterMaskThumbnail[layerTargetActive="true"] {
       border: 2px solid @accent_bright;
       padding: 0;
@@ -816,8 +859,8 @@ QString photoshop_style_template() {
       background: @layer_lock_mixed_bg;
       border-color: @layer_lock_mixed_border;
     }
-    QToolButton#layerMaskLinkButton, QToolButton#layerFxBadgeButton, QToolButton#layerSmartObjectBadgeButton,
-    QToolButton#layerClippingBadgeButton {
+    QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton, QToolButton#layerFxBadgeButton,
+    QToolButton#layerSmartObjectBadgeButton, QToolButton#layerClippingBadgeButton {
       background: transparent;
       border: 1px solid transparent;
       border-radius: 3px;
@@ -826,10 +869,11 @@ QString photoshop_style_template() {
     /* The clip badge takes the content thumbnail's width (Small is 22 px), so it centers on
        the base row's thumbnail (#397), and the mask link is 22 px; the generic 26 px minimum
        would widen both. */
-    QToolButton#layerClippingBadgeButton, QToolButton#layerMaskLinkButton {
+    QToolButton#layerClippingBadgeButton, QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton {
       min-width: 0;
     }
-    QToolButton#layerMaskLinkButton:hover, QToolButton#layerFxBadgeButton:hover,
+    QToolButton#layerMaskLinkButton:hover, QToolButton#layerVectorMaskLinkButton:hover,
+    QToolButton#layerFxBadgeButton:hover,
     QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {
       background: @layer_button_hover_bg;
       border-color: @layer_button_hover_border;

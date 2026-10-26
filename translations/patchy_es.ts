@@ -12790,6 +12790,284 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>No mostrar al abrir documentos (Preferencias &gt; Aplicación lo vuelve a activar)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>Calidad %1, progresivo</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>Calidad %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>Sin pérdida</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, animado</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>Color completo</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Exportar para web</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>Los tamaños son los de los archivos codificados reales con los ajustes de cada formato y se actualizan al cambiarlos.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>Ajustes de JPEG</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>Progresivo (muestra primero una imagen aproximada al cargar)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>Optimizar codificación (archivo más pequeño, misma imagen)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>Rellena las áreas transparentes (JPEG no tiene transparencia)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>Ajustes de WebP</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>Ajustes de PNG</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>Color completo, sin pérdida. Se conserva la transparencia.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Tamaño de imagen</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>de %1 x %2</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>Pixel art (píxeles enteros)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>Pixel art amplía por píxeles enteros sin suavizado, para que los sprites sigan nítidos.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>Metadatos y color</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>Metadatos de Información de archivo que se incluyen. Ninguno escribe el archivo más pequeño.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>Incluir miniatura (unos 5 a 10 KB)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>Añade una pequeña imagen de vista previa a los datos EXIF. Solo se escribe si el archivo conserva metadatos EXIF.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>Convertir a sRGB (desde %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>Los navegadores muestran las imágenes sin perfil como sRGB. Desmarcado, el archivo conserva su perfil de color.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB, no necesita perfil</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>Comparar:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>Dividido</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>Lado a lado</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>Solo resultado</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>Restablecer todos los ajustes a sus valores predeterminados</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>error</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>codificando...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>Salida %1 x %2, %3 %4 (%5 % de %6 sin comprimir)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: codificando...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>Error de codificación: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>Codificando %1...</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Regla</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>La capa y la máscara vectorial están enlazadas. Haga clic para desenlazarlas.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>La capa y la máscara vectorial no están enlazadas. Haga clic para enlazarlas.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Propiedades de la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Propiedades de la máscara de capa</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>La opacidad de las zonas ocultas de la máscara. Por debajo del 100% la capa se ve a través de ellas.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Suaviza los bordes de la máscara en este número de píxeles</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n color, difusión</numerusform>
+            <numerusform>%n colores, difusión</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n color, sin tramado</numerusform>
+            <numerusform>%n colores, sin tramado</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>El máximo de colores de la paleta. Una imagen con menos colores los conserva exactos.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Difusión</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>La difusión mezcla colores vecinos de la paleta para que los degradados formen menos bandas. Suele aumentar el archivo.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>Los colores que usa el archivo</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Paleta</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Paleta escribe hasta 256 colores, mucho más pequeño para gráficos planos, logotipos y capturas de pantalla.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>Los píxeles con menos del 50 % de opacidad se vuelven transparentes.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>Ajustes de GIF</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Un nombre de capa que termina en un tiempo como 0.25s fija el retardo de ese fotograma.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Retardo de fotograma:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Personalizar paleta de herramientas</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Marque las herramientas que se muestran. Las herramientas ocultas conservan sus atajos.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Disposición</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Una columna</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Dos columnas, herramientas una al lado de otra</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>La rueda del ratón desplaza la paleta cuando no cabe</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Si no, la flecha &gt; abre más columnas.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Mostrar el botón de engranaje en la paleta</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Herramientas</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Marque los botones que muestra el panel Capas. Los comandos de los botones ocultos siguen en los menús.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Botones de Capas</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Restablecer valores predeterminados</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12882,6 +13160,98 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>No se pudo leer el archivo de tema &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; debe ser true o false (se ignora).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; debe ser &quot;smooth&quot; o &quot;nearest&quot; (se ignora).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; no es un objeto (se ignora).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>El modo de fondo &quot;%1&quot; no es &quot;tile&quot;, &quot;stretch&quot; ni &quot;center&quot; (se usa mosaico).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>El paquete de tema no tiene theme.json.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>El icono &quot;%1&quot; no coincide con ningún icono integrado (se ignora).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>El icono &quot;%1&quot; no es un archivo SVG, PNG ni BMP (se ignora).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>No se pudo leer el icono &quot;%1&quot; (se ignora).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>El sonido &quot;%1&quot; no corresponde a ningún evento de sonido (se ignora).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>El sonido &quot;%1&quot; no es un archivo WAV (se ignora).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>La imagen de fondo &quot;%1&quot; no está en el paquete (se ignora).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>No se pudo leer la imagen de fondo &quot;%1&quot; (se ignora).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>No se pudo leer la carpeta de tema &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>El paquete de tema &quot;%1&quot; contiene una ruta fuera del paquete: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>El paquete de tema &quot;%1&quot; supera los límites de los paquetes de tema.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>La carpeta de tema &quot;%1&quot; no tiene un theme.json legible.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>El paquete de tema supera los límites de los paquetes de tema.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>El paquete de tema no es un archivo zip legible.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>El paquete de tema usa cifrado o un método de compresión que Patchy no puede leer.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>Un archivo del paquete de tema está dañado.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>El paquete de tema contiene una ruta fuera del paquete: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>No se pudo crear la carpeta &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>No se pudo escribir &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>
@@ -14603,6 +14973,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Hiding extras</source>
         <translation>Ocultando extras</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Enderezar capa</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>La máscara vectorial aún no tiene un trazado que mover. Dibuje uno con la Pluma o una herramienta de forma.</translation>
     </message>
 </context>
 <context>
@@ -26075,6 +26453,301 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Ninguna capa tiene tiempo de fotograma</translation>
     </message>
     <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Modo de &amp;pantalla</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Estándar</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Pantalla completa con &amp;menús</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>Pantalla &amp;completa</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Alternar modo de pantalla</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Salir de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Pulse %1 o Esc para salir de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Pulse Esc para salir de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nada que cortar: todos los píxeles son transparentes dentro de la tolerancia. Reduzca la Tolerancia.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nada que cortar: todos los píxeles están dentro de la tolerancia del color de recorte. Reduzca la Tolerancia.</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Exportar para &amp;web...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Exportar para web</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Áng:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Posición horizontal del punto inicial</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Posición vertical del punto inicial</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Distancia horizontal del punto inicial al final</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Distancia vertical del punto inicial al final (hacia abajo es positiva)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Ángulo de la línea, en sentido antihorario desde la horizontal; con dos brazos, el ángulo entre ellos</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Longitud de la línea</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Longitud del segundo brazo (%ALT%+arrastrar un extremo añade uno)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Enderezar capa</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Girar la capa activa para que la línea quede horizontal (o vertical, si está más cerca de la vertical)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Enderezar imagen</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Girar toda la imagen para que la línea quede horizontal y recortar las esquinas vacías</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Quitar la línea de medición</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Regla</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Arrastre para medir; Mayús mantiene 45 grados. Arrastre un extremo o la línea para ajustarla; %ALT%+arrastrar un extremo mide un ángulo.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Regla: arrastre para medir; Mayús mantiene 45 grados. Arrastre un extremo o la línea para ajustarla; %ALT%+arrastrar un extremo añade un segundo brazo y mide el ángulo entre ellos. Enderezar nivela la línea.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Herramientas de cuentagotas</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Alternar herramientas de cuentagotas</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Primero dibuje una línea con la Regla</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>La línea ya está recta</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Seleccione una capa para enderezar</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Capa enderezada %1 grados en sentido antihorario</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Capa enderezada %1 grados en sentido horario</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Imagen enderezada %1 grados en sentido antihorario</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Imagen enderezada %1 grados en sentido horario</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Editando la máscara vectorial: dibuje un trazado o una forma con la Pluma o una herramienta de forma para enmascarar la capa</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Desenlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Enlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Propiedades de la máscara...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Se añadió una máscara vectorial. Dibuje un trazado o una forma con la Pluma o una herramienta de forma para enmascarar la capa</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Enlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Desenlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Capa y máscara vectorial enlazadas</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Capa y máscara vectorial desenlazadas</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Propiedades de la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Propiedades de la máscara de capa</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Se cambiaron la densidad y el calado de la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Se cambiaron la densidad y el calado de la máscara de capa</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>Exportar paquete de tema...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>Guardar el tema seleccionado como paquete .zip, con sus iconos, imágenes y sonidos.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>Exportar plantilla de iconos...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>Escribir cada icono integrado como archivo SVG en una carpeta, como punto de partida para la carpeta icons/ de un tema.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>Reproducir sonidos del tema</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>Reproducir los sonidos que incluye un paquete de tema, por ejemplo al terminar de guardar. Los temas sin sonidos permanecen en silencio.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>¿Eliminar el tema &quot;%1&quot;? Su carpeta se mueve a la papelera.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Temas de Patchy (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>Exportar paquete de tema</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Paquete de tema de Patchy (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>Exportar plantilla de iconos</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>Se escribió %n icono en %1.</numerusform>
+            <numerusform>Se escribieron %n iconos en %1.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Modo de pantalla: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Haga clic para el siguiente modo. Mantenga pulsado o haga clic derecho para elegir uno.</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Personalizar paleta de herramientas...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Seleccionar</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Pintar</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Retocar</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Dibujo y texto</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Vista</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Mostrar todos los botones</translation>
+    </message>
+    <message>
         <source>All Caps</source>
         <translation>Todo mayúsculas</translation>
     </message>
@@ -28096,6 +28769,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>trim tolerance debe ser un número de 0 a 255.</translation>
     </message>
     <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: valor desconocido &quot;%1&quot;.</translation>
+    </message>
+    <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: el tramo %2: %3 debe ser &apos;%4&apos;, &apos;%5&apos; o &apos;none&apos;.</translation>
     </message>
@@ -28141,6 +28818,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers requiere colorMode: &quot;rgb&quot;; un TIFF con capas se guarda en RGB.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: colors, dither y ditherAmount necesitan pngColors: &quot;palette&quot; para PNG.</translation>
     </message>
 </context>
 <context>

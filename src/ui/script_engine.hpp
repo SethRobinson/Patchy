@@ -562,6 +562,10 @@ public:
   // View > Pixel Grid, the saved preference (GitHub issue 239).
   [[nodiscard]] bool view_pixel_grid() const;
   void set_view_pixel_grid(bool enabled);
+  // patchy.ui.toolPalette: Customize Tool Palette's choice as a plain object, and a
+  // partial update of it (unknown ids or layouts throw).
+  [[nodiscard]] QJSValue tool_palette_state();
+  void set_tool_palette_state(const QJSValue& state);
   void fit_view_on_screen();
   void present_script_view(int delay_ms = 0, bool slow_hold = false);
   [[nodiscard]] bool slow_mode() const;

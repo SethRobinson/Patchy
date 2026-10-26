@@ -1,6 +1,10 @@
 #include "ui/icon_theme.hpp"
 
+#include "ui/theme_backdrop.hpp"
+#include "ui/theme_package.hpp"
+
 #include <QApplication>
+#include <QDir>
 #include <QFile>
 #include <QGuiApplication>
 #include <QIconEngine>
@@ -37,9 +41,71 @@ QString light_icon_resource_path(const QString& name) {
   return QStringLiteral(":/patchy/icons/light/%1.svg").arg(name);
 }
 
-// Renders on demand and reparses only when the scheme moves. Only the parsed
-// renderer is cached: rasterizing a 32x32 path set is microseconds, while parsing
-// the XML is not, and a pixmap cache is one more thing that can go stale.
+// One drawing of an icon: the built-in SVG, or a theme package's SVG or bitmap.
+struct IconFace {
+  std::unique_ptr<QSvgRenderer> svg;
+  QImage image;
+  QImage image_2x;
+  Qt::TransformationMode scaling = Qt::SmoothTransformation;
+
+  [[nodiscard]] bool valid() const {
+    return (svg != nullptr && svg->isValid()) || !image.isNull() || !image_2x.isNull();
+  }
+};
+
+IconFace load_icon_face(const QString& name) {
+  IconFace face;
+  if (name.isEmpty()) {
+    return face;
+  }
+  if (const auto* assets = active_theme_assets(); assets != nullptr) {
+    const auto found = assets->icons.constFind(name);
+    if (found != assets->icons.constEnd()) {
+      if (!found->svg.isEmpty()) {
+        const auto svg = assets->options.recolor_icons ? recolor_icon_svg(found->svg) : found->svg;
+        face.svg = std::make_unique<QSvgRenderer>(svg);
+        if (face.svg->isValid()) {
+          return face;
+        }
+        face.svg.reset();  // a broken override falls back to the shipped icon
+      } else if (!found->image.isNull() || !found->image_2x.isNull()) {
+        face.image = found->image;
+        face.image_2x = found->image_2x;
+        face.scaling = assets->options.icon_scaling == ThemeIconScaling::Nearest ? Qt::FastTransformation
+                                                                                 : Qt::SmoothTransformation;
+        return face;
+      }
+    }
+  }
+  const auto svg = themed_icon_svg(name);
+  if (!svg.isEmpty()) {
+    face.svg = std::make_unique<QSvgRenderer>(svg);
+  }
+  return face;
+}
+
+// Draws a bitmap face into a `target`-sized device-pixel canvas, aspect kept and
+// centered: the @2x image when the target has room for more than the 1x one.
+void draw_bitmap_face(QPainter& painter, const IconFace& face, const QSize& target) {
+  const bool use_1x = face.image_2x.isNull() || (!face.image.isNull() && target.width() <= face.image.width() &&
+                                                 target.height() <= face.image.height());
+  const auto& source = use_1x ? face.image : face.image_2x;
+  if (source.isNull()) {
+    return;
+  }
+  const auto fitted = source.size().scaled(target, Qt::KeepAspectRatio);
+  const QRect rect(QPoint((target.width() - fitted.width()) / 2, (target.height() - fitted.height()) / 2), fitted);
+  if (fitted == source.size()) {
+    painter.drawImage(rect.topLeft(), source);
+    return;
+  }
+  painter.drawImage(rect.topLeft(), source.scaled(fitted, Qt::IgnoreAspectRatio, face.scaling));
+}
+
+// Renders on demand and reloads only when the theme moves. Only the parsed
+// renderer (or the decoded bitmap) is cached: rasterizing a 32x32 path set is
+// microseconds, while parsing the XML is not, and a pixmap cache is one more
+// thing that can go stale.
 class ThemedIconEngine final : public QIconEngine {
  public:
   // `on_name`, when set, is drawn for QIcon::On (a checked button or menu item).
@@ -63,19 +129,27 @@ class ThemedIconEngine final : public QIconEngine {
   // supports a 67-200% interface scale, so every icon would go soft at 150%.
   QPixmap scaledPixmap(const QSize& size, QIcon::Mode mode, QIcon::State state,
                        qreal scale) override {
-    ensure_renderers();
-    const auto& renderer = state == QIcon::On && on_renderer_ != nullptr ? on_renderer_ : renderer_;
-    if (size.isEmpty() || renderer == nullptr || !renderer->isValid()) {
+    ensure_faces();
+    const auto& face = state == QIcon::On && on_face_.valid() ? on_face_ : face_;
+    if (size.isEmpty() || !face.valid()) {
       return {};
     }
     const qreal ratio = scale > 0.0 ? scale : qreal(1.0);
-    QPixmap rendered(QSize(qRound(size.width() * ratio), qRound(size.height() * ratio)));
+    const QSize device_size(qRound(size.width() * ratio), qRound(size.height() * ratio));
+    QPixmap rendered(device_size);
     rendered.fill(Qt::transparent);
-    rendered.setDevicePixelRatio(ratio);
-    QPainter painter(&rendered);
-    painter.setRenderHint(QPainter::Antialiasing);
-    renderer->render(&painter, QRectF(QPointF(0.0, 0.0), QSizeF(size)));
-    painter.end();
+    if (face.svg != nullptr) {
+      rendered.setDevicePixelRatio(ratio);
+      QPainter painter(&rendered);
+      painter.setRenderHint(QPainter::Antialiasing);
+      face.svg->render(&painter, QRectF(QPointF(0.0, 0.0), QSizeF(size)));
+    } else {
+      // Bitmaps are placed in device pixels, so a 1:1 icon stays exactly 1:1.
+      QPainter painter(&rendered);
+      draw_bitmap_face(painter, face, device_size);
+      painter.end();
+      rendered.setDevicePixelRatio(ratio);
+    }
     if (mode == QIcon::Normal) {
       return rendered;
     }
@@ -108,8 +182,8 @@ class ThemedIconEngine final : public QIconEngine {
   QString iconName() override { return name_; }
 
   bool isNull() override {
-    ensure_renderers();
-    return renderer_ == nullptr || !renderer_->isValid();
+    ensure_faces();
+    return !face_.valid();
   }
 
   QIconEngine* clone() const override { return new ThemedIconEngine(name_, on_name_); }
@@ -117,24 +191,20 @@ class ThemedIconEngine final : public QIconEngine {
   QString key() const override { return QStringLiteral("PatchyThemedIcon"); }
 
  private:
-  void ensure_renderers() {
+  void ensure_faces() {
     const int generation = theme_generation();
-    if (renderer_ != nullptr && generation_ == generation) {
+    if (generation_ == generation) {
       return;
     }
     generation_ = generation;
-    const auto load = [](const QString& name) -> std::unique_ptr<QSvgRenderer> {
-      const auto svg = name.isEmpty() ? QByteArray() : themed_icon_svg(name);
-      return svg.isEmpty() ? nullptr : std::make_unique<QSvgRenderer>(svg);
-    };
-    renderer_ = load(name_);
-    on_renderer_ = load(on_name_);
+    face_ = load_icon_face(name_);
+    on_face_ = load_icon_face(on_name_);
   }
 
   QString name_;
   QString on_name_;
-  std::unique_ptr<QSvgRenderer> renderer_;
-  std::unique_ptr<QSvgRenderer> on_renderer_;
+  IconFace face_;
+  IconFace on_face_;
   int generation_ = -1;
 };
 
@@ -178,13 +248,30 @@ QStringList stylesheet_referenced_icon_names() {
           QStringLiteral("spin-minus-disabled")};
 }
 
-QByteArray themed_icon_svg(const QString& name) {
+QStringList builtin_icon_stems() {
+  ensure_icon_resources();
+  auto stems = QDir(QStringLiteral(":/patchy/icons")).entryList({QStringLiteral("*.svg")}, QDir::Files, QDir::Name);
+  for (auto& stem : stems) {
+    stem.chop(4);
+  }
+  return stems;
+}
+
+QByteArray builtin_icon_svg(const QString& name) {
   ensure_icon_resources();
   QFile file(icon_resource_path(name));
   if (!file.open(QIODevice::ReadOnly)) {
     return {};
   }
-  auto svg = file.readAll();
+  return file.readAll();
+}
+
+QByteArray themed_icon_svg(const QString& name) {
+  const auto svg = builtin_icon_svg(name);
+  return svg.isEmpty() ? svg : recolor_icon_svg(svg);
+}
+
+QByteArray recolor_icon_svg(QByteArray svg) {
   const auto& palette = theme();
   for (const auto& [source, member] : icon_color_roles()) {
     // Authored icons write hex in lowercase; ui_icon_color_map_covers_every_authored_color
@@ -210,6 +297,11 @@ QIcon themed_svg_icon(const QString& name, const QString& on_name) {
 
 QString themed_icon_url(const QString& name) {
   ensure_icon_resources();
+  if (name == QStringLiteral("scroll-dither")) {
+    if (auto gutter = themed_scroll_gutter_url(); !gutter.isEmpty()) {
+      return gutter;
+    }
+  }
   if (active_color_scheme() == ColorScheme::Light) {
     const auto light_path = light_icon_resource_path(name);
     if (QFile::exists(light_path)) {

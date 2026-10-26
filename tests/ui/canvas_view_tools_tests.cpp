@@ -1667,6 +1667,226 @@ void ui_options_bars_follow_the_separator_rules() {
   CHECK(problems.empty());
 }
 
+// One visible separator and the clear space on either side of its line, measured in the
+// grabbed bar: from the line to the nearest ink (a field edge, a glyph, a checkbox box).
+struct OptionsSeparatorGap {
+  QString before;
+  QString after;
+  int left{-1};
+  int right{-1};
+  int before_inset{-1};  // the ink's distance inside each neighbour's box
+  int after_inset{-1};
+};
+
+std::vector<OptionsSeparatorGap> options_separator_gaps(QWidget& options) {
+  std::vector<OptionsSeparatorGap> gaps;
+  const QImage image = options.grab().toImage();
+  if (image.devicePixelRatio() != 1.0) {
+    return gaps;
+  }
+  std::vector<QWidget*> visible;
+  for (auto* child : options.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+    if (child->isVisible()) {
+      visible.push_back(child);
+    }
+  }
+  const auto widget_at = [&visible](int x, int y) -> QWidget* {
+    for (auto* child : visible) {
+      if (child->geometry().contains(x, y)) {
+        return child;
+      }
+    }
+    return nullptr;
+  };
+  const auto name_at = [&visible](int x, int y) {
+    for (auto* child : visible) {
+      if (child->geometry().contains(x, y)) {
+        if (!child->objectName().isEmpty()) {
+          return child->objectName();
+        }
+        if (const auto* label = qobject_cast<QLabel*>(child)) {
+          return label->text();
+        }
+        if (const auto* button = qobject_cast<QToolButton*>(child); button != nullptr && button->defaultAction() != nullptr) {
+          return button->defaultAction()->objectName();
+        }
+        return QString::fromLatin1(child->metaObject()->className());
+      }
+    }
+    return QString();
+  };
+  for (auto* child : visible) {
+    if (child->objectName() != QLatin1String("optionSeparator")) {
+      continue;
+    }
+    const QRect line_box = child->geometry();
+    // The bar's own color: just above the separator's line, inside the strip.
+    const QColor background = image.pixelColor(line_box.left(), std::max(0, line_box.top() - 1));
+    const auto differs = [](const QColor& a, const QColor& b, int tolerance) {
+      return std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) > tolerance;
+    };
+    const auto ink_column = [&](int x) {
+      for (int y = line_box.top(); y <= line_box.bottom(); ++y) {
+        if (differs(image.pixelColor(x, y), background, 30)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    // The line: the separator box's full-height columns in the separator color.
+    const QColor line_color = patchy::ui::theme().option_separator;
+    const auto line_column = [&](int x) {
+      if (x < 0 || x >= image.width()) {
+        return false;
+      }
+      for (int y = line_box.top() + 2; y <= line_box.bottom() - 2; ++y) {
+        if (differs(image.pixelColor(x, y), line_color, 12)) {
+          return false;
+        }
+      }
+      return true;
+    };
+    int line_left = -1;
+    int line_right = -1;
+    for (int x = line_box.left(); x <= line_box.right(); ++x) {
+      if (line_column(x)) {
+        line_left = line_left < 0 ? x : line_left;
+        line_right = x;
+      }
+    }
+    if (line_left < 0) {
+      gaps.push_back({QStringLiteral("(no line)"), QString(), -1, -1});
+      continue;
+    }
+    int before = -1;
+    for (int x = line_left - 1; x >= 0 && before < 0; --x) {
+      if (ink_column(x)) {
+        before = x;
+      }
+    }
+    int after = -1;
+    for (int x = line_right + 1; x < image.width() && after < 0; ++x) {
+      if (ink_column(x)) {
+        after = x;
+      }
+    }
+    // A separator that ends or starts a wrapped row has nothing on one side.
+    if (before < 0 || after < 0 || line_left - before > 40 || after - line_right > 40) {
+      continue;
+    }
+    const int y = line_box.center().y();
+    const auto* before_widget = widget_at(before, y);
+    const auto* after_widget = widget_at(after, y);
+    gaps.push_back({name_at(before, y), name_at(after, y), line_left - before - 1, after - line_right - 1,
+                    before_widget != nullptr ? before_widget->geometry().right() - before : -1,
+                    after_widget != nullptr ? after - after_widget->geometry().left() : -1});
+  }
+  return gaps;
+}
+
+void ui_options_bar_separators_sit_centered_in_their_gaps() {
+  // GitHub issue 181 follow-up: every separator's line sits in the middle of the clear
+  // space between the controls on either side, whatever they are (a label's text, a
+  // field's edge, a checkbox, an icon button), on every tool's bar and the Free Transform
+  // session's.
+  patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
+  patchy::ui::configure_automatic_selection_models();
+  std::vector<std::string> problems;
+  int measured = 0;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    const auto settle = [] {
+      QApplication::processEvents();
+      process_events_for(20);
+    };
+    const auto inspect = [&](const std::string& name) {
+      settle();
+      const auto gaps = options_separator_gaps(*options);
+      std::printf("  %-40s", (name + suffix).c_str());
+      for (const auto& gap : gaps) {
+        std::printf(" %s(%d) %d|%d (%d)%s;", qPrintable(gap.before), gap.before_inset, gap.left, gap.right,
+                    gap.after_inset, qPrintable(gap.after));
+        ++measured;
+        if (gap.left < 0 || std::abs(gap.left - gap.right) > 1) {
+          problems.push_back(name + suffix + ": " + gap.before.toStdString() + " " + std::to_string(gap.left) +
+                             " px | " + std::to_string(gap.right) + " px " + gap.after.toStdString());
+        }
+      }
+      std::printf("\n");
+      const auto [right, lines] = options_row_extent(*options);
+      const QPoint origin = options->mapTo(options_bar, QPoint(0, 0));
+      const QRect strip(0, 0, std::min(options_bar->width(), origin.x() + right + 8), options_bar->height());
+      save_image_artifact("options_bar_separators_" + name + suffix, options_bar->grab(strip).toImage());
+    };
+    auto tools = options_bar_test_tool_actions(window);
+    if (patchy::ai::segmentation_available()) {
+      tools.push_back(require_action(window, "toolObjectSelectionAction"));
+    }
+    auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+    for (auto* action : tools) {
+      action->trigger();
+      const auto tool = static_cast<patchy::ui::CanvasTool>(action->data().toInt());
+      const auto name = action->objectName().toStdString();
+      QComboBox* variants = nullptr;
+      if (tool == patchy::ui::CanvasTool::Marquee || tool == patchy::ui::CanvasTool::EllipticalMarquee) {
+        variants = marquee_style;
+      } else if (tool == patchy::ui::CanvasTool::Crop) {
+        variants = crop_style;
+      } else if (vector_mode != nullptr) {
+        settle();
+        variants = vector_mode->isVisible() ? vector_mode : nullptr;
+      }
+      if (variants == nullptr) {
+        inspect(name);
+        continue;
+      }
+      const int original = variants->currentIndex();
+      for (int index = 0; index < variants->count(); ++index) {
+        if (auto* model = qobject_cast<QStandardItemModel*>(variants->model());
+            model != nullptr && model->item(index) != nullptr && !model->item(index)->isEnabled()) {
+          continue;
+        }
+        variants->setCurrentIndex(index);
+        inspect(name + "_" + std::to_string(index));
+      }
+      variants->setCurrentIndex(original);
+    }
+    // The Free Transform session's row (Ctrl+T on a filled layer).
+    canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+         canvas->widget_position_for_document_point(QPoint(150, 125)));
+    canvas->set_primary_color(QColor(40, 130, 230));
+    require_action(window, "layerFillForegroundAction")->trigger();
+    require_action(window, "editDeselectAction")->trigger();
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    require_action(window, "editFreeTransformAction")->trigger();
+    settle();
+    CHECK(canvas->free_transform_active());
+    inspect("freeTransform");
+    if (auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"))) {
+      cancel->click();
+    }
+    settle();
+  }
+  std::printf("  measured %d separators\n", measured);
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(measured >= 80);
+  CHECK(problems.empty());
+}
+
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
   // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
@@ -1734,8 +1954,9 @@ void ui_options_bar_checkboxes_paint_without_a_frame() {
     CHECK(check->parentWidget() == options);
     const QImage bar = options->grab().toImage();
     const QRect box = check->geometry();
-    // The flow puts 4 px between controls; 2 px left of the box is bar surface.
-    const QColor gap = bar.pixelColor(box.left() - 2, box.center().y());
+    // The flow's 4 px top margin is bar surface (beside the box a separator's line can
+    // sit, centered between the box's glyph and the control before it).
+    const QColor gap = bar.pixelColor(box.center().x(), 1);
     for (const QPoint corner : {box.topLeft(), box.topRight(), box.bottomLeft(), box.bottomRight()}) {
       const QColor pixel = bar.pixelColor(corner);
       if (pixel != gap) {
@@ -2842,7 +3063,7 @@ void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
   canvas->set_zoom_centered(3.0);
   CHECK(std::abs(canvas->zoom() - 3.0) < 1e-6);
   const QPoint document_center(512, 384);
-  const QPoint widget_center(canvas->width() / 2, canvas->height() / 2);
+  const auto widget_center = canvas->view_content_rect().center().toPoint();
   const auto before = canvas->widget_position_for_document_point(document_center);
   CHECK(std::abs(before.x() - widget_center.x()) <= 2);
   CHECK(std::abs(before.y() - widget_center.y()) <= 2);
@@ -2869,7 +3090,7 @@ void ui_image_resize_recenters_view_and_zoom_double_click_shows_document() {
   accept_image_size_dialog(512, 384);
   require_action(window, "imageSizeAction")->trigger();
   QApplication::processEvents();
-  const QPoint widget_center(canvas->width() / 2, canvas->height() / 2);
+  const auto widget_center = canvas->view_content_rect().center().toPoint();
   const QPoint document_center(256, 192);
   const auto after_resize = canvas->widget_position_for_document_point(document_center);
   CHECK(std::abs(after_resize.x() - widget_center.x()) <= 2);
@@ -3022,22 +3243,23 @@ void ui_zoom_preset_recovers_parked_view() {
 
   // A preset zoom where the document overflows the viewport clamps
   // Photoshop-style: the anchor pins to the document, and no grey shows past
-  // the document edges.
+  // the document edges in the view area (inside the scroll bars, GitHub issue 301).
   canvas.set_zoom_centered(4.0);
   CHECK(std::abs(canvas.zoom() - 4.0) < 1e-6);
+  const auto area = canvas.view_content_rect();
   const auto overflow_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
   const auto overflow_corner = canvas.widget_position_for_document_point(QPoint(200, 150));
-  CHECK(overflow_origin.x() <= 0);
-  CHECK(overflow_origin.y() <= 0);
-  CHECK(overflow_corner.x() >= canvas.width());
-  CHECK(overflow_corner.y() >= canvas.height());
+  CHECK(overflow_origin.x() <= area.left());
+  CHECK(overflow_origin.y() <= area.top());
+  CHECK(overflow_corner.x() >= area.right());
+  CHECK(overflow_corner.y() >= area.bottom());
 
   // Back at 100% the document fits the viewport, so the preset recenters it.
   canvas.set_zoom_centered(1.0);
   CHECK(std::abs(canvas.zoom() - 1.0) < 1e-6);
   const auto center = canvas.widget_position_for_document_point(QPoint(100, 75));
-  CHECK(std::abs(center.x() - 200) <= 2);
-  CHECK(std::abs(center.y() - 150) <= 2);
+  CHECK(std::abs(center.x() - area.center().x()) <= 2);
+  CHECK(std::abs(center.y() - area.center().y()) <= 2);
 }
 
 // GitHub issue 241: a viewport resize keeps a fitting document centered, keeps a fitting
@@ -3075,18 +3297,20 @@ void ui_open_shows_small_images_at_actual_size_and_fits_large_ones() {
               << view->height() << ")" << std::endl;
     const auto top_left = view->widget_position_for_document_point(QPoint(0, 0));
     const auto bottom_right = view->widget_position_for_document_point(QPoint(width, height));
-    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > view->width() - 80 ||
-                                  height * (1.0 / view->devicePixelRatioF()) > view->height() - 80;
+    // Fit's 40 px margin per side is taken inside the view area (GitHub issue 301).
+    const auto area = view->view_content_rect();
+    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > area.width() - 80 ||
+                                  height * (1.0 / view->devicePixelRatioF()) > area.height() - 80;
     if (larger_than_view) {
       CHECK(view->view_zoom() < 1.0);
-      CHECK(top_left.x() >= 0 && top_left.y() >= 0);
-      CHECK(bottom_right.x() <= view->width() && bottom_right.y() <= view->height());
+      CHECK(top_left.x() >= area.left() && top_left.y() >= area.top());
+      CHECK(bottom_right.x() <= area.right() && bottom_right.y() <= area.bottom());
     } else {
       CHECK(std::abs(view->view_zoom() - 1.0) < 1e-9);
     }
-    // Centered either way.
-    CHECK(std::abs(top_left.x() + bottom_right.x() - view->width()) <= 2);
-    CHECK(std::abs(top_left.y() + bottom_right.y() - view->height()) <= 2);
+    // Centered in the view area either way.
+    CHECK(std::abs(top_left.x() + bottom_right.x() - 2.0 * area.center().x()) <= 2);
+    CHECK(std::abs(top_left.y() + bottom_right.y() - 2.0 * area.center().y()) <= 2);
   };
 
   patchy::ui::MainWindowTestAccess::open_document_path(window, small_path);
@@ -3126,7 +3350,7 @@ void ui_canvas_resize_keeps_document_centered_and_view_center_stable() {
   canvas.show();
   QApplication::processEvents();
   const auto offset_from_center = [&canvas](QPointF document_point) {
-    return canvas.widget_position_f(document_point) - QPointF(canvas.width() / 2.0, canvas.height() / 2.0);
+    return canvas.widget_position_f(document_point) - canvas.view_content_rect().center();
   };
   const auto close_to = [](QPointF a, QPointF b) { return std::abs(a.x() - b.x()) <= 1.0 && std::abs(a.y() - b.y()) <= 1.0; };
 
@@ -3155,7 +3379,7 @@ void ui_canvas_resize_keeps_document_centered_and_view_center_stable() {
   CHECK(canvas.begin_pan_at_global_position(canvas.mapToGlobal(QPoint(400, 300))));
   CHECK(canvas.pan_to_global_position(canvas.mapToGlobal(QPoint(350, 330))));
   CHECK(canvas.end_pan());
-  const auto probe = canvas.document_point_for_widget_position(QPointF(400.0, 300.0));
+  const auto probe = canvas.document_point_for_widget_position(canvas.view_content_rect().center());
   CHECK(probe.x() > 10.0 && probe.x() < 190.0 && probe.y() > 10.0 && probe.y() < 140.0);
   for (const auto size : {QSize(520, 380), QSize(900, 560), QSize(640, 700)}) {
     canvas.resize(size);
@@ -3178,8 +3402,8 @@ void ui_window_resize_panels_tabs_and_floats_keep_small_document_centered() {
   first->set_view_zoom_centered(1.0);
   const auto centered = [](patchy::ui::CanvasWidget* canvas, QPointF document_center) {
     const auto position = canvas->widget_position_f(document_center);
-    return std::abs(position.x() - canvas->width() / 2.0) <= 1.0 &&
-           std::abs(position.y() - canvas->height() / 2.0) <= 1.0;
+    const auto center = canvas->view_content_rect().center();
+    return std::abs(position.x() - center.x()) <= 1.0 && std::abs(position.y() - center.y()) <= 1.0;
   };
   CHECK(centered(first, {150.0, 100.0}));
   patchy::ui::MainWindowTestAccess::create_document(window, 260, 180);
@@ -3355,18 +3579,21 @@ void ui_canvas_scroll_bars_reflect_pan_range() {
   // if smaller, stays visible): pan spans
   // [minimum_visible - document_span, viewport_span - minimum_visible], and the
   // bar value counts down from the pan maximum (value 0 = top/left extreme).
-  const auto expected_maximum_and_centered_value = [](int viewport_span, int document_span) {
+  // Centering places the document in the view area, inside the scroll bars
+  // (GitHub issue 301).
+  const auto area = canvas.view_content_rect();
+  const auto expected_maximum_and_centered_value = [](int viewport_span, int document_span, double area_start,
+                                                      double area_span) {
     const auto minimum_visible =
         std::max(1.0, static_cast<double>(std::min(viewport_span, document_span)) * 0.10);
     const auto pan_minimum = minimum_visible - static_cast<double>(document_span);
     const auto pan_maximum = static_cast<double>(viewport_span) - minimum_visible;
-    const auto centered_pan =
-        (static_cast<double>(viewport_span) - static_cast<double>(document_span)) / 2.0;
+    const auto centered_pan = area_start + (area_span - static_cast<double>(document_span)) / 2.0;
     return std::pair(static_cast<int>(std::lround(pan_maximum - pan_minimum)),
                      static_cast<int>(std::lround(pan_maximum - centered_pan)));
   };
-  const auto [h_maximum, h_value] = expected_maximum_and_centered_value(500, 100);  // 580, 290
-  const auto [v_maximum, v_value] = expected_maximum_and_centered_value(400, 80);   // 464, 232
+  const auto [h_maximum, h_value] = expected_maximum_and_centered_value(500, 100, area.left(), area.width());
+  const auto [v_maximum, v_value] = expected_maximum_and_centered_value(400, 80, area.top(), area.height());
   CHECK(horizontal->minimum() == 0);
   CHECK(horizontal->maximum() == h_maximum);
   CHECK(horizontal->value() == h_value);
@@ -4692,6 +4919,7 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
       {"toolCyclePenAction", "tools.cycle.pen"},         {"toolCyclePathAction", "tools.cycle.path_select"},
       {"toolCycleShapeAction", "tools.cycle.shape"},     {"toolCycleMoveAction", "tools.cycle.move"},
       {"toolCycleCropAction", "tools.cycle.crop"},
+      {"toolCyclePickAction", "tools.cycle.pick"},
   };
   for (const auto& [object_name, id] : cycles) {
     auto* action = require_action(window, object_name);
@@ -4966,7 +5194,7 @@ void ui_tool_flyout_right_click_opens_only_the_flyout() {
 
   // A plain tool button swallows it too (GitHub issue 388); the toolbar menu still opens
   // from the palette itself.
-  auto* hand_button = palette->widgetForAction(require_action(window, "toolHandAction"));
+  auto* hand_button = window.findChild<QToolButton*>(QStringLiteral("handToolButton"));
   CHECK(hand_button != nullptr);
   send_context_menu(*hand_button, hand_button->rect().center());
   process_events_for(20);
@@ -5169,14 +5397,16 @@ void ui_tool_button_right_click_selects_plain_tool() {
   auto* brush = require_action(window, "toolBrushAction");
   struct PlainTool {
     const char* action_name;
+    const char* button_name;
     patchy::ui::CanvasTool tool;
   };
-  const PlainTool plain_tools[] = {{"toolEraserAction", patchy::ui::CanvasTool::Eraser},
-                                   {"toolHandAction", patchy::ui::CanvasTool::Pan},
-                                   {"toolZoomAction", patchy::ui::CanvasTool::Zoom}};
+  const PlainTool plain_tools[] = {{"toolEraserAction", "eraserToolButton", patchy::ui::CanvasTool::Eraser},
+                                   {"toolHandAction", "handToolButton", patchy::ui::CanvasTool::Pan},
+                                   {"toolZoomAction", "zoomToolButton", patchy::ui::CanvasTool::Zoom}};
   for (const auto& plain : plain_tools) {
     auto* action = require_action(window, plain.action_name);
-    auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action));
+    auto* button = palette->findChild<QToolButton*>(QLatin1String(plain.button_name));
+    CHECK(button == nullptr || button->defaultAction() == action);
     CHECK(button != nullptr);
     if (button == nullptr) {
       continue;
@@ -5768,8 +5998,9 @@ void ui_zoom_options_bar_view_buttons_set_view() {
   const auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto doc_width = static_cast<double>(document.width());
   const auto doc_height = static_cast<double>(document.height());
-  const auto fit_zoom = std::min((canvas->width() - 80.0) / doc_width, (canvas->height() - 80.0) / doc_height);
-  const auto fill_zoom = std::max(canvas->width() / doc_width, canvas->height() / doc_height);
+  const auto area = canvas->view_content_rect();
+  const auto fit_zoom = std::min((area.width() - 80.0) / doc_width, (area.height() - 80.0) / doc_height);
+  const auto fill_zoom = std::max(area.width() / doc_width, area.height() / doc_height);
   CHECK(fill_zoom > fit_zoom);
 
   canvas->set_zoom(0.37);
@@ -5817,8 +6048,9 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
   const auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto doc_width = static_cast<double>(document.width());
   const auto doc_height = static_cast<double>(document.height());
-  const auto fit_zoom = std::min((canvas->width() - 80.0) / doc_width, (canvas->height() - 80.0) / doc_height);
-  const auto fill_zoom = std::max(canvas->width() / doc_width, canvas->height() / doc_height);
+  const auto area = canvas->view_content_rect();
+  const auto fit_zoom = std::min((area.width() - 80.0) / doc_width, (area.height() - 80.0) / doc_height);
+  const auto fill_zoom = std::max(area.width() / doc_width, area.height() / doc_height);
 
   canvas->set_zoom(0.37);
   actual->click();
@@ -5835,6 +6067,100 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
   if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
     save_widget_artifact("issue_303_hand_options_bar", *options_bar);
   }
+}
+
+// GitHub issue 301: Fill Screen and Fit on Screen size and center the document in the
+// part of the canvas the rulers and scroll bars leave free, with rulers on and off.
+// The free area is measured here from the ruler bands and the scroll bars' own geometry.
+void ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars() {
+  ensure_artifact_dir();
+  const auto folder = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "issue301_fill");
+  std::filesystem::create_directories(folder);
+  // A framed image, so the screenshots show whether an edge hides under a ruler or bar.
+  QImage framed(1024, 768, QImage::Format_RGB32);
+  framed.fill(QColor(40, 110, 190));
+  {
+    QPainter painter(&framed);
+    painter.fillRect(framed.rect().adjusted(12, 12, -12, -12), QColor(235, 235, 235));
+  }
+  const auto framed_path = QString::fromStdWString((folder / "framed.png").wstring());
+  CHECK(framed.save(framed_path));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, framed_path);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* rulers = require_action(window, "viewToggleRulersAction");
+  auto* fit = require_action(window, "viewFitOnScreenAction");
+  auto* fill = require_action_by_text(window, QStringLiteral("Fill Screen"));
+  auto* horizontal_bar = canvas->findChild<QScrollBar*>(QStringLiteral("canvasHorizontalScrollBar"));
+  auto* vertical_bar = canvas->findChild<QScrollBar*>(QStringLiteral("canvasVerticalScrollBar"));
+  CHECK(horizontal_bar != nullptr && vertical_bar != nullptr);
+  if (horizontal_bar == nullptr || vertical_bar == nullptr) {
+    return;
+  }
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto shown_rect = [&] {
+    return QRectF(canvas->widget_position_f(QPointF(0.0, 0.0)),
+                  canvas->widget_position_f(QPointF(document.width(), document.height())));
+  };
+  const auto free_area = [&] {
+    CHECK(horizontal_bar->isVisible() && vertical_bar->isVisible());
+    const double left = canvas->rulers_visible() ? patchy::ui::kLeftRulerWidth : 0.0;
+    const double top = canvas->rulers_visible() ? patchy::ui::kTopRulerHeight : 0.0;
+    return QRectF(QPointF(left, top), QPointF(vertical_bar->geometry().left(), horizontal_bar->geometry().top()));
+  };
+  const auto close_to = [](double a, double b) { return std::abs(a - b) <= 1.0; };
+  const auto check_fill = [&](const char* label) {
+    const auto shown = shown_rect();
+    const auto area = free_area();
+    std::cout << "issue 301 " << label << ": fill shows " << shown.left() << "," << shown.top() << " to "
+              << shown.right() << "," << shown.bottom() << " in " << area.left() << "," << area.top() << " to "
+              << area.right() << "," << area.bottom() << std::endl;
+    // Covers the free area, meets it exactly on one axis, centered in it on both.
+    CHECK(shown.left() <= area.left() + 1.0 && shown.top() <= area.top() + 1.0);
+    CHECK(shown.right() >= area.right() - 1.0 && shown.bottom() >= area.bottom() - 1.0);
+    CHECK((close_to(shown.left(), area.left()) && close_to(shown.right(), area.right())) ||
+          (close_to(shown.top(), area.top()) && close_to(shown.bottom(), area.bottom())));
+    CHECK(close_to(shown.center().x(), area.center().x()));
+    CHECK(close_to(shown.center().y(), area.center().y()));
+  };
+  const auto check_fit = [&](const char* label) {
+    const auto shown = shown_rect();
+    const auto area = free_area().adjusted(40.0, 40.0, -40.0, -40.0);
+    std::cout << "issue 301 " << label << ": fit shows " << shown.left() << "," << shown.top() << " to "
+              << shown.right() << "," << shown.bottom() << std::endl;
+    CHECK(shown.left() >= area.left() - 1.0 && shown.top() >= area.top() - 1.0);
+    CHECK(shown.right() <= area.right() + 1.0 && shown.bottom() <= area.bottom() + 1.0);
+    CHECK((close_to(shown.left(), area.left()) && close_to(shown.right(), area.right())) ||
+          (close_to(shown.top(), area.top()) && close_to(shown.bottom(), area.bottom())));
+    CHECK(close_to(shown.center().x(), area.center().x()));
+    CHECK(close_to(shown.center().y(), area.center().y()));
+  };
+
+  if (!rulers->isChecked()) {
+    rulers->trigger();
+  }
+  QApplication::processEvents();
+  CHECK(canvas->rulers_visible());
+  fill->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("issue_301_fill_screen_rulers", window);
+  check_fill("rulers on");
+  fit->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("issue_301_fit_screen_rulers", window);
+  check_fit("rulers on");
+
+  rulers->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->rulers_visible());
+  fill->trigger();
+  QApplication::processEvents();
+  check_fill("rulers off");
+  fit->trigger();
+  QApplication::processEvents();
+  check_fit("rulers off");
 }
 
 // GitHub issue 304: with the Hand tool, and with Space held over another tool,
@@ -6084,9 +6410,14 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolPolygonAction", "Polygon"},
       {"toolCustomShapeAction", "Custom Shape"},
       {"toolPickAction", "Pick"},
+      {"toolRulerAction", "Ruler"},
       {"toolTypeAction", "Type"},
       {"toolHandAction", "Hand"},
       {"toolZoomAction", "Zoom"},
+      // The tool palette footer's screen mode button (GitHub issue 212).
+      {"viewScreenModeStandardAction", "Screen: Standard"},
+      {"viewScreenModeFullWithMenusAction", "Screen: Menus"},
+      {"viewScreenModeFullAction", "Screen: Full"},
   };
   // Object Selection exists only in builds with the automatic-selection models.
   patchy::ui::configure_automatic_selection_models();
@@ -9617,6 +9948,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_zoom_steps_follow_photoshop_ladder", ui_zoom_steps_follow_photoshop_ladder},
       {"ui_zoom_options_bar_view_buttons_set_view", ui_zoom_options_bar_view_buttons_set_view},
       {"ui_hand_options_bar_shows_zoom_view_buttons", ui_hand_options_bar_shows_zoom_view_buttons},
+      {"ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars",
+       ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars},
       {"ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans", ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans},
       {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},
@@ -9665,6 +9998,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_retouch_options_bars_show_sample_and_mode", ui_retouch_options_bars_show_sample_and_mode},
       {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
+      {"ui_options_bar_separators_sit_centered_in_their_gaps",
+       ui_options_bar_separators_sit_centered_in_their_gaps},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
       {"ui_swap_dimension_buttons_sit_evenly_between_width_and_height",

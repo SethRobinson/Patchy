@@ -25,6 +25,15 @@ struct ImageSaveOptions {
   // saveOptions/exportMetadata (metadata_policy_key tokens); scripts pass `metadata`.
   metadata::MetadataPolicy metadata_policy{metadata::MetadataPolicy::All};
   int jpeg_quality{95};
+  // JPEG coding (File > Export for Web, docs/web-export.md; scripts pass `progressive` and
+  // `optimizeCoding`): progressive scans and optimized Huffman tables. Off here, so Save,
+  // Save As and Export Flat Image keep their bytes; the Export for Web dialog turns both on.
+  bool jpeg_progressive{false};
+  bool jpeg_optimize{false};
+  // JPEG: a save that writes EXIF adds an IFD1 thumbnail of the saved image
+  // (docs/file-info.md, "Thumbnails"). Export for Web clears it unless "Include thumbnail"
+  // is on; scripts pass `thumbnail`.
+  bool jpeg_exif_thumbnail{true};
   bmp::BmpEncoding bmp_encoding{bmp::BmpEncoding::Rgba32};
   bmp::BmpPaletteMode bmp_palette_mode{bmp::BmpPaletteMode::Exact};
   QString bmp_palette_path;
@@ -135,6 +144,16 @@ struct ImageSaveOptions {
   // "0.25s" token in a layer name overrides it per frame. Persists as
   // saveOptions/gifFrameDelayCs.
   int gif_frame_delay_cs{10};
+  // GIF and palette PNG (File > Export for Web, docs/web-export.md; scripts pass `colors`,
+  // `dither`, `ditherAmount` and `pngColors`): the color count (2..256, one slot reserved
+  // for transparency when needed), Floyd-Steinberg error diffusion and its amount (0..100),
+  // and PNG written as an indexed palette image (tRNS for transparency, cut at 50% alpha).
+  // The defaults keep Save and Export Flat Image byte-identical. Palette-mode documents
+  // keep their own palette.
+  int palette_colors{256};
+  bool palette_dither{false};
+  int palette_dither_amount{100};
+  bool png_palette{false};
   // JPEG XR: 1-100, mapped onto the WIC encoder's ImageQuality (0.0-1.0). Persists as
   // saveOptions/jxrQuality.
   int jxr_quality{90};

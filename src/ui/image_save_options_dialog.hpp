@@ -20,6 +20,8 @@ void populate_pdf_image_quality_combo(QComboBox& combo, const QString& current_i
 [[nodiscard]] QString pdf_keep_original_images_label();
 [[nodiscard]] QString pdf_keep_original_images_tooltip();
 
+// "Show in Explorer when done" (Finder, file manager), the export dialogs' reveal checkbox.
+[[nodiscard]] QString export_reveal_check_label();
 [[nodiscard]] bool image_save_options_apply_to_extension(const QString& extension);
 [[nodiscard]] ImageSaveOptions load_image_save_option_defaults();
 void save_image_save_option_defaults(const ImageSaveOptions& options);

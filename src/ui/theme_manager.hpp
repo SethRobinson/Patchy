@@ -18,9 +18,13 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <Qt>
 
 #include <optional>
+
+class QFileSystemWatcher;
+class QTimer;
 
 namespace patchy::ui {
 
@@ -76,6 +80,14 @@ class ThemeManager : public QObject {
   // Empty when a built-in scheme is active.
   [[nodiscard]] std::optional<QString> active_custom_theme_id() const { return active_custom_id_; }
 
+  // A folder theme package reloads by itself when one of its files changes (the
+  // authoring loop): every change re-arms a short timer, which then reloads the
+  // folder and re-applies it unpersisted. A folder that no longer loads keeps the
+  // theme already showing. kPackageReloadDelayMs is that debounce.
+  static constexpr int kPackageReloadDelayMs = 250;
+  // The paths being watched; empty unless the active theme is a folder package.
+  [[nodiscard]] QStringList watched_package_paths() const;
+
   // Reads the saved preference (and, if one was saved, the custom theme) and
   // applies them. Called once at startup, after QSettings::setPath so
   // PATCHY_SETTINGS_DIR isolation holds.
@@ -100,7 +112,12 @@ class ThemeManager : public QObject {
   // owner, so no stylesheet reaches them).
   void apply_tooltip_palette();
 
+  void watch_active_package();
+  void reload_active_package();
+
   ColorSchemePreference preference_ = ColorSchemePreference::FollowSystem;
+  QFileSystemWatcher* package_watcher_ = nullptr;
+  QTimer* package_reload_timer_ = nullptr;
   std::optional<Qt::ColorScheme> system_scheme_override_;
   std::optional<QString> active_custom_id_;
 };

@@ -339,7 +339,9 @@ void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
   if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
     const auto handle = transform_handle_at(widget_position, *rect, 0.0, TransformHitZones::EdgesAndCorners);
     if (handle != TransformHandle::None && handle != TransformHandle::Move) {
-      set_transform_cursor_at(widget_position, handle, *rect, 0.0);
+      if (!apply_move_box_handle_cursor(widget_position, transform_cursor_modifiers_)) {
+        set_transform_cursor_at(widget_position, handle, *rect, 0.0);
+      }
       return;
     }
   }
@@ -389,6 +391,10 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape || tool_ == CanvasTool::RedEye) {
     setCursor(Qt::CrossCursor);
+    return;
+  }
+  if (tool_ == CanvasTool::Ruler) {
+    update_ruler_cursor(last_mouse_position_);
     return;
   }
   if (tool_ == CanvasTool::PerspectiveCrop) {

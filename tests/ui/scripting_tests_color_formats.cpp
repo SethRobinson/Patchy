@@ -19,6 +19,7 @@
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include <QFileInfo>
+#include <QSet>
 #include <QRawFont>
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
@@ -1805,6 +1806,113 @@ void ui_script_save_as_options_write_dds_and_jpeg() {
   CHECK(bc3.mip_count == 0);  // level 0 only: the count field stays 0 (docs/dds.md)
 }
 
+// Export for Web's JPEG keys (docs/web-export.md): progressive, optimizeCoding and
+// thumbnail, strict like every other save option.
+void ui_script_export_as_jpeg_coding_options() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto base = directory.path() + QStringLiteral("/coding");
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("jpeg-coding");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(96, 64);
+    d.activeLayer.fill('#336699');
+    var p = patchy.args.base;
+    if (!d.exportAs(p + '-plain.jpg', {quality: 70})) throw Error('plain');
+    if (!d.exportAs(p + '-web.jpg', {quality: 70, progressive: true, optimizeCoding: true, thumbnail: false})) throw Error('web');
+    var threw = 0;
+    try { d.exportAs(p + '-bad.png', {progressive: true}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad.jpg', {thumbnail: 'no'}); } catch (e) { threw++; }
+    if (threw !== 2) throw Error('not strict: ' + threw);
+    console.log('done');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) {
+    for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << '\n';
+  }
+  CHECK(!host.last_run_had_error());
+  // The first start-of-frame marker: 0xC0 baseline, 0xC2 progressive.
+  const auto frame_marker = [](const QString& path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+      return -1;
+    }
+    const auto bytes = file.readAll();
+    qsizetype at = 2;
+    while (at + 4 <= bytes.size()) {
+      const auto marker = static_cast<unsigned char>(bytes[at + 1]);
+      if (marker >= 0xC0 && marker <= 0xC2) {
+        return static_cast<int>(marker);
+      }
+      at += 2 + ((static_cast<unsigned char>(bytes[at + 2]) << 8) | static_cast<unsigned char>(bytes[at + 3]));
+    }
+    return -1;
+  };
+  CHECK(frame_marker(base + QStringLiteral("-plain.jpg")) == 0xC0);
+  CHECK(frame_marker(base + QStringLiteral("-web.jpg")) == 0xC2);
+  CHECK(!QFileInfo::exists(base + QStringLiteral("-bad.png")));
+  CHECK(!QFileInfo::exists(base + QStringLiteral("-bad.jpg")));
+}
+
+// Export for Web's GIF and palette PNG keys (docs/web-export.md): colors, dither,
+// ditherAmount and pngColors, strict like every other save option.
+void ui_script_export_as_palette_keys() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto base = directory.path() + QStringLiteral("/palette");
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("palette-keys");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(64, 48);
+    d.activeLayer.fill('#336699');
+    d.addLayer('top').fill('#cc4422');
+    var p = patchy.args.base;
+    if (!d.exportAs(p + '-16.gif', {colors: 16, dither: 'diffusion', ditherAmount: 80})) throw Error('gif');
+    if (!d.exportAs(p + '-8.png', {pngColors: 'palette', colors: 8, dither: 'none'})) throw Error('png');
+    if (!d.exportAs(p + '-full.png', {pngColors: 'full'})) throw Error('full');
+    var threw = 0;
+    try { d.exportAs(p + '-bad1.png', {colors: 8}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad2.gif', {dither: 'ordered'}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad3.gif', {colors: 1}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad4.jpg', {colors: 8}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad5.png', {pngColors: 'indexed'}); } catch (e) { threw++; }
+    if (threw !== 5) throw Error('not strict: ' + threw);
+    console.log('done');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) {
+    for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << std::endl;
+  }
+  CHECK(!host.last_run_had_error());
+  // Qt reads a GIF as 32-bit: count its distinct colors.
+  const auto gif = QImage(base + QStringLiteral("-16.gif")).convertToFormat(QImage::Format_ARGB32);
+  QSet<QRgb> gif_colors;
+  for (int y = 0; y < gif.height(); ++y) {
+    for (int x = 0; x < gif.width(); ++x) {
+      gif_colors.insert(gif.pixel(x, y));
+    }
+  }
+  CHECK(!gif.isNull() && gif_colors.size() <= 16);
+  const QImage png(base + QStringLiteral("-8.png"));
+  CHECK(png.format() == QImage::Format_Indexed8 && png.colorCount() <= 8);
+  CHECK(QImage(base + QStringLiteral("-full.png")).format() != QImage::Format_Indexed8);
+  for (const auto* bad : {"-bad1.png", "-bad2.gif", "-bad3.gif", "-bad4.jpg", "-bad5.png"}) {
+    CHECK(!QFileInfo::exists(base + QLatin1String(bad)));
+  }
+}
+
 void ui_script_save_as_options_write_jxl() {
   patchy::set_deep_editing_override(true);
   patchy::ui::MainWindow window;
@@ -2487,6 +2595,8 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_script_save_as_options_write_jxl", ui_script_save_as_options_write_jxl},
       {"ui_script_save_as_options_write_avif", ui_script_save_as_options_write_avif},
       {"ui_script_save_as_options_are_strict", ui_script_save_as_options_are_strict},
+      {"ui_script_export_as_jpeg_coding_options", ui_script_export_as_jpeg_coding_options},
+      {"ui_script_export_as_palette_keys", ui_script_export_as_palette_keys},
       {"ui_script_hotkey_runs_user_script", ui_script_hotkey_runs_user_script},
       {"ui_script_hotkey_ids_follow_relative_path", ui_script_hotkey_ids_follow_relative_path},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},

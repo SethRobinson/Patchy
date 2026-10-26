@@ -729,6 +729,26 @@ interface PatchySaveOptions {
   quality?: number;
   /** .webp, .jxr, .jxl, .avif: lossless compression; .pdf: Flate image data (an imageQuality preset wins). */
   lossless?: boolean;
+  /** .gif, and .png with pngColors "palette": at most this many colors, 2..256 (default 256;
+   *  a transparent entry counts toward it). */
+  colors?: number;
+  /** .gif and palette .png: "diffusion" mixes neighboring palette colors so gradients band less
+   *  (default "none"). */
+  dither?: "none" | "diffusion";
+  /** .gif and palette .png: how strongly diffusion spreads, 0..100 (default 100). */
+  ditherAmount?: number;
+  /** .png: "palette" writes an indexed PNG (up to 256 colors, pixels under 50% alpha transparent);
+   *  "full" (the default) writes full color. colors, dither and ditherAmount need "palette". */
+  pngColors?: "full" | "palette";
+  /** .jpg/.jpeg: progressive scans (a rough image shows first while a page loads). Default false;
+   *  File > Export for Web turns it on. */
+  progressive?: boolean;
+  /** .jpg/.jpeg: optimized Huffman tables, a smaller file with the same image. Default false;
+   *  File > Export for Web turns it on. */
+  optimizeCoding?: boolean;
+  /** .jpg/.jpeg: write a small preview thumbnail into the EXIF data when the file keeps EXIF
+   *  (metadata "all" or "copyright" with EXIF to keep). Default true. */
+  thumbnail?: boolean;
   /** .jxl: encoder effort, 1..9 (higher is smaller and slower). */
   effort?: number;
   /** .avif: encoder speed, 0..10 (lower is smaller and slower; 6 is the default). */
@@ -1607,6 +1627,20 @@ interface PatchyUi {
    * window captures see it.
    */
   pixelGrid: boolean;
+  /**
+   * Window > Customize Tool Palette, applied live and saved. Read it for the current choice;
+   * assign an object with any of its keys to change those. Tool ids are the tools' hotkey
+   * ids ("tools.hand"); hidden tools keep their shortcuts. Layer button ids: "new_layer",
+   * "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "animation",
+   * "delete". An unknown id or layout throws.
+   */
+  toolPalette: {
+    hiddenTools?: string[];
+    layout?: "oneColumn" | "twoColumns";
+    wheelScroll?: boolean;
+    showGearButton?: boolean;
+    hiddenLayerButtons?: string[];
+  };
   /** Show completed edits now; optionally hold the frame for 0..1000 ms (default 0).
    * Services Stop and painting without reentering script callbacks or adding history.
    * Upload edited arrays with setPixels first. Headless work does not need pacing.

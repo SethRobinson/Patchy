@@ -24,21 +24,35 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/window_effects.hpp"
+#include "ui/hotkey_registry.hpp"
+#include "ui/icon_theme.hpp"
+#include "ui/panel_column.hpp"
+#include "ui/theme_palette.hpp"
 
+#include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QByteArray>
 #include <QCursor>
 #include <QEvent>
+#include <QFont>
+#include <QFontMetrics>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
 #include <QLatin1String>
 #include <QMainWindow>
+#include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPen>
+#include <QPointer>
 #include <QObject>
 #include <QPoint>
 #include <QRect>
+#include <QScopedValueRollback>
 #include <QScreen>
 #include <QScrollBar>
 #include <QShowEvent>
@@ -46,7 +60,13 @@
 #include <QString>
 #include <QStringLiteral>
 #include <QTimer>
+#include <QSplitter>
+#include <QStatusBar>
 #include <QStyle>
+#include <QTabBar>
+#include <QTabWidget>
+#include <QToolBar>
+#include <QVariantAnimation>
 #include <QToolButton>
 #include <QWidget>
 #include <Qt>
@@ -845,11 +865,14 @@ void MainWindow::save_window_geometry() const {
   auto settings = app_settings();
   // normalGeometry() reports the restored (non-maximized) bounds, so the window returns to a sensible
   // size and position when the user un-maximizes after relaunch.
-  const QRect normal = normalGeometry();
+  // A full-screen screen mode is never restored at the next start: Standard's state is kept.
+  const auto& standard = standard_screen_chrome_;
+  const QRect normal = standard.has_value() && standard->normal_geometry.isValid() ? standard->normal_geometry
+                                                                                   : normalGeometry();
   if (normal.isValid() && normal.width() > 0 && normal.height() > 0) {
     settings.setValue(QStringLiteral("window/normalGeometry"), normal);
   }
-  settings.setValue(QStringLiteral("window/maximized"), isMaximized());
+  settings.setValue(QStringLiteral("window/maximized"), standard.has_value() ? standard->maximized : isMaximized());
 }
 
 bool MainWindow::restore_window_geometry() {
@@ -942,9 +965,419 @@ void MainWindow::configure_window_chrome() {
   controls->show();
 
   connect(minimize_button, &QToolButton::clicked, this, [this] { showMinimized(); });
-  connect(maximize_button_, &QToolButton::clicked, this,
-          [this] { isMaximized() ? restore_window_from_maximize() : showMaximized(); });
+  connect(maximize_button_, &QToolButton::clicked, this, [this] {
+    if (screen_mode_ != ScreenMode::Standard) {
+      // Full Screen with Menus shows the controls: maximize/restore goes back to Standard.
+      set_screen_mode(ScreenMode::Standard);
+    } else {
+      isMaximized() ? restore_window_from_maximize() : showMaximized();
+    }
+  });
   connect(close_button, &QToolButton::clicked, this, &QWidget::close);
+}
+
+// ---------------------------------------------------------------------------
+// Screen modes (GitHub issue 212; docs/screen-modes.md)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr int kScreenModeHintHoldMs = 2500;
+constexpr int kScreenModeHintFadeMs = 700;
+// A window-state report this soon after a screen-mode change belongs to the window
+// system's own transition (macOS animates into its full-screen space).
+constexpr int kScreenModeSettleMs = 1500;
+
+// The note a full-screen mode shows on entry: painted from theme roles over the
+// workspace, transparent to the mouse, fading out after a few seconds. It follows the
+// workspace's geometry while up, since a full-screen change resizes it after the call.
+class ScreenModeHint final : public QWidget {
+public:
+  explicit ScreenModeHint(QWidget* parent) : QWidget(parent) {
+    setObjectName(QStringLiteral("screenModeHint"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFocusPolicy(Qt::NoFocus);
+    hold_timer_.setSingleShot(true);
+    connect(&hold_timer_, &QTimer::timeout, this, [this] { fade_.start(); });
+    fade_.setDuration(kScreenModeHintFadeMs);
+    fade_.setStartValue(1.0);
+    fade_.setEndValue(0.0);
+    connect(&fade_, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+      opacity_ = value.toReal();
+      update();
+    });
+    connect(&fade_, &QVariantAnimation::finished, this, [this] { hide(); });
+    hide();
+  }
+
+  void show_text(const QString& text, QWidget* anchor) {
+    if (anchor_ != anchor) {
+      if (anchor_ != nullptr) {
+        anchor_->removeEventFilter(this);
+      }
+      anchor_ = anchor;
+      if (anchor_ != nullptr) {
+        anchor_->installEventFilter(this);
+      }
+    }
+    text_ = text;
+    setAccessibleName(text);
+    fade_.stop();
+    opacity_ = 1.0;
+    place();
+    show();
+    raise();
+    update();
+    hold_timer_.start(kScreenModeHintHoldMs);
+  }
+
+  void dismiss() {
+    hold_timer_.stop();
+    fade_.stop();
+    hide();
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == anchor_ && isVisible() && (event->type() == QEvent::Resize || event->type() == QEvent::Move)) {
+      place();
+    }
+    return QWidget::eventFilter(watched, event);
+  }
+
+  void paintEvent(QPaintEvent* event) override {
+    static_cast<void>(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setOpacity(opacity_);
+    const auto& palette = theme();
+    painter.setPen(QPen(palette.menu_border, 1.0));
+    painter.setBrush(palette.menu_bg);
+    painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+    painter.setFont(hint_font());
+    painter.setPen(palette.text_primary);
+    painter.drawText(rect(), Qt::AlignCenter, text_);
+  }
+
+private:
+  [[nodiscard]] QFont hint_font() const {
+    auto hint = font();
+    if (hint.pointSizeF() > 0) {
+      hint.setPointSizeF(hint.pointSizeF() * 1.15);
+    }
+    return hint;
+  }
+
+  void place() {
+    if (anchor_ == nullptr || parentWidget() == nullptr) {
+      return;
+    }
+    const QFontMetrics metrics(hint_font());
+    const QSize size(metrics.horizontalAdvance(text_) + 2 * 18, metrics.height() + 2 * 10);
+    const QPoint origin = anchor_->mapTo(parentWidget(), QPoint(0, 0));
+    setGeometry(QRect(origin + QPoint(std::max(0, (anchor_->width() - size.width()) / 2), 36), size));
+  }
+
+  QPointer<QWidget> anchor_;
+  QString text_;
+  qreal opacity_{1.0};
+  QTimer hold_timer_;
+  QVariantAnimation fade_;
+};
+
+}  // namespace
+
+void MainWindow::build_screen_mode_actions(QMenu& view_menu) {
+  auto* menu = view_menu.addMenu(QString());
+  menu->setObjectName(QStringLiteral("viewScreenModeMenu"));
+  menu->menuAction()->setMenuRole(QAction::NoRole);
+  bind_action_text(menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Screen &Mode"));
+  auto* group = new QActionGroup(this);
+  group->setExclusive(true);
+  // Each mode's icon is what the tool palette's screen mode button shows for it.
+  const auto add_mode = [this, menu, group](const char* source, const QString& object_name, const QString& id,
+                                            ScreenMode mode, const QString& icon) {
+    auto* action = menu->addAction(QString());
+    action->setObjectName(object_name);
+    action->setIcon(themed_svg_icon(icon));
+    action->setMenuRole(QAction::NoRole);
+    action->setCheckable(true);
+    action->setActionGroup(group);
+    action->setProperty(kWorksWithoutDocumentProperty, true);
+    bind_action_text(action, source);
+    register_hotkey(action, id);
+    connect(action, &QAction::triggered, this, [this, mode] { set_screen_mode(mode); });
+    return action;
+  };
+  screen_mode_standard_action_ =
+      add_mode(QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Standard"), QStringLiteral("viewScreenModeStandardAction"),
+               QStringLiteral("view.screen_mode_standard"), ScreenMode::Standard,
+               QStringLiteral("screen-mode-standard"));
+  screen_mode_full_with_menus_action_ =
+      add_mode(QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Full Screen with &Menus"),
+               QStringLiteral("viewScreenModeFullWithMenusAction"),
+               QStringLiteral("view.screen_mode_full_with_menus"), ScreenMode::FullScreenWithMenus,
+               QStringLiteral("screen-mode-full-with-menus"));
+  screen_mode_full_action_ =
+      add_mode(QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Full Screen"), QStringLiteral("viewScreenModeFullAction"),
+               QStringLiteral("view.screen_mode_full"), ScreenMode::FullScreen, QStringLiteral("screen-mode-full"));
+  screen_mode_standard_action_->setChecked(true);
+  menu->addSeparator();
+  // F, as in other image editors: a single key, so a focused text field keeps it.
+  screen_mode_cycle_action_ = menu->addAction(QString());
+  screen_mode_cycle_action_->setObjectName(QStringLiteral("viewScreenModeCycleAction"));
+  screen_mode_cycle_action_->setMenuRole(QAction::NoRole);
+  screen_mode_cycle_action_->setProperty(kWorksWithoutDocumentProperty, true);
+  screen_mode_cycle_action_->setAutoRepeat(false);
+  bind_action_text(screen_mode_cycle_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Cycle Screen Mode"));
+  register_hotkey(screen_mode_cycle_action_, QStringLiteral("view.screen_mode_cycle"), QKeySequence(Qt::Key_F));
+  connect(screen_mode_cycle_action_, &QAction::triggered, this, [this] { cycle_screen_mode(); });
+  // The canvas right-click menu's way back (CanvasWidget::set_screen_mode_context_actions_callback).
+  exit_full_screen_action_ = new QAction(this);
+  exit_full_screen_action_->setObjectName(QStringLiteral("canvasExitFullScreenAction"));
+  bind_action_text(exit_full_screen_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Exit Full Screen"));
+  connect(exit_full_screen_action_, &QAction::triggered, this, [this] { set_screen_mode(ScreenMode::Standard); });
+}
+
+void MainWindow::cycle_screen_mode() {
+  switch (screen_mode_) {
+    case ScreenMode::Standard:
+      set_screen_mode(ScreenMode::FullScreenWithMenus);
+      break;
+    case ScreenMode::FullScreenWithMenus:
+      set_screen_mode(ScreenMode::FullScreen);
+      break;
+    case ScreenMode::FullScreen:
+      set_screen_mode(ScreenMode::Standard);
+      break;
+  }
+}
+
+void MainWindow::set_screen_mode(ScreenMode mode) {
+  if (applying_screen_mode_) {
+    return;
+  }
+  if (mode == screen_mode_) {
+    refresh_screen_mode_actions();
+    return;
+  }
+  const QScopedValueRollback applying(applying_screen_mode_, true);
+  if (screen_mode_ == ScreenMode::Standard) {
+    StandardScreenChrome chrome;
+    chrome.maximized = isMaximized();
+    chrome.normal_geometry = normalGeometry().isValid() ? normalGeometry() : geometry();
+    chrome.menu_bar = !menuBar()->isHidden();
+    if (panel_column_ != nullptr) {
+      chrome.panel_column = !panel_column_->isHidden();
+      chrome.panel_column_width = panel_column_->width();
+    }
+    if (document_tabs_ != nullptr && document_tabs_->tabBar() != nullptr) {
+      chrome.tab_bar = !document_tabs_->tabBar()->isHidden();
+    }
+    chrome.status_bar = !statusBar()->isHidden();
+    for (auto* bar : findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly)) {
+      chrome.toolbars.emplace_back(bar, !bar->isHidden());
+    }
+    standard_screen_chrome_ = std::move(chrome);
+  }
+  screen_mode_ = mode;
+  screen_mode_changed_timer_.start();
+  if (mode == ScreenMode::Standard) {
+    const auto chrome = standard_screen_chrome_.value_or(StandardScreenChrome{});
+    restore_standard_screen_chrome();
+    standard_screen_chrome_.reset();
+    if (chrome.maximized) {
+      showMaximized();
+    } else {
+      showNormal();
+#ifdef Q_OS_WIN
+      // As restore_window_from_maximize: Qt can reapply stale bookkeeping to the
+      // frameless window, so the remembered bounds are enforced afterwards.
+      if (chrome.normal_geometry.isValid() && geometry().size() != chrome.normal_geometry.size()) {
+        setGeometry(chrome.normal_geometry);
+      }
+#endif
+    }
+  } else {
+    apply_screen_mode_chrome(mode);
+    if (!isFullScreen()) {
+      showFullScreen();
+    }
+    show_screen_mode_hint();
+  }
+  refresh_screen_mode_actions();
+  if (canvas_ != nullptr && canvas_->window() == this && isActiveWindow()) {
+    canvas_->setFocus(Qt::OtherFocusReason);
+  }
+}
+
+void MainWindow::apply_screen_mode_chrome(ScreenMode mode) {
+  const auto chrome = standard_screen_chrome_.value_or(StandardScreenChrome{});
+  const bool canvas_only = mode == ScreenMode::FullScreen;
+  const auto shown = [canvas_only](bool standard) { return !canvas_only && standard; };
+  menuBar()->setVisible(shown(chrome.menu_bar));
+  for (const auto& [bar, visible] : chrome.toolbars) {
+    if (bar != nullptr) {
+      bar->setVisible(shown(visible));
+    }
+  }
+  if (document_tabs_ != nullptr && document_tabs_->tabBar() != nullptr) {
+    document_tabs_->tabBar()->setVisible(shown(chrome.tab_bar));
+  }
+  statusBar()->setVisible(shown(chrome.status_bar));
+  if (panel_column_ != nullptr) {
+    const bool column = shown(chrome.panel_column);
+    const bool was_hidden = panel_column_->isHidden();
+    panel_column_->setVisible(column);
+    if (column && was_hidden && workspace_splitter_ != nullptr && chrome.panel_column_width > 0) {
+      // The splitter hands a re-shown column whatever width it computes; give it back its
+      // own (its stretch factor is 0, so the window's resize afterwards keeps it).
+      const auto total = workspace_splitter_->width() > 0 ? workspace_splitter_->width() : width();
+      workspace_splitter_->setSizes(
+          {std::max(0, total - workspace_splitter_->handleWidth() - chrome.panel_column_width),
+           chrome.panel_column_width});
+    }
+  }
+  set_screen_mode_shortcut_host(canvas_only);
+}
+
+void MainWindow::restore_standard_screen_chrome() {
+  hide_screen_mode_hint();
+  if (standard_screen_chrome_.has_value()) {
+    apply_screen_mode_chrome(ScreenMode::Standard);
+  }
+}
+
+void MainWindow::set_screen_mode_shortcut_host(bool host) {
+  // A hidden menu bar or toolbar no longer matches its actions' shortcuts (Qt checks
+  // that a widget carrying the action is visible), so while Full Screen hides them the
+  // window itself carries every registered command, as a float window does.
+  if (host) {
+    if (!screen_mode_hosted_actions_.isEmpty()) {
+      return;
+    }
+    const auto carried = actions();
+    for (const auto& command : hotkey_registry_.commands()) {
+      if (command.action != nullptr && !carried.contains(command.action.data())) {
+        addAction(command.action);
+        screen_mode_hosted_actions_.push_back(command.action);
+      }
+    }
+    return;
+  }
+  for (const auto& action : std::as_const(screen_mode_hosted_actions_)) {
+    if (action != nullptr) {
+      removeAction(action);
+    }
+  }
+  screen_mode_hosted_actions_.clear();
+}
+
+void MainWindow::refresh_screen_mode_actions() {
+  const std::pair<QAction*, ScreenMode> modes[] = {
+      {screen_mode_standard_action_, ScreenMode::Standard},
+      {screen_mode_full_with_menus_action_, ScreenMode::FullScreenWithMenus},
+      {screen_mode_full_action_, ScreenMode::FullScreen}};
+  for (const auto& [action, mode] : modes) {
+    if (action != nullptr) {
+      action->setChecked(mode == screen_mode_);
+    }
+  }
+  refresh_screen_mode_button();
+}
+
+void MainWindow::refresh_screen_mode_button() {
+  if (screen_mode_button_ == nullptr) {
+    return;
+  }
+  QAction* current = screen_mode_standard_action_;
+  if (screen_mode_ == ScreenMode::FullScreenWithMenus) {
+    current = screen_mode_full_with_menus_action_;
+  } else if (screen_mode_ == ScreenMode::FullScreen) {
+    current = screen_mode_full_action_;
+  }
+  if (current == nullptr) {
+    return;
+  }
+  screen_mode_button_->setIcon(current->icon());
+  const auto label = tr("Screen Mode: %1").arg(clean_action_text(current));
+  const auto keys = action_shortcut_text(screen_mode_cycle_action_);
+  screen_mode_button_->setToolTip(
+      (keys.isEmpty() ? label : QStringLiteral("%1 (%2)").arg(label, keys)) + QLatin1Char('\n') +
+      tr("Click for the next mode. Hold or right-click to choose one."));
+}
+
+void MainWindow::show_screen_mode_hint() {
+  auto* hint = static_cast<ScreenModeHint*>(screen_mode_hint_);
+  if (hint == nullptr) {
+    hint = new ScreenModeHint(this);
+    screen_mode_hint_ = hint;
+  }
+  // Full Screen names the key that brings the menus back; the mode with menus shows
+  // them already, and F there hides them rather than leaving.
+  const auto cycle_keys =
+      screen_mode_cycle_action_ != nullptr ? screen_mode_cycle_action_->shortcut() : QKeySequence();
+  const auto text = screen_mode_ == ScreenMode::FullScreen && !cycle_keys.isEmpty()
+                        ? tr("Press %1 or Esc to exit full screen").arg(cycle_keys.toString(QKeySequence::NativeText))
+                        : tr("Press Esc to exit full screen");
+  // Over the document view, clear of the rulers and the panel column.
+  QWidget* anchor = document_tabs_ != nullptr && document_tabs_->currentWidget() != nullptr
+                        ? document_tabs_->currentWidget()
+                        : static_cast<QWidget*>(document_tabs_);
+  hint->show_text(text, anchor != nullptr ? anchor : this);
+}
+
+void MainWindow::hide_screen_mode_hint() {
+  if (auto* hint = static_cast<ScreenModeHint*>(screen_mode_hint_); hint != nullptr) {
+    hint->dismiss();
+  }
+}
+
+bool MainWindow::exit_full_screen_on_escape() {
+  if (screen_mode_ == ScreenMode::Standard || QApplication::activePopupWidget() != nullptr ||
+      QApplication::activeModalWidget() != nullptr) {
+    return false;
+  }
+  set_screen_mode(ScreenMode::Standard);
+  return true;
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event) {
+  // Escape nothing below used (a panel field, the start panel, an empty workspace).
+  if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier && !event->isAutoRepeat() &&
+      exit_full_screen_on_escape()) {
+    event->accept();
+    return;
+  }
+  QMainWindow::keyPressEvent(event);
+}
+
+void MainWindow::schedule_screen_mode_window_state_sync() {
+  if (screen_mode_ == ScreenMode::Standard || applying_screen_mode_ || screen_mode_sync_pending_) {
+    return;
+  }
+  screen_mode_sync_pending_ = true;
+  const auto elapsed =
+      screen_mode_changed_timer_.isValid() ? screen_mode_changed_timer_.elapsed() : qint64{kScreenModeSettleMs};
+  const int delay = static_cast<int>(std::max<qint64>(300, kScreenModeSettleMs - elapsed));
+  QTimer::singleShot(delay, this, [this] {
+    screen_mode_sync_pending_ = false;
+    sync_screen_mode_to_window_state();
+  });
+}
+
+void MainWindow::sync_screen_mode_to_window_state() {
+  if (screen_mode_ == ScreenMode::Standard || applying_screen_mode_ || isFullScreen() || isMinimized()) {
+    return;
+  }
+  // The window already left full screen (and may be maximized), so only the chrome and
+  // the mode follow; the window state is the one the user or the system chose.
+  const QScopedValueRollback applying(applying_screen_mode_, true);
+  restore_standard_screen_chrome();
+  standard_screen_chrome_.reset();
+  screen_mode_ = ScreenMode::Standard;
+  screen_mode_changed_timer_.start();
+  refresh_screen_mode_actions();
 }
 
 }  // namespace patchy::ui

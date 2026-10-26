@@ -4292,6 +4292,11 @@ bool ScriptUiObject::gamut_warning() const { const ScriptApiCall api_call(host_)
 void ScriptUiObject::set_gamut_warning(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_gamut_warning(enabled); }
 bool ScriptUiObject::pixel_grid() const { const ScriptApiCall api_call(host_); return host_.view_pixel_grid(); }
 void ScriptUiObject::set_pixel_grid(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_pixel_grid(enabled); }
+QJSValue ScriptUiObject::tool_palette() const { const ScriptApiCall api_call(host_); return host_.tool_palette_state(); }
+void ScriptUiObject::set_tool_palette(const QJSValue& state) {
+  const ScriptApiCall api_call(host_);
+  host_.set_tool_palette_state(state);
+}
 bool ScriptUiObject::slow_mode() const { return host_.slow_mode(); }
 void ScriptUiObject::set_slow_mode(bool enabled) { host_.set_slow_mode(enabled); }
 bool ScriptUiObject::paused() const { return host_.paused(); }

@@ -715,6 +715,94 @@ void gif_encoder_bytes_are_stable() {
   CHECK(decoded.indexes == indexes);
 }
 
+// A 48 x 32 gradient with more than 256 colors and a transparent left column: the
+// fixture for the Export for Web quantizer options (docs/web-export.md).
+patchy::Document quantize_fixture_document() {
+  patchy::Document document(48, 32, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(48, 32, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 32; ++y) {
+    for (std::int32_t x = 0; x < 48; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 5);
+      px[1] = static_cast<std::uint8_t>(y * 7);
+      px[2] = static_cast<std::uint8_t>((x * 3 + y * 4) % 256);
+      px[3] = x == 0 ? 0 : 255;
+    }
+  }
+  document.add_pixel_layer("Gradient", std::move(pixels));
+  return document;
+}
+
+std::uint64_t indexed_digest(const patchy::IndexedFlattenResult& indexed) {
+  std::uint64_t hash = 1469598103934665603ULL;
+  const auto mix = [&hash](std::uint8_t byte) {
+    hash ^= byte;
+    hash *= 1099511628211ULL;
+  };
+  for (const auto& color : indexed.palette) {
+    mix(color.red);
+    mix(color.green);
+    mix(color.blue);
+  }
+  mix(static_cast<std::uint8_t>(indexed.transparent_index + 1));
+  for (const auto index : indexed.indexes) {
+    mix(index);
+  }
+  return hash;
+}
+
+void gif_quantize_default_options_keep_the_plain_writer_bytes() {
+  // Export for Web passes QuantizeOptions; the defaults must be today's writer exactly.
+  const auto document = quantize_fixture_document();
+  CHECK(patchy::gif::write(document) == patchy::gif::write(document, patchy::QuantizeOptions{}));
+  const auto flat = patchy::flatten_document_rgba8(document);
+  const auto plain = patchy::indexed_rgba8_quantized(flat, 256, patchy::gif::kQuantizeAlphaThreshold);
+  const auto no_amount = patchy::indexed_rgba8_quantized(flat, patchy::gif::kQuantizeAlphaThreshold,
+                                                         patchy::QuantizeOptions{256, true, 0});
+  CHECK(indexed_digest(plain) == indexed_digest(no_amount));
+}
+
+void gif_quantize_respects_the_color_count() {
+  const auto flat = patchy::flatten_document_rgba8(quantize_fixture_document());
+  for (const std::size_t colors : {2U, 16U, 64U, 256U}) {
+    for (const bool diffuse : {false, true}) {
+      const auto indexed = patchy::indexed_rgba8_quantized(flat, patchy::gif::kQuantizeAlphaThreshold,
+                                                           patchy::QuantizeOptions{colors, diffuse, 100});
+      // The transparent slot counts toward the total, as in a GIF color table.
+      CHECK(indexed.palette.size() <= colors);
+      CHECK(indexed.transparent_index >= 0);
+      CHECK(indexed.indexes[0] == static_cast<std::uint8_t>(indexed.transparent_index));
+      for (const auto index : indexed.indexes) {
+        CHECK(index < indexed.palette.size());
+      }
+    }
+  }
+}
+
+void gif_quantize_diffusion_is_deterministic() {
+  // Integer error diffusion: pinned so every toolchain writes the same pixels. Re-pin only
+  // for a deliberate quantizer change (the failure prints the new digests).
+  const auto flat = patchy::flatten_document_rgba8(quantize_fixture_document());
+  const auto full = patchy::indexed_rgba8_quantized(flat, patchy::gif::kQuantizeAlphaThreshold,
+                                                    patchy::QuantizeOptions{16, true, 100});
+  const auto half = patchy::indexed_rgba8_quantized(flat, patchy::gif::kQuantizeAlphaThreshold,
+                                                    patchy::QuantizeOptions{16, true, 50});
+  const auto none = patchy::indexed_rgba8_quantized(flat, patchy::gif::kQuantizeAlphaThreshold,
+                                                    patchy::QuantizeOptions{16, false, 100});
+  constexpr std::uint64_t kFull = 0x4f48228ece3a7ef8ULL;
+  constexpr std::uint64_t kHalf = 0x20cca18ed5648844ULL;
+  if (indexed_digest(full) != kFull || indexed_digest(half) != kHalf) {
+    std::cout << "quantize digests: full 0x" << std::hex << indexed_digest(full) << " half 0x" << indexed_digest(half)
+              << std::dec << "\n";
+  }
+  CHECK(indexed_digest(full) == kFull);
+  CHECK(indexed_digest(half) == kHalf);
+  // Same palette, different mapping.
+  CHECK(full.palette == none.palette);
+  CHECK(full.indexes != none.indexes);
+  CHECK(half.indexes != full.indexes);
+}
+
 void gif_document_write_quantizes_and_round_trips() {
   // RGB document: exact colors fit, so quantization must preserve them; transparency
   // reserves one slot.
@@ -2337,6 +2425,9 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"webp_animation_millisecond_tokens_preserve_gif_rounding", webp_animation_millisecond_tokens_preserve_gif_rounding},
       {"gif_encoder_bytes_are_stable", gif_encoder_bytes_are_stable},
       {"gif_document_write_quantizes_and_round_trips", gif_document_write_quantizes_and_round_trips},
+      {"gif_quantize_default_options_keep_the_plain_writer_bytes", gif_quantize_default_options_keep_the_plain_writer_bytes},
+      {"gif_quantize_respects_the_color_count", gif_quantize_respects_the_color_count},
+      {"gif_quantize_diffusion_is_deterministic", gif_quantize_diffusion_is_deterministic},
       {"gif_animation_encodes_frames_delays_and_loop", gif_animation_encodes_frames_delays_and_loop},
       {"gif_layer_name_delay_token_round_trips", gif_layer_name_delay_token_round_trips},
       {"sniff_openable_image_format_names_what_patchy_opens", sniff_openable_image_format_names_what_patchy_opens},

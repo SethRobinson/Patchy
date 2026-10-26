@@ -49,6 +49,8 @@
 #include <QFormLayout>
 #include <QImage>
 #include <QKeyEvent>
+#include <QStackedWidget>
+#include <QTabWidget>
 #include <QLabel>
 #include <QPixmap>
 #include <QLineEdit>
@@ -73,7 +75,6 @@
 #include <QSizePolicy>
 #include <QValidator>
 #include <QStyle>
-#include <QTabWidget>
 #include <QTest>
 #include <QTimer>
 #include <QAbstractButton>
@@ -552,7 +553,7 @@ void ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts() {
   QApplication::processEvents();
 
   QTimer::singleShot(0, [&] {
-    check_dialog(QStringLiteral("patchyPreferencesDialog"), QStringLiteral("preferencesTabWidget"));
+    check_dialog(QStringLiteral("patchyPreferencesDialog"), QStringLiteral("preferencesPageList"));
   });
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
@@ -1939,15 +1940,15 @@ void ui_preferences_wheel_over_unfocused_control_scrolls_the_page() {
   patchy::ui::MainWindow window;
   show_window(window);
   run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
-    auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    auto* page = preferences_current_page(dialog);
     auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesIndexedOpenCombo"));
-    CHECK(tabs != nullptr && combo != nullptr);
-    if (tabs == nullptr || combo == nullptr) {
+    CHECK(page != nullptr && combo != nullptr);
+    if (page == nullptr || combo == nullptr) {
       return;
     }
     dialog.resize(dialog.minimumSize());
     QApplication::processEvents();
-    auto* scroll = tabs->currentWidget()->findChild<QScrollArea*>(QStringLiteral("preferencesTabScroll"));
+    auto* scroll = page->findChild<QScrollArea*>(QStringLiteral("preferencesTabScroll"));
     CHECK(scroll != nullptr);
     if (scroll == nullptr) {
       return;
@@ -2035,7 +2036,7 @@ void ui_preferences_dialog_resizes_and_remembers_its_size() {
   QSize target;
   run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
     CHECK(dialog.findChild<QSizeGrip*>(QStringLiteral("preferencesSizeGrip")) != nullptr);
-    auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    auto* tabs = dialog.findChild<QWidget*>(QStringLiteral("preferencesPageStack"));
     CHECK(tabs != nullptr);
     if (tabs == nullptr) {
       return;
@@ -2045,8 +2046,7 @@ void ui_preferences_dialog_resizes_and_remembers_its_size() {
     dialog.resize(dialog.minimumSize());
     QApplication::processEvents();
     const int small_tabs_height = tabs->height();
-    // Taller only: the tab row can make the minimum width as wide as the offscreen screen,
-    // and a restored size is kept inside the screen.
+    // Taller only: a restored size is kept inside the screen.
     target = dialog.minimumSize() + QSize(0, 90);
     CHECK(target != entry_size);
     dialog.resize(target);
@@ -2058,6 +2058,61 @@ void ui_preferences_dialog_resizes_and_remembers_its_size() {
   CHECK(patchy::ui::stored_preferences_dialog_size() == target);
 
   run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) { CHECK(dialog.size() == target); });
+}
+
+// GitHub issue 451: the pages are listed down the left, the arrow keys move through them,
+// and the dialog reopens on the page it was closed on (Hotkeys when asked for it).
+void ui_preferences_page_list_switches_pages_and_remembers_the_last() {
+  SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/lastPage"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
+    auto* list = preferences_page_list(dialog);
+    auto* stack = dialog.findChild<QStackedWidget*>(QStringLiteral("preferencesPageStack"));
+    CHECK(list != nullptr && stack != nullptr);
+    if (list == nullptr || stack == nullptr) {
+      return;
+    }
+    CHECK(dialog.findChild<QTabWidget*>() == nullptr);
+    CHECK(list->count() == stack->count());
+    CHECK(list->currentRow() == 0);
+    CHECK(stack->currentIndex() == 0);
+    // The list starts with the focus, so Down and Up step through the pages.
+    CHECK(dialog.focusWidget() == list);
+    list->setFocus();
+    QTest::keyClick(list, Qt::Key_Down);
+    QApplication::processEvents();
+    CHECK(list->currentRow() == 1);
+    CHECK(stack->currentIndex() == 1);
+    QTest::keyClick(list, Qt::Key_Up);
+    QApplication::processEvents();
+    CHECK(stack->currentIndex() == 0);
+    CHECK(select_preferences_page(dialog, QStringLiteral("Pen")));
+    CHECK(stack->currentWidget()->isAncestorOf(
+        dialog.findChild<QWidget*>(QStringLiteral("preferencesPenEnabledCheck"))));
+  });
+  CHECK(patchy::ui::stored_preferences_last_page() == QStringLiteral("pen"));
+  run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
+    auto* list = preferences_page_list(dialog);
+    CHECK(list != nullptr && list->currentItem() != nullptr);
+    if (list != nullptr && list->currentItem() != nullptr) {
+      CHECK(list->currentItem()->text() == QStringLiteral("Pen"));
+    }
+    CHECK(preferences_current_page(dialog) != nullptr &&
+          preferences_current_page(dialog)->isAncestorOf(
+              dialog.findChild<QWidget*>(QStringLiteral("preferencesPenEnabledCheck"))));
+  });
+  // A stored id no page has any more falls back to the first page.
+  patchy::ui::set_stored_preferences_last_page(QStringLiteral("noSuchPage"));
+  run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
+    auto* list = preferences_page_list(dialog);
+    CHECK(list != nullptr && list->currentRow() == 0);
+  });
 }
 
 // GitHub issue 92: the frameless Preferences dialog resizes by its corner grip, its pages
@@ -2514,12 +2569,18 @@ void ui_toolbar_icon_size_preference_scales_tool_palette() {
     CHECK(footer->cell_width() == column);
     CHECK(footer->width() == column);
     CHECK(footer->height() == qRound(patchy::ui::ToolPaletteFooter::kHeight * column / 43.0));
-    // The well and Quick Mask stay inside the footer, clear of the palette's right border.
-    for (const char* name : {"foregroundColorButton", "backgroundColorButton", "colorSwapButton", "quickMaskButton"}) {
+    // The well, Quick Mask and the screen mode button stay inside the footer, clear of the
+    // palette's right border.
+    for (const char* name : {"foregroundColorButton", "backgroundColorButton", "colorSwapButton", "quickMaskButton",
+                             "screenModeButton"}) {
       auto* control = footer->findChild<QWidget*>(QString::fromLatin1(name));
       CHECK(control != nullptr);
       if (control != nullptr) {
-        CHECK(footer->rect().adjusted(0, 0, -1, 0).contains(control->geometry()));
+        const bool inside = footer->rect().adjusted(0, 0, -1, 0).contains(control->geometry());
+        if (!inside) {
+          std::printf("  %s runs outside the footer\n", name);
+        }
+        CHECK(inside);
       }
     }
     auto* swatch = footer->findChild<QWidget*>(QStringLiteral("foregroundColorButton"));
@@ -3100,6 +3161,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_wheel_over_unfocused_control_scrolls_the_page", ui_preferences_wheel_over_unfocused_control_scrolls_the_page},
       {"ui_recent_filter_matches_file_names_and_extensions", ui_recent_filter_matches_file_names_and_extensions},
       {"ui_preferences_dialog_resizes_and_remembers_its_size", ui_preferences_dialog_resizes_and_remembers_its_size},
+      {"ui_preferences_page_list_switches_pages_and_remembers_the_last",
+       ui_preferences_page_list_switches_pages_and_remembers_the_last},
       {"ui_preferences_interval_combos_fit_their_longest_entry", ui_preferences_interval_combos_fit_their_longest_entry},
       {"ui_preferences_interface_scale_and_icon_size_share_a_row", ui_preferences_interface_scale_and_icon_size_share_a_row},
       {"ui_preferences_hotkey_is_ctrl_k_off_macos", ui_preferences_hotkey_is_ctrl_k_off_macos},

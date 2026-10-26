@@ -35,6 +35,9 @@ document tab's menu) opens File Info on the Watermarks page with the scan run.
   Patchy's 4213 out of `raw_psd_image_resources`. The writer puts them back from
   `file_info()`. A blob that still contains any of them was never lifted (a document built
   by other code); it stays authoritative and is written as before.
+- XCF: the XCF reader fills `file_info()` from GIMP's parasites (comment, Exif, XMP, and the
+  `gimp-image-metadata` tag list as Exif, XMP and IPTC; [xcf.md](xcf.md)), and
+  `capture_file_info` keeps it as it keeps PSD's.
 - Everything else: `capture_file_info` (`main_window_files.cpp`) runs
   `extract_file_info_from_path` on the file after the document is built. Files over 512 MB
   are scanned from their first 64 MB.
@@ -96,6 +99,7 @@ copyright flag.
   as `saveOptions/exportMetadata` with tokens `none`/`copyright`/`all` (default `none`) and
   shown only for JPEG, PNG, TIFF, WebP, GIF and JPEG XL. `reset_export_options` puts every prompt
   back to All. Scripts pass `metadata: "all" | "copyright" | "none"` to `saveAs`/`exportAs`.
+  File > Export for Web has its own Metadata combo (`exportForWeb/metadata`, default `none`).
 - `prepare_save_metadata` always writes EXIF Orientation and XMP `tiff:Orientation` as 1,
   sets PixelX/YDimension and XMP pixel sizes where present to the output size, rewrites
   existing X/YResolution from print settings, and drops the EXIF IFD1 thumbnail and
@@ -175,7 +179,9 @@ are not stamped; the core writers never stamp, so the canaries hold.
   72 ppi) with a thumbnail of the saved image, as Photoshop does; it is left out when the
   block would no longer fit one APP1 segment. With the JPEG save stamp a new document's
   Save As has EXIF, so it gets one too; a save without EXIF (Saved metadata None, after
-  Strip All Metadata, Export As with Metadata None) gets none.
+  Strip All Metadata, Export As with Metadata None) gets none. `ImageSaveOptions::jpeg_exif_thumbnail`
+  (default true; scripts' `thumbnail`) turns it off: File > Export for Web writes it only when
+  "Include thumbnail" is on ([web-export.md](web-export.md)).
 ### Saved metadata preference
 
 Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_settings.*`,

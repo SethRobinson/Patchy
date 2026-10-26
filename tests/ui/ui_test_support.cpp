@@ -57,6 +57,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QSpontaneKeyEvent>
 #include <QStringList>
 #include <QSlider>
@@ -1042,6 +1043,38 @@ QDialog* find_top_level_dialog(const QString& object_name) {
   return nullptr;
 }
 
+QListWidget* preferences_page_list(QWidget& dialog) {
+  return dialog.findChild<QListWidget*>(QStringLiteral("preferencesPageList"));
+}
+
+QWidget* preferences_current_page(QWidget& dialog) {
+  auto* stack = dialog.findChild<QStackedWidget*>(QStringLiteral("preferencesPageStack"));
+  return stack != nullptr ? stack->currentWidget() : nullptr;
+}
+
+int preferences_page_row(QWidget& dialog, const QString& title) {
+  auto* list = preferences_page_list(dialog);
+  if (list == nullptr) {
+    return -1;
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == title) {
+      return row;
+    }
+  }
+  return -1;
+}
+
+bool select_preferences_page(QWidget& dialog, const QString& title) {
+  const int row = preferences_page_row(dialog, title);
+  if (row < 0) {
+    return false;
+  }
+  preferences_page_list(dialog)->setCurrentRow(row);
+  QApplication::processEvents();
+  return true;
+}
+
 void accept_save_file_dialog_then(const QString& object_name, const QString& path, std::function<void()> next) {
   QTimer::singleShot(0, [object_name, path, next = std::move(next)] {
     auto* save = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
@@ -1154,7 +1187,10 @@ void cleanup_after_visual_test() {
         "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill",
         // The foreground/background pair (GitHub issue 339): a test that picked a color must
         // not start the next test's window painting in it.
-        "tools/foregroundColor", "tools/backgroundColor"}) {
+        "tools/foregroundColor", "tools/backgroundColor",
+        // Preferences reopens on the page it was closed on (GitHub issue 451); every test
+        // starts it on Application.
+        "preferences/lastPage"}) {
     settings.remove(QLatin1StringView(key));
   }
   settings.sync();

@@ -15,6 +15,11 @@
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
 #include "formats/layered_blend_support.hpp"
+#include "formats/metadata/exif_tags.hpp"
+#include "formats/metadata/iptc_iim.hpp"
+#include "formats/metadata/metadata_edit.hpp"
+#include "formats/metadata/tiff_ifd.hpp"
+#include "formats/metadata/xmp.hpp"
 #include "formats/ora_document_io.hpp"
 #include "formats/stb/stb_image.h"
 #include "formats/xcf_document_io.hpp"
@@ -41,6 +46,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -48,6 +54,7 @@ namespace {
 
 using patchy::BlendMode;
 using patchy::Document;
+using patchy::RgbColor;
 namespace builder = patchy::test::xcf;
 
 // --- helpers --------------------------------------------------------------------------------
@@ -581,6 +588,64 @@ void xcf_reads_gray_and_indexed_images() {
     CHECK(first[0] == 200 && first[1] == 100 && first[2] == 50 && first[3] == 255);
     const auto second = rgba_at(document.layers()[0], 1, 0);
     CHECK(second[3] == 0);
+    // The colormap rides along in file order for the open path's Palette mode offer (#452).
+    const auto& palette = document.indexed_palette();
+    CHECK(palette.has_value() && palette->colors.size() == 3 && palette->source_bit_depth == 2);
+    CHECK(palette.has_value() && palette->colors[0] == (RgbColor{10, 20, 30}) &&
+          palette->colors[2] == (RgbColor{0, 255, 0}));
+  }
+}
+
+// philipzae's indexed GIMP 3.2 samples from issue 452 (local-test-fixtures/xcf-indexed,
+// README.txt there): the colormap attaches whole and in order, every pixel is one of its
+// colors, and the composite matches GIMP's render.
+void xcf_indexed_samples_attach_their_colormap() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-indexed";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  struct Sample {
+    const char* name;
+    std::size_t count;
+    std::uint16_t bits;
+    RgbColor first;
+    RgbColor last;
+    std::uint64_t checksum;  // sum of (7r + 13g + 17b) * (index + 1) over the colormap
+  };
+  for (const auto& sample : {Sample{"palette-8bit", 228, 8, {0, 0, 0}, {255, 255, 255}, 161554654},
+                             Sample{"palette-4bit", 7, 4, {24, 20, 12}, {196, 68, 72}, 114824},
+                             Sample{"palette-1bit", 2, 2, {0, 0, 0}, {255, 255, 255}, 18870}}) {
+    const auto document = patchy::xcf::DocumentIo::read_file(dir / (std::string(sample.name) + ".xcf"));
+    const auto& palette = document.indexed_palette();
+    CHECK(palette.has_value());
+    if (!palette.has_value()) {
+      continue;
+    }
+    const auto& colors = palette->colors;
+    CHECK(colors.size() == sample.count && palette->source_bit_depth == sample.bits);
+    CHECK(!colors.empty() && colors.front() == sample.first && colors.back() == sample.last);
+    std::uint64_t checksum = 0;
+    for (std::size_t i = 0; i < colors.size(); ++i) {
+      checksum += (7ULL * colors[i].red + 13ULL * colors[i].green + 17ULL * colors[i].blue) * (i + 1);
+    }
+    CHECK(checksum == sample.checksum);
+    CHECK(!document.palette_editing().has_value());
+    CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt8);
+    const auto composite = composite_rgba8(document);
+    std::size_t off_palette = 0;
+    for (std::int32_t y = 0; y < composite.height(); ++y) {
+      for (std::int32_t x = 0; x < composite.width(); ++x) {
+        const auto* px = composite.pixel(x, y);
+        const RgbColor color{px[0], px[1], px[2]};
+        if (std::find(colors.begin(), colors.end(), color) == colors.end()) {
+          ++off_palette;
+        }
+      }
+    }
+    CHECK(off_palette == 0);
+    const auto reference = dir / "gimp-renders" / (std::string(sample.name) + ".xcf.png");
+    if (std::filesystem::exists(reference)) {
+      const auto difference = compare_with_png(composite, reference);
+      CHECK(difference.has_value() && difference->worst == 0);
+    }
   }
 }
 
@@ -1224,6 +1289,330 @@ void xcf_corpus_opens_if_available() {
   CHECK(opened > 0);
 }
 
+// --- GIMP's metadata tag list (gimp-image-metadata, issue 450) ------------------------------
+
+namespace md = patchy::metadata;
+
+[[nodiscard]] std::vector<std::uint8_t> text_bytes(const std::string& text) {
+  return std::vector<std::uint8_t>(text.begin(), text.end());
+}
+
+[[nodiscard]] Document read_with_parasites(const std::vector<builder::Parasite>& parasites) {
+  builder::Image image;
+  image.version = 11;
+  image.width = 8;
+  image.height = 8;
+  image.properties.push_back(builder::prop_parasites(parasites));
+  image.layers.push_back(pixel_layer("Layer", builder::solid(8, 8, {9, 9, 9, 255})));
+  return patchy::xcf::DocumentIo::read(builder::write(image));
+}
+
+[[nodiscard]] md::XmpPacket document_xmp(const Document& document) {
+  const auto& xmp = document.file_info().xmp;
+  if (!xmp) {
+    return {};
+  }
+  return md::parse_xmp(*xmp).value_or(md::XmpPacket{});
+}
+
+[[nodiscard]] const md::XmpValue* xmp_field(const md::XmpValue& value, std::string_view ns, std::string_view name) {
+  for (const auto& field : value.fields) {
+    if (field.ns == ns && field.name == name) {
+      return &field.value;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] std::string alt_text(const md::XmpValue* value) {
+  return value != nullptr && value->kind == md::XmpValue::Kind::Alt && !value->items.empty() ? value->items[0].text
+                                                                                              : std::string("?");
+}
+
+// GIMP's exiv2 text forms: lang-alt, repeated tags as array items, type="Bag" containers
+// (empty ones dropped), struct and struct-array paths, base64 values, the stray top-level
+// CreatorContactInfo fields, Exif rationals and GPS, IIM dates and times.
+void xcf_gimp_image_metadata_tag_list_fills_file_info() {
+  const std::string tags = R"(<?xml version='1.0' encoding='UTF-8'?>
+<metadata>
+  <tag name="Exif.Image.Artist">Ann</tag>
+  <tag name="Exif.Image.ImageWidth">50</tag>
+  <tag name="Exif.Image.XResolution">300/1</tag>
+  <tag name="Exif.Photo.ExifVersion">48 50 51 48</tag>
+  <tag name="Exif.Photo.UserComment">charset=Ascii hello</tag>
+  <tag name="Exif.GPSInfo.GPSLatitudeRef">S</tag>
+  <tag name="Exif.GPSInfo.GPSLatitude">79/1 23/1 11322/1000</tag>
+  <tag name="Exif.Thumbnail.Compression">6</tag>
+  <namespace prefix="dc" url="http://purl.org/dc/elements/1.1/"></namespace>
+  <tag name="Xmp.dc.title">lang=&quot;x-default&quot; Title</tag>
+  <tag name="Xmp.dc.subject">one</tag>
+  <tag name="Xmp.dc.subject">two</tag>
+  <tag name="Xmp.dc.creator">Ann</tag>
+  <tag name="Xmp.photoshop.Headline" encoding="base64">SGVhZA==</tag>
+  <tag name="Xmp.iptc.CiAdrCity">Stray</tag>
+  <tag name="Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiAdrCity">Brampton</tag>
+  <tag name="Xmp.iptcExt.LocationShown">type=&quot;Bag&quot;</tag>
+  <tag name="Xmp.iptcExt.ArtworkOrObject">type=&quot;Bag&quot;</tag>
+  <tag name="Xmp.iptcExt.ArtworkOrObject[1]/iptcExt:AOTitle">lang=&quot;x-default&quot; Art</tag>
+  <tag name="Xmp.xmpMM.History">type=&quot;Seq&quot;</tag>
+  <tag name="Xmp.xmpMM.History[1]/stEvt:action">saved</tag>
+  <tag name="Xmp.DICOM.PatientName">patient</tag>
+  <tag name="Xmp.nowhere.Foo">dropped</tag>
+  <tag name="Xmp.dc.rights[99999]">dropped</tag>
+  <namespace prefix="DICOM" url="http://ns.adobe.com/DICOM/"/>
+  <tag name="Iptc.Application2.City">city</tag>
+  <tag name="Iptc.Application2.Keywords">k1</tag>
+  <tag name="Iptc.Application2.Keywords">k2</tag>
+  <tag name="Iptc.Application2.DateCreated">2026-10-26</tag>
+  <tag name="Iptc.Application2.TimeCreated">12:56:05+03:00</tag>
+</metadata>
+)";
+  auto with_nul = text_bytes(tags);
+  with_nul.push_back(0);
+  const auto document = read_with_parasites({{"gimp-image-metadata", with_nul}});
+  const auto& info = document.file_info();
+  CHECK(info.xmp && info.exif && info.iptc);
+
+  const auto xmp = document_xmp(document);
+  CHECK(xmp.text(md::xmp_ns::kDc, "title") == "Title");
+  CHECK(xmp.items(md::xmp_ns::kDc, "subject") == std::vector<std::string>({"one", "two"}));
+  const auto* creator = xmp.find(md::xmp_ns::kDc, "creator");
+  CHECK(creator != nullptr && creator->value.kind == md::XmpValue::Kind::Seq && creator->value.items.size() == 1);
+  CHECK(xmp.text(md::xmp_ns::kPhotoshop, "Headline") == "Head");
+  CHECK(xmp.find(md::xmp_ns::kIptcCore, "CiAdrCity") == nullptr);
+  CHECK(xmp.struct_field(md::xmp_ns::kIptcCore, "CreatorContactInfo", md::xmp_ns::kIptcCore, "CiAdrCity") ==
+        "Brampton");
+  CHECK(xmp.find(md::xmp_ns::kIptcExt, "LocationShown") == nullptr);
+  const auto* artwork = xmp.find(md::xmp_ns::kIptcExt, "ArtworkOrObject");
+  CHECK(artwork != nullptr && artwork->value.kind == md::XmpValue::Kind::Bag && artwork->value.items.size() == 1);
+  if (artwork != nullptr && artwork->value.items.size() == 1) {
+    CHECK(alt_text(xmp_field(artwork->value.items[0], md::xmp_ns::kIptcExt, "AOTitle")) == "Art");
+  }
+  const auto* history = xmp.find(md::xmp_ns::kXmpMM, "History");
+  CHECK(history != nullptr && history->value.kind == md::XmpValue::Kind::Seq && history->value.items.size() == 1);
+  CHECK(xmp.text("http://ns.adobe.com/DICOM/", "PatientName") == "patient");
+  CHECK(xmp.find(md::xmp_ns::kDc, "rights") == nullptr);
+  const std::string packet(info.xmp->begin(), info.xmp->end());
+  CHECK(packet.find("DICOM:PatientName") != std::string::npos);
+  CHECK(packet.find("dropped") == std::string::npos);
+
+  const auto fields = md::read_fields(info);
+  CHECK(fields.title == "Title" && fields.authors == std::vector<std::string>({"Ann"}));
+  CHECK(fields.keywords == std::vector<std::string>({"one", "two"}));
+  CHECK(fields.contact_city == "Brampton");
+  CHECK(fields.city == "city");  // from the IIM: the XMP has no photoshop:City
+
+  const auto exif = md::parse_tiff(*info.exif);
+  CHECK(exif.has_value());
+  if (exif) {
+    CHECK(exif->big_endian);
+    const auto* ifd0 = exif->find(md::IfdKind::Ifd0);
+    CHECK(ifd0 != nullptr && ifd0->find(256) == nullptr);
+    if (ifd0 != nullptr) {
+      const auto* artist = ifd0->find(md::exif_tag::kArtist);
+      CHECK(artist != nullptr && exif->string_value(*artist) == "Ann");
+      const auto* resolution = ifd0->find(md::exif_tag::kXResolution);
+      const std::pair<std::int64_t, std::int64_t> per_inch{300, 1};
+      CHECK(resolution != nullptr && exif->rational_value(*resolution) == per_inch);
+    }
+    const auto* photo = exif->find(md::IfdKind::Exif);
+    CHECK(photo != nullptr);
+    if (photo != nullptr) {
+      const auto* version = photo->find(md::exif_tag::kExifVersion);
+      CHECK(version != nullptr && version->data == text_bytes("0230"));
+      const auto* comment = photo->find(md::exif_tag::kUserComment);
+      CHECK(comment != nullptr && comment->data == text_bytes(std::string("ASCII\0\0\0hello", 13)));
+    }
+    const auto latitude = md::gps_latitude(*exif);
+    CHECK(latitude.has_value() && std::abs(*latitude + (79.0 + 23.0 / 60.0 + 11.322 / 3600.0)) < 1e-9);
+    CHECK(exif->find(md::IfdKind::Ifd1) == nullptr);
+  }
+
+  const auto iim = md::parse_iim(*info.iptc);
+  CHECK(iim.has_value());
+  if (iim) {
+    CHECK(iim->value(2, md::iim::kCity) == "city");
+    CHECK(iim->values(2, md::iim::kKeywords) == std::vector<std::string>({"k1", "k2"}));
+    CHECK(iim->value(2, md::iim::kDateCreated) == "20261026");
+    CHECK(iim->value(2, md::iim::kTimeCreated) == "125605+0300");
+  }
+}
+
+// gimp-metadata (XMP) and exif-data keep precedence; the tag list only fills what they
+// lack. A damaged tag list is ignored and the comment still arrives.
+void xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage() {
+  md::XmpPacket packet;
+  packet.set_lang_alt(md::xmp_ns::kDc, "title", "From packet");
+  auto xmp_parasite = text_bytes("GIMP_XMP_1" + md::serialize_xmp(packet, 0));
+  md::TiffStream stream;
+  stream.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kArtist, "Exif block");
+  auto exif_parasite = text_bytes(std::string("Exif\0\0", 6));
+  const auto tiff = md::write_tiff(stream);
+  exif_parasite.insert(exif_parasite.end(), tiff.begin(), tiff.end());
+  const std::string tags = R"(<metadata>
+  <tag name="Exif.Image.Artist">Tag list</tag>
+  <tag name="Xmp.dc.title">lang=&quot;x-default&quot; Tag list</tag>
+  <tag name="Xmp.photoshop.City">Filled</tag>
+</metadata>)";
+  const auto document = read_with_parasites(
+      {{"gimp-metadata", xmp_parasite}, {"exif-data", exif_parasite}, {"gimp-image-metadata", text_bytes(tags)}});
+  const auto fields = md::read_fields(document.file_info());
+  CHECK(fields.title == "From packet");
+  CHECK(fields.city == "Filled");
+  CHECK(fields.authors == std::vector<std::string>({"Exif block"}));
+
+  for (const auto& damaged :
+       {std::string("<metadata><tag name=\"Xmp.dc.title\">lang="), std::string("not xml at all"), std::string(),
+        std::string("<other><tag name=\"Xmp.dc.title\">x</tag></other>"),
+        std::string("<metadata><tag name=\"Xmp.dc.title[1]/dc:x[2]\">y</tag><tag>no name</tag>"
+                    "<tag name=\"Exif.Photo.ExposureTime\">1/0 x</tag><tag name=\"Exif.GPSInfo.GPSVersionID\">2 999"
+                    "</tag><tag name=\"Iptc.Envelope.CharacterSet\">x</tag></metadata>")}) {
+    const auto opened = read_with_parasites(
+        {{"gimp-comment", text_bytes(std::string("A comment\0", 10))}, {"gimp-image-metadata", text_bytes(damaged)}});
+    const auto& info = opened.file_info();
+    CHECK(info.text.size() == 1 && info.text[0].value == "A comment");
+    CHECK(!info.exif && !info.iptc);
+  }
+}
+
+// philipzae's GIMP 3.2 samples from issue 450 (local-test-fixtures/xcf-metadata, README.txt
+// there). Each also goes through a PSD save and read: File Info must show the same fields,
+// and the PSD lands in test-artifacts/xcf-metadata for scripts/dev/photoshop-open-check.ps1.
+[[nodiscard]] Document open_metadata_sample(const std::string& name) {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-metadata" / (name + ".xcf");
+  patchy::test::skip_unless_exists(path);
+  auto document = patchy::xcf::DocumentIo::read_file(path);
+  CHECK(document.file_info().source_format == "XCF");
+  const auto psd = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto out = std::filesystem::path("test-artifacts") / "xcf-metadata";
+  std::filesystem::create_directories(out);
+  std::ofstream(out / (name + ".psd"), std::ios::binary)
+      .write(reinterpret_cast<const char*>(psd.data()), static_cast<std::streamsize>(psd.size()));
+  const auto reread = patchy::psd::DocumentIo::read(psd);
+  CHECK(md::read_fields(reread.file_info()) == md::read_fields(document.file_info()));
+  CHECK(static_cast<bool>(reread.file_info().exif) == static_cast<bool>(document.file_info().exif));
+  CHECK(static_cast<bool>(reread.file_info().iptc) == static_cast<bool>(document.file_info().iptc));
+  CHECK(reread.file_info().text.size() == document.file_info().text.size());
+  return document;
+}
+
+void xcf_metadata_sample_comment() {
+  const auto document = open_metadata_sample("comment");
+  const auto& info = document.file_info();
+  CHECK(info.text.size() == 1 && info.text[0].kind == patchy::FileInfoTextKind::Comment &&
+        info.text[0].value == "Created by Yousuf");
+  const auto fields = md::read_fields(info);
+  CHECK(fields.created.starts_with("2026-10-26T13:12:12"));  // EXIF DateTimeOriginal wins (MWG)
+  CHECK(fields.date_created == "2026-10-26T13:12:12+03:00");
+  CHECK(info.exif && info.iptc);
+}
+
+void xcf_metadata_sample_description() {
+  const auto document = open_metadata_sample("description");
+  const auto fields = md::read_fields(document.file_info());
+  CHECK(fields.title == "Meta data test");
+  CHECK(fields.description == "Description of what this document is");
+  CHECK(fields.authors.size() == 1 && fields.authors[0].starts_with("Author's name"));
+  CHECK(fields.author_title == "Author's title");
+  CHECK(fields.description_writer == "Description writer, Yousuf");
+  CHECK(fields.keywords == std::vector<std::string>({"keywords, 1, 2, 3, 4 5"}));
+  CHECK(fields.rating == 3);
+  CHECK(fields.copyright_status == md::CopyrightStatus::Copyrighted);
+  CHECK(fields.copyright_notice == "(c) 2025");
+  CHECK(fields.copyright_url == "https://www.github.com/");
+  const auto exif = md::parse_tiff(*document.file_info().exif);
+  const auto* ifd0 = exif ? exif->find(md::IfdKind::Ifd0) : nullptr;
+  const auto* description = ifd0 != nullptr ? ifd0->find(md::exif_tag::kImageDescription) : nullptr;
+  CHECK(description != nullptr && exif->string_value(*description) == "Description of what this document is");
+  const auto iim = md::parse_iim(*document.file_info().iptc);
+  CHECK(iim && iim->value(2, md::iim::kCaption) == "Description of what this document is" &&
+        iim->value(2, md::iim::kObjectName) == "Meta data test");
+}
+
+void xcf_metadata_sample_iptc() {
+  const auto document = open_metadata_sample("iptc");
+  const auto fields = md::read_fields(document.file_info());
+  CHECK(fields.headline == "headline");
+  CHECK(fields.city == "city" && fields.state == "state/province" && fields.country == "country");
+  CHECK(fields.country_code == "country iso-code" && fields.sublocation == "sublocation");
+  CHECK(fields.credit == "credit line" && fields.source == "source" && fields.instructions == "instructions");
+  CHECK(fields.transmission_reference == "job identifier" && fields.usage_terms == "usage terms");
+  CHECK(fields.intellectual_genre == "intellectual genre");
+  CHECK(fields.scene == std::vector<std::string>({"iptc scene code"}));
+  CHECK(fields.subject_code == std::vector<std::string>({"iptc subject code"}));
+  CHECK(fields.contact_address == "5 Don Mills Road" && fields.contact_city == "Brampton");
+  CHECK(fields.contact_region == "Ontario" && fields.contact_postal_code == "M2J 2D5");
+  CHECK(fields.contact_country == "Canada" && fields.contact_phone == "+1(416)521-4521");
+  CHECK(fields.contact_email == "microsoft@github.com" && fields.contact_url == "www.github.com");
+  const auto xmp = document_xmp(document);
+  CHECK(xmp.text(md::xmp_ns::kPhotoshop, "Urgency") == "5");
+  CHECK(xmp.find(md::xmp_ns::kIptcCore, "CiAdrCity") == nullptr);
+}
+
+void xcf_metadata_sample_iptc_extension() {
+  const auto document = open_metadata_sample("iptc-extension");
+  const auto xmp = document_xmp(document);
+  CHECK(xmp.items(md::xmp_ns::kIptcExt, "PersonInImage") == std::vector<std::string>({"person shown"}));
+  CHECK(xmp.text(md::xmp_ns::kIptcExt, "Event") == "event");
+  CHECK(xmp.text(md::xmp_ns::kIptcExt, "DigitalSourceType") ==
+        "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture");
+  const auto* shown = xmp.find(md::xmp_ns::kIptcExt, "LocationShown");
+  CHECK(shown != nullptr && shown->value.kind == md::XmpValue::Kind::Bag && shown->value.items.size() == 2);
+  if (shown != nullptr && shown->value.items.size() == 2) {
+    const auto* city = xmp_field(shown->value.items[1], md::xmp_ns::kIptcExt, "City");
+    CHECK(city != nullptr && city->text == "city 2");
+  }
+  const auto* artwork = xmp.find(md::xmp_ns::kIptcExt, "ArtworkOrObject");
+  CHECK(artwork != nullptr && artwork->value.items.size() == 1);
+  if (artwork != nullptr && artwork->value.items.size() == 1) {
+    CHECK(alt_text(xmp_field(artwork->value.items[0], md::xmp_ns::kIptcExt, "AOTitle")) == "title 1");
+  }
+  const auto* licensor = xmp.find(md::xmp_ns::kPlus, "Licensor");
+  CHECK(licensor != nullptr && licensor->value.items.size() == 1);
+  if (licensor != nullptr && licensor->value.items.size() == 1) {
+    const auto* name = xmp_field(licensor->value.items[0], md::xmp_ns::kPlus, "LicensorName");
+    CHECK(name != nullptr && name->text == "licensor name");
+  }
+  const auto iim = md::parse_iim(*document.file_info().iptc);
+  CHECK(iim && iim->value(2, md::iim::kSublocation) == "sublocation");
+}
+
+void xcf_metadata_sample_categories() {
+  const auto document = open_metadata_sample("categories");
+  const auto xmp = document_xmp(document);
+  CHECK(xmp.text(md::xmp_ns::kPhotoshop, "Category") == "category: animal");
+  CHECK(xmp.items(md::xmp_ns::kPhotoshop, "SupplementalCategories") ==
+        std::vector<std::string>({"supplemental category: dog"}));
+  const auto iim = md::parse_iim(*document.file_info().iptc);
+  CHECK(iim && iim->value(2, md::iim::kCategory) == "category: animal" &&
+        iim->value(2, 20) == "supplemental category: dog");
+}
+
+void xcf_metadata_sample_gps() {
+  const auto document = open_metadata_sample("gps");
+  const auto exif = md::parse_tiff(*document.file_info().exif);
+  CHECK(exif.has_value());
+  if (exif) {
+    const auto latitude = md::gps_latitude(*exif);
+    const auto longitude = md::gps_longitude(*exif);
+    const auto altitude = md::gps_altitude(*exif);
+    CHECK(latitude && std::abs(*latitude - (79.0 + 23.0 / 60.0 + 11.322 / 3600.0)) < 1e-9);
+    CHECK(longitude && std::abs(*longitude - (43.0 + 44.0 / 60.0 + 25.091 / 3600.0)) < 1e-9);
+    CHECK(altitude && std::abs(*altitude - 100.0) < 1e-9);
+  }
+}
+
+void xcf_metadata_sample_dicom() {
+  const auto document = open_metadata_sample("dicom");
+  const auto xmp = document_xmp(document);
+  constexpr std::string_view kDicom = "http://ns.adobe.com/DICOM/";
+  CHECK(xmp.text(kDicom, "PatientName") == "patient");
+  CHECK(xmp.text(kDicom, "StudyDescription") == "study description");
+  CHECK(xmp.text(kDicom, "EquipmentManufacturer") == "equipment manufacturer");
+  const std::string packet(document.file_info().xmp->begin(), document.file_info().xmp->end());
+  CHECK(packet.find("DICOM:PatientName") != std::string::npos);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> xcf_tests() {
@@ -1235,11 +1624,21 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_reads_every_tile_compression_and_pointer_size", xcf_reads_every_tile_compression_and_pointer_size},
       {"xcf_reads_every_precision", xcf_reads_every_precision},
       {"xcf_reads_gray_and_indexed_images", xcf_reads_gray_and_indexed_images},
+      {"xcf_indexed_samples_attach_their_colormap", xcf_indexed_samples_attach_their_colormap},
       {"xcf_maps_every_gimp_layer_mode", xcf_maps_every_gimp_layer_mode},
       {"xcf_text_parasites_parse_gimp_2_and_3_forms", xcf_text_parasites_parse_gimp_2_and_3_forms},
       {"xcf_text_layers_open_as_editable_text_over_gimps_raster", xcf_text_layers_open_as_editable_text_over_gimps_raster},
       {"xcf_floating_selection_opens_above_its_layer", xcf_floating_selection_opens_above_its_layer},
       {"xcf_reads_channels_selection_paths_guides_and_metadata", xcf_reads_channels_selection_paths_guides_and_metadata},
+      {"xcf_gimp_image_metadata_tag_list_fills_file_info", xcf_gimp_image_metadata_tag_list_fills_file_info},
+      {"xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage", xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage},
+      {"xcf_metadata_sample_comment", xcf_metadata_sample_comment},
+      {"xcf_metadata_sample_description", xcf_metadata_sample_description},
+      {"xcf_metadata_sample_iptc", xcf_metadata_sample_iptc},
+      {"xcf_metadata_sample_iptc_extension", xcf_metadata_sample_iptc_extension},
+      {"xcf_metadata_sample_categories", xcf_metadata_sample_categories},
+      {"xcf_metadata_sample_gps", xcf_metadata_sample_gps},
+      {"xcf_metadata_sample_dicom", xcf_metadata_sample_dicom},
       {"xcf_layer_effects_bake_or_become_styles", xcf_layer_effects_bake_or_become_styles},
       {"xcf_effect_fixtures_match_gimp_if_available", xcf_effect_fixtures_match_gimp_if_available},
       {"xcf_unwraps_gzip_bzip2_and_xz", xcf_unwraps_gzip_bzip2_and_xz},
