@@ -12741,6 +12741,18 @@ Each item&apos;s own View setting still applies.</source>
 Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Die JPEG-Datei ist beschädigt oder abgeschnitten</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Diese JPEG-Datei speichert CMYK-Werte mit mehr als 8 Bit, die Patchy nicht öffnen kann</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>Das JPEG-Bild ist zu groß zum Öffnen</translation>
+    </message>
+    <message>
         <source>%1 x %2 %3</source>
         <comment>new document card size: width, height, unit suffix</comment>
         <translation>%1 x %2 %3</translation>
@@ -22880,10 +22892,6 @@ In Bilder umgewandelt: %1.</translation>
         <translation>%CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt Ebenen in einem Rechteck aus; Umschalt vor dem Ziehen halten, um hinzuzufügen. %ALT%+Ziehen dupliziert. Umschalt beschränkt die Ebenenbewegung.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Verschieben: %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus; Umschalt fügt hinzu. Ausgewählte Grafik ziehen, um sie zu verschieben, %ALT%+Ziehen, um sie zu duplizieren.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Zuschneiderahmen auf die Arbeitsfläche zurücksetzen (Esc)</translation>
     </message>
@@ -25993,6 +26001,18 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Apply</source>
         <translation>Anwenden</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Überlagerung anzeigen</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Zeigt die Quelle unter dem Pinsel, bevor Sie malen</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Verschieben: Ziehen verschiebt, Umschalt+Ziehen hält es waagerecht oder senkrecht, %ALT%+Ziehen dupliziert. %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus, mit „Autom. auswählen“ auch Ziehen auf leerer Fläche.</translation>
     </message>
 </context>
 <context>

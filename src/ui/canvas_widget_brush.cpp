@@ -32,6 +32,7 @@
 #include <QCursor>
 #include <QImage>
 #include <QPainter>
+#include <QLine>
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
@@ -1088,6 +1089,93 @@ void CanvasWidget::draw_stroke_leash_overlay(QPainter& painter) const {
   painter.setPen(QPen(theme().brush_leash, 1.0));
   painter.drawLine(output_widget, raw_widget);
   painter.drawEllipse(raw_widget, radius, radius);
+  painter.restore();
+}
+
+bool CanvasWidget::tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
+    case CanvasTool::PatternStamp:
+    case CanvasTool::Clone:
+    case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
+    case CanvasTool::Smudge:
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
+    case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
+std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
+  // Shift alone: Ctrl is the painting tools' temporary Move and Alt picks a color
+  // or sets a clone source, so a click with either would not draw this line.
+  const auto held = stroke_connect_preview_modifiers_ & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
+  if (held != Qt::ShiftModifier || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
+      document_ == nullptr || painting_ || spacebar_panning_ || panning_ || brush_adjust_dragging_ ||
+      move_drag_pending_ || moving_layer_ || !isVisible() ||
+      !tool_supports_shift_click_stroke_connect(effective_tool_for_input())) {
+    return std::nullopt;
+  }
+  return QLineF(widget_position_f(*last_stroke_end_document_), QPointF(stroke_connect_preview_pointer_));
+}
+
+QRect CanvasWidget::stroke_connect_preview_rect() const {
+  const auto line = stroke_connect_preview_line();
+  if (!line.has_value()) {
+    return {};
+  }
+  return QRectF(line->p1(), line->p2()).normalized().toAlignedRect().adjusted(-3, -3, 4, 4);
+}
+
+// Old-union-new, like the leash: the previous line must be erased wherever it was.
+void CanvasWidget::refresh_stroke_connect_preview() {
+  const auto current = stroke_connect_preview_rect();
+  const auto region = stroke_connect_preview_rect_.united(current);
+  stroke_connect_preview_rect_ = current;
+  if (!region.isEmpty()) {
+    update(region);
+  }
+}
+
+void CanvasWidget::track_stroke_connect_preview(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
+  stroke_connect_preview_pointer_ = widget_position;
+  stroke_connect_preview_pointer_inside_ = rect().contains(widget_position);
+  stroke_connect_preview_modifiers_ = modifiers;
+  refresh_stroke_connect_preview();
+}
+
+void CanvasWidget::set_stroke_connect_preview_modifiers(Qt::KeyboardModifiers modifiers) {
+  stroke_connect_preview_modifiers_ = modifiers;
+  refresh_stroke_connect_preview();
+}
+
+void CanvasWidget::hide_stroke_connect_preview() {
+  stroke_connect_preview_pointer_inside_ = false;
+  refresh_stroke_connect_preview();
+}
+
+void CanvasWidget::draw_stroke_connect_preview(QPainter& painter) const {
+  const auto line = stroke_connect_preview_line();
+  if (!line.has_value() || line->length() < 1.0) {
+    return;
+  }
+  // A dark halo under a light line, the clone-source marker's pair, reads over any artwork.
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  // Pointer positions are whole widget pixels; the half-pixel shift centers the 1 px line on
+  // a pixel row instead of smearing it across two.
+  painter.translate(0.5, 0.5);
+  for (const auto& pen : {QPen(QColor(20, 23, 28, 200), 3.0), QPen(QColor(245, 248, 252, 235), 1.0)}) {
+    painter.setPen(pen);
+    painter.drawLine(*line);
+  }
   painter.restore();
 }
 

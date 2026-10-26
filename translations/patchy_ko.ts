@@ -12706,6 +12706,18 @@ Each item&apos;s own View setting still applies.</source>
 각 항목의 보기 설정도 그대로 적용됩니다.</translation>
     </message>
     <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>JPEG 파일이 손상되었거나 잘렸습니다</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>이 JPEG는 8비트보다 깊은 CMYK 샘플을 저장하고 있어 Patchy에서 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>JPEG 이미지가 너무 커서 열 수 없습니다</translation>
+    </message>
+    <message>
         <source>%1 x %2 %3</source>
         <comment>new document card size: width, height, unit suffix</comment>
         <translation>%1 x %2 %3</translation>
@@ -22818,10 +22830,6 @@ Y: %2
         <translation>%CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 선택을 전환합니다. %CTRL%+드래그로 사각형 안의 레이어를 선택하며, 드래그 전에 Shift를 누르면 추가됩니다. %ALT%+드래그로 복제합니다. Shift는 레이어 이동 방향을 고정합니다.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>이동: %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하고 Shift로 추가합니다. 선택한 아트워크를 드래그하여 이동하고 %ALT%+드래그로 복제합니다.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>자르기 상자를 캔버스로 재설정 (Esc)</translation>
     </message>
@@ -25920,6 +25928,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>적용</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>오버레이 표시</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>칠하기 전에 브러시 아래에 소스를 미리 봅니다</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>이동: 드래그하여 이동하고, Shift+드래그로 수평 또는 수직으로 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하며, 자동 선택이 켜져 있으면 빈 곳을 드래그해도 됩니다.</translation>
     </message>
 </context>
 <context>

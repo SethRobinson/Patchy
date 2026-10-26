@@ -93,9 +93,34 @@ std::optional<QString> available_text_family_match(const QString& family) {
 QString canonical_text_display_family(const QString& family) {
   const auto requested = family.trimmed();
   if (requested.isEmpty()) {
-    return QApplication::font().family();
+    return default_text_family();
   }
   return available_text_family_match(requested).value_or(requested);
+}
+
+// The listed family a name actually draws in. Qt's Linux database lists fontconfig's generic
+// "Sans Serif" (the application font under a plain Qt theme, as in the Flatpak) as a family of
+// its own, yet it draws in DejaVu Sans or Noto Sans; Windows does not list the name and draws a
+// substitute. New type stored the generic name, and the first text layer of a session showed the
+// missing-font badge (GitHub issue 442). `family` (trimmed) when it resolves to nothing listed.
+// For seeding new type: a family a file names stays as named.
+QString installed_text_family(const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return requested;
+  }
+  QFont probe;
+  probe.setFamilies(QStringList{requested});
+  if (const auto resolved = available_text_family_match(QFontInfo(probe).family()); resolved.has_value()) {
+    return *resolved;
+  }
+  return available_text_family_match(requested).value_or(requested);
+}
+
+// The family new type starts in when nothing else names one: the application font, as an
+// installed family (see installed_text_family).
+QString default_text_family() {
+  return installed_text_family(QApplication::font().family());
 }
 
 
@@ -565,6 +590,12 @@ bool text_family_draws_any_of(const QString& family, const QString& demanded) {
   } else if (const auto style_match = available_text_family_style_match(requested); style_match.has_value()) {
     expected = style_match->family;
   }
+  // A listed name that stands for another face, like fontconfig's "Sans Serif" (GitHub issue
+  // 442): the face it resolves to is the font asked for, not a substitute. Only for a listed name,
+  // so a missing family never passes as the face Qt substitutes for it.
+  if (available_text_family_match(expected).has_value()) {
+    expected = installed_text_family(expected);
+  }
   const auto probe_draws = [&demanded, &expected](const QFont& probe) {
     QHash<int, QRawFont> faces;
     bool tested_any = false;
@@ -692,7 +723,7 @@ QString display_text_family_from_font(const QFont& font) {
     return families.at(1);
   }
   const auto family = font.family().trimmed();
-  return family.isEmpty() ? QApplication::font().family() : family;
+  return family.isEmpty() ? default_text_family() : family;
 }
 
 QStringList render_text_families_for_display_family(const QString& family) {
@@ -750,7 +781,7 @@ QString substituted_text_family(const QString& family, const QString& demanded) 
     return resolved;
   }
   // Qt can echo the request back instead of naming its substitute; the UI font is always real.
-  const auto ui_family = canonical_text_display_family(QApplication::font().family());
+  const auto ui_family = default_text_family();
   return cannot_draw(ui_family) ? family : ui_family;
 }
 

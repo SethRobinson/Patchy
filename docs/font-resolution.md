@@ -224,6 +224,13 @@ not render nothing).
   layer set in a missing family leaves the combo's `currentFont()` on that name while it shows
   another row; with no text layer to mirror, `sync_text_options_from_active_layer` puts
   `currentFont()` back on the shown row, and `add_text_at` seeds new sessions from that row.
+- **Generic names resolve to the face they draw in** (`installed_text_family`,
+  `default_text_family`, issue 442). Linux under a plain Qt theme (the Flatpak) reports the
+  application font as "Sans Serif": Qt's fontconfig database lists that name as a family, yet it
+  draws in DejaVu Sans or Noto Sans (Windows does not list it). New type seeds from the face
+  `QFontInfo` resolves the name to (the options bar's starting font and every "no family named"
+  fallback), and `text_family_draws_any_of` probes a listed name against that face, so a layer
+  storing a listed alias is not missing. An unlisted name is never resolved to its substitute.
 - **Type > Resolve Missing Fonts** (issue 169; hotkey id `type.resolve_missing_fonts`;
   `src/ui/missing_fonts_dialog.*`, `main_window_missing_fonts.cpp`). One row per family any text
   layer cannot draw, hidden and grouped layers included, deduped by `text_font_replacement_key`

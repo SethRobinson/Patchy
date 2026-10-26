@@ -2668,7 +2668,22 @@ void MainWindow::sync_retouch_sample_controls_from_canvas() {
   }
 }
 
+void MainWindow::apply_clone_overlay_settings(bool shown, int opacity) {
+  current_clone_overlay_shown_ = shown;
+  current_clone_overlay_opacity_ = std::clamp(opacity, 1, 100);
+  for (auto* canvas : findChildren<CanvasWidget*>()) {
+    canvas->set_clone_overlay_shown(current_clone_overlay_shown_);
+    canvas->set_clone_overlay_opacity(current_clone_overlay_opacity_);
+  }
+  schedule_save_tool_settings();
+  refresh_clone_source_panel();
+}
+
 void MainWindow::refresh_clone_source_panel() {
+  if (clone_overlay_check_ != nullptr) {
+    const QSignalBlocker blocker(clone_overlay_check_);
+    clone_overlay_check_->setChecked(current_clone_overlay_shown_);
+  }
   if (clone_source_panel_ == nullptr) {
     return;
   }

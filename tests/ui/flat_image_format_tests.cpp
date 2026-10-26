@@ -1301,6 +1301,47 @@ void ui_gif_save_options_dialog_choices() {
   settings.sync();
 }
 
+// A 12-bit JPEG (libjpeg-turbo's testorig12.jpg) opens as a 16-bit RGB document through the
+// vendored libjpeg-turbo once Qt's 8-bit plug-in gives up (#438), from a Unicode folder and
+// name as every file-opening path requires. Values: imagecodecs' 12-bit decode, scaled.
+void ui_twelve_bit_jpeg_opens_as_16_bit_document() {
+  patchy::set_deep_editing_override(true);
+  const auto dir = std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"jpeg-12-bit"));
+  const auto path = dir / patchy::test::unicode_path_piece(std::u8string(patchy::test::kUnicodeCombinedStem) + u8".jpg");
+  std::filesystem::copy_file(patchy::test::committed_format_fixture_path("jpeg", "testorig12.jpg"), path);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.width() == 227 && document.height() == 149);
+  CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt16);
+  CHECK(!document.layers().empty());
+  if (!document.layers().empty()) {
+    const auto& pixels = document.layers().front().pixels();
+    CHECK(pixels.format().channels == 3 && pixels.format().bit_depth == patchy::BitDepth::UInt16);
+    const auto at16 = [&](int x, int y, int c) {
+      return static_cast<int>(std::lround(patchy::load_pixel(pixels.format(), pixels.pixel(x, y))[c] * 257.0F));
+    };
+    const auto scale12 = [](int v) { return (v * 65535 + 2047) / 4095; };
+    CHECK(at16(100, 50, 0) == scale12(3551) && at16(100, 50, 1) == scale12(851) && at16(100, 50, 2) == scale12(682));
+    CHECK(at16(50, 120, 0) == scale12(3535) && at16(50, 120, 1) == scale12(3274) && at16(50, 120, 2) == scale12(2956));
+  }
+  // The issue's after image: the same file under its own name.
+  ensure_artifact_dir();
+  const auto plain = QStringLiteral("test-artifacts/testorig12.jpg");
+  QFile::remove(plain);
+  CHECK(QFile::copy(patchy::ui::to_qstring(path), plain));
+  patchy::ui::MainWindow shown;
+  show_window_empty(shown);
+  patchy::ui::MainWindowTestAccess::open_document_path(shown, plain);
+  QApplication::processEvents();
+  shown.grab().save(QStringLiteral("test-artifacts/issue_438_after.png"));
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 void ui_jxr_opens_and_saves_as_a_read_write_format() {
   ensure_artifact_dir();
   const auto fixture = QString::fromStdWString(
@@ -3759,6 +3800,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_animated_gif_export_round_trips", ui_animated_gif_export_round_trips},
       {"ui_animated_gif_open_save_round_trip", ui_animated_gif_open_save_round_trip},
       {"ui_gif_save_options_dialog_choices", ui_gif_save_options_dialog_choices},
+      {"ui_twelve_bit_jpeg_opens_as_16_bit_document", ui_twelve_bit_jpeg_opens_as_16_bit_document},
       {"ui_jxr_opens_and_saves_as_a_read_write_format", ui_jxr_opens_and_saves_as_a_read_write_format},
       {"ui_jxr_save_options_persist_quality_and_lossless",
        ui_jxr_save_options_persist_quality_and_lossless},

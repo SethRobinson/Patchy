@@ -262,6 +262,96 @@ void ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer() {
   }
 }
 
+// GitHub issue 442: on Linux under a plain Qt theme (the Flatpak) the application font is Qt's
+// generic "Sans Serif". Qt's Linux database lists that name as a family, but it draws in another
+// face (DejaVu Sans on the test host); Windows does not list it at all. The first text layer of a
+// session took the name and showed the missing-font badge although its text drew in an installed
+// face. New type starts in the face the name resolves to, and a layer that stores a listed alias
+// is not reported missing.
+void ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto saved_app_font = QApplication::font();
+  struct AppFontRestorer {
+    QFont font;
+    ~AppFontRestorer() { QApplication::setFont(font); }
+  } restorer{saved_app_font};
+  const auto generic = QStringLiteral("Sans Serif");
+  const bool generic_listed = patchy::ui::available_text_family_match(generic).has_value();
+
+  auto generic_font = saved_app_font;
+  generic_font.setFamilies(QStringList{generic});
+  QApplication::setFont(generic_font);
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(white_document(), QStringLiteral("Untitled-1"));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+
+  const auto check_layer = [&] {
+    const auto active = MainWindowTestAccess::document(window).active_layer_id();
+    CHECK(active.has_value());
+    if (!active.has_value()) {
+      return;
+    }
+    const auto* layer = std::as_const(MainWindowTestAccess::document(window)).find_layer(*active);
+    CHECK(layer != nullptr && patchy::layer_is_text(*layer));
+    if (layer == nullptr) {
+      return;
+    }
+    const auto family = layer_font(window, *active);
+    CHECK(!family.isEmpty() && family.compare(generic, Qt::CaseInsensitive) != 0);
+    CHECK(patchy::ui::available_text_family_match(family).has_value());
+    CHECK(patchy::ui::missing_text_families_for_layer(*layer).isEmpty());
+    auto* thumbnail = content_thumbnail(*layer_list, QString::fromStdString(layer->name()));
+    CHECK(thumbnail != nullptr);
+    if (thumbnail != nullptr) {
+      CHECK(!thumbnail->toolTip().contains(QStringLiteral("Font is missing on this computer")));
+    }
+  };
+
+  auto* combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  CHECK(combo != nullptr);
+  if (combo == nullptr) {
+    return;
+  }
+  const auto bar_family = combo->currentFont().family();
+  // The provisional "Type" layer appears in the panel the moment the tool clicks.
+  MainWindowTestAccess::add_text_at(window, QPoint(60, 60));
+  QApplication::processEvents();
+  auto* editor = require_canvas(window)->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  save_widget_artifact("ui_first_text_layer_generic_app_font_session", *layer_list);
+  check_layer();
+  QTest::keyClicks(editor, QStringLiteral("First"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  process_events_for(150);
+  save_widget_artifact("ui_first_text_layer_generic_app_font_layers", *layer_list);
+  check_layer();
+  // The bar started on the installed face the generic name draws in.
+  CHECK(bar_family.compare(generic, Qt::CaseInsensitive) != 0);
+  CHECK(patchy::ui::available_text_family_match(bar_family).has_value());
+
+  // A layer that already stores the generic name (an older Patchy, an XCF or KRA import): where
+  // the database lists the alias it draws in a real face and is not missing; where it does not,
+  // the layer still names a font this computer lacks.
+  {
+    auto scratch = white_document();
+    const auto stored = missing_font_text_layer(scratch, "Generic", generic, 40);
+    const auto missing = patchy::ui::missing_text_families_for_layer(stored);
+    CHECK(generic_listed ? missing.isEmpty() : missing == QStringList{generic});
+  }
+}
+
 // GitHub issue 177: editing a HIDDEN layer whose font is missing substituted it without the
 // prompt a visible layer shows. Both go through the same question now; Cancel leaves the font.
 void ui_hidden_missing_font_text_layer_still_warns_before_substitution() {
@@ -738,6 +828,8 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
   return {
       {"ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer",
        ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer},
+      {"ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge",
+       ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge},
       {"ui_hidden_missing_font_text_layer_still_warns_before_substitution",
        ui_hidden_missing_font_text_layer_still_warns_before_substitution},
       {"ui_missing_font_badge_clears_when_the_substitution_is_accepted",

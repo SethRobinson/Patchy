@@ -21,7 +21,7 @@ Anything a user would read as "the tool is broken" on a fresh launch starts from
 - The selection combine mode (New/Add/Subtract/Intersect), the vector Combine operation (New Layer/Add/Subtract/...), the Patch tool's Mode and Transparent (retired keys `tools/patchMode` and `tools/patchTransparent`, [healing.md](healing.md)), the Align To choice (retired `tools/alignTo`, [alignment.md](alignment.md)).
 - The Marquee and shape Style rows (Normal/Fixed Ratio/Fixed Size with their W/H): a persisted Fixed Size silently resizes the first drag.
 - Round and Square brush dynamics (session values, [brushes.md](brushes.md)), the Mixer "useful combinations" row (derived from Wet/Load/Mix).
-- The Type tool's font, style, size, color, alignment and orientation: they mirror the selected text layer; a new layer takes the application font. Remembering the last-used type style is a separate feature.
+- The Type tool's font, style, size, color, alignment and orientation: they mirror the selected text layer; a new layer takes the application font, as the installed face it resolves to (never a generic name such as Linux's "Sans Serif"). Remembering the last-used type style is a separate feature.
 
 ## Inventory
 

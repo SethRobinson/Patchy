@@ -1032,6 +1032,147 @@ void ui_brush_shift_click_connects_strokes() {
   CHECK(alpha_at(170, 30) == 0U);
 }
 
+// GitHub issue 445: Shift held over the canvas previews the line a Shift+click paints,
+// from the last stroke's end to the pointer; the key alone shows and hides it.
+void ui_paint_shift_line_preview_follows_pointer() {
+  patchy::Document document(200, 80, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(200, 80, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 160);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(8);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto widget_point = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point);
+  };
+  // Brightest and darkest widget pixels in a short column across the line's row.
+  const auto column_range = [&canvas, &widget_point](QPoint document_point) {
+    const auto image = canvas.grab().toImage();
+    const auto center = widget_point(document_point);
+    int brightest = 0;
+    int darkest = 255;
+    for (int dy = -3; dy <= 3; ++dy) {
+      const auto color = image.pixelColor(center.x(), center.y() + dy);
+      const auto value = std::min({color.red(), color.green(), color.blue()});
+      brightest = std::max(brightest, std::max({color.red(), color.green(), color.blue()}));
+      darkest = std::min(darkest, value);
+    }
+    return std::pair{brightest, darkest};
+  };
+  const auto shows_line_at = [&column_range](QPoint document_point) {
+    const auto [brightest, darkest] = column_range(document_point);
+    return brightest >= 180 && darkest <= 90;
+  };
+  const auto is_plain_gray_at = [&column_range](QPoint document_point) {
+    const auto [brightest, darkest] = column_range(document_point);
+    return brightest <= 140 && darkest >= 116;
+  };
+
+  // One plain click sets the anchor; no Shift, no line.
+  const auto anchor = widget_point(QPoint(30, 40));
+  send_mouse(canvas, QEvent::MouseButtonPress, anchor, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, anchor, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  const auto target = widget_point(QPoint(170, 40));
+  send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(is_plain_gray_at(QPoint(100, 40)));
+
+  // Shift pressed with a stationary pointer shows the line from the anchor to the pointer.
+  send_key_press(canvas, Qt::Key_Shift);
+  QApplication::processEvents();
+  save_image_artifact("issue445_shift_line_preview_canvas", canvas.grab().toImage());
+  CHECK(shows_line_at(QPoint(100, 40)));
+  CHECK(shows_line_at(QPoint(60, 40)));
+  CHECK(is_plain_gray_at(QPoint(100, 15)));
+  CHECK(is_plain_gray_at(QPoint(185, 40)));
+
+  // Moving with Shift held follows the pointer.
+  const auto lower = widget_point(QPoint(170, 70));
+  send_mouse(canvas, QEvent::MouseMove, lower, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(is_plain_gray_at(QPoint(140, 40)));
+  CHECK(shows_line_at(QPoint(100, 55)));
+
+  // Releasing Shift alone removes it.
+  send_key_release(canvas, Qt::Key_Shift, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(is_plain_gray_at(QPoint(100, 55)));
+
+  // Shift+Ctrl (the temporary Move) shows no line.
+  send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton,
+             Qt::ShiftModifier | Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(is_plain_gray_at(QPoint(100, 40)));
+
+  // Shift+click paints along the previewed line; the new end is the anchor, so no line remains.
+  send_mouse(canvas, QEvent::MouseMove, target, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(shows_line_at(QPoint(100, 40)));
+  send_mouse(canvas, QEvent::MouseButtonPress, target, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, target, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  const auto* painted = document.find_layer(layer_id);
+  CHECK(painted->pixels().pixel(100, 40)[0] <= 10U);
+  CHECK(painted->pixels().pixel(60, 40)[0] <= 10U);
+  CHECK(painted->pixels().pixel(100, 15)[0] >= 120U);
+  CHECK(!shows_line_at(QPoint(100, 40)));
+
+  // The pointer leaving the canvas hides it.
+  const auto lower_left = widget_point(QPoint(30, 70));
+  send_mouse(canvas, QEvent::MouseMove, lower_left, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(shows_line_at(QPoint(100, 55)));
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(&canvas, &leave);
+  QApplication::processEvents();
+  CHECK(is_plain_gray_at(QPoint(100, 55)));
+
+  // So does a switch to a tool without Shift+click lines.
+  send_mouse(canvas, QEvent::MouseMove, lower_left, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(shows_line_at(QPoint(100, 55)));
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  QApplication::processEvents();
+  CHECK(is_plain_gray_at(QPoint(100, 55)));
+
+  // The window capture for the issue: a stroke, then Shift held further along.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* window_canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  window_canvas->set_primary_color(QColor(40, 90, 200));
+  window_canvas->set_brush_size(24);
+  window_canvas->set_brush_softness(20);
+  QApplication::processEvents();
+  const auto stroke_start = window_canvas->widget_position_for_document_point(QPoint(120, 330));
+  send_mouse(*window_canvas, QEvent::MouseButtonPress, stroke_start, Qt::LeftButton, Qt::LeftButton,
+             Qt::NoModifier);
+  for (int step = 1; step <= 24; ++step) {
+    const auto x = 120 + step * 12;
+    const auto y = 330 - static_cast<int>(std::lround(90.0 * std::sin(step * 0.26)));
+    send_mouse(*window_canvas, QEvent::MouseMove,
+               window_canvas->widget_position_for_document_point(QPoint(x, y)), Qt::NoButton, Qt::LeftButton,
+               Qt::NoModifier);
+  }
+  const auto stroke_end = window_canvas->widget_position_for_document_point(
+      QPoint(120 + 24 * 12, 330 - static_cast<int>(std::lround(90.0 * std::sin(24 * 0.26)))));
+  send_mouse(*window_canvas, QEvent::MouseButtonRelease, stroke_end, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  send_mouse(*window_canvas, QEvent::MouseMove, window_canvas->widget_position_for_document_point(QPoint(640, 140)),
+             Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  save_widget_artifact("issue445_shift_line_preview", window);
+}
+
 void ui_brush_opacity_and_flow_digit_keys_set_values() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
@@ -2367,6 +2508,9 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Clone);
   // No source yet: a press would be refused, and the cursor says so (GitHub issue 380).
   CHECK(canvas->cursor().shape() == Qt::ForbiddenCursor);
+  // The checks read painted pixels from the widget, where the source overlay (on by default,
+  // GitHub issue 426) would cover the hovered brush.
+  canvas->set_clone_overlay_shown(false);
   canvas->set_brush_softness(100);
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   CHECK(clone_aligned != nullptr);
@@ -3931,6 +4075,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_brush_alt_right_drag_syncs_options_bar_spins",
        ui_brush_alt_right_drag_syncs_options_bar_spins},
       {"ui_brush_shift_click_connects_strokes", ui_brush_shift_click_connects_strokes},
+      {"ui_paint_shift_line_preview_follows_pointer", ui_paint_shift_line_preview_follows_pointer},
       {"ui_brush_opacity_and_flow_digit_keys_set_values",
        ui_brush_opacity_and_flow_digit_keys_set_values},
       {"ui_undo_shortcut_includes_ctrl_alt_z", ui_undo_shortcut_includes_ctrl_alt_z},

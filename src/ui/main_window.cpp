@@ -3193,9 +3193,9 @@ std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& 
   const auto html = value(kLayerMetadataTextHtml).value_or(QString());
   const auto paragraph_runs = value(kLayerMetadataTextParagraphRuns).value_or(QString());
   const auto rich_text_runs = value(kLayerMetadataTextRuns).value_or(QString());
-  auto family = value(kLayerMetadataTextFont).value_or(QApplication::font().family());
+  auto family = value(kLayerMetadataTextFont).value_or(default_text_family());
   if (family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
-    family = QApplication::font().family();
+    family = default_text_family();
   }
   const auto size = value(kLayerMetadataTextSize).has_value()
                         ? std::max(1, std::atoi(value(kLayerMetadataTextSize)->toUtf8().constData()))
@@ -6204,7 +6204,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   bool photoshop_text_layout = area_text.has_value();
   double text_size_display_scale = 1.0;
   std::optional<QPointF> initial_cursor_local_position;
-  QString family = text_font_combo_ != nullptr ? text_options_bar_family() : font().family();
+  QString family = text_font_combo_ != nullptr ? text_options_bar_family() : default_text_family();
   int document_text_size = text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document()) : 48;
   // New text starts on the face the style picker shows, the way Photoshop seeds new type from
   // its toolbar state. The flags carry the four standard faces; an exotic pick (Black, Demi)
@@ -8483,7 +8483,7 @@ void MainWindow::apply_text_paragraph_metrics_to_editor(QTextEdit& editor, const
 // otherwise. Both Bold and Italic need it to ask whether the real face exists.
 QString MainWindow::current_text_family_for_editor(const QTextEdit& editor) const {
   const auto fallback =
-      text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : QApplication::font().family();
+      text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : default_text_family();
   return text_display_family_from_format(text_editor_reference_format(editor), fallback);
 }
 

@@ -32,7 +32,7 @@ HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 CITATION = re.compile(r"(?:docs/)?([a-z0-9][a-z0-9-]*\.md)[,:]?\s{0,2}\(?\s?[\"“]([^\"”\n]{2,120})[\"”]")
 CODE_DIRS = ("src", "tests", "scripts", "cmake", "packaging")
 CODE_SUFFIXES = (".cpp", ".hpp", ".h", ".mm", ".c", ".py", ".ps1", ".sh", ".bat", ".js", ".mjs", ".cmake", ".txt", ".md", ".in")
-VENDORED = {"bc7enc", "bcdec", "dav1d", "libaom", "libavif", "libheif", "libjxl", "libraw", "libwebp",
+VENDORED = {"bc7enc", "bcdec", "dav1d", "libaom", "libavif", "libheif", "libjpeg-turbo", "libjxl", "libraw", "libwebp",
             "miniz", "openjpeg", "stb", "tinyexr", "zstd", "gmic", "lcms2", "bundled"}
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
