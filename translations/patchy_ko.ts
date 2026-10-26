@@ -26001,6 +26001,38 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>프레임 시간이 있는 레이어가 없습니다.</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>모두 대문자</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>작은 대문자</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>위 첨자</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>아래 첨자</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>밑줄</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>취소선</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>서수 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>분수 (지원하는 글꼴만)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27988,6 +28020,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: 텍스트 구간 %2의 %3은(는) &apos;%4&apos;, &apos;%5&apos; 또는 &apos;none&apos;이어야 합니다.</translation>
     </message>
 </context>
 <context>

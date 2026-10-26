@@ -6,6 +6,7 @@
 #include <QImage>
 #include "ui/script_stroke.hpp"
 #include "ui/text_paragraph_metrics.hpp"
+#include "ui/text_document.hpp"
 
 #include "core/document.hpp"
 #include "core/layer.hpp"
@@ -386,6 +387,14 @@ public:
     std::optional<bool> bold;
     std::optional<bool> italic;
     QColor color;                 // invalid = the layer's
+    // Character-panel styles (GitHub issue 346); unset = the layer's. caps 0 none, 1 small,
+    // 2 all; script 0 none, 1 superscript, 2 subscript.
+    std::optional<int> caps;
+    std::optional<int> script;
+    std::optional<bool> underline;
+    std::optional<bool> strikethrough;
+    std::optional<bool> ordinals;
+    std::optional<bool> fractions;
   };
   struct TextLayerParams {
     QString text;
@@ -415,6 +424,7 @@ public:
     bool bold{false};
     bool italic{false};
     QString color;   // #rrggbb
+    TextCharacterStyles styles;
   };
   std::optional<LayerId> add_text_layer(std::int64_t session_id, const TextLayerParams& params);
   bool set_text_layer_text(std::int64_t session_id, LayerId layer_id, const QString& text);

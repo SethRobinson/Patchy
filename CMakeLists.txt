@@ -2364,6 +2364,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_area_tests.cpp
       tests/ui/text_canvas_session_tests.cpp
       tests/ui/text_color_targets_tests.cpp
+      tests/ui/text_character_styles_tests.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp

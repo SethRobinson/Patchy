@@ -18,6 +18,8 @@
 #include <QGlyphRun>
 #include <QHash>
 #include <QImage>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRawFont>
@@ -42,10 +44,261 @@ double dominant_text_run_size(const TextToolSettings& settings, const QString& r
 double dominant_run_width_residual(const QTextDocument& document, double metric_scale);
 void grow_point_text_rect_to_glyph_ink(QRectF& local_rect, const QRectF& ink);
 void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRenderItem& item,
-                                    const QTransform& document_transform, QPainter& painter);
+                                    const QTransform& document_transform, QPainter& painter, bool snap = true);
 void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter);
 TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const TextToolSettings& settings,
                                                const QString& rich_text_runs);
+
+namespace {
+
+std::int16_t font_table_int16(const QByteArray& table, int offset) {
+  if (offset < 0 || offset + 2 > table.size()) {
+    return 0;
+  }
+  const auto high = static_cast<unsigned char>(table[offset]);
+  const auto low = static_cast<unsigned char>(table[offset + 1]);
+  return static_cast<std::int16_t>(static_cast<std::uint16_t>((high << 8U) | low));
+}
+
+std::uint16_t font_table_uint16(const QByteArray& table, int offset) {
+  return static_cast<std::uint16_t>(font_table_int16(table, offset));
+}
+
+}  // namespace
+
+TextDecorationMetrics text_decoration_metrics(const QFont& font) {
+  static QMutex mutex;
+  static QHash<QString, TextDecorationMetrics> cache;
+  auto unscaled = font;
+  unscaled.setPixelSize(1000);
+  const auto key = unscaled.key();
+  {
+    const QMutexLocker locker(&mutex);
+    if (const auto found = cache.constFind(key); found != cache.constEnd()) {
+      return *found;
+    }
+  }
+  TextDecorationMetrics metrics;
+  const QFontMetricsF qt_metrics(unscaled);
+  metrics.underline_center = std::max(0.0, qt_metrics.underlinePos()) / 1000.0;
+  metrics.thickness = std::max(1.0, qt_metrics.lineWidth()) / 1000.0;
+  metrics.strike_center = qt_metrics.xHeight() / 2000.0;
+  const auto raw = QRawFont::fromFont(unscaled);
+  if (raw.isValid()) {
+    const auto head = raw.fontTable("head");
+    const auto post = raw.fontTable("post");
+    const auto os2 = raw.fontTable("OS/2");
+    const double units = head.size() >= 54 ? font_table_uint16(head, 18) : 0.0;
+    if (units > 0.0 && post.size() >= 12) {
+      const double thickness = std::max<double>(1.0, font_table_int16(post, 10));
+      double position = font_table_int16(post, 8);
+      if (!raw.fontTable("CFF ").isEmpty() || !raw.fontTable("CFF2").isEmpty()) {
+        position -= thickness / 2.0;
+      }
+      const double lowest = font_table_int16(head, 38);
+      metrics.underline_center = std::max(0.0, -(position + lowest) / 2.0) / units;
+      metrics.thickness = thickness / units;
+    }
+    if (units > 0.0 && os2.size() >= 90 && font_table_uint16(os2, 0) >= 2) {
+      const auto x_height = font_table_int16(os2, 86);
+      if (x_height > 0) {
+        metrics.strike_center = x_height / 2.0 / units;
+      }
+    }
+  }
+  const QMutexLocker locker(&mutex);
+  cache.insert(key, metrics);
+  return metrics;
+}
+
+namespace {
+
+bool format_has_decoration(const QTextCharFormat& format) {
+  return format.property(kTextUnderlineFormatProperty).toBool() ||
+         format.property(kTextStrikethroughFormatProperty).toBool();
+}
+
+// A fragment drawn glyph run by glyph run even in Qt-natural layout: featured glyphs, or a
+// superscript or subscript, whose shift QTextLine::draw would round through Qt's percentage of
+// the font height (a subscript landed a pixel high) instead of the exact engine-pixel property.
+bool format_needs_glyph_run_draw(const QTextCharFormat& format) {
+  return text_format_has_render_features(format) || format.property(kTextFontBaselineFormatProperty).toInt() != 0;
+}
+
+// Whether any fragment needs the per-line draw path: a bar to place, or glyph-run drawing.
+bool document_needs_line_items(const QTextDocument& document) {
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      if (format_has_decoration(format) || format_needs_glyph_run_draw(format)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool line_has_render_features(const QTextBlock& block, const QTextLine& line) {
+  const auto line_start = block.position() + line.textStart();
+  const auto line_end = line_start + line.textLength();
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0 || fragment.position() >= line_end ||
+        fragment.position() + fragment.length() <= line_start) {
+      continue;
+    }
+    if (format_needs_glyph_run_draw(fragment.charFormat())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The document's own line placement as plan items (the lines drawContents would draw), for point
+// text whose fragments need the per-line path.
+std::vector<BoxTextLineRenderItem> natural_line_items(const QTextDocument& document, const QRectF& clip) {
+  std::vector<BoxTextLineRenderItem> items;
+  const auto* layout = document.documentLayout();
+  if (layout == nullptr) {
+    return items;
+  }
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+    const auto origin = layout->blockBoundingRect(block).topLeft();
+    for (int i = 0; i < text_layout->lineCount(); ++i) {
+      const auto line = text_layout->lineAt(i);
+      if (line.isValid()) {
+        items.push_back(BoxTextLineRenderItem{line, origin, clip, block.position()});
+      }
+    }
+  }
+  return items;
+}
+
+// Underline and strikethrough bars for every drawn line: one bar per run segment, at the run's
+// own baseline (a superscript's bar rides with it) and in its own font's metrics, from the
+// segment's first caret stop to its last, so tracking after the last letter is underlined as
+// Photoshop does. Trailing spaces where a box line wraps are left bare. Touching segments of one
+// colour and height merge, so no antialiased seam shows between them.
+std::vector<TextDecorationRect> text_decorations_for_lines(const QTextDocument& document,
+                                                           const std::vector<BoxTextLineRenderItem>& items) {
+  std::vector<TextDecorationRect> bars;
+  for (const auto& item : items) {
+    if (!item.line.isValid() || item.line.textLength() <= 0) {
+      continue;
+    }
+    const auto block = document.findBlock(item.block_position);
+    if (!block.isValid()) {
+      continue;
+    }
+    const auto text = block.text();
+    const int line_start = item.line.textStart();
+    int line_end = line_start + item.line.textLength();
+    while (line_end > line_start && line_end <= text.size() && text.at(line_end - 1).isSpace() &&
+           block.layout() != nullptr && block.layout()->lineCount() > 1 &&
+           item.line.lineNumber() + 1 < block.layout()->lineCount()) {
+      --line_end;
+    }
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      const bool underline = format.property(kTextUnderlineFormatProperty).toBool();
+      const bool strike = format.property(kTextStrikethroughFormatProperty).toBool();
+      if (!underline && !strike) {
+        continue;
+      }
+      const int from = std::max(fragment.position() - block.position(), line_start);
+      const int to = std::min(fragment.position() - block.position() + fragment.length(), line_end);
+      if (to <= from) {
+        continue;
+      }
+      auto x0 = item.line.cursorToX(from);
+      auto x1 = item.line.cursorToX(to);
+      if (x1 < x0) {
+        std::swap(x0, x1);
+      }
+      if (!(x1 - x0 > 0.0)) {
+        continue;
+      }
+      const auto font = format.font();
+      const double em = font.pixelSize() > 0 ? font.pixelSize() : std::max(1.0, font.pointSizeF());
+      const auto metrics = text_decoration_metrics(font);
+      const auto thickness = std::max(0.0, metrics.thickness * em);
+      const auto baseline = item.block_origin.y() + item.line.y() + item.line.ascent() -
+                            format.property(kTextBaselineShiftFormatProperty).toDouble();
+      auto color = format.foreground().color();
+      if (!color.isValid()) {
+        color = QColor(Qt::black);
+      }
+      const auto add = [&](double center) {
+        const QRectF rect(item.block_origin.x() + x0, center - thickness / 2.0, x1 - x0, thickness);
+        if (!bars.empty()) {
+          auto& last = bars.back();
+          if (last.color == color && std::abs(last.rect.top() - rect.top()) < 1e-6 &&
+              std::abs(last.rect.height() - rect.height()) < 1e-6 && std::abs(last.rect.right() - rect.left()) < 0.01) {
+            last.rect.setRight(rect.right());
+            return;
+          }
+        }
+        bars.push_back(TextDecorationRect{rect, color});
+      };
+      if (underline) {
+        add(baseline + metrics.underline_center * em);
+      }
+      if (strike) {
+        add(baseline - metrics.strike_center * em);
+      }
+    }
+  }
+  return bars;
+}
+
+// The glyph runs of [from, to) on `line`: Qt's own, or, for a fragment carrying OpenType
+// features (kTextRenderFeaturesFormatProperty), the fragment's text shaped with them and moved
+// onto the line where Qt's first glyph of the range starts.
+QList<QGlyphRun> fragment_glyph_runs(const QTextBlock& block, const QTextLine& line, int from, int to,
+                                     const QTextCharFormat& format) {
+  auto plain = line.glyphRuns(from - block.position(), to - from);
+  if (!text_format_has_render_features(format) || plain.isEmpty() || plain.front().positions().isEmpty()) {
+    return plain;
+  }
+  QTextLayout layout(block.text().mid(from - block.position(), to - from), text_render_featured_font(format));
+  QTextOption option;
+  option.setWrapMode(QTextOption::NoWrap);
+  option.setUseDesignMetrics(true);
+  layout.setTextOption(option);
+  layout.beginLayout();
+  const auto featured_line = layout.createLine();
+  layout.endLayout();
+  if (!featured_line.isValid()) {
+    return plain;
+  }
+  auto featured = featured_line.glyphRuns();
+  if (featured.isEmpty() || featured.front().positions().isEmpty()) {
+    return plain;
+  }
+  const auto offset = plain.front().positions().front() - featured.front().positions().front();
+  for (auto& run : featured) {
+    auto positions = run.positions();
+    for (auto& position : positions) {
+      position += offset;
+    }
+    run.setPositions(positions);
+  }
+  return featured;
+}
+
+}  // namespace
 
 // Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: stroke
 // the glyph outlines with a pen kFauxBoldEmFraction of the em wide and widen each advance by the
@@ -435,6 +688,22 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     local_rect = QRectF(0.0, 0.0, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0),
                         std::max<qreal>(1.0, std::ceil(size.height()) + 2.0));
     grow_point_text_rect_to_glyph_ink(local_rect, document_glyph_ink_rect(document));
+    if (!settings.vertical && document_needs_line_items(document)) {
+      // drawContents cannot place bars or featured glyphs; the same lines, drawn one by one, can.
+      line_render_items = natural_line_items(document, local_rect);
+    }
+  }
+  if (!settings.vertical && !line_render_items.empty()) {
+    result.decorations = text_decorations_for_lines(document, line_render_items);
+    for (const auto& bar : result.decorations) {
+      if (settings.boxed) {
+        // The frame keeps its origin and width (pixels-only callers place the buffer at the
+        // frame corner); a bar below the last line only grows the bottom.
+        local_rect.setBottom(std::max(local_rect.bottom(), std::ceil(bar.rect.bottom()) + 1.0));
+      } else {
+        local_rect = local_rect.united(bar.rect.adjusted(-1.0, -1.0, 1.0, 1.0));
+      }
+    }
   }
   if (!std::isfinite(local_rect.left()) || !std::isfinite(local_rect.top()) ||
       !std::isfinite(local_rect.right()) || !std::isfinite(local_rect.bottom()) ||
@@ -495,8 +764,11 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
 // anyway for untransformed text; it keeps later lines on whole rows under the residual). Per
 // fragment so the run keeps its own colour, and faux bold fills and strokes glyph paths the way
 // the vertical plan does, because drawGlyphRun ignores the char format's outline.
+//
+// `snap` false draws the same runs at their fractional positions: the path a Qt-laid-out line takes
+// when a fragment on it carries OpenType features, which QTextLine::draw cannot apply.
 void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRenderItem& item,
-                                    const QTransform& document_transform, QPainter& painter) {
+                                    const QTransform& document_transform, QPainter& painter, bool snap) {
   const auto& line = item.line;
   if (!line.isValid() || line.textLength() <= 0) {
     return;
@@ -541,12 +813,15 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
       }
     }
     const bool scale_images = std::abs(image_scale - 1.0) > 1e-6;
-    for (auto run : line.glyphRuns(from - block.position(), to - from)) {
+    for (auto run : fragment_glyph_runs(block, line, from, to, format)) {
       auto positions = run.positions();
       for (auto& position : positions) {
         // QGlyphRun positions omit QTextCharFormat's baseline offset, unlike
         // QTextLine::draw. Apply the engine-pixel shift before device snapping.
         position.ry() -= format.property(kTextBaselineShiftFormatProperty).toDouble();
+        if (!snap) {
+          continue;
+        }
         const auto document_point = document_transform.map(item.block_origin + position);
         position.rx() += (snap_to_pixel_grid(document_point.x()) - document_point.x()) / scale_x;
         position.ry() += (snap_to_pixel_grid(document_point.y()) - document_point.y()) / scale_y;
@@ -704,10 +979,18 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
       if (plan.pixel_align_glyphs) {
         draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
                                        painter);
+      } else if (const auto block = document.findBlock(item.block_position);
+                 line_has_render_features(block, item.line)) {
+        draw_line_glyphs_pixel_aligned(block, item, plan.document_transform, painter, false);
       } else {
         item.line.draw(&painter, item.block_origin);
       }
       painter.restore();
+    }
+    // Underline and strikethrough bars, unclipped and upright (faux italic slants the glyphs,
+    // not the lines under them).
+    for (const auto& bar : plan.decorations) {
+      painter.fillRect(bar.rect, bar.color);
     }
   } else {
     if (plan.faux_italic_render) {

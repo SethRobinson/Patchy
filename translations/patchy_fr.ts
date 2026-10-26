@@ -26074,6 +26074,38 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>No frame times on any layer</source>
         <translation>Aucun calque n&apos;a de durée d&apos;image</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Tout en capitales</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Petites capitales</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Exposant</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Indice</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Souligné</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Barré</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Ordinaux (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Fractions (polices qui en ont)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28062,6 +28094,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance doit être un nombre de 0 à 255.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1 : le segment %2 : %3 doit valoir &apos;%4&apos;, &apos;%5&apos; ou &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

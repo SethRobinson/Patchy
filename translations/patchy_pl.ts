@@ -26147,6 +26147,38 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>No frame times on any layer</source>
         <translation>Żadna warstwa nie ma czasu klatki</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Wersaliki</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Kapitaliki</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Indeks górny</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Indeks dolny</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Podkreślenie</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Przekreślenie</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Liczebniki porządkowe (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Ułamki (czcionki, które je mają)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28136,6 +28168,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance musi być liczbą od 0 do 255.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: fragment %2: %3 musi mieć wartość &apos;%4&apos;, &apos;%5&apos; lub &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

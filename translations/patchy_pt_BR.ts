@@ -26074,6 +26074,38 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>No frame times on any layer</source>
         <translation>Nenhuma camada tem duração de quadro</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Tudo em maiúsculas</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Versalete</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Sobrescrito</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Subscrito</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Sublinhado</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Tachado</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Ordinais (fontes que os têm)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Frações (fontes que as têm)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28062,6 +28094,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance deve ser um número de 0 a 255.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: o trecho %2: %3 deve ser &apos;%4&apos;, &apos;%5&apos; ou &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

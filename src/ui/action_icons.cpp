@@ -20,6 +20,7 @@
 #include <cmath>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <utility>
 
 int qInitResources_icons();
@@ -708,6 +709,87 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
   };
   return themed_glyph_icon(QStringLiteral("text-align-%1-%2").arg(mode).arg(vertical ? 1 : 0), 22.0,
                            &ThemePalette::icon_ink, std::move(glyph));
+}
+
+QIcon text_character_style_icon(int style) {
+  // Drawn in a 22-unit square from the interface font's own letters (bold), so the eight marks
+  // read as one set: two capitals, a capital and a small capital, x with a raised or lowered 2,
+  // an underlined U, a struck S, 1 with a raised "st" and a built fraction.
+  auto glyph = [style](QPainter& painter, const QColor& ink) {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const auto letters = [](const QString& text, double size, double x, double baseline) {
+      auto font = QApplication::font();
+      font.setBold(true);
+      font.setPixelSize(100);
+      QPainterPath path;
+      path.addText(0.0, 0.0, font, text);
+      QTransform transform;
+      transform.translate(x, baseline);
+      transform.scale(size / 100.0, size / 100.0);
+      return transform.map(path);
+    };
+    QPainterPath path;
+    const auto append_after = [&](const QString& text, double size, double baseline, double gap) {
+      const auto x = path.isEmpty() ? 0.0 : path.boundingRect().right() + gap;
+      path.addPath(letters(text, size, x, baseline));
+    };
+    std::optional<QRectF> bar;
+    switch (style) {
+      case 0:
+        append_after(QStringLiteral("AA"), 13.0, 16.0, 0.0);
+        break;
+      case 1:
+        append_after(QStringLiteral("A"), 13.0, 16.0, 0.0);
+        append_after(QStringLiteral("A"), 9.0, 16.0, 0.6);
+        break;
+      case 2:
+        append_after(QStringLiteral("x"), 14.0, 18.0, 0.0);
+        append_after(QStringLiteral("2"), 8.5, 10.0, 0.6);
+        break;
+      case 3:
+        append_after(QStringLiteral("x"), 14.0, 14.0, 0.0);
+        append_after(QStringLiteral("2"), 8.5, 20.0, 0.6);
+        break;
+      case 4:
+        append_after(QStringLiteral("U"), 14.0, 15.5, 0.0);
+        bar = QRectF(0.0, 17.6, 0.0, 1.8);
+        break;
+      case 5:
+        append_after(QStringLiteral("S"), 14.0, 17.0, 0.0);
+        bar = QRectF(0.0, 10.4, 0.0, 1.8);
+        break;
+      case 6:
+        append_after(QStringLiteral("1"), 14.0, 18.0, 0.0);
+        append_after(QStringLiteral("st"), 8.5, 10.0, 0.6);
+        break;
+      default: {
+        path.addPath(letters(QStringLiteral("1"), 9.0, 0.0, 10.0));
+        const auto slash_left = path.boundingRect().right() - 0.5;
+        QPainterPath slash;
+        slash.moveTo(slash_left + 6.0, 2.5);
+        slash.lineTo(slash_left + 7.6, 2.5);
+        slash.lineTo(slash_left + 1.6, 19.5);
+        slash.lineTo(slash_left, 19.5);
+        slash.closeSubpath();
+        path.addPath(slash);
+        path.addPath(letters(QStringLiteral("2"), 9.0, slash_left + 4.5, 19.5));
+        break;
+      }
+    }
+    // Centre the letters across the square; a bar spans them with a little overhang.
+    const auto bounds = path.boundingRect();
+    const auto shift = 11.0 - (bounds.left() + bounds.right()) / 2.0;
+    path.translate(shift, 0.0);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(ink);
+    painter.drawPath(path);
+    if (bar.has_value()) {
+      const auto letters_bounds = path.boundingRect();
+      painter.drawRect(QRectF(letters_bounds.left() - 1.5, bar->top(), letters_bounds.width() + 3.0, bar->height()));
+    }
+  };
+  return themed_glyph_icon(QStringLiteral("text-character-style-%1").arg(style), 22.0, &ThemePalette::icon_ink,
+                           std::move(glyph));
 }
 
 }  // namespace patchy::ui

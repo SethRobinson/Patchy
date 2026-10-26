@@ -14,6 +14,13 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-26 (additive): text runs (`addTextLayer`, `setTextRuns`) take the Character panel styles
+(GitHub issue 346, [text-character-styles.md](text-character-styles.md)): `caps` (`"all"`, `"small"`,
+`"none"`), `script` (`"superscript"`, `"subscript"`, `"none"`), and booleans `underline`,
+`strikethrough`, `ordinals`, `fractions`; an unset key keeps the layer's. `textRuns` reads all six
+back. Another `caps` or `script` value throws. Permanent identifiers: those keys and values. Pinned by
+`ui_text_underline_and_strikethrough_match_photoshop_if_available` and its siblings in
+tests/ui/text_character_styles_tests.cpp.
 2026-10-26 (additive): `doc.trim` takes `tolerance` (0..255, default 0 = the exact match it always
 made; GitHub issue 297): Transparent Pixels then cuts alpha up to it, a corner color every pixel whose
 channels (alpha included) are all within it of the corner, in 8-bit units at every depth. Out of range

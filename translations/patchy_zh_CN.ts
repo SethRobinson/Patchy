@@ -26001,6 +26001,38 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>没有图层带有帧时间</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>全部大写字母</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>小型大写字母</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>上标</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>下标</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>下划线</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>删除线</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>序数 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>分数 (仅限支持的字体)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27988,6 +28020,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim 的 tolerance 必须是 0 到 255 之间的数字。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1：第 %2 段的 %3 必须是 &apos;%4&apos;、&apos;%5&apos; 或 &apos;none&apos;。</translation>
     </message>
 </context>
 <context>

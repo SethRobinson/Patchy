@@ -41,6 +41,73 @@ void apply_plain_text_format(QTextDocument& document, const QFont& font, QColor 
 void resolve_document_font_styles(QTextDocument& document);
 void apply_faux_bold_to_document(QTextDocument& document);
 
+bool is_text_runs_version_line(const QString& line) {
+  if (line.size() < 2 || line.front() != QLatin1Char('v')) {
+    return false;
+  }
+  return std::all_of(line.begin() + 1, line.end(), [](QChar ch) { return ch >= QLatin1Char('0') && ch <= QLatin1Char('9'); });
+}
+
+namespace {
+
+psd::PsdTextStyleRun psd_run_with_styles(const TextCharacterStyles& styles) {
+  psd::PsdTextStyleRun run;
+  run.font_caps = styles.caps;
+  run.font_baseline = styles.baseline;
+  run.underline = styles.underline;
+  run.strikethrough = styles.strikethrough;
+  run.ordinals = styles.ordinals;
+  run.fractions = styles.fractions;
+  return run;
+}
+
+int format_choice(const QTextCharFormat& format, int property_id) {
+  const auto value = format.property(property_id).toInt();
+  return value == 1 || value == 2 ? value : 0;
+}
+
+}  // namespace
+
+TextCharacterStyles text_character_styles_from_format(const QTextCharFormat& format) {
+  TextCharacterStyles styles;
+  styles.caps = format_choice(format, kTextFontCapsFormatProperty);
+  styles.baseline = format_choice(format, kTextFontBaselineFormatProperty);
+  styles.underline = format.property(kTextUnderlineFormatProperty).toBool();
+  styles.strikethrough = format.property(kTextStrikethroughFormatProperty).toBool();
+  styles.ordinals = format.property(kTextOrdinalsFormatProperty).toBool();
+  styles.fractions = format.property(kTextFractionsFormatProperty).toBool();
+  return styles;
+}
+
+void set_text_character_styles_on_format(QTextCharFormat& format, const TextCharacterStyles& styles) {
+  // Off is written as an explicit 0/false rather than cleared, so a mergeCharFormat of the
+  // change reaches runs that had the style on.
+  format.setProperty(kTextFontCapsFormatProperty, styles.caps == 1 || styles.caps == 2 ? styles.caps : 0);
+  format.setProperty(kTextFontBaselineFormatProperty,
+                     styles.baseline == 1 || styles.baseline == 2 ? styles.baseline : 0);
+  format.setProperty(kTextUnderlineFormatProperty, styles.underline);
+  format.setProperty(kTextStrikethroughFormatProperty, styles.strikethrough);
+  format.setProperty(kTextOrdinalsFormatProperty, styles.ordinals);
+  format.setProperty(kTextFractionsFormatProperty, styles.fractions);
+}
+
+QString serialize_text_character_styles(const TextCharacterStyles& styles) {
+  return QString::fromStdString(psd::serialize_text_run_character_styles(psd_run_with_styles(styles)));
+}
+
+TextCharacterStyles parse_text_character_styles(const QString& field) {
+  psd::PsdTextStyleRun run;
+  psd::parse_text_run_character_styles(field.trimmed().toStdString(), run);
+  TextCharacterStyles styles;
+  styles.caps = run.font_caps;
+  styles.baseline = run.font_baseline;
+  styles.underline = run.underline;
+  styles.strikethrough = run.strikethrough;
+  styles.ordinals = run.ordinals;
+  styles.fractions = run.fractions;
+  return styles;
+}
+
 void set_text_display_family(QTextCharFormat& format, const QString& family) {
   format.setProperty(kTextDisplayFamilyFormatProperty, canonical_text_display_family(family));
 }
@@ -413,6 +480,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   bool includes_faux_italic = false;
   bool includes_rotated = false;
   bool includes_shift = false;
+  bool includes_character_styles = false;
   const auto fallback_family = fallback.family.isEmpty() ? default_text_family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
@@ -435,11 +503,13 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     bool rotated_roman{false};
     double baseline_shift{0.0};
     QString style;
+    QString character_styles;
   };
   std::vector<SerializedRun> collected;
 
   const auto append_run = [&collected, &includes_leading, &photoshop_layout, &includes_faux_bold, &includes_style,
-                           &includes_faux_italic, &includes_rotated, &includes_shift, &fallback_family, fallback_size,
+                           &includes_faux_italic, &includes_rotated, &includes_shift, &includes_character_styles,
+                           &fallback_family, fallback_size,
                            &fallback_color_name](int start, int length, const QTextCharFormat& format) {
     if (length <= 0) {
       return;
@@ -519,7 +589,12 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     includes_rotated = includes_rotated || run.rotated_roman;
     run.baseline_shift = format.property(kTextBaselineShiftFormatProperty).toDouble();
     includes_shift = includes_shift || std::abs(run.baseline_shift) > 0.0001;
-    photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold || run.faux_italic || run.rotated_roman ||
+    const auto styles = text_character_styles_from_format(format);
+    const bool has_styles = styles.any();
+    run.character_styles = serialize_text_character_styles(styles);
+    includes_character_styles = includes_character_styles || has_styles;
+    photoshop_layout = photoshop_layout || has_styles || run.auto_leading || run.faux_bold || run.faux_italic ||
+                       run.rotated_roman ||
                        !run.style.isEmpty() || std::abs(run.baseline_shift) > 0.0001 ||
                        std::abs(run.tracking) > 0.0001 ||
                        std::abs(run.horizontal_scale - 1.0) > 0.0001 ||
@@ -568,7 +643,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
   }
-  if (includes_shift) {
+  if (includes_character_styles) {
+    lines[0] = QStringLiteral("v9");
+  } else if (includes_shift) {
     lines[0] = QStringLiteral("v8");
   } else if (includes_rotated) {
     lines[0] = QStringLiteral("v7");
@@ -603,20 +680,24 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       line += QStringLiteral("\t%1").arg(QString::number(run.vertical_scale, 'g', 17));
       // Column 11 is faux bold and column 12 the style name; the style column needs the faux
       // one in front of it, so a styled run emits both.
-      if (includes_faux_bold || includes_style || includes_faux_italic || includes_rotated || includes_shift) {
+      const bool through_shift = includes_shift || includes_character_styles;
+      if (includes_faux_bold || includes_style || includes_faux_italic || includes_rotated || through_shift) {
         line += QStringLiteral("\t%1").arg(run.faux_bold ? 1 : 0);
       }
-      if (includes_style || includes_faux_italic || includes_rotated || includes_shift) {
+      if (includes_style || includes_faux_italic || includes_rotated || through_shift) {
         line += QStringLiteral("\t%1").arg(QString::fromLatin1(run.style.toUtf8().toPercentEncoding()));
       }
-      if (includes_faux_italic || includes_rotated || includes_shift) {
+      if (includes_faux_italic || includes_rotated || through_shift) {
         line += QStringLiteral("\t%1").arg(run.faux_italic ? 1 : 0);
       }
-      if (includes_rotated || includes_shift) {
+      if (includes_rotated || through_shift) {
         line += QStringLiteral("\t%1").arg(run.rotated_roman ? 2 : 0);
       }
-      if (includes_shift) {
+      if (through_shift) {
         line += QStringLiteral("\t%1").arg(QString::number(run.baseline_shift, 'g', 17));
+      }
+      if (includes_character_styles) {
+        line += QStringLiteral("\t%1").arg(run.character_styles);
       }
     } else if (includes_leading) {
       line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
@@ -778,9 +859,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
   bool applied_run = false;
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
-        line == QStringLiteral("v3") || line == QStringLiteral("v4") || line == QStringLiteral("v5") ||
-        line == QStringLiteral("v6") || line == QStringLiteral("v7") || line == QStringLiteral("v8")) {
+    if (line.isEmpty() || is_text_runs_version_line(line)) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -901,6 +980,9 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
         format.setProperty(kTextBaselineShiftFormatProperty, scaled_shift);
         format.setBaselineOffset(100.0 * scaled_shift / std::max(1, font.pixelSize()));
       }
+    }
+    if (fields.size() >= 17) {
+      set_text_character_styles_on_format(format, parse_text_character_styles(fields[16]));
     }
     QTextCursor cursor(&document);
     cursor.setPosition(start);
@@ -1118,6 +1200,168 @@ void apply_faux_bold_to_document(QTextDocument& document) {
   }
 }
 
+namespace {
+
+constexpr QFont::Tag kSmallCapsFeature("smcp");
+constexpr QFont::Tag kOrdinalsFeature("ordn");
+constexpr QFont::Tag kFractionsFeature("frac");
+
+struct ShapedText {
+  QList<quint32> glyphs;
+  double advance{0.0};
+};
+
+// One line of `text` shaped the way the render document lays it out (design metrics, no wrap).
+ShapedText shape_text_line(const QString& text, const QFont& font) {
+  ShapedText shaped;
+  QTextLayout layout(text, font);
+  QTextOption option;
+  option.setWrapMode(QTextOption::NoWrap);
+  option.setUseDesignMetrics(true);
+  layout.setTextOption(option);
+  layout.beginLayout();
+  auto line = layout.createLine();
+  layout.endLayout();
+  if (!line.isValid()) {
+    return shaped;
+  }
+  shaped.advance = line.horizontalAdvance();
+  for (const auto& run : line.glyphRuns()) {
+    shaped.glyphs += run.glyphIndexes();
+  }
+  return shaped;
+}
+
+double absolute_letter_spacing(const QFont& font) {
+  return font.letterSpacingType() == QFont::AbsoluteSpacing ? font.letterSpacing() : 0.0;
+}
+
+}  // namespace
+
+QFont text_render_featured_font(const QTextCharFormat& format) {
+  auto font = format.font();
+  font.setLetterSpacing(QFont::AbsoluteSpacing,
+                        format.property(kTextRenderBaseLetterSpacingFormatProperty).toDouble());
+  for (const auto& name : format.property(kTextRenderFeaturesFormatProperty).toStringList()) {
+    if (const auto tag = QFont::Tag::fromString(name); tag.has_value()) {
+      font.setFeature(*tag, 1);
+    }
+  }
+  return font;
+}
+
+void apply_text_character_styles_to_document(QTextDocument& document, bool vertical) {
+  struct StyleRange {
+    int start{0};
+    int length{0};
+    QTextCharFormat format;
+  };
+  // Collect first: merging re-splits the block's fragments (see apply_faux_bold_to_document).
+  std::vector<StyleRange> ranges;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      const auto styles = text_character_styles_from_format(format);
+      if (styles.caps == 0 && styles.baseline == 0 && !styles.ordinals && !styles.fractions) {
+        continue;  // underline and strikethrough are drawn by the render plan
+      }
+      auto font = format.font();
+      QTextCharFormat overlay;
+      if (styles.caps == 2) {
+        font.setCapitalization(QFont::AllUppercase);
+      }
+      if (styles.baseline != 0 && !vertical) {
+        // Photoshop draws a superscript or subscript at 58.3% of the size with its baseline moved
+        // 33.3% of the size (COM captures of five faces at 100 px: the H moves 33 px). The size
+        // is the run's glyph em (FontSize x vertical scale), not the shrunken one.
+        const auto exact = photoshop_char_exact_size(format);
+        auto vertical_scale = format.property(kTextVerticalScaleFormatProperty).toDouble();
+        if (!(std::isfinite(vertical_scale) && vertical_scale > 0.01 && vertical_scale < 100.0)) {
+          vertical_scale = 1.0;
+        }
+        const auto em = exact * vertical_scale;
+        const auto pixel_size = font.pixelSize() > 0 ? font.pixelSize() : std::max(1, static_cast<int>(std::lround(em)));
+        font.setPixelSize(std::max(1, static_cast<int>(std::lround(pixel_size * psd::kTextScriptSizeFraction))));
+        // Tracking is per em of the drawn size: "script" at tracking 100 in the issue's sample
+        // is 11 px narrower in Photoshop than at the run's full size.
+        if (font.letterSpacingType() == QFont::AbsoluteSpacing) {
+          font.setLetterSpacing(QFont::AbsoluteSpacing,
+                                font.letterSpacing() * font.pixelSize() / static_cast<double>(pixel_size));
+        }
+        const auto shift = format.property(kTextBaselineShiftFormatProperty).toDouble() +
+                           (styles.baseline == 1 ? 1.0 : -1.0) * psd::kTextScriptPositionFraction * em;
+        overlay.setProperty(kTextBaselineShiftFormatProperty, shift);
+        // Qt reads the offset as a percentage of the font's HEIGHT (ascent + descent), not of its
+        // pixel size; the glyph-run path reads the property above instead.
+        const auto height = QFontMetricsF(font).height();
+        overlay.setBaselineOffset(100.0 * shift / (height > 0.0 ? height : std::max(1, font.pixelSize())));
+      }
+      // OpenType features the font really has: Photoshop uses the face's own small capitals,
+      // ordinals and fractions (Arial's smcp lowercase stand 0.56 em, not the 0.7 x cap height a
+      // synthesized small cap would), and leaves text whose font lacks a feature unchanged.
+      QStringList features;
+      if (!vertical) {
+        const auto text = fragment.text();
+        const auto plain = shape_text_line(text, font);
+        const auto try_feature = [&](QFont::Tag tag) {
+          auto featured = font;
+          for (const auto& name : features) {
+            if (const auto existing = QFont::Tag::fromString(name); existing.has_value()) {
+              featured.setFeature(*existing, 1);
+            }
+          }
+          featured.setFeature(tag, 1);
+          if (shape_text_line(text, featured).glyphs != plain.glyphs) {
+            features << QString::fromLatin1(tag.toString());
+          }
+        };
+        if (styles.caps == 1) try_feature(kSmallCapsFeature);
+        if (styles.ordinals) try_feature(kOrdinalsFeature);
+        if (styles.fractions) try_feature(kFractionsFeature);
+      }
+      if (styles.caps == 1 && !features.contains(QString::fromLatin1(kSmallCapsFeature.toString()))) {
+        // No small capitals in the face: Qt synthesizes them at 70%, Photoshop's /SmallCapSize.
+        font.setCapitalization(QFont::SmallCaps);
+      }
+      if (!features.isEmpty()) {
+        // The layout cannot shape with features, so it reserves the featured width instead:
+        // the difference is spread over the fragment's characters as letter spacing, and the
+        // plan draws the featured glyphs from their own shaping (draw_featured_glyph_runs).
+        const auto base_spacing = absolute_letter_spacing(font);
+        auto featured_font = font;
+        for (const auto& name : features) {
+          if (const auto tag = QFont::Tag::fromString(name); tag.has_value()) {
+            featured_font.setFeature(*tag, 1);
+          }
+        }
+        const auto text = fragment.text();
+        const auto plain_advance = shape_text_line(text, font).advance;
+        const auto featured_advance = shape_text_line(text, featured_font).advance;
+        const auto count = std::max(1, static_cast<int>(text.size()));
+        font.setLetterSpacing(QFont::AbsoluteSpacing, base_spacing + (featured_advance - plain_advance) / count);
+        overlay.setProperty(kTextRenderFeaturesFormatProperty, features);
+        overlay.setProperty(kTextRenderBaseLetterSpacingFormatProperty, base_spacing);
+      }
+      overlay.setFont(font);
+      ranges.push_back(StyleRange{fragment.position(), fragment.length(), std::move(overlay)});
+    }
+  }
+  for (const auto& range : ranges) {
+    QTextCursor cursor(&document);
+    cursor.setPosition(range.start);
+    cursor.setPosition(range.start + range.length, QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(range.format);
+  }
+}
+
+bool text_format_has_render_features(const QTextCharFormat& format) {
+  return !format.property(kTextRenderFeaturesFormatProperty).toStringList().isEmpty();
+}
+
 // Build the QTextDocument a text layer is rasterized from.  The caret/selection layout is built
 // through this same function (build_text_editor_document_space_layout), so the painted glyphs and
 // the caret geometry always come from one identical document -- any divergence in construction
@@ -1180,6 +1424,9 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     document.setPlainText(settings.text);
     apply_plain_text_format(document, result.font, color);
   }
+  // Character-panel styles, then faux bold, before any layout: both change advances (and faux
+  // bold strokes the shrunken superscript size, not the run's).
+  apply_text_character_styles_to_document(document, settings.vertical);
   // Faux bold before any layout: its stroke widens every advance, so the lines have to be laid
   // out with it already in place.
   apply_faux_bold_to_document(document);

@@ -364,6 +364,10 @@ struct PsdTextEngineDefaults {
   bool faux_bold{false};
   bool faux_italic{false};
   int baseline_direction{0};
+  int font_caps{0};
+  int font_baseline{0};
+  bool underline{false};
+  bool strikethrough{false};
   std::optional<RgbColor> fill_color;
   double auto_leading_fraction{1.2};
 };
@@ -908,7 +912,8 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
                                                                      int fallback_size,
                                                                      RgbColor fallback_color,
                                                                      const CmykColorConverter& cmyk,
-                                                                     std::span<const TextParagraphFontSize> paragraph_font_sizes = {});
+                                                                     std::span<const TextParagraphFontSize> paragraph_font_sizes = {},
+                                                                     std::span<const TextStyleRunFeatures> style_features = {});
 std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(std::span<const std::uint8_t> payload,
                                                                               std::string_view text);
 std::string serialize_paragraph_metric(double value);

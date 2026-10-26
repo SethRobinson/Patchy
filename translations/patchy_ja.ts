@@ -26001,6 +26001,38 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>フレーム時間のあるレイヤーはありません</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>すべて大文字</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>スモールキャップス</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>上付き文字</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>下付き文字</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>下線</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>取り消し線</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>序数 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>分数 (対応フォントのみ)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -27988,6 +28020,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim の tolerance は 0 から 255 の数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: ラン %2 の %3 は &apos;%4&apos;、&apos;%5&apos;、&apos;none&apos; のいずれかにしてください。</translation>
     </message>
 </context>
 <context>

@@ -26074,6 +26074,38 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>No frame times on any layer</source>
         <translation>Ninguna capa tiene tiempo de fotograma</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Todo mayúsculas</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Versalitas</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Superíndice</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Subíndice</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Subrayado</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Tachado</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Ordinales (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Fracciones (fuentes que las tienen)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28062,6 +28094,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance debe ser un número de 0 a 255.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: el tramo %2: %3 debe ser &apos;%4&apos;, &apos;%5&apos; o &apos;none&apos;.</translation>
     </message>
 </context>
 <context>
