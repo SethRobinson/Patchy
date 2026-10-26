@@ -6,6 +6,8 @@
 #include "core/pixel_depth.hpp"
 #include "core/worker_budget.hpp"
 #include "formats/format_file_io.hpp"
+#include "formats/metadata/gimp_image_metadata.hpp"
+#include "formats/metadata/xmp.hpp"
 #include "formats/miniz/miniz.h"
 #include "formats/xcf_internal.hpp"
 #include "support/translate_noop.hpp"
@@ -3293,7 +3295,8 @@ private:
   }
   add_paths(document, paths);
 
-  // Image parasites: the ICC profile, the comment, Exif and XMP.
+  // Image parasites: the ICC profile, the comment, Exif and XMP, then GIMP's metadata tag
+  // list filling what those left out.
   if (const auto* profile = find_parasite(parasites, "icc-profile"); profile != nullptr && base == 0) {
     document.color_state().embedded_icc_profile.assign(profile->data.begin(), profile->data.end());
   }
@@ -3324,6 +3327,25 @@ private:
     }
     if (!data.empty()) {
       info.xmp = std::make_shared<const std::vector<std::uint8_t>>(data.begin(), data.end());
+    }
+  }
+  if (const auto* tags = find_parasite(parasites, "gimp-image-metadata"); tags != nullptr) {
+    auto gimp = metadata::parse_gimp_image_metadata(tags->data);
+    if (!info.exif && !gimp.exif.empty()) {
+      info.exif = make_metadata_bytes(std::move(gimp.exif));
+    }
+    if (!info.iptc && !gimp.iptc.empty()) {
+      info.iptc = make_metadata_bytes(std::move(gimp.iptc));
+    }
+    if (gimp.xmp) {
+      if (!info.xmp) {
+        const auto packet = metadata::serialize_xmp(*gimp.xmp);
+        info.xmp = make_metadata_bytes(std::vector<std::uint8_t>(packet.begin(), packet.end()));
+      } else if (auto existing = metadata::parse_xmp(*info.xmp);
+                 existing && metadata::add_missing_xmp_properties(*existing, *gimp.xmp) > 0) {
+        const auto packet = metadata::serialize_xmp(*existing);
+        info.xmp = make_metadata_bytes(std::vector<std::uint8_t>(packet.begin(), packet.end()));
+      }
     }
   }
 

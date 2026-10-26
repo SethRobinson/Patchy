@@ -624,6 +624,7 @@ add_library(patchy_formats
   src/formats/jxr_document_io.cpp
   src/formats/layered_blend_support.cpp
   src/formats/metadata/exif_tags.cpp
+  src/formats/metadata/gimp_image_metadata.cpp
   src/formats/metadata/iptc_iim.cpp
   src/formats/metadata/jumbf.cpp
   src/formats/metadata/metadata_containers.cpp
@@ -1281,6 +1282,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/image_save_option_keys.hpp
       src/ui/image_save_option_keys.cpp
       src/ui/image_save_options_dialog.cpp
+      src/ui/web_export.hpp
+      src/ui/web_export.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_style_dialog_controls.cpp
       src/ui/layer_style_dialog_controls.hpp
@@ -2437,6 +2440,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/clone_source_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
+      tests/ui/web_export_tests.cpp
       tests/ui/rgb_profile_tests.cpp
       tests/ui/new_document_options_tests.cpp
       tests/ui/watermark_tests.cpp

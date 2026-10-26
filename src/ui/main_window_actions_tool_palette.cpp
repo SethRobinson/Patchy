@@ -1542,6 +1542,39 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   secondary_color_button_ = tool_palette_footer_->background();
   primary_color_button_->setToolTip(tr("Foreground color"));
   secondary_color_button_->setToolTip(tr("Background color"));
+  // Screen modes (GitHub issue 212; docs/tool-palette.md): one flyout-style button under
+  // Quick Mask whose icon shows the current mode. A click cycles like F; a hold, a
+  // double-click or a right-click opens the View > Screen Mode actions, so the check marks
+  // live in one place. A double-click's first click has already cycled.
+  if (screen_mode_standard_action_ != nullptr && screen_mode_cycle_action_ != nullptr) {
+    auto* button = new QToolButton(tool_palette_footer_);
+    screen_mode_button_ = button;
+    button->setObjectName(QStringLiteral("screenModeButton"));
+    button->setAutoRaise(true);
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setProperty("toolFlyout", true);
+    button->setPopupMode(QToolButton::DelayedPopup);
+    auto* menu = new QMenu(button);
+    menu->setObjectName(QStringLiteral("screenModeFlyoutMenu"));
+    menu->addActions({screen_mode_standard_action_, screen_mode_full_with_menus_action_, screen_mode_full_action_});
+    menu->addSeparator();
+    menu->addAction(screen_mode_cycle_action_);
+    button->setMenu(menu);
+    const auto open_menu = [button] {
+      if (button->isEnabled()) {
+        button->showMenu();
+      }
+    };
+    button->installEventFilter(new ToolButtonPressFilter(open_menu, open_menu, button));
+    new ToolFlyoutMenuPlacement(button, menu);
+    menu->setStyleSheet(tool_flyout_menu_style(tool_palette->iconSize().width()));
+    connect(button, &QToolButton::clicked, this, [this] { cycle_screen_mode(); });
+    // A rebound cycle key shows in the tooltip at once.
+    connect(screen_mode_cycle_action_, &QAction::changed, this, [this] { refresh_screen_mode_button(); });
+    register_retranslation([this] { refresh_screen_mode_button(); });
+    tool_palette_footer_->set_screen_mode_button(button);
+    refresh_screen_mode_button();
+  }
   new ToolPaletteFooterPlacer(tool_palette, tool_palette_footer_,
                               tool_palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button")));
   connect(primary_color_button_, &QPushButton::clicked, this, [this] { choose_primary_color(); });

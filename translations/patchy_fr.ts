@@ -12791,6 +12791,154 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Ne pas afficher à l&apos;ouverture des documents (Préférences &gt; Application permet de le réactiver)</translation>
     </message>
     <message>
+        <source>Quality %1, progressive</source>
+        <translation>Qualité %1, progressif</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>Qualité %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>Sans perte</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, animé</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>Couleurs complètes</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Exporter pour le Web</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>Les tailles sont celles des fichiers réellement encodés avec les réglages de chaque format et se mettent à jour quand vous les modifiez.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>Réglages JPEG</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>Progressif (affiche d&apos;abord une image grossière pendant le chargement)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>Optimiser le codage (fichier plus petit, même image)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>Remplit les zones transparentes (le JPEG n&apos;a pas de transparence)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>Réglages WebP</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>Chaque calque visible de premier niveau devient une image, le calque du haut en premier.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>Réglages PNG</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>Couleurs complètes, sans perte. La transparence est conservée.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Taille de l&apos;image</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>de %1 x %2</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>Pixel art (pixels entiers)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>Pixel art agrandit par pixels entiers sans lissage, pour garder les sprites nets.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>Métadonnées et couleur</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>Métadonnées d&apos;Informations sur le fichier à inclure. Aucune écrit le plus petit fichier.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>Inclure la vignette (environ 5 à 10 Ko)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>Ajoute une petite image d&apos;aperçu aux données EXIF. Écrite uniquement si le fichier conserve des métadonnées EXIF.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>Convertir en sRVB (depuis %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>Les navigateurs affichent les images sans profil en sRVB. Décoché, le fichier garde son profil de couleur.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRVB, aucun profil nécessaire</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>Comparer :</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>Partagé</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>Côte à côte</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>Résultat seul</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>Rétablir tous les réglages par défaut</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>échec</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>encodage...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>Sortie %1 x %2, %3 %4 (%5 % de %6 non compressé)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1 : encodage...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>Échec de l&apos;encodage : %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>Encodage %1...</translation>
+    </message>
+    <message>
         <source>Ruler</source>
         <translation>Règle</translation>
     </message>
@@ -26291,6 +26439,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Rien à rogner : chaque pixel est dans la tolérance de la couleur de rognage. Réduisez la Tolérance.</translation>
     </message>
     <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Exporter pour le &amp;Web...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Exporter pour le Web</translation>
+    </message>
+    <message>
         <source>A:</source>
         <translation>Ang:</translation>
     </message>
@@ -26524,6 +26680,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>View</source>
         <translation>Affichage</translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Mode d&apos;écran : %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Cliquez pour le mode suivant. Maintenez le bouton enfoncé ou faites un clic droit pour en choisir un.</translation>
     </message>
     <message>
         <source>Show All Buttons</source>

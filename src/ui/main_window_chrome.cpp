@@ -24,6 +24,8 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/window_effects.hpp"
+#include "ui/hotkey_registry.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/panel_column.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -975,7 +977,7 @@ void MainWindow::configure_window_chrome() {
 }
 
 // ---------------------------------------------------------------------------
-// Screen modes (GitHub issue 212; docs/view-navigation.md, "Screen modes")
+// Screen modes (GitHub issue 212; docs/screen-modes.md)
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -1092,10 +1094,12 @@ void MainWindow::build_screen_mode_actions(QMenu& view_menu) {
   bind_action_text(menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Screen &Mode"));
   auto* group = new QActionGroup(this);
   group->setExclusive(true);
+  // Each mode's icon is what the tool palette's screen mode button shows for it.
   const auto add_mode = [this, menu, group](const char* source, const QString& object_name, const QString& id,
-                                            ScreenMode mode) {
+                                            ScreenMode mode, const QString& icon) {
     auto* action = menu->addAction(QString());
     action->setObjectName(object_name);
+    action->setIcon(themed_svg_icon(icon));
     action->setMenuRole(QAction::NoRole);
     action->setCheckable(true);
     action->setActionGroup(group);
@@ -1107,14 +1111,16 @@ void MainWindow::build_screen_mode_actions(QMenu& view_menu) {
   };
   screen_mode_standard_action_ =
       add_mode(QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Standard"), QStringLiteral("viewScreenModeStandardAction"),
-               QStringLiteral("view.screen_mode_standard"), ScreenMode::Standard);
+               QStringLiteral("view.screen_mode_standard"), ScreenMode::Standard,
+               QStringLiteral("screen-mode-standard"));
   screen_mode_full_with_menus_action_ =
       add_mode(QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Full Screen with &Menus"),
                QStringLiteral("viewScreenModeFullWithMenusAction"),
-               QStringLiteral("view.screen_mode_full_with_menus"), ScreenMode::FullScreenWithMenus);
+               QStringLiteral("view.screen_mode_full_with_menus"), ScreenMode::FullScreenWithMenus,
+               QStringLiteral("screen-mode-full-with-menus"));
   screen_mode_full_action_ =
       add_mode(QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Full Screen"), QStringLiteral("viewScreenModeFullAction"),
-               QStringLiteral("view.screen_mode_full"), ScreenMode::FullScreen);
+               QStringLiteral("view.screen_mode_full"), ScreenMode::FullScreen, QStringLiteral("screen-mode-full"));
   screen_mode_standard_action_->setChecked(true);
   menu->addSeparator();
   // F, as in other image editors: a single key, so a focused text field keeps it.
@@ -1277,6 +1283,28 @@ void MainWindow::refresh_screen_mode_actions() {
       action->setChecked(mode == screen_mode_);
     }
   }
+  refresh_screen_mode_button();
+}
+
+void MainWindow::refresh_screen_mode_button() {
+  if (screen_mode_button_ == nullptr) {
+    return;
+  }
+  QAction* current = screen_mode_standard_action_;
+  if (screen_mode_ == ScreenMode::FullScreenWithMenus) {
+    current = screen_mode_full_with_menus_action_;
+  } else if (screen_mode_ == ScreenMode::FullScreen) {
+    current = screen_mode_full_action_;
+  }
+  if (current == nullptr) {
+    return;
+  }
+  screen_mode_button_->setIcon(current->icon());
+  const auto label = tr("Screen Mode: %1").arg(clean_action_text(current));
+  const auto keys = action_shortcut_text(screen_mode_cycle_action_);
+  screen_mode_button_->setToolTip(
+      (keys.isEmpty() ? label : QStringLiteral("%1 (%2)").arg(label, keys)) + QLatin1Char('\n') +
+      tr("Click for the next mode. Hold or right-click to choose one."));
 }
 
 void MainWindow::show_screen_mode_hint() {

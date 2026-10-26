@@ -758,6 +758,8 @@ std::optional<ExportSectionWidgets> finish_options_dialog(QVBoxLayout* content, 
 
 }  // namespace
 
+QString export_reveal_check_label() { return reveal_check_label(); }
+
 bool image_save_options_apply_to_extension(const QString& extension) {
   return is_jpeg_extension(extension) || is_webp_extension(extension) || is_bmp_extension(extension) ||
          is_ico_extension(extension) || is_cur_extension(extension) || is_pdf_extension(extension) ||

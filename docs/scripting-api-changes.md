@@ -20,6 +20,11 @@ wheelScroll, showGearButton, hiddenLayerButtons}`, any subset on assignment, app
 unknown ids or layouts throw. Permanent identifiers: the property and its keys, the layouts
 `oneColumn` and `twoColumns`, the tool hotkey ids and the layer button ids. Pinned by
 `ui_script_tool_palette_reads_and_sets`.
+2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options for `.jpg`/`.jpeg` take `progressive`
+(progressive scans), `optimizeCoding` (optimized Huffman tables), both default false so saves keep
+their bytes, and `thumbnail` (the EXIF IFD1 thumbnail, default true), for File > Export for Web
+([web-export.md](web-export.md)). Wrong types or other extensions throw. Permanent identifiers: the
+three keys. Pinned by `ui_script_export_as_jpeg_coding_options`.
 2026-10-26 (additive): `doc.trim` takes `tolerance` (0..255, default 0 = the exact match it always
 made; GitHub issue 297): Transparent Pixels then cuts alpha up to it, a corner color every pixel whose
 channels (alpha included) are all within it of the corner, in 8-bit units at every depth. Out of range

@@ -460,7 +460,7 @@ public:
   // The toolbar right-click menu: the panel and toolbar toggles and Reset Panels.
   QMenu* createPopupMenu() override;
 
-  // View > Screen Mode (GitHub issue 212; docs/view-navigation.md, "Screen modes"):
+  // View > Screen Mode (GitHub issue 212; docs/screen-modes.md):
   // Standard, the window full screen with every bar and panel, or full screen with the
   // canvas alone. F cycles them, Esc returns to Standard; never persisted.
   enum class ScreenMode { Standard, FullScreenWithMenus, FullScreen };
@@ -592,6 +592,9 @@ private:
   void restore_standard_screen_chrome();
   void set_screen_mode_shortcut_host(bool host);
   void refresh_screen_mode_actions();
+  // The tool palette footer's screen mode button (GitHub issue 212): icon and tooltip
+  // follow the current mode and the cycle command's key.
+  void refresh_screen_mode_button();
   void show_screen_mode_hint();
   void hide_screen_mode_hint();
   void schedule_screen_mode_window_state_sync();
@@ -1118,6 +1121,8 @@ private:
   void run_save_write(const QString& path, bool on_worker, bool show_progress,
                       const std::function<void(SaveProgress&)>& write);
   void export_flat_image();
+  // File > Export for Web (docs/web-export.md): the live-preview dialog, then the file name.
+  void export_for_web();
   void export_multipage_pdf();
   // File > Export Documents to Folder: the checked open documents as numbered
   // flattened image files (the document-level sibling of export_image_sequence).
@@ -3234,6 +3239,7 @@ private:
   QAction* screen_mode_full_with_menus_action_{nullptr};
   QAction* screen_mode_full_action_{nullptr};
   QAction* screen_mode_cycle_action_{nullptr};
+  QToolButton* screen_mode_button_{nullptr};
   // The canvas right-click menu's Exit Full Screen (screen_mode_context_actions).
   QAction* exit_full_screen_action_{nullptr};
   // Registered actions added to the window while Full Screen hides the bars that

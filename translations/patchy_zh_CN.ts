@@ -12756,6 +12756,154 @@ Each item&apos;s own View setting still applies.</source>
         <translation>打开文档时不显示（可在 首选项 &gt; 应用程序 中重新开启）</translation>
     </message>
     <message>
+        <source>Quality %1, progressive</source>
+        <translation>品质 %1，渐进式</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>品质 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>无损</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1，动画</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>全彩色</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>导出为网页格式</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>大小为按各格式自身设置实际编码后的文件大小，更改设置时会更新。</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 设置</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>渐进式（加载时先显示粗略图像）</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>优化编码（文件更小，图像相同）</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>填充透明区域（JPEG 不支持透明）</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 设置</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>每个可见的顶层图层成为一帧，最上面的图层在前。</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 设置</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>全彩色，无损。保留透明度。</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>图像大小</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>（原始 %1 x %2）</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>像素画（整像素）</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>像素画按整像素放大且不平滑，使精灵保持清晰。</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>元数据和颜色</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>要包含的文件信息元数据。“无”写出的文件最小。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>包含缩略图（约 5 到 10 KB）</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>在 EXIF 数据中添加一个小预览图像。仅当文件保留 EXIF 元数据时写入。</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>转换为 sRGB（从 %1）</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>浏览器将未标记的图像显示为 sRGB。取消勾选时，文件保留其颜色配置文件。</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB，无需配置文件</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>比较:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>拆分</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>并排</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>仅结果</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>将所有设置恢复为默认值</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>正在编码...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>输出 %1 x %2，%3 %4（未压缩 %6 的 %5%）</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1：正在编码...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>编码失败：%1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>正在编码 %1...</translation>
+    </message>
+    <message>
         <source>Ruler</source>
         <translation>标尺工具</translation>
     </message>
@@ -26218,6 +26366,14 @@ The open document keeps its blend modes either way.</source>
         <translation>没有可裁切的内容：每个像素都在裁切颜色的容差范围内。请降低容差。</translation>
     </message>
     <message>
+        <source>Export for &amp;Web...</source>
+        <translation>导出为网页格式(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>导出为网页格式</translation>
+    </message>
+    <message>
         <source>A:</source>
         <translation>角度:</translation>
     </message>
@@ -26450,6 +26606,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>View</source>
         <translation>视图</translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>屏幕模式：%1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>单击切换到下一个模式。按住或右键单击可选择模式。</translation>
     </message>
     <message>
         <source>Show All Buttons</source>

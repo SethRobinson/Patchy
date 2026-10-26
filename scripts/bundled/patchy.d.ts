@@ -720,6 +720,15 @@ interface PatchySaveOptions {
   quality?: number;
   /** .webp, .jxr, .jxl, .avif: lossless compression; .pdf: Flate image data (an imageQuality preset wins). */
   lossless?: boolean;
+  /** .jpg/.jpeg: progressive scans (a rough image shows first while a page loads). Default false;
+   *  File > Export for Web turns it on. */
+  progressive?: boolean;
+  /** .jpg/.jpeg: optimized Huffman tables, a smaller file with the same image. Default false;
+   *  File > Export for Web turns it on. */
+  optimizeCoding?: boolean;
+  /** .jpg/.jpeg: write a small preview thumbnail into the EXIF data when the file keeps EXIF
+   *  (metadata "all" or "copyright" with EXIF to keep). Default true. */
+  thumbnail?: boolean;
   /** .jxl: encoder effort, 1..9 (higher is smaller and slower). */
   effort?: number;
   /** .avif: encoder speed, 0..10 (lower is smaller and slower; 6 is the default). */

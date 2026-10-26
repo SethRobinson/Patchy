@@ -2450,6 +2450,117 @@ void ui_screen_modes_escape_and_context_menu_return_to_standard() {
   CHECK(!window.isFullScreen());
 }
 
+// The tool palette's screen mode button (GitHub issue 212 follow-up): one row under Quick
+// Mask, 22 px at Normal. A click cycles like F, its icon and tooltip follow the mode, and a
+// right-click opens the View > Screen Mode actions beside it with the current mode checked.
+void ui_screen_mode_button_cycles_and_lists_modes() {
+  using patchy::ui::MainWindow;
+  SettingsValueRestorer restore_icon_size(QStringLiteral("preferences/toolbarIconSize"));
+  patchy::ui::set_stored_toolbar_icon_size(patchy::ui::ToolbarIconSize::Normal);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  auto* footer = window.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("screenModeButton"));
+  auto* standard = require_action(window, "viewScreenModeStandardAction");
+  auto* with_menus = require_action(window, "viewScreenModeFullWithMenusAction");
+  auto* full = require_action(window, "viewScreenModeFullAction");
+  auto* cycle = require_action(window, "viewScreenModeCycleAction");
+  CHECK(palette != nullptr && footer != nullptr && button != nullptr);
+  if (palette == nullptr || footer == nullptr || button == nullptr || standard == nullptr || with_menus == nullptr ||
+      full == nullptr || cycle == nullptr) {
+    return;
+  }
+  // One 22 px row under Quick Mask, inside the footer, centered like Quick Mask.
+  auto* quick_mask = footer->quick_mask_button();
+  CHECK(footer->screen_mode_button() == button);
+  CHECK(footer->height() == patchy::ui::ToolPaletteFooter::kHeight);
+  CHECK(patchy::ui::ToolPaletteFooter::kScreenModeRowHeight == 22);
+  CHECK(footer->rect().adjusted(0, 0, -1, 0).contains(button->geometry()));
+  CHECK(quick_mask != nullptr && button->geometry().top() >= quick_mask->geometry().bottom());
+  CHECK(quick_mask != nullptr && button->geometry().center().x() == quick_mask->geometry().center().x());
+  CHECK(button->height() <= patchy::ui::ToolPaletteFooter::kScreenModeRowHeight);
+  CHECK(button->property("toolFlyout").toBool());
+  CHECK(button->popupMode() == QToolButton::DelayedPopup);
+
+  // The three mode icons differ, and the button shows the current one.
+  QList<QImage> icons;
+  for (auto* action : {standard, with_menus, full}) {
+    icons << action->icon().pixmap(64, 64).toImage();
+  }
+  CHECK(icons[0] != icons[1] && icons[1] != icons[2] && icons[0] != icons[2]);
+  {
+    QImage sheet(3 * 72 + 8, 80, QImage::Format_ARGB32);
+    sheet.fill(patchy::ui::theme().tool_palette_bg);
+    QPainter painter(&sheet);
+    for (int index = 0; index < icons.size(); ++index) {
+      painter.drawImage(QPoint(8 + index * 72, 8), icons[index]);
+    }
+    painter.end();
+    save_image_artifact("issue_212_screen_mode_icons", sheet);
+  }
+  const auto shows = [&button](QAction* action) {
+    return button->icon().pixmap(17, 17).toImage() == action->icon().pixmap(17, 17).toImage();
+  };
+  CHECK(shows(standard));
+  CHECK(button->toolTip().contains(QStringLiteral("Screen Mode: Standard (F)")));
+  save_image_artifact("issue_212_palette_footer_normal",
+                      palette->grab(QRect(0, footer->geometry().top(), palette->width(), footer->height())).toImage());
+
+  // A click cycles, like F.
+  QTest::mouseClick(button, Qt::LeftButton);
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreenWithMenus);
+  CHECK(shows(with_menus));
+  CHECK(button->toolTip().contains(QStringLiteral("Screen Mode: Full Screen with Menus (F)")));
+
+  // A right-click opens the mode list beside the button, the current mode checked
+  // (showMenu runs the menu's own loop, so the checks run inside it).
+  auto* menu = button->menu();
+  CHECK(menu != nullptr && menu->objectName() == QStringLiteral("screenModeFlyoutMenu"));
+  if (menu != nullptr) {
+    bool shown = false;
+    QTimer::singleShot(0, [&] {
+      shown = menu->isVisible();
+      CHECK(menu->actions().contains(standard) && menu->actions().contains(with_menus) &&
+            menu->actions().contains(full) && menu->actions().contains(cycle));
+      CHECK(with_menus->isChecked() && !standard->isChecked() && !full->isChecked());
+      CHECK(menu->geometry().left() >= button->mapToGlobal(QPoint(button->width(), 0)).x());
+      save_widget_artifact("issue_212_screen_mode_menu", *menu);
+      menu->close();
+    });
+    send_mouse(*button, QEvent::MouseButtonPress, button->rect().center(), Qt::RightButton, Qt::RightButton);
+    QApplication::processEvents();
+    CHECK(shown);
+    CHECK(!menu->isVisible());
+  }
+  standard->trigger();
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard);
+  CHECK(shows(standard));
+  CHECK(!window.isFullScreen());
+
+  // Biggest: the button scales with the footer and stays inside it.
+  patchy::ui::set_stored_toolbar_icon_size(patchy::ui::ToolbarIconSize::Biggest);
+  {
+    MainWindow big;
+    big.resize(1100, 900);
+    show_window(big);
+    QApplication::processEvents();
+    auto* big_palette = big.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    auto* big_footer = big.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+    auto* big_button = big.findChild<QToolButton*>(QStringLiteral("screenModeButton"));
+    CHECK(big_palette != nullptr && big_footer != nullptr && big_button != nullptr);
+    if (big_palette != nullptr && big_footer != nullptr && big_button != nullptr) {
+      CHECK(big_footer->rect().adjusted(0, 0, -1, 0).contains(big_button->geometry()));
+      CHECK(big_button->iconSize().width() > button->iconSize().width());
+      save_image_artifact("issue_212_palette_footer_biggest",
+                          big_palette->grab(QRect(0, big_footer->geometry().top(), big_palette->width(),
+                                                  big_footer->height()))
+                              .toImage());
+    }
+  }
+}
+
 void ui_reset_panels_keeps_the_window_geometry() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -4593,6 +4704,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
       {"ui_screen_modes_cycle_hide_chrome_and_restore_standard", ui_screen_modes_cycle_hide_chrome_and_restore_standard},
       {"ui_screen_modes_escape_and_context_menu_return_to_standard", ui_screen_modes_escape_and_context_menu_return_to_standard},
+      {"ui_screen_mode_button_cycles_and_lists_modes", ui_screen_mode_button_cycles_and_lists_modes},
       {"ui_tool_palette_quick_mask_button_shows_its_icon", ui_tool_palette_quick_mask_button_shows_its_icon},
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches", ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_survives_resize_cycles", ui_tool_palette_extension_survives_resize_cycles},

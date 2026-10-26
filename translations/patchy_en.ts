@@ -12774,6 +12774,154 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Quality %1, progressive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Ruler</source>
         <translation type="unfinished"></translation>
     </message>
@@ -26209,6 +26357,14 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Export for &amp;Web...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>A:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -26441,6 +26597,14 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>View</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

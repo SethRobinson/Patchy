@@ -114,6 +114,19 @@ double ZoomableImagePreview::zoom() const {
 
 bool ZoomableImagePreview::fit_mode() const noexcept { return fit_mode_; }
 
+ZoomableImagePreview::ViewState ZoomableImagePreview::view_state() const {
+  return ViewState{fit_mode_, zoom_, pan_offset_};
+}
+
+void ZoomableImagePreview::set_view_state(const ViewState& state) {
+  fit_mode_ = state.fit;
+  zoom_ = std::clamp(state.zoom, minimum_zoom(), kMaximumZoom);
+  pan_offset_ = state.pan;
+  clamp_pan();
+  publish_state();
+  update();
+}
+
 void ZoomableImagePreview::zoom_to_fit() {
   fit_mode_ = true;
   pan_offset_ = {};

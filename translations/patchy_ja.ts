@@ -12756,6 +12756,154 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ドキュメントを開くときに表示しない (環境設定 &gt; アプリケーションで再度オンにできます)</translation>
     </message>
     <message>
+        <source>Quality %1, progressive</source>
+        <translation>品質 %1、プログレッシブ</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>品質 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>可逆圧縮</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1、アニメーション</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>フルカラー</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Web 用に書き出し</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>サイズは各形式の設定で実際にエンコードしたファイルのもので、設定を変えると更新されます。</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 設定</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>プログレッシブ (読み込み中にまず粗い画像を表示)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>符号化を最適化 (同じ画像で小さいファイル)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>透明部分を塗りつぶします (JPEG は透明を保持できません)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 設定</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>表示中の最上位レイヤーがそれぞれ 1 フレームになり、一番上のレイヤーが最初です。</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 設定</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>フルカラー、可逆圧縮。透明部分は保持されます。</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>画像サイズ</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>(元: %1 x %2)</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>ピクセルアート (整数ピクセル)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>ピクセルアートは整数ピクセル単位で滑らかにせずに拡大するので、スプライトがくっきり保たれます。</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>メタデータとカラー</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>含めるファイル情報のメタデータ。なしにすると最も小さいファイルになります。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>サムネールを含める (約 5〜10 KB)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>EXIF データに小さなプレビュー画像を追加します。ファイルが EXIF メタデータを保持する場合にのみ書き込まれます。</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>sRGB に変換 (元: %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>ブラウザーはプロファイルのない画像を sRGB として表示します。オフにすると、ファイルはカラープロファイルを保持します。</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB、プロファイル不要</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>比較:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>分割</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>並べて表示</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>結果のみ</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>すべての設定を初期値に戻す</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>失敗</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>エンコード中...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>出力 %1 x %2、%3 %4 (非圧縮 %6 の %5%)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: エンコード中...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>エンコードに失敗しました: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>%1 をエンコード中...</translation>
+    </message>
+    <message>
         <source>Ruler</source>
         <translation>ものさし</translation>
     </message>
@@ -26218,6 +26366,14 @@ The open document keeps its blend modes either way.</source>
         <translation>トリミングするものがありません: すべてのピクセルが基準色の許容値の範囲内です。許容値を下げてください。</translation>
     </message>
     <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Web 用に書き出し(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Web 用に書き出し</translation>
+    </message>
+    <message>
         <source>A:</source>
         <translation>角度:</translation>
     </message>
@@ -26450,6 +26606,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>View</source>
         <translation>表示</translation>
+    </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>スクリーンモード: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>クリックで次のモードに切り替えます。長押しまたは右クリックでモードを選べます。</translation>
     </message>
     <message>
         <source>Show All Buttons</source>
