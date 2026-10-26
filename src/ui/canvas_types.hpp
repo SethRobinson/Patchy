@@ -23,6 +23,7 @@ namespace patchy::ui {
 inline constexpr std::size_t kSelectionToolCount = 9;
 
 inline constexpr int kMaxBrushSize = 1024;
+inline constexpr int kMaxQuickSelectSize = 512;
 
 // Edit > Transform modes for a Free Transform session (GitHub issue 225): plain corner
 // and edge drags skew, distort, or apply perspective. Scale and Rotate (GitHub issue

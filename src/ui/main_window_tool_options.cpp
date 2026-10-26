@@ -3964,6 +3964,15 @@ void MainWindow::sync_brush_controls_from_canvas() {
     QSignalBlocker blocker(brush_size_slider);
     set_slider_to_value(*brush_size_slider, canvas_->brush_size());
   }
+  // The Alt+right-drag size gesture on Quick Select (GitHub issue 428).
+  if (auto* spin = findChild<QSpinBox*>(QStringLiteral("quickSelectSizeSpin")); spin != nullptr) {
+    QSignalBlocker blocker(spin);
+    spin->setValue(canvas_->quick_select_size());
+  }
+  if (auto* slider = findChild<QSlider*>(QStringLiteral("quickSelectSizeSlider")); slider != nullptr) {
+    QSignalBlocker blocker(slider);
+    set_slider_to_value(*slider, canvas_->quick_select_size());
+  }
   if (auto* brush_opacity = findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin")); brush_opacity != nullptr) {
     QSignalBlocker blocker(brush_opacity);
     brush_opacity->setValue(canvas_->brush_opacity());

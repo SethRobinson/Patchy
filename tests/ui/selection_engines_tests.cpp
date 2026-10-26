@@ -1774,6 +1774,50 @@ void ui_quick_select_photo_texture_selects_eye_not_face() {
   save_widget_artifact("ui_quick_select_photo_texture", *canvas);
 }
 
+// GitHub issue 428: Alt+right-drag sizes the Quick Select brush like the Brush's gesture,
+// size only (the tool has no softness), with the size readout and the options bar in step.
+void ui_quick_select_alt_right_drag_sets_size() {
+  SettingsValueRestorer size_restorer(QStringLiteral("tools/quickSelectSize"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  QApplication::processEvents();
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("quickSelectSizeSpin"));
+  CHECK(size_spin != nullptr);
+  size_spin->setValue(30);
+  canvas->set_tool(patchy::ui::CanvasTool::QuickSelect);
+  QApplication::processEvents();
+  CHECK(canvas->quick_select_size() == 30);
+  const auto brush_size = canvas->brush_size();
+  const auto brush_softness = canvas->brush_softness();
+  const auto origin = canvas->rect().center();
+  send_mouse(*canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, origin + QPoint(20, -40), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->quick_select_size() == 70);
+  CHECK(canvas->brush_size() == brush_size);
+  CHECK(canvas->brush_softness() == brush_softness);
+  save_widget_artifact("issue428_quick_select_size_readout", *canvas);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, origin + QPoint(20, -40), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->quick_select_size() == 70);
+  CHECK(size_spin->value() == 70);
+  CHECK(!canvas->has_selection());
+
+  // Escape mid-drag puts the size back.
+  send_mouse(*canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, origin + QPoint(-10, 0), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  CHECK(canvas->quick_select_size() == 50);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(canvas->quick_select_size() == 70);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, origin + QPoint(-10, 0), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(canvas->quick_select_size() == 70);
+  CHECK(size_spin->value() == 70);
+}
+
 void ui_quick_select_options_persist_across_windows() {
   SettingsValueRestorer size_restorer(QStringLiteral("tools/quickSelectSize"));
   SettingsValueRestorer sample_restorer(QStringLiteral("tools/quickSelectSampleAllLayers"));
@@ -1994,6 +2038,7 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
       {"ui_selection_feather_and_antialias_are_per_tool", ui_selection_feather_and_antialias_are_per_tool},
       {"ui_selection_edge_settings_persist_across_windows", ui_selection_edge_settings_persist_across_windows},
       {"ui_quick_select_photo_texture_selects_eye_not_face", ui_quick_select_photo_texture_selects_eye_not_face},
+      {"ui_quick_select_alt_right_drag_sets_size", ui_quick_select_alt_right_drag_sets_size},
       {"ui_quick_select_options_persist_across_windows", ui_quick_select_options_persist_across_windows},
       {"ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop",
        ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop},
