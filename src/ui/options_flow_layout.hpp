@@ -7,8 +7,10 @@
 // the tool palette, canvas and docks) and duplicate inline sliders drop out before
 // anything wraps.
 
+#include <QFrame>
 #include <QLayout>
 #include <QList>
+#include <QMargins>
 #include <QSet>
 #include <QWidget>
 
@@ -29,6 +31,16 @@ inline constexpr char kOptionsBarCollapsibleProperty[] = "optionsBarCollapsible"
 // Backtab; the bar's QSS draws its focus outline only then, so a click shows no mark
 // (GitHub issue 440; MainWindow::handle_options_bar_focus_event keeps it).
 inline constexpr char kOptionsBarKeyboardFocusProperty[] = "optionsKeyboardFocus";
+
+// An Options-bar separator (object name "optionSeparator"): a QFrame line that
+// FlowLayout places so the line sits in the middle of the clear space between the
+// controls on either side (FlowLayout::set_ink_insets; GitHub issue 181 follow-up).
+class OptionsBarSeparator final : public QFrame {
+public:
+  explicit OptionsBarSeparator(QWidget* parent);
+  // The line's column inside the box (QFrame draws a VLine at half its width).
+  [[nodiscard]] static int line_offset(int box_width) { return box_width / 2; }
+};
 
 // A left-to-right layout that wraps its items onto additional rows when the
 // available width is too small, skipping hidden widgets so the active tool's
@@ -57,6 +69,13 @@ public:
   // the top of their row.
   void set_center_rows(bool center) { center_rows_ = center; }
 
+  // How far a control's visible ink (text, glyph, frame) sits inside its box on the left
+  // and right: a label's padding, a checkbox's glyph inset, an icon button's transparent
+  // frame. Each OptionsBarSeparator then moves off its slot so its line sits halfway
+  // between the ink on either side, whatever its neighbours are; nothing else moves and
+  // the row keeps its width (GitHub issue 181 follow-up). Unset: the boxes' edges.
+  void set_ink_insets(std::function<QMargins(const QWidget&)> insets) { ink_insets_ = std::move(insets); }
+
   // Every tool's row: the widgets each tool shows, in no particular order (the
   // layout keeps its own item order). Hidden widgets are measured too.
   void set_rows(std::vector<QSet<QWidget*>> rows);
@@ -81,6 +100,7 @@ private:
   int horizontal_spacing_;
   int vertical_spacing_;
   bool center_rows_ = false;
+  std::function<QMargins(const QWidget&)> ink_insets_;
   std::vector<QSet<QWidget*>> rows_;
   mutable int cached_width_ = -1;
   mutable RowsMeasure cached_measure_;

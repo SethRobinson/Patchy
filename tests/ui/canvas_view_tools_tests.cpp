@@ -1667,6 +1667,226 @@ void ui_options_bars_follow_the_separator_rules() {
   CHECK(problems.empty());
 }
 
+// One visible separator and the clear space on either side of its line, measured in the
+// grabbed bar: from the line to the nearest ink (a field edge, a glyph, a checkbox box).
+struct OptionsSeparatorGap {
+  QString before;
+  QString after;
+  int left{-1};
+  int right{-1};
+  int before_inset{-1};  // the ink's distance inside each neighbour's box
+  int after_inset{-1};
+};
+
+std::vector<OptionsSeparatorGap> options_separator_gaps(QWidget& options) {
+  std::vector<OptionsSeparatorGap> gaps;
+  const QImage image = options.grab().toImage();
+  if (image.devicePixelRatio() != 1.0) {
+    return gaps;
+  }
+  std::vector<QWidget*> visible;
+  for (auto* child : options.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+    if (child->isVisible()) {
+      visible.push_back(child);
+    }
+  }
+  const auto widget_at = [&visible](int x, int y) -> QWidget* {
+    for (auto* child : visible) {
+      if (child->geometry().contains(x, y)) {
+        return child;
+      }
+    }
+    return nullptr;
+  };
+  const auto name_at = [&visible](int x, int y) {
+    for (auto* child : visible) {
+      if (child->geometry().contains(x, y)) {
+        if (!child->objectName().isEmpty()) {
+          return child->objectName();
+        }
+        if (const auto* label = qobject_cast<QLabel*>(child)) {
+          return label->text();
+        }
+        if (const auto* button = qobject_cast<QToolButton*>(child); button != nullptr && button->defaultAction() != nullptr) {
+          return button->defaultAction()->objectName();
+        }
+        return QString::fromLatin1(child->metaObject()->className());
+      }
+    }
+    return QString();
+  };
+  for (auto* child : visible) {
+    if (child->objectName() != QLatin1String("optionSeparator")) {
+      continue;
+    }
+    const QRect line_box = child->geometry();
+    // The bar's own color: just above the separator's line, inside the strip.
+    const QColor background = image.pixelColor(line_box.left(), std::max(0, line_box.top() - 1));
+    const auto differs = [](const QColor& a, const QColor& b, int tolerance) {
+      return std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) > tolerance;
+    };
+    const auto ink_column = [&](int x) {
+      for (int y = line_box.top(); y <= line_box.bottom(); ++y) {
+        if (differs(image.pixelColor(x, y), background, 30)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    // The line: the separator box's full-height columns in the separator color.
+    const QColor line_color = patchy::ui::theme().option_separator;
+    const auto line_column = [&](int x) {
+      if (x < 0 || x >= image.width()) {
+        return false;
+      }
+      for (int y = line_box.top() + 2; y <= line_box.bottom() - 2; ++y) {
+        if (differs(image.pixelColor(x, y), line_color, 12)) {
+          return false;
+        }
+      }
+      return true;
+    };
+    int line_left = -1;
+    int line_right = -1;
+    for (int x = line_box.left(); x <= line_box.right(); ++x) {
+      if (line_column(x)) {
+        line_left = line_left < 0 ? x : line_left;
+        line_right = x;
+      }
+    }
+    if (line_left < 0) {
+      gaps.push_back({QStringLiteral("(no line)"), QString(), -1, -1});
+      continue;
+    }
+    int before = -1;
+    for (int x = line_left - 1; x >= 0 && before < 0; --x) {
+      if (ink_column(x)) {
+        before = x;
+      }
+    }
+    int after = -1;
+    for (int x = line_right + 1; x < image.width() && after < 0; ++x) {
+      if (ink_column(x)) {
+        after = x;
+      }
+    }
+    // A separator that ends or starts a wrapped row has nothing on one side.
+    if (before < 0 || after < 0 || line_left - before > 40 || after - line_right > 40) {
+      continue;
+    }
+    const int y = line_box.center().y();
+    const auto* before_widget = widget_at(before, y);
+    const auto* after_widget = widget_at(after, y);
+    gaps.push_back({name_at(before, y), name_at(after, y), line_left - before - 1, after - line_right - 1,
+                    before_widget != nullptr ? before_widget->geometry().right() - before : -1,
+                    after_widget != nullptr ? after - after_widget->geometry().left() : -1});
+  }
+  return gaps;
+}
+
+void ui_options_bar_separators_sit_centered_in_their_gaps() {
+  // GitHub issue 181 follow-up: every separator's line sits in the middle of the clear
+  // space between the controls on either side, whatever they are (a label's text, a
+  // field's edge, a checkbox, an icon button), on every tool's bar and the Free Transform
+  // session's.
+  patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
+  patchy::ui::configure_automatic_selection_models();
+  std::vector<std::string> problems;
+  int measured = 0;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    const auto settle = [] {
+      QApplication::processEvents();
+      process_events_for(20);
+    };
+    const auto inspect = [&](const std::string& name) {
+      settle();
+      const auto gaps = options_separator_gaps(*options);
+      std::printf("  %-40s", (name + suffix).c_str());
+      for (const auto& gap : gaps) {
+        std::printf(" %s(%d) %d|%d (%d)%s;", qPrintable(gap.before), gap.before_inset, gap.left, gap.right,
+                    gap.after_inset, qPrintable(gap.after));
+        ++measured;
+        if (gap.left < 0 || std::abs(gap.left - gap.right) > 1) {
+          problems.push_back(name + suffix + ": " + gap.before.toStdString() + " " + std::to_string(gap.left) +
+                             " px | " + std::to_string(gap.right) + " px " + gap.after.toStdString());
+        }
+      }
+      std::printf("\n");
+      const auto [right, lines] = options_row_extent(*options);
+      const QPoint origin = options->mapTo(options_bar, QPoint(0, 0));
+      const QRect strip(0, 0, std::min(options_bar->width(), origin.x() + right + 8), options_bar->height());
+      save_image_artifact("options_bar_separators_" + name + suffix, options_bar->grab(strip).toImage());
+    };
+    auto tools = options_bar_test_tool_actions(window);
+    if (patchy::ai::segmentation_available()) {
+      tools.push_back(require_action(window, "toolObjectSelectionAction"));
+    }
+    auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+    for (auto* action : tools) {
+      action->trigger();
+      const auto tool = static_cast<patchy::ui::CanvasTool>(action->data().toInt());
+      const auto name = action->objectName().toStdString();
+      QComboBox* variants = nullptr;
+      if (tool == patchy::ui::CanvasTool::Marquee || tool == patchy::ui::CanvasTool::EllipticalMarquee) {
+        variants = marquee_style;
+      } else if (tool == patchy::ui::CanvasTool::Crop) {
+        variants = crop_style;
+      } else if (vector_mode != nullptr) {
+        settle();
+        variants = vector_mode->isVisible() ? vector_mode : nullptr;
+      }
+      if (variants == nullptr) {
+        inspect(name);
+        continue;
+      }
+      const int original = variants->currentIndex();
+      for (int index = 0; index < variants->count(); ++index) {
+        if (auto* model = qobject_cast<QStandardItemModel*>(variants->model());
+            model != nullptr && model->item(index) != nullptr && !model->item(index)->isEnabled()) {
+          continue;
+        }
+        variants->setCurrentIndex(index);
+        inspect(name + "_" + std::to_string(index));
+      }
+      variants->setCurrentIndex(original);
+    }
+    // The Free Transform session's row (Ctrl+T on a filled layer).
+    canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+         canvas->widget_position_for_document_point(QPoint(150, 125)));
+    canvas->set_primary_color(QColor(40, 130, 230));
+    require_action(window, "layerFillForegroundAction")->trigger();
+    require_action(window, "editDeselectAction")->trigger();
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    require_action(window, "editFreeTransformAction")->trigger();
+    settle();
+    CHECK(canvas->free_transform_active());
+    inspect("freeTransform");
+    if (auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"))) {
+      cancel->click();
+    }
+    settle();
+  }
+  std::printf("  measured %d separators\n", measured);
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(measured >= 80);
+  CHECK(problems.empty());
+}
+
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
   // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
@@ -1734,8 +1954,9 @@ void ui_options_bar_checkboxes_paint_without_a_frame() {
     CHECK(check->parentWidget() == options);
     const QImage bar = options->grab().toImage();
     const QRect box = check->geometry();
-    // The flow puts 4 px between controls; 2 px left of the box is bar surface.
-    const QColor gap = bar.pixelColor(box.left() - 2, box.center().y());
+    // The flow's 4 px top margin is bar surface (beside the box a separator's line can
+    // sit, centered between the box's glyph and the control before it).
+    const QColor gap = bar.pixelColor(box.center().x(), 1);
     for (const QPoint corner : {box.topLeft(), box.topRight(), box.bottomLeft(), box.bottomRight()}) {
       const QColor pixel = bar.pixelColor(corner);
       if (pixel != gap) {
@@ -9665,6 +9886,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_retouch_options_bars_show_sample_and_mode", ui_retouch_options_bars_show_sample_and_mode},
       {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
+      {"ui_options_bar_separators_sit_centered_in_their_gaps",
+       ui_options_bar_separators_sit_centered_in_their_gaps},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
       {"ui_swap_dimension_buttons_sit_evenly_between_width_and_height",
