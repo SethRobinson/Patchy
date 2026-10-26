@@ -3882,19 +3882,12 @@ void ui_new_layer_and_merge_visible_keys_moved_defaults_only() {
   }
   CHECK(yielded == 2);
 }
-// The Hotkeys page is not the last Preferences tab everywhere (Windows appends
+// The Hotkeys page is not the last Preferences page everywhere (Windows appends
 // Plug-ins after it), and its editor panel is built on the first visit, so
-// select the tab by its title and let the panel appear.
-void select_hotkeys_tab(QTabWidget& tabs, QDialog& dialog) {
-  for (int index = 0; index < tabs.count(); ++index) {
-    if (tabs.tabText(index) == QStringLiteral("Hotkeys")) {
-      tabs.setCurrentIndex(index);
-      QApplication::processEvents();
-      CHECK(dialog.findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
-      return;
-    }
-  }
-  CHECK(false);
+// select the page by its title and let the panel appear.
+void select_hotkeys_tab(QDialog& dialog) {
+  CHECK(select_preferences_page(dialog, QStringLiteral("Hotkeys")));
+  CHECK(dialog.findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
 }
 // Opening Preferences must not build the hotkey rows (the most expensive part
 // of the dialog, and most opens never visit that tab); the first visit builds
@@ -3910,17 +3903,15 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
     if (dialog == nullptr) {
       return;
     }
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
+    CHECK(preferences_page_list(*dialog) != nullptr);
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) == nullptr);
-    select_hotkeys_tab(*tabs, *dialog);
+    select_hotkeys_tab(*dialog);
     auto* panel = dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel"));
     CHECK(panel != nullptr);
     CHECK(dialog->findChild<QPushButton*>(QStringLiteral("hotkeyChip.file.new.0")) != nullptr);
     // Leaving and returning reuses the same panel.
-    tabs->setCurrentIndex(0);
-    QApplication::processEvents();
-    select_hotkeys_tab(*tabs, *dialog);
+    CHECK(select_preferences_page(*dialog, QStringLiteral("Application")));
+    select_hotkeys_tab(*dialog);
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) == panel);
     saw_dialog = true;
     dialog->accept();
@@ -3928,7 +3919,10 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
-  // A second open that never visits the tab accepts cleanly with no panel.
+  // A second open that never visits the page accepts cleanly with no panel. The first
+  // closed on Hotkeys, which the dialog would reopen on (GitHub issue 451).
+  CHECK(patchy::ui::stored_preferences_last_page() == QStringLiteral("hotkeys"));
+  patchy::ui::set_stored_preferences_last_page(QStringLiteral("application"));
   saw_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
@@ -3952,9 +3946,7 @@ void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    select_hotkeys_tab(*tabs, *dialog);
+    select_hotkeys_tab(*dialog);
     QApplication::processEvents();
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
     save_widget_artifact("hotkey_editor_tab", *dialog);
@@ -4017,9 +4009,9 @@ void ui_hotkey_editor_lists_scripts_category() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("Hotkeys"));
+    auto* list = preferences_page_list(*dialog);
+    CHECK(list != nullptr && list->currentItem() != nullptr);
+    CHECK(list->currentItem()->text() == QStringLiteral("Hotkeys"));
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
     auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
     CHECK(search != nullptr);
@@ -4054,9 +4046,7 @@ void ui_hotkey_editor_steals_conflicting_shortcut() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    select_hotkeys_tab(*tabs, *dialog);
+    select_hotkeys_tab(*dialog);
     QApplication::processEvents();
     // The Line tool ships unbound, so it renders an assign chip.
     auto* assign_chip = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyAssignChip.tools.line"));
@@ -4120,9 +4110,7 @@ void ui_hotkey_editor_reset_all_clears_overrides() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    select_hotkeys_tab(*tabs, *dialog);
+    select_hotkeys_tab(*dialog);
     QApplication::processEvents();
     auto* reset_all = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
     CHECK(reset_all != nullptr);

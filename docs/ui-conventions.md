@@ -124,15 +124,11 @@ Blocking refusals and failed operations use `MainWindow::show_status_error` or `
 - Canvas scroll bars are direct `CanvasWidget` children with load-bearing objectNames `canvasHorizontalScrollBar`/`canvasVerticalScrollBar` (theme QSS and UI tests find them by name). Their range mirrors the 10%-minimum-visible pan clamp (`pan_axis_range` in `canvas_widget_view.cpp`), so bar scrolling and hand-tool panning can never disagree, and the bars stay live even when the document fits the view.
 - Every scroll bar is styled by `photoshop_style()`; none stays native (once QSS touches a scroll bar `QStyleSheetStyle` owns it, and without subcontrol rules its groove fills with the window background). Canvas bars follow `canvas_backdrop`, not the window surface, and carry the opaque `scroll-dither` texture authored around `canvas_backdrop`/`canvas_scrollbar_track` so gutter, corner square and pasteboard read as one surface (moving that role means re-authoring `src/ui/icons/light/scroll-dither.svg`). One handle fill (`scrollbar_handle_bg`) serves both families and must clear the darker track (`ui_light_scheme_panel_scroll_bar_handle_reads_against_track`). The `margin: 0` on the `QScrollBar` widget rules is load-bearing: without box properties on the widget rule the native style reserves room for the removed arrow buttons, a short bar's groove ends up smaller than the handle and every drag snaps to the minimum; a `::groove` rule never affects geometry (`ui_short_panel_scroll_bar_drags_by_handle`).
 
-Preferences tabs, in order: Application, Tools, Pen, Units & Grids, Snapping, Hotkeys, and
-Plug-ins (Windows only). Tool and canvas-input behavior (the mouse wheel, Free Transform
-options) goes on Tools; Pen holds only pen and tablet settings; Application holds app-level
-settings (language, theme, updates, recovery, open/save policies). Tests find Hotkeys by
-title and pin the rest of the order in `ui_canvas_aid_preferences_and_guide_dialogs_work`.
+The Preferences dialog (page list, page order, which settings go on which page, the
+remembered page and size) is described in [preferences-dialog.md](preferences-dialog.md).
 `install_wheel_scroll_guard` (`dialog_utils.hpp`) makes combo boxes, spin boxes and sliders
-in its scrolling pages take the wheel only with keyboard focus (issue 92); use it for any
-dialog whose pages scroll. It resizes by a `VisibleSizeGrip` and remembers
-`preferences/dialogSize`.
+in scrolling pages take the wheel only with keyboard focus (issue 92); use it for any dialog
+whose pages scroll.
 
 Application-wide fill, quick-selection, interpolation, and vector options transfer
 when the active canvas changes. Language changes apply on OK.

@@ -159,7 +159,7 @@ the Hotkeys panel is built. `rebuild_scripts_menu` re-adds the actions in scan o
   at the next Preferences OK.
 - **Editor**: `build_rows` lists category `scripts` under "Scripts" by display name (the
   menu is built lazily, so the menu walk cannot be relied on). "Assign Hotkey..." calls
-  `MainWindow::show_hotkey_preferences(display_name)`: the Hotkeys tab, search prefilled.
+  `MainWindow::show_hotkey_preferences(display_name)`: the Hotkeys page, search prefilled.
 - **Right-click on a menu entry** (`kScriptsMenuProperty` menus, the recent-files event
   filter pattern) opens `MainWindow::show_script_context_menu`: the Script Manager's
   actions via its static helpers (`show_cli_example_dialog`, `write_icon_from_current_window`,

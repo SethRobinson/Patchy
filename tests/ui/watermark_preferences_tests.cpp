@@ -36,7 +36,6 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QTabWidget>
 #include <QTimer>
 
 #include <algorithm>
@@ -143,20 +142,7 @@ void ui_watermark_preferences_page_persists() {
   patchy::ui::MainWindow window;
   show_window(window);
   run_preferences_dialog(window, /*accept=*/true, [](QDialog& dialog) {
-    auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    if (tabs == nullptr) {
-      return;
-    }
-    int page = -1;
-    for (int index = 0; index < tabs->count(); ++index) {
-      if (tabs->tabText(index) == QObject::tr("Metadata and Watermarks")) {
-        page = index;
-      }
-    }
-    CHECK(page >= 0);
-    tabs->setCurrentIndex(page);
-    QApplication::processEvents();
+    CHECK(select_preferences_page(dialog, QStringLiteral("Metadata and Watermarks")));
     auto* text = dialog.findChild<QLineEdit*>(QStringLiteral("preferencesWatermarkTextEdit"));
     auto* remaining = dialog.findChild<QLabel*>(QStringLiteral("preferencesWatermarkRemainingLabel"));
     auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("preferencesWatermarkSaveCombo"));
@@ -176,7 +162,7 @@ void ui_watermark_preferences_page_persists() {
     // The models row lives here now, not on Tools.
     if (patchy::ai::trustmark_runtime_available()) {
       auto* models = dialog.findChild<QWidget*>(QStringLiteral("preferencesWatermarkModelsGroup"));
-      CHECK(models != nullptr && tabs->widget(page)->isAncestorOf(models));
+      CHECK(models != nullptr && preferences_current_page(dialog)->isAncestorOf(models));
       auto* needed = dialog.findChild<QLabel*>(QStringLiteral("preferencesWatermarkModelsNeededNote"));
       CHECK(needed != nullptr && needed->isVisible());  // Ask chosen, no models in this folder
     }

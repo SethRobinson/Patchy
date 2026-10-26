@@ -119,6 +119,10 @@ void set_stored_system_title_bar(bool enabled);
 // compatibility contract); invalid when never resized.
 [[nodiscard]] QSize stored_preferences_dialog_size();
 void set_stored_preferences_dialog_size(QSize size);
+// The id of the Preferences page the dialog was last closed on (key `preferences/lastPage`,
+// a compatibility contract, as are the page ids); empty when never stored.
+[[nodiscard]] QString stored_preferences_last_page();
+void set_stored_preferences_last_page(const QString& page_id);
 
 // Legacy Photoshop plug-in folders the user added (key `plugins/userFolders`, a
 // compatibility contract), on top of the automatic `plugins` folders next to the

@@ -56,7 +56,7 @@
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
-#include <QTabWidget>
+#include <QScrollBar>
 #include <QTimer>
 #include <QSize>
 #include <QString>
@@ -743,16 +743,20 @@ void ui_preferences_dialog_shows_every_tab() {
     if (dialog == nullptr) {
       return;
     }
-    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
-    CHECK(tabs != nullptr);
-    if (tabs != nullptr) {
+    auto* list = preferences_page_list(*dialog);
+    CHECK(list != nullptr);
+    if (list != nullptr) {
       QApplication::processEvents();  // the shown dialog's layout pass
-      auto* bar = tabs->tabBar();
-      CHECK(!bar->usesScrollButtons());
-      CHECK(tabs->count() >= 5);
-      const auto last = bar->tabRect(tabs->count() - 1);
-      CHECK(last.right() <= bar->width());
-      CHECK(bar->width() <= dialog->width());
+      // Every page title shows whole in the list, with no scrolling either way.
+      CHECK(list->count() >= 5);
+      const auto last = list->visualItemRect(list->item(list->count() - 1));
+      CHECK(last.bottom() <= list->viewport()->height());
+      for (int row = 0; row < list->count(); ++row) {
+        const auto* item = list->item(row);
+        CHECK(list->fontMetrics().horizontalAdvance(item->text()) < list->visualItemRect(item).width());
+      }
+      CHECK(list->horizontalScrollBar()->maximum() == 0);
+      CHECK(list->width() <= dialog->width() / 2);
       inspected = true;
     }
     dialog->reject();
