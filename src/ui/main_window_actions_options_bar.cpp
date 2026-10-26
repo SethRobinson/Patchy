@@ -2873,6 +2873,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       refresh_clone_source_panel();
     }
   });
+  // Show Overlay (GitHub issue 426): the popup's overlay checkbox, also on the bar after
+  // Aligned; its opacity stays in the popup.
+  clone_overlay_check_ = new CheckGlyphBox(tr("Show Overlay"), toolbar);
+  clone_overlay_check_->setObjectName(QStringLiteral("cloneOverlayCheck"));
+  clone_overlay_check_->setChecked(current_clone_overlay_shown_);
+  bind_tooltip(clone_overlay_check_, QT_TR_NOOP("Preview the source under the brush before you paint"));
+  add_option_widget(clone_overlay_check_, {CanvasTool::Clone, CanvasTool::Healing});
+  connect(clone_overlay_check_, &QCheckBox::toggled, this,
+          [this](bool checked) { apply_clone_overlay_settings(checked, current_clone_overlay_opacity_); });
   // Clone source settings (GitHub issue 424): the slots, offset, scale and rotation and
   // the overlay, in a popup on a gear button (rule 8) after the checkbox group.
   clone_source_options_button_ = new QToolButton(toolbar);
@@ -2907,16 +2916,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
               }
               refresh_clone_source_panel();
             });
-    connect(clone_source_panel_, &CloneSourcePanel::overlay_edited, this, [this](bool shown, int opacity) {
-      current_clone_overlay_shown_ = shown;
-      current_clone_overlay_opacity_ = std::clamp(opacity, 1, 100);
-      for (auto* canvas : findChildren<CanvasWidget*>()) {
-        canvas->set_clone_overlay_shown(current_clone_overlay_shown_);
-        canvas->set_clone_overlay_opacity(current_clone_overlay_opacity_);
-      }
-      schedule_save_tool_settings();
-      refresh_clone_source_panel();
-    });
+    connect(clone_source_panel_, &CloneSourcePanel::overlay_edited, this,
+            [this](bool shown, int opacity) { apply_clone_overlay_settings(shown, opacity); });
     clone_source_options_button_->setMenu(clone_source_menu_);
   }
   add_option_widget(clone_source_options_button_, {CanvasTool::Clone, CanvasTool::Healing});

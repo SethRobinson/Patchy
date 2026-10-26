@@ -25915,6 +25915,14 @@ The open document keeps its blend modes either way.</source>
         <source>Apply</source>
         <translation>적용</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>오버레이 표시</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>칠하기 전에 브러시 아래에 소스를 미리 봅니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

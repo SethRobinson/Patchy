@@ -25988,6 +25988,14 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Apply</source>
         <translation>Applica</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Mostra sovrapposizione</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Mostra la sorgente sotto il pennello prima di dipingere</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

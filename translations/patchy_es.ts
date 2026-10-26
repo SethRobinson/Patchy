@@ -25988,6 +25988,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Apply</source>
         <translation>Aplicar</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Mostrar superposición</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Muestra el origen bajo el pincel antes de pintar</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
