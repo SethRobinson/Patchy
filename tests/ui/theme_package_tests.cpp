@@ -6,6 +6,7 @@
 #include "formats/ora_document_io.hpp"
 #include "core/document.hpp"
 #include "test_harness.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/main_window.hpp"
@@ -533,19 +534,23 @@ void ui_theme_sound_events_resolve_from_the_package() {
   // The identifiers are persisted (they are the file names themes ship).
   const QStringList expected{QStringLiteral("save-done"), QStringLiteral("export-done"),
                              QStringLiteral("long-operation-done"), QStringLiteral("error"),
-                             QStringLiteral("warning"), QStringLiteral("script-alert")};
+                             QStringLiteral("warning"), QStringLiteral("script-alert"),
+                             QStringLiteral("layer-deleted"), QStringLiteral("document-opened"),
+                             QStringLiteral("document-new"), QStringLiteral("document-closed"),
+                             QStringLiteral("undo"), QStringLiteral("redo"), QStringLiteral("startup"),
+                             QStringLiteral("tool-changed"), QStringLiteral("idle")};
   QStringList ids;
   for (const auto event : patchy::ui::theme_sound_events()) {
     ids.push_back(QString(patchy::ui::theme_sound_event_id(event)));
     CHECK(patchy::ui::theme_sound_event_from_id(ids.back()) == event);
   }
   CHECK(ids == expected);
-  CHECK(!patchy::ui::theme_sound_event_from_id(QStringLiteral("startup")).has_value());
+  CHECK(!patchy::ui::theme_sound_event_from_id(QStringLiteral("launch")).has_value());
 
   CHECK(!patchy::ui::play_theme_sound(patchy::ui::ThemeSoundEvent::SaveDone));  // built-in scheme: silent
   PackageThemesDir themes;
   write_sample_package(themes.file(QStringLiteral("Sounds")), QColor(10, 20, 30));
-  write_bytes(themes.file(QStringLiteral("Sounds/sounds/startup.wav")),
+  write_bytes(themes.file(QStringLiteral("Sounds/sounds/launch.wav")),
               patchy::ui::build_tone_wav(440.0, 20, 0.5, patchy::ui::ToneWave::Sine));
   write_bytes(themes.file(QStringLiteral("Sounds/sounds/error.wav")), QByteArrayLiteral("not a wav"));
   const auto loaded = patchy::ui::load_theme_by_id(QStringLiteral("Sounds"));
@@ -671,6 +676,9 @@ void ui_theme_package_icon_template_and_example_package() {
 void ui_theme_package_capture_shots() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  // The example ships a script; these shots are about the package, so no trust prompt.
+  SettingsValueRestorer restore_scripts(QStringLiteral("preferences/runThemeScripts"));
+  patchy::ui::app_settings().setValue(QStringLiteral("preferences/runThemeScripts"), false);
   {
     patchy::ui::MainWindow window;
     show_window(window);

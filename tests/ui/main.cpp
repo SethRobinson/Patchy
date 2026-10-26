@@ -460,6 +460,7 @@ int main(int argc, char* argv[]) {
            open_with_registration_tests,
            composite_render_tests,
            theme_package_tests,
+           theme_script_tests,
            readme_screenshot_tests,
        }) {
     auto group = registration();

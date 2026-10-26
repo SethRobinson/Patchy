@@ -17,6 +17,7 @@
 #include "formats/format_registry.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/theme_sounds.hpp"
 #include "ui/document_order_list.hpp"
 #include "ui/main_window.hpp"
@@ -3076,6 +3077,9 @@ void MainWindow::open_document_path(QString path) {
       maybe_offer_indexed_palette_adoption();
     }
     update_undo_redo_actions();
+    fire_theme_event(ThemeSoundEvent::DocumentOpened,
+                     {{QStringLiteral("width"), std::as_const(document()).width()},
+                      {QStringLiteral("height"), std::as_const(document()).height()}});
     if (!browser_transfer) {
       add_recent_file(path);
       if (!unattended_automation()) remember_open_directory_for_path(path);
@@ -4175,7 +4179,7 @@ void MainWindow::export_sprite_sheet() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
     if (image_options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -4314,7 +4318,7 @@ void MainWindow::export_image_sequence() {
     }
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()));
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
     if (image_options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(directory.absolutePath(), /*is_file*/ false);
     }
@@ -4361,7 +4365,7 @@ void MainWindow::export_animated_gif() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
     if (options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -4409,7 +4413,7 @@ void MainWindow::export_animated_webp() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
     if (options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -4457,7 +4461,7 @@ void MainWindow::export_animated_png() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
     if (options->export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -5243,13 +5247,13 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
                                     : tr("Saved flattened copy %1"))
                                    .arg(path) +
                                export_notes_suffix);
-      play_theme_sound(ThemeSoundEvent::SaveDone);
+      fire_theme_event(ThemeSoundEvent::SaveDone);
       return true;
     }
     statusBar()->showMessage(
         (effective_image_options.export_cmyk || cmyk_psd ? tr("Saved %1 in CMYK") : tr("Saved %1")).arg(path) +
         export_notes_suffix);
-    play_theme_sound(ThemeSoundEvent::SaveDone);
+    fire_theme_event(ThemeSoundEvent::SaveDone);
     if (linked_external_child) {
       if (auto* saved_session = session_with_id(saving_session_id)) {
         refresh_external_smart_object_after_save(*saved_session);
@@ -5349,7 +5353,7 @@ void MainWindow::export_flat_image() {
     }
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
     if (effective_image_options.export_reveal_in_file_explorer) {
       reveal_path_in_file_explorer(path, /*is_file*/ true);
     }
@@ -5511,7 +5515,7 @@ void MainWindow::export_multipage_pdf() {
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %n page(s) to %1", nullptr, page_count).arg(path) +
                              export_notes_suffix_for(writer_notices));
-    play_theme_sound(ThemeSoundEvent::ExportDone);
+    fire_theme_event(ThemeSoundEvent::ExportDone);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));

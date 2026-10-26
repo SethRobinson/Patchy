@@ -1,6 +1,7 @@
 #include "support/cli_flags.hpp"
 #include "support/startup_trace.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/ui_font.hpp"
@@ -891,6 +892,11 @@ int main(int argc, char* argv[]) {
   patchy::startup_trace::Scope show_phase("main_window.show");
   window.show();
   show_phase.end();
+  // The theme's "startup" event (sound, effect, splash, scripts) once the window is up;
+  // stress runs and other automation leave it out.
+  if (!stress_mode && !window.unattended_automation()) {
+    QTimer::singleShot(0, &window, [] { patchy::ui::fire_theme_event(patchy::ui::ThemeSoundEvent::Startup); });
+  }
   // Every exit path ends here once the event loop has returned. Detached
   // preview/render/recovery workers capture the QCoreApplication pointer, so the
   // window and application must outlive them; a worker still running after the

@@ -1,5 +1,5 @@
 #include "ui/image_document_io.hpp"
-#include "ui/theme_sounds.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
 #include "ui/animation_preview_window.hpp"
 #include "formats/apng_writer.hpp"
@@ -3447,7 +3447,7 @@ void ScriptEngineHost::show_alert(const QString& text) {
     return;
   }
   const ModalWatchdogPause pause(*this);
-  play_theme_sound(ThemeSoundEvent::ScriptAlert);
+  fire_theme_event(ThemeSoundEvent::ScriptAlert);
   show_information_message(&window_, tr("Script"), text, QStringLiteral("scriptAlertMessageBox"));
 }
 

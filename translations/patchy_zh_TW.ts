@@ -13216,6 +13216,33 @@ Each item&apos;s own View setting still applies.</source>
         <source>Could not write &quot;%1&quot;.</source>
         <translation>無法寫入 &quot;%1&quot;。</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>事件 &quot;%1&quot; 不是佈景主題事件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>音效 &quot;%1&quot; 不是套件中的 WAV 檔案(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>效果 &quot;%1&quot; 不是佈景主題效果(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>精靈圖像 &quot;%1&quot; 不在套件中(已忽略)。</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>佈景主題指令碼錯誤:%1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>佈景主題指令碼多次執行過久,已被關閉</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26670,6 +26697,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show All Buttons</source>
         <translation>顯示所有按鈕</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>播放佈景主題效果</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>播放佈景主題在事件發生時顯示的簡短動畫,例如開啟文件時的煙火。</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>執行佈景主題指令碼</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>執行佈景主題套件內含的指令碼。它們可以播放音效與效果並新增選單命令,但無法讀取檔案或變更文件。</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>佈景主題指令碼</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>佈景主題 &quot;%1&quot; 含有指令碼。它們可以播放音效與效果並新增選單命令,但無法讀取檔案或變更文件。要允許嗎?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>允許</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>不允許</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>佈景主題</translation>
     </message>
 </context>
 <context>

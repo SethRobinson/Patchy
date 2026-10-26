@@ -1,6 +1,6 @@
 # User-importable theme files
 
-Read this before changing the `.patchytheme` format, theme packages (icons, backdrop, sounds), the custom-palette runtime override, or `ThemeManager`'s custom-theme apply path. See [ui-conventions.md](ui-conventions.md) for the built-in Dark/Light system this overlays.
+Read this before changing the `.patchytheme` format, theme packages (icons, backdrop, sounds, events, effects, theme scripts), the custom-palette runtime override, or `ThemeManager`'s custom-theme apply path. See [ui-conventions.md](ui-conventions.md) for the built-in Dark/Light system this overlays.
 
 ## Format
 
@@ -46,13 +46,14 @@ My Theme/
   icons/<stem>.svg    icon overrides: .svg, .png or .bmp; <stem>@2x.png for HiDPI
   images/bg.png       anything "backdrop" names (PNG, JPEG or BMP)
   sounds/<event>.wav  theme sounds, one per event id
+  scripts/main.js     optional theme script (Theme scripts below)
 ```
 
 - Package keys, all optional and parsed by `load_theme_from_json` (so a single `.patchytheme` may carry them; its "backdrop" has nothing to point at and is ignored): `"recolorIcons"` (bool, default true), `"iconScaling"` (`"smooth"` default, or `"nearest"` for pixel art), `"backdrop": {"image": "images/bg.png", "mode": "tile" | "stretch" | "center"}` (mode defaults to tile). A bad value is a warning and the key keeps its default.
 - The format stays 1. An older build ignores unknown top-level keys (`load_theme_from_json` reads only `format`, `name`, `base` and `roles`), so a `.patchytheme` with package keys still loads its colors there, and an older build never scans folders or zips at all.
 - Ids: a folder's id is its folder name, a zip's its file name (`My Theme.zip`). `user_theme_ids()` lists `*.patchytheme`, `*.zip` and every folder holding `theme.json`, sorted; `load_theme_by_id` picks the loader from what the id names, so `preferences/customThemeId` keeps working for every kind.
-- Everything is read into memory once at load (`ThemeAssets`: decoded icons and backdrop, WAV bytes, and every raw file for Export Theme Package), so a folder and a zip behave the same and nothing reads the disk at paint time. A folder reads only `theme.json` and the three subfolders; a zip reads only the entries under them (anything else, a README for example, is skipped).
-- Safety: a package never runs code; it holds JSON, SVG, PNG, BMP, JPEG and WAV data only, and images decode by their extension, never by content. Every zip entry name must pass `formats::safe_zip_entry_path` and `is_safe_theme_package_path` (no `..`, no absolute or drive path, no backslash), or the whole package is refused; a folder file whose canonical path leaves the folder (a symlink) is refused the same way. The zip goes through `formats::ZipEntryReader` (the OpenRaster and Krita reader), in memory.
+- Everything is read into memory once at load (`ThemeAssets`: decoded icons and backdrop, WAV bytes, and every raw file for Export Theme Package), so a folder and a zip behave the same and nothing reads the disk at paint time. A folder reads only `theme.json` and the four subfolders; a zip reads only the entries under them (anything else, a README for example, is skipped).
+- Safety: a package holds JSON, SVG, PNG, BMP, JPEG, WAV and theme JavaScript only; the scripts run only in the locked-down theme engine and only once trusted ([Theme scripts](#theme-scripts)), and images decode by their extension, never by content. Every zip entry name must pass `formats::safe_zip_entry_path` and `is_safe_theme_package_path` (no `..`, no absolute or drive path, no backslash), or the whole package is refused; a folder file whose canonical path leaves the folder (a symlink) is refused the same way. The zip goes through `formats::ZipEntryReader` (the OpenRaster and Krita reader), in memory.
 - Limits (`ThemePackageLimits`): the zip file 64 MB, one file 16 MB, all files 64 MB, 2048 files; past any of them the package does not load. A bitmap icon over 1024 px a side, or a backdrop over 8192, is skipped with a warning.
 - Unreadable or unknown parts (an icon that matches no built-in stem, a sound that names no event, a non-WAV sound, a missing backdrop) are warnings; the theme loads without them.
 
@@ -70,22 +71,55 @@ The canvas scroll-bar gutter follows a custom theme (`themed_scroll_gutter_url`,
 
 ## Sounds
 
-`theme_sounds.hpp`. Patchy has no sounds of its own; a package's `sounds/<event>.wav` plays for these events, through `play_wav_bytes` (sound_effects.hpp: winmm, NSSound or a Linux player process, no Qt Multimedia). The ids are persisted identifiers (they are the file names themes ship), append-only:
+`theme_sounds.hpp`. Patchy has no sounds of its own; a package's `sounds/<event>.wav` (the shorthand) or an `"events"` entry's `"sound"` (which wins) plays for an event. Any other WAV the `"events"` entries or scripts name goes in a subfolder (`sounds/fx/hurt.wav`): a top-level `sounds/` file that names no event is a load warning, which catches typos. Playback is through `play_wav_bytes` (sound_effects.hpp: winmm, NSSound or a Linux player process, no Qt Multimedia). Preferences' "Play theme sounds" (`preferences/playThemeSounds`, default on) turns every theme sound off; `PATCHY_NO_SOUND` silences the player itself (tests, headless runs).
 
-| Event id | Plays when |
+## Events and effects
+
+Every event goes through `fire_theme_event` (theme_script_host.hpp): the sound, the effect, then the theme scripts. The ids are persisted identifiers (file names and `"events"` keys themes ship), append-only (`ThemeSoundEvent`):
+
+| Event id | Fires when |
 |---|---|
 | `save-done` | a save or saved copy finishes (`save_document_to_path`) |
 | `export-done` | an export finishes (Export As, Quick Export, animation, sprite sheet, PDF and folder exports) |
 | `long-operation-done` | a progress dialog that stayed up 3 s or more closes |
-| `error` | an error box opens (`show_critical_message`) |
-| `warning` | a warning box opens (`show_warning_message`) |
-| `script-alert` | a script's `alert()` box opens |
+| `error`, `warning` | an error or warning box opens (`show_critical_message`, `show_warning_message`) |
+| `script-alert` | a user script's `alert()` box opens |
+| `layer-deleted` | Delete Layer removes layers (`delete_layers`; payload `{count}`) |
+| `document-opened` | a file opens (`open_document_path`; payload `{width, height}`) |
+| `document-new`, `document-closed` | New Document creates one; a document tab closes |
+| `undo`, `redo` | an Undo or Redo step applies |
+| `startup` | the main window is up (main.cpp; not for stress or unattended runs) |
+| `tool-changed` | the active tool changes (payload `{tool}`, the tool id below) |
+| `idle` | every 12 s while the empty start screen shows |
 
-The long-operation watcher is an application event filter timing `QProgressDialog` Show to Hide; `refresh_long_operation_sound_watcher` installs it only while the active theme has that sound. Preferences' "Play theme sounds" (`preferences/playThemeSounds`, default on) turns every theme sound off; `PATCHY_NO_SOUND` silences the player itself (tests, headless runs).
+The long-operation watcher is an application event filter timing `QProgressDialog` Show to Hide, installed only while the active theme has a sound, effect or scripts.
+
+theme.json `"events": {"document-opened": {"sound": "sounds/x.wav", "effect": "fireworks"}}`. `"effect"` is a name or an object: `{"name": "fireworks" | "sparkles" | "confetti" | "sprite", "x", "y" (0..1 of the document area, default 0.5, 0.4), "duration" (ms, 100..10000)}`; fireworks take `"bursts"` (1..8), sparkles `"radius"` and `"count"`, confetti `"count"`; a sprite takes `"image"` (a horizontal or grid sheet in the package), `"frames"`, `"frameWidth"`, `"frameHeight"`, `"fps"`, `"loop"` (default true), `"scale"`, `"flip"`, `"toX"`, `"toY"` (it moves there over the duration, drawn feet-down at its position) and `"where": "start-screen"` (plays only while the empty start screen shows and ends when it hides, so it never crosses a document). Unknown events, effects and missing files are load warnings.
+
+`ThemeEffectsOverlay` (theme_effects.hpp) draws them: a child of the document tab widget over the canvas and start panel, `WA_TransparentForMouseEvents`, never touching a document. With nothing playing it is hidden and its 33 ms timer stopped (no repaint, `ui_theme_effect_overlay_costs_nothing_while_idle`); while playing, a frame repaints only the union of the last and current particle bounds, under caps of 8 effects, 1500 particles and 10 s. Randomness is splitmix64; effect colors are generated hues, content rather than chrome, so they sit outside the theme roles like the transparency checkerboard. "Play theme effects" (`preferences/playThemeEffects`, default on) turns them off.
+
+## Theme scripts
+
+`theme_script_host.hpp`. A package's `scripts/main.js` (other files under `scripts/` are read but only main.js runs) executes in `ThemeScriptHost`'s own `QJSEngine`, never the user scripting engine: no `installExtensions`, so the globals are the ECMAScript built-ins plus `patchy.theme`, `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` and `console` (to the log). There is no `patchy.io`, no `app` or documents, no file paths (every path is package-relative and checked by `is_safe_theme_package_path`), no process, network or user-script globals (`ui_theme_script_engine_is_isolated`). The bridge QObject lives only in the prelude's closure and `patchy` is frozen.
+
+API (types: `scripts/bundled/patchy-theme.d.ts`; changes go in [scripting-api-changes.md](scripting-api-changes.md)):
+- `patchy.theme.id`, `.name`; `on(event, fn(payload))` for every event id above; an unknown id throws.
+- `playSound(path)` (a package WAV), `playEffect(name, options)` or `playEffect(spec)` (the effect specs above), `showStatus(text, ms)`, `log(...)`.
+- `addCommand({id, title, hotkey}, fn)`: at most 32, ids `[A-Za-z0-9_-]`. They fill the theme menu, a top-level menu right of Help titled by theme.json `"menuTitle"` (default the theme name) and shown only while the theme has commands. Each is a HotkeyRegistry command `theme.<percent-encoded theme id>.<command id>` (persisted, category `theme`), listed in the Hotkeys page under the menu's title; `QAction::NoRole` throughout. A theme hotkey loses to a built-in default like a script's `@hotkey`.
+- `setToolCursor(tool, image, hotX, hotY)` (an empty image clears; at most 128 px). The tool id is the tool's hotkey id without `tools.` (`crop`, `polygon`, `custom_shape`, `red_eye`, `type`). A theme cursor replaces only a tool's plain pointer (Crop's pointer inside the crop box and with no box, the shape tools' cross, the Type I-beam); handle, rotate, modifier and brush-footprint cursors stay, they are feedback.
+- `showSplash(image, ms)` (500..6000 ms, at most every 5 s): a frameless window centered over the main window, never focused, closed by a click.
+- `setPanelBackground(panel, image, mode, opacity)`: `panel` is `layers`, `channels`, `paths`, `history`, `properties`, `info`, `palette`, `color`, `tools` or `dialogs`; `mode` tile, stretch or center. The image is drawn at `opacity` (0.05..0.6, default 0.3) into a cached PNG (`theme_cache_png_url`) over the panel's own color, so text stays readable, and appended to `photoshop_style()` (keyed on `theme_panel_background_revision()`).
+- The idle sprite: `on('idle', ...)` with `playEffect({name: 'sprite', where: 'start-screen', ...})`.
+
+Declarative equivalents in theme.json, applied with or without scripts: `"cursors": {"crop": {"image", "hotX", "hotY"}}`, `"panelBackgrounds": {"layers": {"image", "mode", "opacity"}}`, `"splash": {"image", "ms"}` (on startup).
+
+Limits: every call into theme code (main.js, an event, a command, a timer) runs under `ScriptWatchdog` with a 250 ms budget (main.js 500 ms); an overrun is interrupted, and the third stops the scripts with a status message (`ui_theme_script_watchdog_stops_a_runaway_loop`). Calls never nest (an event raised during one is queued). Rate limits per second: 4 sounds, 4 effects, 4 status messages, 8 cursor and 4 background changes; at most 16 timers, repeating ones no faster than 30 ms. Errors go to `log()`, `qWarning` and at most one status message per 3 s, never a dialog.
+
+Trust: the first time a theme whose scripts are unknown is applied, the window asks once (`MainWindow::confirm_theme_scripts`, `themeScriptTrustPrompt`); Import asks for a zip with scripts before listing it. The answer is stored under `themeScripts/trust` per theme id with `theme_scripts_digest` (SHA-256 of the scripts), so changed scripts ask again. A denied or disabled theme still applies everything but its scripts. "Run theme scripts" (`preferences/runThemeScripts`, default on) turns them all off. Unattended runs never ask and run no unknown scripts.
 
 ## Authoring loop
 
-While a folder package is the active theme (applied or only previewed), `ThemeManager` watches it with a `QFileSystemWatcher` (the folder, `theme.json`, the three subfolders and their files) and reloads it `kPackageReloadDelayMs` (250 ms) after the last change, unpersisted; a reload that fails (half-written JSON) keeps the theme already showing. Each reload re-arms every path, since editors that save by replacing a file drop it from the watch. Switching away drops every watched path, which also releases the Windows directory handles that would block deleting the folder. Reload Themes still rereads every theme. `themes/example-package/` in the repository is the sample package (two colored SVG icons, a pixel-art PNG with `@2x`, a tiled backdrop and a save sound); keep it loading with no warnings (`ui_theme_package_icon_template_and_example_package`).
+While a folder package is the active theme (applied or only previewed), `ThemeManager` watches it with a `QFileSystemWatcher` (the folder, `theme.json`, the four subfolders and their files) and reloads it `kPackageReloadDelayMs` (250 ms) after the last change, unpersisted; a reload that fails (half-written JSON) keeps the theme already showing. Each reload re-arms every path, since editors that save by replacing a file drop it from the watch. Switching away drops every watched path, which also releases the Windows directory handles that would block deleting the folder. Reload Themes still rereads every theme. `themes/example-package/` in the repository is the sample package (two colored SVG icons, a pixel-art PNG with `@2x`, a tiled backdrop, a save sound, sparkles on new documents and a one-command scripts/main.js); keep it loading with no warnings (`ui_theme_package_icon_template_and_example_package`).
 
 ## Bundled themes
 

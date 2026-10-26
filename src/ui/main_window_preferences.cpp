@@ -49,6 +49,8 @@
 #include "ui/theme_manager.hpp"
 #include "ui/theme_package.hpp"
 #include "ui/theme_sounds.hpp"
+#include "ui/theme_effects.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/user_fonts.hpp"
@@ -470,6 +472,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // are bare scheme spellings and can never start with "custom:".
   const auto custom_theme_token = [](const QString& file_name) { return QStringLiteral("custom:") + file_name; };
   QCheckBox* theme_sounds_check = nullptr;
+  QCheckBox* theme_effects_check = nullptr;
+  QCheckBox* theme_scripts_check = nullptr;
   // Loaded once per dialog open and shared by the preview handler, the Import
   // button, and the commit branch below, so none of them re-read a file
   // mid-dialog.
@@ -589,7 +593,23 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       tr("Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay "
          "silent."));
   theme_sounds_check->setChecked(theme_sounds_enabled());
-  application_form->addRow(QString(), theme_sounds_check);
+  theme_effects_check = new QCheckBox(tr("Play theme effects"), application_group);
+  theme_effects_check->setObjectName(QStringLiteral("preferencesPlayThemeEffectsCheck"));
+  theme_effects_check->setToolTip(
+      tr("Play the short animations a theme shows for events, such as fireworks when a document opens."));
+  theme_effects_check->setChecked(theme_effects_enabled());
+  auto* theme_sounds_row = new QHBoxLayout();
+  theme_sounds_row->addWidget(theme_sounds_check);
+  theme_sounds_row->addWidget(theme_effects_check);
+  theme_sounds_row->addStretch(1);
+  application_form->addRow(QString(), theme_sounds_row);
+  theme_scripts_check = new QCheckBox(tr("Run theme scripts"), application_group);
+  theme_scripts_check->setObjectName(QStringLiteral("preferencesRunThemeScriptsCheck"));
+  theme_scripts_check->setToolTip(
+      tr("Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but "
+         "cannot read files or change documents."));
+  theme_scripts_check->setChecked(theme_scripts_enabled());
+  application_form->addRow(QString(), theme_scripts_check);
 
   // Delete applies to the user-folder entry the combo shows; a built-in scheme
   // and a bundled theme cannot be deleted.
@@ -723,6 +743,13 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
               show_critical_message(&dialog, tr("Import failed"), QString::fromUtf8(error.what()),
                                     QStringLiteral("importThemeFailedMessageBox"));
               return;
+            }
+            // A package with scripts asks once here, so selecting it below does not ask again.
+            if (result.theme->assets != nullptr && result.theme->assets->has_scripts()) {
+              store_theme_script_trust(file_name, theme_scripts_digest(*result.theme->assets),
+                                       confirm_theme_scripts(&dialog, result.theme->name.isEmpty()
+                                                                          ? file_name
+                                                                          : result.theme->name));
             }
             add_custom_theme_entry(file_name, *result.theme);
             color_scheme_combo->setCurrentIndex(color_scheme_combo->findData(custom_theme_token(file_name)));
@@ -2332,6 +2359,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     color_scheme_committed = true;
     if (theme_sounds_check != nullptr) {
       set_theme_sounds_enabled(theme_sounds_check->isChecked());
+    }
+    if (theme_effects_check != nullptr) {
+      set_theme_effects_enabled(theme_effects_check->isChecked());
+    }
+    if (theme_scripts_check != nullptr && theme_scripts_check->isChecked() != theme_scripts_enabled()) {
+      set_theme_scripts_enabled(theme_scripts_check->isChecked());
     }
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);

@@ -13216,6 +13216,33 @@ Each item&apos;s own View setting still applies.</source>
         <source>Could not write &quot;%1&quot;.</source>
         <translation>无法写入 &quot;%1&quot;。</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>事件 &quot;%1&quot; 不是主题事件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>声音 &quot;%1&quot; 不是包中的 WAV 文件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>效果 &quot;%1&quot; 不是主题效果(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>精灵图像 &quot;%1&quot; 不在包中(已忽略)。</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>主题脚本错误:%1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>主题脚本多次运行过久,已被关闭</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26670,6 +26697,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show All Buttons</source>
         <translation>显示所有按钮</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>播放主题效果</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>播放主题在事件发生时显示的简短动画,例如打开文档时的烟花。</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>运行主题脚本</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>运行主题包中包含的脚本。它们可以播放声音和效果并添加菜单命令,但无法读取文件或更改文档。</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>主题脚本</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>主题 &quot;%1&quot; 包含脚本。它们可以播放声音和效果并添加菜单命令,但无法读取文件或更改文档。是否允许?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>允许</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>不允许</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>主题</translation>
     </message>
 </context>
 <context>

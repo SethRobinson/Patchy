@@ -13236,6 +13236,33 @@ Each item&apos;s own View setting still applies.</source>
         <source>Could not write &quot;%1&quot;.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26663,6 +26690,42 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Show All Buttons</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

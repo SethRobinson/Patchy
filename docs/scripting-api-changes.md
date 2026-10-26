@@ -14,6 +14,13 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-26 (additive): the theme script API, a separate engine for theme packages' `scripts/main.js`
+(`scripts/bundled/patchy-theme.d.ts`; [theme-files.md](theme-files.md#theme-scripts)): `patchy.theme`
+`id`, `name`, `on`, `playSound`, `playEffect`, `showStatus`, `addCommand`, `setToolCursor`,
+`showSplash`, `setPanelBackground`, `log`, plus the timer functions and `console`. User scripts do not
+see it, and theme scripts see nothing else. Permanent identifiers: those names, the event ids, the
+effect names and option keys, the panel ids and the `theme.<theme id>.<command id>` hotkey ids. Pinned
+by `ui_theme_script_engine_is_isolated` and `ui_theme_menu_sits_right_of_help_with_hotkeys`.
 2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options `colors` (2..256), `dither` (`"none"`,
 `"diffusion"`) and `ditherAmount` (0..100) for `.gif`, and for `.png` with the new `pngColors`
 (`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette

@@ -246,7 +246,10 @@ shell, on Windows only; POSIX shells run a quoted first token.
 Scripts run with the application's privileges, like Photoshop or Affinity scripts: the
 sandbox is "only run scripts you trust", not a permission system. The engine exposes no
 file, network, or process API beyond the documented `patchy.io` and `patchy.scripts`
-helpers and document save/export paths. The single-instance pipe is per-user.
+helpers and document save/export paths. The single-instance pipe is per-user. Theme
+packages' scripts are the exception: they run in a separate locked-down engine with only
+`patchy.theme` (no files, documents or user-script globals), a per-call time budget, rate
+limits and a trust prompt ([theme-files.md](theme-files.md#theme-scripts)).
 
 ## Legal posture
 
@@ -266,7 +269,8 @@ helpers and document save/export paths. The single-instance pipe is per-user.
 
 ## Future work
 
-Not built: document/save/command hooks with a reentrancy design, persistent script
-storage, macro recording, non-blocking batches, script packaging, an editor REPL.
+Not built: document/save/command hooks for user scripts with a reentrancy design (theme
+scripts have event hooks in their own engine, [theme-files.md](theme-files.md#theme-scripts)),
+persistent script storage, macro recording, non-blocking batches, script packaging, an editor REPL.
 Anti-goals: never freeze or fork the API surface, no undocumented escape hatches, and
 scripts stay plain user-editable files.

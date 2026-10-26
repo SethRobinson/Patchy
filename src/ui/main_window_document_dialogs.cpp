@@ -10,6 +10,7 @@
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_script_host.hpp"
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
@@ -1536,6 +1537,7 @@ void MainWindow::create_new_document() {
   }
   reset_document(settings->width, settings->height, settings->background, tr("New document"),
                  settings->resolution_ppi, settings->name, settings->add_empty_layer);
+  fire_theme_event(ThemeSoundEvent::DocumentNew);
   if (settings->artboards && has_active_document()) {
     // The canvas becomes "Artboard 1" with the chosen background and an empty layer to
     // paint on, in place of the Background layer (Photoshop's Artboards document).

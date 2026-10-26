@@ -7,6 +7,7 @@
 // theme_generation(): a repaint only fills the area it exposes.
 
 #include <QColor>
+#include <QImage>
 #include <QRect>
 #include <QString>
 
@@ -30,5 +31,10 @@ bool paint_theme_backdrop(QPainter& painter, const QRect& area, const QWidget& w
 // scroll-dither.svg serves. The generated PNG goes to a temporary-folder cache
 // named after its content.
 [[nodiscard]] QString themed_scroll_gutter_url();
+
+// Writes `image` once to <temp>/patchy-theme-cache/<prefix>-<sha1>.png (named after its
+// content, so it is never rewritten while in use) and returns it as a QSS url() argument.
+// Empty when it cannot be written.
+[[nodiscard]] QString theme_cache_png_url(const QImage& image, const QString& prefix);
 
 }  // namespace patchy::ui

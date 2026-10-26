@@ -13253,6 +13253,33 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Could not write &quot;%1&quot;.</source>
         <translation>Impossible d&apos;écrire &quot;%1&quot;.</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>L&apos;événement &quot;%1&quot; n&apos;est pas un événement de thème (ignoré).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>Le son &quot;%1&quot; n&apos;est pas un fichier WAV du paquet (ignoré).</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>L&apos;effet &quot;%1&quot; n&apos;est pas un effet de thème (ignoré).</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>L&apos;image de sprite &quot;%1&quot; n&apos;est pas dans le paquet (ignorée).</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>Erreur dans un script du thème : %1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>les scripts du thème ont trop souvent dépassé leur durée et ont été désactivés</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26746,6 +26773,42 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Show All Buttons</source>
         <translation>Afficher tous les boutons</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>Jouer les effets du thème</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>Jouer les courtes animations qu&apos;un thème montre lors des événements, comme un feu d&apos;artifice à l&apos;ouverture d&apos;un document.</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>Exécuter les scripts du thème</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>Exécuter les scripts inclus dans un paquet de thème. Ils peuvent jouer des sons et des effets et ajouter des commandes de menu, mais ne peuvent ni lire de fichiers ni modifier de documents.</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>Scripts du thème</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>Le thème &quot;%1&quot; contient des scripts. Ils peuvent jouer des sons et des effets et ajouter des commandes de menu, mais ne peuvent ni lire de fichiers ni modifier de documents. Autoriser ?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>Autoriser</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>Ne pas autoriser</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>Thème</translation>
     </message>
 </context>
 <context>

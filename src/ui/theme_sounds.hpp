@@ -17,11 +17,30 @@ namespace patchy::ui {
 
 struct ThemeAssets;
 
-enum class ThemeSoundEvent { SaveDone, ExportDone, LongOperationDone, Error, Warning, ScriptAlert };
+// Append-only: the ids below are persisted. ToolChanged and Idle exist for theme
+// scripts and theme.json "events" entries; the others also play sounds/<id>.wav.
+enum class ThemeSoundEvent {
+  SaveDone,
+  ExportDone,
+  LongOperationDone,
+  Error,
+  Warning,
+  ScriptAlert,
+  LayerDeleted,
+  DocumentOpened,
+  DocumentNew,
+  DocumentClosed,
+  Undo,
+  Redo,
+  Startup,
+  ToolChanged,
+  Idle,
+};
 
-// Persisted identifiers (the sounds/<id>.wav file names themes ship): "save-done",
-// "export-done", "long-operation-done", "error", "warning", "script-alert". Never
-// rename one; a new event appends.
+// Persisted identifiers (the sounds/<id>.wav file names and theme.json "events" keys
+// themes ship): "save-done", "export-done", "long-operation-done", "error", "warning",
+// "script-alert", "layer-deleted", "document-opened", "document-new", "document-closed",
+// "undo", "redo", "startup", "tool-changed", "idle". Never rename one; a new event appends.
 [[nodiscard]] QLatin1StringView theme_sound_event_id(ThemeSoundEvent event);
 [[nodiscard]] std::optional<ThemeSoundEvent> theme_sound_event_from_id(const QString& id);
 [[nodiscard]] std::span<const ThemeSoundEvent> theme_sound_events();

@@ -1,4 +1,5 @@
 #include "ui/theme_sounds.hpp"
+#include "ui/theme_script_host.hpp"
 
 #include "ui/app_settings.hpp"
 #include "ui/sound_effects.hpp"
@@ -24,9 +25,12 @@ const QString& play_theme_sounds_key() {
   return key;
 }
 
-constexpr std::array<ThemeSoundEvent, 6> kEvents{
-    ThemeSoundEvent::SaveDone, ThemeSoundEvent::ExportDone, ThemeSoundEvent::LongOperationDone,
-    ThemeSoundEvent::Error,    ThemeSoundEvent::Warning,    ThemeSoundEvent::ScriptAlert,
+constexpr std::array<ThemeSoundEvent, 15> kEvents{
+    ThemeSoundEvent::SaveDone,       ThemeSoundEvent::ExportDone,     ThemeSoundEvent::LongOperationDone,
+    ThemeSoundEvent::Error,          ThemeSoundEvent::Warning,        ThemeSoundEvent::ScriptAlert,
+    ThemeSoundEvent::LayerDeleted,   ThemeSoundEvent::DocumentOpened, ThemeSoundEvent::DocumentNew,
+    ThemeSoundEvent::DocumentClosed, ThemeSoundEvent::Undo,           ThemeSoundEvent::Redo,
+    ThemeSoundEvent::Startup,        ThemeSoundEvent::ToolChanged,    ThemeSoundEvent::Idle,
 };
 
 // Times every QProgressDialog from Show to Hide; one that stayed up past the
@@ -56,7 +60,7 @@ class LongOperationSoundWatcher final : public QObject {
       const auto elapsed = found.value().elapsed();
       shown_.erase(found);
       if (elapsed >= kLongOperationSoundMs) {
-        play_theme_sound(ThemeSoundEvent::LongOperationDone);
+        fire_theme_event(ThemeSoundEvent::LongOperationDone);
       }
     }
     return false;
@@ -87,6 +91,24 @@ QLatin1StringView theme_sound_event_id(ThemeSoundEvent event) {
       return QLatin1StringView("warning");
     case ThemeSoundEvent::ScriptAlert:
       return QLatin1StringView("script-alert");
+    case ThemeSoundEvent::LayerDeleted:
+      return QLatin1StringView("layer-deleted");
+    case ThemeSoundEvent::DocumentOpened:
+      return QLatin1StringView("document-opened");
+    case ThemeSoundEvent::DocumentNew:
+      return QLatin1StringView("document-new");
+    case ThemeSoundEvent::DocumentClosed:
+      return QLatin1StringView("document-closed");
+    case ThemeSoundEvent::Undo:
+      return QLatin1StringView("undo");
+    case ThemeSoundEvent::Redo:
+      return QLatin1StringView("redo");
+    case ThemeSoundEvent::Startup:
+      return QLatin1StringView("startup");
+    case ThemeSoundEvent::ToolChanged:
+      return QLatin1StringView("tool-changed");
+    case ThemeSoundEvent::Idle:
+      return QLatin1StringView("idle");
   }
   return QLatin1StringView("error");
 }
@@ -106,7 +128,12 @@ QByteArray theme_sound_for_event(const ThemeAssets* assets, ThemeSoundEvent even
   if (assets == nullptr) {
     return {};
   }
-  return assets->sounds.value(QString(theme_sound_event_id(event)));
+  // A theme.json "events" sound wins over the sounds/<id>.wav shorthand.
+  const QString id(theme_sound_event_id(event));
+  if (const auto action = assets->events.constFind(id); action != assets->events.constEnd() && !action->sound.isEmpty()) {
+    return action->sound;
+  }
+  return assets->sounds.value(id);
 }
 
 bool theme_sounds_enabled() { return app_settings().value(play_theme_sounds_key(), true).toBool(); }
@@ -127,7 +154,12 @@ void refresh_long_operation_sound_watcher() {
   if (app == nullptr) {
     return;
   }
-  const bool wanted = !theme_sound_for_event(active_theme_assets(), ThemeSoundEvent::LongOperationDone).isEmpty();
+  // Wanted while the theme can answer the event: a sound, an effect, or its scripts.
+  const auto* assets = active_theme_assets();
+  const bool wanted = assets != nullptr &&
+                      (!theme_sound_for_event(assets, ThemeSoundEvent::LongOperationDone).isEmpty() ||
+                       assets->events.contains(QString(theme_sound_event_id(ThemeSoundEvent::LongOperationDone))) ||
+                       assets->has_scripts());
   auto& watcher = watcher_slot();
   if (wanted && watcher == nullptr) {
     watcher = new LongOperationSoundWatcher(app);

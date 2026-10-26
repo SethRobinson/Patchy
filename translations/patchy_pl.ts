@@ -13290,6 +13290,33 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Could not write &quot;%1&quot;.</source>
         <translation>Nie można zapisać &quot;%1&quot;.</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>Zdarzenie &quot;%1&quot; nie jest zdarzeniem motywu (zignorowano).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>Dźwięk &quot;%1&quot; nie jest plikiem WAV w pakiecie (zignorowano).</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>Efekt &quot;%1&quot; nie jest efektem motywu (zignorowano).</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>Obrazu sprite&apos;a &quot;%1&quot; nie ma w pakiecie (zignorowano).</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>Błąd skryptu motywu: %1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>skrypty motywu zbyt często działały za długo i zostały wyłączone</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26822,6 +26849,42 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Show All Buttons</source>
         <translation>Pokaż wszystkie przyciski</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>Odtwarzaj efekty motywu</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>Odtwarzaj krótkie animacje, które motyw pokazuje przy zdarzeniach, na przykład fajerwerki po otwarciu dokumentu.</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>Uruchamiaj skrypty motywu</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>Uruchamiaj skrypty dołączone do pakietu motywu. Mogą odtwarzać dźwięki i efekty oraz dodawać polecenia menu, ale nie mogą czytać plików ani zmieniać dokumentów.</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>Skrypty motywu</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>Motyw &quot;%1&quot; zawiera skrypty. Mogą odtwarzać dźwięki i efekty oraz dodawać polecenia menu, ale nie mogą czytać plików ani zmieniać dokumentów. Zezwolić?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>Zezwól</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>Nie zezwalaj</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>Motyw</translation>
     </message>
 </context>
 <context>

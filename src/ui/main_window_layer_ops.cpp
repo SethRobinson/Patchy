@@ -1,4 +1,5 @@
 #include "ui/palette_panel.hpp"
+#include "ui/theme_script_host.hpp"
 #include "core/artboard.hpp"
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
@@ -3448,7 +3449,9 @@ void MainWindow::delete_layers(std::vector<LayerId> ids) {
     return;
   }
   push_undo_snapshot(tr("Delete layer"));
+  const auto deleted = static_cast<int>(ids.size());
   remove_layers_in_open_undo_step(std::move(ids));
+  fire_theme_event(ThemeSoundEvent::LayerDeleted, {{QStringLiteral("count"), deleted}});
 }
 
 void MainWindow::remove_layers_in_open_undo_step(std::vector<LayerId> ids) {

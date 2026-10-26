@@ -2,6 +2,7 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/theme_package.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/theme_sounds.hpp"
 
 #include <QDir>
@@ -193,6 +194,7 @@ void ThemeManager::set_custom_theme(const QString& id, const CustomTheme& theme,
   set_active_custom_palette(theme.palette, theme.base);
   refresh_long_operation_sound_watcher();
   watch_active_package();
+  ThemeScriptHost::instance().theme_changed(id, theme.assets);
   if (!system_scheme_override_.has_value()) {
     QGuiApplication::styleHints()->setColorScheme(theme.base == ColorScheme::Light ? Qt::ColorScheme::Light
                                                                                     : Qt::ColorScheme::Dark);
@@ -213,6 +215,9 @@ void ThemeManager::clear_custom_theme(bool persist) {
   clear_active_custom_palette();
   refresh_long_operation_sound_watcher();
   watch_active_package();
+  if (auto* host = ThemeScriptHost::existing(); host != nullptr) {
+    host->theme_changed({}, nullptr);
+  }
   if (persist) {
     auto settings = app_settings();
     settings.setValue(custom_theme_id_key(), QString());
@@ -283,7 +288,8 @@ void ThemeManager::watch_active_package() {
   }
   const QDir root(theme_file_path_for_id(*active_custom_id_));
   QStringList paths{root.absolutePath(), root.filePath(QString(kThemePackageManifest))};
-  for (const auto& folder : {QStringLiteral("icons"), QStringLiteral("images"), QStringLiteral("sounds")}) {
+  for (const auto& folder :
+       {QStringLiteral("icons"), QStringLiteral("images"), QStringLiteral("sounds"), QStringLiteral("scripts")}) {
     const auto folder_path = root.filePath(folder);
     if (!QFileInfo(folder_path).isDir()) {
       continue;

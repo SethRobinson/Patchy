@@ -7,6 +7,7 @@
 // order is load-bearing (see create_actions() for the phase order).
 
 #include "ui/hotkey_registry.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/main_window.hpp"
 #include <QLayout>
 #include <QStatusBar>
@@ -1479,9 +1480,13 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
         finish_active_text_editor();
       }
     }
+    const bool tool_changed = current_tool_ != selected;
     current_tool_ = selected;
     if (canvas_ != nullptr) {
       canvas_->set_tool(selected);
+    }
+    if (tool_changed) {
+      fire_theme_event(ThemeSoundEvent::ToolChanged, {{QStringLiteral("tool"), theme_tool_id(selected)}});
     }
     apply_selection_edge_settings_for_tool(selected);
     set_eraser_brush_settings_active(selected == CanvasTool::Eraser);

@@ -5,6 +5,7 @@
 // main_window.cpp; behavior must stay identical.
 
 #include "ui/main_window.hpp"
+#include "ui/theme_script_host.hpp"
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
@@ -703,6 +704,7 @@ bool MainWindow::close_document_session(DocumentSession& target_session, CloseCo
   if (sessions_.empty() && statusBar() != nullptr) {
     statusBar()->showMessage(tr("No document"));
   }
+  fire_theme_event(ThemeSoundEvent::DocumentClosed);
   return true;
 }
 

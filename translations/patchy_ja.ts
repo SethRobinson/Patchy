@@ -13216,6 +13216,33 @@ Each item&apos;s own View setting still applies.</source>
         <source>Could not write &quot;%1&quot;.</source>
         <translation>&quot;%1&quot; を書き込めませんでした。</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>イベント &quot;%1&quot; はテーマのイベントではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>サウンド &quot;%1&quot; はパッケージ内の WAV ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>エフェクト &quot;%1&quot; はテーマのエフェクトではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>スプライト画像 &quot;%1&quot; がパッケージ内にありません (無視しました)。</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>テーマスクリプトのエラー: %1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>テーマのスクリプトが何度も時間を超えたため、停止しました</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26670,6 +26697,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show All Buttons</source>
         <translation>すべてのボタンを表示</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>テーマのエフェクトを再生</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>テーマがイベントで表示する短いアニメーションを再生します (ドキュメントを開いたときの花火など)。</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>テーマのスクリプトを実行</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>テーマパッケージに含まれるスクリプトを実行します。サウンドやエフェクトの再生とメニューコマンドの追加はできますが、ファイルの読み込みやドキュメントの変更はできません。</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>テーマのスクリプト</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>テーマ &quot;%1&quot; にはスクリプトが含まれています。サウンドやエフェクトの再生とメニューコマンドの追加はできますが、ファイルの読み込みやドキュメントの変更はできません。許可しますか?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>許可</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>許可しない</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>テーマ</translation>
     </message>
 </context>
 <context>

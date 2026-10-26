@@ -13216,6 +13216,33 @@ Each item&apos;s own View setting still applies.</source>
         <source>Could not write &quot;%1&quot;.</source>
         <translation>&quot;%1&quot;을(를) 쓸 수 없습니다.</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>이벤트 &quot;%1&quot;은(는) 테마 이벤트가 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>사운드 &quot;%1&quot;은(는) 패키지의 WAV 파일이 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>효과 &quot;%1&quot;은(는) 테마 효과가 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>스프라이트 이미지 &quot;%1&quot;이(가) 패키지에 없습니다(무시됨).</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>테마 스크립트 오류: %1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>테마 스크립트가 계속 너무 오래 실행되어 꺼졌습니다</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26670,6 +26697,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show All Buttons</source>
         <translation>모든 버튼 표시</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>테마 효과 재생</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>테마가 이벤트에 표시하는 짧은 애니메이션을 재생합니다(예: 문서를 열 때의 불꽃놀이).</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>테마 스크립트 실행</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>테마 패키지에 포함된 스크립트를 실행합니다. 사운드와 효과를 재생하고 메뉴 명령을 추가할 수 있지만 파일을 읽거나 문서를 바꿀 수는 없습니다.</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>테마 스크립트</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>테마 &quot;%1&quot;에 스크립트가 있습니다. 사운드와 효과를 재생하고 메뉴 명령을 추가할 수 있지만 파일을 읽거나 문서를 바꿀 수는 없습니다. 허용할까요?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>허용</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>허용 안 함</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>테마</translation>
     </message>
 </context>
 <context>

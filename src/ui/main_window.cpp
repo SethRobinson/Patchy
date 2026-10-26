@@ -4435,6 +4435,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // scheme change restyle a half-built window.
   connect(&ThemeManager::instance(), &ThemeManager::color_scheme_changed, this,
           [this] { apply_color_scheme(); });
+  install_theme_extras();
   ensure_native_resizable_frame();
   mask_edit_mode_chip_ = new QToolButton(statusBar());
   mask_edit_mode_chip_->setObjectName(QStringLiteral("maskEditModeChip"));

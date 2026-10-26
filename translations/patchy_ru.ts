@@ -13290,6 +13290,33 @@ Each item&apos;s own View setting still applies.</source>
         <source>Could not write &quot;%1&quot;.</source>
         <translation>Не удалось записать &quot;%1&quot;.</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>Событие &quot;%1&quot; не является событием темы (пропущено).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>Звук &quot;%1&quot; не является файлом WAV в пакете (пропущен).</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>Эффект &quot;%1&quot; не является эффектом темы (пропущен).</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>Изображения спрайта &quot;%1&quot; нет в пакете (пропущено).</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>Ошибка скрипта темы: %1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>скрипты темы слишком часто работали слишком долго и были отключены</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26822,6 +26849,42 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Show All Buttons</source>
         <translation>Показать все кнопки</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>Воспроизводить эффекты темы</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>Воспроизводить короткие анимации, которые тема показывает при событиях, например фейерверк при открытии документа.</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>Запускать скрипты темы</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>Запускать скрипты из пакета темы. Они могут воспроизводить звуки и эффекты и добавлять команды меню, но не могут читать файлы и изменять документы.</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>Скрипты темы</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>Тема &quot;%1&quot; содержит скрипты. Они могут воспроизводить звуки и эффекты и добавлять команды меню, но не могут читать файлы и изменять документы. Разрешить?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>Разрешить</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>Не разрешать</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>Тема</translation>
     </message>
 </context>
 <context>

@@ -5,6 +5,7 @@
 // never write a hex literal into the template below.
 
 #include "ui/main_window.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
@@ -1206,11 +1207,15 @@ QString photoshop_style(double tool_palette_factor) {
   // custom, which is the only signal available -- Qt fires no event for a
   // palette-struct change.
   // Also keyed on the toolbar icon size factor, which sizes the tool palette rules.
+  // And on the theme's panel backgrounds (theme_script_host.hpp), appended last.
   static int cached_generation = -1;
   static double cached_factor = 0.0;
+  static int cached_panel_revision = -1;
   static QString cached;
   const auto generation = theme_generation();
-  if (generation != cached_generation || tool_palette_factor != cached_factor) {
+  const auto panel_revision = theme_panel_background_revision();
+  if (generation != cached_generation || tool_palette_factor != cached_factor ||
+      panel_revision != cached_panel_revision) {
     auto sheet = resolve_tool_palette_lengths(photoshop_style_template(), tool_palette_factor);
     // Where the window server draws no shadow around the frameless main window
     // (X11, Wayland), widen its outline so the window still has a visible edge
@@ -1219,9 +1224,10 @@ QString photoshop_style(double tool_palette_factor) {
       sheet += QStringLiteral("\nQMainWindow { border: %1px solid @window_border; }\n")
                    .arg(frameless_window_edge_width());
     }
-    cached = apply_theme_tokens(sheet);
+    cached = apply_theme_tokens(sheet) + theme_panel_background_stylesheet();
     cached_generation = generation;
     cached_factor = tool_palette_factor;
+    cached_panel_revision = panel_revision;
   }
   return cached;
 }

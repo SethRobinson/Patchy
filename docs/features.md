@@ -104,7 +104,7 @@
 - Screen modes (View > Screen Mode, F, a toolbox button): full screen with menus and panels or the canvas alone
 - Customize Tool Palette (gear or Window menu): hide tools or Layers buttons, two columns, wheel scroll
 - Localized in twelve languages: English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Polish, Japanese, Korean, and Chinese (Simplified and Traditional); it follows your system or is set in File->Preferences
-- UI themes: Dark, Light, seven bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast), or your own: a `.patchytheme` JSON file overriding any interface colors by role over a base scheme, or a theme package (a folder or .zip) that also replaces icons (SVG, PNG or BMP, colored allowed), puts a tiled or stretched image around the document, and plays sounds for saves, exports and alerts. File->Preferences imports, exports and reloads themes (a folder theme reloads by itself) and exports the built-in icons as a template. Start from [themes/example-package](../themes/example-package/theme.json)
+- UI themes: Dark, Light, seven bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast), or your own: a `.patchytheme` file of interface colors, or a theme package (a folder or .zip) adding icons (SVG, PNG or BMP), a tiled or stretched backdrop, sounds and effects (fireworks, confetti, sprites) for events, and sandboxed scripts for a theme menu, cursors and a splash. Preferences imports, exports and reloads themes; start from [themes/example-package](../themes/example-package/theme.json)
 
 ## Current Status
 

@@ -9,6 +9,7 @@
 #include "core/pixel_tools.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
@@ -390,7 +391,7 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape || tool_ == CanvasTool::RedEye) {
-    setCursor(Qt::CrossCursor);
+    setCursor(theme_tool_cursor(tool_).value_or(QCursor(Qt::CrossCursor)));
     return;
   }
   if (tool_ == CanvasTool::Ruler) {
@@ -416,6 +417,12 @@ void CanvasWidget::update_tool_cursor() {
       // Session hover feedback: resize cursors over the handles, move inside,
       // and the rotate hint everywhere off the box (the straighten gesture).
       const auto handle = crop_handle_at(last_mouse_position_);
+      // Inside the box (a drag moves the image) a theme cursor may stand in; the
+      // handle and rotate cursors are the box's edit feedback and stay.
+      if (const auto themed = theme_tool_cursor(tool_); themed.has_value() && handle == TransformHandle::Move) {
+        setCursor(*themed);
+        return;
+      }
       if (handle == TransformHandle::None) {
         setCursor(transform_rotate_cursor_at(last_mouse_position_, QRectF(crop_rect_), crop_angle_, false));
       } else {
@@ -423,7 +430,9 @@ void CanvasWidget::update_tool_cursor() {
       }
       return;
     }
-    setCursor(Qt::CrossCursor);
+    // The idle pointer is the one a theme may replace (theme_script_host.hpp); the
+    // handle and rotate cursors above stay, they are the box's feedback.
+    setCursor(theme_tool_cursor(tool_).value_or(QCursor(Qt::CrossCursor)));
     return;
   }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
@@ -511,7 +520,7 @@ void CanvasWidget::update_tool_cursor() {
       }();
       setCursor(area_cursor);
     } else {
-      setCursor(Qt::IBeamCursor);
+      setCursor(theme_tool_cursor(tool_).value_or(QCursor(Qt::IBeamCursor)));
     }
     return;
   }

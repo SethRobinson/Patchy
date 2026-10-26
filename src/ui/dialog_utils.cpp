@@ -1,5 +1,5 @@
 #include "ui/dialog_utils.hpp"
-#include "ui/theme_sounds.hpp"
+#include "ui/theme_script_host.hpp"
 
 #include "ui/app_settings.hpp"
 #include "ui/main_window.hpp"
@@ -3022,7 +3022,7 @@ QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString&
     }
   }
   dialog.installEventFilter(new MessageBoxLetterKeyFilter(dialog));
-  play_theme_sound(ThemeSoundEvent::Warning);
+  fire_theme_event(ThemeSoundEvent::Warning);
   return static_cast<QMessageBox::StandardButton>(exec_dialog(dialog));
 }
 
@@ -3040,7 +3040,7 @@ void show_critical_message(QWidget* parent, const QString& title, const QString&
   if (!object_name.isEmpty()) {
     dialog.setObjectName(object_name);
   }
-  play_theme_sound(ThemeSoundEvent::Error);
+  fire_theme_event(ThemeSoundEvent::Error);
   exec_dialog(dialog);
 }
 

@@ -6,6 +6,7 @@
 // much of the canvas an undo/redo restore must recomposite.
 
 #include "ui/canvas_types.hpp"
+#include "ui/theme_script_host.hpp"
 #include "core/smart_filter.hpp"
 #include "ui/main_window.hpp"
 #include "core/worker_budget.hpp"
@@ -232,6 +233,7 @@ void MainWindow::undo() {
   HistoryRefreshRegion changed;
   rotate_history_state(active_session, /*backward=*/true, live_selection, changed);
   apply_history_restore_tail(active_session, changed, std::move(live_selection), tr("Undo"));
+  fire_theme_event(ThemeSoundEvent::Undo);
 }
 
 void MainWindow::redo() {
@@ -260,6 +262,7 @@ void MainWindow::redo() {
   HistoryRefreshRegion changed;
   rotate_history_state(active_session, /*backward=*/false, live_selection, changed);
   apply_history_restore_tail(active_session, changed, std::move(live_selection), tr("Redo"));
+  fire_theme_event(ThemeSoundEvent::Redo);
 }
 
 void MainWindow::push_undo_snapshot(QString label) {

@@ -1379,6 +1379,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_smart_objects.cpp
       src/ui/main_window_stress_test.cpp
       src/ui/main_window_theme.cpp
+      src/ui/main_window_theme_extras.cpp
       src/ui/main_window_paths.cpp
       src/ui/main_window_tool_options.cpp
       src/ui/main_window_vector.cpp
@@ -1525,6 +1526,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/theme_package.cpp
       src/ui/theme_sounds.hpp
       src/ui/theme_sounds.cpp
+      src/ui/theme_effects.hpp
+      src/ui/theme_effects.cpp
+      src/ui/theme_script_host.hpp
+      src/ui/theme_script_host.cpp
       src/ui/theme_manager.hpp
       src/ui/theme_manager.cpp
       src/ui/theme_palette.hpp
@@ -2451,6 +2456,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/open_with_registration_tests.cpp
       tests/ui/composite_render_tests.cpp
       tests/ui/theme_package_tests.cpp
+      tests/ui/theme_script_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

@@ -12,6 +12,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QSaveFile>
 #include <QSet>
 
@@ -74,6 +77,56 @@ std::shared_ptr<const ThemeAssets>& active_assets_slot() {
 
 [[nodiscard]] bool is_wav(const QByteArray& bytes) {
   return bytes.size() >= 12 && bytes.startsWith("RIFF") && bytes.mid(8, 4) == "WAVE";
+}
+
+[[nodiscard]] bool is_known_effect(const QString& name) {
+  return name == QStringLiteral("fireworks") || name == QStringLiteral("sparkles") ||
+         name == QStringLiteral("confetti") || name == QStringLiteral("sprite");
+}
+
+// theme.json "events": {"<event id>": {"sound": "sounds/x.wav", "effect": "fireworks" | {...}}}.
+void parse_event_actions(ThemeAssets& assets, const QHash<QString, QByteArray>& files, QStringList& warnings) {
+  const auto events = assets.manifest.value(QStringLiteral("events")).toObject();
+  for (auto it = events.begin(); it != events.end(); ++it) {
+    if (!theme_sound_event_from_id(it.key())) {
+      warnings.push_back(
+          QCoreApplication::translate("ThemeFile", "Event \"%1\" is not a theme event (ignored).").arg(it.key()));
+      continue;
+    }
+    const auto entry = it.value().toObject();
+    ThemeEventAction action;
+    if (const auto sound = entry.value(QStringLiteral("sound")).toString(); !sound.isEmpty()) {
+      const auto bytes = is_safe_theme_package_path(sound) ? files.value(sound) : QByteArray();
+      if (!is_wav(bytes)) {
+        warnings.push_back(QCoreApplication::translate("ThemeFile", "Sound \"%1\" is not a WAV file in the package (ignored).")
+                               .arg(sound));
+      } else {
+        action.sound = bytes;
+      }
+    }
+    const auto effect = entry.value(QStringLiteral("effect"));
+    QVariantMap spec = effect.isObject() ? effect.toObject().toVariantMap() : QVariantMap{};
+    if (effect.isString()) {
+      spec.insert(QStringLiteral("name"), effect.toString());
+    }
+    if (!spec.isEmpty()) {
+      const auto name = spec.value(QStringLiteral("name")).toString();
+      const auto image = spec.value(QStringLiteral("image")).toString();
+      if (!is_known_effect(name)) {
+        warnings.push_back(
+            QCoreApplication::translate("ThemeFile", "Effect \"%1\" is not a theme effect (ignored).").arg(name));
+      } else if (name == QStringLiteral("sprite") &&
+                 (!is_safe_theme_package_path(image) || !files.contains(image))) {
+        warnings.push_back(QCoreApplication::translate("ThemeFile", "Sprite image \"%1\" is not in the package (ignored).")
+                               .arg(image));
+      } else {
+        action.effect = spec;
+      }
+    }
+    if (!action.sound.isEmpty() || !action.effect.isEmpty()) {
+      assets.events.insert(it.key(), action);
+    }
+  }
 }
 
 // Turns a package's files (relative path to bytes, theme.json included) into a
@@ -171,6 +224,9 @@ ThemeLoadResult load_theme_package_files(QHash<QString, QByteArray> files, const
     }
   }
 
+  assets->manifest = QJsonDocument::fromJson(manifest).object();
+  parse_event_actions(*assets, files, result.warnings);
+
   assets->files = std::move(files);
   result.theme->assets = std::move(assets);
   return result;
@@ -184,10 +240,21 @@ ThemeLoadResult load_theme_package_files(QHash<QString, QByteArray> files, const
 
 [[nodiscard]] bool is_package_folder_entry(const QString& relative) {
   return relative == kThemePackageManifest || relative.startsWith(QStringLiteral("icons/")) ||
-         relative.startsWith(QStringLiteral("images/")) || relative.startsWith(QStringLiteral("sounds/"));
+         relative.startsWith(QStringLiteral("images/")) || relative.startsWith(QStringLiteral("sounds/")) ||
+         relative.startsWith(QStringLiteral("scripts/"));
 }
 
 }  // namespace
+
+bool ThemeAssets::has_scripts() const { return files.contains(QStringLiteral("scripts/main.js")); }
+
+QImage theme_package_image(const ThemeAssets& assets, const QString& path, int max_side) {
+  if (!is_safe_theme_package_path(path)) {
+    return {};
+  }
+  const auto found = assets.files.constFind(path);
+  return found == assets.files.constEnd() ? QImage() : decode_package_image(found.value(), lower_suffix(path), max_side);
+}
 
 bool is_theme_package_zip_name(const QString& file_name) {
   return file_name.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive);
@@ -227,7 +294,8 @@ ThemeLoadResult load_theme_package_directory(const QString& directory, const The
   QHash<QString, QByteArray> files;
   qint64 total = 0;
   QStringList relatives{QString(kThemePackageManifest)};
-  for (const auto& folder : {QStringLiteral("icons"), QStringLiteral("images"), QStringLiteral("sounds")}) {
+  for (const auto& folder :
+       {QStringLiteral("icons"), QStringLiteral("images"), QStringLiteral("sounds"), QStringLiteral("scripts")}) {
     const auto folder_path = root.filePath(folder);
     if (!QFileInfo(folder_path).isDir()) {
       continue;

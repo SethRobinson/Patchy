@@ -13253,6 +13253,33 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Could not write &quot;%1&quot;.</source>
         <translation>No se pudo escribir &quot;%1&quot;.</translation>
     </message>
+    <message>
+        <source>Event &quot;%1&quot; is not a theme event (ignored).</source>
+        <translation>El evento &quot;%1&quot; no es un evento de tema (se ignora).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file in the package (ignored).</source>
+        <translation>El sonido &quot;%1&quot; no es un archivo WAV del paquete (se ignora).</translation>
+    </message>
+    <message>
+        <source>Effect &quot;%1&quot; is not a theme effect (ignored).</source>
+        <translation>El efecto &quot;%1&quot; no es un efecto de tema (se ignora).</translation>
+    </message>
+    <message>
+        <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>La imagen de sprite &quot;%1&quot; no está en el paquete (se ignora).</translation>
+    </message>
+</context>
+<context>
+    <name>ThemeScripts</name>
+    <message>
+        <source>Theme script error: %1</source>
+        <translation>Error en un script del tema: %1</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts kept running too long and were turned off</source>
+        <translation>los scripts del tema tardaron demasiado una y otra vez y se desactivaron</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26746,6 +26773,42 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Show All Buttons</source>
         <translation>Mostrar todos los botones</translation>
+    </message>
+    <message>
+        <source>Play theme effects</source>
+        <translation>Reproducir efectos del tema</translation>
+    </message>
+    <message>
+        <source>Play the short animations a theme shows for events, such as fireworks when a document opens.</source>
+        <translation>Reproducir las animaciones breves que un tema muestra en los eventos, como fuegos artificiales al abrir un documento.</translation>
+    </message>
+    <message>
+        <source>Run theme scripts</source>
+        <translation>Ejecutar scripts del tema</translation>
+    </message>
+    <message>
+        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
+        <translation>Ejecutar los scripts que incluye un paquete de tema. Pueden reproducir sonidos y efectos y añadir comandos de menú, pero no pueden leer archivos ni cambiar documentos.</translation>
+    </message>
+    <message>
+        <source>Theme Scripts</source>
+        <translation>Scripts del tema</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
+        <translation>El tema &quot;%1&quot; contiene scripts. Pueden reproducir sonidos y efectos y añadir comandos de menú, pero no pueden leer archivos ni cambiar documentos. ¿Permitirlos?</translation>
+    </message>
+    <message>
+        <source>Allow</source>
+        <translation>Permitir</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Allow</source>
+        <translation>No permitir</translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation>Tema</translation>
     </message>
 </context>
 <context>

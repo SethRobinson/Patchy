@@ -4,14 +4,17 @@
 // user_themes_directory() holding theme.json plus icons/, images/ and sounds/, or
 // that folder zipped. Everything a package holds is read into memory once, at
 // load, under ThemePackageLimits, so a folder and a zip behave the same and
-// nothing reads the disk at paint time. A package never runs code: it holds JSON,
-// SVG, PNG, BMP and WAV data only.
+// nothing reads the disk at paint time. A package holds JSON, SVG, PNG, BMP, JPEG,
+// WAV and theme JavaScript; the scripts run only in the locked-down theme engine
+// (theme_script_host.hpp), once the user allows them.
 
 #include "ui/theme_file.hpp"
 
 #include <QByteArray>
 #include <QHash>
 #include <QImage>
+#include <QJsonObject>
+#include <QVariantMap>
 #include <QLatin1StringView>
 #include <QString>
 #include <QStringList>
@@ -29,6 +32,12 @@ struct ThemeIcon {
   QImage image_2x;  // <stem>@2x.png, drawn when the target has the pixels for it
 };
 
+// One theme.json "events" entry (docs/theme-files.md, "Events and effects").
+struct ThemeEventAction {
+  QByteArray sound;    // RIFF/WAVE bytes; empty for none
+  QVariantMap effect;  // {"name": "fireworks" | "sparkles" | "confetti" | "sprite", options...}; empty for none
+};
+
 struct ThemeAssets {
   ThemePackageOptions options;
   QHash<QString, ThemeIcon> icons;    // keyed on the built-in icon stem
@@ -37,7 +46,18 @@ struct ThemeAssets {
   // Every file the package holds except theme.json, by package-relative path, so
   // Export Theme Package can write the package back out.
   QHash<QString, QByteArray> files;
+  QHash<QString, ThemeEventAction> events;  // theme.json "events", by event id
+  // The parsed theme.json, for the keys read where they are used (menuTitle, cursors,
+  // splash, panelBackgrounds).
+  QJsonObject manifest;
+
+  // True when the package holds scripts/main.js (docs/theme-files.md, "Theme scripts").
+  [[nodiscard]] bool has_scripts() const;
 };
+
+// Decodes a PNG, JPEG or BMP the package holds at `path`; null when missing, unsafe,
+// another format, or past `max_side` pixels a side.
+[[nodiscard]] QImage theme_package_image(const ThemeAssets& assets, const QString& path, int max_side = 4096);
 
 struct ThemePackageLimits {
   qint64 max_package_bytes = 64LL * 1024 * 1024;  // a zip file as stored

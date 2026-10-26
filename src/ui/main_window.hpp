@@ -185,6 +185,7 @@ class CloneSourcePanel;
 class PathsPanel;
 struct PathCommandRefusals;
 class StartPanel;
+class ThemeEffectsOverlay;
 class PatternLibrary;
 struct StartupLibraryPreloads;
 class GradientLibrary;
@@ -292,6 +293,11 @@ public:
   // destructor that normally drops it will not run. See docs/document-recovery.md.
   void discard_recovery_folder_for_forced_exit();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
+  // Theme extras (main_window_theme_extras.cpp): the effects overlay over the document
+  // area, the theme menu right of Help, and whether the empty start screen shows.
+  [[nodiscard]] ThemeEffectsOverlay* theme_effects_overlay() const;
+  [[nodiscard]] QMenu* theme_menu() const { return theme_menu_; }
+  [[nodiscard]] bool start_screen_showing() const;
   [[nodiscard]] BrushTipLibrary& brush_tip_library();
   [[nodiscard]] BrushAutomationLibrary& brush_automation_library();
   void activate_automation_brush(const ScriptStroke& brush);
@@ -1169,6 +1175,18 @@ private:
   // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
   // the steps have to run in.
   void apply_color_scheme();
+  // Theme events, effects, scripts and their UI (main_window_theme_extras.cpp;
+  // docs/theme-files.md, "Theme scripts"): the effects overlay above the document area,
+  // the theme menu right of Help, the trust prompt, splash, status, cursors and panel
+  // backgrounds the theme script host asks for.
+  void install_theme_extras();
+  void rebuild_theme_menu();
+  void refresh_theme_cursors();
+  void show_theme_splash(const QImage& image, int milliseconds);
+  void ask_theme_script_trust();
+  // The trust prompt, shared by theme selection and Import: true when the user allows
+  // the theme's scripts.
+  static bool confirm_theme_scripts(QWidget* parent, const QString& theme_name);
   // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
   void apply_tool_palette_factor(double factor);
   void new_guide_dialog();
@@ -2593,6 +2611,11 @@ private:
   // Overlay child of document_tabs_, visible only while sessions_ is empty
   // (startup no longer auto-creates a document).
   StartPanel* start_panel_{nullptr};
+  QPointer<QWidget> theme_effects_overlay_;  // a ThemeEffectsOverlay
+  QMenu* theme_menu_{nullptr};
+  QHash<QString, QAction*> theme_command_actions_;
+  QTimer* theme_idle_timer_{nullptr};
+  QPointer<QWidget> theme_splash_;
   // The one-time tool-settings load waits for the first canvas: load_tool_settings
   // needs a canvas to apply to and startup opens with none. While it is pending,
   // save_tool_settings writes nothing: a save before the load would overwrite the

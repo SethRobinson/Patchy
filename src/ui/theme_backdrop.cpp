@@ -113,6 +113,31 @@ bool paint_theme_backdrop(QPainter& painter, const QRect& area, const QWidget& w
   return true;
 }
 
+QString theme_cache_png_url(const QImage& image, const QString& prefix) {
+  QByteArray png;
+  {
+    QBuffer buffer(&png);
+    if (image.isNull() || !buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) {
+      return {};
+    }
+  }
+  const auto digest = QCryptographicHash::hash(png, QCryptographicHash::Sha1).toHex().left(20);
+  const QDir directory(QDir::temp().filePath(QStringLiteral("patchy-theme-cache")));
+  if (!QDir().mkpath(directory.path())) {
+    return {};
+  }
+  const auto path = directory.filePath(QStringLiteral("%1-%2.png").arg(prefix, QString::fromLatin1(digest)));
+  if (!QFileInfo::exists(path)) {
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(png) != png.size() || !file.commit()) {
+      return {};
+    }
+  }
+  // QSS takes a bare url() path; quote one holding anything a bare one cannot.
+  static const QRegularExpression bare_path(QStringLiteral("^[A-Za-z0-9_./:~-]+$"));
+  return bare_path.match(path).hasMatch() ? path : QStringLiteral("\"%1\"").arg(path);
+}
+
 QString themed_scroll_gutter_url() {
   if (!has_active_custom_palette()) {
     return {};
@@ -149,28 +174,7 @@ QString themed_scroll_gutter_url() {
     texture.setPixelColor(1, 1, alternate);
   }
 
-  QByteArray png;
-  {
-    QBuffer buffer(&png);
-    if (!buffer.open(QIODevice::WriteOnly) || !texture.save(&buffer, "PNG")) {
-      return {};
-    }
-  }
-  const auto digest = QCryptographicHash::hash(png, QCryptographicHash::Sha1).toHex().left(20);
-  const QDir directory(QDir::temp().filePath(QStringLiteral("patchy-theme-cache")));
-  if (!QDir().mkpath(directory.path())) {
-    return {};
-  }
-  const auto path = directory.filePath(QStringLiteral("gutter-%1.png").arg(QString::fromLatin1(digest)));
-  if (!QFileInfo::exists(path)) {
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(png) != png.size() || !file.commit()) {
-      return {};
-    }
-  }
-  // QSS takes a bare url() path; quote one holding anything a bare one cannot.
-  static const QRegularExpression bare_path(QStringLiteral("^[A-Za-z0-9_./:~-]+$"));
-  cache.gutter_url = bare_path.match(path).hasMatch() ? path : QStringLiteral("\"%1\"").arg(path);
+  cache.gutter_url = theme_cache_png_url(texture, QStringLiteral("gutter"));
   return cache.gutter_url;
 }
 

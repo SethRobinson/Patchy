@@ -2,11 +2,17 @@
   "format": 1,
   "name": "Example Package",
   "base": "dark",
+  "menuTitle": "Example",
   "recolorIcons": false,
   "iconScaling": "nearest",
   "backdrop": {
     "image": "images/backdrop.png",
     "mode": "tile"
+  },
+  "events": {
+    "document-new": {
+      "effect": "sparkles"
+    }
   },
   "roles": {
     "accent": "#e0883a",
