@@ -94,6 +94,7 @@ class PanelColumn;
 struct PanelSpec;
 class ToolPaletteFooter;
 class ArtboardPresetPicker;
+enum class LayerCtrlClickTarget;
 }  // namespace patchy::ui
 class QShowEvent;
 class QSlider;
@@ -1906,6 +1907,13 @@ private:
   void set_all_layers_visible(bool visible);
   void sync_layer_row_visibility_indicators();
   void show_layer_context_menu(QPoint position);
+  // Layers panel thumbnail gestures (main_window_layer_thumbnails.cpp): a thumbnail part loaded as
+  // a selection (operation 0 replace, 1 add, 2 subtract, 3 intersect; #433), the short menus on a
+  // layer or mask thumbnail (false when the point is on neither; #431, #432), and the footer
+  // Delete button, which removes a targeted mask instead of the layer (#441).
+  void load_layer_part_selection(LayerId id, LayerCtrlClickTarget target, int operation);
+  bool show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint viewport_position);
+  void delete_from_layers_panel();
   // The Background's shorter row menu (GitHub issue 274) and the eye column's menu: visibility
   // entries for `id` (#407), then the color labels (issue 276).
   void show_background_context_menu(QPoint global_position);
@@ -2243,6 +2251,12 @@ private:
   // The Character and Paragraph panels follow the same rule: Enter in a field, a checkbox
   // click or a combo pick hands the keyboard back to a live session.
   void return_keyboard_after_text_panel_edits(QWidget& panel);
+  // Keyboard focus in the Options bar (GitHub issues 439, 440), called from the application
+  // event filter: Enter in a field commits it and Esc drops the edit, then the keyboard goes
+  // back to the canvas (or a live text session) so tool keys work again; a control reached
+  // with Tab carries kOptionsBarKeyboardFocusProperty, which its QSS focus outline keys on.
+  bool handle_options_bar_focus_event(QObject* watched, QEvent* event);
+  void return_keyboard_from_options_bar();
   // The text color panel is live; with no session each change would commit every selected
   // layer, so the layer edit waits for the picker to settle on `color`.
   void apply_text_color_to_selected_layers_debounced(QColor color);

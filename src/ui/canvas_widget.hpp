@@ -34,6 +34,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
+#include <QLine>
 #include <QList>
 #include <QPixmap>
 #include <QPoint>
@@ -70,6 +71,7 @@ class QAction;
 class QPainter;
 class QMenu;
 class QEvent;
+class QHideEvent;
 class QResizeEvent;
 class QScrollBar;
 class QTabletEvent;
@@ -679,6 +681,13 @@ public:
   // Turns off the hard round brush's covered-disk skip (GitHub issue 135) so a test can paint
   // the same stroke both ways and compare the bytes.
   void set_hard_round_skip_enabled_for_testing(bool enabled) noexcept { hard_round_skip_enabled_ = enabled; }
+  // Drag move coalescing for tests and timing runs: Default coalesces window-system
+  // moves only, AllMoves also posted ones (a test can queue a burst), Off none (the
+  // before-the-fix baseline of `patchy_perf_tests textdrag`).
+  enum class DragMoveCoalescing { Default, AllMoves, Off };
+  void set_drag_move_coalescing_for_testing(DragMoveCoalescing mode) noexcept { drag_move_coalescing_mode_ = mode; }
+  [[nodiscard]] QPoint move_drag_delta_for_testing() const noexcept { return move_preview_delta_; }
+  [[nodiscard]] QTransform free_transform_preview_delta_for_testing() const { return free_transform_preview_delta(); }
   // Built display mip levels (0 when the chain was dropped), and whether every built
   // level equals one rebuilt from the render cache now (patch_display_mip_cache exactness).
   [[nodiscard]] int display_mip_levels_for_testing() const noexcept;
@@ -1501,12 +1510,22 @@ protected:
   void mousePressEvent(QMouseEvent* event) override;
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
+  // Move-tool and Free Transform drag moves: the first move of an event-loop pass is
+  // applied at once; later ones in the same pass only record their position, and one
+  // queued apply at the end of the pass takes the latest (GitHub #207, #443, #444).
+  // Returns true when `event` was recorded instead of handled.
+  bool defer_coalesced_drag_move(const QMouseEvent& event);
+  void begin_drag_move_pass();
+  void end_drag_move_pass();
+  // Applies a recorded drag move now (presses, releases and keys call it first).
+  void flush_pending_drag_move();
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void tabletEvent(QTabletEvent* event) override;
   void enterEvent(QEnterEvent* event) override;
   void focusInEvent(QFocusEvent* event) override;
   void leaveEvent(QEvent* event) override;
+  void hideEvent(QHideEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
   void focusOutEvent(QFocusEvent* event) override;
@@ -1986,6 +2005,19 @@ private:
   [[nodiscard]] QRect stroke_leash_overlay_rect() const;
   void invalidate_stroke_leash_overlay();
   void draw_stroke_leash_overlay(QPainter& painter) const;
+  // Painting tools where Shift+click extends the previous stroke with a straight
+  // segment from its end point (Photoshop behaviour).
+  [[nodiscard]] static bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept;
+  // The Shift+click line preview (GitHub issue 445): while Shift alone is held over the
+  // canvas with no stroke running, a thin line runs from the last stroke's end (the
+  // anchor Shift+click connects from) to the pointer. Invalidation is old-union-new.
+  [[nodiscard]] std::optional<QLineF> stroke_connect_preview_line() const;
+  [[nodiscard]] QRect stroke_connect_preview_rect() const;
+  void refresh_stroke_connect_preview();
+  void track_stroke_connect_preview(QPoint widget_position, Qt::KeyboardModifiers modifiers);
+  void set_stroke_connect_preview_modifiers(Qt::KeyboardModifiers modifiers);
+  void hide_stroke_connect_preview();
+  void draw_stroke_connect_preview(QPainter& painter) const;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
@@ -3088,6 +3120,10 @@ private:
   patchy::StrokeStabilizer stroke_stabilizer_;
   QBasicTimer stabilizer_timer_;
   QRect stroke_leash_overlay_rect_{};
+  Qt::KeyboardModifiers stroke_connect_preview_modifiers_{};
+  QPoint stroke_connect_preview_pointer_{};
+  bool stroke_connect_preview_pointer_inside_{false};
+  QRect stroke_connect_preview_rect_{};
   // The stationary catch-up cadence: the timer fires every 16 ms and each tick
   // advances the core stabilizer by this fixed dt (no clock reads in core, so
   // strokes stay deterministic; keep the two constants in step).
@@ -3211,6 +3247,19 @@ private:
   bool moving_layer_{false};
   bool transforming_layer_{false};
   bool dragging_transform_{false};
+  // Drag move coalescing (defer_coalesced_drag_move). Wayland delivers every pointer
+  // motion uncompressed; applying each one recomposites the drag preview, so a fast
+  // pointer queued seconds of moves and the canvas repainted about once a second.
+  struct PendingDragMove {
+    QPointF position;
+    QPointF global_position;
+    Qt::MouseButtons buttons;
+    Qt::KeyboardModifiers modifiers;
+  };
+  std::optional<PendingDragMove> pending_drag_move_;
+  bool drag_move_pass_active_{false};
+  bool replaying_drag_move_{false};
+  DragMoveCoalescing drag_move_coalescing_mode_{DragMoveCoalescing::Default};
   bool color_picking_{false};
   // Set transiently by the Alt key handler so update_tool_cursor() uses the
   // event's authoritative (folded) Alt state instead of the global keyboard

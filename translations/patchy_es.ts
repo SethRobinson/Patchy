@@ -25932,6 +25932,74 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Comparar con el color promedio de un cuadrado alrededor del clic en lugar de un solo píxel</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>Cargar selección de máscara de capa</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>Añadido a la selección</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>Restado de la selección</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>Intersecado con la selección</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>Seleccionar píxeles</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>Añadir píxeles a la selección</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>Restar píxeles de la selección</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>Intersecar píxeles con la selección</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>Activar máscara de capa</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>Activar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>Desactivar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>Seleccionar píxeles de la máscara</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>Añadir máscara a la selección</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>Restar máscara de la selección</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>Intersecar máscara con la selección</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>¿Aplicar la máscara a la capa antes de eliminarla?</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Aplicar</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1030,10 +1030,12 @@ QPoint clamped_document_point(const Document& document, QPoint point) {
 }
 
 // The tools whose Size/Soft options-bar controls apply; these accept the
-// Photoshop-style Alt+Right-drag brush resize gesture.
+// Photoshop-style Alt+Right-drag brush resize gesture. Quick Select takes it for
+// its own Size control alone (GitHub issue 428).
 bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::QuickSelect:
     case CanvasTool::MixerBrush:
     case CanvasTool::PatternStamp:
     case CanvasTool::Clone:

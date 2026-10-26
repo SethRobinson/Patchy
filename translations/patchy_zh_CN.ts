@@ -25859,6 +25859,74 @@ The open document keeps its blend modes either way.</source>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>与单击位置周围正方形的平均颜色比较，而不是单个像素</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>载入图层蒙版选区</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>已添加到选区</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>已从选区减去</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>已与选区交叉</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>选择像素</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>将像素添加到选区</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>从选区减去像素</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>像素与选区交叉</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>启用图层蒙版</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>启用矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>停用矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>选择蒙版像素</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>将蒙版添加到选区</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>从选区减去蒙版</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>蒙版与选区交叉</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>删除前要将蒙版应用到图层吗？</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>应用</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

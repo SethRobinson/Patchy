@@ -25859,6 +25859,74 @@ The open document keeps its blend modes either way.</source>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>クリックした 1 ピクセルではなく、周囲の正方形の平均色と比較します</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>レイヤーマスクを選択範囲として読み込み</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>選択範囲に追加しました</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>選択範囲から削除しました</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>選択範囲と交差しました</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>ピクセルを選択</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>ピクセルを選択範囲に追加</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>ピクセルを選択範囲から削除</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>ピクセルと選択範囲を交差</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>レイヤーマスクを有効化</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>ベクトルマスクを有効化</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>ベクトルマスクを無効化</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>マスクのピクセルを選択</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>マスクを選択範囲に追加</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>マスクを選択範囲から削除</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>マスクと選択範囲を交差</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>削除する前にマスクをレイヤーに適用しますか？</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>適用</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

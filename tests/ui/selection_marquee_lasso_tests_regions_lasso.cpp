@@ -209,6 +209,75 @@ void ui_select_inverse_and_extended_blend_modes_work() {
   save_widget_artifact("ui_extended_blend_modes", window);
 }
 
+// GitHub issue 430: Select > Inverse of a feathered selection is the per-pixel complement
+// (255 - alpha), soft edge included, and inverting twice gives the original back.
+void ui_select_inverse_keeps_feathered_soft_edge() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto width = document.width();
+  const auto height = document.height();
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
+  canvas->set_selection_feather_radius(25);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 150)),
+       canvas->widget_position_for_document_point(QPoint(600, 450)));
+  canvas->set_selection_feather_radius(0);
+  CHECK(canvas->has_selection());
+
+  const auto read_alpha = [&] {
+    std::vector<std::uint8_t> values(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        values[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)] =
+            canvas->selection_alpha_at(QPoint(x, y));
+      }
+    }
+    return values;
+  };
+  const auto original = read_alpha();
+  // The soft edge straddles the drawn rectangle's left side.
+  const auto edge_alpha = canvas->selection_alpha_at(QPoint(200, 300));
+  CHECK(edge_alpha > 40U);
+  CHECK(edge_alpha < 215U);
+
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+
+  canvas->set_primary_color(QColor(20, 40, 160));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("ui_select_inverse_feathered_fill", *canvas);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+
+  const auto inverted = read_alpha();
+  int mismatches = 0;
+  for (std::size_t index = 0; index < original.size(); ++index) {
+    if (inverted[index] != static_cast<std::uint8_t>(255U - original[index])) {
+      ++mismatches;
+    }
+  }
+  CHECK(mismatches == 0);
+  // The marching ants follow the 50% edge: the inner side of the soft band is unselected now.
+  CHECK(!canvas->selected_document_region().contains(QPoint(400, 300)));
+  CHECK(canvas->selected_document_region().contains(QPoint(150, 300)));
+  CHECK(canvas->selected_document_region().contains(QPoint(200, 300)));
+
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+  CHECK(read_alpha() == original);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(read_alpha() == inverted);
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(read_alpha() == original);
+}
+
 void ui_selection_expand_contract_and_layer_transparency_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2254,6 +2323,147 @@ void ui_lasso_drag_moves_selection() {
   CHECK(after->left() <= before->left() + 36);
 }
 
+// Two flat halves, red then blue, so a Magic Wand click selects exactly one of them.
+patchy::Document two_tone_selection_document() {
+  patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(200, 150, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = x < 100 ? 220 : 30;
+      pixel[1] = 40;
+      pixel[2] = x < 100 ? 30 : 220;
+      pixel[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Two Tone", std::move(pixels));
+  return document;
+}
+
+// GitHub issue 436: with the Polygonal and Magnetic Lassos and the Magic Wand too (the
+// marquees and the Lasso already did), a plain drag that starts inside the selection moves its
+// outline in one undo step, and the move cursor shows there. A click that never drags keeps
+// the tool's own click, and Shift still adds.
+void ui_lasso_tools_and_wand_drag_inside_moves_selection() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(two_tone_selection_document(), QStringLiteral("Two Tone"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  QApplication::processEvents();
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  const auto at = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, at(QPoint(20, 20)), at(QPoint(80, 70)));
+  const auto original = canvas->selected_document_rect();
+  CHECK(original.has_value());
+
+  for (const auto tool : {patchy::ui::CanvasTool::PolygonLasso, patchy::ui::CanvasTool::MagneticLasso,
+                          patchy::ui::CanvasTool::MagicWand}) {
+    canvas->set_tool(tool);
+    send_mouse(*canvas, QEvent::MouseMove, at(QPoint(50, 45)), Qt::NoButton, Qt::NoButton);
+    CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+    send_mouse(*canvas, QEvent::MouseMove, at(QPoint(150, 45)), Qt::NoButton, Qt::NoButton);
+    CHECK(canvas->cursor().shape() != Qt::SizeAllCursor);
+    send_mouse(*canvas, QEvent::MouseMove, at(QPoint(50, 45)), Qt::NoButton, Qt::NoButton);
+    drag(*canvas, at(QPoint(50, 45)), at(QPoint(65, 55)));
+    const auto moved = canvas->selected_document_rect();
+    CHECK(moved.has_value());
+    CHECK(moved->size() == original->size());
+    CHECK(moved->topLeft() == original->topLeft() + QPoint(15, 10));
+    CHECK(!canvas->polygon_lasso_active());
+    CHECK(!canvas->magnetic_lasso_active());
+    if (tool == patchy::ui::CanvasTool::MagicWand) {
+      save_widget_artifact("issue436_wand_drag_moved_selection", *canvas);
+    }
+    undo_action->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->selected_document_rect() == original);
+  }
+
+  // Shift keeps Add with the Wand: the press adds the red half, nothing moves.
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  drag(*canvas, at(QPoint(50, 45)), at(QPoint(65, 55)), Qt::ShiftModifier);
+  CHECK(canvas->selected_document_rect() == QRect(0, 0, 100, 150));
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == original);
+
+  // A click inside starts the Polygonal and Magnetic traces there...
+  canvas->set_tool(patchy::ui::CanvasTool::PolygonLasso);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(QPoint(50, 45)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(QPoint(50, 45)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->polygon_lasso_active());
+  CHECK(canvas->polygon_lasso_outline().value(0) == QPoint(50, 45));
+  // ...where a further press places a point instead of moving the selection.
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(60, 30)), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() != Qt::SizeAllCursor);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(QPoint(60, 30)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(QPoint(60, 30)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->polygon_lasso_vertex_count() == 2);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->polygon_lasso_active());
+  CHECK(canvas->selected_document_rect() == original);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(QPoint(50, 45)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(QPoint(50, 45)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->magnetic_lasso_active());
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(canvas->selected_document_rect() == original);
+
+  // ...and the Magic Wand selects from it: the red half, one undo step.
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(QPoint(50, 45)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(QPoint(50, 45)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->selected_document_rect() == QRect(0, 0, 100, 150));
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == original);
+}
+
+// GitHub issue 429: with Object Selection a plain click on the pasteboard deselects, as a
+// Marquee click does, and needs no model; Add and Subtract clicks there change nothing.
+void ui_object_select_pasteboard_click_deselects() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(200, 210, 220)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Pasteboard"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  QApplication::processEvents();
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  const auto at = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, at(QPoint(20, 20)), at(QPoint(80, 70)));
+  const auto original = canvas->selected_document_rect();
+  CHECK(original.has_value());
+
+  // The canvas tool directly: builds without the model leave the palette action out.
+  canvas->set_tool(patchy::ui::CanvasTool::ObjectSelect);
+  QApplication::processEvents();
+  const auto outside = at(QPoint(-30, 45));
+  CHECK(canvas->rect().contains(outside));
+  for (const auto modifiers : {Qt::KeyboardModifiers(Qt::ShiftModifier), Qt::KeyboardModifiers(Qt::AltModifier)}) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    CHECK(canvas->selected_document_rect() == original);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == original);
+}
+
 void ui_selection_arrow_keys_nudge() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2514,6 +2724,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
       {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},
+      {"ui_select_inverse_keeps_feathered_soft_edge", ui_select_inverse_keeps_feathered_soft_edge},
       {"ui_selection_expand_contract_and_layer_transparency_work",
        ui_selection_expand_contract_and_layer_transparency_work},
       {"ui_ctrl_click_layer_loads_layer_transparency", ui_ctrl_click_layer_loads_layer_transparency},
@@ -2567,6 +2778,8 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
        ui_marquee_handle_click_keeps_selection_and_hint_shows},
       {"ui_selection_tool_hints_name_modifier_combinations", ui_selection_tool_hints_name_modifier_combinations},
       {"ui_lasso_drag_moves_selection", ui_lasso_drag_moves_selection},
+      {"ui_lasso_tools_and_wand_drag_inside_moves_selection", ui_lasso_tools_and_wand_drag_inside_moves_selection},
+      {"ui_object_select_pasteboard_click_deselects", ui_object_select_pasteboard_click_deselects},
       {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
       {"ui_selection_moves_coalesce_into_one_undo_step", ui_selection_moves_coalesce_into_one_undo_step},
       {"ui_selection_cursor_shows_combine_mode_badge", ui_selection_cursor_shows_combine_mode_badge},

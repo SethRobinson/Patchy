@@ -462,7 +462,8 @@ void LayerListWidget::end_visibility_sweep() {
   }
 }
 
-void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
+void LayerListWidget::set_ctrl_click_callback(
+    std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback) {
   ctrl_click_callback_ = std::move(callback);
 }
 
@@ -916,7 +917,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       auto* item = itemAt(viewport_pos);
       const auto target = item != nullptr ? ctrl_click_target(item, viewport_pos) : std::nullopt;
       if (item != nullptr && target.has_value() && ctrl_click_callback_) {
-        ctrl_click_callback_(item, *target);
+        ctrl_click_callback_(item, *target, mouse_event->modifiers());
         event->accept();
         return true;
       }
@@ -1101,7 +1102,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
       auto* item = itemAt(mouse_event->pos());
       const auto target = item != nullptr ? ctrl_click_target(item, mouse_event->pos()) : std::nullopt;
       if (item != nullptr && target.has_value() && ctrl_click_callback_) {
-        ctrl_click_callback_(item, *target);
+        ctrl_click_callback_(item, *target, mouse_event->modifiers());
         event->accept();
         return true;
       }

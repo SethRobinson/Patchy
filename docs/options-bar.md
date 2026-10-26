@@ -53,6 +53,11 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 
 - A canvas cursor change made while a popup holds the pointer (a slider popup's quick value redraws the brush cursor) is applied by Qt to the whole main window, which then shows it over the options bar until the pointer enters another widget. `MainWindow::eventFilter` calls `refresh_cursor_under_pointer` (dialog_utils) after any `Qt::Popup` hides, so every popup is covered (GitHub issue 293, `ui_slider_popup_close_restores_cursor_under_pointer`).
 
+## Keyboard focus
+
+- Enter in a field (spin box, the font box) commits it; Esc puts back the value from before the edit (spin boxes: `ToolbarSpinboxEscapeReverter`, GitHub issue 186; the editable font box puts back its text from focus-in). Either key then hands the keyboard back to the active canvas, or to a live text session, so tool keys work again; Esc also leaves any other focused bar control. `MainWindow::handle_options_bar_focus_event` (application event filter) does it once for every bar control: the move is queued after the press, so the canvas never sees that Esc (it would deselect the layer), and it is skipped when the control lost focus meanwhile. Tab and a click elsewhere move focus as usual. (GitHub issue 439; `ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas`.)
+- Keyboard focus is shown: a control reached with Tab or Backtab carries `kOptionsBarKeyboardFocusProperty` (`optionsKeyboardFocus`) until it loses focus, and the bar QSS gives it an `@accent_border_bright` border. The bar's checkboxes paint themselves (`CheckGlyphBox`) and draw the same 1 px outline around glyph and text, only for keyboard focus (issue 167: no frame otherwise). A click focuses without the mark, and no control changes size. (GitHub issue 440; `ui_options_bar_tab_focus_shows_a_themed_outline`, shots in both schemes.)
+
 ## Text bar
 
 - At 1366 px every tool row must fit on one line: `ui_options_bar_keeps_one_height_across_tools` checks it and prints each row's natural width. A new control on a long row (Text, Brush, Clone) needs that budget. Line (Shape mode) has no collapsible slider, so `ui_line_options_bar_fits_one_row_with_room_to_spare` keeps it 100 px under that width for wider desktop fonts; its arrowheads are glyph toggles, not checkboxes (GitHub issue 174).

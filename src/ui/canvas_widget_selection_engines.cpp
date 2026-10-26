@@ -78,7 +78,7 @@ bool CanvasWidget::wand_sample_all_layers() const noexcept {
 void CanvasWidget::set_quick_select_size(int size) {
   const QRect previous_outline =
       brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
-  quick_select_size_ = std::clamp(size, 1, 512);
+  quick_select_size_ = std::clamp(size, 1, kMaxQuickSelectSize);
   update_tool_cursor();
   invalidate_brush_hover_outline(previous_outline);
 }

@@ -1340,6 +1340,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_save_metadata.cpp
       src/ui/main_window_appimage_menu_entry.cpp
       src/ui/main_window_layer_panel.cpp
+      src/ui/main_window_layer_thumbnails.cpp
       src/ui/main_window_palette.cpp
       src/ui/main_window_missing_fonts.cpp
       src/ui/main_window_plugins.cpp

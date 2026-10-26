@@ -242,12 +242,18 @@ void CanvasWidget::begin_object_select(QPoint widget_position, QPoint document_p
   if (document_ == nullptr) {
     return;
   }
+  // A press on the pasteboard may still be a click that deselects (GitHub issue 429),
+  // which needs no model, so its errors wait for a box drag to reach the release.
+  const bool on_pasteboard = !QRect(0, 0, document_->width(), document_->height()).contains(document_point);
   if (!patchy::ai::segmentation_available()) {
-    report_status_error(tr("Object Selection is not available in this build"));
-    return;
+    if (!on_pasteboard) {
+      report_status_error(tr("Object Selection is not available in this build"));
+      return;
+    }
+  } else {
+    ensure_object_select_embedding();
   }
-  ensure_object_select_embedding();
-  if (!object_select_embedding_.valid()) {
+  if (!on_pasteboard && !object_select_embedding_.valid()) {
     report_status_error(object_select_source_error_.isEmpty() ? tr("Object Selection could not read the document")
                                                               : object_select_source_error_);
     return;
@@ -289,13 +295,34 @@ void CanvasWidget::finish_object_select(QPoint widget_position) {
   }
   object_select_release_widget_ = widget_position;
   object_selecting_ = false;
-  if (document_ == nullptr || !object_select_embedding_.valid()) {
+  if (document_ == nullptr) {
     update();
     return;
   }
   const auto document_rect = QRect(0, 0, document_->width(), document_->height());
   const bool is_click = (object_select_release_widget_ - object_select_press_widget_).manhattanLength() <=
                         kObjectSelectClickSlop;
+  if (is_click && !document_rect.contains(object_select_press_)) {
+    // A click on the pasteboard deselects in New mode, as a Marquee click does; Add and
+    // Subtract have nothing to add or take away there (GitHub issue 429).
+    if (selection_operation_ == SelectionMode::Replace) {
+      const auto before = capture_selection_snapshot();
+      clear_selection();
+      record_selection_history(tr("Deselect"), before);
+    }
+    update();
+    return;
+  }
+  if (!object_select_embedding_.valid()) {
+    // A box drag begun on the pasteboard reports here what its press let pass.
+    if (!document_rect.contains(object_select_press_)) {
+      report_status_error(!patchy::ai::segmentation_available() ? tr("Object Selection is not available in this build")
+                          : object_select_source_error_.isEmpty() ? tr("Object Selection could not read the document")
+                                                                  : object_select_source_error_);
+    }
+    update();
+    return;
+  }
   const auto box = QRect(object_select_press_, object_select_current_).normalized().intersected(document_rect);
   if (!is_click && box.isEmpty()) {
     update();

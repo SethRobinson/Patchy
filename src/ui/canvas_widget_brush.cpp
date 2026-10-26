@@ -28,9 +28,11 @@
 #include "ui/theme_palette.hpp"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QCursor>
 #include <QImage>
 #include <QPainter>
+#include <QLine>
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
@@ -729,7 +731,7 @@ void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position, bool from_tab
   brush_adjust_from_tablet_ = from_tablet;
   brush_adjust_origin_widget_ = widget_position;
   brush_adjust_current_widget_ = widget_position;
-  brush_adjust_start_size_ = brush_size_;
+  brush_adjust_start_size_ = active_outline_brush_size();
   brush_adjust_start_softness_ = brush_softness_;
   clear_move_hover_outline();
   // The anchored overlay is the size readout; hide the pointer so it does not
@@ -750,22 +752,31 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
   // trailing edge stays pinned and the disc reads as growing from a corner.
   const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
   const auto diameter_per_pixel = brush_adjust_from_tablet_ ? 4.0 : 2.0;
+  // Quick Select sizes its own brush (GitHub issue 428) and has no softness to drag.
+  const bool quick_select = tool_ == CanvasTool::QuickSelect;
   const auto new_size = std::clamp(
       brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)),
-      1, kMaxBrushSize);
+      1, quick_select ? kMaxQuickSelectSize : kMaxBrushSize);
   // Vertical drag adjusts edge softness: up softens, down hardens (the
   // Photoshop hardness directions, inverted because softness is 100-hardness).
   const auto new_softness =
-      std::clamp(brush_adjust_start_softness_ - static_cast<int>(std::lround(static_cast<double>(delta.y()) * 0.4)),
-                 0, 100);
-  if (new_size == brush_size_ && new_softness == brush_softness_) {
+      quick_select
+          ? brush_softness_
+          : std::clamp(
+                brush_adjust_start_softness_ - static_cast<int>(std::lround(static_cast<double>(delta.y()) * 0.4)),
+                0, 100);
+  if (new_size == active_outline_brush_size() && new_softness == brush_softness_) {
     if (brush_adjust_from_tablet_) {
       update();  // the pen-centered preview moves even when the values do not
     }
     return;
   }
-  brush_size_ = new_size;
-  brush_softness_ = new_softness;
+  if (quick_select) {
+    quick_select_size_ = new_size;
+  } else {
+    brush_size_ = new_size;
+    brush_softness_ = new_softness;
+  }
   update();
 }
 
@@ -775,8 +786,12 @@ void CanvasWidget::end_brush_adjust_drag(bool commit) {
   }
   brush_adjust_dragging_ = false;
   if (!commit) {
-    brush_size_ = brush_adjust_start_size_;
-    brush_softness_ = brush_adjust_start_softness_;
+    if (tool_ == CanvasTool::QuickSelect) {
+      quick_select_size_ = brush_adjust_start_size_;
+    } else {
+      brush_size_ = brush_adjust_start_size_;
+      brush_softness_ = brush_adjust_start_softness_;
+    }
   }
   if (!brush_adjust_from_tablet_) {
     // A mouse is a relative device, so snap the pointer back to the gesture
@@ -804,7 +819,8 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   // grows faster than the pen travels (see update_brush_adjust_drag), which
   // keeps both edges expanding instead of pinning the trailing one.
   const QPointF center(brush_adjust_from_tablet_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_);
-  const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
+  const auto radius = std::max(1.5, static_cast<double>(active_outline_brush_size()) * zoom_ / 2.0);
+  const auto softness = tool_ == CanvasTool::QuickSelect ? 0 : brush_softness_;
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
   if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::MixerBrush ||
@@ -840,11 +856,11 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   // color when the position already exists, turning the disc into a fade.
   const QColor fill(232, 64, 64, 150);
   painter.setPen(Qt::NoPen);
-  if (brush_softness_ <= 0) {
+  if (softness <= 0) {
     painter.setBrush(fill);
   } else {
     QRadialGradient gradient(center, radius);
-    const auto solid_extent = std::clamp(1.0 - static_cast<double>(brush_softness_) / 100.0, 0.0, 1.0);
+    const auto solid_extent = std::clamp(1.0 - static_cast<double>(softness) / 100.0, 0.0, 1.0);
     gradient.setColorAt(0.0, fill);
     gradient.setColorAt(solid_extent, fill);
     gradient.setColorAt(1.0, QColor(232, 64, 64, 0));
@@ -863,7 +879,11 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
 void CanvasWidget::draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const {
   // The drag size readout's HUD pill, centered just below the disc and kept in
   // view (GitHub issue 422: outlined text alone vanished on busy artwork).
-  const auto readout = tr("Size: %1 px  Soft: %2%").arg(brush_size_).arg(brush_softness_);
+  // Quick Select has no softness, so its readout is the size alone (GitHub issue 428).
+  const auto readout =
+      tool_ == CanvasTool::QuickSelect
+          ? QCoreApplication::translate("patchy::ui::MainWindow", "Size: %1 px").arg(quick_select_size_)
+          : tr("Size: %1 px  Soft: %2%").arg(brush_size_).arg(brush_softness_);
   const auto size = canvas_hud_pill_size(painter.fontMetrics(), readout);
   QRect pill(QPoint(static_cast<int>(std::lround(center.x())) - size.width() / 2,
                     static_cast<int>(std::lround(center.y() + radius)) + 8),
@@ -1069,6 +1089,93 @@ void CanvasWidget::draw_stroke_leash_overlay(QPainter& painter) const {
   painter.setPen(QPen(theme().brush_leash, 1.0));
   painter.drawLine(output_widget, raw_widget);
   painter.drawEllipse(raw_widget, radius, radius);
+  painter.restore();
+}
+
+bool CanvasWidget::tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
+    case CanvasTool::PatternStamp:
+    case CanvasTool::Clone:
+    case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
+    case CanvasTool::Smudge:
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
+    case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
+std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
+  // Shift alone: Ctrl is the painting tools' temporary Move and Alt picks a color
+  // or sets a clone source, so a click with either would not draw this line.
+  const auto held = stroke_connect_preview_modifiers_ & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
+  if (held != Qt::ShiftModifier || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
+      document_ == nullptr || painting_ || spacebar_panning_ || panning_ || brush_adjust_dragging_ ||
+      move_drag_pending_ || moving_layer_ || !isVisible() ||
+      !tool_supports_shift_click_stroke_connect(effective_tool_for_input())) {
+    return std::nullopt;
+  }
+  return QLineF(widget_position_f(*last_stroke_end_document_), QPointF(stroke_connect_preview_pointer_));
+}
+
+QRect CanvasWidget::stroke_connect_preview_rect() const {
+  const auto line = stroke_connect_preview_line();
+  if (!line.has_value()) {
+    return {};
+  }
+  return QRectF(line->p1(), line->p2()).normalized().toAlignedRect().adjusted(-3, -3, 4, 4);
+}
+
+// Old-union-new, like the leash: the previous line must be erased wherever it was.
+void CanvasWidget::refresh_stroke_connect_preview() {
+  const auto current = stroke_connect_preview_rect();
+  const auto region = stroke_connect_preview_rect_.united(current);
+  stroke_connect_preview_rect_ = current;
+  if (!region.isEmpty()) {
+    update(region);
+  }
+}
+
+void CanvasWidget::track_stroke_connect_preview(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
+  stroke_connect_preview_pointer_ = widget_position;
+  stroke_connect_preview_pointer_inside_ = rect().contains(widget_position);
+  stroke_connect_preview_modifiers_ = modifiers;
+  refresh_stroke_connect_preview();
+}
+
+void CanvasWidget::set_stroke_connect_preview_modifiers(Qt::KeyboardModifiers modifiers) {
+  stroke_connect_preview_modifiers_ = modifiers;
+  refresh_stroke_connect_preview();
+}
+
+void CanvasWidget::hide_stroke_connect_preview() {
+  stroke_connect_preview_pointer_inside_ = false;
+  refresh_stroke_connect_preview();
+}
+
+void CanvasWidget::draw_stroke_connect_preview(QPainter& painter) const {
+  const auto line = stroke_connect_preview_line();
+  if (!line.has_value() || line->length() < 1.0) {
+    return;
+  }
+  // A dark halo under a light line, the clone-source marker's pair, reads over any artwork.
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  // Pointer positions are whole widget pixels; the half-pixel shift centers the 1 px line on
+  // a pixel row instead of smearing it across two.
+  painter.translate(0.5, 0.5);
+  for (const auto& pen : {QPen(QColor(20, 23, 28, 200), 3.0), QPen(QColor(245, 248, 252, 235), 1.0)}) {
+    painter.setPen(pen);
+    painter.drawLine(*line);
+  }
   painter.restore();
 }
 

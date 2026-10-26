@@ -27,6 +27,7 @@
 #include <QEnterEvent>
 #include <QEvent>
 #include <QFocusEvent>
+#include <QHideEvent>
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -38,7 +39,9 @@
 #include <QRectF>
 #include <QRegion>
 #include <QResizeEvent>
+#include <QMetaObject>
 #include <QScopeGuard>
+#include <QScopedValueRollback>
 #include <QSize>
 #include <QString>
 #include <QTimerEvent>
@@ -79,29 +82,6 @@ bool wheel_trace_enabled() noexcept {
 }
 
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
-  switch (tool) {
-    case CanvasTool::Brush:
-    case CanvasTool::MixerBrush:
-    case CanvasTool::PatternStamp:
-    case CanvasTool::Clone:
-    case CanvasTool::Healing:
-    case CanvasTool::SpotHealing:
-    case CanvasTool::Smudge:
-    case CanvasTool::Dodge:
-    case CanvasTool::Burn:
-    case CanvasTool::Sponge:
-    case CanvasTool::BlurBrush:
-    case CanvasTool::SharpenBrush:
-    case CanvasTool::Eraser:
-      return true;
-    default:
-      return false;
-  }
-}
-
-// Painting tools where Shift+click extends the previous stroke with a straight
-// segment from its end point (Photoshop behaviour).
-bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::MixerBrush:
@@ -243,6 +223,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
                                                            : Qt::ControlModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
+      // The Shift+click line preview (GitHub issue 445) shows and hides with the key alone.
+      set_stroke_connect_preview_modifiers(modifiers);
       if (transforming_layer_ && !warping_layer_) {
         // A pending Free Transform: Ctrl, Alt and Shift change what a handle drag
         // does, so the cursor over a handle shows that gesture before the press.
@@ -584,6 +566,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  flush_pending_drag_move();
+  // A stroke in progress hides the Shift+click line preview (GitHub issue 445).
+  const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -629,7 +614,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   // tablet path is excluded here.
   if (event->button() == Qt::RightButton && (event->modifiers() & Qt::AltModifier) != 0 &&
       !handling_tablet_event_ && !edit_locked_ && !spacebar_panning_ && !painting_ && !drawing_shape_ &&
-      !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
+      !quick_selecting_ && !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
     begin_brush_adjust_drag(event->pos());
     event->accept();
     return;
@@ -1764,6 +1749,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  if (defer_coalesced_drag_move(*event)) {
+    event->accept();
+    return;
+  }
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -1774,6 +1763,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   emit_info_for_widget_position(event->pos());
   track_brush_hover_position(event->pos());
   track_eyedropper_sample_outline(event->pos());
+  track_stroke_connect_preview(event->pos(), event->modifiers());
   if (!preview_points_.empty()) {
     // Hover switches between the hand over a preview marker and the arrow elsewhere.
     last_mouse_position_ = event->pos();
@@ -2542,8 +2532,15 @@ void CanvasWidget::focusInEvent(QFocusEvent* event) {
   QWidget::focusInEvent(event);
 }
 
+void CanvasWidget::hideEvent(QHideEvent* event) {
+  // A hidden tab misses Shift's release; it shows no stale line when it comes back.
+  hide_stroke_connect_preview();
+  QWidget::hideEvent(event);
+}
+
 void CanvasWidget::leaveEvent(QEvent* event) {
   clear_move_hover_outline();
+  hide_stroke_connect_preview();
   hide_eyedropper_sample_outline();
   invalidate_clone_overlay();
   if (brush_hover_position_valid_) {
@@ -2568,6 +2565,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  // The last moves before the release land first, so the drop is where the pointer was.
+  flush_pending_drag_move();
+  // The finished stroke's end is the next Shift+click line's anchor (GitHub issue 445).
+  const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
   // A painting tool's Ctrl+drag or Ctrl+click (GitHub issues 380, 423) gets its tool cursor
   // back after the commit.
   const bool ends_retouch_move = tool_has_ctrl_temporary_move(tool_) &&
@@ -3223,10 +3224,24 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
     if (was_click) {
       // A press inside the selection that never became a drag is a plain click,
-      // which deselects (matching the click-to-deselect behaviour elsewhere).
+      // which does what the tool's click does: the polygonal and magnetic
+      // lassos start a trace at the press, the Magic Wand selects from it, and
+      // the marquees and Lasso deselect (GitHub issue 436).
       restore_selection_before_edit();
-      clear_selection();
-      record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
+      const auto press_point = selection_move_origin_document_;
+      if (tool_ == CanvasTool::PolygonLasso && document_ != nullptr) {
+        start_polygon_lasso(QPolygon{press_point}, /*from_lasso=*/false);
+      } else if (tool_ == CanvasTool::MagneticLasso && document_ != nullptr) {
+        start_magnetic_lasso(clamped_document_point(*document_, press_point), Qt::NoModifier);
+      } else if (tool_ == CanvasTool::MagicWand) {
+        begin_processing_operation();
+        magic_wand_select(press_point);
+        end_processing_operation();
+        record_selection_history(tr("Magic Wand"), selection_snapshot_before_edit());
+      } else {
+        clear_selection();
+        record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
+      }
     } else {
       apply_selection_move(document_point - selection_move_origin_document_);
       // Coalesce with any preceding move/nudge so a run of repositions is one
@@ -3695,6 +3710,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
+  // A modifier or Escape acts on the drag where the pointer really is.
+  flush_pending_drag_move();
   if (move_layer_selection_gesture_ && event->key() == Qt::Key_Escape) {
     cancel_move_layer_selection();
     event->accept();
@@ -4310,6 +4327,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 }
 
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
+  if (!processing_render_wait_active_) {
+    flush_pending_drag_move();
+  }
   // Space released mid-path-marquee goes back to resizing WITHOUT set_tool:
   // that would drop the Pen's Ctrl latch and strand the drag.
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat() &&
@@ -4469,8 +4489,62 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   return true;
 }
 
+bool CanvasWidget::defer_coalesced_drag_move(const QMouseEvent& event) {
+  if (replaying_drag_move_ || handling_tablet_event_ || !(moving_layer_ || dragging_transform_) ||
+      drag_move_coalescing_mode_ == DragMoveCoalescing::Off) {
+    return false;
+  }
+  // Only window-system moves queue up behind a slow frame; moves a test sends one by
+  // one are applied one by one, as before.
+  if (!event.spontaneous() && drag_move_coalescing_mode_ != DragMoveCoalescing::AllMoves) {
+    return false;
+  }
+  if (!drag_move_pass_active_) {
+    // The first move of this pass is applied now.
+    begin_drag_move_pass();
+    return false;
+  }
+  pending_drag_move_ = PendingDragMove{event.position(), event.globalPosition(), event.buttons(), event.modifiers()};
+  ++render_cache_diagnostics_.drag_moves_coalesced;
+  return true;
+}
+
+void CanvasWidget::begin_drag_move_pass() {
+  // Queued behind the input already waiting, so it runs once that has been read.
+  drag_move_pass_active_ = true;
+  QMetaObject::invokeMethod(this, [this] { end_drag_move_pass(); }, Qt::QueuedConnection);
+}
+
+void CanvasWidget::end_drag_move_pass() {
+  drag_move_pass_active_ = false;
+  if (!pending_drag_move_.has_value()) {
+    return;
+  }
+  if (moving_layer_ || dragging_transform_) {
+    // Moves that queue up behind this apply coalesce into the next pass.
+    begin_drag_move_pass();
+  }
+  flush_pending_drag_move();
+}
+
+void CanvasWidget::flush_pending_drag_move() {
+  if (!pending_drag_move_.has_value()) {
+    return;
+  }
+  const auto pending = *pending_drag_move_;
+  pending_drag_move_.reset();
+  if (!(moving_layer_ || dragging_transform_)) {
+    return;  // the drag ended or was cancelled before the apply ran
+  }
+  QMouseEvent replay(QEvent::MouseMove, pending.position, pending.global_position, Qt::NoButton, pending.buttons,
+                     pending.modifiers);
+  const QScopedValueRollback replaying(replaying_drag_move_, true);
+  mouseMoveEvent(&replay);
+}
+
 void CanvasWidget::cancel_pointer_gestures() {
   const bool cancel_move = move_drag_pending_ || moving_layer_;
+  pending_drag_move_.reset();
   context_press_pos_.reset();
   cancel_move_layer_selection();
   if (selecting_ || lassoing_ || quick_selecting_ || moving_selection_ ||
@@ -4582,6 +4656,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     set_retouch_source_indicator(std::nullopt);
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
+    refresh_stroke_connect_preview();
   }
   if (!was_painting && !drawing_shape_) {
     clear_brush_stroke_tracking();

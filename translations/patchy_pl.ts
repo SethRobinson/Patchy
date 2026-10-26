@@ -26005,6 +26005,74 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Porównuj ze średnim kolorem kwadratu wokół kliknięcia zamiast jednego piksela</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>Wczytaj maskę warstwy jako zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>Dodano do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>Odjęto od zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>Utworzono przecięcie z zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>Zaznacz piksele</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>Dodaj piksele do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>Odejmij piksele od zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>Przecięcie pikseli z zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>Włącz maskę warstwy</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>Włącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>Wyłącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>Zaznacz piksele maski</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>Dodaj maskę do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>Odejmij maskę od zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>Przecięcie maski z zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>Zastosować maskę do warstwy przed jej usunięciem?</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Zastosuj</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

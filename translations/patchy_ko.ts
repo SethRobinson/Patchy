@@ -25859,6 +25859,74 @@ The open document keeps its blend modes either way.</source>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>클릭한 픽셀 하나 대신 주변 정사각형의 평균 색상과 비교합니다</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>레이어 마스크를 선택 영역으로 불러오기</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>선택 영역에 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>선택 영역에서 뺐습니다</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>선택 영역과 교차했습니다</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>픽셀 선택</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>픽셀을 선택 영역에 추가</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>선택 영역에서 픽셀 빼기</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>픽셀과 선택 영역 교차</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>레이어 마스크 활성화</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>벡터 마스크 활성화</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>벡터 마스크 비활성화</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>마스크 픽셀 선택</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>마스크를 선택 영역에 추가</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>선택 영역에서 마스크 빼기</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>마스크와 선택 영역 교차</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>삭제하기 전에 마스크를 레이어에 적용하시겠습니까?</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>적용</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

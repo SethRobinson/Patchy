@@ -1,0 +1,280 @@
+// Layers panel thumbnail gestures: Ctrl-click selection loads with their combine modifiers
+// (#433), the short context menus on a row's layer and mask thumbnails (#431, #432), and the
+// footer Delete button acting on a targeted mask (#441).
+// See docs/layer-panel.md "Thumbnail menus and selection loads".
+#include "core/layer.hpp"
+#include "core/pixel_buffer.hpp"
+#include "core/vector_shape.hpp"
+#include "ui/main_window.hpp"
+#include "ui/canvas_widget.hpp"
+#include "ui/dialog_utils.hpp"
+#include "ui/layer_list_widget.hpp"
+#include "ui/main_window_shared.hpp"
+#include "ui/vector_operations.hpp"
+
+#include <QAction>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QMenu>
+#include <QMessageBox>
+#include <QPoint>
+#include <QPushButton>
+#include <QStatusBar>
+#include <QString>
+#include <QStringLiteral>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <utility>
+
+namespace patchy::ui {
+
+namespace {
+
+// The vector mask's coverage cache over the whole canvas (zero outside cache_bounds), so the
+// selection matches the rendered mask.
+PixelBuffer vector_mask_canvas_coverage(const LayerVectorMask& mask, int width, int height) {
+  PixelBuffer coverage(width, height, PixelFormat::gray8());
+  for (int y = 0; y < coverage.height(); ++y) {
+    for (int x = 0; x < coverage.width(); ++x) {
+      const auto local_x = x - mask.cache_bounds.x;
+      const auto local_y = y - mask.cache_bounds.y;
+      std::uint8_t value = 0;
+      if (!mask.cache.empty() && local_x >= 0 && local_y >= 0 && local_x < mask.cache.width() &&
+          local_y < mask.cache.height()) {
+        value = *mask.cache.pixel(local_x, local_y);
+      }
+      *coverage.pixel(x, y) = value;
+    }
+  }
+  return coverage;
+}
+
+}  // namespace
+
+int thumbnail_click_selection_operation(Qt::KeyboardModifiers modifiers) {
+  const bool shift = (modifiers & Qt::ShiftModifier) != 0;
+  const bool alt = (modifiers & Qt::AltModifier) != 0;
+  if (shift && alt) {
+    return 3;
+  }
+  if (alt) {
+    return 2;
+  }
+  return shift ? 1 : 0;
+}
+
+void MainWindow::load_layer_part_selection(LayerId id, LayerCtrlClickTarget target, int operation) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  const auto& doc = std::as_const(document());
+  const auto* layer = doc.find_layer(id);
+  if (layer == nullptr) {
+    return;
+  }
+  // `load` replaces the selection with the part; a part that cannot load runs the canvas's own
+  // command alone, which reports why and leaves the selection as it was.
+  QString label;
+  QString loaded_message;
+  std::function<void()> load;
+  switch (target) {
+    case LayerCtrlClickTarget::ContentThumbnail:
+      if (layer->kind() != LayerKind::Pixel) {
+        canvas_->select_layer_opaque_pixels(id);
+        return;
+      }
+      label = tr("Load Layer Transparency");
+      load = [this, id] { canvas_->select_layer_opaque_pixels(id); };
+      break;
+    case LayerCtrlClickTarget::MaskThumbnail:
+      if (!layer->mask().has_value()) {
+        canvas_->select_layer_mask_pixels(id);
+        return;
+      }
+      label = tr("Load layer mask selection");
+      load = [this, id] { canvas_->select_layer_mask_pixels(id); };
+      break;
+    case LayerCtrlClickTarget::VectorMaskThumbnail: {
+      const auto* mask = layer->vector_mask();
+      if (mask == nullptr) {
+        return;
+      }
+      label = tr("Load vector mask selection");
+      loaded_message = tr("Loaded the vector mask as a selection");
+      load = [this, coverage = vector_mask_canvas_coverage(*mask, doc.width(), doc.height())] {
+        canvas_->apply_grayscale_to_selection(coverage);
+      };
+      break;
+    }
+    case LayerCtrlClickTarget::SmartFilterMaskThumbnail: {
+      const auto* stack = layer->smart_filter_stack();
+      auto pixels = stack != nullptr ? materialize_smart_filter_mask(stack->mask, doc.width(), doc.height())
+                                     : std::nullopt;
+      if (!pixels.has_value()) {
+        return;
+      }
+      label = tr("Load Smart Filter mask selection");
+      loaded_message = tr("Loaded the Smart Filter mask as a selection");
+      load = [this, coverage = std::move(*pixels)] { canvas_->apply_grayscale_to_selection(coverage); };
+      break;
+    }
+  }
+  // Add, subtract and intersect combine the part's coverage with the selection before the load,
+  // through the Make Selection dialog's combine (0 replace, 1 add, 2 subtract, 3 intersect).
+  canvas_->run_selection_command(label, [this, operation, &load] {
+    if (operation == 0) {
+      load();
+      return;
+    }
+    const auto existing = canvas_->selection_as_grayscale();
+    load();
+    auto coverage = canvas_->selection_as_grayscale();
+    combine_selection_coverage(coverage, operation, existing);
+    canvas_->apply_grayscale_to_selection(coverage);
+  });
+  canvas_->update();
+  if (operation == 1) {
+    statusBar()->showMessage(tr("Added to the selection"));
+  } else if (operation == 2) {
+    statusBar()->showMessage(tr("Subtracted from the selection"));
+  } else if (operation == 3) {
+    statusBar()->showMessage(tr("Intersected with the selection"));
+  } else if (!loaded_message.isEmpty()) {
+    statusBar()->showMessage(loaded_message);
+  }
+}
+
+bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint viewport_position) {
+  auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+  if (list == nullptr || item == nullptr || canvas_ == nullptr || !has_active_document()) {
+    return false;
+  }
+  const auto target = list->ctrl_click_target(item, viewport_position);
+  const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  const auto* layer = std::as_const(document()).find_layer(id);
+  if (!target.has_value() || layer == nullptr) {
+    return false;
+  }
+  const bool content = *target == LayerCtrlClickTarget::ContentThumbnail;
+  const bool raster_mask = *target == LayerCtrlClickTarget::MaskThumbnail && layer->mask().has_value();
+  const bool vector_mask = *target == LayerCtrlClickTarget::VectorMaskThumbnail && layer->vector_mask() != nullptr;
+  // Folders and adjustments have no pixels to load: their thumbnails keep the full menu, as does
+  // the Smart Filter mask.
+  if (!(content && layer->kind() == LayerKind::Pixel) && !raster_mask && !vector_mask) {
+    return false;
+  }
+  // The mask commands act on the active layer: the row under the pointer becomes it, as a click
+  // on its thumbnail does.
+  if (document().active_layer_id() != id) {
+    document().set_active_layer(id);
+    restyle_layer_rows(layer_list_);
+    refresh_layer_controls();
+  }
+
+  QMenu menu(this);
+  const auto add_selection_entries = [this, &menu, id, target](const std::array<const char*, 4>& texts,
+                                                               const QString& object_prefix) {
+    static constexpr std::array<const char*, 4> kKeys{"Select", "Add", "Subtract", "Intersect"};
+    for (int operation = 0; operation < 4; ++operation) {
+      auto* action = menu.addAction(tr(texts[static_cast<std::size_t>(operation)]));
+      action->setObjectName(object_prefix + QLatin1String(kKeys[static_cast<std::size_t>(operation)]) +
+                            QStringLiteral("Action"));
+      connect(action, &QAction::triggered, this,
+              [this, id, part = *target, operation] { load_layer_part_selection(id, part, operation); });
+    }
+  };
+  if (content) {
+    menu.setObjectName(QStringLiteral("layerThumbnailMenu"));
+    add_selection_entries({QT_TR_NOOP("Select Pixels"), QT_TR_NOOP("Add Pixels to Selection"),
+                           QT_TR_NOOP("Subtract Pixels from Selection"), QT_TR_NOOP("Intersect Pixels with Selection")},
+                          QStringLiteral("layerThumbnailPixels"));
+    add_layer_thumbnail_size_menu(&menu);  // after its own separator
+  } else {
+    menu.setObjectName(raster_mask ? QStringLiteral("layerMaskThumbnailMenu")
+                                   : QStringLiteral("layerVectorMaskThumbnailMenu"));
+    const bool pixels_locked = layer_id_locks_image_pixels(id);
+    const bool disabled = raster_mask ? layer->mask()->disabled : layer->vector_mask()->disabled;
+    QAction* toggle = nullptr;
+    if (raster_mask) {
+      toggle = menu.addAction(disabled ? tr("Enable Layer Mask") : tr("Disable Layer Mask"));
+      connect(toggle, &QAction::triggered, this, [this, disabled] { set_active_layer_mask_disabled(!disabled); });
+    } else {
+      toggle = menu.addAction(disabled ? tr("Enable Vector Mask") : tr("Disable Vector Mask"));
+      connect(toggle, &QAction::triggered, this,
+              [this, disabled] { set_active_layer_vector_mask_disabled(!disabled); });
+    }
+    toggle->setObjectName(QStringLiteral("layerMaskThumbnailToggleAction"));
+    toggle->setEnabled(!pixels_locked);
+    menu.addSeparator();
+    // The Layer menu's own commands, so their shortcuts show and their state is the menu's.
+    const auto add_shared = [this, &menu](QAction* action) {
+      if (action != nullptr) {
+        menu.addAction(action);
+      }
+    };
+    if (raster_mask) {
+      add_shared(delete_layer_mask_action_);
+      add_shared(apply_layer_mask_action_);
+    } else {
+      add_shared(findChild<QAction*>(QStringLiteral("layerVectorMaskDeleteAction")));
+      add_shared(findChild<QAction*>(QStringLiteral("layerVectorMaskRasterizeAction")));
+    }
+    menu.addSeparator();
+    add_selection_entries({QT_TR_NOOP("Select Mask Pixels"), QT_TR_NOOP("Add Mask to Selection"),
+                           QT_TR_NOOP("Subtract Mask from Selection"), QT_TR_NOOP("Intersect Mask with Selection")},
+                          QStringLiteral("layerMaskThumbnail"));
+  }
+  hide_menu_action_icons(&menu);
+  menu.exec(layer_list_->viewport()->mapToGlobal(viewport_position));
+  return true;
+}
+
+void MainWindow::delete_from_layers_panel() {
+  // With one layer selected and its mask the edit target, the footer's Delete removes that mask
+  // rather than the layer (#441); a raster mask that could be applied asks first.
+  if (canvas_ != nullptr && has_active_document()) {
+    const auto ids = selected_or_active_layer_ids();
+    const auto active = std::as_const(document()).active_layer_id();
+    const auto* layer = active.has_value() ? std::as_const(document()).find_layer(*active) : nullptr;
+    if (layer != nullptr && ids.size() == 1U && ids.front() == *active) {
+      const auto edit_target = canvas_->layer_edit_target();
+      if (edit_target == CanvasWidget::LayerEditTarget::VectorMask && layer->vector_mask() != nullptr) {
+        delete_active_vector_mask();
+        return;
+      }
+      if (edit_target == CanvasWidget::LayerEditTarget::Mask && layer->mask().has_value()) {
+        const bool can_apply = layer->kind() == LayerKind::Pixel && !layer_pixels_are_procedural(*layer) &&
+                               !layer_id_locks_image_pixels(*active) && layer->pixels().format().channels >= 3;
+        if (!can_apply) {
+          delete_active_layer_mask();
+          return;
+        }
+        QMessageBox box(this);
+        box.setObjectName(QStringLiteral("deleteLayerMaskPrompt"));
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(tr("Delete Layer Mask"));
+        box.setText(tr("Apply the mask to the layer before deleting it?"));
+        auto* apply_button = box.addButton(tr("Apply"), QMessageBox::AcceptRole);
+        apply_button->setObjectName(QStringLiteral("deleteLayerMaskApplyButton"));
+        auto* delete_button = box.addButton(tr("Delete"), QMessageBox::DestructiveRole);
+        delete_button->setObjectName(QStringLiteral("deleteLayerMaskDeleteButton"));
+        box.addButton(QMessageBox::Cancel);
+        box.setDefaultButton(apply_button);
+        exec_dialog(box);
+        if (box.clickedButton() == apply_button) {
+          apply_active_layer_mask();
+        } else if (box.clickedButton() == delete_button) {
+          delete_active_layer_mask();
+        }
+        return;
+      }
+    }
+  }
+  delete_active_layer();
+}
+
+}  // namespace patchy::ui

@@ -25859,6 +25859,74 @@ The open document keeps its blend modes either way.</source>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>與點按位置周圍正方形的平均顏色比較，而非單一像素</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>載入圖層遮色片選取範圍</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>已增加至選取範圍</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>已從選取範圍中減去</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>已與選取範圍相交</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>選取像素</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>將像素增加至選取範圍</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>從選取範圍中減去像素</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>像素與選取範圍相交</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>啟用圖層遮色片</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>啟用向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>停用向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>選取遮色片像素</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>將遮色片增加至選取範圍</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>從選取範圍中減去遮色片</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>遮色片與選取範圍相交</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>刪除前要將遮色片套用至圖層嗎？</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>套用</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

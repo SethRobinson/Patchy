@@ -276,7 +276,7 @@ bool CanvasWidget::dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputS
   }
   if (event->type() == QEvent::TabletPress && sample.button == Qt::RightButton &&
       (sample.modifiers & Qt::AltModifier) != 0 && !edit_locked_ && !spacebar_panning_ && !painting_ &&
-      !drawing_shape_ && !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
+      !drawing_shape_ && !quick_selecting_ && !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
     pen_button_suppressing_paint_ = true;
     begin_brush_adjust_drag(sample.widget_position.toPoint(), true);
     return true;
