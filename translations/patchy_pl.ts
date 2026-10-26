@@ -12797,6 +12797,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <comment>new document summary: printed size, resolution</comment>
         <translation>%1 przy %2 ppi</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

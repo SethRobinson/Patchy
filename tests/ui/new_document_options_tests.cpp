@@ -37,6 +37,7 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -164,6 +165,7 @@ void ui_new_document_templates_show_their_unit() {
         {"print-a5", "148 x 210 mm"},
         {"print-a4", "210 x 297 mm"},
         {"print-a3", "297 x 420 mm"},
+        {"print-a3-plus", "329 x 483 mm"},
         {"print-a2", "420 x 594 mm"},
         {"print-us-letter", "8.5 x 11 in"},
         {"print-us-legal", "8.5 x 14 in"},
@@ -202,6 +204,14 @@ void ui_new_document_templates_show_their_unit() {
     CHECK(summary->text().contains(QStringLiteral("2480 x 3508 px")));
     CHECK(summary->text().contains(QStringLiteral("210 x 297 mm at 300 ppi")));
     save_widget_artifact("local_013_new_document_print_a4", dialog);
+    // A3+ (Super A3): 329 x 483 mm is 3886 x 5705 px at 300 PPI.
+    pick(dialog, "newDocumentPrintChip", QStringLiteral("print-a3-plus"));
+    CHECK(unit->currentText() == QStringLiteral("Millimeters"));
+    CHECK(std::abs(width->value() - 329.0) < 1e-6);
+    CHECK(std::abs(height->value() - 483.0) < 1e-6);
+    CHECK(summary->text().contains(QStringLiteral("3886 x 5705 px")));
+    CHECK(summary->text().contains(QStringLiteral("329 x 483 mm at 300 ppi")));
+    save_widget_artifact("local_013_new_document_print_a3_plus", dialog);
     pick(dialog, "newDocumentPrintChip", QStringLiteral("print-us-letter"));
     CHECK(unit->currentText() == QStringLiteral("Inches"));
     CHECK(std::abs(width->value() - 8.5) < 1e-6);
@@ -267,6 +277,23 @@ void ui_new_document_templates_show_their_unit() {
     CHECK(std::abs(width->value() - 2.0) < 1e-6);
     dialog.reject();
   }));
+
+  // A3+ creates its pixels, and the artboard sizes list it after A3 in the Print group.
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    CHECK(pick(dialog, "newDocumentPrintChip", QStringLiteral("print-a3-plus")) != nullptr);
+    dialog.accept();
+  }));
+  CHECK(MainWindowTestAccess::document(window).width() == 3886 &&
+        MainWindowTestAccess::document(window).height() == 5705);
+  const auto artboard_sizes = patchy::ui::artboard_size_presets();
+  const auto a3 = std::find_if(artboard_sizes.begin(), artboard_sizes.end(),
+                               [](const auto& preset) { return preset.id == QStringLiteral("print-a3"); });
+  CHECK(a3 != artboard_sizes.end() && std::next(a3) != artboard_sizes.end());
+  if (a3 != artboard_sizes.end() && std::next(a3) != artboard_sizes.end()) {
+    const auto& plus = *std::next(a3);
+    CHECK(plus.id == QStringLiteral("print-a3-plus") && plus.name == QStringLiteral("A3+") &&
+          plus.size == QSize(3886, 5705) && plus.group == QStringLiteral("Print"));
+  }
 }
 
 // GitHub issue 360: Color Mode holds RGB Color and CMYK Proof; CMYK Proof creates the

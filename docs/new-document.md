@@ -50,7 +50,7 @@ use.
 
 ## Template units (local-013)
 
-Every template carries a display unit (`NewDocumentPreset::unit`): ISO paper (A6 to A2, the EU
+Every template carries a display unit (`NewDocumentPreset::unit`): ISO paper (A6 to A2, A3+, the EU
 business card) in mm, ANSI paper, the US business card, the poster and the inch photo prints in
 inches, the 10 x 15 and 13 x 18 cm prints in cm, everything else (Photo 3:2 included) in
 pixels. A card shows its size in its unit (`preset_size_text`, item role

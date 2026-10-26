@@ -12797,6 +12797,10 @@ Each item&apos;s own View setting still applies.</source>
         <comment>new document summary: printed size, resolution</comment>
         <translation>%1 при %2 пикс./дюйм</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

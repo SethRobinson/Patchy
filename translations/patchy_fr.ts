@@ -12762,6 +12762,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <comment>new document summary: printed size, resolution</comment>
         <translation>%1 à %2 ppp</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

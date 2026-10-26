@@ -1755,7 +1755,7 @@ void inspect_new_document_dialog_without_clipboard() {
       const QStringList print_ids = {
           QStringLiteral("print-a6"),         QStringLiteral("print-a5"),
           QStringLiteral("print-a4"),         QStringLiteral("print-a3"),
-          QStringLiteral("print-a2"),         QStringLiteral("print-us-letter"),
+          QStringLiteral("print-a3-plus"),    QStringLiteral("print-a2"),         QStringLiteral("print-us-letter"),
           QStringLiteral("print-us-legal"),   QStringLiteral("print-tabloid"),
           QStringLiteral("print-business-card-us"), QStringLiteral("print-business-card-eu"),
           QStringLiteral("print-poster-18x24")};
@@ -2595,8 +2595,8 @@ void ui_new_document_template_groups_hold_every_template() {
         "web-ad-large-rectangle", "web-ad-leaderboard", "web-ad-billboard", "web-ad-half-page",
         "web-ad-wide-skyscraper", "web-ad-mobile-banner"}},
       {"newDocumentPrintChip", "Print",
-       {"print-a6", "print-a5", "print-a4", "print-a3", "print-a2", "print-us-letter", "print-us-legal",
-        "print-tabloid", "print-business-card-us", "print-business-card-eu", "print-poster-18x24"}},
+       {"print-a6", "print-a5", "print-a4", "print-a3", "print-a3-plus", "print-a2", "print-us-letter",
+        "print-us-legal", "print-tabloid", "print-business-card-us", "print-business-card-eu", "print-poster-18x24"}},
       {"newDocumentPhotoChip", "Photo",
        {"photo-print-4x6", "print-5x7", "print-8x10", "photo-print-11x14", "photo-print-8x8",
         "photo-print-10x15cm", "photo-print-13x18cm", "photo-3x2-3000"}},

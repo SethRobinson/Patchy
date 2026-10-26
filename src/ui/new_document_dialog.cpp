@@ -394,6 +394,8 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
           {QStringLiteral("print-a5"), QObject::tr("A5"), QSize(1748, 2480), kPrintPpi, kMm},
           {QStringLiteral("print-a4"), QObject::tr("A4"), QSize(2480, 3508), kPrintPpi, kMm},
           {QStringLiteral("print-a3"), QObject::tr("A3"), QSize(3508, 4961), kPrintPpi, kMm},
+          // Super A3 / Super B, 329 x 483 mm: A3 with a bleed margin on photo printers.
+          {QStringLiteral("print-a3-plus"), QObject::tr("A3+"), QSize(3886, 5705), kPrintPpi, kMm},
           {QStringLiteral("print-a2"), QObject::tr("A2"), QSize(4961, 7016), kPrintPpi, kMm},
           {QStringLiteral("print-us-letter"), QObject::tr("US Letter"), QSize(2550, 3300), kPrintPpi, kIn},
           {QStringLiteral("print-us-legal"), QObject::tr("US Legal"), QSize(2550, 4200), kPrintPpi, kIn},

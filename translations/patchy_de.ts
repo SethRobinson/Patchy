@@ -12762,6 +12762,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <comment>new document summary: printed size, resolution</comment>
         <translation>%1 bei %2 ppi</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -12762,6 +12762,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <comment>new document summary: printed size, resolution</comment>
         <translation>%1 a %2 ppp</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

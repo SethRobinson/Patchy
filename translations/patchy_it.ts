@@ -12762,6 +12762,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <comment>new document summary: printed size, resolution</comment>
         <translation>%1 a %2 ppi</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

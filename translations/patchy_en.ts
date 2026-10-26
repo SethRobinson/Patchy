@@ -12745,6 +12745,10 @@ Each item&apos;s own View setting still applies.</source>
         <comment>new document summary: printed size, resolution</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

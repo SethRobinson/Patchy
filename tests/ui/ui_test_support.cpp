@@ -1889,6 +1889,7 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
           {QStringLiteral("print-a5"), QSizeF(148, 210), 300.0, mm},
           {QStringLiteral("print-a4"), QSizeF(210, 297), 300.0, mm},
           {QStringLiteral("print-a3"), QSizeF(297, 420), 300.0, mm},
+          {QStringLiteral("print-a3-plus"), QSizeF(329, 483), 300.0, mm},
           {QStringLiteral("print-us-letter"), QSizeF(8.5, 11), 300.0, in},
           {QStringLiteral("print-us-legal"), QSizeF(8.5, 14), 300.0, in},
       };

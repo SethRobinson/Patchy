@@ -12727,6 +12727,10 @@ Each item&apos;s own View setting still applies.</source>
         <comment>new document summary: printed size, resolution</comment>
         <translation>%2ppi에서 %1</translation>
     </message>
+    <message>
+        <source>A3+</source>
+        <translation>A3+</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
