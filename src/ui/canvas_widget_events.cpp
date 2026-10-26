@@ -38,7 +38,9 @@
 #include <QRectF>
 #include <QRegion>
 #include <QResizeEvent>
+#include <QMetaObject>
 #include <QScopeGuard>
+#include <QScopedValueRollback>
 #include <QSize>
 #include <QString>
 #include <QTimerEvent>
@@ -584,6 +586,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  flush_pending_drag_move();
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -1764,6 +1767,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  if (defer_coalesced_drag_move(*event)) {
+    event->accept();
+    return;
+  }
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -2568,6 +2575,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  // The last moves before the release land first, so the drop is where the pointer was.
+  flush_pending_drag_move();
   // A painting tool's Ctrl+drag or Ctrl+click (GitHub issues 380, 423) gets its tool cursor
   // back after the commit.
   const bool ends_retouch_move = tool_has_ctrl_temporary_move(tool_) &&
@@ -3709,6 +3718,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
+  // A modifier or Escape acts on the drag where the pointer really is.
+  flush_pending_drag_move();
   if (move_layer_selection_gesture_ && event->key() == Qt::Key_Escape) {
     cancel_move_layer_selection();
     event->accept();
@@ -4324,6 +4335,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 }
 
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
+  if (!processing_render_wait_active_) {
+    flush_pending_drag_move();
+  }
   // Space released mid-path-marquee goes back to resizing WITHOUT set_tool:
   // that would drop the Pen's Ctrl latch and strand the drag.
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat() &&
@@ -4483,8 +4497,62 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   return true;
 }
 
+bool CanvasWidget::defer_coalesced_drag_move(const QMouseEvent& event) {
+  if (replaying_drag_move_ || handling_tablet_event_ || !(moving_layer_ || dragging_transform_) ||
+      drag_move_coalescing_mode_ == DragMoveCoalescing::Off) {
+    return false;
+  }
+  // Only window-system moves queue up behind a slow frame; moves a test sends one by
+  // one are applied one by one, as before.
+  if (!event.spontaneous() && drag_move_coalescing_mode_ != DragMoveCoalescing::AllMoves) {
+    return false;
+  }
+  if (!drag_move_pass_active_) {
+    // The first move of this pass is applied now.
+    begin_drag_move_pass();
+    return false;
+  }
+  pending_drag_move_ = PendingDragMove{event.position(), event.globalPosition(), event.buttons(), event.modifiers()};
+  ++render_cache_diagnostics_.drag_moves_coalesced;
+  return true;
+}
+
+void CanvasWidget::begin_drag_move_pass() {
+  // Queued behind the input already waiting, so it runs once that has been read.
+  drag_move_pass_active_ = true;
+  QMetaObject::invokeMethod(this, [this] { end_drag_move_pass(); }, Qt::QueuedConnection);
+}
+
+void CanvasWidget::end_drag_move_pass() {
+  drag_move_pass_active_ = false;
+  if (!pending_drag_move_.has_value()) {
+    return;
+  }
+  if (moving_layer_ || dragging_transform_) {
+    // Moves that queue up behind this apply coalesce into the next pass.
+    begin_drag_move_pass();
+  }
+  flush_pending_drag_move();
+}
+
+void CanvasWidget::flush_pending_drag_move() {
+  if (!pending_drag_move_.has_value()) {
+    return;
+  }
+  const auto pending = *pending_drag_move_;
+  pending_drag_move_.reset();
+  if (!(moving_layer_ || dragging_transform_)) {
+    return;  // the drag ended or was cancelled before the apply ran
+  }
+  QMouseEvent replay(QEvent::MouseMove, pending.position, pending.global_position, Qt::NoButton, pending.buttons,
+                     pending.modifiers);
+  const QScopedValueRollback replaying(replaying_drag_move_, true);
+  mouseMoveEvent(&replay);
+}
+
 void CanvasWidget::cancel_pointer_gestures() {
   const bool cancel_move = move_drag_pending_ || moving_layer_;
+  pending_drag_move_.reset();
   context_press_pos_.reset();
   cancel_move_layer_selection();
   if (selecting_ || lassoing_ || quick_selecting_ || moving_selection_ ||

@@ -17,6 +17,7 @@
 #include <QIcon>
 #include <QImage>
 #include <QList>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QPoint>
@@ -824,6 +825,100 @@ void ui_move_tool_status_hint_names_drag_gestures() {
   CHECK(!message.contains(QLatin1Char('%')));
 }
 
+// Posts `count` drag moves (`step` apart, starting one step past `from`) the way a
+// window system queues them behind a slow frame, without delivering them.
+void post_drag_moves(patchy::ui::CanvasWidget& canvas, QPoint from, QPoint step, int count) {
+  for (int move = 1; move <= count; ++move) {
+    const auto position = from + step * move;
+    QApplication::postEvent(&canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                     QPointF(canvas.mapToGlobal(position)), Qt::NoButton,
+                                                     Qt::LeftButton, Qt::NoModifier));
+  }
+}
+
+// One drag move delivered without running the event loop afterwards (send_mouse runs
+// it, which would end the coalescing pass between two moves).
+void deliver_drag_move(patchy::ui::CanvasWidget& canvas, QPoint position) {
+  QMouseEvent event(QEvent::MouseMove, QPointF(position), QPointF(canvas.mapToGlobal(position)), Qt::NoButton,
+                    Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(&canvas, &event);
+}
+
+// GitHub #207, #443, #444: Wayland delivers every pointer motion, and a Move drag
+// recomposited its preview for each one, so a fast pointer queued seconds of moves and
+// the canvas repainted about once a second. Moves queued in one event-loop pass now
+// apply once, at the latest position, and the release still lands where the pointer is.
+void ui_move_drag_coalesces_queued_moves() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 80, 120, 80);
+  const auto id = prepare_zone_scene(window, bounds, false);
+  auto* canvas = require_canvas(window);
+  canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves);
+  const auto coalesced = [canvas] { return canvas->render_cache_diagnostics().drag_moves_coalesced; };
+  const auto start = canvas->widget_position_for_document_point(bounds.center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(10, 0), Qt::NoButton, Qt::LeftButton);  // starts the drag
+  const auto before = coalesced();
+  post_drag_moves(*canvas, start + QPoint(10, 0), QPoint(1, 1), 30);
+  // The first queued move applies at once, the other 29 wait for the pass end.
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(coalesced() - before == 29);
+  QApplication::processEvents();  // the pass the pass-end apply opened ends too
+  // The drag shows the latest position.
+  CHECK(canvas->move_drag_delta_for_testing() == QPoint(40, 30));
+  // A move delivered right before the release still lands: the release applies it.
+  const auto end = start + QPoint(55, 35);
+  deliver_drag_move(*canvas, end - QPoint(5, 0));  // applied, opens a pass
+  deliver_drag_move(*canvas, end);                 // recorded
+  CHECK(coalesced() - before == 30);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(coalesced() - before == 30);
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr && layer->bounds().x == bounds.x() + 55 && layer->bounds().y == bounds.y() + 35);
+}
+
+// The same for a Free Transform drag from the passive box's right edge.
+void ui_free_transform_drag_coalesces_queued_moves() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 80, 120, 80);
+  prepare_zone_scene(window, bounds, true);
+  auto* canvas = require_canvas(window);
+  canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves);
+  const auto center = canvas->widget_position_for_document_point(bounds.center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto coalesced = [canvas] { return canvas->render_cache_diagnostics().drag_moves_coalesced; };
+  const auto right_edge = canvas->widget_position_for_document_point(QPoint(bounds.x() + bounds.width(), bounds.center().y()));
+  send_mouse(*canvas, QEvent::MouseButtonPress, right_edge, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto before = coalesced();
+  post_drag_moves(*canvas, right_edge, QPoint(1, 0), 30);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(coalesced() - before == 29);
+  QApplication::processEvents();  // the pass the pass-end apply opened ends too
+  const auto right_x = [&] {
+    return canvas->free_transform_preview_delta_for_testing().map(QPointF(bounds.x() + bounds.width(), bounds.center().y())).x();
+  };
+  CHECK(std::abs(right_x() - (bounds.x() + bounds.width() + 30)) < 0.6);
+  const auto end = right_edge + QPoint(40, 0);
+  deliver_drag_move(*canvas, end - QPoint(4, 0));
+  deliver_drag_move(*canvas, end);
+  CHECK(coalesced() - before == 30);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(std::abs(right_x() - (bounds.x() + bounds.width() + 40)) < 0.6);
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto committed = canvas->active_layer_document_rect();
+  CHECK(committed.has_value() && committed->x() == bounds.x() && committed->width() == bounds.width() + 40);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> move_transform_zones_tests() {
@@ -840,5 +935,7 @@ std::vector<patchy::test::TestCase> move_transform_zones_tests() {
        ui_transform_zone_corner_rotate_cursors_match_each_corner},
       {"ui_move_cursor_shows_drag_only_where_a_press_moves", ui_move_cursor_shows_drag_only_where_a_press_moves},
       {"ui_move_tool_status_hint_names_drag_gestures", ui_move_tool_status_hint_names_drag_gestures},
+      {"ui_move_drag_coalesces_queued_moves", ui_move_drag_coalesces_queued_moves},
+      {"ui_free_transform_drag_coalesces_queued_moves", ui_free_transform_drag_coalesces_queued_moves},
   };
 }

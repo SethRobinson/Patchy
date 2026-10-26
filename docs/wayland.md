@@ -302,7 +302,8 @@ The sway rig is faster for anything that needs no GNOME specifics: `run.sh` with
 leaves the container up and `scripts/dev/wayland-popups/run-patchy.sh` launches, scripts,
 clicks (`vptr` now has `press`/`release` for drags) and captures the Flatpak on it. Both rigs
 share the single-instance socket: stop one Patchy before starting the next, or the launch
-only forwards to the running one.
+only forwards to the running one. `live-drag.sh` in the same folder times a Move drag of a text layer on the sway rig
+(pointer lag reports; [interactive-previews.md](interactive-previews.md#drag-move-coalescing)).
 
 ## Measuring popup placement headlessly
 
