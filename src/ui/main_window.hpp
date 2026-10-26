@@ -2200,9 +2200,6 @@ private:
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
-  // The Pick tool's Size, which the Magic Wand's Sample shares (GitHub issue 435): sets it on the
-  // canvas, mirrors both combos and saves.
-  void apply_shared_sample_size(int size);
   // Restart the debounce so the live tool-option sliders flush to disk once,
   // after the drag settles, instead of on every intermediate value.
   void schedule_save_tool_settings();
@@ -2844,7 +2841,7 @@ private:
   QComboBox* sponge_mode_combo_{nullptr};
   QComboBox* brush_mode_combo_{nullptr};
   QComboBox* eyedropper_sample_size_combo_{nullptr};
-  QComboBox* wand_sample_size_combo_{nullptr};  // mirrors the Pick tool's Size (GitHub issue 435)
+  QComboBox* wand_sample_size_combo_{nullptr};  // the Magic Wand's own Sample (GitHub issue 435)
   QComboBox* eyedropper_sample_layers_combo_{nullptr};
   QPushButton* eyedropper_sets_foreground_button_{nullptr};
   QPushButton* eyedropper_sets_background_button_{nullptr};

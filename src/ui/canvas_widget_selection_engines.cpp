@@ -75,6 +75,14 @@ bool CanvasWidget::wand_sample_all_layers() const noexcept {
   return wand_sample_all_layers_;
 }
 
+void CanvasWidget::set_wand_sample_size(int size) noexcept {
+  wand_sample_size_ = std::clamp(size, 1, 101) | 1;
+}
+
+int CanvasWidget::wand_sample_size() const noexcept {
+  return wand_sample_size_;
+}
+
 void CanvasWidget::set_quick_select_size(int size) {
   const QRect previous_outline =
       brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
@@ -136,11 +144,11 @@ void CanvasWidget::magic_wand_select(QPoint start) {
   const auto pixel = [&source_image](int x, int y) {
     return source_image.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
   };
-  // The seed averages the Sample Size square around the click (GitHub issue 435); the
-  // setting is the Pick tool's, shared as Photoshop shares it. Point Sample reads the pixel.
+  // The seed averages the Sample square around the click (GitHub issue 435); Point Sample
+  // reads the pixel.
   const auto target = patchy::wand_seed_color(source_image.constBits(), width, height,
                                               static_cast<std::size_t>(source_image.bytesPerLine()), start.x(),
-                                              start.y(), eyedropper_sample_size_);
+                                              start.y(), wand_sample_size_);
   const int target_red = target[0];
   const int target_green = target[1];
   const int target_blue = target[2];

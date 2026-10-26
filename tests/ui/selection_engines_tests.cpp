@@ -166,11 +166,20 @@ void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   save_widget_artifact("ui_magic_wand_options", *canvas);
 }
 
-// GitHub issue 435: the Magic Wand bar's Sample combo is the Pick tool's Size (one shared
-// setting), and the wand's seed averages that square. On noise, Point Sample selects exactly
-// the pixels near the clicked one (the pre-435 result); 5 by 5 selects those near the mean.
+// GitHub issue 435: the Magic Wand bar's Sample combo is the wand's own setting
+// (tools/wandSampleSize, Point Sample when missing, never the Pick tool's Size), and the
+// wand's seed averages that square. On noise, Point Sample selects exactly the pixels near
+// the clicked one (the pre-435 result); 5 by 5 selects those near the mean.
 void ui_magic_wand_sample_size_averages_the_seed() {
-  SettingsValueRestorer saved_sample_size(QStringLiteral("tools/eyedropperSampleSize"));
+  SettingsValueRestorer saved_pick_size(QStringLiteral("tools/eyedropperSampleSize"));
+  SettingsValueRestorer saved_wand_size(QStringLiteral("tools/wandSampleSize"));
+  {
+    // A Pick Size that is not Point Sample must not seed the wand's default.
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/wandSampleSize"));
+    settings.setValue(QStringLiteral("tools/eyedropperSampleSize"), 11);
+    settings.sync();
+  }
   constexpr int width = 120;
   constexpr int height = 90;
   auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
@@ -215,6 +224,10 @@ void ui_magic_wand_sample_size_averages_the_seed() {
   if (wand_combo == nullptr || pick_combo == nullptr) {
     return;
   }
+  CHECK(wand_combo->currentData().toInt() == 1);
+  CHECK(canvas->wand_sample_size() == 1);
+  CHECK(pick_combo->currentData().toInt() == 11);
+  CHECK(canvas->eyedropper_sample_size() == 11);
 
   const auto color_at = [&colors](int x, int y) {
     return colors[static_cast<std::size_t>(y) * width + static_cast<std::size_t>(x)];
@@ -248,17 +261,18 @@ void ui_magic_wand_sample_size_averages_the_seed() {
   };
 
   // Point Sample: the seed is the clicked speck.
-  wand_combo->setCurrentIndex(wand_combo->findData(1));
-  CHECK(canvas->eyedropper_sample_size() == 1);
   click_wand();
   const int point_count = selected_count();
   CHECK(point_count == expected_count(QColor(160, 96, 150)));
   CHECK(canvas->selected_document_region().contains(click));
 
-  // 5 by 5 Average, chosen on the wand's bar: the Pick bar shows it too.
+  // 5 by 5 Average, chosen on the wand's bar: the Pick tool keeps its own Size.
   wand_combo->setCurrentIndex(wand_combo->findData(5));
-  CHECK(canvas->eyedropper_sample_size() == 5);
-  CHECK(pick_combo->currentData().toInt() == 5);
+  CHECK(canvas->wand_sample_size() == 5);
+  CHECK(pick_combo->currentData().toInt() == 11);
+  CHECK(canvas->eyedropper_sample_size() == 11);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/wandSampleSize")).toInt() == 5);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/eyedropperSampleSize")).toInt() == 11);
   click_wand();
   int sums[3] = {0, 0, 0};
   for (int y = click.y() - 2; y <= click.y() + 2; ++y) {
@@ -277,11 +291,11 @@ void ui_magic_wand_sample_size_averages_the_seed() {
   CHECK(averaged_count > point_count * 10);
   save_widget_artifact("ui_magic_wand_sample_size_averages_the_seed", *canvas);
 
-  // The Pick bar's combo drives the wand's too.
+  // The Pick bar's combo leaves the wand's alone.
   pick_combo->setCurrentIndex(pick_combo->findData(3));
-  CHECK(wand_combo->currentData().toInt() == 3);
   CHECK(canvas->eyedropper_sample_size() == 3);
-  wand_combo->setCurrentIndex(wand_combo->findData(1));
+  CHECK(wand_combo->currentData().toInt() == 5);
+  CHECK(canvas->wand_sample_size() == 5);
 }
 
 void ui_quick_mask_feathered_round_trip_is_exact_and_temporary() {
