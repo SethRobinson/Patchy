@@ -26099,6 +26099,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Przesuwanie: przeciągnij, aby przesunąć, Shift+przeciąganie utrzymuje ruch w poziomie lub pionie, %ALT%+przeciąganie powiela. %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt, podobnie jak przeciąganie po pustym miejscu przy włączonym automatycznym zaznaczaniu.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>Kliknij z %ALT%, aby ukryć warstwę lub zaznaczenie</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>Kliknij z %CTRL%, aby dodać maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Maska wektorowa</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

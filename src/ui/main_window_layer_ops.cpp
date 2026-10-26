@@ -3798,6 +3798,20 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                                  tr("Apply Layer Mask"));
   auto* delete_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)),
                                                   tr("Delete Layer Mask"));
+  // The Layer > Vector Mask commands themselves (#449), so their shortcuts and behavior are
+  // the Layer menu's; they run from their own triggered signals, like the shared lock action.
+  auto* vector_mask_menu = menu.addMenu(tr("Vector Mask"));
+  vector_mask_menu->setObjectName(QStringLiteral("layerContextVectorMaskMenu"));
+  for (const auto* name : {"layerVectorMaskRevealAllAction", "layerVectorMaskHideAllAction",
+                           "layerVectorMaskCurrentPathAction", "", "layerVectorMaskDeleteAction",
+                           "layerVectorMaskDisableAction", "layerVectorMaskRasterizeAction"}) {
+    if (*name == '\0') {
+      vector_mask_menu->addSeparator();
+    } else if (auto* action = findChild<QAction*>(QLatin1String(name)); action != nullptr) {
+      vector_mask_menu->addAction(action);
+    }
+  }
+  vector_mask_menu->setEnabled(active_layer != nullptr);
 
   duplicate_action->setEnabled(has_layer);
   duplicate_to_document_action->setEnabled(has_layer);

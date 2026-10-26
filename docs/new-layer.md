@@ -1,4 +1,4 @@
-# New layers: the New Layer dialog and the footer's Alt-clicks
+# New layers: the New Layer dialog and the footer's modifier clicks
 
 The Layers panel itself (rows, footer, menus) is in [layer-panel.md](layer-panel.md).
 
@@ -13,10 +13,11 @@ Layer > New > New Layer... (`layerNewWithDialogAction`, id `layer.new_with_dialo
 
 Tests: `ui_new_layer_dialog_*`.
 
-## Footer Alt-clicks
+## Footer modifier clicks
 
 - Alt-click on the footer's New Layer button (`layerNewButton`) opens the New Layer dialog (#408): `add_layer_with_dialog`.
 - Alt-click on Add Layer Mask (`layerAddMaskButton`) calls `add_layer_mask(true)` (#400): a hide-all mask (full-canvas 0, default color 0), or with a selection a mask that hides it (the selection coverage inverted, default color 255). One undo step, like the plain click's reveal-all and reveal-selection masks.
+- Ctrl-click (Command-click on macOS: `Qt::ControlModifier`) on Add Layer Mask runs Layer > Vector Mask > Reveal All instead (#447): `add_vector_mask(hide_all, false)`, where Alt also held makes it Hide All. The button's enabled state stays `can_add_layer_mask`'s. Its tooltip names both modifier clicks through `resolve_modifier_names`, so it is set by a retranslation callback rather than bound.
 - `clicked` carries no modifiers, so both buttons record them off their own mouse events (`record_click_modifiers`/`take_click_modifiers`, `src/ui/click_modifier_recorder.hpp`, shared with the folder disclosure arrow). A keyboard or programmatic `click()` is a plain click.
 
-Tests: `ui_new_layer_button_alt_click_opens_new_layer_dialog`, `ui_layer_add_mask_button_alt_click_hides_all_or_selection`.
+Tests: `ui_new_layer_button_alt_click_opens_new_layer_dialog`, `ui_layer_add_mask_button_alt_click_hides_all_or_selection`, `ui_layer_add_mask_button_ctrl_click_adds_vector_mask`.

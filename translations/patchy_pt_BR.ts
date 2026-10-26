@@ -26026,6 +26026,18 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Mover: arraste para mover, Shift+arrastar mantém na horizontal ou vertical, %ALT%+arrastar duplica. %CTRL%+clique seleciona uma camada, Shift+clique a alterna. %CTRL%+arrastar seleciona um retângulo, assim como arrastar em um espaço vazio com Seleção automática ativada.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>%ALT%-clique para ocultar a camada ou a seleção</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>%CTRL%-clique para adicionar uma máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Máscara vetorial</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

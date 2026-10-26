@@ -26026,6 +26026,18 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Déplacement : glisser déplace, Maj+glisser le garde horizontal ou vertical, %ALT%+glisser duplique. %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle, comme glisser sur une zone vide avec Sélection auto activée.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>%ALT%+clic pour masquer le calque ou la sélection</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>%CTRL%+clic pour ajouter un masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Masque vectoriel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

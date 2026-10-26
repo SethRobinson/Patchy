@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -18,6 +19,7 @@
 #include <QPushButton>
 #include <QMessageBox>
 #include <QMenu>
+#include <QPainter>
 #include <QContextMenuEvent>
 #include <algorithm>
 #include <atomic>
@@ -997,6 +999,118 @@ void ui_layer_footer_delete_removes_targeted_mask() {
   CHECK(find_named_layer(window, "Left") != nullptr);
 }
 
+// GitHub issue 449: the layer row's right-click menu has a Vector Mask submenu beside Layer Mask
+// holding the Layer > Vector Mask actions themselves; its Reveal All adds a vector mask.
+void ui_layer_row_menu_vector_mask_submenu_adds_vector_mask() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  window.add_document_session(thumbnail_gesture_document(), QStringLiteral("Row Vector Mask"));
+  show_window(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  auto* left_item = require_layer_item(*layers, QStringLiteral("Left"));
+  layers->clearSelection();
+  layers->setCurrentItem(left_item);
+  left_item->setSelected(true);
+  QApplication::processEvents();
+  const auto history = Access::active_session_undo_depth(window);
+
+  QStringList top_submenus;
+  QStringList vector_actions;
+  bool submenu_opened = false;
+  QTimer::singleShot(0, [&] {
+    QMenu* row_menu = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("layerContextMenu")) {
+        row_menu = menu;
+      }
+    }
+    CHECK(row_menu != nullptr);
+    if (row_menu == nullptr) {
+      return;
+    }
+    QAction* vector_entry = nullptr;
+    for (auto* action : row_menu->actions()) {
+      if (action->menu() != nullptr) {
+        top_submenus.push_back(action->menu()->objectName());
+        if (action->menu()->objectName() == QStringLiteral("layerContextVectorMaskMenu")) {
+          vector_entry = action;
+        }
+      }
+    }
+    if (vector_entry == nullptr) {
+      row_menu->close();
+      return;
+    }
+    auto* submenu = vector_entry->menu();
+    QAction* reveal_all = nullptr;
+    for (auto* action : submenu->actions()) {
+      vector_actions.push_back(action->isSeparator() ? QStringLiteral("-") : action->objectName());
+      if (action->objectName() == QStringLiteral("layerVectorMaskRevealAllAction")) {
+        reveal_all = action;
+      }
+    }
+    row_menu->setActiveAction(vector_entry);
+    QTest::keyClick(row_menu, Qt::Key_Right);
+    QApplication::processEvents();
+    submenu_opened = submenu->isVisible();
+    if (submenu_opened) {
+      // The row menu with the submenu open over the window, both menus whole even where they
+      // reach past the window's edge.
+      const auto origin = window.mapToGlobal(QPoint(0, 0));
+      QRect crop;
+      for (QWidget* popup : {static_cast<QWidget*>(row_menu), static_cast<QWidget*>(submenu)}) {
+        crop = crop.united(QRect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size()));
+      }
+      crop = crop.adjusted(-12, -12, 12, 12);
+      QImage shot(crop.size(), QImage::Format_ARGB32_Premultiplied);
+      shot.fill(window.palette().color(QPalette::Window));
+      {
+        QPainter painter(&shot);
+        painter.drawPixmap(-crop.topLeft(), window.grab());
+        for (QWidget* popup : {static_cast<QWidget*>(row_menu), static_cast<QWidget*>(submenu)}) {
+          painter.drawPixmap(popup->mapToGlobal(QPoint(0, 0)) - origin - crop.topLeft(), popup->grab());
+        }
+      }
+      save_image_artifact("issue449_row_menu_vector_mask", shot);
+    }
+    if (reveal_all != nullptr && submenu_opened) {
+      submenu->setActiveAction(reveal_all);
+      QTest::keyClick(submenu, Qt::Key_Return);
+    } else {
+      row_menu->close();
+    }
+  });
+  auto* row = layers->itemWidget(left_item);
+  auto* name = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowName")) : nullptr;
+  CHECK(name != nullptr);
+  if (name == nullptr) {
+    return;
+  }
+  const auto local = name->rect().center();
+  QContextMenuEvent event(QContextMenuEvent::Mouse, local, name->mapToGlobal(local));
+  QApplication::sendEvent(name, &event);
+  QApplication::processEvents();
+
+  CHECK(top_submenus.contains(QStringLiteral("layerContextMaskMenu")));
+  CHECK(top_submenus.indexOf(QStringLiteral("layerContextVectorMaskMenu")) ==
+        top_submenus.indexOf(QStringLiteral("layerContextMaskMenu")) + 1);
+  CHECK(vector_actions ==
+        (QStringList{QStringLiteral("layerVectorMaskRevealAllAction"), QStringLiteral("layerVectorMaskHideAllAction"),
+                     QStringLiteral("layerVectorMaskCurrentPathAction"), QStringLiteral("-"),
+                     QStringLiteral("layerVectorMaskDeleteAction"), QStringLiteral("layerVectorMaskDisableAction"),
+                     QStringLiteral("layerVectorMaskRasterizeAction")}));
+  CHECK(submenu_opened);
+  const auto* left = find_named_layer(window, "Left");
+  CHECK(left != nullptr && left->vector_mask() != nullptr && !left->vector_mask()->inverted);
+  CHECK(left != nullptr && !left->mask().has_value());
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+}
+
 
 }  // namespace
 
@@ -1024,5 +1138,7 @@ std::vector<patchy::test::TestCase> layer_mask_tests() {
       {"ui_layer_thumbnail_right_click_opens_pixels_menu", ui_layer_thumbnail_right_click_opens_pixels_menu},
       {"ui_layer_mask_thumbnail_right_click_opens_mask_menu", ui_layer_mask_thumbnail_right_click_opens_mask_menu},
       {"ui_layer_footer_delete_removes_targeted_mask", ui_layer_footer_delete_removes_targeted_mask},
+      {"ui_layer_row_menu_vector_mask_submenu_adds_vector_mask",
+       ui_layer_row_menu_vector_mask_submenu_adds_vector_mask},
   };
 }

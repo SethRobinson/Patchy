@@ -26099,6 +26099,18 @@ The open document keeps its blend modes either way.</source>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Перемещение: перетаскивание перемещает, Shift+перетаскивание держит движение по горизонтали или вертикали, %ALT%+перетаскивание дублирует. %CTRL%+щелчок выбирает слой, Shift+щелчок переключает его. %CTRL%+перетаскивание выбирает прямоугольник, как и перетаскивание по пустому месту при включённом автоматическом выборе.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>Щелкните с %ALT%, чтобы скрыть слой или выделение</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>Щелкните с %CTRL%, чтобы добавить векторную маску</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Векторная маска</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
