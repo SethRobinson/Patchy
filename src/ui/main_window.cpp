@@ -1,6 +1,7 @@
 #include <QSplitter>
 #include <QWindow>
 #include "ui/main_window.hpp"
+#include "ui/quick_mask_trace.hpp"
 #include "ui/options_flow_layout.hpp"
 #include "support/startup_trace.hpp"
 #include "ui/panel_column.hpp"
@@ -4443,6 +4444,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   bind_tooltip(mask_edit_mode_chip_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paint tools are editing the layer mask. Click to edit the layer pixels again."));
   connect(mask_edit_mode_chip_, &QToolButton::clicked, this, [this] {
     if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+      quick_mask_trace(QStringLiteral("status bar chip clicked"));
       toggle_quick_mask_mode();
     } else if (canvas_ != nullptr && (CanvasWidget::is_component_preview(canvas_->layer_edit_target()) ||
                                       (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Content &&

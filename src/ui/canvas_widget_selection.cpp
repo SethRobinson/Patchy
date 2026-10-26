@@ -8,6 +8,7 @@
 // function moves from canvas_widget.cpp; behavior must stay identical.
 
 #include "ui/canvas_widget.hpp"
+#include "ui/quick_mask_trace.hpp"
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
@@ -419,6 +420,7 @@ void CanvasWidget::set_quick_mask_active(bool active) {
     quick_mask_edit_label_.clear();
     quick_mask_edit_dirty_ = QRegion();
   }
+  quick_mask_trace(active ? QStringLiteral("Quick Mask on") : QStringLiteral("Quick Mask off"));
   invalidate_quick_mask_display();
   invalidate_selection_outline();
   refresh_info_display();
