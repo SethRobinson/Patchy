@@ -12801,6 +12801,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>Пустой слой над фоном</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>Добавляет пустой слой над фоном. Значение по умолчанию берётся из настроек; изменение здесь касается только этого документа.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

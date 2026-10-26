@@ -12801,6 +12801,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>Pusta warstwa nad tłem</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>Dodaje pustą warstwę nad tłem. Wartość domyślna pochodzi z Preferencji; zmiana tutaj dotyczy tylko tego dokumentu.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -12766,6 +12766,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>Capa vacía sobre el fondo</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>Añade una capa vacía sobre el fondo. El valor predeterminado viene de Preferencias; cambiarlo aquí solo afecta a este documento.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

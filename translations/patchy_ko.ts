@@ -12731,6 +12731,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>배경 위에 빈 레이어</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>배경 위에 빈 레이어를 추가합니다. 기본값은 환경설정에서 가져오며, 여기서 바꾸면 이 문서에만 적용됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

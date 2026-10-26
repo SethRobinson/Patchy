@@ -106,13 +106,18 @@ menu (`newDocumentDeletePresetAction`) removes it without a prompt; templates ca
 
 ## Empty layer above the Background (GitHub issue 363)
 
-`reset_document` adds the transparent "Paint Layer" above the Background unless the
-Preferences checkbox "Add an empty layer above the Background in new documents"
+`reset_document` adds the transparent "Paint Layer" above the Background unless told not
+to; then the document is the Background alone, selected. The default is the Preferences
+checkbox "Add an empty layer above the Background in new documents"
 (`preferencesNewDocumentEmptyLayerCheck`, Application tab, key `newDocument/addEmptyLayer`,
-default on) is off; then the document is the Background alone, selected. The dialog has no
-copy of the checkbox: it is a standing preference, not a per-document choice. Artboard
-documents (which replace the layers) and New from Clipboard are not affected. Test helpers'
-`reset_document` calls follow the preference too.
+default on). The dialog's "Empty layer above Background" (`newDocumentEmptyLayerCheck`, above
+Artboards) decides for one document: it opens at the preference every time, never writes it,
+and is not stored in Recent cards or saved presets (it follows Preferences). It reaches
+`reset_document` as `NewDocumentSettings::add_empty_layer`; callers that pass nothing (test
+helpers, the stress test) follow the preference. It is greyed while Artboards is checked or
+the Clipboard card is current: artboard documents replace the layers and clipboard documents
+have no Background, and neither follows the setting. `app.newDocument` has no option for it:
+script documents are a single Background regardless.
 
 ## Scripting
 
@@ -127,6 +132,7 @@ document exists. Script documents keep their single white Background ([scripting
 UI: the `ui_new_document_*` family (templates, Recent row, search, units, bit depth,
 clipboard), plus `ui_new_document_color_mode_creates_cmyk_proof`,
 `ui_new_document_color_mode_needs_a_cmyk_profile`, `ui_new_document_empty_layer_preference`,
+`ui_new_document_empty_layer_checkbox`,
 `ui_new_document_name_reaches_tab_and_save_as` (Unicode name included),
 `ui_new_document_save_preset_and_reload` and `ui_script_new_document_options`
 (`tests/ui/new_document_options_tests.cpp`). `accept_new_document_dialog` (test support)
