@@ -12,6 +12,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/eyedropper_sample_overlay.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/compatibility_report.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -53,6 +54,7 @@
 #include <QTabWidget>
 #include <QTest>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 #include <QVariant>
 #include <QWheelEvent>
@@ -3144,6 +3146,188 @@ void ui_options_bar_field_escape_reverts_the_edit() {
   CHECK(size->value() == 60);
   CHECK(canvas->brush_size() == 60);
 }
+// Counts the Esc presses a widget receives.
+class EscapePressCounter final : public QObject {
+public:
+  int count = 0;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape) {
+      ++count;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+};
+
+// Enter in an options-bar field commits the value and Esc puts back the one from before the
+// edit; either way the keyboard goes back to the canvas, so tool keys work again, and the Esc
+// never reaches the canvas (it would deselect the layer). Tab still walks the bar, and the
+// font box drops typed text on Esc (GitHub issue 439).
+void ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* canvas = require_canvas(window);
+  auto* size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(size != nullptr);
+  if (size == nullptr) {
+    return;
+  }
+  EscapePressCounter canvas_escapes;
+  canvas->installEventFilter(&canvas_escapes);
+  size->setValue(25);
+  const auto focus_field = [](QWidget* field) {
+    field->setFocus(Qt::MouseFocusReason);
+    QApplication::processEvents();
+  };
+
+  focus_field(size);
+  CHECK(size->hasFocus());
+  size->selectAll();
+  QTest::keyClicks(size, QStringLiteral("80"));
+  QTest::keyClick(size, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(size->value() == 80);
+  CHECK(canvas->brush_size() == 80);
+  CHECK(canvas->hasFocus());
+
+  focus_field(size);
+  size->selectAll();
+  QTest::keyClicks(size, QStringLiteral("40"));
+  CHECK(size->value() == 40);
+  QTest::keyClick(size, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(size->value() == 80);
+  CHECK(canvas->brush_size() == 80);
+  CHECK(canvas->hasFocus());
+
+  // Esc with nothing typed leaves the field too, and the keypad Enter commits like Return.
+  focus_field(size);
+  QTest::keyClick(size, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->hasFocus());
+  focus_field(size);
+  size->selectAll();
+  QTest::keyClicks(size, QStringLiteral("30"));
+  QTest::keyClick(size, Qt::Key_Enter, Qt::KeypadModifier);
+  QApplication::processEvents();
+  CHECK(size->value() == 30);
+  CHECK(canvas->hasFocus());
+  CHECK(canvas_escapes.count == 0);
+
+  // Tab moves on through the bar instead of handing the keyboard back.
+  focus_field(size);
+  QTest::keyClick(size, Qt::Key_Tab);
+  QApplication::processEvents();
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options != nullptr && QApplication::focusWidget() != nullptr &&
+        options->isAncestorOf(QApplication::focusWidget()) && !size->hasFocus());
+
+  // The Text bar: Enter in the size field, Esc in the font box (typed text dropped).
+  require_action(window, "toolTypeAction")->trigger();
+  QApplication::processEvents();
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* font = window.findChild<QComboBox*>(QStringLiteral("textFontCombo"));
+  CHECK(text_size != nullptr && font != nullptr);
+  if (text_size == nullptr || font == nullptr) {
+    canvas->removeEventFilter(&canvas_escapes);
+    return;
+  }
+  focus_field(text_size);
+  text_size->selectAll();
+  QTest::keyClicks(text_size, QStringLiteral("20"));
+  QTest::keyClick(text_size, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(std::abs(text_size->value() - 20.0) < 0.01);
+  CHECK(canvas->hasFocus());
+  const auto family = font->currentText();
+  focus_field(font);
+  CHECK(font->lineEdit() != nullptr);
+  if (font->lineEdit() != nullptr) {
+    font->lineEdit()->selectAll();
+    font->lineEdit()->insert(QStringLiteral("qqqz"));
+  }
+  QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(font->currentText() == family);
+  CHECK(canvas->hasFocus());
+  CHECK(canvas_escapes.count == 0);
+  canvas->removeEventFilter(&canvas_escapes);
+}
+
+// Tab onto a slider, a checkbox or a dropdown in the options bar shows the accent outline in
+// both schemes; a click gives focus without it, and the outline never changes a control's
+// size (GitHub issue 440). The shots are the issue's screenshots.
+void ui_options_bar_tab_focus_shows_a_themed_outline() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const QString scheme_name = scheme == patchy::ui::ColorSchemePreference::Light ? QStringLiteral("light")
+                                                                                   : QStringLiteral("dark");
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    QApplication::processEvents();
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    CHECK(options_bar != nullptr);
+    if (options_bar == nullptr) {
+      return;
+    }
+    const QColor outline = patchy::ui::theme().accent_border_bright;
+    const auto outline_pixels = [&outline](QWidget* widget) {
+      const auto image = widget->grab().toImage();
+      int count = 0;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          const QColor pixel = image.pixelColor(x, y);
+          count += std::abs(pixel.red() - outline.red()) <= 8 && std::abs(pixel.green() - outline.green()) <= 8 &&
+                           std::abs(pixel.blue() - outline.blue()) <= 8
+                       ? 1
+                       : 0;
+        }
+      }
+      return count;
+    };
+    struct Case {
+      const char* tool;
+      const char* name;
+      const char* kind;
+    };
+    for (const Case& item : {Case{"Brush", "brushSizeSlider", "slider"}, Case{"Brush", "brushModeCombo", "dropdown"},
+                             Case{"Magic Wand", "wandContiguousCheck", "checkbox"}}) {
+      require_action_by_text(window, QString::fromLatin1(item.tool))->trigger();
+      QApplication::processEvents();
+      auto* control = window.findChild<QWidget*>(QString::fromLatin1(item.name));
+      CHECK(control != nullptr && control->isVisible());
+      if (control == nullptr || !control->isVisible()) {
+        continue;
+      }
+      const QSize size = control->size();
+      const int plain = outline_pixels(control);
+      control->setFocus(Qt::TabFocusReason);
+      QApplication::processEvents();
+      CHECK(control->hasFocus());
+      CHECK(control->property("optionsKeyboardFocus").toBool());
+      const int focused = outline_pixels(control);
+      std::printf("  %s %s: %d outline pixels unfocused, %d with Tab focus\n", qPrintable(scheme_name), item.name,
+                  plain, focused);
+      CHECK(focused >= plain + 8);
+      CHECK(control->size() == size);
+      CHECK(options_bar->grab().save(
+          QStringLiteral("test-artifacts/issue_440_%1_%2.png").arg(scheme_name, QString::fromLatin1(item.kind))));
+      // A click focuses without the mark.
+      control->clearFocus();
+      control->setFocus(Qt::MouseFocusReason);
+      QApplication::processEvents();
+      CHECK(control->hasFocus());
+      CHECK(!control->property("optionsKeyboardFocus").toBool());
+      CHECK(outline_pixels(control) == plain);
+      CHECK(control->size() == size);
+      control->clearFocus();
+      QApplication::processEvents();
+    }
+  }
+}
 // Size-like sliders use SliderCurve::FineLowEnd: the value grows with the
 // square of the handle position, so small sizes get most of the track.
 void ui_size_sliders_give_the_low_end_most_of_the_track() {
@@ -4073,6 +4257,9 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_slider_popup_dismissing_press_paints", ui_slider_popup_dismissing_press_paints},
       {"ui_slider_popup_close_restores_cursor_under_pointer", ui_slider_popup_close_restores_cursor_under_pointer},
       {"ui_options_bar_field_escape_reverts_the_edit", ui_options_bar_field_escape_reverts_the_edit},
+      {"ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas",
+       ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas},
+      {"ui_options_bar_tab_focus_shows_a_themed_outline", ui_options_bar_tab_focus_shows_a_themed_outline},
       {"ui_size_sliders_give_the_low_end_most_of_the_track",
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},

@@ -4982,6 +4982,9 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
   }
+  if (handle_options_bar_focus_event(watched, event)) {
+    return true;
+  }
   if (event->type() == QEvent::MouseButtonPress && watched->isWidgetType() &&
       handle_text_ctrl_move_press(static_cast<QWidget*>(watched), static_cast<QMouseEvent*>(event))) {
     return true;
