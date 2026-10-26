@@ -679,6 +679,13 @@ public:
   // Turns off the hard round brush's covered-disk skip (GitHub issue 135) so a test can paint
   // the same stroke both ways and compare the bytes.
   void set_hard_round_skip_enabled_for_testing(bool enabled) noexcept { hard_round_skip_enabled_ = enabled; }
+  // Drag move coalescing for tests and timing runs: Default coalesces window-system
+  // moves only, AllMoves also posted ones (a test can queue a burst), Off none (the
+  // before-the-fix baseline of `patchy_perf_tests textdrag`).
+  enum class DragMoveCoalescing { Default, AllMoves, Off };
+  void set_drag_move_coalescing_for_testing(DragMoveCoalescing mode) noexcept { drag_move_coalescing_mode_ = mode; }
+  [[nodiscard]] QPoint move_drag_delta_for_testing() const noexcept { return move_preview_delta_; }
+  [[nodiscard]] QTransform free_transform_preview_delta_for_testing() const { return free_transform_preview_delta(); }
   // Built display mip levels (0 when the chain was dropped), and whether every built
   // level equals one rebuilt from the render cache now (patch_display_mip_cache exactness).
   [[nodiscard]] int display_mip_levels_for_testing() const noexcept;
@@ -1501,6 +1508,15 @@ protected:
   void mousePressEvent(QMouseEvent* event) override;
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
+  // Move-tool and Free Transform drag moves: the first move of an event-loop pass is
+  // applied at once; later ones in the same pass only record their position, and one
+  // queued apply at the end of the pass takes the latest (GitHub #207, #443, #444).
+  // Returns true when `event` was recorded instead of handled.
+  bool defer_coalesced_drag_move(const QMouseEvent& event);
+  void begin_drag_move_pass();
+  void end_drag_move_pass();
+  // Applies a recorded drag move now (presses, releases and keys call it first).
+  void flush_pending_drag_move();
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void tabletEvent(QTabletEvent* event) override;
@@ -3211,6 +3227,19 @@ private:
   bool moving_layer_{false};
   bool transforming_layer_{false};
   bool dragging_transform_{false};
+  // Drag move coalescing (defer_coalesced_drag_move). Wayland delivers every pointer
+  // motion uncompressed; applying each one recomposites the drag preview, so a fast
+  // pointer queued seconds of moves and the canvas repainted about once a second.
+  struct PendingDragMove {
+    QPointF position;
+    QPointF global_position;
+    Qt::MouseButtons buttons;
+    Qt::KeyboardModifiers modifiers;
+  };
+  std::optional<PendingDragMove> pending_drag_move_;
+  bool drag_move_pass_active_{false};
+  bool replaying_drag_move_{false};
+  DragMoveCoalescing drag_move_coalescing_mode_{DragMoveCoalescing::Default};
   bool color_picking_{false};
   // Set transiently by the Alt key handler so update_tool_cursor() uses the
   // event's authoritative (folded) Alt state instead of the global keyboard

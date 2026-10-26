@@ -428,6 +428,10 @@ struct CanvasRenderCacheDiagnostics {
   // shape or vector mask). A drag applies once per batch of queued mouse moves at
   // the latest pointer position (GitHub #314).
   int path_drag_applies{0};
+  // Move-tool and Free Transform drag moves that arrived while the drag had already
+  // been applied in the current event-loop pass, so only their latest position is
+  // applied when the pass ends (GitHub #207, #443, #444).
+  int drag_moves_coalesced{0};
 };
 
 // A resampled image in document space: the result of CanvasWidget's `resample_transformed_rgba8`
