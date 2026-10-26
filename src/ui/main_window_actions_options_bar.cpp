@@ -58,6 +58,7 @@
 #include "ui/zoom_status_bar.hpp"
 
 #include <QAction>
+#include <QAbstractButton>
 #include <QActionGroup>
 #include <QAbstractSpinBox>
 #include <QButtonGroup>
@@ -78,6 +79,7 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QLatin1String>
 #include <QMenu>
 #include <QObject>
@@ -352,8 +354,59 @@ void set_options_bar_keyboard_focus(QWidget* control, bool keyboard) {
   control->update();
 }
 
+// The exclusive button group a bar control belongs to (the selection modes, Zoom In/Out, the
+// Pick tool's Sets, text alignment): an exclusive QActionGroup behind a tool button's action,
+// or an exclusive QButtonGroup. Null for any other control.
+QObject* options_bar_exclusive_group(QWidget* widget) {
+  if (auto* tool_button = qobject_cast<QToolButton*>(widget);
+      tool_button != nullptr && tool_button->defaultAction() != nullptr) {
+    auto* group = tool_button->defaultAction()->actionGroup();
+    return group != nullptr && group->exclusionPolicy() != QActionGroup::ExclusionPolicy::None ? group : nullptr;
+  }
+  if (auto* button = qobject_cast<QAbstractButton*>(widget); button != nullptr && button->group() != nullptr) {
+    return button->group()->exclusive() ? button->group() : nullptr;
+  }
+  return nullptr;
+}
+
+bool options_bar_button_checked(QWidget* widget) {
+  const auto* button = qobject_cast<QAbstractButton*>(widget);
+  return button != nullptr && button->isChecked();
+}
+
+// Whether a bar control takes Tab focus. Qt moves Qt::TabFocus within a QButtonGroup to the
+// button that last had focus (QAbstractButton's focusInEvent), so a group's button counts
+// when any button of its group takes Tab focus.
+bool options_bar_takes_tab_focus(QWidget* widget) {
+  if ((widget->focusPolicy() & Qt::TabFocus) != 0) {
+    return true;
+  }
+  const auto* button = qobject_cast<QAbstractButton*>(widget);
+  if (button == nullptr || button->group() == nullptr || !button->group()->exclusive()) {
+    return false;
+  }
+  const auto buttons = button->group()->buttons();
+  return std::any_of(buttons.begin(), buttons.end(),
+                     [](const QAbstractButton* other) { return (other->focusPolicy() & Qt::TabFocus) != 0; });
+}
+
+// A group's visible, enabled buttons, left to right.
+std::vector<QAbstractButton*> options_bar_group_members(QWidget* container, QObject* group) {
+  std::vector<QAbstractButton*> members;
+  for (auto* button : container->findChildren<QAbstractButton*>()) {
+    if (button->isVisible() && button->isEnabled() && options_bar_exclusive_group(button) == group) {
+      members.push_back(button);
+    }
+  }
+  std::sort(members.begin(), members.end(), [container](QAbstractButton* a, QAbstractButton* b) {
+    return a->mapTo(container, QPoint()).x() < b->mapTo(container, QPoint()).x();
+  });
+  return members;
+}
+
 // The bar's Tab stops in reading order: visible, enabled controls that take Tab focus, row by
-// row, left to right (a spin box or combo once, not its line edit).
+// row, left to right (a spin box or combo once, not its line edit). An exclusive button group
+// is one stop, its checked button, as a radio group is (GitHub issue 440 follow-up).
 std::vector<QWidget*> options_bar_tab_stops(QWidget* container) {
   struct Stop {
     QWidget* widget;
@@ -362,7 +415,7 @@ std::vector<QWidget*> options_bar_tab_stops(QWidget* container) {
   std::vector<Stop> stops;
   for (auto* widget : container->findChildren<QWidget*>()) {
     if (options_bar_focus_control(widget) != widget || widget->focusProxy() != nullptr ||
-        (widget->focusPolicy() & Qt::TabFocus) == 0 || !widget->isVisible() || !widget->isEnabled()) {
+        !options_bar_takes_tab_focus(widget) || !widget->isVisible() || !widget->isEnabled()) {
       continue;
     }
     stops.push_back({widget, widget->mapTo(container, widget->rect().center())});
@@ -380,12 +433,43 @@ std::vector<QWidget*> options_bar_tab_stops(QWidget* container) {
     std::stable_sort(row_start, row_end, [](const Stop& a, const Stop& b) { return a.center.x() < b.center.x(); });
     row_start = row_end;
   }
+  // Each group's stop sits where its first button does, and is its checked button.
+  std::vector<std::pair<QObject*, QWidget*>> group_stops;
+  for (const auto& stop : stops) {
+    if (auto* group = options_bar_exclusive_group(stop.widget); group != nullptr) {
+      const auto found = std::find_if(group_stops.begin(), group_stops.end(),
+                                      [group](const auto& entry) { return entry.first == group; });
+      if (found == group_stops.end()) {
+        group_stops.emplace_back(group, stop.widget);
+      } else if (options_bar_button_checked(stop.widget) && !options_bar_button_checked(found->second)) {
+        found->second = stop.widget;
+      }
+    }
+  }
   std::vector<QWidget*> widgets;
   widgets.reserve(stops.size());
+  std::vector<QObject*> placed;
   for (const auto& stop : stops) {
-    widgets.push_back(stop.widget);
+    auto* group = options_bar_exclusive_group(stop.widget);
+    if (group == nullptr) {
+      widgets.push_back(stop.widget);
+    } else if (std::find(placed.begin(), placed.end(), group) == placed.end()) {
+      placed.push_back(group);
+      widgets.push_back(std::find_if(group_stops.begin(), group_stops.end(), [group](const auto& entry) {
+                          return entry.first == group;
+                        })->second);
+    }
   }
   return widgets;
+}
+
+// A live inline text session keeps the keyboard (GitHub issue 175).
+bool text_session_is_live(const CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return false;
+  }
+  const auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  return editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool() && editor->isVisible();
 }
 
 }  // namespace
@@ -393,7 +477,7 @@ std::vector<QWidget*> options_bar_tab_stops(QWidget* container) {
 bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event) {
   const auto type = event->type();
   if ((type != QEvent::FocusIn && type != QEvent::FocusOut && type != QEvent::KeyPress &&
-       type != QEvent::ShortcutOverride) ||
+       type != QEvent::ShortcutOverride && type != QEvent::MouseButtonPress) ||
       options_flow_container_ == nullptr || !watched->isWidgetType()) {
     return false;
   }
@@ -402,6 +486,17 @@ bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event)
     return false;
   }
   auto* control = options_bar_focus_control(widget);
+  if (type == QEvent::MouseButtonPress) {
+    // A click on a control that takes only Tab focus (a tool button, a mode button) focuses it
+    // like a click into a field, so Tab moves on from there; without the outline, and Space
+    // still pans the canvas. A live text session keeps the keyboard instead (issue 175).
+    if (static_cast<QMouseEvent*>(event)->button() == Qt::LeftButton && control->isEnabled() &&
+        options_bar_takes_tab_focus(control) && (control->focusPolicy() & Qt::ClickFocus) == 0 &&
+        !control->hasFocus() && !text_session_is_live(canvas_)) {
+      control->setFocus(Qt::MouseFocusReason);
+    }
+    return false;
+  }
   if (type == QEvent::FocusIn || type == QEvent::FocusOut) {
     // Tab and Backtab show the focus outline; a click or a programmatic focus clears it. A popup
     // or a window switch round trip keeps whatever the control had.
@@ -437,10 +532,20 @@ bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event)
                        (key_event->key() == Qt::Key_Tab && (key_event->modifiers() & Qt::ShiftModifier) != 0);
   const bool tab = (key_event->key() == Qt::Key_Tab || key_event->key() == Qt::Key_Backtab) &&
                    tab_modifiers == Qt::NoModifier && QApplication::activePopupWidget() == nullptr;
+  // In an exclusive button group the arrow keys move to the neighbouring button and select it
+  // (wrapping), and Enter selects the focused one, as in a radio group; Space presses it as any
+  // button does (GitHub issue 440 follow-up).
+  auto* group = options_bar_exclusive_group(control);
+  const bool plain_key = (key_event->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier;
+  const bool group_arrow = group != nullptr && plain_key &&
+                           (key_event->key() == Qt::Key_Left || key_event->key() == Qt::Key_Right ||
+                            key_event->key() == Qt::Key_Up || key_event->key() == Qt::Key_Down);
+  const bool group_enter =
+      group != nullptr && plain_key && (key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter);
   if (type == QEvent::ShortcutOverride) {
     // Esc belongs to the field (revert, then leave): no window shortcut runs on the same press.
-    // Tab and Shift+Tab move within the bar below.
-    if (escape || tab) {
+    // Tab and Shift+Tab move within the bar below, and the arrows within a button group.
+    if (escape || tab || group_arrow || group_enter) {
       key_event->accept();
       return true;
     }
@@ -451,9 +556,6 @@ bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event)
     // the keyboard never walks on into the panels or the document tabs (GitHub issue 439
     // follow-up). Esc or Enter hand it back to the canvas.
     const auto stops = options_bar_tab_stops(options_flow_container_);
-    if (stops.empty()) {
-      return false;
-    }
     const auto found = std::find(stops.begin(), stops.end(), control);
     std::size_t next = 0;
     if (found == stops.end()) {
@@ -462,7 +564,39 @@ bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event)
       const auto index = static_cast<std::size_t>(found - stops.begin());
       next = backtab ? (index + stops.size() - 1) % stops.size() : (index + 1) % stops.size();
     }
+    if (found == stops.end() && group != nullptr) {
+      // Focus on a group's unchecked button: its stop is the group's.
+      const auto group_stop = std::find_if(stops.begin(), stops.end(), [group](QWidget* stop) {
+        return options_bar_exclusive_group(stop) == group;
+      });
+      if (group_stop != stops.end()) {
+        const auto index = static_cast<std::size_t>(group_stop - stops.begin());
+        next = backtab ? (index + stops.size() - 1) % stops.size() : (index + 1) % stops.size();
+      }
+    }
     stops[next]->setFocus(backtab ? Qt::BacktabFocusReason : Qt::TabFocusReason);
+    key_event->accept();
+    return true;
+  }
+  if (group_arrow || group_enter) {
+    auto* target = qobject_cast<QAbstractButton*>(control);
+    if (group_arrow) {
+      const auto members = options_bar_group_members(options_flow_container_, group);
+      const auto found = std::find(members.begin(), members.end(), target);
+      if (members.empty() || found == members.end()) {
+        return false;
+      }
+      const bool back = key_event->key() == Qt::Key_Left || key_event->key() == Qt::Key_Up;
+      const auto index = static_cast<std::size_t>(found - members.begin());
+      target = members[back ? (index + members.size() - 1) % members.size() : (index + 1) % members.size()];
+    }
+    const QPointer<QAbstractButton> guarded(target);
+    if (!target->isChecked()) {
+      target->click();
+    }
+    if (guarded != nullptr && guarded->isVisible() && guarded->isEnabled() && !guarded->hasFocus()) {
+      guarded->setFocus(Qt::TabFocusReason);
+    }
     key_event->accept();
     return true;
   }
@@ -3527,7 +3661,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     button->setObjectName(object_name);
     button->setCheckable(true);
     button->setChecked(current_eyedropper_picks_background_ == background);
-    button->setFocusPolicy(Qt::NoFocus);
+    // One Tab stop for the pair (options_bar_tab_stops); a click focuses it through
+    // handle_options_bar_focus_event.
+    button->setFocusPolicy(Qt::TabFocus);
     bind_widget_text(button, text);
     // %ALT% names Option on macOS (resolve_modifier_names), so this tooltip is
     // set by a callback rather than bound.
@@ -4328,7 +4464,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(text_color_button_, QT_TR_NOOP("Text color"));
   // configure_swatch_button sets Qt::NoFocus like the session buttons below: keyboard focus
   // stays in the editor, so typing after a color pick replaces the selected "Type"
-  // placeholder (GitHub issue 175). The alignment buttons follow the same rule.
+  // placeholder (GitHub issue 175). The alignment buttons take Tab focus only (one Tab stop for
+  // the group, issue 440 follow-up): a click never takes the keyboard from a live session.
   configure_swatch_button(text_color_button_);
   add_option_separator({CanvasTool::Text});
   add_option_widget(text_color_button_, {CanvasTool::Text});
@@ -4344,7 +4481,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_left_button_->setChecked(true);
   bind_tooltip(text_align_left_button_, QT_TR_NOOP("Align Left"));
   text_align_left_button_->setFixedSize(30, 26);
-  text_align_left_button_->setFocusPolicy(Qt::NoFocus);
+  text_align_left_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_left_button_);
   add_option_separator({CanvasTool::Text});
   add_option_widget(text_align_left_button_, {CanvasTool::Text});
@@ -4354,7 +4491,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_center_button_->setCheckable(true);
   bind_tooltip(text_align_center_button_, QT_TR_NOOP("Align Center"));
   text_align_center_button_->setFixedSize(30, 26);
-  text_align_center_button_->setFocusPolicy(Qt::NoFocus);
+  text_align_center_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_center_button_);
   add_option_widget(text_align_center_button_, {CanvasTool::Text});
   text_align_right_button_ = new QPushButton(toolbar);
@@ -4363,7 +4500,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_right_button_->setCheckable(true);
   bind_tooltip(text_align_right_button_, QT_TR_NOOP("Align Right"));
   text_align_right_button_->setFixedSize(30, 26);
-  text_align_right_button_->setFocusPolicy(Qt::NoFocus);
+  text_align_right_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_right_button_);
   add_option_widget(text_align_right_button_, {CanvasTool::Text});
   // Photoshop's "Toggle text orientation": one Type tool with a vertical switch instead of a

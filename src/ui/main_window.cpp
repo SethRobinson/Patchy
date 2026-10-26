@@ -1,6 +1,7 @@
 #include <QSplitter>
 #include <QWindow>
 #include "ui/main_window.hpp"
+#include "ui/options_flow_layout.hpp"
 #include "support/startup_trace.hpp"
 #include "ui/panel_column.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -4761,6 +4762,11 @@ bool MainWindow::spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noe
 
 bool MainWindow::spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) const noexcept {
   for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+    // An options-bar control reached with Tab takes Space as its own key (a button presses, a
+    // checkbox toggles); one focused by a click leaves Space to the pan (GitHub issue 440).
+    if (current->hasFocus() && current->property(kOptionsBarKeyboardFocusProperty).toBool()) {
+      return true;
+    }
     if (qobject_cast<QLineEdit*>(current) != nullptr || qobject_cast<QTextEdit*>(current) != nullptr ||
         qobject_cast<QPlainTextEdit*>(current) != nullptr || qobject_cast<QAbstractSpinBox*>(current) != nullptr) {
       return true;
