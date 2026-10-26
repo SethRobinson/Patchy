@@ -35,10 +35,14 @@ struct TrimSides {
 [[nodiscard]] bool trim_composite_has_transparency(const PixelBuffer& composite);
 
 // The rect Trim keeps, in canvas coordinates: on each enabled side the run of rows or
-// columns whose every pixel matches the basis is cut away. Transparent means alpha 0; a
-// corner color matches exactly (every channel at the composite's depth; a transparent
-// corner matches every transparent pixel). nullopt when every pixel matches (nothing would
-// remain); the full canvas when nothing on the enabled sides matches.
-[[nodiscard]] std::optional<Rect> trim_bounds(const PixelBuffer& composite, TrimBasis basis, TrimSides sides);
+// columns whose every pixel matches the basis is cut away. Tolerance 0 is an exact match:
+// Transparent means alpha 0, a corner color matches every channel at the composite's depth,
+// and a transparent corner matches every transparent pixel. Tolerance N (0..255, 8-bit
+// units, also on 16 and 32-bit composites, as the Magic Wand reads them: display-encoded
+// on the 0..255 deep scale) widens that to alpha <= N, every channel within N of the
+// corner, and alpha <= N for a transparent corner. nullopt when every pixel matches
+// (nothing would remain); the full canvas when nothing on the enabled sides matches.
+[[nodiscard]] std::optional<Rect> trim_bounds(const PixelBuffer& composite, TrimBasis basis, TrimSides sides,
+                                              int tolerance = 0);
 
 }  // namespace patchy

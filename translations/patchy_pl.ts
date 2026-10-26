@@ -12801,6 +12801,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Tolerancja:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Jak bardzo piksel może różnić się od koloru przycinania, aby nadal został odcięty (0 oznacza dokładne dopasowanie)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28076,6 +28084,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter wymaga warstwy pikselowej RGB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance musi być liczbą od 0 do 255.</translation>
     </message>
 </context>
 <context>

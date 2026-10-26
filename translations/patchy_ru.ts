@@ -12801,6 +12801,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Допуск:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Насколько пиксель может отличаться от цвета обрезки, чтобы всё равно быть обрезанным (0 означает точное совпадение)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28076,6 +28084,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter требуется пиксельный слой RGB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance должен быть числом от 0 до 255.</translation>
     </message>
 </context>
 <context>

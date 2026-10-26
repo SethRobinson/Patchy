@@ -12731,6 +12731,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>허용치:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>재단 기준 색상과 얼마나 달라도 잘라낼지 정합니다 (0은 정확히 일치)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27928,6 +27936,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter에는 RGB 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
     </message>
 </context>
 <context>

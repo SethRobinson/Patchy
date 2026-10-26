@@ -1200,12 +1200,14 @@ interface PatchyDocument {
   /**
    * Image > Trim: crops the canvas to the composite's content. basedOn picks what is cut
    * away: "transparent" (alpha 0, the default), or pixels exactly matching the "topLeft" or
-   * "bottomRight" corner pixel. top/bottom/left/right (all true by default) choose the
-   * sides. Returns the kept rectangle in the old canvas coordinates, or null when nothing
+   * "bottomRight" corner pixel. tolerance (0..255, default 0 = exact) also cuts near
+   * matches: alpha up to it, or every channel within it of the corner (8-bit units at any
+   * depth). top/bottom/left/right (all true by default) choose the sides. Returns the kept rectangle in the old canvas coordinates, or null when nothing
    * was trimmed (no matching edges, or every pixel matches). Throws with artboards.
    */
   trim(options?: {
     basedOn?: "transparent" | "topLeft" | "bottomRight";
+    tolerance?: number;
     top?: boolean;
     bottom?: boolean;
     left?: boolean;

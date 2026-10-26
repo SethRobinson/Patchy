@@ -12766,6 +12766,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Tolérance :</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Écart maximal entre un pixel et la couleur de rognage pour qu’il soit encore supprimé (0 correspond à une égalité exacte)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28002,6 +28010,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter nécessite un calque de pixels RVB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance doit être un nombre de 0 à 255.</translation>
     </message>
 </context>
 <context>
