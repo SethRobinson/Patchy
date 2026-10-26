@@ -25,6 +25,15 @@ struct ImageSaveOptions {
   // saveOptions/exportMetadata (metadata_policy_key tokens); scripts pass `metadata`.
   metadata::MetadataPolicy metadata_policy{metadata::MetadataPolicy::All};
   int jpeg_quality{95};
+  // JPEG coding (File > Export for Web, docs/web-export.md; scripts pass `progressive` and
+  // `optimizeCoding`): progressive scans and optimized Huffman tables. Off here, so Save,
+  // Save As and Export Flat Image keep their bytes; the Export for Web dialog turns both on.
+  bool jpeg_progressive{false};
+  bool jpeg_optimize{false};
+  // JPEG: a save that writes EXIF adds an IFD1 thumbnail of the saved image
+  // (docs/file-info.md, "Thumbnails"). Export for Web clears it unless "Include thumbnail"
+  // is on; scripts pass `thumbnail`.
+  bool jpeg_exif_thumbnail{true};
   bmp::BmpEncoding bmp_encoding{bmp::BmpEncoding::Rgba32};
   bmp::BmpPaletteMode bmp_palette_mode{bmp::BmpPaletteMode::Exact};
   QString bmp_palette_path;

@@ -774,9 +774,20 @@ void ui_file_export_menu_actions_registered() {
         QStringLiteral("&Documents to Folder..."));
   CHECK(require_action(window, "fileExportAnimatedGifAction")->text() ==
         QStringLiteral("Layers as Animated &GIF..."));
-  // Photoshop's Save for Web key survives the move into the submenu.
-  CHECK(require_action(window, "fileExportFlatAction")->shortcut() ==
-        QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
+  // Export for Web sits in the File menu itself, right under Save As (docs/web-export.md),
+  // and has Ctrl+Alt+Shift+S; Flat Image gave the key up.
+  auto* web = require_action(window, "fileExportForWebAction");
+  CHECK(!export_menu->actions().contains(web));
+  if (file_menu != nullptr) {
+    const auto actions = file_menu->actions();
+    const auto web_index = actions.indexOf(web);
+    CHECK(web_index > 0 && actions.at(web_index - 1) == require_action(window, "fileSaveAsAction"));
+  }
+  const auto* web_command = window.hotkey_registry().find_command(QStringLiteral("file.export_for_web"));
+  CHECK(web_command != nullptr && web_command->action == web);
+  CHECK(web->text() == QStringLiteral("Export for &Web..."));
+  CHECK(web->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
+  CHECK(require_action(window, "fileExportFlatAction")->shortcut().isEmpty());
 }
 
 // Distance from an action's row edge to the first drawn pixel of its text.

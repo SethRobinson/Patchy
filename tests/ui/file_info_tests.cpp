@@ -44,6 +44,7 @@
 #include "ui/file_info_dialog.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/save_metadata_settings.hpp"
+#include "ui/web_export.hpp"
 #include <QPushButton>
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
@@ -887,6 +888,46 @@ void ui_jpeg_save_writes_an_exif_thumbnail() {
   CHECK(!QImage(target).isNull());
 }
 
+// Export for Web (docs/web-export.md): metadata None by default, so no EXIF and no
+// thumbnail; with EXIF kept the IFD1 thumbnail is written only when asked for.
+void ui_web_export_metadata_and_thumbnail_choices() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, write_tagged_jpeg());
+  QApplication::processEvents();
+  const auto& document = MainWindowTestAccess::document(window);
+  const QSize size(document.width(), document.height());
+  int index = 0;
+  const auto export_with = [&](const patchy::ui::WebExportSettings& settings) {
+    const auto job = patchy::ui::web_export_job(settings, patchy::ui::WebExportFormat::Jpeg, size);
+    const auto prepared =
+        patchy::ui::WebExportPreviewEngine::prepare(document, job.geometry, job.convert_to_srgb, nullptr);
+    const auto result = patchy::ui::WebExportPreviewEngine::encode(document, job, prepared);
+    const auto path = artifact_dir() + QStringLiteral("/web-export-%1.jpg").arg(index++);
+    patchy::ui::write_encoded_image_file(path, *result.bytes);
+    CHECK(!QImage(path).isNull());
+    return md::extract_file_info_from_path(patchy::ui::to_filesystem_path(path));
+  };
+  patchy::ui::WebExportSettings defaults;
+  CHECK(defaults.metadata == md::MetadataPolicy::None);
+  CHECK(!defaults.thumbnail);
+  const auto plain = export_with(defaults);
+  CHECK(plain.exif == nullptr);
+  CHECK(plain.xmp == nullptr);
+
+  auto kept = defaults;
+  kept.metadata = md::MetadataPolicy::All;
+  const auto without_thumbnail = export_with(kept);
+  const auto stream = without_thumbnail.exif ? md::parse_tiff(*without_thumbnail.exif) : std::nullopt;
+  CHECK(stream.has_value() && stream->thumbnail.empty());
+  CHECK(without_thumbnail.xmp != nullptr);
+
+  kept.thumbnail = true;
+  const auto with_thumbnail = export_with(kept);
+  const auto thumbnail_stream = with_thumbnail.exif ? md::parse_tiff(*with_thumbnail.exif) : std::nullopt;
+  CHECK(thumbnail_stream.has_value() && !thumbnail_stream->thumbnail.empty());
+}
+
 // Issue 417: File Info's privacy notice has Don't Show Again, which turns it off for every
 // document until Preferences turns it back on. Saves notice-shown.png and notice-hidden.png
 // into test-artifacts/file-info.
@@ -1250,6 +1291,7 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
       {"ui_psd_save_writes_metadata_and_thumbnail", ui_psd_save_writes_metadata_and_thumbnail},
       {"ui_jpeg_save_writes_an_exif_thumbnail", ui_jpeg_save_writes_an_exif_thumbnail},
+      {"ui_web_export_metadata_and_thumbnail_choices", ui_web_export_metadata_and_thumbnail_choices},
       {"ui_jpeg_save_as_stamps_a_new_document", ui_jpeg_save_as_stamps_a_new_document},
       {"ui_file_info_privacy_notice_can_be_hidden", ui_file_info_privacy_notice_can_be_hidden},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},

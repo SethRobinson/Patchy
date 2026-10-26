@@ -145,6 +145,21 @@ struct LayerPixelsOverrideSpec {
 // (today: editable PDF), one line each, for the save/export status message.
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {}, std::vector<std::string>* notices = nullptr);
+// The flat 8-bit stand-in write_flat_image_file writes when an export transform (trim,
+// resize, pixel-art scale, background fill) is requested: those applied, one pixel layer
+// (or a document-alpha masked layer), the metadata, profile and palette carried over.
+// Writing it with without_export_transforms(options) gives the same bytes as writing
+// `document` with `options` (File > Export for Web prepares it once per size).
+[[nodiscard]] Document export_transformed_document(const Document& document, const ImageSaveOptions& options,
+                                                   std::vector<std::string>* notices = nullptr);
+[[nodiscard]] ImageSaveOptions without_export_transforms(ImageSaveOptions options);
+// The bytes write_flat_image_file writes for `extension` (encoded through a private
+// temporary file), for previews that report and decode the real output.
+[[nodiscard]] std::vector<std::uint8_t> encode_flat_image_bytes(const Document& document, const QString& extension,
+                                                                const ImageSaveOptions& options,
+                                                                std::vector<std::string>* notices = nullptr);
+// Writes already encoded image bytes to `path` atomically (QSaveFile).
+void write_encoded_image_file(const QString& path, std::span<const std::uint8_t> bytes);
 // Writes the visible top-level layers as a looping animated GIF, top layer = frame 1
 // (write_flat_image_file dispatches here when options.gif_animate). Each layer or group
 // renders through render_layer_isolated; a trailing "0.25s" layer-name token overrides

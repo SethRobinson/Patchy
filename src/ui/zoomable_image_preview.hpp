@@ -65,6 +65,15 @@ public:
   void zoom_step(int direction,
                  std::optional<QPointF> anchor = std::nullopt);
   void set_zoom_changed_callback(std::function<void()> callback);
+  // The view (fit mode, zoom, pan offset), so two previews of one image can stay in step
+  // (Export for Web's side-by-side panes). Setting it notifies the zoom-changed callback.
+  struct ViewState {
+    bool fit{true};
+    double zoom{1.0};
+    QPointF pan;
+  };
+  [[nodiscard]] ViewState view_state() const;
+  void set_view_state(const ViewState& state);
   // Scrubby Zoom, the Zoom tool's gesture (docs/view-navigation.md): a left
   // drag zooms about the press point, right = in, vertical travel ignored; a
   // click without travel steps in, Alt-click out. Space held or the middle
