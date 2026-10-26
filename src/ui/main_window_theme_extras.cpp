@@ -85,11 +85,13 @@ void MainWindow::install_theme_extras() {
     register_theme_effects_overlay(overlay);
   }
   // Right of Help (the last menu), shown only while the theme adds commands.
-  theme_menu_ = menuBar()->addMenu(tr("Theme"));
+  theme_menu_ = menuBar()->addMenu(QString());
   theme_menu_->setObjectName(QStringLiteral("themeMenu"));
   theme_menu_->menuAction()->setMenuRole(QAction::NoRole);
   theme_menu_->menuAction()->setObjectName(QStringLiteral("themeMenuAction"));
   theme_menu_->menuAction()->setVisible(false);
+  // The fallback title follows the language; a theme's own title is the theme's text.
+  bind_action_text(theme_menu_->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Theme"));
 
   auto& host = ThemeScriptHost::instance();
   connect(&host, &ThemeScriptHost::commands_changed, this, [this] { rebuild_theme_menu(); });
@@ -164,7 +166,13 @@ void MainWindow::rebuild_theme_menu() {
     theme_command_actions_.insert(id, action);
   }
   hotkey_registry_.apply_to_actions();
-  theme_menu_->setTitle(host.menu_title().isEmpty() ? tr("Theme") : host.menu_title());
+  if (host.menu_title().isEmpty()) {
+    bind_action_text(theme_menu_->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Theme"));
+  } else {
+    // The theme's own title is data, not Patchy text: no binding, so a language switch keeps it.
+    theme_menu_->menuAction()->setProperty(kTranslationTextProperty, QVariant());
+    theme_menu_->setTitle(host.menu_title());
+  }
   theme_menu_->menuAction()->setVisible(!host.commands().empty());
 }
 
