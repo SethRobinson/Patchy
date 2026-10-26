@@ -2,8 +2,10 @@
 
 // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md, "Customizing
 // the palette"): which tools the palette shows, one or two columns, wheel scrolling in a short
-// window, the gear button, and which Layers panel footer buttons show. The settings keys and
-// the tool and button ids stored under them are compatibility contracts.
+// window, and which Layers panel footer buttons show. The settings keys and the tool and button
+// ids stored under them are compatibility contracts. Only what the user hid is stored, never a
+// full list: a tool or button the settings do not name shows, so ones added in a later version
+// appear on a customized palette, and ids this build does not know are ignored (and kept).
 
 #include <QColor>
 #include <QIcon>
@@ -23,7 +25,6 @@ struct ToolPaletteCustomization {
   bool two_columns{false};
   // The wheel scrolls an overflowing column instead of the > arrow opening more columns.
   bool wheel_scroll{true};
-  bool show_customize_button{true};
   // Layers panel footer button ids (kLayerFooterButtonIds) left out of the footer.
   QStringList hidden_layer_buttons;
 
@@ -71,7 +72,6 @@ struct LayerFooterCatalogButton {
 struct ToolPaletteCatalog {
   std::vector<ToolPaletteCatalogCluster> clusters;
   std::vector<LayerFooterCatalogButton> layer_buttons;
-  QIcon customize_icon;
   QColor foreground{Qt::black};
   QColor background{Qt::white};
 };

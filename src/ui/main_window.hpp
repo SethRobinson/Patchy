@@ -222,8 +222,9 @@ public:
   ~MainWindow() override;
   // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md): opens the
   // dialog (non-modal; a second call brings the open one forward on that tab), and applies and
-  // stores a choice live.
-  void show_tool_palette_customization(ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools);
+  // stores a choice live. `parent` is the dialog it opens from (Preferences), else the window.
+  void show_tool_palette_customization(ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools,
+                                       QWidget* parent = nullptr);
   void apply_tool_palette_customization(const ToolPaletteCustomization& customization);
   [[nodiscard]] const ToolPaletteCustomization& tool_palette_customization() const noexcept {
     return tool_palette_customization_;

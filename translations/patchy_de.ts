@@ -13049,10 +13049,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Sonst öffnet der Pfeil &gt; weitere Spalten.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Zahnrad-Schaltfläche in der Palette anzeigen</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Werkzeuge</translation>
     </message>

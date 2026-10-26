@@ -14,6 +14,10 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-26 (behavioral): `patchy.ui.toolPalette.showGearButton` is a no-op: the tool palette's gear
+was removed (Customize Tool Palette opens from the Window menu, the palette's right-click menu and
+Preferences). It always reads false and setting it is ignored; the key stays (a permanent identifier).
+Pinned by `ui_script_tool_palette_reads_and_sets`.
 2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options `colors` (2..256), `dither` (`"none"`,
 `"diffusion"`) and `ditherAmount` (0..100) for `.gif`, and for `.png` with the new `pngColors`
 (`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette

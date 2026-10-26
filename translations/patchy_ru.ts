@@ -13086,10 +13086,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Иначе стрелка &gt; открывает дополнительные столбцы.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Показывать кнопку с шестерёнкой на палитре</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Инструменты</translation>
     </message>

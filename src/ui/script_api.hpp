@@ -668,7 +668,8 @@ public:
   void set_pixel_grid(bool enabled);
   // Customize Tool Palette (docs/tool-palette.md): {hiddenTools, layout, wheelScroll,
   // showGearButton, hiddenLayerButtons}. Setting takes any subset of those keys, applies
-  // live and saves; an unknown tool id, layer button id or layout throws.
+  // live and saves; an unknown tool id, layer button id or layout throws. showGearButton
+  // (the palette's removed gear) reads false and is ignored when set.
   Q_PROPERTY(QJSValue toolPalette READ tool_palette WRITE set_tool_palette)
   [[nodiscard]] QJSValue tool_palette() const;
   void set_tool_palette(const QJSValue& state);

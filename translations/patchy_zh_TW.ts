@@ -13012,10 +13012,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>否則用 &gt; 箭頭展開更多欄。</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>在面板上顯示齒輪按鈕</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>工具</translation>
     </message>

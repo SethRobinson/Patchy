@@ -97,10 +97,9 @@ void ToolPaletteScrollArrow::mousePressEvent(QMouseEvent* event) {
   QWidget::mousePressEvent(event);
 }
 
-ToolPaletteLayout::ToolPaletteLayout(QToolBar* palette, QWidget* customize_widget, QWidget* stash)
+ToolPaletteLayout::ToolPaletteLayout(QToolBar* palette, QWidget* stash)
     : QObject(palette), palette_(palette), stash_(stash) {
   extension_ = palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
-  customize_item_ = palette->addWidget(customize_widget);
   auto* scroll_up = new ToolPaletteScrollArrow(ToolPaletteScrollArrow::Direction::Up, palette);
   scroll_up->on_click = [this] { scroll_by(-1); };
   scroll_up_item_ = palette->addWidget(scroll_up);
@@ -203,7 +202,6 @@ void ToolPaletteLayout::apply(const ToolPaletteCustomization& customization) {
   if (extension_ != nullptr && extension_->isChecked()) {
     extension_->click();
   }
-  customize_item_->setVisible(customization_.show_customize_button);
   for (const auto& slot : slots_) {
     refresh_flyout(slot);
   }

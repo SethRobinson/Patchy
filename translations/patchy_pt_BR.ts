@@ -13049,10 +13049,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Caso contrário, a seta &gt; abre mais colunas.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Mostrar o botão de engrenagem na paleta</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Ferramentas</translation>
     </message>

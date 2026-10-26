@@ -13012,10 +13012,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>オフのときは &gt; 矢印で列を追加表示します。</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>パレットに歯車ボタンを表示</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>ツール</translation>
     </message>
