@@ -12760,6 +12760,30 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ものさし</translation>
     </message>
     <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>レイヤーとベクトルマスクはリンクされています。クリックでリンクを解除します。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>レイヤーとベクトルマスクはリンクされていません。クリックでリンクします。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>ベクトルマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>レイヤーマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>マスクで隠れた部分の不透明度です。100%未満ではその部分にもレイヤーが透けて見えます。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>マスクの境界をこのピクセル数だけぼかします</translation>
+    </message>
+    <message>
         <source>Customize Tool Palette</source>
         <translation>ツールパレットのカスタマイズ</translation>
     </message>
@@ -12899,6 +12923,98 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>テーマファイル &quot;%1&quot; を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; には true か false を指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; には &quot;smooth&quot; か &quot;nearest&quot; を指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; がオブジェクトではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>背景モード &quot;%1&quot; は &quot;tile&quot;、&quot;stretch&quot;、&quot;center&quot; のいずれでもありません (タイル表示にします)。</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>テーマパッケージに theme.json がありません。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>アイコン &quot;%1&quot; に一致する組み込みアイコンがありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>アイコン &quot;%1&quot; は SVG、PNG、BMP ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>アイコン &quot;%1&quot; を読み込めませんでした (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>サウンド &quot;%1&quot; はどのサウンドイベントにも対応していません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>サウンド &quot;%1&quot; は WAV ファイルではありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>背景画像 &quot;%1&quot; がパッケージ内にありません (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>背景画像 &quot;%1&quot; を読み込めませんでした (無視しました)。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>テーマフォルダー &quot;%1&quot; を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>テーマパッケージ &quot;%1&quot; にパッケージ外を指すパスがあります: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>テーマパッケージ &quot;%1&quot; がテーマパッケージの上限を超えています。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>テーマフォルダー &quot;%1&quot; に読み込める theme.json がありません。</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>テーマパッケージがテーマパッケージの上限を超えています。</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>テーマパッケージは読み込める zip ファイルではありません。</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>テーマパッケージは Patchy が読み込めない暗号化または圧縮方式を使っています。</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>テーマパッケージ内のファイルが破損しています。</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>テーマパッケージにパッケージ外を指すパスがあります: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>フォルダー &quot;%1&quot; を作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot; を書き込めませんでした。</translation>
     </message>
 </context>
 <context>
@@ -14624,6 +14740,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Straighten Layer</source>
         <translation>レイヤーを水平に補正</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>ベクトルマスクにはまだ移動するパスがありません。ペンまたはシェイプツールで描いてください。</translation>
     </message>
 </context>
 <context>
@@ -26204,6 +26324,108 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>画像を時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>ベクトルマスクを編集中: ペンまたはシェイプツールでパスやシェイプを描いてレイヤーをマスクします</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>ベクトルマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>ベクトルマスクをリンク</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>マスクのプロパティ...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>ベクトルマスクを追加しました。ペンまたはシェイプツールでパスやシェイプを描いてレイヤーをマスクします</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>ベクトルマスクをリンク</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>ベクトルマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>レイヤーとベクトルマスクをリンクしました</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>レイヤーとベクトルマスクのリンクを解除しました</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>ベクトルマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>レイヤーマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>ベクトルマスクの密度とぼかしを変更しました</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>レイヤーマスクの密度とぼかしを変更しました</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>テーマパッケージを書き出し...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>選択中のテーマを、アイコン、画像、サウンドを含む .zip パッケージとして保存します。</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>アイコンテンプレートを書き出し...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>すべての組み込みアイコンを SVG ファイルとしてフォルダーに書き出します。テーマの icons/ フォルダーの土台にしてください。</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>テーマのサウンドを再生</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>テーマパッケージに含まれるサウンドを再生します (保存の完了時など)。サウンドのないテーマでは何も鳴りません。</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>テーマ &quot;%1&quot; を削除しますか? フォルダーはごみ箱に移動します。</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy テーマ (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>テーマパッケージを書き出し</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy テーマパッケージ (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>アイコンテンプレートを書き出し</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>%n 個のアイコンを %1 に書き出しました。</numerusform>
+        </translation>
     </message>
     <message>
         <source>Customize Tool Palette...</source>

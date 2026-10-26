@@ -12795,6 +12795,30 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Régua</translation>
     </message>
     <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Camada e máscara vetorial estão vinculadas. Clique para desvincular.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Camada e máscara vetorial estão desvinculadas. Clique para vincular.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Propriedades da máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Propriedades da máscara de camada</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>A opacidade das áreas ocultas pela máscara. Abaixo de 100% a camada aparece através delas.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Suaviza as bordas da máscara por este número de pixels</translation>
+    </message>
+    <message>
         <source>Customize Tool Palette</source>
         <translation>Personalizar paleta de ferramentas</translation>
     </message>
@@ -12934,6 +12958,98 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>O arquivo de tema &quot;%1&quot; não pôde ser lido.</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; deve ser true ou false (ignorado).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; deve ser &quot;smooth&quot; ou &quot;nearest&quot; (ignorado).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; não é um objeto (ignorado).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>O modo de fundo &quot;%1&quot; não é &quot;tile&quot;, &quot;stretch&quot; nem &quot;center&quot; (usando lado a lado).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>O pacote de tema não tem theme.json.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>O ícone &quot;%1&quot; não corresponde a nenhum ícone integrado (ignorado).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>O ícone &quot;%1&quot; não é um arquivo SVG, PNG ou BMP (ignorado).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Não foi possível ler o ícone &quot;%1&quot; (ignorado).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>O som &quot;%1&quot; não corresponde a nenhum evento de som (ignorado).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>O som &quot;%1&quot; não é um arquivo WAV (ignorado).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>A imagem de fundo &quot;%1&quot; não está no pacote (ignorada).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Não foi possível ler a imagem de fundo &quot;%1&quot; (ignorada).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>Não foi possível ler a pasta de tema &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>O pacote de tema &quot;%1&quot; contém um caminho fora do pacote: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>O pacote de tema &quot;%1&quot; excede os limites de pacotes de tema.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>A pasta de tema &quot;%1&quot; não tem um theme.json legível.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>O pacote de tema excede os limites de pacotes de tema.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>O pacote de tema não é um arquivo zip legível.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>O pacote de tema usa criptografia ou um método de compressão que o Patchy não consegue ler.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>Um arquivo do pacote de tema está danificado.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>O pacote de tema contém um caminho fora do pacote: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>Não foi possível criar a pasta &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>Não foi possível gravar &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>
@@ -14659,6 +14775,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Straighten Layer</source>
         <translation>Endireitar camada</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>A máscara vetorial ainda não tem um demarcador para mover. Desenhe um com a Caneta ou uma ferramenta de forma.</translation>
     </message>
 </context>
 <context>
@@ -26277,6 +26397,109 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Imagem endireitada %1 graus no sentido horário</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Editando a máscara vetorial: desenhe um demarcador ou uma forma com a Caneta ou uma ferramenta de forma para mascarar a camada</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Desvincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Vincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Propriedades da máscara...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Adicionada uma máscara vetorial. Desenhe um demarcador ou uma forma com a Caneta ou uma ferramenta de forma para mascarar a camada</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Vincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Desvincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Camada e máscara vetorial vinculadas</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Camada e máscara vetorial desvinculadas</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Propriedades da máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Propriedades da máscara de camada</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Densidade e difusão da máscara vetorial alteradas</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Densidade e difusão da máscara de camada alteradas</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>Exportar pacote de tema...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>Salvar o tema selecionado como um pacote .zip, com seus ícones, imagens e sons.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>Exportar modelo de ícones...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>Gravar cada ícone integrado como um arquivo SVG em uma pasta, como ponto de partida para a pasta icons/ de um tema.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>Reproduzir sons do tema</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>Reproduzir os sons incluídos em um pacote de tema, por exemplo ao terminar de salvar. Temas sem sons ficam em silêncio.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>Excluir o tema &quot;%1&quot;? A pasta dele vai para a lixeira.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Temas do Patchy (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>Exportar pacote de tema</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Pacote de tema do Patchy (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>Exportar modelo de ícones</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>%n ícone gravado em %1.</numerusform>
+            <numerusform>%n ícones gravados em %1.</numerusform>
+        </translation>
     </message>
     <message>
         <source>Customize Tool Palette...</source>

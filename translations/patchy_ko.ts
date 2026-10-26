@@ -12760,6 +12760,30 @@ Each item&apos;s own View setting still applies.</source>
         <translation>자</translation>
     </message>
     <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>레이어와 벡터 마스크가 연결되어 있습니다. 연결을 해제하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>레이어와 벡터 마스크가 연결 해제되었습니다. 연결하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>마스크로 숨겨진 영역의 불투명도입니다. 100% 미만이면 그 영역에서도 레이어가 비쳐 보입니다.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>마스크 가장자리를 이 픽셀 수만큼 부드럽게 합니다</translation>
+    </message>
+    <message>
         <source>Customize Tool Palette</source>
         <translation>도구 팔레트 사용자 지정</translation>
     </message>
@@ -12899,6 +12923,98 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>테마 파일 &quot;%1&quot;을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot;는 true 또는 false여야 합니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot;은 &quot;smooth&quot; 또는 &quot;nearest&quot;여야 합니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot;이 객체가 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>배경 모드 &quot;%1&quot;은(는) &quot;tile&quot;, &quot;stretch&quot;, &quot;center&quot;가 아닙니다(대신 바둑판식으로 배치).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>테마 패키지에 theme.json이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;과(와) 일치하는 기본 제공 아이콘이 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;은(는) SVG, PNG, BMP 파일이 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;을(를) 읽을 수 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>사운드 &quot;%1&quot;이(가) 가리키는 사운드 이벤트가 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>사운드 &quot;%1&quot;은(는) WAV 파일이 아닙니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>배경 이미지 &quot;%1&quot;이(가) 패키지에 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>배경 이미지 &quot;%1&quot;을(를) 읽을 수 없습니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>테마 폴더 &quot;%1&quot;을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>테마 패키지 &quot;%1&quot;에 패키지 밖을 가리키는 경로가 있습니다: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>테마 패키지 &quot;%1&quot;이(가) 테마 패키지 한도를 넘습니다.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>테마 폴더 &quot;%1&quot;에 읽을 수 있는 theme.json이 없습니다.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>테마 패키지가 테마 패키지 한도를 넘습니다.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>테마 패키지가 읽을 수 있는 zip 파일이 아닙니다.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>테마 패키지가 Patchy에서 읽을 수 없는 암호화나 압축 방식을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>테마 패키지의 파일이 손상되었습니다.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>테마 패키지에 패키지 밖을 가리키는 경로가 있습니다: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>폴더 &quot;%1&quot;을(를) 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot;을(를) 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>
@@ -14624,6 +14740,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Straighten Layer</source>
         <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>벡터 마스크에 아직 이동할 패스가 없습니다. 펜이나 모양 도구로 그리세요.</translation>
     </message>
 </context>
 <context>
@@ -26204,6 +26324,108 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>이미지를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크 편집 중: 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>마스크 속성...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크를 추가했습니다. 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>레이어와 벡터 마스크가 연결됨</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>레이어와 벡터 마스크 연결 해제됨</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>벡터 마스크의 밀도와 페더를 변경했습니다</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>레이어 마스크의 밀도와 페더를 변경했습니다</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>테마 패키지 내보내기...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>선택한 테마를 아이콘, 이미지, 사운드와 함께 .zip 패키지로 저장합니다.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>아이콘 템플릿 내보내기...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>모든 기본 제공 아이콘을 SVG 파일로 폴더에 씁니다. 테마의 icons/ 폴더를 시작할 때 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>테마 사운드 재생</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>테마 패키지에 포함된 사운드를 재생합니다(예: 저장이 끝났을 때). 사운드가 없는 테마는 소리가 나지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>테마 &quot;%1&quot;을(를) 삭제할까요? 폴더는 휴지통으로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy 테마 (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>테마 패키지 내보내기</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy 테마 패키지 (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>아이콘 템플릿 내보내기</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>아이콘 %n개를 %1에 썼습니다.</numerusform>
+        </translation>
     </message>
     <message>
         <source>Customize Tool Palette...</source>

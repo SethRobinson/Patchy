@@ -1393,6 +1393,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/appearance_properties.cpp
       src/ui/shape_create_dialog.hpp
       src/ui/shape_create_dialog.cpp
+      src/ui/mask_properties_dialog.hpp
+      src/ui/mask_properties_dialog.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/unit_spin_box.hpp
@@ -1514,6 +1516,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/style_manager_dialog.cpp
       src/ui/theme_file.hpp
       src/ui/theme_file.cpp
+      src/ui/theme_backdrop.hpp
+      src/ui/theme_backdrop.cpp
+      src/ui/theme_package.hpp
+      src/ui/theme_package.cpp
+      src/ui/theme_sounds.hpp
+      src/ui/theme_sounds.cpp
       src/ui/theme_manager.hpp
       src/ui/theme_manager.cpp
       src/ui/theme_palette.hpp
@@ -2401,6 +2409,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/float_window_tests.cpp
       tests/ui/document_rename_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
+      tests/ui/vector_mask_editing_tests.cpp
       tests/ui/batch_appearance_tests.cpp
       tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
@@ -2437,6 +2446,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/open_with_registration_tests.cpp
       tests/ui/composite_render_tests.cpp
+      tests/ui/theme_package_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

@@ -2792,10 +2792,9 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/magneticLassoWidth"), canvas_->magnetic_lasso_width());
   settings.setValue(QStringLiteral("tools/magneticLassoEdgeContrast"), canvas_->magnetic_lasso_edge_contrast());
   settings.setValue(QStringLiteral("tools/magneticLassoFrequency"), canvas_->magnetic_lasso_frequency());
-  settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
-  // tools/moveAutoSelect and tools/moveAutoSelectTarget are written by their
-  // options-bar controls, not here: tests flip the canvas flags directly and
-  // must not leak them into later windows.
+  // tools/showTransformControls, tools/moveAutoSelect and tools/moveAutoSelectTarget
+  // are written by their options-bar controls, not here: tests flip the canvas flags
+  // directly and must not leak them into later windows.
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   settings.setValue(QStringLiteral("tools/cloneOverlay"), current_clone_overlay_shown_);

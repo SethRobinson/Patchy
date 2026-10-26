@@ -1304,6 +1304,10 @@ public:
   void set_backdrop_color_override(std::optional<QColor> color);
   [[nodiscard]] std::optional<QColor> backdrop_color_override() const noexcept;
   [[nodiscard]] QColor backdrop_color() const;
+  // Paints `area` with the pasteboard: the user color when one is set, otherwise the
+  // theme's backdrop image over `canvas_backdrop` (theme_backdrop.hpp), otherwise
+  // that color alone.
+  void fill_pasteboard(QPainter& painter, const QRectF& area) const;
   // Fired by the backdrop menu's preset entries (nullopt = Default) and by its Select
   // Custom Color... entry; unset, the presets apply to this canvas alone.
   void set_backdrop_color_change_requested_callback(std::function<void(std::optional<QColor>)> callback);
@@ -2198,6 +2202,8 @@ private:
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
   // Ctrl with a shape tool acts as Path Select (GitHub issue 312).
   bool handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point);
+  // Move press with an unlinked vector mask targeted: drags the mask path alone.
+  bool handle_move_vector_mask_press(QMouseEvent* event, QPointF document_point);
   void set_shape_ctrl_path_select(bool active);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
@@ -3016,6 +3022,9 @@ private:
   // gesture a Ctrl press latched onto the path-edit handlers (press -> release).
   bool shape_ctrl_path_select_{false};
   bool shape_temp_path_select_{false};
+  // Move tool on a targeted, unlinked vector mask: the gesture drags the whole mask path
+  // through the path-edit handlers as Path Select would (press -> release).
+  bool move_vector_mask_drag_{false};
   bool pen_auto_add_delete_{true};
   PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
   PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};

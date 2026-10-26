@@ -42,16 +42,29 @@ namespace patchy::ui {
 
 // ":/patchy/icons/<name>.svg" recolored for the active scheme.
 [[nodiscard]] QByteArray themed_icon_svg(const QString& name);
+// Substitutes the authored icon colors in `svg` with the active palette's roles,
+// the recoloring themed_icon_svg applies (also used for a theme package's SVG
+// overrides when its "recolorIcons" is on).
+[[nodiscard]] QByteArray recolor_icon_svg(QByteArray svg);
+
+// Every SVG stem in the icon resources (light/ variants left out), sorted, and one
+// stem's bytes as authored.
+[[nodiscard]] QStringList builtin_icon_stems();
+[[nodiscard]] QByteArray builtin_icon_svg(const QString& name);
 
 // A QIcon backed by the recoloring engine. `name` is the resource stem, without
-// the directory or the .svg suffix.
+// the directory or the .svg suffix. The active theme package's icons/<name> file,
+// when it has one, is drawn instead (theme_package.hpp); the engine re-reads that
+// choice whenever theme_generation() moves, so a theme switch repaints in place.
 [[nodiscard]] QIcon themed_svg_icon(const QString& name);
 // The same with a second stem drawn for QIcon::On, for checkable actions whose
 // checked look is its own drawing (Quick Mask).
 [[nodiscard]] QIcon themed_svg_icon(const QString& name, const QString& on_name);
 
 // Resource path for a QSS url(): the icons/light/ variant when the active scheme
-// is Light and that variant exists, otherwise the base path.
+// is Light and that variant exists, otherwise the base path. A custom theme's
+// scroll-dither comes from themed_scroll_gutter_url() (theme_backdrop.hpp) when it
+// differs from the built-in one.
 [[nodiscard]] QString themed_icon_url(const QString& name);
 
 using IconColorRole = std::pair<QLatin1StringView, QColor ThemePalette::*>;

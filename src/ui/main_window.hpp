@@ -1775,6 +1775,9 @@ private:
   void add_vector_mask(bool hide_all, bool from_work_path);
   void delete_active_vector_mask();
   void set_active_layer_vector_mask_disabled(bool disabled);
+  void set_active_layer_vector_mask_linked(bool linked);
+  // Density and Feather of a layer's raster or vector mask (mask_properties_dialog.hpp).
+  void edit_layer_mask_properties(patchy::LayerId id, bool vector_mask);
   void rasterize_active_vector_mask();
   void populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix = {});
   // Paths panel (main_window_paths.cpp).

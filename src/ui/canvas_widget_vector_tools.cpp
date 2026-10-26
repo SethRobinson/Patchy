@@ -470,6 +470,55 @@ bool CanvasWidget::handle_shape_ctrl_press(QMouseEvent* event, QPointF document_
   return handle_path_edit_press(event, document_point);
 }
 
+// Photoshop's unlinked mask rule: with the vector mask targeted and unlinked, Move drags
+// the mask path and leaves the layer's pixels where they are. A linked mask (or the
+// pixels targeted) takes the ordinary Move path, which carries a linked mask along.
+bool CanvasWidget::handle_move_vector_mask_press(QMouseEvent* event, QPointF document_point) {
+  if (tool_ != CanvasTool::Move || event->button() != Qt::LeftButton ||
+      layer_edit_target_ != LayerEditTarget::VectorMask ||
+      (event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier)) != 0) {
+    return false;
+  }
+  const auto* layer = vector_mask_target_layer();
+  if (layer == nullptr || !layer->vector_mask()->unlinked) {
+    return false;
+  }
+  if (edit_locked_) {
+    show_edit_locked_message();
+    return true;
+  }
+  if (layer_effectively_locks_position(*layer)) {
+    report_status_error(tr("Layer position is locked."));
+    return true;
+  }
+  const auto& path = layer->vector_mask()->path;
+  if (path.subpaths.empty()) {
+    report_status_error(tr("The vector mask has no path to move yet. Draw one with the Pen or a shape tool."));
+    return true;
+  }
+  clear_path_edit_selection();
+  for (int s = 0; s < static_cast<int>(path.subpaths.size()); ++s) {
+    for (int a = 0; a < static_cast<int>(path.subpaths[static_cast<std::size_t>(s)].anchors.size()); ++a) {
+      path_selected_anchors_.insert({s, a});
+    }
+  }
+  move_vector_mask_drag_ = true;
+  path_selection_by_path_select_ = true;
+  path_drag_break_pair_ = false;
+  path_drag_duplicate_pending_ = false;
+  path_edit_undo_armed_ = false;
+  path_edit_changed_ = false;
+  path_drag_last_document_ = document_point;
+  path_drag_origin_document_ = document_point;
+  path_drag_raw_document_ = document_point;
+  path_drag_applied_delta_ = QPointF(0.0, 0.0);
+  path_drag_mode_ = PathEditDrag::Anchors;
+  path_drag_anchor_ = {0, 0};
+  notify_path_selection_changed();
+  update();
+  return true;
+}
+
 void CanvasWidget::set_shape_ctrl_path_select(bool active) {
   if (!shape_tool_active()) {
     active = false;
@@ -743,7 +792,7 @@ void CanvasWidget::draw_pen_overlay(QPainter& painter) {
 
 bool CanvasWidget::path_edit_tool_active() const noexcept {
   return tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect ||
-         pen_family_tool_active() ||
+         pen_family_tool_active() || (tool_ == CanvasTool::Move && move_vector_mask_drag_) ||
          (shape_tool_active() && !drawing_shape_ && (shape_ctrl_path_select_ || shape_temp_path_select_));
 }
 
@@ -777,6 +826,9 @@ CanvasTool CanvasWidget::path_edit_tool() const noexcept {
     return CanvasTool::DirectSelect;
   }
   if (shape_tool_active() && !drawing_shape_ && (shape_ctrl_path_select_ || shape_temp_path_select_)) {
+    return CanvasTool::PathSelect;
+  }
+  if (tool_ == CanvasTool::Move && move_vector_mask_drag_) {
     return CanvasTool::PathSelect;
   }
   if (arrow_swap_active_) {
@@ -1174,6 +1226,12 @@ void CanvasWidget::add_subpaths_to_vector_mask(std::vector<PathSubpath> subpaths
     before_edit_callback_(label);
   }
   auto mask = *layer->vector_mask();
+  // A Hide All mask is an inverted empty path: an added shape would hide itself and
+  // reveal the rest. Drawing into it reveals the shape instead (#447), so the first
+  // shape clears the inversion; later shapes add to the revealed area.
+  if (mask.inverted && mask.path.subpaths.empty()) {
+    mask.inverted = false;
+  }
   const auto group = mask.path.next_shape_group();
   for (auto& subpath : subpaths) {
     subpath.shape_group = group;

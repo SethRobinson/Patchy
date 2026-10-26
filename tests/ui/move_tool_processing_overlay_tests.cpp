@@ -671,6 +671,115 @@ void ui_move_auto_select_persists_across_windows() {
   CHECK(check != nullptr && check->isChecked());
 }
 
+// The Move tool's Transform Controls checkbox is one setting
+// (`tools/showTransformControls`), written by the checkbox itself: a click made with
+// the start panel up survives the first New Document, and a restart keeps it.
+void ui_move_transform_controls_persist_across_windows() {
+  SettingsValueRestorer saved(QStringLiteral("tools/showTransformControls"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/showTransformControls"), true);
+    settings.sync();
+  }
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    auto* check = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
+    CHECK(check != nullptr && check->isChecked());
+    CHECK(canvas->show_transform_controls());
+    if (check != nullptr) {
+      check->setChecked(false);
+    }
+    QApplication::processEvents();
+    CHECK(!canvas->show_transform_controls());
+    window.close();
+    QApplication::processEvents();
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(!settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
+  }
+  // A canvas flag set directly (tests, the stress harness) is not the user's
+  // choice and never reaches the setting.
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    auto* check = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
+    CHECK(check != nullptr && !check->isChecked());
+    CHECK(!canvas->show_transform_controls());
+    canvas->set_show_transform_controls(true);
+    window.close();
+    QApplication::processEvents();
+  }
+  auto settings = patchy::ui::app_settings();
+  CHECK(!settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
+}
+
+// Seth's case (follow-up to GitHub issue 351): the box checked with no document
+// open stays checked through New Document, and the new canvas shows the controls;
+// with documents open the checkbox applies to every one, so a tab switch keeps it.
+void ui_move_transform_controls_survive_new_document() {
+  SettingsValueRestorer saved(QStringLiteral("tools/showTransformControls"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/showTransformControls"), false);
+    settings.sync();
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    auto* check = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
+    auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+    CHECK(check != nullptr && tabs != nullptr);
+    if (check == nullptr || tabs == nullptr) {
+      return;
+    }
+    CHECK(tabs->count() == 0);
+    // The start panel shows the stored state before any canvas exists.
+    CHECK(!check->isChecked());
+    check->setChecked(true);
+    QApplication::processEvents();
+
+    accept_new_document_dialog(200, 150);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    CHECK(tabs->count() == 1);
+    auto* first = require_canvas(window);
+    CHECK(check->isChecked());
+    CHECK(first->show_transform_controls());
+
+    // With a document open: unchecked, then a second New Document.
+    check->setChecked(false);
+    QApplication::processEvents();
+    CHECK(!first->show_transform_controls());
+    accept_new_document_dialog(200, 150);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    CHECK(tabs->count() == 2);
+    auto* second = require_canvas(window);
+    CHECK(second != first);
+    CHECK(!check->isChecked());
+    CHECK(!second->show_transform_controls());
+
+    // Checked on the second document: the first follows, so switching back keeps it.
+    check->setChecked(true);
+    QApplication::processEvents();
+    tabs->setCurrentIndex(0);
+    QApplication::processEvents();
+    CHECK(require_canvas(window) == first);
+    CHECK(check->isChecked());
+    CHECK(first->show_transform_controls());
+    window.close();
+    QApplication::processEvents();
+  }
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("tools/showTransformControls"), false).toBool());
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* check = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
+  CHECK(check != nullptr && check->isChecked());
+}
+
 void ui_move_ctrl_drag_selects_rectangle_without_moving() {
   patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
 
@@ -5295,6 +5404,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_ctrl_click_selects_only_the_clicked_layer", ui_move_ctrl_click_selects_only_the_clicked_layer},
       {"ui_move_alt_drag_duplicates_layer", ui_move_alt_drag_duplicates_layer},
       {"ui_move_auto_select_persists_across_windows", ui_move_auto_select_persists_across_windows},
+      {"ui_move_transform_controls_persist_across_windows", ui_move_transform_controls_persist_across_windows},
+      {"ui_move_transform_controls_survive_new_document", ui_move_transform_controls_survive_new_document},
       {"ui_move_auto_select_target_persists_across_windows", ui_move_auto_select_target_persists_across_windows},
       {"ui_move_auto_select_group_picks_outermost_group", ui_move_auto_select_group_picks_outermost_group},
       {"ui_move_rectangle_outlines_layers_before_release", ui_move_rectangle_outlines_layers_before_release},

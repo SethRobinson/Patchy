@@ -5,6 +5,7 @@
 #include "core/gradient_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "ui/tool_palette_customization.hpp"
+#include "ui/mask_properties_dialog.hpp"
 #include "ui/camera_raw_filter_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
@@ -1541,6 +1542,8 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
       catalog.layer_buttons.push_back({QStringLiteral("new_layer"), QStringLiteral("New Layer"), QIcon()});
       (void)patchy::ui::request_tool_palette_customization(nullptr, catalog, {});
     }
+    grab_dialog(QStringLiteral("maskPropertiesDialog"), "mask_properties");
+    (void)patchy::ui::request_mask_properties(nullptr, true, QStringLiteral("Shape"), {100, 0}, {});
     grab_dialog(QStringLiteral("patchySplashScreen"), "about");
     patchy::ui::show_about_splash();
     // The color picker is a top-level widget, not a dialog.
@@ -1561,7 +1564,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 20);
+  CHECK(captured == 22);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {
