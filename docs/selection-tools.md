@@ -88,6 +88,8 @@ drag over a soft lasso is cheap (issue 340). Tests:
 `ui_marquee_drag_after_antialiased_lasso_is_fast` and `ui_lasso_combines_fragmented_selection_alpha_and_history` (all four modes,
 hard/soft bases, anti-alias/feather, exact alpha, Undo/Redo).
 
+Select > Inverse (`invert_selection`) of a soft selection writes `255 - alpha` over the whole canvas, so the soft edge, the 50% marching ants and a fill through it are the exact complement; only a hard selection takes the `QRegion` subtraction (issue 430: subtracting the region dropped the alpha and left the feather band unselected). Test: `ui_select_inverse_keeps_feathered_soft_edge` (per-pixel complement, double inverse, Undo/Redo).
+
 ## Stroke Selection
 
 Edit > Stroke Selection... (also in the canvas context menu's selection section, hotkey id `edit.stroke_selection`) opens `patchyStrokeSelectionDialog` (`main_window_layer_ops.cpp`): Width in pixels (1 to 250, `strokeSelectionWidthSpin`), Location (`strokeSelectionLocationCombo`: Inside / Center / Outside, Photoshop's three placements) and a color swatch (`strokeSelectionColorSwatch`, opens `request_patchy_color`). The swatch's `strokeColor` dynamic property is the chosen color's source of truth, which is how `accept_stroke_selection_dialog` sets it in tests. Width and location persist under `tools/strokeSelectionWidth` and `tools/strokeSelectionLocation` (tokens `inside`, `center`, `outside`; compatibility contract); the color always starts from the foreground color.

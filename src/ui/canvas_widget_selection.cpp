@@ -321,8 +321,19 @@ void CanvasWidget::invert_selection() {
     update();
     return;
   }
-  const QRegion canvas_region(QRect(0, 0, document_->width(), document_->height()));
-  set_selection_from_region(canvas_region.subtracted(selection_));
+  if (!selection_mask_alpha_.isNull()) {
+    // A soft selection (feather, anti-aliased or Object Selection edge) inverts per pixel,
+    // 255 - alpha, so the soft edge carries over (GitHub issue 430). Subtracting the region
+    // dropped the alpha and left the whole partly selected band unselected.
+    auto pixels = selection_as_grayscale();
+    for (auto& value : pixels.data()) {
+      value = static_cast<std::uint8_t>(255U - value);
+    }
+    apply_grayscale_to_selection(pixels);
+  } else {
+    const QRegion canvas_region(QRect(0, 0, document_->width(), document_->height()));
+    set_selection_from_region(canvas_region.subtracted(selection_));
+  }
   if (status_callback_) {
     status_callback_(tr("Inverted selection"));
   }

@@ -209,6 +209,75 @@ void ui_select_inverse_and_extended_blend_modes_work() {
   save_widget_artifact("ui_extended_blend_modes", window);
 }
 
+// GitHub issue 430: Select > Inverse of a feathered selection is the per-pixel complement
+// (255 - alpha), soft edge included, and inverting twice gives the original back.
+void ui_select_inverse_keeps_feathered_soft_edge() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto width = document.width();
+  const auto height = document.height();
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
+  canvas->set_selection_feather_radius(25);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 150)),
+       canvas->widget_position_for_document_point(QPoint(600, 450)));
+  canvas->set_selection_feather_radius(0);
+  CHECK(canvas->has_selection());
+
+  const auto read_alpha = [&] {
+    std::vector<std::uint8_t> values(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        values[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)] =
+            canvas->selection_alpha_at(QPoint(x, y));
+      }
+    }
+    return values;
+  };
+  const auto original = read_alpha();
+  // The soft edge straddles the drawn rectangle's left side.
+  const auto edge_alpha = canvas->selection_alpha_at(QPoint(200, 300));
+  CHECK(edge_alpha > 40U);
+  CHECK(edge_alpha < 215U);
+
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+
+  canvas->set_primary_color(QColor(20, 40, 160));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("ui_select_inverse_feathered_fill", *canvas);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+
+  const auto inverted = read_alpha();
+  int mismatches = 0;
+  for (std::size_t index = 0; index < original.size(); ++index) {
+    if (inverted[index] != static_cast<std::uint8_t>(255U - original[index])) {
+      ++mismatches;
+    }
+  }
+  CHECK(mismatches == 0);
+  // The marching ants follow the 50% edge: the inner side of the soft band is unselected now.
+  CHECK(!canvas->selected_document_region().contains(QPoint(400, 300)));
+  CHECK(canvas->selected_document_region().contains(QPoint(150, 300)));
+  CHECK(canvas->selected_document_region().contains(QPoint(200, 300)));
+
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+  CHECK(read_alpha() == original);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(read_alpha() == inverted);
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(read_alpha() == original);
+}
+
 void ui_selection_expand_contract_and_layer_transparency_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2655,6 +2724,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
       {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},
+      {"ui_select_inverse_keeps_feathered_soft_edge", ui_select_inverse_keeps_feathered_soft_edge},
       {"ui_selection_expand_contract_and_layer_transparency_work",
        ui_selection_expand_contract_and_layer_transparency_work},
       {"ui_ctrl_click_layer_loads_layer_transparency", ui_ctrl_click_layer_loads_layer_transparency},
