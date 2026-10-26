@@ -1302,7 +1302,133 @@ QRectF path_control_bounds(const VectorPath& path) {
   return any ? QRectF(QPointF(left, top), QPointF(right, bottom)) : QRectF();
 }
 
+// Where the filled area of an edited path can change. As the path moves from its
+// old to its new control points every boundary point travels within the hull of
+// the matching old and new piece of its segment, so thin boxes along each changed
+// segment (de Casteljau pieces, old and new controls) cover the change; a dragged
+// anchor's two segments sweep a band, not the shape. Structural edits (a subpath,
+// anchor, closing or combine change) answer with `whole`, both paths' bounds.
+std::vector<QRect> changed_path_boxes(const VectorPath* old_path, const VectorPath& new_path, const QRectF& whole) {
+  const std::vector<QRect> everything{whole.toAlignedRect().adjusted(-2, -2, 2, 2)};
+  if (old_path == nullptr || old_path->subpaths.size() != new_path.subpaths.size()) {
+    return everything;
+  }
+  struct Point {
+    double x;
+    double y;
+  };
+  const auto lerp = [](Point a, Point b, double t) { return Point{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t}; };
+  // The control points of the piece [t0, t1] of a cubic.
+  const auto piece = [&lerp](const std::array<Point, 4>& c, double t0, double t1) {
+    const auto split_right = [&lerp](const std::array<Point, 4>& q, double t) {
+      const auto ab = lerp(q[0], q[1], t);
+      const auto bc = lerp(q[1], q[2], t);
+      const auto cd = lerp(q[2], q[3], t);
+      const auto abc = lerp(ab, bc, t);
+      const auto bcd = lerp(bc, cd, t);
+      return std::array<Point, 4>{lerp(abc, bcd, t), bcd, cd, q[3]};
+    };
+    const auto split_left = [&lerp](const std::array<Point, 4>& q, double t) {
+      const auto ab = lerp(q[0], q[1], t);
+      const auto bc = lerp(q[1], q[2], t);
+      const auto cd = lerp(q[2], q[3], t);
+      const auto abc = lerp(ab, bc, t);
+      const auto bcd = lerp(bc, cd, t);
+      return std::array<Point, 4>{q[0], ab, abc, lerp(abc, bcd, t)};
+    };
+    const auto right = split_right(c, t0);
+    return t0 >= 1.0 ? right : split_left(right, (t1 - t0) / (1.0 - t0));
+  };
+  const auto controls = [](const PathSubpath& subpath, std::size_t from) {
+    const auto& a = subpath.anchors[from];
+    const auto& b = subpath.anchors[(from + 1) % subpath.anchors.size()];
+    return std::array<Point, 4>{Point{a.anchor_x, a.anchor_y}, Point{a.out_x, a.out_y}, Point{b.in_x, b.in_y},
+                                Point{b.anchor_x, b.anchor_y}};
+  };
+  constexpr int kPieces = 24;
+  std::vector<QRect> boxes;
+  for (std::size_t s = 0; s < new_path.subpaths.size(); ++s) {
+    const auto& before = old_path->subpaths[s];
+    const auto& after = new_path.subpaths[s];
+    if (before.anchors.size() != after.anchors.size() || before.closed != after.closed || before.op != after.op ||
+        before.shape_group != after.shape_group) {
+      return everything;
+    }
+    const auto count = after.anchors.size();
+    if (count < 2) {
+      if (count == 1 && !(before.anchors[0] == after.anchors[0])) {
+        return everything;
+      }
+      continue;
+    }
+    // Segment i runs from anchor i to i + 1; an open subpath has no closing one. An
+    // open path still fills its implied chord, so its end anchors also move the
+    // chord: that edit takes the whole box.
+    const auto segments = after.closed ? count : count - 1;
+    std::vector<bool> changed(segments, false);
+    for (std::size_t a = 0; a < count; ++a) {
+      if (before.anchors[a] == after.anchors[a]) {
+        continue;
+      }
+      if (!after.closed && (a == 0 || a + 1 == count)) {
+        return everything;
+      }
+      if (a < segments) {
+        changed[a] = true;
+      }
+      if (after.closed) {
+        changed[(a + count - 1) % count] = true;
+      } else if (a > 0) {
+        changed[a - 1] = true;
+      }
+    }
+    for (std::size_t i = 0; i < segments; ++i) {
+      if (!changed[i]) {
+        continue;
+      }
+      const auto old_controls = controls(before, i);
+      const auto new_controls = controls(after, i);
+      for (int k = 0; k < kPieces; ++k) {
+        const auto t0 = static_cast<double>(k) / kPieces;
+        const auto t1 = static_cast<double>(k + 1) / kPieces;
+        double left = 1e300;
+        double top = 1e300;
+        double right = -1e300;
+        double bottom = -1e300;
+        for (const auto* source : {&old_controls, &new_controls}) {
+          for (const auto& point : piece(*source, t0, t1)) {
+            left = std::min(left, point.x);
+            top = std::min(top, point.y);
+            right = std::max(right, point.x);
+            bottom = std::max(bottom, point.y);
+          }
+        }
+        boxes.push_back(QRectF(QPointF(left, top), QPointF(right, bottom)).toAlignedRect().adjusted(-2, -2, 2, 2));
+      }
+    }
+  }
+  return boxes;
+}
+
 }  // namespace
+
+void CanvasWidget::restore_path_drag_effects() {
+  if (!path_drag_effects_hidden_layer_.has_value()) {
+    return;
+  }
+  const auto id = *path_drag_effects_hidden_layer_;
+  path_drag_effects_hidden_layer_.reset();
+  if (document_ == nullptr) {
+    return;
+  }
+  auto* layer = document_->find_layer(id);
+  if (layer == nullptr || std::as_const(*layer).layer_style().effects_visible) {
+    return;
+  }
+  layer->layer_style().effects_visible = true;
+  document_changed_effect_bounds(
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds())));
+}
 
 void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<int>& touched_groups,
                                             const std::map<int, int>& group_copies) {
@@ -1325,17 +1451,68 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
   });
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (auto* layer = vector_mask_target_layer(); layer != nullptr) {
-      const auto old_effect_rect =
-          to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
-      auto mask = *layer->vector_mask();
+      // Runs on EVERY anchor-drag mouse move (#447 follow-up): coverage changes only
+      // inside the old and new paths' control hulls, so only that rect re-rasterizes
+      // and only it, grown by the layer's effect reach, recomposites. The layer's
+      // whole effect rect (often the canvas) made every move a full recomposite.
+      const auto canvas = Rect::from_size(document_->width(), document_->height());
+      if (path_drag_mode_ != PathEditDrag::None && path_drag_mode_ != PathEditDrag::Marquee &&
+          !path_drag_effects_hidden_layer_.has_value()) {
+        // Draft effects for the drag: a canvas-sized layer's Bevel or shadows rebuild
+        // their masks over the whole layer each move (about a second at 2000x3000).
+        // The undo snapshot was taken before this, so history never sees it.
+        const auto& style = std::as_const(*layer).layer_style();
+        if (style.effects_visible && !style.empty() && layer_style_preview_is_expensive(std::as_const(*layer), canvas)) {
+          const auto full = to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+          layer->layer_style().effects_visible = false;
+          path_drag_effects_hidden_layer_ = layer->id();
+          document_changed_effect_bounds(full);
+        }
+      }
+      auto boxes = changed_path_boxes(path_edit_target_path(), path, overlay);
+      // A band of many small boxes decomposes into more rects than a partial refresh
+      // takes (kMaxDirtyRegionRects); join neighbouring pieces until it fits.
+      const auto padding = layer_effect_padding(std::as_const(*layer));
+      const auto region_rects = [&boxes, padding] {
+        QRegion region;
+        for (const auto& box : boxes) {
+          region += box.adjusted(-padding, -padding, padding, padding);
+        }
+        return region.rectCount();
+      };
+      while (boxes.size() > 1 && region_rects() > 32) {
+        std::vector<QRect> joined;
+        joined.reserve((boxes.size() + 1) / 2);
+        for (std::size_t i = 0; i < boxes.size(); i += 2) {
+          joined.push_back(i + 1 < boxes.size() ? boxes[i].united(boxes[i + 1]) : boxes[i]);
+        }
+        boxes = std::move(joined);
+      }
+      std::vector<Rect> dirty;
+      dirty.reserve(boxes.size());
+      for (const auto& box : boxes) {
+        dirty.push_back(Rect{box.x(), box.y(), box.width(), box.height()});
+      }
+      auto mask = *std::as_const(*layer).vector_mask();
+      const bool feathered = mask.feather > 0.05;
       mask.path = std::move(path);
       layer->set_vector_mask(std::move(mask));
       mark_layer_vector_block_dirty(*layer);
-      update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
-      // Bounded: this runs on EVERY anchor-drag mouse move; the full-canvas
-      // recomposite it replaced was the drag's dominant cost.
-      document_changed_effect_bounds(old_effect_rect.united(
-          to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+      if (feathered || overlay.isEmpty()) {
+        const auto old_effect_rect = to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+        update_vector_mask_raster(*layer, canvas);
+        document_changed_effect_bounds(old_effect_rect.united(
+            to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+      } else {
+        update_vector_mask_raster_region(*layer, canvas, dirty);
+        QRegion repaint;
+        for (const auto& rect : dirty) {
+          repaint += to_qrect(layer_bounds_with_effects(std::as_const(*layer), rect));
+        }
+        if (!repaint.isEmpty()) {
+          document_changed_effect_bounds(repaint);
+        }
+      }
       if (path_edited_callback_) {
         path_edited_callback_();
       }
@@ -2286,6 +2463,7 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
     }
   }
   path_drag_mode_ = PathEditDrag::None;
+  restore_path_drag_effects();
   update();
   return true;
 }

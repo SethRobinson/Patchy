@@ -1,6 +1,7 @@
 #include <string_view>
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -1759,8 +1760,187 @@ void compositor_burn_dodge_effects_preserve_transparent_coverage() {
   }
 }
 
+
+patchy::PathSubpath masked_effect_square(double left, double top, double right, double bottom) {
+  patchy::PathSubpath square;
+  for (const auto& [x, y] : {std::pair{left, top}, {right, top}, {right, bottom}, {left, bottom}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    square.anchors.push_back(anchor);
+  }
+  return square;
+}
+
+// #447 follow-up: a layer filled edge to edge with a mask cutting out a square
+// draws its effects from the masked square (Photoshop's default, the "Hides
+// Effects" options off): the drop shadow lands below the square, the inner
+// shadow darkens inside its top edge. Vector mask, raster mask, and a vector
+// mask on a shape layer.
+void compositor_layer_effects_follow_masked_shape() {
+  constexpr std::int32_t kSize = 120;
+  const auto add_effects = [](patchy::Layer& layer) {
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{0, 0, 0};
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 90.0F;
+    shadow.distance = 8.0F;
+    shadow.size = 0.0F;
+    layer.layer_style().drop_shadows.push_back(shadow);
+    patchy::LayerInnerShadow inner;
+    inner.enabled = true;
+    inner.blend_mode = patchy::BlendMode::Normal;
+    inner.color = patchy::RgbColor{0, 0, 255};
+    inner.opacity = 1.0F;
+    inner.angle_degrees = 90.0F;
+    inner.distance = 6.0F;
+    inner.size = 0.0F;
+    layer.layer_style().inner_shadows.push_back(inner);
+  };
+  const auto check_render = [](const patchy::Document& document, const std::string& label) {
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    const auto* below = flattened.pixel(50, 74);    // under the square: the drop shadow
+    const auto* inside_top = flattened.pixel(50, 32);  // inside the top edge: the inner shadow
+    const auto* center = flattened.pixel(50, 55);   // the red square itself
+    const auto* outside = flattened.pixel(95, 95);  // masked away, no effect
+    const bool ok = below[0] < 30 && below[1] < 30 && below[2] < 30 && inside_top[2] > 200 &&
+                    inside_top[0] < 60 && center[0] > 200 && center[2] < 60 && outside[0] == 220 &&
+                    outside[1] == 220 && outside[2] == 220;
+    if (!ok) {
+      std::cerr << label << ": below " << int(below[0]) << "," << int(below[1]) << "," << int(below[2])
+                << " inside_top " << int(inside_top[0]) << "," << int(inside_top[1]) << "," << int(inside_top[2])
+                << " center " << int(center[0]) << "," << int(center[1]) << "," << int(center[2]) << " outside "
+                << int(outside[0]) << "," << int(outside[1]) << "," << int(outside[2]) << '\n';
+    }
+    CHECK(ok);
+  };
+  // Patchy's PSD round trip keeps the mask and the effects.
+  const auto check = [&check_render](const patchy::Document& document, const std::string& label) {
+    check_render(document, label);
+    const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    check_render(reopened, label + " reopened");
+  };
+  {
+    patchy::Document document(kSize, kSize, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(kSize, kSize, 220, 220, 220));
+    auto& layer = document.add_layer(patchy::Layer(document.allocate_layer_id(), "Paint",
+                                                   solid_rgba(kSize, kSize, 230, 40, 40, 255)));
+    patchy::LayerVectorMask mask;
+    mask.path.subpaths.push_back(masked_effect_square(30.0, 30.0, 70.0, 70.0));
+    layer.set_vector_mask(std::move(mask));
+    patchy::update_vector_mask_raster(layer, patchy::Rect::from_size(kSize, kSize));
+    add_effects(layer);
+    check(document, "vector mask");
+  }
+  {
+    patchy::Document document(kSize, kSize, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(kSize, kSize, 220, 220, 220));
+    auto& layer = document.add_layer(patchy::Layer(document.allocate_layer_id(), "Paint",
+                                                   solid_rgba(kSize, kSize, 230, 40, 40, 255)));
+    patchy::LayerMask mask;
+    mask.bounds = patchy::Rect::from_size(kSize, kSize);
+    mask.pixels = patchy::PixelBuffer(kSize, kSize, patchy::PixelFormat::gray8());
+    for (std::int32_t y = 30; y < 70; ++y) {
+      for (std::int32_t x = 30; x < 70; ++x) {
+        *mask.pixels.pixel(x, y) = 255;
+      }
+    }
+    mask.default_color = 0;
+    layer.mask() = std::move(mask);
+    add_effects(layer);
+    check(document, "layer mask");
+  }
+  {
+    patchy::Document document(kSize, kSize, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(kSize, kSize, 220, 220, 220));
+    patchy::Layer shape(document.allocate_layer_id(), "Shape", patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.path.subpaths.push_back(masked_effect_square(0.0, 0.0, kSize, kSize));
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{230, 40, 40};
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(kSize, kSize), &document.metadata().patterns);
+    patchy::LayerVectorMask mask;
+    mask.path.subpaths.push_back(masked_effect_square(30.0, 30.0, 70.0, 70.0));
+    shape.set_vector_mask(std::move(mask));
+    patchy::update_vector_mask_raster(shape, patchy::Rect::from_size(kSize, kSize));
+    auto& layer = document.add_layer(std::move(shape));
+    add_effects(layer);
+    // In session only: PSD keeps one vector path per layer, the shape's, and the UI
+    // refuses a vector mask on a shape layer (scripts can still set one).
+    check_render(document, "shape layer vector mask");
+  }
+}
+
+
+// The per-move region update of a dragged vector mask path matches a full
+// re-rasterization pixel for pixel, plain and inverted, when an anchor moves
+// inward (coverage shrinks) and outward (the cache bounds grow).
+void vector_mask_region_update_matches_full_raster() {
+  constexpr std::int32_t kSize = 160;
+  const auto canvas = patchy::Rect::from_size(kSize, kSize);
+  for (const bool inverted : {false, true}) {
+    for (const double moved_x : {60.0, 150.0}) {
+      patchy::Layer region_layer(1, "Region", solid_rgba(kSize, kSize, 200, 0, 0, 255));
+      patchy::LayerVectorMask mask;
+      mask.inverted = inverted;
+      auto square = masked_effect_square(30.0, 30.0, 100.0, 100.0);
+      square.anchors[1].out_x = 110.0;  // a curved edge
+      square.anchors[1].out_y = 60.0;
+      mask.path.subpaths.push_back(square);
+      region_layer.set_vector_mask(mask);
+      patchy::update_vector_mask_raster(region_layer, canvas);
+      const auto old_path = mask.path;
+
+      auto moved = *std::as_const(region_layer).vector_mask();
+      moved.path.subpaths[0].anchors[2].anchor_x = moved_x;
+      moved.path.subpaths[0].anchors[2].in_x = moved_x;
+      moved.path.subpaths[0].anchors[2].out_x = moved_x;
+      moved.path.subpaths[0].anchors[2].anchor_y = 140.0;
+      region_layer.set_vector_mask(moved);
+      auto full_layer = region_layer;
+      // The old and new control hulls, as the canvas passes them.
+      double left = 1e9, top = 1e9, right = -1e9, bottom = -1e9;
+      for (const patchy::VectorPath* path : std::array<const patchy::VectorPath*, 2>{&old_path, &moved.path}) {
+        for (const auto& anchor : path->subpaths[0].anchors) {
+          for (const auto& [x, y] : std::array<std::pair<double, double>, 3>{
+                   {{anchor.anchor_x, anchor.anchor_y}, {anchor.in_x, anchor.in_y}, {anchor.out_x, anchor.out_y}}}) {
+            left = std::min(left, x);
+            top = std::min(top, y);
+            right = std::max(right, x);
+            bottom = std::max(bottom, y);
+          }
+        }
+      }
+      const patchy::Rect dirty{static_cast<std::int32_t>(std::floor(left)) - 2,
+                               static_cast<std::int32_t>(std::floor(top)) - 2,
+                               static_cast<std::int32_t>(std::ceil(right - left)) + 5,
+                               static_cast<std::int32_t>(std::ceil(bottom - top)) + 5};
+      patchy::update_vector_mask_raster_region(region_layer, canvas, std::span<const patchy::Rect>(&dirty, 1));
+      patchy::update_vector_mask_raster(full_layer, canvas);
+      int differences = 0;
+      for (std::int32_t y = 0; y < kSize; ++y) {
+        for (std::int32_t x = 0; x < kSize; ++x) {
+          if (patchy::vector_mask_alpha_at(region_layer, x, y) != patchy::vector_mask_alpha_at(full_layer, x, y)) {
+            ++differences;
+          }
+        }
+      }
+      if (differences != 0) {
+        std::cerr << "inverted " << inverted << " moved_x " << moved_x << ": " << differences << " pixels differ\n";
+      }
+      CHECK(differences == 0);
+    }
+  }
+}
+
 std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
   return {
+      {"compositor_layer_effects_follow_masked_shape", compositor_layer_effects_follow_masked_shape},
+      {"vector_mask_region_update_matches_full_raster", vector_mask_region_update_matches_full_raster},
       {"compositor_renders_layer_style_drop_shadow_gradient_and_stroke",
        compositor_renders_layer_style_drop_shadow_gradient_and_stroke},
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
