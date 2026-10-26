@@ -25917,6 +25917,18 @@ The open document keeps its blend modes either way.</source>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>%ALT%+クリックでレイヤーまたは選択範囲を隠します</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>%CTRL%+クリックでベクトルマスクを追加します</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>ベクトルマスク</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

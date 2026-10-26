@@ -25990,6 +25990,18 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>%ALT%+Klicken blendet die Ebene oder die Auswahl aus</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>%CTRL%+Klicken fügt eine Vektormaske hinzu</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Vektormaske</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -26063,6 +26063,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: Shift+kliknięcie rysuje linię, %ALT%+przeciągnięcie prawym przyciskiem zmienia rozmiar i miękkość.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>Kliknij z %ALT%, aby ukryć warstwę lub zaznaczenie</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>Kliknij z %CTRL%, aby dodać maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Maska wektorowa</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

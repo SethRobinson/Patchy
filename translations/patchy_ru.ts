@@ -26063,6 +26063,18 @@ The open document keeps its blend modes either way.</source>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>Щелкните с %ALT%, чтобы скрыть слой или выделение</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>Щелкните с %CTRL%, чтобы добавить векторную маску</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Векторная маска</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

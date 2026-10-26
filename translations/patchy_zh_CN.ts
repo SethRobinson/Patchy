@@ -25917,6 +25917,18 @@ The open document keeps its blend modes either way.</source>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1：Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>按住 %ALT% 单击可隐藏图层或选区</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>按住 %CTRL% 单击可添加矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>矢量蒙版</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

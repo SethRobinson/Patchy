@@ -25990,6 +25990,18 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: Mayús+clic traza una línea, %ALT%+arrastrar con el botón derecho cambia el tamaño y la suavidad.</translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation>%ALT%+clic para ocultar la capa o la selección</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation>%CTRL%+clic para añadir una máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation>Máscara vectorial</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

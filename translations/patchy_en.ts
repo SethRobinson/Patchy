@@ -25908,6 +25908,18 @@ The open document keeps its blend modes either way.</source>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%ALT%-click to hide the layer or the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add a vector mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -8,6 +8,7 @@
 #include "ui/ui_test_access.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/modifier_names.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pixel_depth.hpp"
@@ -2386,6 +2387,64 @@ void ui_layer_add_mask_button_alt_click_hides_all_or_selection() {
     CHECK(mask_value(9, 8) == 255 && mask_value(22, 16) == 255 && mask_value(0, 0) == 255 &&
           mask_value(39, 29) == 255);
   }
+}
+
+// GitHub issue 447: Ctrl-click (Command-click on macOS) on Add Layer Mask adds a vector mask,
+// Ctrl+Alt a hide-all one; plain and Alt clicks still add raster masks. The tooltip says so.
+void ui_layer_add_mask_button_ctrl_click_adds_vector_mask() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::Document document(40, 30, patchy::PixelFormat::rgba8());
+  const auto layer_id =
+      document.add_pixel_layer("Paint", solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(220, 90, 40))).id();
+  document.set_active_layer(layer_id);
+  auto&& [window, fixture_canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Ctrl Mask"));
+  QApplication::processEvents();
+  auto* mask_button = window.findChild<QPushButton*>(QStringLiteral("layerAddMaskButton"));
+  CHECK(mask_button != nullptr);
+  if (mask_button == nullptr) {
+    return;
+  }
+  CHECK(mask_button->toolTip().startsWith(QStringLiteral("Add Layer Mask\n")));
+  CHECK(mask_button->toolTip().contains(
+      patchy::ui::resolve_modifier_names(QStringLiteral("%CTRL%-click to add a vector mask"))));
+  CHECK(mask_button->toolTip().contains(
+      patchy::ui::resolve_modifier_names(QStringLiteral("%ALT%-click to hide the layer or the selection"))));
+  const auto& doc = std::as_const(Access::document(window));
+  const auto layer = [&doc, layer_id] { return doc.find_layer(layer_id); };
+  const auto click = [&](Qt::KeyboardModifiers modifiers) {
+    QTest::mouseClick(mask_button, Qt::LeftButton, modifiers);
+    QApplication::processEvents();
+  };
+  const auto undo = [&] {
+    Access::undo(window);
+    QApplication::processEvents();
+    CHECK(layer()->vector_mask() == nullptr && !layer()->mask().has_value());
+  };
+  CHECK(mask_button->isEnabled());
+  const auto history = Access::active_session_undo_depth(window);
+
+  // Ctrl-click: a reveal-all vector mask, one undo step, no raster mask.
+  click(Qt::ControlModifier);
+  CHECK(layer()->vector_mask() != nullptr && !layer()->vector_mask()->inverted);
+  CHECK(!layer()->mask().has_value());
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+  undo();
+
+  // Ctrl+Alt-click: a hide-all vector mask.
+  click(Qt::ControlModifier | Qt::AltModifier);
+  CHECK(layer()->vector_mask() != nullptr && layer()->vector_mask()->inverted);
+  CHECK(!layer()->mask().has_value());
+  undo();
+
+  // A plain click still adds a reveal-all layer mask, Alt-click a hide-all one.
+  click(Qt::NoModifier);
+  CHECK(layer()->mask().has_value() && layer()->mask()->default_color == 255);
+  CHECK(layer()->vector_mask() == nullptr);
+  undo();
+  click(Qt::AltModifier);
+  CHECK(layer()->mask().has_value() && layer()->mask()->default_color == 0);
+  CHECK(layer()->vector_mask() == nullptr);
 }
 
 // GitHub issue 94: the Layers panel footer's Layer Styles button. Its menu holds
@@ -6103,6 +6162,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_add_mask_button_tracks_selection_and_adds_mask},
       {"ui_layer_add_mask_button_alt_click_hides_all_or_selection",
        ui_layer_add_mask_button_alt_click_hides_all_or_selection},
+      {"ui_layer_add_mask_button_ctrl_click_adds_vector_mask", ui_layer_add_mask_button_ctrl_click_adds_vector_mask},
       {"ui_layer_styles_button_tracks_selection_and_lists_effects",
        ui_layer_styles_button_tracks_selection_and_lists_effects},
       {"ui_layer_styles_menu_entry_opens_dialog_on_effect", ui_layer_styles_menu_entry_opens_dialog_on_effect},

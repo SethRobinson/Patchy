@@ -1534,7 +1534,16 @@ void MainWindow::create_docks() {
   bind_tooltip(add_folder_button, QT_TR_NOOP("New Folder"));
   bind_tooltip(adjustment_button, QT_TR_NOOP("New Fill or Adjustment Layer"));
   bind_tooltip(styles_button, QT_TR_NOOP("Layer Styles"));
-  bind_tooltip(add_mask_button, QT_TR_NOOP("Add Layer Mask"));
+  // The modifier names differ on macOS (resolve_modifier_names), so this tooltip is set by a
+  // callback rather than bound.
+  const auto apply_add_mask_tooltip = [add_mask_button] {
+    add_mask_button->setToolTip(
+        tr("Add Layer Mask") + QLatin1Char('\n') +
+        resolve_modifier_names(tr("%ALT%-click to hide the layer or the selection")) + QLatin1Char('\n') +
+        resolve_modifier_names(tr("%CTRL%-click to add a vector mask")));
+  };
+  apply_add_mask_tooltip();
+  register_retranslation(apply_add_mask_tooltip);
   bind_tooltip(duplicate_button, QT_TR_NOOP("Duplicate Layer"));
   bind_tooltip(animation_button, QT_TR_NOOP("Animation Preview"));
   bind_tooltip(delete_button, QT_TR_NOOP("Delete Layer"));
@@ -1626,8 +1635,15 @@ void MainWindow::create_docks() {
     }
   });
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
+  // Ctrl-click (Command-click on macOS) adds a vector mask instead, Ctrl+Alt a hide-all one (#447).
   connect(add_mask_button, &QPushButton::clicked, this, [this, add_mask_button] {
-    add_layer_mask((take_click_modifiers(add_mask_button) & Qt::AltModifier) != 0);
+    const auto modifiers = take_click_modifiers(add_mask_button);
+    const bool hide_all = (modifiers & Qt::AltModifier) != 0;
+    if ((modifiers & Qt::ControlModifier) != 0) {
+      add_vector_mask(hide_all, false);
+    } else {
+      add_layer_mask(hide_all);
+    }
   });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
   connect(animation_button, &QPushButton::clicked, this, [this] { toggle_animation_preview_window(); });
