@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QLabel>
@@ -53,7 +54,8 @@ struct WebExportSettingsGuard {
                             "webpQuality", "webpLossless", "webpAnimate", "metadata", "thumbnail", "resample",
                             "trim", "convertToSrgb", "compare", "revealWhenDone", "pngColors", "pngPaletteColors",
                             "pngDither", "pngDitherAmount", "gifColors", "gifDither", "gifDitherAmount", "gifAnimate",
-                            "gifFrameDelayMs"}) {
+                            "gifFrameDelayMs", "avifQuality", "avifSpeed", "avifLossless", "jxlQuality",
+                            "jxlEffort", "jxlLossless", "jxlAnimate", "jxlFrameDelayMs"}) {
       const auto full = QStringLiteral("exportForWeb/") + QLatin1String(key);
       restorers.push_back(std::make_unique<SettingsValueRestorer>(full));
       auto settings = patchy::ui::app_settings();
@@ -106,6 +108,15 @@ int jpeg_frame_marker(const std::vector<std::uint8_t>& bytes) {
     at += 2 + length;
   }
   return -1;
+}
+
+QTreeWidgetItem* row_named(QTreeWidget* list, const QString& name) {
+  for (int row = 0; row < list->topLevelItemCount(); ++row) {
+    if (list->topLevelItem(row)->text(0) == name) {
+      return list->topLevelItem(row);
+    }
+  }
+  return nullptr;
 }
 
 bool wait_until(const std::function<bool()>& condition, int timeout_ms = 60000) {
@@ -175,7 +186,23 @@ void ui_web_export_defaults_and_options() {
   CHECK(patchy::ui::web_export_format_key(WebExportFormat::Jpeg) == QStringLiteral("jpeg"));
   CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("png")) == WebExportFormat::Png);
   CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("gif")) == WebExportFormat::Gif);
-  CHECK(!patchy::ui::web_export_format_from_key(QStringLiteral("avif")).has_value());
+  CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("jxl")) == WebExportFormat::Jxl);
+  CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("avif")) == WebExportFormat::Avif);
+  CHECK(!patchy::ui::web_export_format_from_key(QStringLiteral("bmp")).has_value());
+  // AVIF and JPEG XL: Flat Image's defaults, their own options only for their own format.
+  CHECK(loaded.avif_quality == 80 && loaded.avif_speed == 6 && !loaded.avif_lossless);
+  CHECK(loaded.jxl_quality == 90 && loaded.jxl_effort == 7 && !loaded.jxl_lossless && !loaded.jxl_animate);
+  auto slow_settings = loaded;
+  slow_settings.avif_quality = 55;
+  slow_settings.avif_speed = 9;
+  slow_settings.jxl_lossless = true;
+  slow_settings.jxl_effort = 3;
+  const auto avif = patchy::ui::web_export_image_options(slow_settings, WebExportFormat::Avif, size);
+  CHECK(avif.avif_quality == 55 && avif.avif_speed == 9 && !avif.avif_lossless);
+  const auto jxl = patchy::ui::web_export_image_options(slow_settings, WebExportFormat::Jxl, size);
+  CHECK(jxl.jxl_lossless && jxl.jxl_effort == 3);
+  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Avif));
+  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Png));
   // GIF and palette PNG: 256 colors, no dither, full-color PNG by default; the options
   // reach the writers only for their own format.
   CHECK(!loaded.png_palette && loaded.png_colors == 256 && loaded.gif_colors == 256);
@@ -288,6 +315,86 @@ void ui_web_export_palette_png_and_gif_read_back() {
                                          .format() != QImage::Format_Indexed8);
 }
 
+// AVIF and JPEG XL: the bytes Save writes read back at the right size; lossless keeps every
+// pixel and lossy does not.
+void ui_web_export_avif_and_jxl_read_back() {
+  const auto document = textured_document(96, 64);
+  const auto source = patchy::ui::qimage_from_document(document, true).convertToFormat(QImage::Format_ARGB32);
+  const QSize size(96, 64);
+  for (const auto format : {WebExportFormat::Avif, WebExportFormat::Jxl}) {
+    for (const bool lossless : {true, false}) {
+      WebExportSettings settings;
+      settings.avif_lossless = lossless;
+      settings.jxl_lossless = lossless;
+      settings.avif_quality = 40;
+      settings.jxl_quality = 40;
+      const auto job = patchy::ui::web_export_job(settings, format, size);
+      const auto prepared = WebExportPreviewEngine::prepare(document, job.geometry, job.convert_to_srgb, nullptr);
+      const auto result = WebExportPreviewEngine::encode(document, job, prepared);
+      CHECK(result.error.isEmpty() && result.bytes != nullptr && !result.bytes->empty());
+      if (result.bytes == nullptr) {
+        continue;
+      }
+      const auto path = artifact_dir() + QStringLiteral("/read-back-%1-%2.%3")
+                                             .arg(patchy::ui::web_export_format_key(format))
+                                             .arg(lossless ? 1 : 0)
+                                             .arg(patchy::ui::web_export_extension(format));
+      patchy::ui::write_encoded_image_file(path, *result.bytes);
+      QFile file(path);
+      CHECK(file.open(QIODevice::ReadOnly));
+      const auto data = file.readAll();
+      const std::vector<std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(data.constData()),
+                                            reinterpret_cast<const std::uint8_t*>(data.constData()) + data.size());
+      CHECK(bytes == *result.bytes);
+      const auto decoded = patchy::ui::decode_web_export_bytes(format, bytes).convertToFormat(QImage::Format_ARGB32);
+      CHECK(decoded.size() == size);
+      CHECK(result.decoded.size() == size);
+      bool identical = decoded.size() == source.size();
+      for (int y = 0; identical && y < decoded.height(); ++y) {
+        for (int x = 0; x < decoded.width(); ++x) {
+          if (decoded.pixel(x, y) != source.pixel(x, y)) {
+            identical = false;
+            break;
+          }
+        }
+      }
+      CHECK(identical == lossless);
+    }
+  }
+}
+
+// A slow AVIF encode in the background lane never holds back the selected format, and a
+// newer request wins over an older one for the same row.
+void ui_web_export_slow_encode_never_blocks_the_selected_format() {
+  auto document = std::make_shared<const patchy::Document>(textured_document(1600, 1200));
+  WebExportPreviewEngine engine(document);
+  std::vector<QString> reported;
+  engine.set_result_callback([&reported](const patchy::ui::WebExportJob& job, const patchy::ui::WebExportResult&) {
+    reported.push_back(job.signature);
+  });
+  const QSize size(1600, 1200);
+  WebExportSettings slow;
+  slow.avif_speed = 3;
+  slow.avif_quality = 60;
+  WebExportSettings first;
+  first.jpeg_quality = 20;
+  const auto avif = patchy::ui::web_export_job(slow, WebExportFormat::Avif, size);
+  engine.request({patchy::ui::web_export_job(first, WebExportFormat::Jpeg, size), avif});
+  WebExportSettings second;
+  second.jpeg_quality = 70;
+  const auto jpeg = patchy::ui::web_export_job(second, WebExportFormat::Jpeg, size);
+  engine.request({jpeg, avif});
+  CHECK(wait_until([&] { return engine.cached(jpeg.signature).has_value(); }));
+  // The JPEG landed while the AVIF still ran.
+  CHECK(!engine.cached(avif.signature).has_value());
+  CHECK(wait_until([&engine] { return !engine.busy(); }, 300000));
+  CHECK(engine.cached(avif.signature).has_value());
+  const auto jpeg_at = std::find(reported.begin(), reported.end(), jpeg.signature);
+  const auto avif_at = std::find(reported.begin(), reported.end(), avif.signature);
+  CHECK(jpeg_at != reported.end() && avif_at != reported.end() && jpeg_at < avif_at);
+  engine.close();
+}
+
 void ui_web_export_engine_drops_stale_requests() {
   auto document = std::make_shared<const patchy::Document>(textured_document(320, 240));
   WebExportPreviewEngine engine(document);
@@ -370,16 +477,29 @@ void ui_web_export_dialog_previews_and_saves() {
       return;
     }
     // Defaults: JPEG selected, quality 80, the thumbnail off and disabled (metadata None).
-    CHECK(list->topLevelItemCount() == 4);
+    CHECK(list->topLevelItemCount() == static_cast<int>(patchy::ui::web_export_formats().size()));
+    CHECK(list->topLevelItemCount() == 6);
+    auto* jpeg_row = row_named(list, QStringLiteral("JPEG"));
+    auto* avif_row = row_named(list, QStringLiteral("AVIF"));
+    auto* jxl_row = row_named(list, QStringLiteral("JPEG XL"));
+    auto* png_row = row_named(list, QStringLiteral("PNG"));
+    auto* gif_row = row_named(list, QStringLiteral("GIF"));
+    CHECK(jpeg_row != nullptr && avif_row != nullptr && jxl_row != nullptr && png_row != nullptr && gif_row != nullptr);
+    if (jpeg_row == nullptr || avif_row == nullptr || jxl_row == nullptr || png_row == nullptr || gif_row == nullptr) {
+      dialog->reject();
+      return;
+    }
     CHECK(list->currentItem() != nullptr && list->currentItem()->text(0) == QStringLiteral("JPEG"));
     CHECK(quality->value() == 80);
     CHECK(!thumbnail->isChecked() && !thumbnail->isEnabled());
     CHECK(!original->isVisible());
-    // Every row gets its real size.
+    // Every fast row gets its real size; AVIF and JPEG XL wait until their row is selected.
+    CHECK(avif_row->text(2) == QStringLiteral("select to encode"));
     const auto all_sized = [list] {
       for (int row = 0; row < list->topLevelItemCount(); ++row) {
         const auto text = list->topLevelItem(row)->text(2);
-        if (!text.contains(QLatin1Char('B'))) {
+        if (text != QStringLiteral("select to encode") &&
+            (!text.contains(QLatin1Char('B')) || text.endsWith(QStringLiteral("...")))) {
           return false;
         }
       }
@@ -388,12 +508,12 @@ void ui_web_export_dialog_previews_and_saves() {
     CHECK(wait_until(all_sized));
     CHECK(preview->property("webExportShowsCurrent").toBool());
     CHECK(info->text().contains(QStringLiteral("%1 x %2").arg(photo_size.width()).arg(photo_size.height())));
-    const auto size_at_80 = list->topLevelItem(0)->text(2);
+    const auto size_at_80 = jpeg_row->text(2);
 
     // A lower quality re-encodes after the debounce and changes the size.
     quality->setValue(40);
     CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() &&
-                                  list->topLevelItem(0)->text(2) != size_at_80; }));
+                                  jpeg_row->text(2) != size_at_80; }));
     // The split view at 100% over the car, for the card.
     preview->zoom_to(1.0, QPointF(preview->width() * 0.55, preview->height() * 0.8));
     QApplication::processEvents();
@@ -412,7 +532,7 @@ void ui_web_export_dialog_previews_and_saves() {
     CHECK(original->property("previewZoomPercent").toInt() == 200);
     CHECK(original->property("previewPanOffset") == preview->property("previewPanOffset"));
     CHECK(original->width() == preview->width());
-    list->setCurrentItem(list->topLevelItem(2));  // PNG
+    list->setCurrentItem(png_row);
     CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("webExportPngGroup"))->isVisible());
     CHECK(!thumbnail->isVisible());
@@ -432,12 +552,12 @@ void ui_web_export_dialog_previews_and_saves() {
       CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
       const auto used = png_swatches->property("webExportPaletteCount").toInt();
       CHECK(used > 1 && used <= 32);
-      CHECK(list->topLevelItem(2)->text(1).contains(QStringLiteral("32")));
+      CHECK(png_row->text(1).contains(QStringLiteral("32")));
       capture_widget_artifact("web_export_png_palette", *dialog);
     }
 
     // GIF at 64 colors with diffusion, side by side.
-    list->setCurrentItem(list->topLevelItem(3));
+    list->setCurrentItem(gif_row);
     auto* gif_count = dialog->findChild<QSpinBox*>(QStringLiteral("webExportGifColorsSpin"));
     auto* gif_dither = dialog->findChild<QComboBox*>(QStringLiteral("webExportGifDitherCombo"));
     auto* gif_swatches = dialog->findChild<QWidget*>(QStringLiteral("webExportGifPaletteSwatches"));
@@ -450,13 +570,38 @@ void ui_web_export_dialog_previews_and_saves() {
       CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
       const auto used = gif_swatches->property("webExportPaletteCount").toInt();
       CHECK(used > 1 && used <= 64);
-      CHECK(list->topLevelItem(3)->text(1).contains(QStringLiteral("64")));
-      CHECK(list->topLevelItem(3)->text(2).contains(QLatin1Char('B')));
+      CHECK(gif_row->text(1).contains(QStringLiteral("64")));
+      CHECK(gif_row->text(2).contains(QLatin1Char('B')));
       capture_widget_artifact("web_export_gif_side_by_side", *dialog);
     }
 
+    // AVIF and JPEG XL encode once selected; while a newer setting encodes, the last
+    // result stays on screen and the row keeps its last size.
+    for (auto* slow_row : {avif_row, jxl_row}) {
+      list->setCurrentItem(slow_row);
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }, 120000));
+      CHECK(slow_row->text(2).contains(QLatin1Char('B')) && !slow_row->text(2).endsWith(QStringLiteral("...")));
+      const auto shown = preview->property("webExportResultKey").toLongLong();
+      CHECK(shown != 0);
+      auto* slow_quality = dialog->findChild<QSpinBox*>(slow_row == avif_row
+                                                           ? QStringLiteral("webExportAvifQualitySpin")
+                                                           : QStringLiteral("webExportJxlQualitySpin"));
+      CHECK(slow_quality != nullptr);
+      if (slow_quality == nullptr) {
+        continue;
+      }
+      slow_quality->setValue(slow_quality->value() - 30);
+      QApplication::processEvents();
+      CHECK(!preview->property("webExportShowsCurrent").toBool());
+      CHECK(preview->property("webExportResultKey").toLongLong() == shown);
+      CHECK(slow_row->text(2).endsWith(QStringLiteral(" ...")));
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }, 120000));
+      CHECK(preview->property("webExportResultKey").toLongLong() != shown);
+      capture_widget_artifact(slow_row == avif_row ? "web_export_avif" : "web_export_jxl", *dialog);
+    }
+
     // Back to JPEG in split view, then Save: the file dialog takes the name.
-    list->setCurrentItem(list->topLevelItem(0));
+    list->setCurrentItem(jpeg_row);
     split->click();
     preview->zoom_to_fit();
     CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
@@ -504,6 +649,9 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_defaults_and_options", ui_web_export_defaults_and_options},
       {"ui_web_export_jpeg_progressive_and_optimize_read_back", ui_web_export_jpeg_progressive_and_optimize_read_back},
       {"ui_web_export_engine_drops_stale_requests", ui_web_export_engine_drops_stale_requests},
+      {"ui_web_export_avif_and_jxl_read_back", ui_web_export_avif_and_jxl_read_back},
+      {"ui_web_export_slow_encode_never_blocks_the_selected_format",
+       ui_web_export_slow_encode_never_blocks_the_selected_format},
       {"ui_web_export_palette_png_and_gif_read_back", ui_web_export_palette_png_and_gif_read_back},
       {"ui_web_export_dialog_previews_and_saves", ui_web_export_dialog_previews_and_saves},
   };

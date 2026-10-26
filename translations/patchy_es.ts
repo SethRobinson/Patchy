@@ -13020,6 +13020,42 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Frame delay:</source>
         <translation>Retardo de fotograma:</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Sin pérdida, velocidad %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Calidad %1, velocidad %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Sin pérdida, esfuerzo %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Calidad %1, esfuerzo %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>La codificación tarda más que en los otros formatos; la vista previa se actualiza al terminar.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>Ajustes de AVIF</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>Ajustes de JPEG XL</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>seleccionar para codificar</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Codificando...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28659,6 +28695,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance debe ser un número de 0 a 255.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format debe ser uno de %1.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb no pudo codificar: %1</translation>
     </message>
 </context>
 <context>

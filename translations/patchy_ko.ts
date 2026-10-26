@@ -12983,6 +12983,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Frame delay:</source>
         <translation>프레임 지연:</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>무손실, 속도 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>품질 %1, 속도 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>무손실, 노력 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>품질 %1, 노력 %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>다른 형식보다 인코딩에 시간이 더 걸립니다. 끝나면 미리 보기가 업데이트됩니다.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 설정</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 설정</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>선택하면 인코딩</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>인코딩 중...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28582,6 +28618,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format은 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb에서 인코딩하지 못했습니다: %1</translation>
     </message>
 </context>
 <context>

@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -25,15 +26,17 @@ class QWidget;
 
 namespace patchy::ui {
 
-// The formats the dialog lists (web_export_formats() gives the list order). Append-only:
-// AVIF and JPEG XL join later (the keys are persisted).
-enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png, Gif };
+// The formats the dialog lists (web_export_formats() gives the list order: JPEG, WebP,
+// AVIF, JPEG XL, PNG, GIF; AVIF only where its encoder is built). Append-only.
+enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png, Gif, Avif, Jxl };
 
 [[nodiscard]] const std::vector<WebExportFormat>& web_export_formats();
-// Persisted tokens (exportForWeb/format): "jpeg", "webp", "png", "gif". Never rename.
+// Persisted tokens (exportForWeb/format, doc.encodeForWeb): "jpeg", "webp", "png", "gif",
+// "avif", "jxl". Never rename.
 [[nodiscard]] QString web_export_format_key(WebExportFormat format);
 [[nodiscard]] std::optional<WebExportFormat> web_export_format_from_key(const QString& key);
-// The file extension written: "jpg", "webp", "png", "gif".
+// The file extension written: "jpg", "webp", "png", "gif", "avif", "jxl".
+[[nodiscard]] bool web_export_format_is_slow(WebExportFormat format);
 [[nodiscard]] QString web_export_extension(WebExportFormat format);
 [[nodiscard]] QString web_export_format_name(WebExportFormat format);
 
@@ -52,6 +55,16 @@ struct WebExportSettings {
   int webp_quality{75};
   bool webp_lossless{false};
   bool webp_animate{false};
+  // AVIF: quality 0..100, encoder speed 0..10 (lower is smaller and slower), lossless.
+  int avif_quality{80};
+  int avif_speed{6};
+  bool avif_lossless{false};
+  // JPEG XL: quality 1..100, effort 1..9, lossless, animation from visible layers.
+  int jxl_quality{90};
+  int jxl_effort{7};
+  bool jxl_lossless{false};
+  bool jxl_animate{false};
+  int jxl_frame_delay_ms{100};
   // PNG: full color, or a palette of png_colors with optional error diffusion.
   bool png_palette{false};
   int png_colors{256};
@@ -155,6 +168,10 @@ private:
   void start_next();
   std::shared_ptr<State> state_;
 };
+
+// Encoded bytes read back for display (8-bit ARGB32 premultiplied; an animation's first
+// frame): Qt's readers for JPEG, WebP, PNG and GIF, Patchy's for AVIF and JPEG XL.
+[[nodiscard]] QImage decode_web_export_bytes(WebExportFormat format, std::span<const std::uint8_t> bytes);
 
 // Whether the document carries an RGB profile other than sRGB (the dialog then offers
 // Convert to sRGB).

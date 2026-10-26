@@ -408,7 +408,13 @@ void ui_unicode_export_for_web_writes_encoded_bytes() {
     patchy::ui::write_encoded_image_file(path, *result.bytes);
     expected << name;
     CHECK(QFileInfo(path).size() == static_cast<qint64>(result.bytes->size()));
-    CHECK(QImage(path).size() == QSize(8, 6));
+    // Read back from the Unicode path (AVIF and JPEG XL through Patchy's readers).
+    QFile file(path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const auto data = file.readAll();
+    const std::vector<std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(data.constData()),
+                                          reinterpret_cast<const std::uint8_t*>(data.constData()) + data.size());
+    CHECK(patchy::ui::decode_web_export_bytes(format, bytes).size() == QSize(8, 6));
   }
   check_dir_holds_only(dir, expected);
 }

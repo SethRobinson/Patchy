@@ -12983,6 +12983,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Frame delay:</source>
         <translation>フレームの表示時間:</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>可逆圧縮、速度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>品質 %1、速度 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>可逆圧縮、エフォート %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>品質 %1、エフォート %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>ほかの形式よりエンコードに時間がかかります。終わるとプレビューが更新されます。</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 設定</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 設定</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>選択でエンコード</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>エンコード中...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28582,6 +28618,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim の tolerance は 0 から 255 の数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format は %1 のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb でエンコードできませんでした: %1</translation>
     </message>
 </context>
 <context>

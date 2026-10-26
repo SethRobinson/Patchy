@@ -12983,6 +12983,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Frame delay:</source>
         <translation>帧延迟:</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>无损，速度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>品质 %1，速度 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>无损，编码强度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>品质 %1，编码强度 %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>编码比其他格式耗时更长；完成后预览会更新。</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 设置</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 设置</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>选择后编码</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>正在编码...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28582,6 +28618,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim 的 tolerance 必须是 0 到 255 之间的数字。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb：format 必须是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb 无法编码：%1</translation>
     </message>
 </context>
 <context>
