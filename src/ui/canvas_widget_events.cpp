@@ -27,6 +27,7 @@
 #include <QEnterEvent>
 #include <QEvent>
 #include <QFocusEvent>
+#include <QHideEvent>
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -81,29 +82,6 @@ bool wheel_trace_enabled() noexcept {
 }
 
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
-  switch (tool) {
-    case CanvasTool::Brush:
-    case CanvasTool::MixerBrush:
-    case CanvasTool::PatternStamp:
-    case CanvasTool::Clone:
-    case CanvasTool::Healing:
-    case CanvasTool::SpotHealing:
-    case CanvasTool::Smudge:
-    case CanvasTool::Dodge:
-    case CanvasTool::Burn:
-    case CanvasTool::Sponge:
-    case CanvasTool::BlurBrush:
-    case CanvasTool::SharpenBrush:
-    case CanvasTool::Eraser:
-      return true;
-    default:
-      return false;
-  }
-}
-
-// Painting tools where Shift+click extends the previous stroke with a straight
-// segment from its end point (Photoshop behaviour).
-bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::MixerBrush:
@@ -245,6 +223,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
                                                            : Qt::ControlModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
+      // The Shift+click line preview (GitHub issue 445) shows and hides with the key alone.
+      set_stroke_connect_preview_modifiers(modifiers);
       if (transforming_layer_ && !warping_layer_) {
         // A pending Free Transform: Ctrl, Alt and Shift change what a handle drag
         // does, so the cursor over a handle shows that gesture before the press.
@@ -587,6 +567,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
   flush_pending_drag_move();
+  // A stroke in progress hides the Shift+click line preview (GitHub issue 445).
+  const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -1781,6 +1763,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   emit_info_for_widget_position(event->pos());
   track_brush_hover_position(event->pos());
   track_eyedropper_sample_outline(event->pos());
+  track_stroke_connect_preview(event->pos(), event->modifiers());
   if (!preview_points_.empty()) {
     // Hover switches between the hand over a preview marker and the arrow elsewhere.
     last_mouse_position_ = event->pos();
@@ -2549,8 +2532,15 @@ void CanvasWidget::focusInEvent(QFocusEvent* event) {
   QWidget::focusInEvent(event);
 }
 
+void CanvasWidget::hideEvent(QHideEvent* event) {
+  // A hidden tab misses Shift's release; it shows no stale line when it comes back.
+  hide_stroke_connect_preview();
+  QWidget::hideEvent(event);
+}
+
 void CanvasWidget::leaveEvent(QEvent* event) {
   clear_move_hover_outline();
+  hide_stroke_connect_preview();
   hide_eyedropper_sample_outline();
   invalidate_clone_overlay();
   if (brush_hover_position_valid_) {
@@ -2577,6 +2567,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
   // The last moves before the release land first, so the drop is where the pointer was.
   flush_pending_drag_move();
+  // The finished stroke's end is the next Shift+click line's anchor (GitHub issue 445).
+  const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
   // A painting tool's Ctrl+drag or Ctrl+click (GitHub issues 380, 423) gets its tool cursor
   // back after the commit.
   const bool ends_retouch_move = tool_has_ctrl_temporary_move(tool_) &&
@@ -4664,6 +4656,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     set_retouch_source_indicator(std::nullopt);
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
+    refresh_stroke_connect_preview();
   }
   if (!was_painting && !drawing_shape_) {
     clear_brush_stroke_tracking();

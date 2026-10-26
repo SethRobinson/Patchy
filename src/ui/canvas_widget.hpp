@@ -34,6 +34,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
+#include <QLine>
 #include <QList>
 #include <QPixmap>
 #include <QPoint>
@@ -70,6 +71,7 @@ class QAction;
 class QPainter;
 class QMenu;
 class QEvent;
+class QHideEvent;
 class QResizeEvent;
 class QScrollBar;
 class QTabletEvent;
@@ -1523,6 +1525,7 @@ protected:
   void enterEvent(QEnterEvent* event) override;
   void focusInEvent(QFocusEvent* event) override;
   void leaveEvent(QEvent* event) override;
+  void hideEvent(QHideEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
   void focusOutEvent(QFocusEvent* event) override;
@@ -2002,6 +2005,19 @@ private:
   [[nodiscard]] QRect stroke_leash_overlay_rect() const;
   void invalidate_stroke_leash_overlay();
   void draw_stroke_leash_overlay(QPainter& painter) const;
+  // Painting tools where Shift+click extends the previous stroke with a straight
+  // segment from its end point (Photoshop behaviour).
+  [[nodiscard]] static bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept;
+  // The Shift+click line preview (GitHub issue 445): while Shift alone is held over the
+  // canvas with no stroke running, a thin line runs from the last stroke's end (the
+  // anchor Shift+click connects from) to the pointer. Invalidation is old-union-new.
+  [[nodiscard]] std::optional<QLineF> stroke_connect_preview_line() const;
+  [[nodiscard]] QRect stroke_connect_preview_rect() const;
+  void refresh_stroke_connect_preview();
+  void track_stroke_connect_preview(QPoint widget_position, Qt::KeyboardModifiers modifiers);
+  void set_stroke_connect_preview_modifiers(Qt::KeyboardModifiers modifiers);
+  void hide_stroke_connect_preview();
+  void draw_stroke_connect_preview(QPainter& painter) const;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
@@ -3104,6 +3120,10 @@ private:
   patchy::StrokeStabilizer stroke_stabilizer_;
   QBasicTimer stabilizer_timer_;
   QRect stroke_leash_overlay_rect_{};
+  Qt::KeyboardModifiers stroke_connect_preview_modifiers_{};
+  QPoint stroke_connect_preview_pointer_{};
+  bool stroke_connect_preview_pointer_inside_{false};
+  QRect stroke_connect_preview_rect_{};
   // The stationary catch-up cadence: the timer fires every 16 ms and each tick
   // advances the core stabilizer by this fixed dt (no clock reads in core, so
   // strokes stay deterministic; keep the two constants in step).
