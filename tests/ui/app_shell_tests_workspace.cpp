@@ -59,7 +59,7 @@
 #include <QToolBar>
 #include <QSplitter>
 #include <QStackedWidget>
-#include <QToolBar>
+#include <QStyle>
 #include <QPainter>
 #include <QPixmap>
 #include <QToolButton>
@@ -2514,9 +2514,17 @@ void ui_screen_mode_button_cycles_and_lists_modes() {
   CHECK(button->toolTip().contains(QStringLiteral("Screen Mode: Full Screen with Menus (F)")));
 
   // A right-click opens the mode list beside the button, the current mode checked
-  // (showMenu runs the menu's own loop, so the checks run inside it).
+  // (showMenu runs the menu's own loop, so the checks run inside it). Like a tool flyout
+  // it shows each mode's own icon at the palette's icon size with the same menu sheet;
+  // Cycle stays text only, and the View menu keeps its entries icon-free once it closes.
   auto* menu = button->menu();
   CHECK(menu != nullptr && menu->objectName() == QStringLiteral("screenModeFlyoutMenu"));
+  auto* marquee = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+  CHECK(marquee != nullptr && marquee->menu() != nullptr && menu != nullptr &&
+        menu->styleSheet() == marquee->menu()->styleSheet());
+  const std::pair<QAction*, const char*> mode_icons[] = {{standard, "screen-mode-standard"},
+                                                         {with_menus, "screen-mode-full-with-menus"},
+                                                         {full, "screen-mode-full"}};
   if (menu != nullptr) {
     bool shown = false;
     QTimer::singleShot(0, [&] {
@@ -2524,6 +2532,14 @@ void ui_screen_mode_button_cycles_and_lists_modes() {
       CHECK(menu->actions().contains(standard) && menu->actions().contains(with_menus) &&
             menu->actions().contains(full) && menu->actions().contains(cycle));
       CHECK(with_menus->isChecked() && !standard->isChecked() && !full->isChecked());
+      const int extent = palette->iconSize().width();
+      CHECK(menu->style()->pixelMetric(QStyle::PM_SmallIconSize, nullptr, menu) == extent);
+      for (const auto& [action, icon_name] : mode_icons) {
+        CHECK(!action->icon().isNull() && action->isIconVisibleInMenu());
+        const auto expected = patchy::ui::themed_svg_icon(QString::fromLatin1(icon_name));
+        CHECK(action->icon().pixmap(extent, extent).toImage() == expected.pixmap(extent, extent).toImage());
+      }
+      CHECK(cycle->icon().isNull());
       CHECK(menu->geometry().left() >= button->mapToGlobal(QPoint(button->width(), 0)).x());
       save_widget_artifact("issue_212_screen_mode_menu", *menu);
       menu->close();
@@ -2532,6 +2548,10 @@ void ui_screen_mode_button_cycles_and_lists_modes() {
     QApplication::processEvents();
     CHECK(shown);
     CHECK(!menu->isVisible());
+    for (const auto& [action, icon_name] : mode_icons) {
+      static_cast<void>(icon_name);
+      CHECK(!action->isIconVisibleInMenu());
+    }
   }
   standard->trigger();
   process_events_for(50);

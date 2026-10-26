@@ -532,23 +532,29 @@ constexpr int kFlyoutMarkerGap = 3;
 
 // Paints the marker over the menu: the menu paints itself first (the event is resent to
 // it), then the square goes on the current tool's row, in the text color of a highlighted
-// row so it stays visible there.
+// row so it stays visible there. The current entry is the one the button shows, or what
+// `current` returns (the screen mode button, whose entries are the View menu's actions).
 class ToolFlyoutCurrentMarker final : public QObject {
 public:
-  ToolFlyoutCurrentMarker(QToolButton* button, QMenu* menu) : QObject(menu), button_(button) {
+  ToolFlyoutCurrentMarker(QToolButton* button, QMenu* menu)
+      : ToolFlyoutCurrentMarker(menu, [button = QPointer<QToolButton>(button)]() -> QAction* {
+          return button != nullptr ? button->defaultAction() : nullptr;
+        }) {}
+  ToolFlyoutCurrentMarker(QMenu* menu, std::function<QAction*()> current)
+      : QObject(menu), current_(std::move(current)) {
     menu->installEventFilter(this);
   }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    if (event->type() != QEvent::Paint || painting_ || button_ == nullptr) {
+    if (event->type() != QEvent::Paint || painting_ || !current_) {
       return QObject::eventFilter(watched, event);
     }
     auto* menu = static_cast<QMenu*>(watched);
     painting_ = true;
     QCoreApplication::sendEvent(menu, event);
     painting_ = false;
-    auto* current = button_->defaultAction();
+    auto* current = current_();
     const QRect row = current != nullptr && current->isVisible() ? menu->actionGeometry(current) : QRect();
     if (row.isValid()) {
       const auto& colors = theme();
@@ -561,7 +567,7 @@ protected:
   }
 
 private:
-  QPointer<QToolButton> button_;
+  std::function<QAction*()> current_;
   bool painting_{false};
 };
 
@@ -1567,6 +1573,30 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     };
     button->installEventFilter(new ToolButtonPressFilter(open_menu, open_menu, button));
     new ToolFlyoutMenuPlacement(button, menu);
+    // Like a tool flyout: each mode's icon at the palette's icon size and the accent
+    // marker on the current mode. The menu bar keeps its menus icon-free
+    // (hide_menu_action_icons), so the shared actions show their icons only while this
+    // menu is open.
+    new ToolFlyoutCurrentMarker(menu, [this]() -> QAction* {
+      switch (screen_mode_) {
+        case ScreenMode::FullScreenWithMenus:
+          return screen_mode_full_with_menus_action_;
+        case ScreenMode::FullScreen:
+          return screen_mode_full_action_;
+        case ScreenMode::Standard:
+          break;
+      }
+      return screen_mode_standard_action_;
+    });
+    const QList<QAction*> mode_actions{screen_mode_standard_action_, screen_mode_full_with_menus_action_,
+                                       screen_mode_full_action_};
+    const auto show_mode_icons = [mode_actions](bool shown) {
+      for (auto* action : mode_actions) {
+        action->setIconVisibleInMenu(shown);
+      }
+    };
+    connect(menu, &QMenu::aboutToShow, this, [show_mode_icons] { show_mode_icons(true); });
+    connect(menu, &QMenu::aboutToHide, this, [show_mode_icons] { show_mode_icons(false); });
     menu->setStyleSheet(tool_flyout_menu_style(tool_palette->iconSize().width()));
     connect(button, &QToolButton::clicked, this, [this] { cycle_screen_mode(); });
     // A rebound cycle key shows in the tooltip at once.
