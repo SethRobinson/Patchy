@@ -22936,10 +22936,6 @@ Y: %2
         <translation>%CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza warstwy w prostokącie; przytrzymaj Shift przed przeciąganiem, aby dodać. %ALT%+przeciąganie powiela. Shift ogranicza ruch warstwy.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Przesuwanie: %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt; Shift dodaje. Przeciągnij zaznaczoną grafikę, aby ją przesunąć, %ALT%+przeciąganie, aby ją powielić.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Przywróć ramkę kadrowania do obszaru roboczego (Esc)</translation>
     </message>
@@ -26060,6 +26056,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Apply</source>
         <translation>Zastosuj</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Przesuwanie: przeciągnij, aby przesunąć, Shift+przeciąganie utrzymuje ruch w poziomie lub pionie, %ALT%+przeciąganie powiela. %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt, podobnie jak przeciąganie po pustym miejscu przy włączonym automatycznym zaznaczaniu.</translation>
     </message>
 </context>
 <context>

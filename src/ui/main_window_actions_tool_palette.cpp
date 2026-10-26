@@ -317,8 +317,10 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
 const char* tool_activation_hint_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Move:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a "
-             "rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.");
+      // GitHub issue 446: the drag gestures first, then layer selection.
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag "
+             "duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, "
+             "as does a drag on empty space with Auto-Select on.");
     case CanvasTool::Pen:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pen: click to add points, drag for curves. On a path, click a segment to add a "
              "point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or "

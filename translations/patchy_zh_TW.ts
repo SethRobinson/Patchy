@@ -22812,10 +22812,6 @@ Baked into images: %1.</source>
         <translation>%CTRL%+點按選取圖層，Shift+點按切換選取。%CTRL%+拖曳框選圖層；拖曳前按住 Shift 可加入。%ALT%+拖曳可複製。Shift 限制圖層移動方向。</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>移動：%CTRL%+點按選取圖層，Shift+點按切換選取。%CTRL%+拖曳框選；Shift 加入。拖曳所選內容以移動，%ALT%+拖曳以複製。</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>將裁切框重設為畫布 (Esc)</translation>
     </message>
@@ -25914,6 +25910,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>套用</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>移動：拖曳以移動，Shift+拖曳保持水平或垂直，%ALT%+拖曳以複製。%CTRL%+點按選取圖層，Shift+點按切換選取。%CTRL%+拖曳框選；開啟自動選取時，在空白處拖曳也可框選。</translation>
     </message>
 </context>
 <context>

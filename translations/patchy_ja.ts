@@ -22812,10 +22812,6 @@ Baked into images: %1.</source>
         <translation>%CTRL%+クリックでレイヤーを選択、Shift+クリックで選択を切り替えます。%CTRL%+ドラッグで矩形内のレイヤーを選択、ドラッグ前にShiftを押すと追加します。%ALT%+ドラッグで複製します。Shiftでレイヤーの移動方向を固定します。</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>移動: %CTRL%+クリックでレイヤーを選択、Shift+クリックで切り替えます。%CTRL%+ドラッグで矩形選択、Shiftで追加します。選択したアートワークをドラッグして移動、%ALT%+ドラッグで複製します。</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>切り抜き枠をカンバスに戻す (Esc)</translation>
     </message>
@@ -25914,6 +25910,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>適用</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>移動: ドラッグで移動、Shift+ドラッグで水平または垂直に移動、%ALT%+ドラッグで複製します。%CTRL%+クリックでレイヤーを選択、Shift+クリックで切り替えます。%CTRL%+ドラッグで矩形選択します。自動選択がオンなら空いた場所のドラッグでも選択します。</translation>
     </message>
 </context>
 <context>

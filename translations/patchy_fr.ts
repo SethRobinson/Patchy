@@ -22874,10 +22874,6 @@ Convertis en images : %1.</translation>
         <translation>%CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne les calques dans un rectangle ; maintenez Maj avant de glisser pour ajouter. %ALT%+glisser duplique. Maj contraint le déplacement du calque.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Déplacement : %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle ; Maj ajoute. Faites glisser l&apos;illustration sélectionnée pour la déplacer, %ALT%+glisser pour la dupliquer.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Réinitialiser le cadre de recadrage sur la zone de travail (Échap)</translation>
     </message>
@@ -25987,6 +25983,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Apply</source>
         <translation>Appliquer</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Déplacement : glisser déplace, Maj+glisser le garde horizontal ou vertical, %ALT%+glisser duplique. %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle, comme glisser sur une zone vide avec Sélection auto activée.</translation>
     </message>
 </context>
 <context>

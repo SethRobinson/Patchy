@@ -22874,10 +22874,6 @@ Convertido en imágenes: %1.</translation>
         <translation>%CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona capas en un rectángulo; mantén Mayús antes de arrastrar para añadir. %ALT%+arrastrar duplica. Mayús restringe el movimiento de la capa.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Mover: %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo; Mayús añade. Arrastra el arte seleccionado para moverlo, %ALT%+arrastrar para duplicarlo.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Restablecer el cuadro de recorte al lienzo (Esc)</translation>
     </message>
@@ -25987,6 +25983,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Apply</source>
         <translation>Aplicar</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Mover: arrastrar mueve, Mayús+arrastrar lo mantiene horizontal o vertical, %ALT%+arrastrar duplica. %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo, igual que arrastrar en un espacio vacío con Selección automática activada.</translation>
     </message>
 </context>
 <context>

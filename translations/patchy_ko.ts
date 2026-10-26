@@ -22812,10 +22812,6 @@ Y: %2
         <translation>%CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 선택을 전환합니다. %CTRL%+드래그로 사각형 안의 레이어를 선택하며, 드래그 전에 Shift를 누르면 추가됩니다. %ALT%+드래그로 복제합니다. Shift는 레이어 이동 방향을 고정합니다.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>이동: %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하고 Shift로 추가합니다. 선택한 아트워크를 드래그하여 이동하고 %ALT%+드래그로 복제합니다.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>자르기 상자를 캔버스로 재설정 (Esc)</translation>
     </message>
@@ -25914,6 +25910,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>적용</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>이동: 드래그하여 이동하고, Shift+드래그로 수평 또는 수직으로 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하며, 자동 선택이 켜져 있으면 빈 곳을 드래그해도 됩니다.</translation>
     </message>
 </context>
 <context>

@@ -22874,10 +22874,6 @@ Y: %2
         <translation>%CTRL%+clique seleciona uma camada, Shift+clique a alterna. %CTRL%+arrastar seleciona camadas em um retângulo; segure Shift antes de arrastar para adicionar. %ALT%+arrastar duplica. Shift restringe o movimento da camada.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Mover: %CTRL%+clique seleciona uma camada, Shift+clique a alterna. %CTRL%+arrastar seleciona um retângulo; Shift adiciona. Arraste a arte selecionada para movê-la, %ALT%+arrastar para duplicá-la.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Redefinir a caixa de corte para a tela (Esc)</translation>
     </message>
@@ -25987,6 +25983,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Apply</source>
         <translation>Aplicar</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Mover: arraste para mover, Shift+arrastar mantém na horizontal ou vertical, %ALT%+arrastar duplica. %CTRL%+clique seleciona uma camada, Shift+clique a alterna. %CTRL%+arrastar seleciona um retângulo, assim como arrastar em um espaço vazio com Seleção automática ativada.</translation>
     </message>
 </context>
 <context>

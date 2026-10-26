@@ -22874,10 +22874,6 @@ In Bilder umgewandelt: %1.</translation>
         <translation>%CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt Ebenen in einem Rechteck aus; Umschalt vor dem Ziehen halten, um hinzuzufügen. %ALT%+Ziehen dupliziert. Umschalt beschränkt die Ebenenbewegung.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Verschieben: %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus; Umschalt fügt hinzu. Ausgewählte Grafik ziehen, um sie zu verschieben, %ALT%+Ziehen, um sie zu duplizieren.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Zuschneiderahmen auf die Arbeitsfläche zurücksetzen (Esc)</translation>
     </message>
@@ -25987,6 +25983,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Apply</source>
         <translation>Anwenden</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Verschieben: Ziehen verschiebt, Umschalt+Ziehen hält es waagerecht oder senkrecht, %ALT%+Ziehen dupliziert. %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus, mit „Autom. auswählen“ auch Ziehen auf leerer Fläche.</translation>
     </message>
 </context>
 <context>

@@ -22874,10 +22874,6 @@ Convertiti in immagini: %1.</translation>
         <translation>%CTRL%+clic seleziona un livello, Maiusc+clic lo attiva o disattiva. %CTRL%+trascina seleziona i livelli in un rettangolo; tieni premuto Maiusc prima di trascinare per aggiungere. %ALT%+trascina duplica. Maiusc vincola lo spostamento del livello.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Sposta: %CTRL%+clic seleziona un livello, Maiusc+clic lo attiva o disattiva. %CTRL%+trascina seleziona un rettangolo; Maiusc aggiunge. Trascina la grafica selezionata per spostarla, %ALT%+trascina per duplicarla.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Riporta il riquadro di ritaglio alla tela (Esc)</translation>
     </message>
@@ -25987,6 +25983,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Apply</source>
         <translation>Applica</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Sposta: trascina per spostare, Maiusc+trascina lo mantiene orizzontale o verticale, %ALT%+trascina duplica. %CTRL%+clic seleziona un livello, Maiusc+clic lo attiva o disattiva. %CTRL%+trascina seleziona un rettangolo, come trascinare su uno spazio vuoto con Selezione automatica attiva.</translation>
     </message>
 </context>
 <context>
