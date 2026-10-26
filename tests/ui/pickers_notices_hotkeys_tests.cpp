@@ -3328,6 +3328,96 @@ void ui_options_bar_tab_focus_shows_a_themed_outline() {
     }
   }
 }
+// Tab and Shift+Tab stay inside the options bar: from the last control Tab wraps to the first,
+// from the first Shift+Tab wraps to the last, every stop on the way is a bar control in reading
+// order with the keyboard outline, and the keyboard never walks on into the Layers panel or the
+// document tabs (GitHub issue 439 follow-up).
+void ui_options_bar_tab_wraps_within_the_bar() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1366, 738);
+  QApplication::processEvents();
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options != nullptr);
+  if (options == nullptr) {
+    return;
+  }
+  const auto in_bar = [options](QWidget* widget) { return widget != nullptr && options->isAncestorOf(widget); };
+  for (const char* tool : {"Brush", "Magic Wand"}) {
+    require_action_by_text(window, QString::fromLatin1(tool))->trigger();
+    QApplication::processEvents();
+    // Start on the canvas side of the bar: the first field, focused by a click.
+    QWidget* start = nullptr;
+    for (auto* spin : options->findChildren<QAbstractSpinBox*>()) {
+      if (spin->isVisible() && spin->isEnabled() &&
+          (start == nullptr || spin->mapTo(options, QPoint()).x() < start->mapTo(options, QPoint()).x())) {
+        start = spin;
+      }
+    }
+    CHECK(start != nullptr);
+    if (start == nullptr) {
+      continue;
+    }
+    start->setFocus(Qt::MouseFocusReason);
+    QApplication::processEvents();
+    // Tab round the bar until it comes back to the start; the stops seen are the cycle.
+    std::vector<QWidget*> cycle{start};
+    bool left_bar = false;
+    for (int press = 0; press < 80; ++press) {
+      QTest::keyClick(QApplication::focusWidget(), Qt::Key_Tab);
+      QApplication::processEvents();
+      auto* focus = QApplication::focusWidget();
+      if (!in_bar(focus)) {
+        left_bar = true;
+        break;
+      }
+      if (auto* parent = focus->parentWidget();
+          qobject_cast<QLineEdit*>(focus) != nullptr &&
+          (qobject_cast<QAbstractSpinBox*>(parent) != nullptr || qobject_cast<QComboBox*>(parent) != nullptr)) {
+        focus = parent;
+      }
+      CHECK(focus->property("optionsKeyboardFocus").toBool());
+      if (focus == start) {
+        break;
+      }
+      cycle.push_back(focus);
+    }
+    CHECK(!left_bar);
+    CHECK(QApplication::focusWidget() != nullptr && in_bar(QApplication::focusWidget()));
+    CHECK(cycle.size() >= 4);
+    std::printf("  %s: %d Tab stops\n", tool, static_cast<int>(cycle.size()));
+    // Reading order: the first stop is the leftmost on the top row, the last the rightmost.
+    std::vector<QWidget*> ordered = cycle;
+    const auto first_it = std::min_element(ordered.begin(), ordered.end(), [options](QWidget* a, QWidget* b) {
+      const auto pa = a->mapTo(options, a->rect().center());
+      const auto pb = b->mapTo(options, b->rect().center());
+      return std::abs(pa.y() - pb.y()) > 8 ? pa.y() < pb.y() : pa.x() < pb.x();
+    });
+    std::rotate(ordered.begin(), first_it, ordered.end());
+    for (std::size_t i = 1; i < ordered.size(); ++i) {
+      const auto previous = ordered[i - 1]->mapTo(options, ordered[i - 1]->rect().center());
+      const auto current = ordered[i]->mapTo(options, ordered[i]->rect().center());
+      CHECK(current.y() - previous.y() > 8 || (std::abs(current.y() - previous.y()) <= 8 && current.x() > previous.x()));
+    }
+    QWidget* first = ordered.front();
+    QWidget* last = ordered.back();
+    // Tab on the last control lands on the first.
+    last->setFocus(Qt::TabFocusReason);
+    QApplication::processEvents();
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Tab);
+    QApplication::processEvents();
+    CHECK(first->hasFocus());
+    CHECK(first->property("optionsKeyboardFocus").toBool());
+    // Shift+Tab on the first lands on the last.
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Backtab, Qt::ShiftModifier);
+    QApplication::processEvents();
+    CHECK(last->hasFocus());
+    CHECK(last->property("optionsKeyboardFocus").toBool());
+    // Esc still hands the keyboard back to the canvas.
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+    QApplication::processEvents();
+    CHECK(canvas->hasFocus());
+  }
+}
 // Size-like sliders use SliderCurve::FineLowEnd: the value grows with the
 // square of the handle position, so small sizes get most of the track.
 void ui_size_sliders_give_the_low_end_most_of_the_track() {
@@ -4260,6 +4350,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas",
        ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas},
       {"ui_options_bar_tab_focus_shows_a_themed_outline", ui_options_bar_tab_focus_shows_a_themed_outline},
+      {"ui_options_bar_tab_wraps_within_the_bar", ui_options_bar_tab_wraps_within_the_bar},
       {"ui_size_sliders_give_the_low_end_most_of_the_track",
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},

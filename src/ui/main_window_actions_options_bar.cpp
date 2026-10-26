@@ -120,6 +120,7 @@
 #include <optional>
 #include <qlatin1stringview.h>
 #include <utility>
+#include <vector>
 
 
 // Icon resources live in the static patchy_ui library; force registration before first use.
@@ -351,6 +352,42 @@ void set_options_bar_keyboard_focus(QWidget* control, bool keyboard) {
   control->update();
 }
 
+// The bar's Tab stops in reading order: visible, enabled controls that take Tab focus, row by
+// row, left to right (a spin box or combo once, not its line edit).
+std::vector<QWidget*> options_bar_tab_stops(QWidget* container) {
+  struct Stop {
+    QWidget* widget;
+    QPoint center;
+  };
+  std::vector<Stop> stops;
+  for (auto* widget : container->findChildren<QWidget*>()) {
+    if (options_bar_focus_control(widget) != widget || widget->focusProxy() != nullptr ||
+        (widget->focusPolicy() & Qt::TabFocus) == 0 || !widget->isVisible() || !widget->isEnabled()) {
+      continue;
+    }
+    stops.push_back({widget, widget->mapTo(container, widget->rect().center())});
+  }
+  // Rows first (a wrapped bar), then x. Controls on one row are centered on it, so their
+  // centers sit within a few pixels; rows are a field height apart.
+  std::sort(stops.begin(), stops.end(), [](const Stop& a, const Stop& b) { return a.center.y() < b.center.y(); });
+  constexpr int kSameRowSlack = 8;
+  auto row_start = stops.begin();
+  while (row_start != stops.end()) {
+    auto row_end = row_start;
+    while (row_end != stops.end() && row_end->center.y() - row_start->center.y() <= kSameRowSlack) {
+      ++row_end;
+    }
+    std::stable_sort(row_start, row_end, [](const Stop& a, const Stop& b) { return a.center.x() < b.center.x(); });
+    row_start = row_end;
+  }
+  std::vector<QWidget*> widgets;
+  widgets.reserve(stops.size());
+  for (const auto& stop : stops) {
+    widgets.push_back(stop.widget);
+  }
+  return widgets;
+}
+
 }  // namespace
 
 bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event) {
@@ -395,13 +432,39 @@ bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event)
   const bool escape = key_event->key() == Qt::Key_Escape && key_event->modifiers() == Qt::NoModifier;
   const bool enter = (key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter) &&
                      is_options_bar_text_field(control);
+  const auto tab_modifiers = key_event->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+  const bool backtab = key_event->key() == Qt::Key_Backtab ||
+                       (key_event->key() == Qt::Key_Tab && (key_event->modifiers() & Qt::ShiftModifier) != 0);
+  const bool tab = (key_event->key() == Qt::Key_Tab || key_event->key() == Qt::Key_Backtab) &&
+                   tab_modifiers == Qt::NoModifier && QApplication::activePopupWidget() == nullptr;
   if (type == QEvent::ShortcutOverride) {
     // Esc belongs to the field (revert, then leave): no window shortcut runs on the same press.
-    if (escape) {
+    // Tab and Shift+Tab move within the bar below.
+    if (escape || tab) {
       key_event->accept();
       return true;
     }
     return false;
+  }
+  if (tab) {
+    // Tab and Shift+Tab cycle through the bar's controls in reading order and wrap at either end;
+    // the keyboard never walks on into the panels or the document tabs (GitHub issue 439
+    // follow-up). Esc or Enter hand it back to the canvas.
+    const auto stops = options_bar_tab_stops(options_flow_container_);
+    if (stops.empty()) {
+      return false;
+    }
+    const auto found = std::find(stops.begin(), stops.end(), control);
+    std::size_t next = 0;
+    if (found == stops.end()) {
+      next = backtab ? stops.size() - 1 : 0;
+    } else {
+      const auto index = static_cast<std::size_t>(found - stops.begin());
+      next = backtab ? (index + stops.size() - 1) % stops.size() : (index + 1) % stops.size();
+    }
+    stops[next]->setFocus(backtab ? Qt::BacktabFocusReason : Qt::TabFocusReason);
+    key_event->accept();
+    return true;
   }
   if (!escape && !enter) {
     return false;
