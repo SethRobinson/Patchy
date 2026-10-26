@@ -12931,6 +12931,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>マスクの境界をこのピクセル数だけぼかします</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n 色、誤差拡散</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n 色、ディザなし</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>パレットに入れる最大の色数。これより色の少ない画像は色がそのまま保たれます。</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>誤差拡散</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>隣り合うパレット色を混ぜて、グラデーションの縞を減らします。通常はファイルが大きくなります。</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>ファイルが使う色</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>パレット</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>パレットは最大 256 色で書き出し、ベタ塗りのグラフィック、ロゴ、スクリーンショットではずっと小さくなります。</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>不透明度 50% 未満のピクセルは透明になります。</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 設定</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>レイヤー名が 0.25s のような時間で終わると、そのフレームの表示時間になります。</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレームの表示時間:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28573,6 +28625,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers には colorMode: &quot;rgb&quot; が必要です。レイヤー付き TIFF は RGB で保存されます。</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: PNG で colors、dither、ditherAmount を使うには pngColors: &quot;palette&quot; が必要です。</translation>
     </message>
 </context>
 <context>

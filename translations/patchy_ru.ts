@@ -13001,6 +13001,62 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>Смягчает края маски на это число пикселей</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n цвет, диффузия</numerusform>
+            <numerusform>%n цвета, диффузия</numerusform>
+            <numerusform>%n цветов, диффузия</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n цвет, без дизеринга</numerusform>
+            <numerusform>%n цвета, без дизеринга</numerusform>
+            <numerusform>%n цветов, без дизеринга</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>Наибольшее число цветов в палитре. Изображение с меньшим числом цветов сохраняет их точно.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Диффузия</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>Диффузия смешивает соседние цвета палитры, чтобы на градиентах было меньше полос. Обычно файл становится больше.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>Цвета, которые использует файл</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Палитра</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Палитра записывает до 256 цветов, намного меньше для плоской графики, логотипов и снимков экрана.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>Пиксели с непрозрачностью ниже 50% становятся прозрачными.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>Параметры GIF</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Имя слоя, оканчивающееся временем, например 0.25s, задаёт задержку этого кадра.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Задержка кадра:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28723,6 +28779,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: для layers нужен colorMode: &quot;rgb&quot;; TIFF со слоями сохраняется в RGB.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: для PNG параметрам colors, dither и ditherAmount нужен pngColors: &quot;palette&quot;.</translation>
     </message>
 </context>
 <context>

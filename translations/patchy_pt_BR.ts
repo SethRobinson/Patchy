@@ -12966,6 +12966,60 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>Suaviza as bordas da máscara por este número de pixels</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n cor, difusão</numerusform>
+            <numerusform>%n cores, difusão</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n cor, sem pontilhado</numerusform>
+            <numerusform>%n cores, sem pontilhado</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>O máximo de cores da paleta. Uma imagem com menos cores as mantém exatas.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Difusão</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>A difusão mistura cores vizinhas da paleta para os degradês formarem menos faixas. Costuma aumentar o arquivo.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>As cores que o arquivo usa</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Paleta</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Paleta grava até 256 cores, bem menor para gráficos chapados, logotipos e capturas de tela.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>Pixels abaixo de 50% de opacidade ficam transparentes.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>Configurações de GIF</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Um nome de camada que termina com um tempo como 0.25s define o atraso desse quadro.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Atraso do quadro:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28648,6 +28702,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers exige colorMode: &quot;rgb&quot;; um TIFF com camadas é salvo em RGB.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: colors, dither e ditherAmount precisam de pngColors: &quot;palette&quot; para PNG.</translation>
     </message>
 </context>
 <context>

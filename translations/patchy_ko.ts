@@ -12931,6 +12931,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>마스크 가장자리를 이 픽셀 수만큼 부드럽게 합니다</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n색, 확산</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n색, 디더링 없음</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>팔레트에 담을 최대 색 수입니다. 이보다 색이 적은 이미지는 색이 그대로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>확산</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>인접한 팔레트 색을 섞어 그라디언트의 띠를 줄입니다. 보통 파일이 커집니다.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>파일이 사용하는 색</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>팔레트</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>팔레트는 최대 256색으로 저장하며, 단색 그래픽, 로고, 스크린샷에서 훨씬 작아집니다.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>불투명도 50% 미만의 픽셀은 투명해집니다.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 설정</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>레이어 이름이 0.25s 같은 시간으로 끝나면 그 프레임의 지연 시간이 됩니다.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>프레임 지연:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28573,6 +28625,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers에는 colorMode: &quot;rgb&quot;가 필요합니다. 레이어가 있는 TIFF는 RGB로 저장됩니다.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: PNG에서 colors, dither, ditherAmount에는 pngColors: &quot;palette&quot;가 필요합니다.</translation>
     </message>
 </context>
 <context>

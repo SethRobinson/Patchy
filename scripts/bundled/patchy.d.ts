@@ -720,6 +720,17 @@ interface PatchySaveOptions {
   quality?: number;
   /** .webp, .jxr, .jxl, .avif: lossless compression; .pdf: Flate image data (an imageQuality preset wins). */
   lossless?: boolean;
+  /** .gif, and .png with pngColors "palette": at most this many colors, 2..256 (default 256;
+   *  a transparent entry counts toward it). */
+  colors?: number;
+  /** .gif and palette .png: "diffusion" mixes neighboring palette colors so gradients band less
+   *  (default "none"). */
+  dither?: "none" | "diffusion";
+  /** .gif and palette .png: how strongly diffusion spreads, 0..100 (default 100). */
+  ditherAmount?: number;
+  /** .png: "palette" writes an indexed PNG (up to 256 colors, pixels under 50% alpha transparent);
+   *  "full" (the default) writes full color. colors, dither and ditherAmount need "palette". */
+  pngColors?: "full" | "palette";
   /** .jpg/.jpeg: progressive scans (a rough image shows first while a page loads). Default false;
    *  File > Export for Web turns it on. */
   progressive?: boolean;

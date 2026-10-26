@@ -360,11 +360,13 @@ std::string format_delay_seconds_token(std::uint16_t delay_cs) {
   return whole + "." + fraction + "s";
 }
 
-std::vector<std::uint8_t> write(const Document& document) {
+std::vector<std::uint8_t> write(const Document& document) { return write(document, QuantizeOptions{}); }
+
+std::vector<std::uint8_t> write(const Document& document, const QuantizeOptions& options) {
   const auto indexed =
       document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty()
           ? indexed_flatten_for_palette_mode(document)
-          : indexed_flatten_quantized(document, 256, kQuantizeAlphaThreshold);
+          : indexed_flatten_quantized(document, kQuantizeAlphaThreshold, options);
   return encode(indexed.width, indexed.height, indexed.palette, indexed.indexes, indexed.transparent_index);
 }
 

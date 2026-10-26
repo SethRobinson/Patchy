@@ -12966,6 +12966,60 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>Ammorbidisce i bordi della maschera di questo numero di pixel</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n colore, diffusione</numerusform>
+            <numerusform>%n colori, diffusione</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n colore, senza retinatura</numerusform>
+            <numerusform>%n colori, senza retinatura</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>Il numero massimo di colori della tavolozza. Un&apos;immagine con meno colori li mantiene esatti.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Diffusione</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>La diffusione mescola i colori vicini della tavolozza così le sfumature formano meno bande. Di solito il file cresce.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>I colori usati dal file</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Tavolozza</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Tavolozza scrive fino a 256 colori, molto più piccolo per grafica a tinte piatte, loghi e screenshot.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>I pixel sotto il 50% di opacità diventano trasparenti.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>Impostazioni GIF</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Un nome di livello che termina con un tempo come 0.25s imposta il ritardo di quel fotogramma.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Ritardo fotogramma:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28648,6 +28702,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers richiede colorMode: &quot;rgb&quot;; un TIFF con livelli viene salvato in RGB.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: colors, dither e ditherAmount richiedono pngColors: &quot;palette&quot; per PNG.</translation>
     </message>
 </context>
 <context>

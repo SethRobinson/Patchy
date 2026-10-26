@@ -48,4 +48,18 @@ struct IndexedFlattenResult {
 [[nodiscard]] IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::size_t max_colors,
                                                            std::uint8_t alpha_threshold);
 
+// Quantization choices for the GIF and palette PNG writers (File > Export for Web,
+// docs/web-export.md): the color count (2..256, one slot of it reserved for transparency
+// when needed) and Floyd-Steinberg error diffusion scaled by `diffusion_amount` (0..100,
+// apply_palette_to_pixels). The defaults are exactly indexed_rgba8_quantized(rgba, 256, t).
+struct QuantizeOptions {
+  std::size_t max_colors{256};
+  bool diffuse{false};
+  int diffusion_amount{100};
+};
+[[nodiscard]] IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::uint8_t alpha_threshold,
+                                                           const QuantizeOptions& options);
+[[nodiscard]] IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::uint8_t alpha_threshold,
+                                                             const QuantizeOptions& options);
+
 }  // namespace patchy

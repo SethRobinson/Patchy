@@ -12931,6 +12931,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>以此像素數柔化遮色片邊緣</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n 色，擴散</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n 色，無遞色</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>調色盤最多可容納的色彩數。色彩較少的影像會原樣保留其色彩。</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>擴散</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>擴散會混合相鄰的調色盤色彩，讓漸層的色帶更少。檔案通常會變大。</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>檔案使用的色彩</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>調色盤</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>調色盤最多寫出 256 種色彩，對平面圖形、標誌和螢幕截圖要小得多。</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>不透明度低於 50% 的像素會變為透明。</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 設定</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>圖層名稱以 0.25s 這類時間結尾時，即為該影格的延遲。</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>影格延遲:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28573,6 +28625,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1：layers 需要 colorMode: &quot;rgb&quot;；含圖層的 TIFF 會以 RGB 儲存。</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1：PNG 的 colors、dither 和 ditherAmount 需要 pngColors: &quot;palette&quot;。</translation>
     </message>
 </context>
 <context>

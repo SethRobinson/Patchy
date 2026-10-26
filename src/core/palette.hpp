@@ -133,9 +133,11 @@ enum class PaletteDither {
 // dithers). Alpha is thresholded to 0/255 first; fully transparent pixels keep
 // their RGB and neither receive nor diffuse dither error. Floyd-Steinberg scans
 // serpentine rows with integer error math so output is toolchain-deterministic.
-// Returns the touched bounds in buffer coordinates.
+// Returns the touched bounds in buffer coordinates. `diffusion_amount` (0..100) scales the
+// Floyd-Steinberg error before it spreads (integer, truncating toward zero); 100 is the
+// full diffusion every caller had before it existed, 0 is no dithering.
 Rect apply_palette_to_pixels(PixelBuffer& pixels, const PaletteLut& lut, PaletteDither dither,
-                             std::uint8_t alpha_threshold);
+                             std::uint8_t alpha_threshold, int diffusion_amount = 100);
 
 // True when every pixel is palette-clean: alpha (if present) is exactly 0 or 255
 // and every visible pixel's RGB is an exact palette color.
