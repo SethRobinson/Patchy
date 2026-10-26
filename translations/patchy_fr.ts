@@ -25916,6 +25916,74 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation et superposition</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>Récupérer la sélection du masque de fusion</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>Ajouté à la sélection</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>Soustrait de la sélection</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>Intersection avec la sélection effectuée</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>Sélectionner les pixels</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>Ajouter les pixels à la sélection</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>Soustraire les pixels de la sélection</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>Intersection des pixels avec la sélection</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>Activer le masque de fusion</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>Activer le masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>Désactiver le masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>Sélectionner les pixels du masque</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>Ajouter le masque à la sélection</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>Soustraire le masque de la sélection</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>Intersection du masque avec la sélection</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>Appliquer le masque au calque avant de le supprimer ?</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Appliquer</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

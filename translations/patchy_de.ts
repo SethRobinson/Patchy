@@ -25916,6 +25916,74 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung und Überlagerung</translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation>Ebenenmaskenauswahl laden</translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation>Der Auswahl hinzugefügt</translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation>Von der Auswahl subtrahiert</translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation>Schnittmenge mit der Auswahl gebildet</translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation>Pixel auswählen</translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation>Pixel der Auswahl hinzufügen</translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation>Pixel von Auswahl subtrahieren</translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation>Schnittmenge von Pixeln und Auswahl bilden</translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation>Ebenenmaske aktivieren</translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation>Vektormaske aktivieren</translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation>Vektormaske deaktivieren</translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation>Maskenpixel auswählen</translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation>Maske der Auswahl hinzufügen</translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation>Maske von Auswahl subtrahieren</translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation>Schnittmenge von Maske und Auswahl bilden</translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation>Maske vor dem Löschen auf die Ebene anwenden?</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Anwenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

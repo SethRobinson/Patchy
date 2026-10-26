@@ -25834,6 +25834,74 @@ The open document keeps its blend modes either way.</source>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Load layer mask selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added to the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtracted from the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intersected with the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Pixels to Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtract Pixels from Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intersect Pixels with Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Layer Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Mask Pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Mask to Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtract Mask from Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intersect Mask with Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply the mask to the layer before deleting it?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

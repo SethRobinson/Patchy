@@ -62,6 +62,10 @@ enum class LayerCtrlClickTarget {
   VectorMaskThumbnail
 };
 
+// The selection combine a thumbnail Ctrl-click asks for (#433): plain replaces (0), Shift adds
+// (1), Alt subtracts (2), Shift+Alt intersects (3), combine_selection_coverage's operations.
+[[nodiscard]] int thumbnail_click_selection_operation(Qt::KeyboardModifiers modifiers);
+
 class LayerListWidget final : public QListWidget, public QAbstractNativeEventFilter {
 public:
   explicit LayerListWidget(QWidget* parent = nullptr);
@@ -87,7 +91,13 @@ public:
   // Library) keeps the list enabled in this mode instead of disabling it.
   void set_visibility_only(bool visibility_only);
   [[nodiscard]] bool visibility_only() const noexcept { return visibility_only_; }
-  void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
+  // Ctrl-click (Cmd on macOS) on a thumbnail loads it as a selection; the click's own
+  // modifiers pick the combine (Shift adds, Alt subtracts, both intersect; #433).
+  void set_ctrl_click_callback(
+      std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
+  // Which thumbnail of `item`'s row lies under `viewport_pos`, if any.
+  [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
+                                                                      QPoint viewport_pos) const;
   void set_thumbnail_click_callback(
       std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
   void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
@@ -173,8 +183,6 @@ private:
   void sweep_visibility_to(QPoint viewport_position);
   void update_visibility_sweep_auto_scroll();
   void end_visibility_sweep();
-  [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
-                                                                      QPoint viewport_pos) const;
   void toggle_ctrl_selection(QListWidgetItem* item);
   void select_range_to_item(QListWidgetItem* target_item, bool additive = false);
   void begin_single_drag_item(QListWidgetItem* item);
@@ -272,7 +280,7 @@ private:
   std::function<void(LayerId)> visibility_isolate_callback_;
   std::function<void(LayerId, bool)> visibility_sweep_callback_;
   QPointer<QWidget> clip_cursor_widget_;
-  std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
+  std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
   std::function<void(QListWidgetItem*)> content_thumbnail_double_click_callback_;
