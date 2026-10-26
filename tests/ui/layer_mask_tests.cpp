@@ -894,7 +894,8 @@ void ui_layer_mask_thumbnail_right_click_opens_mask_menu() {
   auto seen = mask_menu("layerMaskThumbnailToggleAction", "issue431_mask_thumbnail_menu");
   CHECK(seen.name == QStringLiteral("layerMaskThumbnailMenu"));
   CHECK(seen.actions ==
-        (QStringList{QStringLiteral("layerMaskThumbnailToggleAction"), QStringLiteral("-"),
+        (QStringList{QStringLiteral("layerMaskThumbnailToggleAction"),
+                     QStringLiteral("layerMaskThumbnailPropertiesAction"), QStringLiteral("-"),
                      QStringLiteral("layerDeleteMaskAction"), QStringLiteral("layerApplyMaskAction"),
                      QStringLiteral("-"), QStringLiteral("layerMaskThumbnailSelectAction"),
                      QStringLiteral("layerMaskThumbnailAddAction"), QStringLiteral("layerMaskThumbnailSubtractAction"),

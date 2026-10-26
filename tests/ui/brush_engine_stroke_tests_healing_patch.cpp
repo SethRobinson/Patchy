@@ -710,7 +710,8 @@ void ui_paint_tool_hints_name_shared_gestures() {
   for (std::size_t index = 0; index < tools.size(); ++index) {
     const auto& tool = tools[index];
     const auto& message = messages[index];
-    CHECK(message.startsWith(QString::fromLatin1(tool.prefix).arg(alt)));
+    // replace(), not arg(): most prefixes name no modifier, and arg() warns on those.
+    CHECK(message.startsWith(QString::fromLatin1(tool.prefix).replace(QStringLiteral("%1"), alt)));
     CHECK(message.endsWith(alt + QStringLiteral("+right-drag changes size and softness.")));
     CHECK(!message.contains(ctrl + QLatin1Char('+')));
     CHECK(!message.contains(QStringLiteral("drag to paint")));

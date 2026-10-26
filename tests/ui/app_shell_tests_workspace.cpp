@@ -2760,9 +2760,12 @@ void ui_main_window_renders_color_controls() {
                                       QStringLiteral("Layer"),  QStringLiteral("Type"),   QStringLiteral("Select"),
                                       QStringLiteral("Filter"), QStringLiteral("Plugins"), QStringLiteral("View"),
                                       QStringLiteral("Window"), QStringLiteral("Help")};
+  // The Theme menu after Help stays hidden until a theme script adds commands.
   QStringList actual_menus;
   for (auto* action : window.menuBar()->actions()) {
-    actual_menus << action->text().remove('&');
+    if (action->isVisible()) {
+      actual_menus << action->text().remove('&');
+    }
   }
   CHECK(actual_menus == expected_menus);
   CHECK(window.menuBar()->height() >= 30);

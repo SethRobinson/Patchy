@@ -32,6 +32,7 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFileInfo>
+#include <QMessageBox>
 #include <QLockFile>
 #include <QMessageBox>
 #include <QMetaObject>
@@ -173,6 +174,10 @@ void report_open_windows() {
           text += std::string("  open window: ") + widget->metaObject()->className() + " objectName='" +
                   widget->objectName().toStdString() + "' title='" + widget->windowTitle().toStdString() + "'" +
                   (widget->isModal() ? " modal" : "") + '\n';
+          // macOS message boxes have no title, so the text is what names the question.
+          if (const auto* box = qobject_cast<const QMessageBox*>(widget)) {
+            text += "    text: '" + box->text().simplified().toStdString() + "'\n";
+          }
         }
         if (auto* modal = QApplication::activeModalWidget(); modal != nullptr) {
           text += std::string("  active modal: ") + modal->metaObject()->className() + " objectName='" +

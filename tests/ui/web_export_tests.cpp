@@ -26,6 +26,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTimer>
@@ -616,8 +617,20 @@ void ui_web_export_dialog_previews_and_saves() {
       file_dialog_timer->stop();
       file_dialog_timer->deleteLater();
       saved_dialog_seen = true;
-      file_dialog->setDirectory(QFileInfo(target).absolutePath());
+      // selectFile leaves the name field alone while it has the focus, which it does by now on
+      // macOS: the dialog then saved its default name beside the last export. Type it instead.
       file_dialog->selectFile(target);
+      if (auto* name = file_dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); name != nullptr) {
+        name->setText(target);
+      }
+      const auto chosen = file_dialog->selectedFiles();
+      if (chosen.size() != 1 || QFileInfo(chosen.front()).fileName() != QFileInfo(target).fileName()) {
+        // Never throw here (inside the dialog's event loop); refuse rather than save elsewhere.
+        patchy::test::report_failure("Export for Web file dialog did not take the target name: " +
+                                     chosen.join(QLatin1Char(',')).toStdString());
+        static_cast<QDialog*>(file_dialog)->reject();
+        return;
+      }
       static_cast<QDialog*>(file_dialog)->accept();
     });
     file_dialog_timer->start();

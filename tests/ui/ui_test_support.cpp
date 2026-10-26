@@ -1188,6 +1188,9 @@ void cleanup_after_visual_test() {
         // The foreground/background pair (GitHub issue 339): a test that picked a color must
         // not start the next test's window painting in it.
         "tools/foregroundColor", "tools/backgroundColor",
+        // The Zoom bar's direction and Scrubby Zoom, and the Move bar's Transform Controls
+        // (GitHub issue 351): a test that left Zoom Out checked moved the Zoom bar's separator.
+        "tools/zoomToolZoomsOut", "tools/zoomScrubby", "tools/showTransformControls",
         // Preferences reopens on the page it was closed on (GitHub issue 451); every test
         // starts it on Application.
         "preferences/lastPage"}) {

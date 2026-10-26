@@ -1248,7 +1248,10 @@ void ui_move_rectangle_cancellation_preserves_pixels_selection_and_history() {
   CHECK(scene.selection_edits == 0);
 }
 
-void ui_move_rectangle_theme_and_passive_handle_priority() {
+// The Ctrl rectangle draws in the scheme's layer-selection colors, and Ctrl beside the
+// passive transform box (clear of its handles) still starts one. Ctrl on a corner or side
+// distorts instead (GitHub issue 351; free_transform_distort_tests.cpp).
+void ui_move_rectangle_theme_and_ctrl_beside_passive_box() {
   const auto saved_scheme = patchy::ui::active_color_scheme();
   const auto restore = qScopeGuard([saved_scheme] { patchy::ui::set_active_color_scheme(saved_scheme); });
   for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
@@ -1256,7 +1259,7 @@ void ui_move_rectangle_theme_and_passive_handle_priority() {
     MoveSelectionScene scene;
     scene.canvas.set_show_transform_controls(true);
     scene.select({scene.red}, scene.red);
-    const auto start = scene.point(QPoint(20, 20)); // Passive corner handle.
+    const auto start = scene.point(QPoint(12, 12)); // Up-left of the box's corner handle.
     const auto end = scene.point(QPoint(90, 55));
     send_mouse(scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
     send_mouse(scene.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
@@ -5424,7 +5427,7 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_rectangle_uses_content_bounds_and_inherited_eligibility},
       {"ui_move_rectangle_cancellation_preserves_pixels_selection_and_history",
        ui_move_rectangle_cancellation_preserves_pixels_selection_and_history},
-      {"ui_move_rectangle_theme_and_passive_handle_priority", ui_move_rectangle_theme_and_passive_handle_priority},
+      {"ui_move_rectangle_theme_and_ctrl_beside_passive_box", ui_move_rectangle_theme_and_ctrl_beside_passive_box},
       {"ui_move_pending_click_cancel_and_empty_document_are_safe", ui_move_pending_click_cancel_and_empty_document_are_safe},
       {"ui_move_escape_deselects_layers_without_gesture", ui_move_escape_deselects_layers_without_gesture},
       {"ui_move_empty_click_and_rectangle_deselect_layers", ui_move_empty_click_and_rectangle_deselect_layers},

@@ -21,9 +21,11 @@
 #include <QDialog>
 #include <QDir>
 #include <QFontDatabase>
+#include <QGlyphRun>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTextEdit>
+#include <QTextLayout>
 #include <QTimer>
 #include <algorithm>
 #include <functional>
@@ -129,6 +131,29 @@ std::optional<std::pair<double, double>> bar_edges(const patchy::Layer& layer) {
 
 bool has_family(const char* family) {
   return QFontDatabase::hasFamily(QString::fromLatin1(family));
+}
+
+// Whether the family's OpenType `tag` changes the glyphs of `text` (Patchy applies a feature only
+// then). Windows' Arial has smcp and frac; the Arial macOS ships has neither.
+bool font_feature_changes(const char* family, const char* tag, const QString& text) {
+  const auto glyphs = [&text](const QFont& font) {
+    QTextLayout layout(text, font);
+    layout.beginLayout();
+    auto line = layout.createLine();
+    layout.endLayout();
+    QList<quint32> indexes;
+    if (line.isValid()) {
+      for (const auto& run : line.glyphRuns()) {
+        indexes += run.glyphIndexes();
+      }
+    }
+    return indexes;
+  };
+  QFont font(QString::fromLatin1(family));
+  font.setPixelSize(static_cast<int>(kSize));
+  auto featured = font;
+  featured.setFeature(QFont::Tag::fromString(QLatin1String(tag)).value(), 1);
+  return glyphs(featured) != glyphs(font);
 }
 
 // Adds a 100 px text layer made of `runs` (a JS array literal) at a fixed anchor and returns it.
@@ -270,7 +295,9 @@ void ui_text_script_and_caps_match_photoshop_if_available() {
     const auto small = ink_of(*small_caps, 0.45, 1.0);
     CHECK(small.has_value());
     if (small) {
-      expect_near(small->height(), 0.56 * kSize, 2.5, "Arial small capital height");
+      // Without smcp (macOS's Arial) the small capital is synthesized at 70% of the 0.716 em cap.
+      const double expected = font_feature_changes("Arial", "smcp", QStringLiteral("xh")) ? 0.56 : 0.50;
+      expect_near(small->height(), expected * kSize, 2.5, "Arial small capital height");
     }
     if (!photoshop_layout) {
       save_widget_artifact("ui_text_script_and_caps", window);
@@ -300,7 +327,12 @@ void ui_text_ordinals_and_fractions_use_the_font_features_if_available() {
   const auto fraction_ink = ink_of(*fraction);
   CHECK(plain_fraction_ink && fraction_ink);
   if (plain_fraction_ink && fraction_ink) {
-    CHECK(fraction_ink->width() < plain_fraction_ink->width() * 0.75);
+    if (font_feature_changes("Arial", "frac", QStringLiteral("1/2"))) {
+      CHECK(fraction_ink->width() < plain_fraction_ink->width() * 0.75);
+    } else {
+      // A face without fractions (macOS's Arial) leaves the text as typed, as Photoshop does.
+      CHECK(std::ranges::equal(plain_fraction->pixels().data(), fraction->pixels().data()));
+    }
   }
   CHECK(std::ranges::equal(plain_ordinal->pixels().data(), ordinal->pixels().data()));
   if (has_family("Calibri")) {

@@ -899,8 +899,8 @@ void ui_mcp_running_browsing_and_conflict_feedback() {
             if (browsing_hold.elapsed() < 4800) return;
             seen = true; closer.stop();
             try { if (name == QStringLiteral("patchyPreferencesDialog")) {
-              auto* tabs = dialog->findChild<QTabWidget*>();
-              CHECK(tabs && tabs->count() > 1); tabs->setCurrentIndex(1);
+              auto* pages = preferences_page_list(*dialog);
+              CHECK(pages && pages->count() > 1); pages->setCurrentRow(1);
               QKeyEvent apply(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
               QApplication::sendEvent(dialog, &apply);
               CHECK(dialog->isVisible());
