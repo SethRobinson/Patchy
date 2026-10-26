@@ -1162,9 +1162,17 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   artboards->setObjectName(QStringLiteral("newDocumentArtboardsCheck"));
   artboards->setToolTip(QObject::tr("Start the document as an artboard the size of the canvas"));
   artboards->setChecked(app_settings().value(QStringLiteral("newDocument/artboards"), false).toBool());
+  // This document only (GitHub issue 363): starts at the Preferences choice every time the
+  // dialog opens and never changes it. Not stored in Recent cards or saved presets.
+  auto* empty_layer = new QCheckBox(QObject::tr("Empty layer above Background"), &dialog);
+  empty_layer->setObjectName(QStringLiteral("newDocumentEmptyLayerCheck"));
+  empty_layer->setToolTip(QObject::tr("Add an empty layer above the Background. The default comes from "
+                                      "Preferences; changing it here affects only this document."));
+  empty_layer->setChecked(app_settings().value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool());
   add_row_label(QObject::tr("Color Profile"), 7);
   grid->addWidget(color_profile, 7, 1, 1, 2);
-  grid->addWidget(artboards, 8, 1, 1, 2);
+  grid->addWidget(empty_layer, 8, 1, 1, 2);
+  grid->addWidget(artboards, 9, 1, 1, 2);
 
   auto* summary = new QLabel(&dialog);
   summary->setObjectName(QStringLiteral("newDocumentSummaryLabel"));
@@ -1290,8 +1298,13 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     }
     return QObject::tr("%1K").arg(bytes / 1024.0, 0, 'f', 1);
   };
+  // An artboard document and a Clipboard document have no Background, so the choice is
+  // greyed for them.
+  const auto refresh_empty_layer = [&current_preset_id, artboards, empty_layer] {
+    empty_layer->setEnabled(current_preset_id != kClipboardPresetId && !artboards->isChecked());
+  };
   const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes, bit_depth, current_unit,
-                               refresh_save_preset] {
+                               refresh_save_preset, refresh_empty_layer] {
     // Bullet built from its code point: the sources build without /utf-8, so a raw
     // non-ASCII character in a literal would depend on the system codepage.
     const QString separator = QStringLiteral("  ") + QChar(0x2022) + QStringLiteral("  ");
@@ -1318,6 +1331,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
                  QString::number(state.ppi, 'g', 6));
     summary->setText(current_preset_name + QChar('\n') + dimensions_line + QChar('\n') + physical_line);
     refresh_save_preset();
+    refresh_empty_layer();
   };
 
   const auto set_fields_enabled = [width, height, unit, resolution, resolution_unit, background,
@@ -1724,7 +1738,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       refresh_save_preset();
     }
   });
-  QObject::connect(artboards, &QCheckBox::toggled, &dialog, [&](bool) { refresh_save_preset(); });
+  QObject::connect(artboards, &QCheckBox::toggled, &dialog, [&](bool) {
+    refresh_save_preset();
+    refresh_empty_layer();
+  });
   QObject::connect(color_mode, &QComboBox::currentIndexChanged, &dialog, [&](int) {
     refresh_color_profile();
     refresh_save_preset();
@@ -1970,6 +1987,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   result.clipboard_image = clipboard_selected ? QApplication::clipboard()->image() : QImage();
   result.artboards = !clipboard_selected && artboards->isChecked();
   result.cmyk_proof = chosen_cmyk_proof;
+  result.add_empty_layer = empty_layer->isChecked();
   result.name = sanitized_new_document_name(name->text());
   if (result.name.isEmpty()) {
     result.name = fallback_name;

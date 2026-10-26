@@ -1426,7 +1426,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
 }  // namespace
 
 void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
-                                double resolution_ppi, QString title) {
+                                double resolution_ppi, QString title, std::optional<bool> add_empty_layer) {
   Document new_document(width, height, PixelFormat::rgb8());
   if (std::isfinite(resolution_ppi) && resolution_ppi > 0.0) {
     new_document.print_settings().horizontal_ppi = std::clamp(resolution_ppi, 1.0, 9999.0);
@@ -1442,8 +1442,9 @@ void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor 
   if (background_format == PixelFormat::rgb8()) {
     set_layer_locks_transparent_pixels(background_layer, true);
   }
-  // Preferences can leave a new document as the Background alone, selected (GitHub issue 363).
-  if (app_settings().value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool()) {
+  // Preferences, or the New Document checkbox for one document, can leave a new document as
+  // the Background alone, selected (GitHub issue 363).
+  if (add_empty_layer.value_or(app_settings().value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool())) {
     new_document.add_pixel_layer(tr("Paint Layer").toStdString(),
                                  make_solid_pixels(new_document.width(), new_document.height(), QColor(0, 0, 0, 0),
                                                    PixelFormat::rgba8()));
@@ -1499,7 +1500,7 @@ void MainWindow::create_new_document() {
     return;
   }
   reset_document(settings->width, settings->height, settings->background, tr("New document"),
-                 settings->resolution_ppi, settings->name);
+                 settings->resolution_ppi, settings->name, settings->add_empty_layer);
   if (settings->artboards && has_active_document()) {
     // The canvas becomes "Artboard 1" with the chosen background and an empty layer to
     // paint on, in place of the Background layer (Photoshop's Artboards document).

@@ -12749,6 +12749,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>A3+</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

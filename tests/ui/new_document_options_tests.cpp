@@ -418,6 +418,75 @@ void ui_new_document_empty_layer_preference() {
   CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
 }
 
+// GitHub issue 363, follow-up: the dialog's Empty Layer checkbox opens at the preference (on
+// and off), decides for that one document, and never writes the preference. Artboards grey it.
+void ui_new_document_empty_layer_checkbox() {
+  NewDocumentSettingsScope scope;
+  const auto key = QStringLiteral("newDocument/addEmptyLayer");
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+
+  // Preference on (the default): the box starts checked; unchecked, Create gives the
+  // Background alone, selected.
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    auto* empty_layer = dialog.findChild<QCheckBox*>(QStringLiteral("newDocumentEmptyLayerCheck"));
+    auto* artboards = dialog.findChild<QCheckBox*>(QStringLiteral("newDocumentArtboardsCheck"));
+    CHECK(empty_layer != nullptr && artboards != nullptr);
+    if (empty_layer == nullptr || artboards == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(empty_layer->isChecked());
+    CHECK(empty_layer->isEnabled());
+    artboards->setChecked(true);
+    QApplication::processEvents();
+    CHECK(!empty_layer->isEnabled());
+    artboards->setChecked(false);
+    QApplication::processEvents();
+    CHECK(empty_layer->isEnabled());
+    empty_layer->setChecked(false);
+    save_widget_artifact("issue_363_new_document_empty_layer", dialog);
+    set_pixel_size(dialog, 160, 120);
+    dialog.accept();
+  }));
+  {
+    const auto& document = std::as_const(MainWindowTestAccess::document(window));
+    CHECK(document.layers().size() == 1);
+    CHECK(document.layers().size() == 1 && document.layers().front().name() == "Background");
+    CHECK(document.active_layer_id() == document.layers().front().id());
+    CHECK(layer_list->count() == 1);
+    CHECK(require_layer_item(*layer_list, QStringLiteral("Background"))->isSelected());
+  }
+  CHECK(!patchy::ui::app_settings().contains(key));
+
+  // The next dialog starts from the preference again, not from the last choice.
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    auto* empty_layer = dialog.findChild<QCheckBox*>(QStringLiteral("newDocumentEmptyLayerCheck"));
+    CHECK(empty_layer != nullptr && empty_layer->isChecked());
+    dialog.reject();
+  }));
+
+  // Preference off: the box starts unchecked; checked, Create adds the empty layer.
+  patchy::ui::app_settings().setValue(key, false);
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    auto* empty_layer = dialog.findChild<QCheckBox*>(QStringLiteral("newDocumentEmptyLayerCheck"));
+    CHECK(empty_layer != nullptr && !empty_layer->isChecked());
+    if (empty_layer != nullptr) {
+      empty_layer->setChecked(true);
+    }
+    set_pixel_size(dialog, 160, 120);
+    dialog.accept();
+  }));
+  CHECK(std::as_const(MainWindowTestAccess::document(window)).layers().size() == 2);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
+  CHECK(!patchy::ui::app_settings().value(key, true).toBool());
+}
+
 // GitHub issue 374: the Name field starts as Untitled-N, drops characters a file name cannot
 // hold as they are typed, keeps Unicode, and becomes the tab title and the Save As name.
 void ui_new_document_name_reaches_tab_and_save_as() {
@@ -654,6 +723,7 @@ std::vector<patchy::test::TestCase> new_document_options_ui_tests() {
       {"ui_new_document_color_mode_creates_cmyk_proof", ui_new_document_color_mode_creates_cmyk_proof},
       {"ui_new_document_color_mode_needs_a_cmyk_profile", ui_new_document_color_mode_needs_a_cmyk_profile},
       {"ui_new_document_empty_layer_preference", ui_new_document_empty_layer_preference},
+      {"ui_new_document_empty_layer_checkbox", ui_new_document_empty_layer_checkbox},
       {"ui_new_document_name_reaches_tab_and_save_as", ui_new_document_name_reaches_tab_and_save_as},
       {"ui_new_document_save_preset_and_reload", ui_new_document_save_preset_and_reload},
       {"ui_new_document_templates_show_their_unit", ui_new_document_templates_show_their_unit},

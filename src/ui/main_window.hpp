@@ -800,10 +800,12 @@ private:
   [[nodiscard]] bool has_active_document() const noexcept;
   // 72 PPI default matches the New Document screen presets and kUntaggedImportPpi;
   // print presets pass their own 300.
-  // An empty `title` is "Untitled-N". The empty layer above the Background follows the
-  // newDocument/addEmptyLayer preference (GitHub issue 363; default on).
+  // An empty `title` is "Untitled-N". The empty layer above the Background follows
+  // `add_empty_layer` (the New Document checkbox), else the newDocument/addEmptyLayer
+  // preference (GitHub issue 363; default on).
   void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
-                      double resolution_ppi = 72.0, QString title = {});
+                      double resolution_ppi = 72.0, QString title = {},
+                      std::optional<bool> add_empty_layer = std::nullopt);
   void create_clipboard_document(const QImage& image, QString history_label, QString title = {});
   void create_new_document();
   void resize_image_dialog();

@@ -12766,6 +12766,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>Camada vazia acima do plano de fundo</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>Adiciona uma camada vazia acima do plano de fundo. O padrão vem de Preferências; alterá-lo aqui afeta apenas este documento.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -12731,6 +12731,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>背景上方的空图层</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>在背景上方添加一个空图层。默认值来自首选项；在此处更改只影响此文档。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

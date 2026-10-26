@@ -12766,6 +12766,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>A3+</source>
         <translation>A3+</translation>
     </message>
+    <message>
+        <source>Empty layer above Background</source>
+        <translation>Leere Ebene über dem Hintergrund</translation>
+    </message>
+    <message>
+        <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
+        <translation>Eine leere Ebene über dem Hintergrund anlegen. Die Vorgabe kommt aus den Voreinstellungen; eine Änderung hier gilt nur für dieses Dokument.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

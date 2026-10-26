@@ -40,6 +40,9 @@ struct NewDocumentSettings {
   // Image > Mode > CMYK Proof from the start (GitHub issue 360; docs/cmyk.md). The Color
   // Mode list offers it only while Preferences names a CMYK profile.
   bool cmyk_proof{false};
+  // The Empty Layer checkbox (GitHub issue 363): an empty layer above the Background. It
+  // opens at the newDocument/addEmptyLayer preference and never writes it.
+  bool add_empty_layer{true};
   // The Name field (GitHub issue 374): the tab title and the default Save As name, already
   // through sanitized_new_document_name; never empty.
   QString name;
