@@ -134,8 +134,8 @@ their original format.
 | **Layered TIFF** (.tif, .tiff) | Open and save | Photoshop-style layer data at 8, 16, and 32 bits, including supported text, masks, and effects. Choose Keep Layers when saving; other TIFF readers may show only the merged image. [TIFF details](tiff.md) |
 | **Aseprite** (.ase, .aseprite) | Open and save | The first frame's pixel layers, groups, opacity, and supported blend modes. Saves are a single frame at 8 bits, with procedural content rasterized. [Format details](file-formats.md#per-format-catalogue) |
 
-OpenRaster can exchange layered paintings with applications such as Krita and GIMP;
-Krita's native .kra format is not supported. Keep a PSD master when you need
+OpenRaster can exchange layered paintings with applications such as Krita and GIMP
+in both directions; Krita and GIMP files open directly. Keep a PSD master when you need
 Patchy's editable text, effects, masks, or Smart Objects. Import notices and save
 warnings describe conversions that affect a particular document.
 

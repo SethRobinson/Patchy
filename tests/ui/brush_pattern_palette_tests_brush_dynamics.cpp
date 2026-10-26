@@ -416,9 +416,9 @@ void ui_brush_tip_picker_keeps_a_fixed_width() {
       CHECK(started.picker_width == switched.picker_width);
       CHECK(started.lines == 1);
       CHECK(started.height == switched.height);
+      // Whether 1366 px keeps the Size slider depends on the widest tool row (the Healing
+      // row with Show Overlay, #426, drops it); what matters is that both orders agree.
       CHECK(started.slider == switched.slider);
-      // At 1366 px the Brush row keeps its Size slider.
-      CHECK(started.slider);
     }
   }
   clear_brush_tip_test_state();

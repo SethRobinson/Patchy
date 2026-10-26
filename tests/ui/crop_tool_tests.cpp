@@ -622,6 +622,10 @@ void ui_crop_size_link_keeps_proportion_on_handle_drags() {
   SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
   patchy::ui::MainWindow window;
   show_window(window);
+  // The drags below reach the box's right and bottom handles (x 812, y 584 at 100%), which
+  // the default test window's canvas does not show once the panels and the wrapped options
+  // bar take their room; a press outside the canvas misses the handle.
+  window.resize(1600, 1000);
   auto* canvas = require_canvas(window);
   require_action(window, "toolCropAction")->trigger();
   QApplication::processEvents();

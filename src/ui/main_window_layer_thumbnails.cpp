@@ -211,7 +211,7 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
     toggle->setEnabled(!pixels_locked);
     menu.addSeparator();
     // The Layer menu's own commands, so their shortcuts show and their state is the menu's.
-    const auto add_shared = [this, &menu](QAction* action) {
+    const auto add_shared = [&menu](QAction* action) {
       if (action != nullptr) {
         menu.addAction(action);
       }

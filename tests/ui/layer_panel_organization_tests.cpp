@@ -5572,7 +5572,7 @@ void ui_layer_eye_menu_opens_from_eye_column_only() {
   CHECK(seen.first == QStringLiteral("layerEyeColorMenu"));
   CHECK(!document_layer_visible(doc, ids.top));
 
-  // The name and the thumbnail keep the layer menu.
+  // The name keeps the layer menu; the thumbnail opens its own menu (#432), not the eye menu.
   row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Top Layer")));
   auto* name = row->findChild<QWidget*>(QStringLiteral("layerRowName"));
   auto* thumbnail = row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail"));
@@ -5580,7 +5580,7 @@ void ui_layer_eye_menu_opens_from_eye_column_only() {
   seen = right_click_and_pick(*name, name->rect().center(), nullptr);
   CHECK(seen.first == QStringLiteral("layerContextMenu"));
   seen = right_click_and_pick(*thumbnail, thumbnail->rect().center(), nullptr);
-  CHECK(seen.first == QStringLiteral("layerContextMenu"));
+  CHECK(seen.first == QStringLiteral("layerThumbnailMenu"));
   CHECK(!document_layer_visible(doc, ids.top));
 }
 

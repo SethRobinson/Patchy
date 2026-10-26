@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.19" date="2026-10-26">
+      <description>
+        <ul>
+          <li>Open GIMP (.xcf) and Krita (.kra) files as layered documents, and 12-bit JPEGs</li>
+          <li>Filter &gt; Camera Raw Filter, and a histogram, zoom and modifier clicks in Develop Raw</li>
+          <li>Free Transform of selected pixels, movable selection outlines and Magic Wand sampling</li>
+          <li>Layers panel eye drags, context menus and modifiers; usable Channels panel eyes</li>
+          <li>PSD and JPEG saves write metadata and thumbnails; Clone Source settings and tool hints</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.18" date="2026-10-25">
       <description>
         <ul>
