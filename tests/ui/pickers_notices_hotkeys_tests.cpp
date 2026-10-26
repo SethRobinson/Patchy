@@ -3418,6 +3418,167 @@ void ui_options_bar_tab_wraps_within_the_bar() {
     CHECK(canvas->hasFocus());
   }
 }
+// An exclusive button group in the options bar (the selection modes, Zoom In/Out, the Pick
+// tool's Sets, text alignment) is one Tab stop, its checked button, as a radio group is. The
+// arrows move to the neighbour and select it (wrapping), Space and Enter select the focused
+// button, a click focuses a button so Tab moves on from there, and Space after a click still
+// pans the canvas instead of pressing the button (GitHub issue 440 follow-up).
+void ui_options_bar_button_groups_are_one_tab_stop() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1700, 738);
+  QApplication::processEvents();
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options != nullptr);
+  if (options == nullptr) {
+    return;
+  }
+  const auto button_for = [options](const char* action_name) -> QToolButton* {
+    for (auto* button : options->findChildren<QToolButton*>()) {
+      if (button->defaultAction() != nullptr && button->defaultAction()->objectName() == QLatin1String(action_name)) {
+        return button;
+      }
+    }
+    return nullptr;
+  };
+  const auto settle = [] { QApplication::processEvents(); };
+  const auto press = [&settle](Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    QTest::keyClick(QApplication::focusWidget(), key, modifiers);
+    settle();
+  };
+
+  // Every group: click a button, then Tab once round the bar. The group comes up once, on its
+  // checked button, and the click left no outline while Tab shows it.
+  struct GroupCase {
+    const char* tool;
+    std::vector<QString> members;
+  };
+  const std::vector<GroupCase> groups = {
+      {"Marquee",
+       {QStringLiteral("selectionNewModeAction"), QStringLiteral("selectionAddModeAction"),
+        QStringLiteral("selectionSubtractModeAction"), QStringLiteral("selectionIntersectModeAction")}},
+      {"Zoom", {QStringLiteral("zoomInModeAction"), QStringLiteral("zoomOutModeAction")}},
+      {"Pick", {QStringLiteral("eyedropperSetsForegroundButton"), QStringLiteral("eyedropperSetsBackgroundButton")}},
+      {"Horizontal Type",
+       {QStringLiteral("textAlignLeftButton"), QStringLiteral("textAlignCenterButton"),
+        QStringLiteral("textAlignRightButton")}},
+  };
+  for (const auto& item : groups) {
+    if (QString::fromLatin1(item.tool) == QStringLiteral("Horizontal Type")) {
+      require_action(window, "toolTypeAction")->trigger();
+    } else {
+      require_action_by_text(window, QString::fromLatin1(item.tool))->trigger();
+    }
+    settle();
+    std::vector<QAbstractButton*> members;
+    for (const auto& name : item.members) {
+      QAbstractButton* button = button_for(qPrintable(name));
+      if (button == nullptr) {
+        button = options->findChild<QAbstractButton*>(name);
+      }
+      CHECK(button != nullptr && button->isVisible());
+      if (button == nullptr || !button->isVisible()) {
+        return;
+      }
+      members.push_back(button);
+    }
+    auto* clicked = members.back();
+    QTest::mouseClick(clicked, Qt::LeftButton);
+    settle();
+    CHECK(clicked->hasFocus());
+    CHECK(!clicked->property("optionsKeyboardFocus").toBool());
+    // The group's stop is its checked button: the clicked one, except text alignment with no
+    // text layer to align, which stays on Left.
+    QAbstractButton* checked = nullptr;
+    for (auto* member : members) {
+      checked = member->isChecked() ? member : checked;
+    }
+    CHECK(checked != nullptr);
+    int group_stops = 0;
+    int presses = 0;
+    for (; presses < 80; ++presses) {
+      press(Qt::Key_Tab);
+      auto* focus = QApplication::focusWidget();
+      CHECK(focus != nullptr && options->isAncestorOf(focus));
+      if (focus == nullptr || !options->isAncestorOf(focus)) {
+        break;
+      }
+      if (std::find(members.begin(), members.end(), focus) != members.end()) {
+        ++group_stops;
+        CHECK(focus == checked);
+        CHECK(focus->property("optionsKeyboardFocus").toBool());
+        break;
+      }
+    }
+    std::printf("  %s: back on the group after %d Tab presses\n", item.tool, presses + 1);
+    CHECK(group_stops == 1);
+    CHECK(presses >= 1);
+    press(Qt::Key_Escape);
+    CHECK(canvas->hasFocus());
+  }
+
+  // The Marquee modes from the keyboard.
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  settle();
+  auto* new_button = button_for("selectionNewModeAction");
+  auto* add_button = button_for("selectionAddModeAction");
+  auto* subtract_button = button_for("selectionSubtractModeAction");
+  auto* intersect_button = button_for("selectionIntersectModeAction");
+  CHECK(new_button != nullptr && add_button != nullptr && subtract_button != nullptr && intersect_button != nullptr);
+  if (new_button == nullptr || add_button == nullptr || subtract_button == nullptr || intersect_button == nullptr) {
+    return;
+  }
+  new_button->defaultAction()->trigger();
+  settle();
+  new_button->setFocus(Qt::TabFocusReason);
+  settle();
+  press(Qt::Key_Right);
+  CHECK(add_button->hasFocus() && add_button->isChecked());
+  CHECK(add_button->property("optionsKeyboardFocus").toBool());
+  CHECK(canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Add);
+  if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
+    CHECK(options_bar->grab().save(QStringLiteral("test-artifacts/issue_440_mode_group_focus.png")));
+  }
+  press(Qt::Key_Left);
+  press(Qt::Key_Left);
+  CHECK(intersect_button->hasFocus() && intersect_button->isChecked());
+  press(Qt::Key_Right);
+  CHECK(new_button->hasFocus() && new_button->isChecked());
+  // Space and Enter select the focused button.
+  subtract_button->setFocus(Qt::TabFocusReason);
+  settle();
+  press(Qt::Key_Space);
+  CHECK(subtract_button->isChecked());
+  CHECK(canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Subtract);
+  add_button->setFocus(Qt::TabFocusReason);
+  settle();
+  press(Qt::Key_Return);
+  CHECK(add_button->isChecked());
+  // Tab and Shift+Tab leave the group in one step each.
+  press(Qt::Key_Tab);
+  auto* after_group = QApplication::focusWidget();
+  CHECK(after_group != nullptr && after_group != new_button && after_group != subtract_button &&
+        after_group != intersect_button && after_group != add_button);
+  press(Qt::Key_Backtab, Qt::ShiftModifier);
+  CHECK(add_button->hasFocus());
+  // After a click, Space pans the canvas instead of pressing the focused button.
+  QTest::mouseClick(intersect_button, Qt::LeftButton);
+  settle();
+  CHECK(intersect_button->hasFocus() && intersect_button->isChecked());
+  new_button->defaultAction()->trigger();
+  settle();
+  CHECK(intersect_button->hasFocus());
+  press(Qt::Key_Space);
+  CHECK(!intersect_button->isChecked());
+  CHECK(new_button->isChecked());
+  // Click then Tab moves on from the clicked group with the outline.
+  QTest::mouseClick(subtract_button, Qt::LeftButton);
+  settle();
+  press(Qt::Key_Tab);
+  CHECK(QApplication::focusWidget() == after_group);
+  CHECK(after_group->property("optionsKeyboardFocus").toBool());
+  press(Qt::Key_Escape);
+  CHECK(canvas->hasFocus());
+}
 // Size-like sliders use SliderCurve::FineLowEnd: the value grows with the
 // square of the handle position, so small sizes get most of the track.
 void ui_size_sliders_give_the_low_end_most_of_the_track() {
@@ -4351,6 +4512,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas},
       {"ui_options_bar_tab_focus_shows_a_themed_outline", ui_options_bar_tab_focus_shows_a_themed_outline},
       {"ui_options_bar_tab_wraps_within_the_bar", ui_options_bar_tab_wraps_within_the_bar},
+      {"ui_options_bar_button_groups_are_one_tab_stop", ui_options_bar_button_groups_are_one_tab_stop},
       {"ui_size_sliders_give_the_low_end_most_of_the_track",
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},

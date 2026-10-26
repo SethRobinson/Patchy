@@ -438,6 +438,12 @@ QString photoshop_style_template() {
     QToolBar#Options QSlider[optionsKeyboardFocus="true"]:focus {
       border-color: @accent_border_bright;
     }
+    /* A checked button already wears the accent border, and Tab lands on a mode group's
+       checked button: its focus outline is the bright text color instead. */
+    QToolBar#Options QToolButton[optionsKeyboardFocus="true"]:focus:checked,
+    QToolBar#Options QPushButton[optionsKeyboardFocus="true"]:focus:checked {
+      border-color: @text_bright;
+    }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
     QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#colorDockTitle, QWidget#paletteDockTitle {
       background: @panel_title_bg;
