@@ -95,4 +95,5 @@ std::vector<patchy::test::TestCase> layered_tiff_ui_tests();
 std::vector<patchy::test::TestCase> appimage_menu_entry_tests();
 std::vector<patchy::test::TestCase> open_with_registration_tests();
 std::vector<patchy::test::TestCase> composite_render_tests();
+std::vector<patchy::test::TestCase> theme_package_tests();
 std::vector<patchy::test::TestCase> readme_screenshot_tests();

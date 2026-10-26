@@ -17,9 +17,11 @@
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/theme_backdrop.hpp"
 #include "ui/theme_palette.hpp"
 
 #include <QAction>
+#include <QPainter>
 #include <QColor>
 #include <QMenu>
 #include <QPoint>
@@ -394,6 +396,14 @@ std::optional<QColor> CanvasWidget::backdrop_color_override() const noexcept {
 
 QColor CanvasWidget::backdrop_color() const {
   return backdrop_color_override_.value_or(theme().canvas_backdrop);
+}
+
+void CanvasWidget::fill_pasteboard(QPainter& painter, const QRectF& area) const {
+  if (!backdrop_color_override_.has_value() &&
+      paint_theme_backdrop(painter, area.toAlignedRect(), *this, theme().canvas_backdrop)) {
+    return;
+  }
+  painter.fillRect(area, backdrop_color());
 }
 
 void CanvasWidget::set_backdrop_color_change_requested_callback(

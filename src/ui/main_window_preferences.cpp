@@ -47,6 +47,8 @@
 #include "ui/stress_test.hpp"
 #include "ui/theme_file.hpp"
 #include "ui/theme_manager.hpp"
+#include "ui/theme_package.hpp"
+#include "ui/theme_sounds.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/user_fonts.hpp"
@@ -438,6 +440,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // theme_file.hpp). Kept distinct from the three built-in tokens above, which
   // are bare scheme spellings and can never start with "custom:".
   const auto custom_theme_token = [](const QString& file_name) { return QStringLiteral("custom:") + file_name; };
+  QCheckBox* theme_sounds_check = nullptr;
   // Loaded once per dialog open and shared by the preview handler, the Import
   // button, and the commit branch below, so none of them re-read a file
   // mid-dialog.
@@ -473,11 +476,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
         add_custom_theme_entry(id, *result.theme);
       }
     }
-    const auto themes_dir = user_themes_directory();
-    if (themes_dir.isEmpty()) {
-      return;
-    }
-    const auto entries = QDir(themes_dir).entryList({QStringLiteral("*.patchytheme")}, QDir::Files, QDir::Name);
+    // .patchytheme files, .zip packages and package folders (theme_file.hpp).
+    const auto entries = user_theme_ids();
     if (!entries.isEmpty()) {
       color_scheme_combo->insertSeparator(color_scheme_combo->count());
     }
@@ -526,9 +526,18 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   delete_theme_button->setObjectName(QStringLiteral("preferencesDeleteThemeButton"));
   auto* open_themes_folder_button = new QPushButton(tr("Open Themes Folder"), application_group);
   open_themes_folder_button->setObjectName(QStringLiteral("preferencesOpenThemesFolderButton"));
-  // Two rows: five buttons in one row are wider than the field column, and
-  // the tab's scroll area clips rather than scrolls horizontally, which cut
-  // off the last button and every combo's arrow (September 2026).
+  auto* export_theme_package_button = new QPushButton(tr("Export Theme Package..."), application_group);
+  export_theme_package_button->setObjectName(QStringLiteral("preferencesExportThemePackageButton"));
+  export_theme_package_button->setToolTip(
+      tr("Save the selected theme as a .zip package, with its icons, images and sounds."));
+  auto* export_icon_template_button = new QPushButton(tr("Export Icon Template..."), application_group);
+  export_icon_template_button->setObjectName(QStringLiteral("preferencesExportIconTemplateButton"));
+  export_icon_template_button->setToolTip(
+      tr("Write every built-in icon as an SVG file into a folder, to start a theme's icons/ folder from."));
+  // Three rows of at most three: five buttons in one row were wider than the
+  // field column, and the tab's scroll area clips rather than scrolls
+  // horizontally, which cut off the last button and every combo's arrow
+  // (September 2026).
   auto* theme_buttons_row = new QHBoxLayout();
   theme_buttons_row->addWidget(import_theme_button);
   theme_buttons_row->addWidget(export_theme_button);
@@ -540,6 +549,18 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   theme_buttons_row2->addWidget(open_themes_folder_button);
   theme_buttons_row2->addStretch(1);
   application_form->addRow(QString(), theme_buttons_row2);
+  auto* theme_buttons_row3 = new QHBoxLayout();
+  theme_buttons_row3->addWidget(export_theme_package_button);
+  theme_buttons_row3->addWidget(export_icon_template_button);
+  theme_buttons_row3->addStretch(1);
+  application_form->addRow(QString(), theme_buttons_row3);
+  theme_sounds_check = new QCheckBox(tr("Play theme sounds"), application_group);
+  theme_sounds_check->setObjectName(QStringLiteral("preferencesPlayThemeSoundsCheck"));
+  theme_sounds_check->setToolTip(
+      tr("Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay "
+         "silent."));
+  theme_sounds_check->setChecked(theme_sounds_enabled());
+  application_form->addRow(QString(), theme_sounds_check);
 
   // Delete applies to the user-folder entry the combo shows; a built-in scheme
   // and a bundled theme cannot be deleted.
@@ -582,8 +603,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
               return;
             }
             const auto file_name = token.mid(7);
+            const bool package_folder = is_theme_package_directory_id(file_name);
             QMessageBox confirm(QMessageBox::Question, tr("Delete Theme"),
-                                tr("Delete the theme \"%1\"? Its file is removed from the themes folder.")
+                                (package_folder
+                                     ? tr("Delete the theme \"%1\"? Its folder is moved to the trash.")
+                                     : tr("Delete the theme \"%1\"? Its file is removed from the themes folder."))
                                     .arg(color_scheme_combo->currentText()),
                                 QMessageBox::NoButton, &dialog);
             confirm.setObjectName(QStringLiteral("preferencesDeleteThemeConfirm"));
@@ -595,7 +619,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
               return;
             }
             const auto themes_dir = user_themes_directory();
-            if (themes_dir.isEmpty() || !QFile::remove(QDir(themes_dir).filePath(file_name))) {
+            // The live preview watches a folder package; stop watching before it goes.
+            if (ThemeManager::instance().active_custom_theme_id() == file_name) {
+              ThemeManager::instance().clear_custom_theme(/*persist=*/false);
+            }
+            // A folder is never deleted outright: it goes to the trash, so an
+            // author's work can come back.
+            const auto target = themes_dir.isEmpty() ? QString() : QDir(themes_dir).filePath(file_name);
+            if (target.isEmpty() || !(package_folder ? QFile::moveToTrash(target) : QFile::remove(target))) {
               show_critical_message(&dialog, tr("Delete Theme"), tr("Could not delete \"%1\".").arg(file_name),
                                     QStringLiteral("deleteThemeFailedMessageBox"));
               return;
@@ -617,18 +648,19 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   connect(import_theme_button, &QPushButton::clicked, &dialog,
           [&dialog, color_scheme_combo, add_custom_theme_entry, custom_theme_token] {
             const auto path = get_open_file_name(&dialog, tr("Import Theme"), QString(),
-                                                 tr("Patchy theme (*.patchytheme)"));
+                                                 tr("Patchy themes (*.patchytheme *.zip)"));
             if (path.isEmpty()) {
               return;
             }
             QFile source(path);
-            if (!source.open(QIODevice::ReadOnly)) {
+            if (!source.open(QIODevice::ReadOnly) || source.size() > ThemePackageLimits{}.max_package_bytes) {
               show_critical_message(&dialog, tr("Import failed"), tr("Could not open \"%1\".").arg(path),
                                     QStringLiteral("importThemeFailedMessageBox"));
               return;
             }
+            // A zip is a theme package, copied as it is; anything else is theme JSON.
             const auto json = source.readAll();
-            auto result = load_theme_from_json(json);
+            auto result = is_theme_package_zip_name(path) ? load_theme_package_zip(json) : load_theme_from_json(json);
             if (!result.theme) {
               show_critical_message(&dialog, tr("Import failed"), result.error,
                                     QStringLiteral("importThemeFailedMessageBox"));
@@ -724,6 +756,64 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
             apply_combo_selection();
             update_delete_enabled();
           });
+
+  // Export Theme Package writes the theme the combo shows as a .zip: theme.json
+  // from the live palette, plus the icons, images and sounds of a package theme.
+  connect(export_theme_package_button, &QPushButton::clicked, &dialog,
+          [&dialog, color_scheme_combo, custom_themes] {
+            auto suggested_name = color_scheme_combo->currentText();
+            const ThemeAssets* assets = nullptr;
+            if (const auto token = color_scheme_combo->currentData().toString();
+                token.startsWith(QStringLiteral("custom:"))) {
+              const auto found = custom_themes->find(token.mid(7));
+              if (found != custom_themes->end()) {
+                if (!found.value().name.isEmpty()) {
+                  suggested_name = found.value().name;
+                }
+                assets = found.value().assets.get();
+              }
+            }
+            if (suggested_name.isEmpty()) {
+              suggested_name = tr("Theme", "Default file name offered when exporting a theme; the save dialog "
+                                           "appends the extension.");
+            }
+            const auto path = get_save_file_name(&dialog, tr("Export Theme Package"),
+                                                 suggested_name + QStringLiteral(".zip"),
+                                                 tr("Patchy theme package (*.zip)"), nullptr,
+                                                 QStringLiteral("exportThemePackageFileDialog"));
+            if (path.isEmpty()) {
+              return;
+            }
+            const auto zip = serialize_theme_package_zip(theme(), active_color_scheme(),
+                                                         QFileInfo(path).completeBaseName(), assets);
+            try {
+              write_file_bytes_atomically(
+                  to_filesystem_path(path),
+                  std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(zip.constData()),
+                                                static_cast<std::size_t>(zip.size())),
+                  "Could not create the theme file", "Could not write the theme file");
+            } catch (const std::exception& error) {
+              show_critical_message(&dialog, tr("Export failed"), QString::fromUtf8(error.what()),
+                                    QStringLiteral("exportThemeFailedMessageBox"));
+            }
+          });
+
+  connect(export_icon_template_button, &QPushButton::clicked, &dialog, [&dialog] {
+    const auto folder = QFileDialog::getExistingDirectory(&dialog, tr("Export Icon Template"),
+                                                          user_themes_directory(), QFileDialog::ShowDirsOnly);
+    if (folder.isEmpty()) {
+      return;
+    }
+    QString error;
+    const int written = export_icon_template(folder, &error);
+    if (written < 0) {
+      show_critical_message(&dialog, tr("Export failed"), error, QStringLiteral("exportIconTemplateFailedMessageBox"));
+      return;
+    }
+    show_information_message(&dialog, tr("Export Icon Template"),
+                             tr("Wrote %n icon(s) to %1.", nullptr, written).arg(QDir::toNativeSeparators(folder)),
+                             QStringLiteral("exportIconTemplateDoneMessageBox"));
+  });
 #endif
 
   // The combo previews the scheme live, so every path out of the dialog that is
@@ -2168,6 +2258,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       ThemeManager::instance().set_preference(color_scheme_preference_from_token(token), /*persist=*/true);
     }
     color_scheme_committed = true;
+    if (theme_sounds_check != nullptr) {
+      set_theme_sounds_enabled(theme_sounds_check->isChecked());
+    }
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
 #ifndef Q_OS_WASM

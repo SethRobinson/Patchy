@@ -16,19 +16,38 @@
 #include <QString>
 #include <QStringList>
 
+#include <memory>
 #include <optional>
 
 namespace patchy::ui {
+
+struct ThemeAssets;  // theme_package.hpp
 
 // The "format" key a theme file carries. A file without one is format 1. Bump
 // only for a change an older build could not read correctly; adding roles never
 // needs it (unknown roles are ignored, missing ones fall back to the base).
 inline constexpr int kThemeFileFormat = 1;
 
+enum class ThemeBackdropMode { Tile, Stretch, Center };
+enum class ThemeIconScaling { Smooth, Nearest };
+
+// The optional theme.json keys a theme package uses (docs/theme-files.md, "Theme
+// packages"). A single .patchytheme may carry them too; its "backdrop" has no image
+// to point at there and is ignored.
+struct ThemePackageOptions {
+  bool recolor_icons = true;                                   // "recolorIcons"
+  ThemeIconScaling icon_scaling = ThemeIconScaling::Smooth;    // "iconScaling"
+  QString backdrop_image;                                      // "backdrop"."image", package-relative
+  ThemeBackdropMode backdrop_mode = ThemeBackdropMode::Tile;   // "backdrop"."mode"
+};
+
 struct CustomTheme {
   QString name;
   ColorScheme base = ColorScheme::Dark;
   ThemePalette palette;
+  ThemePackageOptions options;
+  // A package's icons, backdrop image and sounds; null for a single-file theme.
+  std::shared_ptr<const ThemeAssets> assets;
 };
 
 struct ThemeLoadResult {
@@ -46,9 +65,11 @@ struct ThemeLoadResult {
 [[nodiscard]] ThemeLoadResult load_theme_from_json(const QByteArray& json);
 
 // Serializes every role in `palette` (Export writes the full, current set of
-// values, never a diff against `base`).
+// values, never a diff against `base`). `options`, when given, adds the package keys
+// that differ from their defaults.
 [[nodiscard]] QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base,
-                                                  const QString& name);
+                                                  const QString& name,
+                                                  const ThemePackageOptions* options = nullptr);
 
 // Desktop persistence directory for imported theme files; empty on wasm (no
 // AppData store there -- the theme buttons are desktop-only, see
@@ -56,10 +77,11 @@ struct ThemeLoadResult {
 // for test isolation, like PATCHY_RECOVERY_DIR (document_recovery.hpp).
 [[nodiscard]] QString user_themes_directory();
 
-// A theme id, the value ThemeManager persists, is either a file name within
-// user_themes_directory() or kBundledThemeIdPrefix followed by the name of a
-// theme compiled into the binary (themes.qrc, the files in themes/bundled/).
-// Bundled themes exist on every platform, wasm included.
+// A theme id, the value ThemeManager persists, is either a name within
+// user_themes_directory() (a .patchytheme file, a .zip theme package, or a folder
+// holding theme.json) or kBundledThemeIdPrefix followed by the name of a theme
+// compiled into the binary (themes.qrc, the files in themes/bundled/). Bundled
+// themes exist on every platform, wasm included.
 inline constexpr QLatin1StringView kBundledThemeIdPrefix{"bundled:"};
 [[nodiscard]] bool is_bundled_theme_id(const QString& id);
 // The bundled theme file names, in the order the Preferences combo lists them.
@@ -67,8 +89,13 @@ inline constexpr QLatin1StringView kBundledThemeIdPrefix{"bundled:"};
 // The path (a resource path for a bundled id) the id reads from; empty when a
 // user id has no directory (wasm).
 [[nodiscard]] QString theme_file_path_for_id(const QString& id);
-// Reads and parses the file behind an id. A missing or unreadable file is an
-// error like any other, so callers have one branch.
+// Reads and parses the file, zip or folder behind an id. A missing or unreadable
+// one is an error like any other, so callers have one branch.
 [[nodiscard]] ThemeLoadResult load_theme_by_id(const QString& id);
+// True when the id names a folder package in user_themes_directory().
+[[nodiscard]] bool is_theme_package_directory_id(const QString& id);
+// Every theme id in user_themes_directory(), sorted by name: *.patchytheme files,
+// *.zip packages and folders that hold theme.json. Empty without a directory.
+[[nodiscard]] QStringList user_theme_ids();
 
 }  // namespace patchy::ui

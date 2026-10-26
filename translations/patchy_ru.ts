@@ -12946,6 +12946,98 @@ Each item&apos;s own View setting still applies.</source>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>Не удалось прочитать файл темы «%1».</translation>
     </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; должно быть true или false (пропущено).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; должно быть &quot;smooth&quot; или &quot;nearest&quot; (пропущено).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; не является объектом (пропущено).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>Режим фона &quot;%1&quot; не равен &quot;tile&quot;, &quot;stretch&quot; или &quot;center&quot; (используется мозаика).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>В пакете темы нет theme.json.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>Значок &quot;%1&quot; не совпадает ни с одним встроенным значком (пропущен).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>Значок &quot;%1&quot; не является файлом SVG, PNG или BMP (пропущен).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Не удалось прочитать значок &quot;%1&quot; (пропущен).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>Звук &quot;%1&quot; не соответствует ни одному звуковому событию (пропущен).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>Звук &quot;%1&quot; не является файлом WAV (пропущен).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>Фоновое изображение &quot;%1&quot; отсутствует в пакете (пропущено).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Не удалось прочитать фоновое изображение &quot;%1&quot; (пропущено).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>Не удалось прочитать папку темы &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>Пакет темы &quot;%1&quot; содержит путь за пределами пакета: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>Пакет темы &quot;%1&quot; превышает ограничения для пакетов тем.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>В папке темы &quot;%1&quot; нет читаемого theme.json.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>Пакет темы превышает ограничения для пакетов тем.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>Пакет темы не является читаемым zip-файлом.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>Пакет темы использует шифрование или метод сжатия, который Patchy не может прочитать.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>Файл в пакете темы повреждён.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>Пакет темы содержит путь за пределами пакета: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>Не удалось создать папку &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>Не удалось записать &quot;%1&quot;.</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26382,6 +26474,58 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>Изменены плотность и растушёвка маски слоя</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>Экспортировать пакет темы...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>Сохранить выбранную тему как пакет .zip со значками, изображениями и звуками.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>Экспортировать шаблон значков...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>Записать каждый встроенный значок как файл SVG в папку, чтобы начать с него папку icons/ темы.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>Воспроизводить звуки темы</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>Воспроизводить звуки из пакета темы, например по завершении сохранения. Темы без звуков остаются беззвучными.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>Удалить тему &quot;%1&quot;? Её папка будет перемещена в корзину.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Темы Patchy (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>Экспорт пакета темы</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Пакет темы Patchy (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>Экспорт шаблона значков</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>Записан %n значок в %1.</numerusform>
+            <numerusform>Записано %n значка в %1.</numerusform>
+            <numerusform>Записано %n значков в %1.</numerusform>
+        </translation>
     </message>
 </context>
 <context>

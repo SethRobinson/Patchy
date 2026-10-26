@@ -12911,6 +12911,98 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>Die Design-Datei &quot;%1&quot; konnte nicht gelesen werden.</translation>
     </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; muss true oder false sein (ignoriert).</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; muss &quot;smooth&quot; oder &quot;nearest&quot; sein (ignoriert).</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; ist kein Objekt (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>Hintergrundmodus &quot;%1&quot; ist nicht &quot;tile&quot;, &quot;stretch&quot; oder &quot;center&quot; (wird stattdessen gekachelt).</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>Das Themenpaket enthält keine theme.json.</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>Symbol &quot;%1&quot; entspricht keinem integrierten Symbol (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>Symbol &quot;%1&quot; ist keine SVG-, PNG- oder BMP-Datei (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Symbol &quot;%1&quot; konnte nicht gelesen werden (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>Klang &quot;%1&quot; benennt kein Klangereignis (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>Klang &quot;%1&quot; ist keine WAV-Datei (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>Hintergrundbild &quot;%1&quot; ist nicht im Paket (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>Hintergrundbild &quot;%1&quot; konnte nicht gelesen werden (ignoriert).</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>Themenordner &quot;%1&quot; konnte nicht gelesen werden.</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>Themenpaket &quot;%1&quot; enthält einen Pfad außerhalb des Pakets: %2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>Themenpaket &quot;%1&quot; überschreitet die Grenzen für Themenpakete.</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>Themenordner &quot;%1&quot; enthält keine lesbare theme.json.</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>Das Themenpaket überschreitet die Grenzen für Themenpakete.</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>Das Themenpaket ist keine lesbare ZIP-Datei.</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>Das Themenpaket verwendet eine Verschlüsselung oder Komprimierung, die Patchy nicht lesen kann.</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>Eine Datei im Themenpaket ist beschädigt.</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>Das Themenpaket enthält einen Pfad außerhalb des Pakets: %1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>Der Ordner &quot;%1&quot; konnte nicht erstellt werden.</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot; konnte nicht geschrieben werden.</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26309,6 +26401,57 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>Dichte und weiche Kante der Ebenenmaske geändert</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>Themenpaket exportieren...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>Das ausgewählte Thema als .zip-Paket mit seinen Symbolen, Bildern und Klängen speichern.</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>Symbolvorlage exportieren...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>Jedes integrierte Symbol als SVG-Datei in einen Ordner schreiben, als Ausgangspunkt für den icons/-Ordner eines Themas.</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>Themenklänge abspielen</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>Die Klänge eines Themenpakets abspielen, zum Beispiel wenn ein Speichern abgeschlossen ist. Themen ohne Klänge bleiben stumm.</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>Das Thema &quot;%1&quot; löschen? Sein Ordner wird in den Papierkorb verschoben.</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy-Themen (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>Themenpaket exportieren</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy-Themenpaket (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>Symbolvorlage exportieren</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>%n Symbol nach %1 geschrieben.</numerusform>
+            <numerusform>%n Symbole nach %1 geschrieben.</numerusform>
+        </translation>
     </message>
 </context>
 <context>

@@ -1512,6 +1512,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/style_manager_dialog.cpp
       src/ui/theme_file.hpp
       src/ui/theme_file.cpp
+      src/ui/theme_backdrop.hpp
+      src/ui/theme_backdrop.cpp
+      src/ui/theme_package.hpp
+      src/ui/theme_package.cpp
+      src/ui/theme_sounds.hpp
+      src/ui/theme_sounds.cpp
       src/ui/theme_manager.hpp
       src/ui/theme_manager.cpp
       src/ui/theme_palette.hpp
@@ -2435,6 +2441,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/open_with_registration_tests.cpp
       tests/ui/composite_render_tests.cpp
+      tests/ui/theme_package_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

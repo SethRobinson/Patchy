@@ -12876,6 +12876,98 @@ Each item&apos;s own View setting still applies.</source>
         <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>无法读取主题文件 &quot;%1&quot;。</translation>
     </message>
+    <message>
+        <source>&quot;recolorIcons&quot; must be true or false (ignored).</source>
+        <translation>&quot;recolorIcons&quot; 必须是 true 或 false(已忽略)。</translation>
+    </message>
+    <message>
+        <source>&quot;iconScaling&quot; must be &quot;smooth&quot; or &quot;nearest&quot; (ignored).</source>
+        <translation>&quot;iconScaling&quot; 必须是 &quot;smooth&quot; 或 &quot;nearest&quot;(已忽略)。</translation>
+    </message>
+    <message>
+        <source>&quot;backdrop&quot; is not an object (ignored).</source>
+        <translation>&quot;backdrop&quot; 不是对象(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Backdrop mode &quot;%1&quot; is not &quot;tile&quot;, &quot;stretch&quot; or &quot;center&quot; (tiling instead).</source>
+        <translation>背景模式 &quot;%1&quot; 不是 &quot;tile&quot;、&quot;stretch&quot; 或 &quot;center&quot;(改为平铺)。</translation>
+    </message>
+    <message>
+        <source>The theme package has no theme.json.</source>
+        <translation>主题包中没有 theme.json。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; matches no built-in icon (ignored).</source>
+        <translation>图标 &quot;%1&quot; 与任何内置图标都不匹配(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; is not an SVG, PNG or BMP file (ignored).</source>
+        <translation>图标 &quot;%1&quot; 不是 SVG、PNG 或 BMP 文件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Icon &quot;%1&quot; could not be read (ignored).</source>
+        <translation>无法读取图标 &quot;%1&quot;(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; names no sound event (ignored).</source>
+        <translation>声音 &quot;%1&quot; 不对应任何声音事件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Sound &quot;%1&quot; is not a WAV file (ignored).</source>
+        <translation>声音 &quot;%1&quot; 不是 WAV 文件(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; is not in the package (ignored).</source>
+        <translation>背景图像 &quot;%1&quot; 不在包中(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Backdrop image &quot;%1&quot; could not be read (ignored).</source>
+        <translation>无法读取背景图像 &quot;%1&quot;(已忽略)。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; could not be read.</source>
+        <translation>无法读取主题文件夹 &quot;%1&quot;。</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; holds a path outside the package: %2</source>
+        <translation>主题包 &quot;%1&quot; 包含指向包外的路径:%2</translation>
+    </message>
+    <message>
+        <source>Theme package &quot;%1&quot; is larger than the theme package limits.</source>
+        <translation>主题包 &quot;%1&quot; 超出了主题包的限制。</translation>
+    </message>
+    <message>
+        <source>Theme folder &quot;%1&quot; has no readable theme.json.</source>
+        <translation>主题文件夹 &quot;%1&quot; 中没有可读取的 theme.json。</translation>
+    </message>
+    <message>
+        <source>The theme package is larger than the theme package limits.</source>
+        <translation>主题包超出了主题包的限制。</translation>
+    </message>
+    <message>
+        <source>The theme package is not a readable zip file.</source>
+        <translation>主题包不是可读取的 zip 文件。</translation>
+    </message>
+    <message>
+        <source>The theme package uses encryption or a compression method Patchy cannot read.</source>
+        <translation>主题包使用了 Patchy 无法读取的加密或压缩方式。</translation>
+    </message>
+    <message>
+        <source>A file in the theme package is damaged.</source>
+        <translation>主题包中的某个文件已损坏。</translation>
+    </message>
+    <message>
+        <source>The theme package holds a path outside the package: %1</source>
+        <translation>主题包包含指向包外的路径:%1</translation>
+    </message>
+    <message>
+        <source>Could not create the folder &quot;%1&quot;.</source>
+        <translation>无法创建文件夹 &quot;%1&quot;。</translation>
+    </message>
+    <message>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>无法写入 &quot;%1&quot;。</translation>
+    </message>
 </context>
 <context>
     <name>VectorPreview</name>
@@ -26236,6 +26328,56 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>已更改图层蒙版的密度和羽化</translation>
+    </message>
+    <message>
+        <source>Export Theme Package...</source>
+        <translation>导出主题包...</translation>
+    </message>
+    <message>
+        <source>Save the selected theme as a .zip package, with its icons, images and sounds.</source>
+        <translation>将所选主题连同其图标、图像和声音保存为 .zip 包。</translation>
+    </message>
+    <message>
+        <source>Export Icon Template...</source>
+        <translation>导出图标模板...</translation>
+    </message>
+    <message>
+        <source>Write every built-in icon as an SVG file into a folder, to start a theme&apos;s icons/ folder from.</source>
+        <translation>将每个内置图标作为 SVG 文件写入一个文件夹,作为主题 icons/ 文件夹的起点。</translation>
+    </message>
+    <message>
+        <source>Play theme sounds</source>
+        <translation>播放主题声音</translation>
+    </message>
+    <message>
+        <source>Play the sounds a theme package includes, for example when a save finishes. Themes without sounds stay silent.</source>
+        <translation>播放主题包中包含的声音,例如保存完成时。没有声音的主题保持静音。</translation>
+    </message>
+    <message>
+        <source>Delete the theme &quot;%1&quot;? Its folder is moved to the trash.</source>
+        <translation>删除主题 &quot;%1&quot;?其文件夹将移到回收站。</translation>
+    </message>
+    <message>
+        <source>Patchy themes (*.patchytheme *.zip)</source>
+        <translation>Patchy 主题 (*.patchytheme *.zip)</translation>
+    </message>
+    <message>
+        <source>Export Theme Package</source>
+        <translation>导出主题包</translation>
+    </message>
+    <message>
+        <source>Patchy theme package (*.zip)</source>
+        <translation>Patchy 主题包 (*.zip)</translation>
+    </message>
+    <message>
+        <source>Export Icon Template</source>
+        <translation>导出图标模板</translation>
+    </message>
+    <message numerus="yes">
+        <source>Wrote %n icon(s) to %1.</source>
+        <translation>
+            <numerusform>已将 %n 个图标写入 %1。</numerusform>
+        </translation>
     </message>
 </context>
 <context>
