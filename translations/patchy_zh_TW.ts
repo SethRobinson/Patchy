@@ -12739,6 +12739,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>在背景上方新增一個空白圖層。預設值來自偏好設定；在此處變更只影響此文件。</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>容許度:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>像素與修剪顏色相差多少仍會被裁掉 (0 表示完全相同)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27936,6 +27944,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter 需要 RGB 像素圖層。</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim 的 tolerance 必須是 0 到 255 之間的數字。</translation>
     </message>
 </context>
 <context>

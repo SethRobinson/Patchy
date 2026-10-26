@@ -12774,6 +12774,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>Añade una capa vacía sobre el fondo. El valor predeterminado viene de Preferencias; cambiarlo aquí solo afecta a este documento.</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Tolerancia:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Cuánto puede diferir un píxel del color de recorte y aun así eliminarse (0 es una coincidencia exacta)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28010,6 +28018,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter necesita una capa de píxeles RGB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance debe ser un número de 0 a 255.</translation>
     </message>
 </context>
 <context>

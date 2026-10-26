@@ -12774,6 +12774,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>Aggiunge un livello vuoto sopra lo sfondo. Il valore predefinito viene dalle Preferenze; modificarlo qui riguarda solo questo documento.</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Tolleranza:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Quanto un pixel può differire dal colore da rifilare ed essere comunque tagliato (0 è una corrispondenza esatta)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28010,6 +28018,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter richiede un livello di pixel RGB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance deve essere un numero da 0 a 255.</translation>
     </message>
 </context>
 <context>

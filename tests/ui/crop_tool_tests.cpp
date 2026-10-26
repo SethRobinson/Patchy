@@ -1887,6 +1887,8 @@ struct TrimDialogAnswer {
   bool transparent_enabled{true};
   const char* expected_basis{nullptr};  // the radio checked on open, when given
   const char* artifact{nullptr};
+  int tolerance{-1};           // set before accepting, when not negative
+  int expected_tolerance{-1};  // the Tolerance shown on open, when not negative
 };
 
 // The dialog driver runs inside Qt's event dispatch, where a throwing CHECK must not land.
@@ -1926,6 +1928,17 @@ void answer_trim_dialog(TrimDialogAnswer answer, bool* seen) {
         trim_expect(radio != nullptr, "radio != nullptr");
         if (radio != nullptr) {
           radio->setChecked(true);
+        }
+      }
+      auto* tolerance = dialog->findChild<QSpinBox*>(QStringLiteral("trimToleranceSpin"));
+      trim_expect(tolerance != nullptr, "tolerance != nullptr");
+      if (tolerance != nullptr) {
+        trim_expect(tolerance->minimum() == 0 && tolerance->maximum() == 255, "tolerance range 0..255");
+        if (answer.expected_tolerance >= 0) {
+          trim_expect(tolerance->value() == answer.expected_tolerance, "tolerance->value() == answer.expected_tolerance");
+        }
+        if (answer.tolerance >= 0) {
+          tolerance->setValue(answer.tolerance);
         }
       }
       const std::array<const char*, 4> names{"trimTopCheck", "trimBottomCheck", "trimLeftCheck", "trimRightCheck"};
@@ -2105,6 +2118,51 @@ void ui_trim_deep_documents() {
   clear_trim_settings();
 }
 
+// Tolerance (GitHub issue 297): near-white specks and a faint stripe keep a white image
+// from trimming at 0; tolerance 8 cuts them, and the value is remembered.
+void ui_trim_tolerance_cuts_near_matches() {
+  clear_trim_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_trim_script(window, QStringLiteral(R"JS(
+    var d = app.newDocument(200, 150);
+    d.activeLayer.fillRect(0, 0, 200, 150, '#ffffff');
+    d.activeLayer.fillRect(0, 1, 200, 1, '#f8f8f8');
+    d.activeLayer.fillRect(5, 5, 1, 1, '#fbfcf9');
+    d.activeLayer.fillRect(190, 140, 3, 3, '#f7f9fa');
+    d.addLayer('Art').fillRect(50, 40, 30, 20, '#20a040');
+  )JS")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  // A new user starts at 0, the exact match: only the speck-free rows above the stripe
+  // and below the bottom speck go.
+  {
+    TrimDialogAnswer answer{"trimTopLeftRadio", {true, true, true, true}, false};
+    answer.expected_tolerance = 0;
+    run_trim(window, answer);
+  }
+  check_trim_size(window, document, 200, 142);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  check_trim_size(window, document, 200, 150);
+  {
+    TrimDialogAnswer answer{"trimTopLeftRadio", {true, true, true, true}, false};
+    answer.artifact = "ui_trim_dialog_tolerance";
+    answer.tolerance = 8;
+    run_trim(window, answer);
+  }
+  check_trim_size(window, document, 30, 20);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("trim/tolerance")).toInt() == 8);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  {
+    TrimDialogAnswer answer{nullptr, {true, true, true, true}, false, "trimTopLeftRadio"};
+    answer.expected_tolerance = 8;
+    run_trim(window, answer);
+  }
+  check_trim_size(window, document, 30, 20);
+  clear_trim_settings();
+}
+
 // doc.trim: the same analysis in one call, returning the kept rect or null.
 void ui_script_trim() {
   patchy::ui::MainWindow window;
@@ -2126,6 +2184,16 @@ void ui_script_trim() {
     if (!t || t.x !== 0 || t.y !== 20 || t.width !== 100 || t.height !== 5) throw Error('topLeft ' + JSON.stringify(t));
     if (o.trim({basedOn: 'bottomRight'}) === null) throw Error('bottomRight');
     if (o.width !== 30 || o.height !== 5) throw Error('final ' + o.width + 'x' + o.height);
+    var n = app.newDocument(60, 40);
+    n.activeLayer.fillRect(0, 0, 60, 40, '#ffffff');
+    n.activeLayer.fillRect(0, 39, 60, 1, '#f6f6f6');
+    n.activeLayer.fillRect(20, 10, 10, 10, '#000000');
+    if (throws(function () { n.trim({basedOn: 'topLeft', tolerance: 256}); }) !== true) throw Error('tolerance 256');
+    if (throws(function () { n.trim({basedOn: 'topLeft', tolerance: -1}); }) !== true) throw Error('tolerance -1');
+    var e = n.trim({basedOn: 'topLeft', tolerance: 0});
+    if (!e || e.height !== 30) throw Error('tolerance 0 ' + JSON.stringify(e));
+    var k = n.trim({basedOn: 'topLeft', tolerance: 9});
+    if (!k || k.width !== 10 || k.height !== 10) throw Error('tolerance 9 ' + JSON.stringify(k));
     console.log('trim-ok');
   )JS")));
   CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("trim-ok")));
@@ -2750,6 +2818,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_trim_transparent_pixels_trims_sides_and_undoes", ui_trim_transparent_pixels_trims_sides_and_undoes},
       {"ui_trim_corner_colors_and_nothing_to_trim", ui_trim_corner_colors_and_nothing_to_trim},
       {"ui_trim_deep_documents", ui_trim_deep_documents},
+      {"ui_trim_tolerance_cuts_near_matches", ui_trim_tolerance_cuts_near_matches},
       {"ui_script_trim", ui_script_trim},
   };
 }

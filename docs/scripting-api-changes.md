@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-26 (additive): `doc.trim` takes `tolerance` (0..255, default 0 = the exact match it always
+made; GitHub issue 297): Transparent Pixels then cuts alpha up to it, a corner color every pixel whose
+channels (alpha included) are all within it of the corner, in 8-bit units at every depth. Out of range
+or not a number throws. Permanent identifiers: the option key `tolerance` and settings key
+`trim/tolerance`. Pinned by `ui_script_trim` and `ui_trim_tolerance_cuts_near_matches`.
 2026-10-25 (additive): `layer.applyCameraRawFilter(settings)` runs Filter > Camera Raw Filter (GitHub
 issue 392, [camera-raw.md](camera-raw.md#camera-raw-filter)) on an RGB pixel layer at its depth, limited
 to the selection like `applyFilter`. Permanent setting names: `temperature`, `tint` (-100..100,

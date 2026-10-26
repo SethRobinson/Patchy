@@ -12757,6 +12757,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27927,6 +27935,10 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

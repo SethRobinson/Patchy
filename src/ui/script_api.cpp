@@ -3292,6 +3292,7 @@ QJSValue ScriptDocumentObject::trim(const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   auto basis = TrimBasis::TransparentPixels;
   TrimSides sides;
+  int tolerance = 0;
   if (!options.isUndefined() && !options.isNull()) {
     if (!options.isObject()) {
       host_.throw_js_error(ScriptEngineHost::tr("trim options must be an object."));
@@ -3315,6 +3316,14 @@ QJSValue ScriptDocumentObject::trim(const QJSValue& options) {
     side("bottom", sides.bottom);
     side("left", sides.left);
     side("right", sides.right);
+    if (const auto value = options.property(QStringLiteral("tolerance")); !value.isUndefined() && !value.isNull()) {
+      const auto number = value.toNumber();
+      if (!std::isfinite(number) || number < 0.0 || number > 255.0) {
+        host_.throw_js_error(ScriptEngineHost::tr("trim tolerance must be a number from 0 to 255."));
+        return {};
+      }
+      tolerance = static_cast<int>(std::lround(number));
+    }
   }
   const auto* current = read_document();
   if (current == nullptr) {
@@ -3324,7 +3333,7 @@ QJSValue ScriptDocumentObject::trim(const QJSValue& options) {
     host_.throw_js_error(ScriptEngineHost::tr("trim does not apply to a document with artboards."));
     return {};
   }
-  const auto bounds = trim_bounds(flatten_document_for_trim(*current), basis, sides);
+  const auto bounds = trim_bounds(flatten_document_for_trim(*current), basis, sides, tolerance);
   if (!bounds.has_value() || *bounds == Rect::from_size(current->width(), current->height())) {
     return QJSValue(QJSValue::NullValue);
   }

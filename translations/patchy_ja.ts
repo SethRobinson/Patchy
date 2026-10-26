@@ -12739,6 +12739,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>背景の上に空のレイヤーを追加します。既定値は環境設定から取得され、ここでの変更はこのドキュメントにだけ適用されます。</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>許容値:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>トリミングの基準色からどれだけ離れたピクセルまで切り取るか (0 は完全一致)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27936,6 +27944,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter には RGB のピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim の tolerance は 0 から 255 の数値である必要があります。</translation>
     </message>
 </context>
 <context>

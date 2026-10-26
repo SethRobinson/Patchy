@@ -12774,6 +12774,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>Eine leere Ebene über dem Hintergrund anlegen. Die Vorgabe kommt aus den Voreinstellungen; eine Änderung hier gilt nur für dieses Dokument.</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Toleranz:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Wie weit ein Pixel von der Trim-Farbe abweichen darf und trotzdem entfernt wird (0 ist eine exakte Übereinstimmung)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -28010,6 +28018,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter braucht eine RGB-Pixelebene.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance muss eine Zahl von 0 bis 255 sein.</translation>
     </message>
 </context>
 <context>

@@ -820,6 +820,93 @@ void trim_bounds_deep_documents_compare_at_depth() {
         trim_kept(7, 6, 1, 1));
 }
 
+// A JPEG-like white border: every channel 0..8 below white in a fixed pattern (the top-left
+// pixel exactly white) around a dark block at {6, 5, 8, 6}.
+patchy::Document make_trim_noisy_border_document() {
+  patchy::PixelBuffer pixels(24, 18, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto noise = (x * 7 + y * 13) % 9;
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(255 - noise);
+      px[1] = static_cast<std::uint8_t>(255 - (noise + 3) % 9);
+      px[2] = static_cast<std::uint8_t>(255 - (noise + 5) % 9);
+    }
+  }
+  patchy::Document document(24, 18, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", std::move(pixels));
+  patchy::Layer block(document.allocate_layer_id(), "Block", solid_rgba(8, 6, 40, 60, 90, 255));
+  block.set_bounds(patchy::Rect{6, 5, 8, 6});
+  document.add_layer(std::move(block));
+  return document;
+}
+
+// Trim's Tolerance (GitHub issue 297): a noisy border trims only with a tolerance that
+// covers its noise; tolerance 0 is the exact match it always was.
+void trim_bounds_tolerance_cuts_noisy_borders() {
+  const auto composite = patchy::flatten_document_for_trim(make_trim_noisy_border_document());
+  const auto basis = patchy::TrimBasis::TopLeftColor;
+  CHECK(patchy::trim_bounds(composite, basis, {}) == trim_kept(0, 0, 24, 18));
+  CHECK(patchy::trim_bounds(composite, basis, {}, 0) == trim_kept(0, 0, 24, 18));
+  CHECK(patchy::trim_bounds(composite, basis, {}, 8) == trim_kept(6, 5, 8, 6));
+  CHECK(patchy::trim_bounds(composite, basis, {}, 255) == std::nullopt);
+  CHECK(patchy::trim_bounds(composite, basis, {}, 7) != trim_kept(6, 5, 8, 6));
+  CHECK(patchy::trim_bounds(composite, basis, {true, false, false, false}, 8) == trim_kept(0, 5, 24, 13));
+  // Out-of-range tolerances clamp.
+  CHECK(patchy::trim_bounds(composite, basis, {}, -5) == trim_kept(0, 0, 24, 18));
+
+  // The existing fixtures keep their exact results at tolerance 0.
+  const auto colors = patchy::flatten_document_for_trim(make_trim_color_document());
+  CHECK(patchy::trim_bounds(colors, patchy::TrimBasis::TopLeftColor, {}, 0) == trim_kept(0, 2, 20, 14));
+  const auto stickers = patchy::flatten_document_for_trim(make_trim_sticker_document());
+  CHECK(patchy::trim_bounds(stickers, patchy::TrimBasis::TransparentPixels, {}, 0) == trim_kept(5, 4, 9, 7));
+}
+
+// Transparent Pixels with a tolerance cuts a faint halo (alpha 6) around an opaque block.
+void trim_bounds_tolerance_cuts_faint_alpha() {
+  patchy::Document document(16, 12, patchy::PixelFormat::rgba8());
+  patchy::Layer halo(document.allocate_layer_id(), "Halo", solid_rgba(10, 9, 0, 0, 0, 6));
+  halo.set_bounds(patchy::Rect{2, 1, 10, 9});
+  document.add_layer(std::move(halo));
+  patchy::Layer block(document.allocate_layer_id(), "Block", solid_rgba(6, 5, 200, 30, 40, 255));
+  block.set_bounds(patchy::Rect{4, 3, 6, 5});
+  document.add_layer(std::move(block));
+  const auto composite = patchy::flatten_document_for_trim(document);
+  const auto basis = patchy::TrimBasis::TransparentPixels;
+  CHECK(patchy::trim_bounds(composite, basis, {}) == trim_kept(2, 1, 10, 9));
+  CHECK(patchy::trim_bounds(composite, basis, {}, 5) == trim_kept(2, 1, 10, 9));
+  CHECK(patchy::trim_bounds(composite, basis, {}, 6) == trim_kept(4, 3, 6, 5));
+  // A transparent corner widens the same way.
+  CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}, 6) == trim_kept(4, 3, 6, 5));
+}
+
+// The tolerance is in 8-bit units on 16 and 32-bit documents too (display-encoded, as the
+// Magic Wand compares them).
+void trim_bounds_tolerance_deep_documents() {
+  for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    auto document = make_trim_noisy_border_document();
+    patchy::convert_document_depth(document, depth);
+    const auto composite = patchy::flatten_document_for_trim(document);
+    CHECK(composite.format().bit_depth == depth);
+    CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}) == trim_kept(0, 0, 24, 18));
+    // 32-bit round-trips through linear light, so leave it a hair of headroom.
+    const auto tolerance = depth == patchy::BitDepth::UInt16 ? 8 : 9;
+    CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}, tolerance) == trim_kept(6, 5, 8, 6));
+    CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}, 6) != trim_kept(6, 5, 8, 6));
+  }
+
+  // A 16-bit step finer than 8 bits: 8.5 8-bit units off white is outside tolerance 8.
+  patchy::Document near_white(12, 9, patchy::PixelFormat::rgb8());
+  const auto background_id = near_white.add_pixel_layer("Background", solid_rgb(12, 9, 255, 255, 255)).id();
+  patchy::convert_document_depth(near_white, patchy::BitDepth::UInt16);
+  auto& pixels = near_white.find_layer(background_id)->pixels();
+  const std::array<float, 4> pixel{255.0F - 8.5F, 255.0F, 255.0F, 255.0F};
+  patchy::store_rgba_row(pixels, 6, 7, 1, patchy::DeepDomain::Encoded, pixel);
+  const auto composite = patchy::flatten_document_for_trim(near_white);
+  CHECK(patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}, 8) == trim_kept(7, 6, 1, 1));
+  CHECK(!patchy::trim_bounds(composite, patchy::TrimBasis::TopLeftColor, {}, 9).has_value());
+}
+
 void document_image_resize_scales_layers_and_writes_artifact() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
@@ -3469,6 +3556,9 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"trim_bounds_corner_colors_match_exactly", trim_bounds_corner_colors_match_exactly},
       {"trim_bounds_uniform_images_leave_nothing", trim_bounds_uniform_images_leave_nothing},
       {"trim_bounds_deep_documents_compare_at_depth", trim_bounds_deep_documents_compare_at_depth},
+      {"trim_bounds_tolerance_cuts_noisy_borders", trim_bounds_tolerance_cuts_noisy_borders},
+      {"trim_bounds_tolerance_cuts_faint_alpha", trim_bounds_tolerance_cuts_faint_alpha},
+      {"trim_bounds_tolerance_deep_documents", trim_bounds_tolerance_deep_documents},
       {"document_image_resize_scales_layers_and_writes_artifact",
        document_image_resize_scales_layers_and_writes_artifact},
       {"document_rotate_clockwise_changes_canvas_and_writes_artifact",
