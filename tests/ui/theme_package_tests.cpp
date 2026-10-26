@@ -676,9 +676,8 @@ void ui_theme_package_icon_template_and_example_package() {
 void ui_theme_package_capture_shots() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
-  // The example ships a script; these shots are about the package, so no trust prompt.
   SettingsValueRestorer restore_scripts(QStringLiteral("preferences/runThemeScripts"));
-  patchy::ui::app_settings().setValue(QStringLiteral("preferences/runThemeScripts"), false);
+  patchy::ui::app_settings().setValue(QStringLiteral("preferences/runThemeScripts"), true);
   {
     patchy::ui::MainWindow window;
     show_window(window);
@@ -694,6 +693,8 @@ void ui_theme_package_capture_shots() {
     require_action(window, "filePreferencesAction")->trigger();
     QApplication::processEvents();
   }
+  // The example ships a script; these shots are about the package, so no trust prompt.
+  patchy::ui::app_settings().setValue(QStringLiteral("preferences/runThemeScripts"), false);
   for (const bool with_package : {false, true}) {
     if (with_package) {
       const auto example = QDir(QStringLiteral(PATCHY_SOURCE_DIR)).filePath(QStringLiteral("themes/example-package"));

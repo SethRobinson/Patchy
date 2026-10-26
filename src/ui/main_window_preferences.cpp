@@ -599,6 +599,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       tr("Play the short animations a theme shows for events, such as fireworks when a document opens."));
   theme_effects_check->setChecked(theme_effects_enabled());
   auto* theme_sounds_row = new QHBoxLayout();
+  theme_sounds_row->setSpacing(18);
   theme_sounds_row->addWidget(theme_sounds_check);
   theme_sounds_row->addWidget(theme_effects_check);
   theme_sounds_row->addStretch(1);
