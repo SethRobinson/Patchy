@@ -6875,10 +6875,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12725,6 +12721,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     <message>
         <source>View &gt; Extras shows and hides the items ticked here.
 Each item&apos;s own View setting still applies.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

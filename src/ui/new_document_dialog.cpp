@@ -43,6 +43,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
@@ -83,6 +84,9 @@ constexpr int kPresetClipboardRole = Qt::UserRole + 4;
 constexpr int kPresetThumbnailRole = Qt::UserRole + 5;
 // A Recent card's index into the recent documents (newest first).
 constexpr int kPresetRecentIndexRole = Qt::UserRole + 6;
+constexpr int kPresetSizeTextRole = kNewDocumentPresetSizeTextRole;
+// The unit a card shows its size in and a template switches the Width/Height unit to.
+constexpr int kPresetUnitRole = Qt::UserRole + 8;
 
 constexpr QSize kPresetCardCell(116, 100);
 // The group grid's smallest size: three rows of five cards (every group fits unscrolled;
@@ -188,6 +192,10 @@ struct NewDocumentPreset {
   QString name;
   QSize size;
   double ppi{kScreenPpi};
+  // The unit the card shows and picking it switches the fields to: the unit the paper or
+  // print size is specified in (ISO paper in mm, ANSI paper and photo prints in inches),
+  // pixels for screens. A saved preset's is the unit it was saved with.
+  MeasurementUnit unit{MeasurementUnit::Pixels};
   bool clipboard{false};
   bool tablet{false};  // a Mobile template for a tablet: the Artboard picker's Tablet group
 };
@@ -307,6 +315,10 @@ void store_user_presets(const std::vector<UserPreset>& presets) {
 // 216 and ANSI paper, and photo-print sizes, printed sizes at 300 PPI. Ids are permanent;
 // a template that moves to another group keeps its id (the first ones predate the groups).
 std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
+  constexpr auto kPx = MeasurementUnit::Pixels;
+  constexpr auto kIn = MeasurementUnit::Inches;
+  constexpr auto kCm = MeasurementUnit::Centimeters;
+  constexpr auto kMm = MeasurementUnit::Millimeters;
   switch (category) {
     case PresetCategory::Screen:
       return {
@@ -338,11 +350,12 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
            kScreenPpi},
           {QStringLiteral("mobile-android-1440x3120"), QObject::tr("Android Phone QHD+"), QSize(1440, 3120),
            kScreenPpi},
-          {QStringLiteral("mobile-ipad-11"), QObject::tr("iPad 11-inch"), QSize(1640, 2360), kScreenPpi, false, true},
-          {QStringLiteral("mobile-ipad-pro-13"), QObject::tr("iPad Pro 13-inch"), QSize(2064, 2752), kScreenPpi, false,
+          {QStringLiteral("mobile-ipad-11"), QObject::tr("iPad 11-inch"), QSize(1640, 2360), kScreenPpi, kPx, false,
            true},
+          {QStringLiteral("mobile-ipad-pro-13"), QObject::tr("iPad Pro 13-inch"), QSize(2064, 2752), kScreenPpi, kPx,
+           false, true},
           {QStringLiteral("mobile-android-tablet-1600x2560"), QObject::tr("Android Tablet"), QSize(1600, 2560),
-           kScreenPpi, false, true},
+           kScreenPpi, kPx, false, true},
       };
     case PresetCategory::Social:
       return {
@@ -377,29 +390,30 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
       };
     case PresetCategory::Print:
       return {
-          {QStringLiteral("print-a6"), QObject::tr("A6"), QSize(1240, 1748), kPrintPpi},
-          {QStringLiteral("print-a5"), QObject::tr("A5"), QSize(1748, 2480), kPrintPpi},
-          {QStringLiteral("print-a4"), QObject::tr("A4"), QSize(2480, 3508), kPrintPpi},
-          {QStringLiteral("print-a3"), QObject::tr("A3"), QSize(3508, 4961), kPrintPpi},
-          {QStringLiteral("print-a2"), QObject::tr("A2"), QSize(4961, 7016), kPrintPpi},
-          {QStringLiteral("print-us-letter"), QObject::tr("US Letter"), QSize(2550, 3300), kPrintPpi},
-          {QStringLiteral("print-us-legal"), QObject::tr("US Legal"), QSize(2550, 4200), kPrintPpi},
-          {QStringLiteral("print-tabloid"), QObject::tr("Tabloid"), QSize(3300, 5100), kPrintPpi},
+          {QStringLiteral("print-a6"), QObject::tr("A6"), QSize(1240, 1748), kPrintPpi, kMm},
+          {QStringLiteral("print-a5"), QObject::tr("A5"), QSize(1748, 2480), kPrintPpi, kMm},
+          {QStringLiteral("print-a4"), QObject::tr("A4"), QSize(2480, 3508), kPrintPpi, kMm},
+          {QStringLiteral("print-a3"), QObject::tr("A3"), QSize(3508, 4961), kPrintPpi, kMm},
+          {QStringLiteral("print-a2"), QObject::tr("A2"), QSize(4961, 7016), kPrintPpi, kMm},
+          {QStringLiteral("print-us-letter"), QObject::tr("US Letter"), QSize(2550, 3300), kPrintPpi, kIn},
+          {QStringLiteral("print-us-legal"), QObject::tr("US Legal"), QSize(2550, 4200), kPrintPpi, kIn},
+          {QStringLiteral("print-tabloid"), QObject::tr("Tabloid"), QSize(3300, 5100), kPrintPpi, kIn},
           {QStringLiteral("print-business-card-us"), QObject::tr("Business Card (US)"), QSize(1050, 600),
-           kPrintPpi},
+           kPrintPpi, kIn},
           {QStringLiteral("print-business-card-eu"), QObject::tr("Business Card (EU)"), QSize(1004, 650),
-           kPrintPpi},
-          {QStringLiteral("print-poster-18x24"), QObject::tr("Poster 18 x 24 in"), QSize(5400, 7200), kPrintPpi},
+           kPrintPpi, kMm},
+          {QStringLiteral("print-poster-18x24"), QObject::tr("Poster 18 x 24 in"), QSize(5400, 7200), kPrintPpi,
+           kIn},
       };
     case PresetCategory::Photo:
       return {
-          {QStringLiteral("photo-print-4x6"), QObject::tr("4 x 6 in"), QSize(1200, 1800), kPrintPpi},
-          {QStringLiteral("print-5x7"), QObject::tr("5 x 7 in"), QSize(1500, 2100), kPrintPpi},
-          {QStringLiteral("print-8x10"), QObject::tr("8 x 10 in"), QSize(2400, 3000), kPrintPpi},
-          {QStringLiteral("photo-print-11x14"), QObject::tr("11 x 14 in"), QSize(3300, 4200), kPrintPpi},
-          {QStringLiteral("photo-print-8x8"), QObject::tr("8 x 8 in"), QSize(2400, 2400), kPrintPpi},
-          {QStringLiteral("photo-print-10x15cm"), QObject::tr("10 x 15 cm"), QSize(1181, 1772), kPrintPpi},
-          {QStringLiteral("photo-print-13x18cm"), QObject::tr("13 x 18 cm"), QSize(1535, 2126), kPrintPpi},
+          {QStringLiteral("photo-print-4x6"), QObject::tr("4 x 6 in"), QSize(1200, 1800), kPrintPpi, kIn},
+          {QStringLiteral("print-5x7"), QObject::tr("5 x 7 in"), QSize(1500, 2100), kPrintPpi, kIn},
+          {QStringLiteral("print-8x10"), QObject::tr("8 x 10 in"), QSize(2400, 3000), kPrintPpi, kIn},
+          {QStringLiteral("photo-print-11x14"), QObject::tr("11 x 14 in"), QSize(3300, 4200), kPrintPpi, kIn},
+          {QStringLiteral("photo-print-8x8"), QObject::tr("8 x 8 in"), QSize(2400, 2400), kPrintPpi, kIn},
+          {QStringLiteral("photo-print-10x15cm"), QObject::tr("10 x 15 cm"), QSize(1181, 1772), kPrintPpi, kCm},
+          {QStringLiteral("photo-print-13x18cm"), QObject::tr("13 x 18 cm"), QSize(1535, 2126), kPrintPpi, kCm},
           {QStringLiteral("photo-3x2-3000"), QObject::tr("Photo 3:2"), QSize(3000, 2000), kScreenPpi},
       };
     case PresetCategory::Icons:
@@ -419,7 +433,8 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
     case PresetCategory::Saved: {
       std::vector<NewDocumentPreset> presets;
       for (const auto& preset : load_user_presets()) {
-        presets.push_back({preset.id, preset.name, preset.settings.size, preset.settings.ppi});
+        presets.push_back(
+            {preset.id, preset.name, preset.settings.size, preset.settings.ppi, preset.settings.unit});
       }
       return presets;
     }
@@ -433,9 +448,13 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
 // appear, ignoring case, in the template's name or its group's name. A word holding a
 // digit may also match the size ("1080 x 1920", "1080x1920"); a bare "x" matching every
 // size made the field show nearly every template.
-bool size_preset_matches_search(const QString& name, const QString& group, QSize size, const QString& text) {
+bool size_preset_matches_search(const QString& name, const QString& group, QSize size, const QString& text,
+                                const QString& shown_size) {
   const auto names = name + QLatin1Char(' ') + group;
-  const auto sizes = QStringLiteral("%1 x %2 %1x%2").arg(size.width()).arg(size.height());
+  auto sizes = QStringLiteral("%1 x %2 %1x%2").arg(size.width()).arg(size.height());
+  if (!shown_size.isEmpty()) {
+    sizes += QLatin1Char(' ') + shown_size + QLatin1Char(' ') + QString(shown_size).remove(QLatin1Char(' '));
+  }
   const auto words = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
   return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&names, &sizes](const QString& word) {
     if (names.contains(word, Qt::CaseInsensitive)) {
@@ -586,13 +605,53 @@ QString without_illegal_file_name_characters(const QString& text) {
   return cleaned;
 }
 
+// A length in `unit` with that unit's decimals, trailing zeros dropped: 2480 px at 300 PPI
+// reads "210" mm, 2550 px "8.5" in. Paper and print templates are whole pixels of their
+// nominal size, so the unit's rounding gives the nominal figures back.
+QString trimmed_unit_number(double pixels, MeasurementUnit unit, double ppi) {
+  auto text = format_readout_number(pixels_to_measurement_unit(pixels, unit, ppi, pixels),
+                                    measurement_unit_decimals(unit));
+  const auto point = QLocale().decimalPoint();
+  if (text.contains(point)) {
+    while (text.endsWith(QLatin1Char('0'))) {
+      text.chop(1);
+    }
+    if (text.endsWith(point)) {
+      text.chop(point.size());
+    }
+  }
+  return text;
+}
+
+// The size a card shows: pixels for screen templates, the paper's own unit for print ones.
+QString preset_size_text(QSize size, double ppi, MeasurementUnit unit) {
+  if (!size.isValid() || size.width() <= 0) {
+    return QObject::tr("No image");
+  }
+  if (!measurement_unit_is_physical(unit)) {
+    return QObject::tr("%1 x %2 px").arg(size.width()).arg(size.height());
+  }
+  return QObject::tr("%1 x %2 %3", "new document card size: width, height, unit suffix")
+      .arg(trimmed_unit_number(size.width(), unit, ppi), trimmed_unit_number(size.height(), unit, ppi),
+           measurement_unit_suffix(unit));
+}
+
 bool preset_matches_search(const NewDocumentPreset& preset, PresetCategory category, const QString& text) {
-  return size_preset_matches_search(preset.name, preset_category_name(category), preset.size, text);
+  return size_preset_matches_search(preset.name, preset_category_name(category), preset.size, text,
+                                    preset_size_text(preset.size, preset.ppi, preset.unit));
+}
+
+// Stores what a card shows and restores: its size, resolution and unit.
+void set_card_size_data(QListWidgetItem* item, QSize size, double ppi, MeasurementUnit unit) {
+  item->setData(kPresetSizeRole, size);
+  item->setData(kPresetPpiRole, ppi);
+  item->setData(kPresetUnitRole, static_cast<int>(unit));
+  item->setData(kPresetSizeTextRole, preset_size_text(size, ppi, unit));
 }
 
 // Paints one preset card: rounded background, an aspect-ratio miniature (the real
-// clipboard thumbnail for the Clipboard card), the preset name, the pixel
-// dimensions, and the preset resolution.
+// clipboard thumbnail for the Clipboard card), the preset name, the size in the card's
+// unit, and the preset resolution.
 class PresetCardDelegate final : public QStyledItemDelegate {
  public:
   explicit PresetCardDelegate(QObject* parent = nullptr) : QStyledItemDelegate(parent) {}
@@ -665,10 +724,9 @@ class PresetCardDelegate final : public QStyledItemDelegate {
     painter->setFont(detail_font);
     painter->setPen(enabled ? theme().nd_card_detail_text : theme().nd_card_detail_disabled_text);
     const QRect dims_rect(card.left() + 4, card.top() + 57, card.width() - 8, 14);
-    const auto dims_text = size.isValid() && size.width() > 0
-                               ? QObject::tr("%1 x %2 px").arg(size.width()).arg(size.height())
-                               : QObject::tr("No image");
-    painter->drawText(dims_rect, Qt::AlignHCenter | Qt::AlignVCenter, dims_text);
+    painter->drawText(dims_rect, Qt::AlignHCenter | Qt::AlignVCenter,
+                      QFontMetrics(detail_font)
+                          .elidedText(index.data(kPresetSizeTextRole).toString(), Qt::ElideRight, dims_rect.width()));
 
     painter->setPen(enabled ? theme().nd_card_meta_text : theme().nd_card_meta_disabled_text);
     const QRect ppi_rect(card.left() + 4, card.top() + 71, card.width() - 8, 13);
@@ -1230,7 +1288,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     }
     return QObject::tr("%1K").arg(bytes / 1024.0, 0, 'f', 1);
   };
-  const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes, bit_depth,
+  const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes, bit_depth, current_unit,
                                refresh_save_preset] {
     // Bullet built from its code point: the sources build without /utf-8, so a raw
     // non-ASCII character in a literal would depend on the system codepage.
@@ -1250,10 +1308,12 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
                        format_pixel_bytes(static_cast<double>(state.pixel_width) *
                                           static_cast<double>(state.pixel_height) * 4.0 *
                                           static_cast<double>(bytes_per_channel));
-    const auto physical_line = QObject::tr("%1 x %2 in at %3 ppi")
-                                   .arg(state.pixel_width / state.ppi, 0, 'f', 2)
-                                   .arg(state.pixel_height / state.ppi, 0, 'f', 2)
-                                   .arg(QString::number(state.ppi, 'g', 6));
+    // The printed size in the fields' unit, inches while they show pixels.
+    const auto physical_unit = measurement_unit_is_physical(current_unit()) ? current_unit() : MeasurementUnit::Inches;
+    const auto physical_line =
+        QObject::tr("%1 at %2 ppi", "new document summary: printed size, resolution")
+            .arg(preset_size_text(QSize(state.pixel_width, state.pixel_height), state.ppi, physical_unit),
+                 QString::number(state.ppi, 'g', 6));
     summary->setText(current_preset_name + QChar('\n') + dimensions_line + QChar('\n') + physical_line);
     refresh_save_preset();
   };
@@ -1324,8 +1384,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     for (const auto& preset : presets_for_category(category)) {
       auto* item = new QListWidgetItem(preset.name, preset_list);
       item->setData(kPresetIdRole, preset.id);
-      item->setData(kPresetSizeRole, preset.size);
-      item->setData(kPresetPpiRole, preset.ppi);
+      set_card_size_data(item, preset.size, preset.ppi, preset.unit);
       item->setData(kPresetClipboardRole, false);
       if (preset.size.isValid() && preset.size.width() > 0) {
         item->setToolTip(QObject::tr("%1: %2 x %3 px at %4 ppi")
@@ -1355,8 +1414,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     if (!clipboard_image.isNull()) {
       auto* item = new QListWidgetItem(QObject::tr("Clipboard"), recent_list);
       item->setData(kPresetIdRole, QString(kClipboardPresetId));
-      item->setData(kPresetSizeRole, clipboard_image.size());
-      item->setData(kPresetPpiRole, kScreenPpi);
+      set_card_size_data(item, clipboard_image.size(), kScreenPpi, MeasurementUnit::Pixels);
       item->setData(kPresetClipboardRole, true);
       item->setData(kPresetThumbnailRole, QVariant::fromValue(QPixmap::fromImage(clipboard_image.scaled(
                                               112, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation))));
@@ -1368,8 +1426,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       auto* item = new QListWidgetItem(index == 0 ? QObject::tr("Last Used") : recent_document_name(recent),
                                        recent_list);
       item->setData(kPresetIdRole, id);
-      item->setData(kPresetSizeRole, recent.size);
-      item->setData(kPresetPpiRole, recent.ppi);
+      set_card_size_data(item, recent.size, recent.ppi, recent.unit);
       item->setData(kPresetClipboardRole, false);
       item->setData(kPresetRecentIndexRole, static_cast<int>(index));
       item->setToolTip((index == 0 ? QObject::tr("The settings of the last document created here: %1 x %2 px at %3 ppi")
@@ -1400,8 +1457,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
         }
         auto* item = new QListWidgetItem(preset.name, preset_list);
         item->setData(kPresetIdRole, preset.id);
-        item->setData(kPresetSizeRole, preset.size);
-        item->setData(kPresetPpiRole, preset.ppi);
+        set_card_size_data(item, preset.size, preset.ppi, preset.unit);
         item->setData(kPresetClipboardRole, false);
         item->setToolTip(QObject::tr("%1 (%2): %3 x %4 px at %5 ppi")
                              .arg(preset.name, preset_category_name(category))
@@ -1427,6 +1483,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     return current;
   };
 
+  // False while the dialog opens: the opening card keeps the remembered unit (or the ruler
+  // unit before a first create); every later pick of a template takes the template's unit.
+  bool templates_set_unit = false;
   const auto apply_preset_item = [&](QListWidgetItem* item) {
     if (item == nullptr) {
       return;
@@ -1471,6 +1530,11 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       }
       artboards->setChecked(recent.artboards);
       color_mode->setCurrentIndex(recent.cmyk_proof && cmyk_proof_available ? 1 : 0);
+    } else if (templates_set_unit && !item->data(kPresetClipboardRole).toBool()) {
+      // A paper or print template shows its size in its own unit (210 x 297 mm), a screen
+      // one in pixels; the pixels stay the template's either way.
+      const QSignalBlocker blocker(unit);
+      unit->setCurrentIndex(std::max(0, unit->findData(item->data(kPresetUnitRole).toInt())));
     }
     refresh_dimension_spins();
     refresh_resolution_spin();
@@ -1600,7 +1664,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   };
   QObject::connect(width, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(width, true); });
   QObject::connect(height, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(height, false); });
-  QObject::connect(unit, &QComboBox::currentIndexChanged, &dialog, [&](int) { refresh_dimension_spins(); });
+  QObject::connect(unit, &QComboBox::currentIndexChanged, &dialog, [&](int) {
+    refresh_dimension_spins();
+    update_summary();
+  });
   QObject::connect(resolution, &QDoubleSpinBox::valueChanged, &dialog, [&](double value) {
     const auto new_ppi = std::clamp(value * resolution_unit->currentData().toDouble(), 0.01, 9999.0);
     if (measurement_unit_is_physical(current_unit())) {
@@ -1827,6 +1894,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     set_fields_enabled(true);
     update_summary();
   }
+  templates_set_unit = true;
   QObject::connect(bit_depth, &QComboBox::currentIndexChanged, &dialog, [update_summary](int) { update_summary(); });
 
   append_themed_style(dialog, new_document_dialog_style());

@@ -6880,10 +6880,6 @@ Textfluss: %6
         <translation>Erstellen</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 Zoll bei %3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Das Dokument aus dem Bild in der Zwischenablage erstellen</translation>
     </message>
@@ -12743,6 +12739,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>Ansicht &gt; Extras blendet die hier markierten Elemente ein und aus.
 Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 bei %2 ppi</translation>
     </message>
 </context>
 <context>

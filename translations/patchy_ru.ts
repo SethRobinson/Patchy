@@ -7186,10 +7186,6 @@ Flow: %6
         <translation>Создать</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 дюйм при %3 пикс./дюйм</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Создайте документ из изображения буфера обмена.</translation>
     </message>
@@ -12778,6 +12774,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>Вид &gt; Вспомогательные элементы показывает и скрывает отмеченные здесь элементы.
 Собственная настройка каждого элемента в меню «Вид» по-прежнему действует.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 при %2 пикс./дюйм</translation>
     </message>
 </context>
 <context>

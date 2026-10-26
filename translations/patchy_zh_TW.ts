@@ -6870,10 +6870,6 @@ Flow: %6
         <translation>建立</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 英吋，%3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>從剪貼簿的影像建立文件</translation>
     </message>
@@ -12708,6 +12704,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>檢視 &gt; 額外內容會顯示或隱藏此處勾選的項目。
 每個項目自己的檢視設定仍然適用。</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1，%2 ppi</translation>
     </message>
 </context>
 <context>

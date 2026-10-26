@@ -1862,34 +1862,40 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
 
       // Preset cards carry a resolution: screen/web/video cards follow
       // Photoshop's 72 PPI convention, physical print cards are 300 PPI. The first
-      // templates keep their ids in their new groups (GitHub issue 222).
+      // templates keep their ids in their new groups (GitHub issue 222). Paper and print
+      // cards switch the fields to their own unit (local-013).
+      auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+      CHECK(unit != nullptr);
       struct ExpectedPreset {
         QString id;
-        QSize size;
+        QSizeF shown;  // in `unit`
         double ppi;
+        QString unit{QStringLiteral("Pixels")};
       };
+      const auto mm = QStringLiteral("Millimeters");
+      const auto in = QStringLiteral("Inches");
       const std::vector<ExpectedPreset> screen_presets = {
-          {QStringLiteral("screen-1024x768"), QSize(1024, 768), 72.0},
-          {QStringLiteral("screen-720p"), QSize(1280, 720), 72.0},
-          {QStringLiteral("screen-1080p"), QSize(1920, 1080), 72.0},
-          {QStringLiteral("screen-4k"), QSize(3840, 2160), 72.0},
-          {QStringLiteral("screen-square-2048"), QSize(2048, 2048), 72.0},
+          {QStringLiteral("screen-1024x768"), QSizeF(1024, 768), 72.0},
+          {QStringLiteral("screen-720p"), QSizeF(1280, 720), 72.0},
+          {QStringLiteral("screen-1080p"), QSizeF(1920, 1080), 72.0},
+          {QStringLiteral("screen-4k"), QSizeF(3840, 2160), 72.0},
+          {QStringLiteral("screen-square-2048"), QSizeF(2048, 2048), 72.0},
       };
       const std::vector<ExpectedPreset> social_presets = {
-          {QStringLiteral("social-square-1080"), QSize(1080, 1080), 72.0},
-          {QStringLiteral("phone-story-1080x1920"), QSize(1080, 1920), 72.0},
+          {QStringLiteral("social-square-1080"), QSizeF(1080, 1080), 72.0},
+          {QStringLiteral("phone-story-1080x1920"), QSizeF(1080, 1920), 72.0},
       };
       const std::vector<ExpectedPreset> print_presets = {
-          {QStringLiteral("print-a5"), QSize(1748, 2480), 300.0},
-          {QStringLiteral("print-a4"), QSize(2480, 3508), 300.0},
-          {QStringLiteral("print-a3"), QSize(3508, 4961), 300.0},
-          {QStringLiteral("print-us-letter"), QSize(2550, 3300), 300.0},
-          {QStringLiteral("print-us-legal"), QSize(2550, 4200), 300.0},
+          {QStringLiteral("print-a5"), QSizeF(148, 210), 300.0, mm},
+          {QStringLiteral("print-a4"), QSizeF(210, 297), 300.0, mm},
+          {QStringLiteral("print-a3"), QSizeF(297, 420), 300.0, mm},
+          {QStringLiteral("print-us-letter"), QSizeF(8.5, 11), 300.0, in},
+          {QStringLiteral("print-us-legal"), QSizeF(8.5, 14), 300.0, in},
       };
       const std::vector<ExpectedPreset> photo_presets = {
-          {QStringLiteral("print-5x7"), QSize(1500, 2100), 300.0},
-          {QStringLiteral("print-8x10"), QSize(2400, 3000), 300.0},
-          {QStringLiteral("photo-3x2-3000"), QSize(3000, 2000), 72.0},
+          {QStringLiteral("print-5x7"), QSizeF(5, 7), 300.0, in},
+          {QStringLiteral("print-8x10"), QSizeF(8, 10), 300.0, in},
+          {QStringLiteral("photo-3x2-3000"), QSizeF(3000, 2000), 72.0},
       };
       const auto check_presets = [&](const std::vector<ExpectedPreset>& expected) {
         for (const auto& preset : expected) {
@@ -1898,8 +1904,9 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
           presets->setCurrentItem(card);
           QApplication::processEvents();
           CHECK(width->isEnabled());
-          CHECK(width->value() == preset.size.width());
-          CHECK(height->value() == preset.size.height());
+          CHECK(unit != nullptr && unit->currentText() == preset.unit);
+          CHECK(std::abs(width->value() - preset.shown.width()) < 1e-6);
+          CHECK(std::abs(height->value() - preset.shown.height()) < 1e-6);
           CHECK(std::abs(resolution->value() - preset.ppi) < 0.01);
         }
       };

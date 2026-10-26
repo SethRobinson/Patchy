@@ -7186,10 +7186,6 @@ Przepływ:%6
         <translation>Utwórz</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 cale przy %3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Utwórz dokument z obrazu schowka</translation>
     </message>
@@ -12778,6 +12774,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>Widok &gt; Dodatki pokazuje i ukrywa zaznaczone tu elementy.
 Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 przy %2 ppi</translation>
     </message>
 </context>
 <context>

@@ -48,6 +48,23 @@ issue 281) and the New Artboard dialog's combo puts a separator between groups.
 `size_preset_matches_search` is the search rule both the dialog and the Artboard bar's picker
 use.
 
+## Template units (local-013)
+
+Every template carries a display unit (`NewDocumentPreset::unit`): ISO paper (A6 to A2, the EU
+business card) in mm, ANSI paper, the US business card, the poster and the inch photo prints in
+inches, the 10 x 15 and 13 x 18 cm prints in cm, everything else (Photo 3:2 included) in
+pixels. A card shows its size in its unit (`preset_size_text`, item role
+`kNewDocumentPresetSizeTextRole`): the unit's spin decimals (`measurement_unit_decimals`) with
+trailing zeros dropped, so whole-pixel templates at 300 PPI read their nominal size ("210 x 297
+mm", "8.5 x 11 in"); `ui_new_document_templates_show_their_unit` pins every print and photo
+label, so a new paper template whose pixels round to another figure fails there. Pixels stay the
+truth: picking a template sets its pixels and PPI, then switches the W/H unit combo to its unit
+(a pixel template back to Pixels). The opening card does not: it keeps the remembered unit, or
+the ruler unit before a first create. Recent cards and saved presets show and restore the unit
+they stored; Clipboard shows pixels and leaves the unit alone. Search also matches the shown
+size ("210", "8.5", "210x297mm"; `size_preset_matches_search`'s `shown_size`). The summary's
+printed-size line follows the unit combo, inches while it shows pixels.
+
 ## Name (GitHub issue 374)
 
 `newDocumentNameEdit`, the first row, starts as "Untitled-N" (N = open documents + 1) and

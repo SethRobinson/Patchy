@@ -6880,10 +6880,6 @@ Flux : %6
         <translation>Créer</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 po à %3 ppp</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Créer le document à partir de l&apos;image du Presse-papiers</translation>
     </message>
@@ -12743,6 +12739,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>Affichage &gt; Extras affiche et masque les éléments cochés ici.
 Le réglage propre de chaque élément dans le menu Affichage s&apos;applique toujours.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 à %2 ppp</translation>
     </message>
 </context>
 <context>

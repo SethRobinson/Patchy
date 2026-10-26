@@ -6870,10 +6870,6 @@ Flow: %6
         <translation>创建</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 英寸，%3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>使用剪贴板中的图像创建文档</translation>
     </message>
@@ -12708,6 +12704,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>视图 &gt; 额外内容会显示或隐藏此处勾选的项目。
 每个项目自己的视图设置仍然有效。</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1，%2 ppi</translation>
     </message>
 </context>
 <context>

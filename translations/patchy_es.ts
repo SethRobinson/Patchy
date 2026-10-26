@@ -6880,10 +6880,6 @@ Flujo: %6
         <translation>Crear</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 pulg a %3 ppp</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crear el documento a partir de la imagen del portapapeles</translation>
     </message>
@@ -12743,6 +12739,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>Vista &gt; Extras muestra y oculta los elementos marcados aquí.
 El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 a %2 ppp</translation>
     </message>
 </context>
 <context>

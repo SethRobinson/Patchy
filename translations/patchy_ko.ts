@@ -7160,10 +7160,6 @@ Flow: %6
         <translation>만들기</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%3ppi에서 %1 x %2인치</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>클립보드 이미지에서 문서 만들기</translation>
     </message>
@@ -12708,6 +12704,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>보기 &gt; 표시자는 여기에서 선택한 항목을 표시하거나 숨깁니다.
 각 항목의 보기 설정도 그대로 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%2ppi에서 %1</translation>
     </message>
 </context>
 <context>

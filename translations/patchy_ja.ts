@@ -3603,10 +3603,6 @@ Flow: %6
         <translation>%1 x %2 px</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 インチ、%3 ppi</translation>
-    </message>
-    <message>
         <source>%1: %2 x %3 px at %4 ppi</source>
         <translation>%1: %2 x %3 px、%4 ppi</translation>
     </message>
@@ -12708,6 +12704,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>表示 &gt; エクストラは、ここでチェックした項目を表示または非表示にします。
 各項目の表示設定もそのまま適用されます。</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1、%2 ppi</translation>
     </message>
 </context>
 <context>

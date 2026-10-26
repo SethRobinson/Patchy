@@ -7173,10 +7173,6 @@ Fluxo: %6
         <translation>Criar</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 pol a %3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crie o documento a partir da imagem da área de transferência</translation>
     </message>
@@ -12743,6 +12739,16 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 Each item&apos;s own View setting still applies.</source>
         <translation>Visualizar &gt; Extras mostra e oculta os itens marcados aqui.
 A configuração própria de cada item no menu Visualizar continua valendo.</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 a %2 ppi</translation>
     </message>
 </context>
 <context>

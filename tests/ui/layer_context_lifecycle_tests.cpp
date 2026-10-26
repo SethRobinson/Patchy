@@ -2604,16 +2604,17 @@ void ui_new_document_template_groups_hold_every_template() {
        {"icon-app-1024", "icon-store-512", "icon-desktop-256", "icon-favicon-32", "art-pixel-16", "art-pixel-32",
         "art-pixel-64", "art-texture-1024", "art-texture-2048", "art-texture-4096", "game-store-header"}},
   };
+  // `shown` is the field values in the card's unit: pixels, or the paper's own unit.
   struct Spot {
     const char* id;
-    QSize size;
+    QSizeF shown;
     double ppi;
   };
   const std::vector<Spot> spots = {
-      {"screen-1440p", QSize(2560, 1440), 72.0},       {"mobile-iphone-16", QSize(1179, 2556), 72.0},
-      {"social-youtube-thumbnail", QSize(1280, 720), 72.0}, {"web-ad-medium-rectangle", QSize(300, 250), 72.0},
-      {"print-a6", QSize(1240, 1748), 300.0},           {"print-business-card-us", QSize(1050, 600), 300.0},
-      {"photo-print-4x6", QSize(1200, 1800), 300.0},    {"icon-favicon-32", QSize(32, 32), 72.0},
+      {"screen-1440p", QSizeF(2560, 1440), 72.0},       {"mobile-iphone-16", QSizeF(1179, 2556), 72.0},
+      {"social-youtube-thumbnail", QSizeF(1280, 720), 72.0}, {"web-ad-medium-rectangle", QSizeF(300, 250), 72.0},
+      {"print-a6", QSizeF(105, 148), 300.0},            {"print-business-card-us", QSizeF(3.5, 2), 300.0},
+      {"photo-print-4x6", QSizeF(4, 6), 300.0},         {"icon-favicon-32", QSizeF(32, 32), 72.0},
   };
 
   bool inspected = false;
@@ -2656,8 +2657,8 @@ void ui_new_document_template_groups_hold_every_template() {
         if (auto* item = card(*presets, QLatin1String(spot.id)); item != nullptr) {
           presets->setCurrentItem(item);
           QApplication::processEvents();
-          CHECK(width->value() == spot.size.width());
-          CHECK(height->value() == spot.size.height());
+          CHECK(std::abs(width->value() - spot.shown.width()) < 1e-6);
+          CHECK(std::abs(height->value() - spot.shown.height()) < 1e-6);
           CHECK(std::abs(resolution->value() - spot.ppi) < 0.01);
         }
       }
@@ -3173,7 +3174,12 @@ void ui_new_document_recent_row_lists_creates_newest_first() {
     CHECK(recent->item(0)->text() == QStringLiteral("Last Used"));
     CHECK(recent->item(1)->text() == QStringLiteral("1080p"));
     CHECK(recent->currentItem() == recent->item(0));
-    CHECK(std::abs(width->value() - 2480.0) < 0.5);
+    // A4 was created in the millimeters its card switched to; the Recent card keeps them.
+    CHECK(std::abs(width->value() - 210.0) < 1e-6);
+    CHECK(recent->item(0)->data(patchy::ui::kNewDocumentPresetSizeTextRole).toString() ==
+          QStringLiteral("210 x 297 mm"));
+    CHECK(recent->item(1)->data(patchy::ui::kNewDocumentPresetSizeTextRole).toString() ==
+          QStringLiteral("1920 x 1080 px"));
     // Every group, and a search, keep the row; the grids never hold Recent cards.
     for (auto* chip : dialog.findChildren<QToolButton*>()) {
       if (!chip->property("newDocumentChip").toBool()) {
