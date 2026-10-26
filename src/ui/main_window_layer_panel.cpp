@@ -4852,13 +4852,19 @@ void MainWindow::refresh_status_document_info() {
     color.cmyk_proof = true;
     color.cmyk_profile_name = QString::fromStdString(working_cmyk_space()->profile_description());
   }
-  // The field may reach a third of the way across the bar. It follows the Fit button,
-  // whose place is known even while the field is still hidden.
+  // The field may reach a third of the way across the bar. It follows the Fit button
+  // and its separator, whose places are known even while the field is still hidden.
   auto field_left = 0;
   if (const auto* fit = zoom_status_controls_->findChild<QWidget*>(QStringLiteral("statusZoomFitButton"),
                                                                    Qt::FindDirectChildrenOnly);
       fit != nullptr) {
-    field_left = zoom_status_controls_->x() + fit->geometry().right() + 1 + zoom_status_controls_->layout()->spacing();
+    const auto spacing = zoom_status_controls_->layout()->spacing();
+    field_left = zoom_status_controls_->x() + fit->geometry().right() + 1 + spacing;
+    if (const auto* line = zoom_status_controls_->findChild<QWidget*>(QStringLiteral("statusInfoSeparator"),
+                                                                      Qt::FindDirectChildrenOnly);
+        line != nullptr) {
+      field_left += line->width() + spacing;
+    }
   }
   status_document_info_label_->set_width_budget(std::max(1, zoom_status_bar_->width() / 3 - field_left));
   status_document_info_label_->set_info(StatusDocumentInfoLabel::describe(std::as_const(document()), color));

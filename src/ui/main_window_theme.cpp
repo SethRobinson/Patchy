@@ -686,13 +686,16 @@ QString photoshop_style_template() {
     QLabel#statusDocumentInfoLabel {
       background: transparent;
       color: @status_text;
-      padding: 0;
+      padding: 0 2px;
       font-size: 11px;
+    }
+    QFrame#statusInfoSeparator {
+      color: @status_field_border;
     }
     QLabel#statusSelectionInfoLabel {
       background: transparent;
       color: @status_text;
-      padding: 0 0 0 8px;
+      padding: 0 0 0 2px;
       font-size: 11px;
     }
     QLabel#canvasInfoLabel, QLabel#documentInfoLabel {

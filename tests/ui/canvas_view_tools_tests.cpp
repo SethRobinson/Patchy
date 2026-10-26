@@ -2607,15 +2607,22 @@ void ui_status_bar_document_info_fits_at_1366() {
   const auto dot = patchy::ui::StatusDocumentInfoLabel::separator();
   CHECK(info->text() == QStringLiteral("1920 × 1080 px") + dot + QStringLiteral("72 ppi") + dot +
                             QStringLiteral("RGB 8-bit"));
-  // Zoom box, Fit and the field sit close together on the one bar line.
+  // Zoom box, Fit, a separator and the field sit close together on the one bar line.
   const auto fit_rect = QRect(fit->mapTo(bar, QPoint()), fit->size());
   const auto info_rect = QRect(info->mapTo(bar, QPoint()), info->size());
   const auto box_right = zoom_edit->mapTo(bar, QPoint(zoom_edit->width(), 0)).x();
-  // Fit's text sits centered with the same gap to the box as to the field.
+  auto* separator = controls->findChild<QFrame*>(QStringLiteral("statusInfoSeparator"));
+  CHECK(separator != nullptr);
+  if (separator == nullptr) {
+    return;
+  }
+  const auto separator_rect = QRect(separator->mapTo(bar, QPoint()), separator->size());
+  // Fit's text sits centered with the same gap to the box as to the separator.
   const auto gap_before = fit_rect.left() - box_right;
-  const auto gap_after = info_rect.left() - (fit_rect.right() + 1);
+  const auto gap_after = separator_rect.left() - (fit_rect.right() + 1);
   CHECK(gap_before >= 0 && gap_before <= 4);
   CHECK(std::abs(gap_after - gap_before) <= 1);
+  CHECK(separator_rect.right() < info_rect.left());
   CHECK(fit->width() <= fit->fontMetrics().horizontalAdvance(fit->text()) +
                             2 * fit->fontMetrics().horizontalAdvance(QLatin1Char(' ')) + 8);
   CHECK(info_rect.top() >= 0 && info_rect.bottom() < bar->height());
@@ -2629,6 +2636,78 @@ void ui_status_bar_document_info_fits_at_1366() {
   empty.resize(1366, 768);
   QApplication::processEvents();
   CHECK(bar->height() == empty.statusBar()->height());
+}
+
+// The document info field (issue 206 follow-up) sits between two separators and keeps
+// one width for every document, so the status message after it starts at the same x
+// across tab switches; a rare longer line is elided, with the whole line in the tooltip.
+void ui_status_bar_document_info_keeps_one_width() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.add_document_session(status_info_test_document(1920, 1080, 72.0), QStringLiteral("Wide"));
+  window.add_document_session(status_info_test_document(640, 480, 300.0), QStringLiteral("Small"));
+  window.resize(1366, 768);
+  QApplication::processEvents();
+  auto* bar = window.statusBar();
+  bar->showMessage(QStringLiteral("Brush Tool: drag to paint. Shift-click paints a straight line."));
+  QApplication::processEvents();
+  auto* info = require_status_document_info(window);
+  auto* controls = bar->findChild<QWidget*>(QStringLiteral("statusZoomControls"));
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(controls != nullptr && tabs != nullptr && tabs->count() == 2);
+  if (info == nullptr || controls == nullptr || tabs == nullptr) {
+    return;
+  }
+  const auto separators = controls->findChildren<QFrame*>(QStringLiteral("statusInfoSeparator"));
+  CHECK(separators.size() == 2);
+  if (separators.size() != 2) {
+    return;
+  }
+  const auto info_rect = QRect(info->mapTo(bar, QPoint()), info->size());
+  QList<QRect> separator_rects;
+  for (auto* separator : separators) {
+    CHECK(separator->isVisible());
+    CHECK(separator->frameShape() == QFrame::VLine);
+    separator_rects << QRect(separator->mapTo(bar, QPoint()), separator->size());
+  }
+  // One on each side of the field.
+  CHECK(std::ranges::count_if(separator_rects, [&](QRect r) { return r.right() < info_rect.left(); }) == 1);
+  CHECK(std::ranges::count_if(separator_rects, [&](QRect r) { return r.left() > info_rect.right(); }) == 1);
+  save_widget_artifact("ui_status_bar_document_info_one_width", *bar);
+
+  const auto small_text = info->text();
+  const auto small_width = info->width();
+  const auto controls_right = controls->geometry().right();
+  CHECK(small_text.startsWith(QStringLiteral("640 × 480 px")));
+  CHECK(info->minimumWidth() == info->maximumWidth());
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(info->text().startsWith(QStringLiteral("1920 × 1080 px")));
+  CHECK(info->text() != small_text);
+  CHECK(info->width() == small_width);
+  CHECK(controls->geometry().right() == controls_right);
+  // The width holds room for the field's long sample line, not just this one.
+  CHECK(info->contentsRect().width() >= info->reserved_text_width());
+  CHECK(info->fontMetrics().horizontalAdvance(info->text()) < info->reserved_text_width());
+
+  // A line longer than the sample keeps the width and is elided; the tooltip has it all.
+  patchy::ui::StatusDocumentInfoLabel field;
+  const patchy::ui::StatusDocumentInfoLabel::Info long_info{
+      {QStringLiteral("300000 × 300000 px"), QStringLiteral("1200 × 600 ppi"), QStringLiteral("CMYK Proof 32-bit float")},
+      QStringLiteral("whole line")};
+  field.set_info(long_info);
+  CHECK(field.width() == field.reserved_text_width());
+  CHECK(field.text().startsWith(QStringLiteral("300000 × 300000 px")));
+  CHECK(field.text().endsWith(QChar(0x2026)));
+  CHECK(field.toolTip() == QStringLiteral("whole line"));
+
+  // With no document the field and both separators hide.
+  patchy::ui::MainWindow empty;
+  show_window_empty(empty);
+  QApplication::processEvents();
+  for (auto* separator : empty.statusBar()->findChildren<QFrame*>(QStringLiteral("statusInfoSeparator"))) {
+    CHECK(separator->isHidden());
+  }
 }
 
 // The status-bar selection readout (issue 355): the selection's X, Y, W and H after the
@@ -9480,6 +9559,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_status_bar_zoom_box_wheel_scrub_and_buttons", ui_status_bar_zoom_box_wheel_scrub_and_buttons},
       {"ui_status_bar_zoom_box_fits_large_values", ui_status_bar_zoom_box_fits_large_values},
       {"ui_status_bar_document_info_fits_at_1366", ui_status_bar_document_info_fits_at_1366},
+      {"ui_status_bar_document_info_keeps_one_width", ui_status_bar_document_info_keeps_one_width},
       {"ui_status_bar_selection_info_follows_selection", ui_status_bar_selection_info_follows_selection},
       {"ui_status_bar_document_info_shows_document_facts", ui_status_bar_document_info_shows_document_facts},
       {"ui_status_bar_document_info_drops_parts_when_narrow",

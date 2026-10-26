@@ -4588,9 +4588,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
   // Document info after Fit (GitHub issues 202 and 206; docs/view-navigation.md): the
   // active document's dimensions, resolution, color mode and depth, with the profile
-  // and memory use in its tooltip.
+  // and memory use in its tooltip, in a fixed-width field between two separators.
+  const auto add_status_separator = [this, zoom_controls_layout] {
+    auto* line = new QFrame(zoom_status_controls_);
+    line->setObjectName(QStringLiteral("statusInfoSeparator"));
+    line->setFrameShape(QFrame::VLine);
+    line->setFrameShadow(QFrame::Plain);
+    line->setFixedSize(7, 15);
+    zoom_controls_layout->addWidget(line);
+    return line;
+  };
+  auto* info_separator_before = add_status_separator();
   status_document_info_label_ = new StatusDocumentInfoLabel(zoom_status_controls_);
   zoom_controls_layout->addWidget(status_document_info_label_);
+  status_document_info_label_->set_separators(info_separator_before, add_status_separator());
   // The selection's X, Y, W and H after it, only while there is a selection (GitHub issue 355).
   status_selection_info_label_ = new StatusSelectionInfoLabel(zoom_status_controls_);
   zoom_controls_layout->addWidget(status_selection_info_label_);
