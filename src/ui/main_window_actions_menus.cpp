@@ -2043,7 +2043,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(view_gamut_warning_action_, &QAction::toggled, this, [this] { refresh_proof_display(); });
   // View > Extras (GitHub issue 420) hides or shows every overlay ticked in Show Extras
   // Options; it keeps the old Show Selection Edges command id (view.selection_edges), so
-  // a custom Ctrl+H binding carries over. Per canvas, like Photoshop's.
+  // a custom Ctrl+H binding carries over. Per canvas, like Photoshop's. View > Show
+  // holds the overlay toggles Extras covers, so the two read as one group between
+  // separators (GitHub issue 420 follow-up); only the menu place moved, never an id.
+  view_menu->addSeparator();
   view_extras_action_ = view_menu->addAction(tr("&Extras"));
   view_extras_action_->setObjectName(QStringLiteral("viewExtrasAction"));
   view_extras_action_->setCheckable(true);
@@ -2054,21 +2057,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   show_selection_edges_action->setObjectName(QStringLiteral("viewShowSelectionEdgesAction"));
   show_selection_edges_action->setCheckable(true);
   show_selection_edges_action->setChecked(view_selection_edges_shown_);
-  show_menu->addSeparator();
-  auto* extras_options_action = show_menu->addAction(tr("Show &Extras Options..."));
-  extras_options_action->setObjectName(QStringLiteral("viewExtrasOptionsAction"));
-  auto* target_path_action = view_menu->addAction(tr("Show Target &Path"));
-  view_menu->addSeparator();
-  view_rulers_action_ = view_menu->addAction(tr("&Rulers"));
-  view_grid_action_ = view_menu->addAction(tr("&Grid"));
+  auto* target_path_action = show_menu->addAction(tr("&Target Path"));
+  view_guides_action_ = show_menu->addAction(tr("&Guides"));
+  view_grid_action_ = show_menu->addAction(tr("&Grid"));
   // Lines between pixels at 600% and up (GitHub issue 239); an app-wide preference.
-  view_pixel_grid_action_ = view_menu->addAction(tr("Pi&xel Grid"));
+  view_pixel_grid_action_ = show_menu->addAction(tr("Pi&xel Grid"));
   view_pixel_grid_action_->setObjectName(QStringLiteral("viewTogglePixelGridAction"));
   view_pixel_grid_action_->setMenuRole(QAction::NoRole);
   view_pixel_grid_action_->setCheckable(true);
   view_pixel_grid_action_->setChecked(view_pixel_grid_visible_);
   register_hotkey(view_pixel_grid_action_, "view.pixel_grid");
-  view_guides_action_ = view_menu->addAction(tr("&Guides"));
+  show_menu->addSeparator();
+  auto* extras_options_action = show_menu->addAction(tr("Show &Extras Options..."));
+  extras_options_action->setObjectName(QStringLiteral("viewExtrasOptionsAction"));
+  view_menu->addSeparator();
+  view_rulers_action_ = view_menu->addAction(tr("&Rulers"));
   view_snap_action_ = view_menu->addAction(tr("&Snap"));
   view_lock_guides_action_ = view_menu->addAction(tr("Lock Guides"));
   auto* snap_to_menu = view_menu->addMenu(tr("Snap &To"));

@@ -15611,10 +15611,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>實際像素(&amp;A)</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>顯示目標路徑(&amp;P)</translation>
-    </message>
-    <message>
         <source>Seamless &amp;Tile Preview</source>
         <translation>無縫拼貼預視(&amp;T)</translation>
     </message>
@@ -25944,6 +25940,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移動：拖曳以移動，Shift+拖曳保持水平或垂直，%ALT%+拖曳以複製。%CTRL%+點按選取圖層，Shift+點按切換選取。%CTRL%+拖曳框選；開啟自動選取時，在空白處拖曳也可框選。</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>目標路徑(&amp;T)</translation>
     </message>
 </context>
 <context>

@@ -51,7 +51,7 @@ remain on top (next section).
 ## Overlay order
 
 The paint order is: composite (at 600% and up through `draw_deep_zoom_pixels`,
-which bakes View > Pixel Grid into its raster), then the preview frame
+which bakes View > Show > Pixel Grid into its raster), then the preview frame
 (`draw_vector_preview`, a checkerboard plus the frame over the composite), then
 every overlay: the document grid, guides, artboards, the document border,
 selection edges, tool overlays and readouts, and the rulers last. Anything an

@@ -15647,10 +15647,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>&amp;Píxeles reales</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>Mostrar &amp;trazado de destino</translation>
-    </message>
-    <message>
         <source>Seamless &amp;Tile Preview</source>
         <translation>Previsualización de &amp;mosaico continuo</translation>
     </message>
@@ -26017,6 +26013,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Mover: arrastrar mueve, Mayús+arrastrar lo mantiene horizontal o vertical, %ALT%+arrastrar duplica. %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo, igual que arrastrar en un espacio vacío con Selección automática activada.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>&amp;Trazado de destino</translation>
     </message>
 </context>
 <context>

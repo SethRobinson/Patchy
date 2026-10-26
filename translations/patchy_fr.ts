@@ -15647,10 +15647,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>&amp;Pixels réels</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>Afficher le &amp;tracé cible</translation>
-    </message>
-    <message>
         <source>Seamless &amp;Tile Preview</source>
         <translation>Aperçu de la &amp;mosaïque continue</translation>
     </message>
@@ -26017,6 +26013,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Déplacement : glisser déplace, Maj+glisser le garde horizontal ou vertical, %ALT%+glisser duplique. %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle, comme glisser sur une zone vide avec Sélection auto activée.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>&amp;Tracé cible</translation>
     </message>
 </context>
 <context>
