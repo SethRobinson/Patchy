@@ -3458,6 +3458,8 @@ private:
   // view/layerThumbnailSize (kLayerThumbnailSizeSettingsKey). Persisted identifier.
   LayerThumbnailSize layer_thumbnail_size_{kDefaultLayerThumbnailSize};
   std::array<QAction*, 4> layer_thumbnail_size_actions_{};
+  // The rows were built with the folder-arrow slot reserved (#386 follow-up).
+  bool layer_list_arrow_column_{false};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   std::vector<QWidget*> warp_option_actions_;
