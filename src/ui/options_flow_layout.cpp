@@ -169,6 +169,31 @@ FlowLayout::Flow FlowLayout::do_layout(const QRect& rect, bool test_only,
       const int dy = center_rows_ ? (line_height - placed.size.height()) / 2 : 0;
       placed.item->setGeometry(QRect(placed.origin + QPoint(0, dy), placed.size));
     }
+    // Then each separator between two controls moves so its line sits halfway between
+    // their ink, now that their boxes have their final sizes.
+    for (std::size_t index = 1; index + 1 < line.size(); ++index) {
+      auto* separator = dynamic_cast<OptionsBarSeparator*>(line[index].item->widget());
+      const QWidget* before = line[index - 1].item->widget();
+      const QWidget* after = line[index + 1].item->widget();
+      if (separator == nullptr || before == nullptr || after == nullptr ||
+          dynamic_cast<const OptionsBarSeparator*>(before) != nullptr ||
+          dynamic_cast<const OptionsBarSeparator*>(after) != nullptr) {
+        continue;
+      }
+      const QMargins before_ink = ink_insets_ ? ink_insets_(*before) : QMargins();
+      const QMargins after_ink = ink_insets_ ? ink_insets_(*after) : QMargins();
+      // The clear columns between the last ink before and the first ink after.
+      const int first = before->geometry().right() - before_ink.right() + 1;
+      const int last = after->geometry().left() + after_ink.left() - 1;
+      if (last < first) {
+        continue;
+      }
+      QRect box = separator->geometry();
+      // An even count puts the extra column on the left: glyph edges fade, so the ink after
+      // reads a little later than its outline says.
+      box.moveLeft(first + (last - first + 1) / 2 - OptionsBarSeparator::line_offset(box.width()));
+      separator->setGeometry(box);
+    }
     line.clear();
   };
   for (auto* item : items_) {
@@ -201,6 +226,13 @@ FlowLayout::Flow FlowLayout::do_layout(const QRect& rect, bool test_only,
     ++lines;
   }
   return Flow{y + line_height - rect.y() + margins.bottom(), lines};
+}
+
+OptionsBarSeparator::OptionsBarSeparator(QWidget* parent) : QFrame(parent) {
+  setObjectName(QStringLiteral("optionSeparator"));
+  setFrameShape(QFrame::VLine);
+  setFrameShadow(QFrame::Plain);
+  setFixedHeight(24);
 }
 
 QSize OptionsFlowContainer::sizeHint() const {
