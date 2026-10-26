@@ -81,6 +81,15 @@ PathsPanel::PathsPanel(QWidget* parent) : QWidget(parent) {
       refresh_action_states();
     }
   });
+  // The layer row is selected on its own whenever its layer is active, so a click on it
+  // changes no current item; it still retargets (a vector mask row targets the mask).
+  connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+    if (!updating_ && item != nullptr && item == list_->currentItem() && target_callback_ &&
+        static_cast<RowKind>(item->data(kKindRole).toInt()) == RowKind::LayerPath) {
+      const auto row = row_from_item(item);
+      target_callback_(row.kind, row.id);
+    }
+  });
   connect(list_, &QListWidget::itemDoubleClicked, this,
           [this](QListWidgetItem* item) { handle_item_double_clicked(item); });
   connect(list_, &QListWidget::itemChanged, this,

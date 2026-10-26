@@ -1242,15 +1242,15 @@ void MainWindow::create_docks() {
       return;
     }
     if (target == LayerCtrlClickTarget::VectorMaskThumbnail) {
-      const auto editing_vector_mask_already =
-          was_active && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask;
-      set_layer_edit_target_ui(editing_vector_mask_already
-                                   ? CanvasWidget::LayerEditTarget::Content
-                                   : CanvasWidget::LayerEditTarget::VectorMask,
-                               true);
-      if (!editing_vector_mask_already) {
-        statusBar()->showMessage(tr("Editing the vector mask path with the pen and path tools"));
-      }
+      // Always targets, never toggles back to the pixels (#447): adding a mask already
+      // targets it, so a toggle made the natural first click turn editing off and the Pen
+      // drew a work path. The content thumbnail returns to the pixels.
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::VectorMask, false);
+      const auto* mask = std::as_const(*layer).vector_mask();
+      statusBar()->showMessage(
+          mask != nullptr && mask->path.subpaths.empty()
+              ? tr("Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer")
+              : tr("Editing the vector mask path with the pen and path tools"));
       return;
     }
     const auto editing_mask_already =
@@ -1320,6 +1320,28 @@ void MainWindow::create_docks() {
       return;
     }
     zoom_canvas_to_layer_content(layer_id);
+  });
+  layer_list->set_mask_thumbnail_double_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
+    const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    if (layer_id == 0 || canvas_ == nullptr) {
+      return;
+    }
+    const bool vector_mask = target == LayerCtrlClickTarget::VectorMaskThumbnail;
+    // The double-click's first click toggles a targeted layer mask back to the pixels;
+    // the mask is the target while its properties are open.
+    if (document().active_layer_id() != layer_id) {
+      document().set_active_layer(layer_id);
+    }
+    set_layer_edit_target_ui(vector_mask ? CanvasWidget::LayerEditTarget::VectorMask
+                                         : CanvasWidget::LayerEditTarget::Mask,
+                             false);
+    // The dialog runs its own loop: leave the thumbnail's event first.
+    const auto session_id = session().session_id;
+    QTimer::singleShot(0, this, [this, layer_id, vector_mask, session_id] {
+      if (has_active_document() && session().session_id == session_id) {
+        edit_layer_mask_properties(layer_id, vector_mask);
+      }
+    });
   });
   layer_list->set_smart_filter_double_click_callback(
       [this](QListWidgetItem* item, std::size_t execution_index) {

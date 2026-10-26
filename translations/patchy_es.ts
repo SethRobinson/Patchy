@@ -12794,6 +12794,30 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Ruler</source>
         <translation>Regla</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>La capa y la máscara vectorial están enlazadas. Haga clic para desenlazarlas.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>La capa y la máscara vectorial no están enlazadas. Haga clic para enlazarlas.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Propiedades de la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Propiedades de la máscara de capa</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>La opacidad de las zonas ocultas de la máscara. Por debajo del 100% la capa se ve a través de ellas.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Suaviza los bordes de la máscara en este número de píxeles</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14611,6 +14635,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Straighten Layer</source>
         <translation>Enderezar capa</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>La máscara vectorial aún no tiene un trazado que mover. Dibuje uno con la Pluma o una herramienta de forma.</translation>
     </message>
 </context>
 <context>
@@ -26229,6 +26257,58 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Imagen enderezada %1 grados en sentido horario</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Editando la máscara vectorial: dibuje un trazado o una forma con la Pluma o una herramienta de forma para enmascarar la capa</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Desenlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Enlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Propiedades de la máscara...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Se añadió una máscara vectorial. Dibuje un trazado o una forma con la Pluma o una herramienta de forma para enmascarar la capa</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Enlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Desenlazar máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Capa y máscara vectorial enlazadas</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Capa y máscara vectorial desenlazadas</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Propiedades de la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Propiedades de la máscara de capa</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Se cambiaron la densidad y el calado de la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Se cambiaron la densidad y el calado de la máscara de capa</translation>
     </message>
 </context>
 <context>

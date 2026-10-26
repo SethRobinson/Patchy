@@ -423,6 +423,7 @@ int main(int argc, char* argv[]) {
            misc_visuals_outline_stress_tests,
            float_window_tests,
            vector_shape_tool_tests,
+           vector_mask_editing_tests,
            batch_appearance_tests,
            vector_preview_tests,
            vector_point_editing_tests,

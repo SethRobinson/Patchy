@@ -12829,6 +12829,30 @@ Each item&apos;s own View setting still applies.</source>
         <source>Ruler</source>
         <translation>Линейка</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Слой и векторная маска связаны. Нажмите, чтобы отменить связь.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Слой и векторная маска не связаны. Нажмите, чтобы связать.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Свойства векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Свойства маски слоя</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Непрозрачность скрытых маской областей. Ниже 100% слой просвечивает сквозь них.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Смягчает края маски на это число пикселей</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14646,6 +14670,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Straighten Layer</source>
         <translation>Выровнять слой</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>У векторной маски пока нет контура для перемещения. Нарисуйте его инструментом «Перо» или инструментом фигуры.</translation>
     </message>
 </context>
 <context>
@@ -26302,6 +26330,58 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Изображение выровнено поворотом на %1 градус по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Редактирование векторной маски: нарисуйте контур или фигуру инструментом «Перо» или инструментом фигуры, чтобы замаскировать слой</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Отменить связь векторной маски</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Связать векторную маску</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Свойства маски...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Добавлена векторная маска. Нарисуйте контур или фигуру инструментом «Перо» или инструментом фигуры, чтобы замаскировать слой</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Связать векторную маску</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Отменить связь векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Слой и векторная маска связаны</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Связь слоя и векторной маски отменена</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Свойства векторной маски</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Свойства маски слоя</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Изменены плотность и растушёвка векторной маски</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Изменены плотность и растушёвка маски слоя</translation>
     </message>
 </context>
 <context>

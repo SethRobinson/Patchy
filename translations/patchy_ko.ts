@@ -12759,6 +12759,30 @@ Each item&apos;s own View setting still applies.</source>
         <source>Ruler</source>
         <translation>자</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>레이어와 벡터 마스크가 연결되어 있습니다. 연결을 해제하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>레이어와 벡터 마스크가 연결 해제되었습니다. 연결하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>마스크로 숨겨진 영역의 불투명도입니다. 100% 미만이면 그 영역에서도 레이어가 비쳐 보입니다.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>마스크 가장자리를 이 픽셀 수만큼 부드럽게 합니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14576,6 +14600,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Straighten Layer</source>
         <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>벡터 마스크에 아직 이동할 패스가 없습니다. 펜이나 모양 도구로 그리세요.</translation>
     </message>
 </context>
 <context>
@@ -26156,6 +26184,58 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>이미지를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크 편집 중: 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>마스크 속성...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>벡터 마스크를 추가했습니다. 펜이나 모양 도구로 패스나 모양을 그려 레이어를 마스크하세요</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>벡터 마스크 연결</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>벡터 마스크 연결 해제</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>레이어와 벡터 마스크가 연결됨</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>레이어와 벡터 마스크 연결 해제됨</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>벡터 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>레이어 마스크 속성</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>벡터 마스크의 밀도와 페더를 변경했습니다</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>레이어 마스크의 밀도와 페더를 변경했습니다</translation>
     </message>
 </context>
 <context>
