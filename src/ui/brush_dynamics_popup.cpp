@@ -1,5 +1,6 @@
 #include "ui/brush_dynamics_popup.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_qss.hpp"
@@ -577,7 +578,13 @@ void BrushDynamicsPanel::reset_to_defaults() {
 
 BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) {
   setObjectName(QStringLiteral("brushDynamicsButton"));
-  setToolButtonStyle(Qt::ToolButtonTextOnly);
+  // An icon button (GitHub issue 364 follow-up): three sliders, not the gear, which already
+  // marks the Smoothing options. "Dynamics" stays its text for screen readers.
+  setToolButtonStyle(Qt::ToolButtonIconOnly);
+  setIcon(simple_icon(QStringLiteral("brush-dynamics")));
+  setIconSize(QSize(16, 16));
+  // Checked while the popup is open, so the button reads as pressed (sync_checked).
+  setCheckable(true);
   popup_clock_.start();
   connect(this, &QToolButton::clicked, this, &BrushDynamicsButton::show_popup);
   retranslate();
@@ -586,6 +593,7 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
 
 void BrushDynamicsButton::retranslate() {
   setText(tr("Dynamics"));
+  setAccessibleName(tr("Dynamics"));
   setToolTip(!round_session_ ? tr("Brush dynamics and effects for the active brush tip")
              : tip_id_ == builtin_square_brush_tip_id()
                  ? tr("Brush dynamics and effects for the Square brush "
@@ -682,7 +690,21 @@ bool BrushDynamicsButton::edit_pending() const {
   return emit_timer_ != nullptr && emit_timer_->isActive();
 }
 
+void BrushDynamicsButton::sync_checked() {
+  setChecked(popup_ != nullptr);
+}
+
 void BrushDynamicsButton::show_popup() {
+  // A click toggles the checkable button by itself; every way out of here sets it back to
+  // whether the popup is open.
+  struct SyncChecked {
+    BrushDynamicsButton* button;
+    ~SyncChecked() {
+      if (button != nullptr) {
+        button->sync_checked();
+      }
+    }
+  } sync{this};
   if (tip_id_.isEmpty()) {
     return;
   }
@@ -691,7 +713,9 @@ void BrushDynamicsButton::show_popup() {
   // is either still closing (pointer alive) or was just destroyed (timestamp) — both mean this
   // click was the dismissal.
   if (popup_ != nullptr) {
-    popup_->close();
+    popup_->close();  // deleted later: popup_ stays set until then
+    sync.button = nullptr;
+    setChecked(false);
     return;
   }
   if (popup_dismissed_ms_ >= 0 && popup_clock_.elapsed() - popup_dismissed_ms_ < 300) {
@@ -709,6 +733,7 @@ void BrushDynamicsButton::show_popup() {
     if (rect().contains(mapFromGlobal(QCursor::pos()))) {
       popup_dismissed_ms_ = popup_clock_.elapsed();
     }
+    setChecked(false);
   });
 
   auto* layout = new QVBoxLayout(popup);

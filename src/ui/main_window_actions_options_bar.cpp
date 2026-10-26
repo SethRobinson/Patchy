@@ -258,9 +258,12 @@ QMargins options_bar_ink_insets(const QWidget& widget) {
     return text_insets(label->text(), text_x);
   }
   // A plain tool button shows a transparent frame until it is hovered or checked, so its
-  // icon or text is the ink. Subclasses (the tip and preset pickers) and swatches are framed.
+  // icon or text is the ink; so does the Dynamics icon toggle. Other subclasses (the tip and
+  // preset pickers) and swatches are framed.
   const auto* button = qobject_cast<const QToolButton*>(&widget);
-  if (button == nullptr || button->metaObject() != &QToolButton::staticMetaObject ||
+  if (button == nullptr ||
+      (button->metaObject() != &QToolButton::staticMetaObject &&
+       qobject_cast<const BrushDynamicsButton*>(button) == nullptr) ||
       button->property("optionsBarSwatch").toBool()) {
     return {};
   }
@@ -2410,10 +2413,85 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       brush_preset_combo_,
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
        CanvasTool::Eraser});
+  // The tip and its Dynamics join the Preset group at the start of the bar: what the brush
+  // is comes before how it paints (GitHub issue 364 follow-up). Pattern Stamp has no Preset,
+  // so its bar starts with Tip.
+  add_option_label(QT_TR_NOOP("Tip:"),
+                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
+                   CanvasTool::Eraser});
+  brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
+  // The options bar is built after load_tool_settings() reset the active tip to Round.
+  brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
+  add_option_widget(brush_tip_picker_,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
+                     CanvasTool::Eraser});
+  connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
+          [this](const QString& id) { set_active_brush_tip(id, true); });
+  connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
+          [this] { import_brush_tips_from_abr(); });
+  connect(brush_tip_picker_, &BrushTipPicker::define_requested, this,
+          [this] { define_brush_tip_from_selection(); });
+  connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
+  connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
+    // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
+    // Re-applying after a library edit must not reset Flow/Airbrush to imported tool settings.
+    if (!active_automation_brush_) set_active_brush_tip(active_brush_tip_id_, false, false);
+  });
+  QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
+  register_retranslation([tip_picker] {
+    if (tip_picker != nullptr) {
+      tip_picker->refresh();
+    }
+  });
+
+  brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
+  add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
+  connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
+          [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
+                 double base_roundness) {
+            if (is_builtin_brush_tip_id(tip_id)) {
+              // Session-only: the Round and Square brushes' dynamics live in the window, not
+              // the library, and deliberately reset on the next launch.
+              round_brush_dynamics_ = dynamics;
+              round_brush_base_angle_degrees_ = base_angle;
+              round_brush_base_roundness_ = base_roundness;
+              if (canvas_ != nullptr &&
+                  (active_preset_tip_ || active_brush_tip_id_.isEmpty() ||
+                   is_builtin_brush_tip_id(active_brush_tip_id_))) {
+                canvas_->set_brush_dynamics(dynamics);
+                canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+              }
+              return;
+            }
+            if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
+              canvas_->set_brush_dynamics(dynamics);
+              canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+            }
+            // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
+            brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
+          });
+  // The options bar is built after load_tool_settings() already selected the startup tip, so
+  // seed the button's model now (Round session values, or the entry if a tip is active).
+  if (active_brush_tip_id_.isEmpty() || is_builtin_brush_tip_id(active_brush_tip_id_)) {
+    brush_dynamics_button_->set_round_session(
+        active_brush_tip_id_.isEmpty() ? builtin_round_brush_tip_id() : active_brush_tip_id_, round_brush_dynamics_,
+                                              round_brush_base_angle_degrees_,
+                                              round_brush_base_roundness_);
+  } else if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_);
+             entry != nullptr) {
+    brush_dynamics_button_->set_active_entry(entry);
+  }
+  QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
+  register_retranslation([dynamics_button] {
+    if (dynamics_button != nullptr) {
+      dynamics_button->retranslate();
+    }
+  });
+
   // Separators follow the grouping rules in docs/options-bar.md; a group a tool or mode hides
   // drops its separator by itself (stray_option_separators).
-  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing,
-                        CanvasTool::Smudge, CanvasTool::Eraser});
+  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone,
+                        CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
 
   // Mode sits FIRST for the shape tools so it never moves when the Pixels-mode
   // brush controls below appear (Seth, September 2026).
@@ -2924,81 +3002,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
 
-  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Eraser});
-  add_option_label(QT_TR_NOOP("Tip:"),
-                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                   CanvasTool::Eraser});
   (void)brush_automation_library();
   refresh_automation_brush_presets();
   register_retranslation([this] { refresh_automation_brush_presets(); });
-  brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
-  // The options bar is built after load_tool_settings() reset the active tip to Round.
-  brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
-  add_option_widget(brush_tip_picker_,
-                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                     CanvasTool::Eraser});
-  connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
-          [this](const QString& id) { set_active_brush_tip(id, true); });
-  connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
-          [this] { import_brush_tips_from_abr(); });
-  connect(brush_tip_picker_, &BrushTipPicker::define_requested, this,
-          [this] { define_brush_tip_from_selection(); });
-  connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
-  connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
-    // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
-    // Re-applying after a library edit must not reset Flow/Airbrush to imported tool settings.
-    if (!active_automation_brush_) set_active_brush_tip(active_brush_tip_id_, false, false);
-  });
-  QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
-  register_retranslation([tip_picker] {
-    if (tip_picker != nullptr) {
-      tip_picker->refresh();
-    }
-  });
-
-  brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
-  add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
-  connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
-          [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
-                 double base_roundness) {
-            if (is_builtin_brush_tip_id(tip_id)) {
-              // Session-only: the Round and Square brushes' dynamics live in the window, not
-              // the library, and deliberately reset on the next launch.
-              round_brush_dynamics_ = dynamics;
-              round_brush_base_angle_degrees_ = base_angle;
-              round_brush_base_roundness_ = base_roundness;
-              if (canvas_ != nullptr &&
-                  (active_preset_tip_ || active_brush_tip_id_.isEmpty() ||
-                   is_builtin_brush_tip_id(active_brush_tip_id_))) {
-                canvas_->set_brush_dynamics(dynamics);
-                canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
-              }
-              return;
-            }
-            if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
-              canvas_->set_brush_dynamics(dynamics);
-              canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
-            }
-            // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
-            brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
-          });
-  // The options bar is built after load_tool_settings() already selected the startup tip, so
-  // seed the button's model now (Round session values, or the entry if a tip is active).
-  if (active_brush_tip_id_.isEmpty() || is_builtin_brush_tip_id(active_brush_tip_id_)) {
-    brush_dynamics_button_->set_round_session(
-        active_brush_tip_id_.isEmpty() ? builtin_round_brush_tip_id() : active_brush_tip_id_, round_brush_dynamics_,
-                                              round_brush_base_angle_degrees_,
-                                              round_brush_base_roundness_);
-  } else if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_);
-             entry != nullptr) {
-    brush_dynamics_button_->set_active_entry(entry);
-  }
-  QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
-  register_retranslation([dynamics_button] {
-    if (dynamics_button != nullptr) {
-      dynamics_button->retranslate();
-    }
-  });
 
   add_option_separator({CanvasTool::PatternStamp});
   auto* pattern_label = add_option_label(QT_TR_NOOP("Pattern:"), {CanvasTool::PatternStamp});
