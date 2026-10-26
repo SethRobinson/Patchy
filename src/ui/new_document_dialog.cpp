@@ -921,11 +921,17 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   root->setContentsMargins(14, 12, 14, 12);
   root->setSpacing(10);
 
+  // The top row across the whole dialog (GitHub issue 342): the search field, then the group
+  // chips, which wrap to another row when they do not fit (a longer translation).
+  auto* top = new QHBoxLayout();
+  top->setSpacing(12);
+  root->addLayout(top);
+
   auto* body = new QHBoxLayout();
   body->setSpacing(18);
   root->addLayout(body, 1);
 
-  // Left pane: the search field and the group chips over the preset card grid.
+  // Left pane: the preset card grid.
   auto* left = new QVBoxLayout();
   left->setSpacing(8);
   body->addLayout(left, 1);
@@ -936,7 +942,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   search->setPlaceholderText(QObject::tr("Search all templates"));
   search->setToolTip(resolve_modifier_names(QObject::tr("Search every template group by name or size (%CTRL%+F)")));
   search->setClearButtonEnabled(true);
-  left->addWidget(search);
+  search->setFixedWidth(400);
+  top->addWidget(search, 0, Qt::AlignTop);
 
   auto* chips = new QWidget(&dialog);
   chips->setObjectName(QStringLiteral("newDocumentChipRow"));
@@ -955,7 +962,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     chip_group->addButton(chip, static_cast<int>(category));
     chips_row->addWidget(chip);
   }
-  left->addWidget(chips);
+  top->addWidget(chips, 1);
 
   // One framed list area (GitHub issue 342): the Recent row on top, a divider, then the
   // group's cards under a caption naming the group, or the search.
