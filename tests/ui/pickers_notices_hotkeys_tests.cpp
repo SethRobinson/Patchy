@@ -3266,7 +3266,7 @@ void ui_options_bar_tab_focus_shows_a_themed_outline() {
                                                                                    : QStringLiteral("dark");
     patchy::ui::MainWindow window;
     show_window(window);
-    window.resize(1366, 738);
+    window.resize(1700, 738);
     QApplication::processEvents();
     auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
     CHECK(options_bar != nullptr);
