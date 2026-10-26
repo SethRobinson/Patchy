@@ -135,7 +135,7 @@ A selected row's outline draws with every tool, except a shape layer's own
 path: path and shape tools only ([vector-commands.md](vector-commands.md)).
 Anchors/handles stay path-tool-only. A drawn layer-owned outline follows its
 layer's Move drag or Free Transform preview
-([interactive-previews.md](interactive-previews.md)). View > Show Target Path
+([interactive-previews.md](interactive-previews.md)). View > Show > Target Path
 (Ctrl+Shift+H, view.target_path, not persisted) hides the overlay without
 touching targeting; a path-transform session always draws its box. View >
 Extras (Ctrl+H, view.selection_edges) hides it while Show Extras Options ticks

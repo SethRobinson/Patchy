@@ -15759,10 +15759,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>실제 픽셀(&amp;A)</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>대상 패스 표시(&amp;P)</translation>
-    </message>
-    <message>
         <source>Seamless &amp;Tile Preview</source>
         <translation>이음새 없는 타일 미리 보기(&amp;T)</translation>
     </message>
@@ -25952,6 +25948,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>이동: 드래그하여 이동하고, Shift+드래그로 수평 또는 수직으로 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하며, 자동 선택이 켜져 있으면 빈 곳을 드래그해도 됩니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>대상 패스(&amp;T)</translation>
     </message>
 </context>
 <context>

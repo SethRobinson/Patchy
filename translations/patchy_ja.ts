@@ -20786,10 +20786,6 @@ Clipped to the layer below</source>
         <translation>選択範囲が小さすぎてトレースできません</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>ターゲットパスを表示(&amp;P)</translation>
-    </message>
-    <message>
         <source>Contents:</source>
         <translation>内容:</translation>
     </message>
@@ -25952,6 +25948,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移動: ドラッグで移動、Shift+ドラッグで水平または垂直に移動、%ALT%+ドラッグで複製します。%CTRL%+クリックでレイヤーを選択、Shift+クリックで切り替えます。%CTRL%+ドラッグで矩形選択します。自動選択がオンなら空いた場所のドラッグでも選択します。</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>ターゲットパス(&amp;T)</translation>
     </message>
 </context>
 <context>

@@ -234,7 +234,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.show_menu->menuAction(), QT_TR_NOOP("S&how")},
       {ctx.show_selection_edges_action, QT_TR_NOOP("&Selection Edges")},
       {ctx.extras_options_action, QT_TR_NOOP("Show &Extras Options...")},
-      {ctx.target_path_action, QT_TR_NOOP("Show Target &Path")},
+      {ctx.target_path_action, QT_TR_NOOP("&Target Path")},
       {ctx.tile_preview_action, QT_TR_NOOP("Seamless &Tile Preview")},
       {tiling_mode_action_, QT_TR_NOOP("Seamless Tiling in &Window")},
       {view_rulers_action_, QT_TR_NOOP("&Rulers")},

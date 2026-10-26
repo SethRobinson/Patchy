@@ -1591,7 +1591,7 @@ interface PatchyUi {
    */
   gamutWarning: boolean;
   /**
-   * View > Pixel Grid: thin lines between pixels at 600% zoom and up, each tinted from its
+   * View > Show > Pixel Grid: thin lines between pixels at 600% zoom and up, each tinted from its
    * own pixel. An application-wide preference, saved, on by default. A view only: only
    * window captures see it.
    */

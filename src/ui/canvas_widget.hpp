@@ -2177,7 +2177,7 @@ private:
   [[nodiscard]] bool shape_tool_active() const noexcept;
   // Whether the target path's outline draws with the current tool (GitHub issue 238): always
   // under a path tool; otherwise only while a Paths-panel row is targeted, and a shape layer's
-  // own path only under a shape tool. Show Target Path, Ctrl+H and a pen session still apply.
+  // own path only under a shape tool. View > Show > Target Path, Ctrl+H and a pen session still apply.
   [[nodiscard]] bool target_path_outline_tool_allows() const;
   // The tool the path-edit handlers should behave as: DirectSelect while the
   // Pen's Ctrl latch is held, PathSelect while a shape tool's Ctrl is, the

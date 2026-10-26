@@ -15655,10 +15655,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>T&amp;atsächliche Pixel</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>Ziel&amp;pfad anzeigen</translation>
-    </message>
-    <message>
         <source>Seamless &amp;Tile Preview</source>
         <translation>Nah&amp;tlose Kachelvorschau</translation>
     </message>
@@ -26025,6 +26021,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Verschieben: Ziehen verschiebt, Umschalt+Ziehen hält es waagerecht oder senkrecht, %ALT%+Ziehen dupliziert. %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus, mit „Autom. auswählen“ auch Ziehen auf leerer Fläche.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>Ziel&amp;pfad</translation>
     </message>
 </context>
 <context>

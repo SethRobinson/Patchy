@@ -15831,10 +15831,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>&amp;Rzeczywiste piksele</translation>
     </message>
     <message>
-        <source>Show Target &amp;Path</source>
-        <translation>Pokaż docelową &amp;ścieżkę</translation>
-    </message>
-    <message>
         <source>Seamless &amp;Tile Preview</source>
         <translation>Podgląd &amp;bezszwowych kafelków</translation>
     </message>
@@ -26098,6 +26094,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Przesuwanie: przeciągnij, aby przesunąć, Shift+przeciąganie utrzymuje ruch w poziomie lub pionie, %ALT%+przeciąganie powiela. %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt, podobnie jak przeciąganie po pustym miejscu przy włączonym automatycznym zaznaczaniu.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>Ścieżka &amp;docelowa</translation>
     </message>
 </context>
 <context>
