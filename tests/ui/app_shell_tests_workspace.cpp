@@ -56,6 +56,7 @@
 #include <QWidgetAction>
 #include <QAbstractButton>
 #include <QTabBar>
+#include <QToolBar>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QToolBar>
@@ -2256,6 +2257,200 @@ void ui_reset_panels_restores_first_launch_layout() {
 // Reset Panels used to re-add every dock, and the column's minimum briefly asked for more
 // height than the window had: the window grew past the bottom of the screen. It keeps its
 // size and place, on a short screen too.
+// Screen modes (GitHub issue 212): F cycles Standard, Full Screen with Menus and Full
+// Screen; the window goes full screen in both, the canvas-only mode hides the menu bar,
+// toolbars, panel column, document tabs and status bar (rulers stay as they were), and
+// Standard brings back exactly what was shown before, a toolbar the user had hidden
+// staying hidden. F is a plain key, so a focused text field keeps it.
+void ui_screen_modes_cycle_hide_chrome_and_restore_standard() {
+  using patchy::ui::MainWindow;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* cycle = require_action(window, "viewScreenModeCycleAction");
+  auto* standard = require_action(window, "viewScreenModeStandardAction");
+  auto* with_menus = require_action(window, "viewScreenModeFullWithMenusAction");
+  auto* full = require_action(window, "viewScreenModeFullAction");
+  auto* rulers = require_action(window, "viewToggleRulersAction");
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  auto* tool_palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(cycle != nullptr && standard != nullptr && with_menus != nullptr && full != nullptr && rulers != nullptr &&
+        column != nullptr && tabs != nullptr && tool_palette != nullptr && options_bar != nullptr);
+  if (cycle == nullptr || standard == nullptr || with_menus == nullptr || full == nullptr || rulers == nullptr ||
+      column == nullptr || tabs == nullptr || tool_palette == nullptr || options_bar == nullptr) {
+    return;
+  }
+  CHECK(cycle->shortcut() == QKeySequence(Qt::Key_F));
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard && standard->isChecked());
+  if (!rulers->isChecked()) {
+    rulers->trigger();
+  }
+  // The user's own layout: the Options bar hidden from the Window menu.
+  options_bar->hide();
+  QApplication::processEvents();
+  const auto before_geometry = window.geometry();
+  const auto column_width = column->width();
+  const bool cycle_carried_before = window.actions().contains(cycle);
+  const auto hint = [&window]() { return window.findChild<QWidget*>(QStringLiteral("screenModeHint")); };
+
+  // A focused text field keeps the F it types.
+  auto* zoom_edit = window.statusBar()->findChild<QLineEdit*>(QStringLiteral("statusZoomEdit"));
+  CHECK(zoom_edit != nullptr);
+  if (zoom_edit != nullptr) {
+    zoom_edit->setFocus();
+    QApplication::processEvents();
+    QTest::keyClick(zoom_edit, Qt::Key_F);
+    QApplication::processEvents();
+    CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard);
+  }
+
+  canvas->setFocus();
+  QTest::keyClick(canvas, Qt::Key_F);
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreenWithMenus);
+  CHECK(with_menus->isChecked() && !standard->isChecked());
+  CHECK(window.isFullScreen());
+  CHECK(window.menuBar()->isVisible() && tool_palette->isVisible() && options_bar->isHidden());
+  CHECK(column->isVisible() && tabs->tabBar()->isVisible() && window.statusBar()->isVisible());
+  CHECK(hint() != nullptr && hint()->isVisible());
+  CHECK(hint() != nullptr && hint()->accessibleName() == QStringLiteral("Press Esc to exit full screen"));
+  save_widget_artifact("issue_212_full_screen_with_menus", window);
+
+  // F again with the canvas focused: the canvas alone, rulers kept.
+  canvas->setFocus();
+  QTest::keyClick(canvas, Qt::Key_F);
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreen && full->isChecked());
+  CHECK(window.isFullScreen());
+  CHECK(window.menuBar()->isHidden() && tool_palette->isHidden() && options_bar->isHidden());
+  CHECK(column->isHidden() && tabs->tabBar()->isHidden() && window.statusBar()->isHidden());
+  CHECK(rulers->isChecked() && canvas->rulers_visible());
+  CHECK(hint() != nullptr && hint()->isVisible());
+  CHECK(hint() != nullptr && hint()->accessibleName() == QStringLiteral("Press F or Esc to exit full screen"));
+  // The window carries the hidden bars' commands, so their shortcuts still match.
+  CHECK(window.actions().contains(cycle));
+  save_widget_artifact("issue_212_full_screen", window);
+  // A document opened meanwhile keeps the tabs hidden.
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  CHECK(tabs->tabBar()->isHidden());
+
+  // F from the canvas-only view, with the menu bar hidden: back to Standard.
+  canvas = require_canvas(window);
+  canvas->setFocus();
+  QTest::keyClick(canvas, Qt::Key_F);
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard && standard->isChecked());
+  CHECK(!window.isFullScreen());
+  CHECK(window.geometry() == before_geometry);
+  CHECK(window.menuBar()->isVisible() && tool_palette->isVisible() && options_bar->isHidden());
+  CHECK(column->isVisible() && tabs->tabBar()->isVisible() && window.statusBar()->isVisible());
+  CHECK(column->width() == column_width);
+  CHECK(hint() == nullptr || hint()->isHidden());
+  CHECK(window.actions().contains(cycle) == cycle_carried_before);
+  options_bar->show();
+  QApplication::processEvents();
+}
+
+// The ways back without menus (GitHub issue 212): Escape leaves either full-screen mode
+// once nothing on the canvas uses it (a Free Transform keeps its Escape first), and the
+// canvas right-click menu offers Exit Full Screen, on the document and the pasteboard.
+void ui_screen_modes_escape_and_context_menu_return_to_standard() {
+  using patchy::ui::MainWindow;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* full = require_action(window, "viewScreenModeFullAction");
+  auto* with_menus = require_action(window, "viewScreenModeFullWithMenusAction");
+  CHECK(full != nullptr && with_menus != nullptr);
+  if (full == nullptr || with_menus == nullptr) {
+    return;
+  }
+  for (auto* mode : {full, with_menus}) {
+    mode->trigger();
+    process_events_for(50);
+    CHECK(window.screen_mode() != MainWindow::ScreenMode::Standard);
+    canvas->setFocus();
+    send_key(*canvas, Qt::Key_Escape);
+    CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard);
+    CHECK(!window.isFullScreen());
+  }
+
+  // A transform in progress takes the first Escape.
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+       canvas->widget_position_for_document_point(QPoint(150, 125)));
+  canvas->set_primary_color(QColor(40, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  full->trigger();
+  process_events_for(50);
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  canvas->setFocus();
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->free_transform_active());
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreen);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard);
+
+  const auto visible_context_menu = [&canvas]() -> QMenu* {
+    for (auto* menu : canvas->findChildren<QMenu*>(QStringLiteral("canvasContextMenu"))) {
+      if (menu->isVisible()) {
+        return menu;
+      }
+    }
+    return nullptr;
+  };
+  const auto right_click = [&](QPoint point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+    QApplication::processEvents();
+    return visible_context_menu();
+  };
+  const auto exit_entry = [](QMenu* menu) -> QAction* {
+    if (menu == nullptr) {
+      return nullptr;
+    }
+    for (auto* action : menu->actions()) {
+      if (action->objectName() == QStringLiteral("canvasExitFullScreenAction")) {
+        return action;
+      }
+    }
+    return nullptr;
+  };
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom_centered(0.25);
+  QApplication::processEvents();
+  // Standard offers no Exit Full Screen.
+  auto* menu = right_click(canvas->widget_position_for_document_point(QPoint(-300, -300)));
+  CHECK(menu != nullptr && exit_entry(menu) == nullptr);
+  if (menu != nullptr) {
+    menu->hide();
+    QApplication::processEvents();
+  }
+  full->trigger();
+  process_events_for(50);
+  canvas->set_zoom_centered(0.25);
+  QApplication::processEvents();
+  menu = right_click(canvas->widget_position_for_document_point(QPoint(-300, -300)));
+  CHECK(exit_entry(menu) != nullptr);
+  if (menu != nullptr) {
+    menu->hide();
+    QApplication::processEvents();
+  }
+  menu = right_click(canvas->widget_position_for_document_point(QPoint(200, 200)));
+  auto* exit_action = exit_entry(menu);
+  CHECK(exit_action != nullptr && exit_action->text() == QStringLiteral("Exit Full Screen"));
+  if (exit_action != nullptr) {
+    menu->hide();
+    QApplication::processEvents();
+    exit_action->trigger();
+    QApplication::processEvents();
+  }
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard);
+  CHECK(!window.isFullScreen());
+}
+
 void ui_reset_panels_keeps_the_window_geometry() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -4398,6 +4593,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_layout_returns_in_the_next_window", ui_panel_layout_returns_in_the_next_window},
       {"ui_reset_panels_restores_first_launch_layout", ui_reset_panels_restores_first_launch_layout},
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
+      {"ui_screen_modes_cycle_hide_chrome_and_restore_standard", ui_screen_modes_cycle_hide_chrome_and_restore_standard},
+      {"ui_screen_modes_escape_and_context_menu_return_to_standard", ui_screen_modes_escape_and_context_menu_return_to_standard},
       {"ui_tool_palette_quick_mask_button_shows_its_icon", ui_tool_palette_quick_mask_button_shows_its_icon},
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches", ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_survives_resize_cycles", ui_tool_palette_extension_survives_resize_cycles},

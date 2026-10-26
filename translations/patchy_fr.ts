@@ -26074,6 +26074,38 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>No frame times on any layer</source>
         <translation>Aucun calque n&apos;a de durée d&apos;image</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Mode d&apos;&amp;écran</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Standard</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Plein écran avec &amp;menus</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Plein écran</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Changer de mode d&apos;écran</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Quitter le plein écran</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Appuyez sur %1 ou Échap pour quitter le plein écran</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Appuyez sur Échap pour quitter le plein écran</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

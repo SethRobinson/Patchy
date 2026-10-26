@@ -1465,6 +1465,13 @@ public:
   // Offered first, anywhere on the canvas, while the Zoom tool is active (Zoom In, Zoom
   // Out, Fit on Screen, ...); same contract.
   void set_zoom_tool_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // Offered last, anywhere on the canvas and the pasteboard, while the window is in a
+  // full-screen screen mode (Exit Full Screen, GitHub issue 212); same contract.
+  void set_screen_mode_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // Asked when a plain Escape reaches the end of keyPressEvent with nothing of the
+  // canvas's own to cancel, before Escape's layer deselection; true consumes it (the
+  // host leaves a full-screen screen mode, GitHub issue 212).
+  void set_unused_escape_callback(std::function<bool()> callback);
   // The commands the host offers when a right-click lands on the active vector
   // shape layer (Shape Appearance, Free Transform, ...); same contract.
   void set_shape_context_actions_callback(std::function<QList<QAction*>()> callback);
@@ -4054,6 +4061,8 @@ private:
   std::function<QList<QAction*>()> selection_context_actions_callback_;
   std::function<QList<QAction*>()> selection_tool_context_actions_callback_;
   std::function<QList<QAction*>()> zoom_tool_context_actions_callback_;
+  std::function<QList<QAction*>()> screen_mode_context_actions_callback_;
+  std::function<bool()> unused_escape_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;
   std::function<QList<QAction*>()> layer_context_actions_callback_;
   std::function<QList<QAction*>()> path_context_actions_callback_;

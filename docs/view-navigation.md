@@ -1,4 +1,4 @@
-# View navigation: the Zoom tool, Scrubby Zoom, and drag zoom
+# View navigation: the Zoom tool, Scrubby Zoom, drag zoom, and screen modes
 
 Read this before changing the Zoom tool, the pen ZoomCanvas drag, or wheel zoom. The tool palette and the Zoom button's double-click live in [tool-palette.md](tool-palette.md); the status-bar zoom box is `ZoomPercentEdit` (src/ui/zoom_status_bar.hpp).
 
@@ -83,6 +83,18 @@ Handled in src/ui/canvas_widget_events.cpp; the tool works while a preview dialo
 The pen button action `PenButtonAction::ZoomCanvas` (`canvas_widget_pen.cpp` for tablet events, the pen-button-as-mouse path in `canvas_widget_events.cpp`) uses `begin_zoom_drag` / `update_zoom_drag` / `end_zoom_drag` (canvas_widget_view.cpp): vertical delta, up = in, anchored at the press, gated by `pen_zoom_dragging_`. It shares `zoom_drag_anchor_widget_`, `zoom_drag_last_pos_`, and `apply_zoom_drag_step` with Scrubby Zoom; the two gestures cannot overlap because a left press ends a pen-button gesture first.
 
 `kZoomDragFactorPerPixel` (canvas_widget_view.cpp) is the one sensitivity constant for both gestures. Dialog previews have their own copy: `ZoomableImagePreview::set_scrubby_zoom` (the Develop Raw dialog's Scrubby Zoom, GitHub issue 395) repeats it and `kZoomClickSlopPx` in zoomable_image_preview.cpp; keep them in step.
+
+## Screen modes
+
+GitHub issue 212. View > Screen Mode: Standard, Full Screen with Menus, Full Screen (`view.screen_mode_standard`, `_full_with_menus`, `_full`), Cycle Screen Mode (`view.screen_mode_cycle`, F). No toolbox button. Code: `main_window_chrome.cpp` (`set_screen_mode`).
+
+- **Modes.** Both full-screen modes call `showFullScreen()` (macOS: its native space). Full Screen also hides the menu bar, every toolbar, the panel column, the document tab bar and the status bar; rulers and floats stay. Leaving Standard records what it showed (`StandardScreenChrome`), so Standard restores exactly that (a bar the user hid stays hidden), with the column's own width and the maximized state.
+- **Never persisted:** `closeEvent` restores the chrome before saving the layout and Standard's window state.
+- **Ways back.** Esc, F, the View shortcuts, the canvas right-click menu's last entry Exit Full Screen (`canvasExitFullScreenAction`), the maximize control. Esc is the canvas's last-resort Escape (`set_unused_escape_callback`, before layer deselection), so gestures, transforms, crop and text editing take it first, and never while a popup or modal is up; Esc nothing used reaches `MainWindow::keyPressEvent`. F never fires in a focused text field.
+- **Hidden bars.** Qt matches a shortcut only through a visible widget carrying the action, so Full Screen adds every registered command to the window (`set_screen_mode_shortcut_host`, as floats do).
+- **Hint.** `screenModeHint` shows for 2.5 s, then fades: "Press Esc to exit full screen", in Full Screen "Press F or Esc ..." with the cycle command's key. Theme roles `menu_bg`, `menu_border`, `text_primary`.
+- **System exits.** Full screen left by the window system (macOS's green button) returns to Standard, rechecked 1.5 s after a change (`schedule_screen_mode_window_state_sync`). No title-bar drag while full screen.
+- Tests: `ui_screen_modes_cycle_hide_chrome_and_restore_standard` (saves `issue_212_full_screen*`), `ui_screen_modes_escape_and_context_menu_return_to_standard`.
 
 ## Coverage
 

@@ -6,7 +6,7 @@ Read this before moving functions, adding members to the large UI classes, split
 
 `MainWindow` is one class declared in `src/ui/main_window.hpp`, with its implementation split by area:
 
-- `main_window_chrome.cpp` - frameless-window machinery: `configure_window_chrome()`, `use_custom_window_chrome()`, the Windows `nativeEvent` title-bar hit test ([platform.md](platform.md)), the Linux `startSystemMove`/`startSystemResize` path ([wayland.md](wayland.md)), resize edges, maximize/restore, and window geometry save/restore.
+- `main_window_chrome.cpp` - frameless-window machinery: `configure_window_chrome()`, `use_custom_window_chrome()`, the Windows `nativeEvent` title-bar hit test ([platform.md](platform.md)), the Linux `startSystemMove`/`startSystemResize` path ([wayland.md](wayland.md)), resize edges, maximize/restore, window geometry save/restore, and the screen modes ([view-navigation.md](view-navigation.md#screen-modes)).
 - `main_window_palette.cpp` - palette-mode mutations, palette file I/O, panel/chip refresh, and compliance scanning.
 - `main_window_adjustments.cpp` - adjustment-layer creation, editing, previews, and the destructive posterize/threshold/brightness-contrast appliers. The four `apply_levels/curves/hue_saturation/color_balance_adjustment` members live here because their primary callers are the `new_*_adjustment_layer` flows; the destructive dialogs call across TUs through `main_window.hpp`.
 - `main_window_filters.cpp` - Smart Filter creation/editing/stack operations, the destructive Filter-menu `apply_filter` flow, Liquify, and the Filter Gallery, including the gallery's cancellable preview state machine.

@@ -26001,6 +26001,38 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>沒有圖層帶有影格時間</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>螢幕模式(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>標準(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>含選單的全螢幕(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>全螢幕(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>切換螢幕模式(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>結束全螢幕</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>按 %1 或 Esc 結束全螢幕</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>按 Esc 結束全螢幕</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

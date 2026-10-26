@@ -4327,6 +4327,15 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       return;
     }
   }
+  // A full-screen screen mode takes the unused Escape before layer deselection
+  // (GitHub issue 212): it is the way back without menus, so it must not depend
+  // on the layer selection being empty.
+  if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier && !event->isAutoRepeat() &&
+      !pointer_gesture_active() && !transforming_layer_ && !warping_layer_ && unused_escape_callback_ &&
+      unused_escape_callback_()) {
+    event->accept();
+    return;
+  }
   // Lowest-priority Escape: every cancelable session above (gestures, pen
   // and path editing, magnetic lasso, guides, warp, free transform, crop, text
   // rect) returned already, so a plain Escape that reaches here has nothing

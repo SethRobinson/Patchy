@@ -26147,6 +26147,38 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>Ни у одного слоя нет времени кадра</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Режим &amp;экрана</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Стандартный</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Полный экран с &amp;меню</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Полный экран</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>П&amp;ереключить режим экрана</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Нажмите %1 или Esc, чтобы выйти из полноэкранного режима</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Нажмите Esc, чтобы выйти из полноэкранного режима</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

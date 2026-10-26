@@ -26001,6 +26001,38 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>프레임 시간이 있는 레이어가 없습니다.</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>화면 모드(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>표준(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>메뉴가 있는 전체 화면(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>전체 화면(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>화면 모드 전환(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>전체 화면 종료</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>%1 또는 Esc 키를 누르면 전체 화면이 종료됩니다</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Esc 키를 누르면 전체 화면이 종료됩니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

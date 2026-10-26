@@ -448,12 +448,21 @@ public:
   // The toolbar right-click menu: the panel and toolbar toggles and Reset Panels.
   QMenu* createPopupMenu() override;
 
+  // View > Screen Mode (GitHub issue 212; docs/view-navigation.md, "Screen modes"):
+  // Standard, the window full screen with every bar and panel, or full screen with the
+  // canvas alone. F cycles them, Esc returns to Standard; never persisted.
+  enum class ScreenMode { Standard, FullScreenWithMenus, FullScreen };
+  [[nodiscard]] ScreenMode screen_mode() const noexcept { return screen_mode_; }
+  void set_screen_mode(ScreenMode mode);
+  void cycle_screen_mode();
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
   void changeEvent(QEvent* event) override;
   void closeEvent(QCloseEvent* event) override;
   void showEvent(QShowEvent* event) override;
+  void keyPressEvent(QKeyEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
@@ -555,6 +564,28 @@ private:
   void resync_native_frame_geometry();
   void restore_maximized_under_cursor(QPoint global_cursor);
   void restore_window_from_maximize();
+  // Screen modes (main_window_chrome.cpp). What Standard showed, captured on leaving it.
+  struct StandardScreenChrome {
+    bool maximized{false};
+    QRect normal_geometry;
+    bool menu_bar{true};
+    bool panel_column{true};
+    int panel_column_width{0};
+    bool tab_bar{true};
+    bool status_bar{true};
+    std::vector<std::pair<QPointer<QToolBar>, bool>> toolbars;
+  };
+  void build_screen_mode_actions(QMenu& view_menu);
+  void apply_screen_mode_chrome(ScreenMode mode);
+  void restore_standard_screen_chrome();
+  void set_screen_mode_shortcut_host(bool host);
+  void refresh_screen_mode_actions();
+  void show_screen_mode_hint();
+  void hide_screen_mode_hint();
+  void schedule_screen_mode_window_state_sync();
+  void sync_screen_mode_to_window_state();
+  // True when Escape left a full-screen mode (the canvas's unused Escape, keyPressEvent).
+  bool exit_full_screen_on_escape();
   // True where a press on the menu bar acts as the window title bar: not over a menu
   // title and not over the minimize/maximize/close controls. Shared by the Win32
   // WM_NCHITTEST path (HTCAPTION, so the OS owns drag, double-click and snap) and the
@@ -3151,6 +3182,23 @@ private:
   QPointer<CanvasWidget> preview_dialog_edit_lock_canvas_;
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
+  ScreenMode screen_mode_{ScreenMode::Standard};
+  std::optional<StandardScreenChrome> standard_screen_chrome_;
+  QAction* screen_mode_standard_action_{nullptr};
+  QAction* screen_mode_full_with_menus_action_{nullptr};
+  QAction* screen_mode_full_action_{nullptr};
+  QAction* screen_mode_cycle_action_{nullptr};
+  // The canvas right-click menu's Exit Full Screen (screen_mode_context_actions).
+  QAction* exit_full_screen_action_{nullptr};
+  // Registered actions added to the window while Full Screen hides the bars that
+  // carry them, so their shortcuts keep matching; removed again on leaving.
+  QList<QPointer<QAction>> screen_mode_hosted_actions_;
+  QWidget* screen_mode_hint_{nullptr};
+  bool applying_screen_mode_{false};
+  bool screen_mode_sync_pending_{false};
+  // Since the last screen-mode change: a window-state report inside the window
+  // system's transition (macOS animates into full screen) is not a user's exit.
+  QElapsedTimer screen_mode_changed_timer_;
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};
   QMenu* recent_folders_menu_{nullptr};

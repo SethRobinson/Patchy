@@ -26074,6 +26074,38 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>No frame times on any layer</source>
         <translation>Nessun livello ha un tempo fotogramma</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Modalità &amp;schermo</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Standard</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Schermo intero con &amp;menu</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>Schermo &amp;intero</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Cambia modalità schermo</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Esci da schermo intero</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Premi %1 o Esc per uscire da schermo intero</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Premi Esc per uscire da schermo intero</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

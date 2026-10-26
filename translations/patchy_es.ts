@@ -26074,6 +26074,38 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>No frame times on any layer</source>
         <translation>Ninguna capa tiene tiempo de fotograma</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Modo de &amp;pantalla</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Estándar</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Pantalla completa con &amp;menús</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>Pantalla &amp;completa</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Alternar modo de pantalla</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Salir de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Pulse %1 o Esc para salir de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Pulse Esc para salir de pantalla completa</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
