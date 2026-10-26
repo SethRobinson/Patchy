@@ -108,11 +108,15 @@ $jsScenes = [ordered]@{
             "photo=$(Join-Path $repo 'test-fixtures\readme\san_francisco_cityscape_cc0.jpg')",
             "pdn=$(Join-Path $repo 'test-fixtures\pdn\demo.pdn')",
             "psd=$(Join-Path $repo 'local-test-fixtures\psd\mow_master.psd')",
-            "affinity=$(Join-Path $repo 'local-test-fixtures\af-spike\corpus\tips.af')"
+            "affinity=$(Join-Path $repo 'local-test-fixtures\af-spike\corpus\tips.af')",
+            "krita=$(Join-Path $repo 'local-test-fixtures\kra-corpus\gdquest-dan.kra')",
+            "gimp=$(Join-Path $repo 'local-test-fixtures\xcf-corpus\opengameart\gas-giant-rings.xcf')"
         )
         Fixture = @(
             (Join-Path $repo 'local-test-fixtures\psd\mow_master.psd'),
-            (Join-Path $repo 'local-test-fixtures\af-spike\corpus\tips.af')
+            (Join-Path $repo 'local-test-fixtures\af-spike\corpus\tips.af'),
+            (Join-Path $repo 'local-test-fixtures\kra-corpus\gdquest-dan.kra'),
+            (Join-Path $repo 'local-test-fixtures\xcf-corpus\opengameart\gas-giant-rings.xcf')
         )
     }
     'plugin_dialog' = @{

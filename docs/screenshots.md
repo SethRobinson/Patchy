@@ -110,6 +110,6 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 </tr>
 <tr>
-<td align="center" valign="top" colspan="2"><a href="images/screenshots/layered_import.png"><img src="images/screenshots/layered_import.png" width="860" alt="Why settle for only .psd? An introduction above six labeled artboards in a 3 by 2 grid showing PSD game artwork, Affinity game tips, an OpenRaster city poster, a Paint.NET landscape, a layered TIFF print design, and Aseprite pixel art"></a><br><sub>Six formats, one document: PSD/PSB, Affinity, OpenRaster, Paint.NET, layered TIFF, and Aseprite, each with different artwork and its own imported layer stack. Editable SVG and PDF imports are also supported.</sub></td>
+<td align="center" valign="top" colspan="2"><a href="images/screenshots/layered_import.png"><img src="images/screenshots/layered_import.png" width="860" alt="Why settle for only .psd? An introduction above eight labeled artboards in a 4 by 2 grid: Photoshop game artwork, Affinity game tips, a Krita character painting, a GIMP planet illustration, an OpenRaster city poster, a Paint.NET landscape, a layered TIFF print design, and Aseprite pixel art"></a><br><sub>Eight formats, one document: PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, and Aseprite, each with different artwork and its own imported layer stack. Editable SVG and PDF imports are also supported.</sub></td>
 </tr>
 </table>

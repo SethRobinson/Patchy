@@ -1,8 +1,9 @@
 // @name README shot: Layered imports
-// @description Six actual layered imports, arranged as a labeled 3 x 2 artboard grid.
-// @cli --script-arg out=layered_import.png --script-arg photo=city.jpg --script-arg pdn=demo.pdn --script-arg psd=mow_master.psd --script-arg affinity=tips.af
+// @description Eight actual layered imports, arranged as a labeled 4 x 2 artboard grid.
+// @cli --script-arg out=layered_import.png --script-arg photo=city.jpg --script-arg pdn=demo.pdn --script-arg psd=mow_master.psd --script-arg affinity=tips.af --script-arg krita=gdquest-dan.kra --script-arg gimp=gas-giant-rings.xcf
 //
-// PSD, Affinity and PDN use existing showcase/calibration fixtures. ORA, layered
+// PSD, Affinity, Krita, GIMP and PDN use existing showcase/calibration fixtures (the
+// Krita and GIMP files are CC0 corpus artwork). ORA, layered
 // TIFF and Aseprite sources are authored below in the driver's scratch directory,
 // saved in their real formats, then read back through Files as Layers. No source
 // fixture is overwritten. Presentation labels and the introduction are added after import.
@@ -12,8 +13,10 @@ var photo = patchy.args.photo;
 var pdn = patchy.args.pdn;
 var psd = patchy.args.psd;
 var affinity = patchy.args.affinity;
-if (!out || !photo || !pdn || !psd || !affinity) {
-  throw new Error('pass out, photo, pdn, psd and affinity script arguments');
+var krita = patchy.args.krita;
+var gimp = patchy.args.gimp;
+if (!out || !photo || !pdn || !psd || !affinity || !krita || !gimp) {
+  throw new Error('pass out, photo, pdn, psd, affinity, krita and gimp script arguments');
 }
 patchy.ui.setWindowSize(1600, 1000);
 patchy.ui.setSidePanelWidth(320);
@@ -104,6 +107,8 @@ var aseprite = saveSource(source, '.aseprite');
 var formats = [
   {name: 'PSD / PSB', detail: 'Layered Photoshop artwork', path: psd, color: '#a9d5f5'},
   {name: 'Affinity', detail: '.af / .afphoto / .afdesign / .afpub', path: affinity, color: '#d2b6ed'},
+  {name: 'Krita', detail: '.kra  /  groups, masks and filter layers', path: krita, color: '#c6e29b'},
+  {name: 'GIMP', detail: '.xcf  /  layers, groups and GIMP blend modes', path: gimp, color: '#f1d77c'},
   {name: 'OpenRaster', detail: '.ora  /  pixel layers and folders', path: ora, color: '#95d6c3'},
   {name: 'Paint.NET', detail: '.pdn  /  pixel layers and blend modes', path: pdn, color: '#99b9f2'},
   {name: 'Layered TIFF', detail: '.tif  /  text, shapes and pixel layers', path: tiff, color: '#f3c386'},
@@ -132,8 +137,12 @@ formats.forEach(function (format) {
   original.close();
 });
 
-var headerHeight = 256;
-var doc = app.newDocument(2048, 1024 + headerHeight);
+var columns = 4;
+// Room below the explanation for the artboard titles, which draw at a fixed screen size
+// and so take more document space at the four-column grid's smaller fit zoom.
+var headerHeight = 312;
+var docWidth = columns * 704 - 64;
+var doc = app.newDocument(docWidth, 1024 + headerHeight);
 var anchor = doc.activeLayer;
 anchor.visible = false;
 var boards = [];
@@ -158,8 +167,8 @@ formats.forEach(function (format, index) {
       if (layer.name === 'Xor checks') { layer.visible = false; }
     });
   }
-  var x = (index % 3) * 704;
-  var y = headerHeight + Math.floor(index / 3) * 544;
+  var x = (index % columns) * 704;
+  var y = headerHeight + Math.floor(index / columns) * 544;
   var scale = Math.min(640 / format.width, 400 / format.height);
   var left = x + (640 - format.width * scale) / 2;
   var top = y + 80 + (400 - format.height * scale) / 2;
@@ -193,7 +202,7 @@ formats.forEach(function (format, index) {
     color: '#ffffff', x: x + 25, y: y + 52, box: {width: 590, height: 27}});
   doc.moveLayers([band, label, detail], {parentId: board.id});
 });
-// Loose document layers above the six artboards form the introduction. These
+// Loose document layers above the eight artboards form the introduction. These
 // are real editable text and shapes, not an overlay added to the screenshot.
 doc.activeLayer = anchor;
 var accent = doc.addShape('Introduction accent',
@@ -203,21 +212,21 @@ var eyebrow = doc.addTextLayer('LAYERED IMPORTS', {font: 'Segoe UI', bold: true,
 var headline = doc.addTextLayer([
   {text: 'Why settle for only ', color: '#f3ede2'},
   {text: '.psd?', color: '#95d6c3'}
-], {font: 'Arial Black', size: 80, x: 0, y: 60, box: {width: 2048, height: 110}});
+], {font: 'Arial Black', size: 80, x: 0, y: 60, box: {width: docWidth, height: 110}});
 var explanation = doc.addTextLayer('Import all these layered formats into the same file!',
   {font: 'Segoe UI', size: 34, color: '#d4dee5', x: 3, y: 178,
-    box: {width: 2040, height: 55}});
+    box: {width: docWidth - 8, height: 55}});
 var badge = doc.addShape('Format count badge',
-  {type: 'roundedRectangle', x: 1660, y: 20, width: 388, height: 56, radius: 28}, {fill: '#163d44'});
-var badgeText = doc.addTextLayer('6 FORMATS  /  1 FILE', {font: 'Segoe UI', bold: true, size: 26,
-  color: '#95d6c3', x: 1660, y: 29, align: 'center', box: {width: 388, height: 42}});
+  {type: 'roundedRectangle', x: docWidth - 388, y: 20, width: 388, height: 56, radius: 28}, {fill: '#163d44'});
+var badgeText = doc.addTextLayer(formats.length + ' FORMATS  /  1 FILE', {font: 'Segoe UI', bold: true, size: 26,
+  color: '#95d6c3', x: docWidth - 388, y: 29, align: 'center', box: {width: 388, height: 42}});
 doc.groupLayers([accent, eyebrow, headline, explanation, badge, badgeText], 'Showcase introduction');
 anchor.remove();
-if (doc.artboards.length !== 6 || doc.layers.length !== 7) {
-  throw new Error('expected six top-level artboards and the introduction group');
+if (doc.artboards.length !== formats.length || doc.layers.length !== formats.length + 1) {
+  throw new Error('expected one top-level artboard per format and the introduction group');
 }
 doc.fitCanvasToArtboards();
-doc.activeLayer = boards[5];
+doc.activeLayer = boards[boards.length - 1];
 app.runCommand('tools.artboard');
 ['color', 'palette', 'properties', 'info', 'history'].forEach(function (panel) {
   patchy.ui.closePanel(panel);
@@ -225,9 +234,9 @@ app.runCommand('tools.artboard');
 setTimeout(function () {
   patchy.ui.fitOnScreen();
   setTimeout(function () {
-    doc.activeLayer = boards[5];
-    patchy.ui.setStatusMessage('Six formats, six artboards');
+    doc.activeLayer = boards[boards.length - 1];
+    patchy.ui.setStatusMessage('Eight formats, eight artboards');
     if (!patchy.ui.captureWindow(out)) { throw new Error('captureWindow failed: ' + out); }
-    console.log('captured six imported formats in a 3 x 2 artboard grid: ' + out);
+    console.log('captured eight imported formats in a 4 x 2 artboard grid: ' + out);
   }, 400);
 }, 400);
