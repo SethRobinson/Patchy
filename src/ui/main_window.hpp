@@ -29,6 +29,7 @@
 #include "ui/view_extras.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/text_paragraph_metrics.hpp"
+#include "ui/tool_palette_customization.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/update_installer.hpp"
 
@@ -62,6 +63,7 @@
 #include <utility>
 #include <vector>
 
+class QAbstractButton;
 class QAction;
 class QActionGroup;
 class QCheckBox;
@@ -93,6 +95,7 @@ class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
 class ToolPaletteFooter;
+class ToolPaletteLayout;
 class ArtboardPresetPicker;
 enum class LayerCtrlClickTarget;
 }  // namespace patchy::ui
@@ -217,6 +220,15 @@ public:
   void apply_text_family_to_format(QTextCharFormat& format, const QString& family) const;
   explicit MainWindow(QWidget* parent = nullptr);
   ~MainWindow() override;
+  // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md): opens the
+  // dialog (non-modal; a second call brings the open one forward on that tab), and applies and
+  // stores a choice live.
+  void show_tool_palette_customization(ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools);
+  void apply_tool_palette_customization(const ToolPaletteCustomization& customization);
+  [[nodiscard]] const ToolPaletteCustomization& tool_palette_customization() const noexcept {
+    return tool_palette_customization_;
+  }
+  [[nodiscard]] ToolPaletteLayout* tool_palette_layout() const noexcept { return tool_palette_layout_; }
   // True where Patchy draws its own window frame (Windows, and Linux unless the
   // "Use the system title bar" preference is on): the frameless flag, the chrome buttons
   // in the menu-bar row, and the edge-resize machinery. macOS uses the native frame and
@@ -2499,7 +2511,16 @@ private:
   bool recent_menus_stale_{false};
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
-                           QKeySequence shortcut);
+                           QKeySequence shortcut, int cluster);
+  // What the Customize Tool Palette dialog lists, read from the palette and the footer.
+  [[nodiscard]] ToolPaletteCatalog tool_palette_catalog() const;
+  // The palette's right-click menu: Customize Tool Palette..., then the panel list.
+  void show_tool_palette_context_menu(const QPoint& global_position);
+  // Shows the Layers footer buttons the customization keeps (GitHub issue 199).
+  void apply_layer_footer_visibility();
+  // The Layers footer buttons' right-click menu: a tick per button, Show All Buttons and
+  // Customize Tool Palette... on its Layers buttons tab.
+  void show_layer_footer_menu(const QPoint& global_position);
   // Rebuilds the History panel from the active session's stacks (oldest state
   // at the top, current state highlighted, redone-away future states dimmed),
   // or clears it when no session is active.
@@ -2769,6 +2790,17 @@ private:
   ColorWellSwatch* primary_color_button_{nullptr};
   ColorWellSwatch* secondary_color_button_{nullptr};
   ToolPaletteFooter* tool_palette_footer_{nullptr};
+  // Customize Tool Palette: the palette's items (tool_palette_layout.hpp), the current
+  // choice, the dialog's action, and the Layers footer buttons by permanent id.
+  ToolPaletteLayout* tool_palette_layout_{nullptr};
+  ToolPaletteCustomization tool_palette_customization_;
+  QAction* customize_tool_palette_action_{nullptr};
+  struct LayerFooterButton {
+    const char* id;
+    QAbstractButton* button;
+    const char* name_source;
+  };
+  std::vector<LayerFooterButton> layer_footer_buttons_;
   // The toolbar icon size's factor (Preferences; app_settings.hpp), 1 at Normal.
   double tool_palette_factor_{1.0};
   QDialog* color_dialog_{nullptr};

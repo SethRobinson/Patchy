@@ -13020,6 +13020,54 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Frame delay:</source>
         <translation>Retardo de fotograma:</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Personalizar paleta de herramientas</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Marque las herramientas que se muestran. Las herramientas ocultas conservan sus atajos.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Disposición</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Una columna</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Dos columnas, herramientas una al lado de otra</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>La rueda del ratón desplaza la paleta cuando no cabe</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Si no, la flecha &gt; abre más columnas.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Mostrar el botón de engranaje en la paleta</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Herramientas</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Marque los botones que muestra el panel Capas. Los comandos de los botones ocultos siguen en los menús.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Botones de Capas</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Restablecer valores predeterminados</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26671,6 +26719,34 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>Haga clic para el siguiente modo. Mantenga pulsado o haga clic derecho para elegir uno.</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Personalizar paleta de herramientas...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Seleccionar</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Pintar</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Retocar</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Dibujo y texto</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Vista</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Mostrar todos los botones</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28659,6 +28735,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance debe ser un número de 0 a 255.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: valor desconocido &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>

@@ -392,6 +392,7 @@ int main(int argc, char* argv[]) {
            selection_marquee_lasso_tests,
            crop_tool_tests,
            ruler_tool_tests,
+           tool_palette_customize_tests,
            unit_spin_box_tests,
            clipboard_free_transform_tests,
            deep_operation_audit_tests,

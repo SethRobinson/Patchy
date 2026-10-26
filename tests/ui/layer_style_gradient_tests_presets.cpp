@@ -5,6 +5,7 @@
 #include "core/gradient_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "ui/web_export.hpp"
+#include "ui/tool_palette_customization.hpp"
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/camera_raw_filter_dialog.hpp"
 #include "ui/pattern_library.hpp"
@@ -1534,6 +1535,16 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::request_web_export(nullptr, std::make_shared<const patchy::Document>(document));
     grab_dialog(QStringLiteral("viewExtrasOptionsDialog"), "view_extras_options");
     (void)patchy::ui::request_view_extras_options(nullptr, patchy::ui::kAllViewExtras);
+    grab_dialog(QStringLiteral("toolPaletteCustomizeDialog"), "tool_palette_customize");
+    {
+      patchy::ui::ToolPaletteCatalog catalog;
+      catalog.clusters.push_back({QStringLiteral("Select"),
+                                  {{QStringLiteral("Move Tools"), QStringLiteral("V"), true,
+                                    {{QStringLiteral("tools.move"), QStringLiteral("Move"), QIcon(), QStringLiteral("V")},
+                                     {QStringLiteral("tools.artboard"), QStringLiteral("Artboard"), QIcon(), QString()}}}}});
+      catalog.layer_buttons.push_back({QStringLiteral("new_layer"), QStringLiteral("New Layer"), QIcon()});
+      (void)patchy::ui::request_tool_palette_customization(nullptr, catalog, {});
+    }
     grab_dialog(QStringLiteral("maskPropertiesDialog"), "mask_properties");
     (void)patchy::ui::request_mask_properties(nullptr, true, QStringLiteral("Shape"), {100, 0}, {});
     grab_dialog(QStringLiteral("patchySplashScreen"), "about");
@@ -1556,7 +1567,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 22);
+  CHECK(captured == 24);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

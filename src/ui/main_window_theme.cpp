@@ -244,6 +244,20 @@ QString photoshop_style_template() {
       max-height: @tp(24)px;
       padding: 1px;
     }
+    /* The Layers footer menu's checkbox rows sit on the menu's own background. */
+    QMenu#layerFooterButtonsMenu QWidget#layerFooterToggleRow, QMenu#layerFooterButtonsMenu QCheckBox {
+      background: transparent;
+    }
+    /* The gear's holder and the two-column rows only arrange buttons: the bar shows through. */
+    QToolBar#toolPalette QWidget#toolPaletteCustomizeHolder, QToolBar#toolPalette QWidget#toolPaletteRow {
+      background: transparent;
+    }
+    /* The gear above the tools (Customize Tool Palette) sits in a shorter row. */
+    QToolBar#toolPalette QToolButton#toolPaletteCustomizeButton {
+      min-height: @tp(16)px;
+      max-height: @tp(16)px;
+      padding: 0;
+    }
     QToolBar#toolPalette QPushButton {
       min-width: @tp(26)px;
       max-width: @tp(26)px;
@@ -599,6 +613,25 @@ QString photoshop_style_template() {
       background: @category_selected_bg;
       color: @text_on_accent;
       border: 1px solid @category_selected_border;
+    }
+    /* Customize Tool Palette's tickable rows (the rule above hides list indicators). */
+    QTreeWidget#toolPaletteCustomizeTree::indicator, QListWidget#layerFooterButtonsList::indicator {
+      width: 12px;
+      height: 12px;
+      max-width: 12px;
+      max-height: 12px;
+      background: @checkbox_indicator_bg;
+      border: 1px solid @checkbox_indicator_border;
+    }
+    QTreeWidget#toolPaletteCustomizeTree::indicator:checked, QListWidget#layerFooterButtonsList::indicator:checked {
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(checkmark));
+    }
+    QTreeWidget#toolPaletteCustomizeTree::indicator:indeterminate {
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(spin-minus));
     }
     QListWidget#layerStyleCategoryList::indicator {
       width: 0;

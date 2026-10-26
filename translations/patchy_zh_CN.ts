@@ -12983,6 +12983,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Frame delay:</source>
         <translation>帧延迟:</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>自定义工具面板</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>勾选要显示的工具。隐藏的工具保留其快捷键。</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>布局</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>单列</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>双列，工具并排</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>放不下时用鼠标滚轮滚动面板</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>否则用 &gt; 箭头展开更多列。</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>在面板上显示齿轮按钮</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>工具</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>勾选图层面板显示的按钮。隐藏按钮的命令仍在菜单中。</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>图层按钮</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>恢复默认</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26595,6 +26643,34 @@ The open document keeps its blend modes either way.</source>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>单击切换到下一个模式。按住或右键单击可选择模式。</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>自定义工具面板...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>选择</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>绘画</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>修饰</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>绘制和文字</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>视图</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>显示所有按钮</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28582,6 +28658,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim 的 tolerance 必须是 0 到 255 之间的数字。</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette：未知的值“%1”。</translation>
     </message>
 </context>
 <context>

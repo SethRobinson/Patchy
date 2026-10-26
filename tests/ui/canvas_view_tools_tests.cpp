@@ -5194,7 +5194,7 @@ void ui_tool_flyout_right_click_opens_only_the_flyout() {
 
   // A plain tool button swallows it too (GitHub issue 388); the toolbar menu still opens
   // from the palette itself.
-  auto* hand_button = palette->widgetForAction(require_action(window, "toolHandAction"));
+  auto* hand_button = window.findChild<QToolButton*>(QStringLiteral("handToolButton"));
   CHECK(hand_button != nullptr);
   send_context_menu(*hand_button, hand_button->rect().center());
   process_events_for(20);
@@ -5397,14 +5397,16 @@ void ui_tool_button_right_click_selects_plain_tool() {
   auto* brush = require_action(window, "toolBrushAction");
   struct PlainTool {
     const char* action_name;
+    const char* button_name;
     patchy::ui::CanvasTool tool;
   };
-  const PlainTool plain_tools[] = {{"toolEraserAction", patchy::ui::CanvasTool::Eraser},
-                                   {"toolHandAction", patchy::ui::CanvasTool::Pan},
-                                   {"toolZoomAction", patchy::ui::CanvasTool::Zoom}};
+  const PlainTool plain_tools[] = {{"toolEraserAction", "eraserToolButton", patchy::ui::CanvasTool::Eraser},
+                                   {"toolHandAction", "handToolButton", patchy::ui::CanvasTool::Pan},
+                                   {"toolZoomAction", "zoomToolButton", patchy::ui::CanvasTool::Zoom}};
   for (const auto& plain : plain_tools) {
     auto* action = require_action(window, plain.action_name);
-    auto* button = qobject_cast<QToolButton*>(palette->widgetForAction(action));
+    auto* button = palette->findChild<QToolButton*>(QLatin1String(plain.button_name));
+    CHECK(button == nullptr || button->defaultAction() == action);
     CHECK(button != nullptr);
     if (button == nullptr) {
       continue;

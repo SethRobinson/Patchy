@@ -1618,6 +1618,20 @@ interface PatchyUi {
    * window captures see it.
    */
   pixelGrid: boolean;
+  /**
+   * Window > Customize Tool Palette, applied live and saved. Read it for the current choice;
+   * assign an object with any of its keys to change those. Tool ids are the tools' hotkey
+   * ids ("tools.hand"); hidden tools keep their shortcuts. Layer button ids: "new_layer",
+   * "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "animation",
+   * "delete". An unknown id or layout throws.
+   */
+  toolPalette: {
+    hiddenTools?: string[];
+    layout?: "oneColumn" | "twoColumns";
+    wheelScroll?: boolean;
+    showGearButton?: boolean;
+    hiddenLayerButtons?: string[];
+  };
   /** Show completed edits now; optionally hold the frame for 0..1000 ms (default 0).
    * Services Stop and painting without reentering script callbacks or adding history.
    * Upload edited arrays with setPixels first. Headless work does not need pacing.

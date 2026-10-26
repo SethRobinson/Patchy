@@ -13057,6 +13057,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Frame delay:</source>
         <translation>Задержка кадра:</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Настройка палитры инструментов</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Отметьте инструменты, которые нужно показать. Скрытые инструменты сохраняют сочетания клавиш.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Расположение</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Один столбец</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Два столбца, инструменты рядом</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>Колесо мыши прокручивает палитру, когда она не помещается</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Иначе стрелка &gt; открывает дополнительные столбцы.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Показывать кнопку с шестерёнкой на палитре</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Инструменты</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Отметьте кнопки, которые показывает панель «Слои». Команды скрытых кнопок остаются в меню.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Кнопки слоёв</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Восстановить по умолчанию</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26747,6 +26795,34 @@ The open document keeps its blend modes either way.</source>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>Щелкните, чтобы перейти к следующему режиму. Удерживайте или щелкните правой кнопкой, чтобы выбрать режим.</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Настройка палитры инструментов...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Выделение</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Рисование</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Ретушь</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Контуры и текст</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Просмотр</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Показать все кнопки</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28736,6 +28812,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance должен быть числом от 0 до 255.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: неизвестное значение &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>
