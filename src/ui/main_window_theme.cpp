@@ -424,6 +424,20 @@ QString photoshop_style_template() {
       background: @accent_pressed_bg;
       border-color: @accent_border_bright;
     }
+    /* Keyboard focus (GitHub issue 440): a control reached with Tab or Backtab carries the
+       accent outline; a click focuses without it (optionsKeyboardFocus is set by
+       MainWindow::handle_options_bar_focus_event). Border colors only, so nothing changes
+       size; text fields show their caret as well. The bar's checkboxes paint themselves
+       (CheckGlyphBox) and draw the same outline. */
+    QToolBar#Options QSpinBox[optionsKeyboardFocus="true"]:focus,
+    QToolBar#Options QDoubleSpinBox[optionsKeyboardFocus="true"]:focus,
+    QToolBar#Options QComboBox[optionsKeyboardFocus="true"]:focus,
+    QToolBar#Options QFontComboBox[optionsKeyboardFocus="true"]:focus,
+    QToolBar#Options QPushButton[optionsKeyboardFocus="true"]:focus,
+    QToolBar#Options QToolButton[optionsKeyboardFocus="true"]:focus,
+    QToolBar#Options QSlider[optionsKeyboardFocus="true"]:focus {
+      border-color: @accent_border_bright;
+    }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
     QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#colorDockTitle, QWidget#paletteDockTitle {
       background: @panel_title_bg;

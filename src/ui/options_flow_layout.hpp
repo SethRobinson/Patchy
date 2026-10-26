@@ -25,6 +25,11 @@ namespace patchy::ui {
 // would otherwise wrap; MainWindow::refresh_options_bar applies it.
 inline constexpr char kOptionsBarCollapsibleProperty[] = "optionsBarCollapsible";
 
+// True on an Options-bar control while it holds keyboard focus that came from Tab or
+// Backtab; the bar's QSS draws its focus outline only then, so a click shows no mark
+// (GitHub issue 440; MainWindow::handle_options_bar_focus_event keeps it).
+inline constexpr char kOptionsBarKeyboardFocusProperty[] = "optionsKeyboardFocus";
+
 // A left-to-right layout that wraps its items onto additional rows when the
 // available width is too small, skipping hidden widgets so the active tool's
 // options pack tightly.

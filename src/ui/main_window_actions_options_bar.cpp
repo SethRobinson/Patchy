@@ -58,12 +58,14 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QAbstractSpinBox>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDoubleSpinBox>
+#include <QFocusEvent>
 #include <QFont>
 #include <QFontComboBox>
 #include <QFontMetrics>
@@ -71,8 +73,10 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QLatin1String>
 #include <QMenu>
 #include <QObject>
@@ -91,7 +95,9 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QString>
+#include <QStyle>
 #include <QStringLiteral>
+#include <QTextEdit>
 #include <QToolBar>
 #include <QTimer>
 #include <QToolButton>
@@ -161,6 +167,15 @@ protected:
     painter.setPen(isEnabled() ? colors.text_bright : colors.text_disabled);
     painter.drawText(QRect(box.right() + 7, 0, width() - box.right() - 10, height()), Qt::AlignVCenter | Qt::AlignLeft,
                      text());
+
+    // Keyboard focus only: the bar's focus outline around the glyph and its text (GitHub
+    // issue 440). A click focuses without it, so the box never reads as a framed button.
+    if (hasFocus() && property(kOptionsBarKeyboardFocusProperty).toBool()) {
+      painter.setRenderHint(QPainter::Antialiasing, false);
+      painter.setBrush(Qt::NoBrush);
+      painter.setPen(QPen(colors.accent_border_bright, 1));
+      painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    }
   }
 };
 
@@ -302,7 +317,134 @@ class FirstUseHook final : public QObject {
   std::function<void()> callback_;
 };
 
+// The control a focus or key event in the Options bar belongs to: a spin box or combo box
+// for its line edit.
+QWidget* options_bar_focus_control(QWidget* widget) {
+  if (auto* parent = widget->parentWidget();
+      qobject_cast<QLineEdit*>(widget) != nullptr &&
+      (qobject_cast<QAbstractSpinBox*>(parent) != nullptr || qobject_cast<QComboBox*>(parent) != nullptr)) {
+    return parent;
+  }
+  return widget;
+}
+
+// A control the keyboard types into, where Enter commits.
+bool is_options_bar_text_field(const QWidget* widget) {
+  if (qobject_cast<const QAbstractSpinBox*>(widget) != nullptr || qobject_cast<const QLineEdit*>(widget) != nullptr) {
+    return true;
+  }
+  const auto* combo = qobject_cast<const QComboBox*>(widget);
+  return combo != nullptr && combo->isEditable();
+}
+
+constexpr char kOptionsBarFocusTextProperty[] = "patchy.optionsFocusText";
+
+void set_options_bar_keyboard_focus(QWidget* control, bool keyboard) {
+  if (control->property(kOptionsBarKeyboardFocusProperty).toBool() == keyboard) {
+    return;
+  }
+  control->setProperty(kOptionsBarKeyboardFocusProperty, keyboard);
+  // Dynamic properties are matched at polish time only.
+  control->style()->unpolish(control);
+  control->style()->polish(control);
+  control->update();
+}
+
 }  // namespace
+
+bool MainWindow::handle_options_bar_focus_event(QObject* watched, QEvent* event) {
+  const auto type = event->type();
+  if ((type != QEvent::FocusIn && type != QEvent::FocusOut && type != QEvent::KeyPress &&
+       type != QEvent::ShortcutOverride) ||
+      options_flow_container_ == nullptr || !watched->isWidgetType()) {
+    return false;
+  }
+  auto* widget = static_cast<QWidget*>(watched);
+  if (!options_flow_container_->isAncestorOf(widget)) {
+    return false;
+  }
+  auto* control = options_bar_focus_control(widget);
+  if (type == QEvent::FocusIn || type == QEvent::FocusOut) {
+    // Tab and Backtab show the focus outline; a click or a programmatic focus clears it. A popup
+    // or a window switch round trip keeps whatever the control had.
+    const auto reason = static_cast<QFocusEvent*>(event)->reason();
+    if (type == QEvent::FocusIn) {
+      // The text Esc puts back in an editable combo (the font box).
+      if (auto* combo = qobject_cast<QComboBox*>(control); combo != nullptr && combo->isEditable() &&
+                                                           reason != Qt::PopupFocusReason &&
+                                                           reason != Qt::ActiveWindowFocusReason) {
+        combo->setProperty(kOptionsBarFocusTextProperty, combo->currentText());
+      }
+      if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason) {
+        set_options_bar_keyboard_focus(control, true);
+      } else if (reason != Qt::PopupFocusReason && reason != Qt::ActiveWindowFocusReason) {
+        set_options_bar_keyboard_focus(control, false);
+      }
+    } else if (reason != Qt::PopupFocusReason && reason != Qt::ActiveWindowFocusReason) {
+      set_options_bar_keyboard_focus(control, false);
+    }
+    return false;
+  }
+  // Keys: only the delivery to the focused control itself (a spin box hands the key to its line
+  // edit by a direct call no filter sees, and a sent event may target an unfocused field).
+  if (widget != QApplication::focusWidget()) {
+    return false;
+  }
+  auto* key_event = static_cast<QKeyEvent*>(event);
+  const bool escape = key_event->key() == Qt::Key_Escape && key_event->modifiers() == Qt::NoModifier;
+  const bool enter = (key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter) &&
+                     is_options_bar_text_field(control);
+  if (type == QEvent::ShortcutOverride) {
+    // Esc belongs to the field (revert, then leave): no window shortcut runs on the same press.
+    if (escape) {
+      key_event->accept();
+      return true;
+    }
+    return false;
+  }
+  if (!escape && !enter) {
+    return false;
+  }
+  if (escape) {
+    // A spin box puts back its value from before the edit itself (ToolbarSpinboxEscapeReverter,
+    // GitHub issue 186). An editable combo (the font box) puts back its text from focus-in.
+    if (auto* combo = qobject_cast<QComboBox*>(control); combo != nullptr && combo->isEditable()) {
+      if (const auto before = combo->property(kOptionsBarFocusTextProperty);
+          before.isValid() && combo->currentText() != before.toString()) {
+        combo->setEditText(before.toString());
+      }
+    }
+  }
+  // The control handles the key first (a field commits on Enter), then the keyboard goes back to
+  // the canvas, after this press, so the canvas never sees it (an Esc there would cancel a
+  // transform or drop the selection). A control that lost the keyboard meanwhile keeps its place.
+  QTimer::singleShot(0, this, [this, control = QPointer<QWidget>(control)] {
+    if (control != nullptr && control->hasFocus() && QApplication::activePopupWidget() == nullptr) {
+      return_keyboard_from_options_bar();
+    }
+  });
+  return false;
+}
+
+void MainWindow::return_keyboard_from_options_bar() {
+  if (canvas_ == nullptr) {
+    if (auto* focus = QApplication::focusWidget();
+        focus != nullptr && options_flow_container_ != nullptr && options_flow_container_->isAncestorOf(focus)) {
+      focus->clearFocus();
+    }
+    return;
+  }
+  if (const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+      editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool() && editor->isVisible()) {
+    return_keyboard_to_text_editor();
+    return;
+  }
+  // The active document may sit in a float window.
+  if (auto* window = canvas_->window(); window != nullptr && !window->isActiveWindow()) {
+    window->activateWindow();
+  }
+  canvas_->setFocus(Qt::OtherFocusReason);
+}
 
 void MainWindow::retranslate_mixer_combination_combo() {
   if (mixer_combination_combo_ == nullptr) {

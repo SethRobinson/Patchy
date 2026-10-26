@@ -2243,6 +2243,12 @@ private:
   // The Character and Paragraph panels follow the same rule: Enter in a field, a checkbox
   // click or a combo pick hands the keyboard back to a live session.
   void return_keyboard_after_text_panel_edits(QWidget& panel);
+  // Keyboard focus in the Options bar (GitHub issues 439, 440), called from the application
+  // event filter: Enter in a field commits it and Esc drops the edit, then the keyboard goes
+  // back to the canvas (or a live text session) so tool keys work again; a control reached
+  // with Tab carries kOptionsBarKeyboardFocusProperty, which its QSS focus outline keys on.
+  bool handle_options_bar_focus_event(QObject* watched, QEvent* event);
+  void return_keyboard_from_options_bar();
   // The text color panel is live; with no session each change would commit every selected
   // layer, so the layer edit waits for the picker to settle on `color`.
   void apply_text_color_to_selected_layers_debounced(QColor color);
