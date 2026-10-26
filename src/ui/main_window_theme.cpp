@@ -142,7 +142,8 @@ QString photoshop_style_template() {
       border-color: @field_border_disabled;
     }
     QToolButton#brushDynamicsButton {
-      padding: 2px 6px;
+      padding: 2px 3px;
+      min-width: 16px;
       min-height: 20px;
       max-height: 20px;
     }
