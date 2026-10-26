@@ -664,9 +664,10 @@ void ui_healing_brush_cursor_feedback_and_ctrl_move() {
   CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
 }
 
-// Picking a painting tool puts its gestures in the status bar (GitHub issues 421, 423): what a
-// drag does and the tool's own Alt click first, then the shared Shift, Ctrl and Alt+right-drag
-// gestures, with the platform's modifier names.
+// Picking a painting tool puts its gestures in the status bar (GitHub issues 421, 423), kept
+// short (the reporter's follow-up on 421): only the ones painting does not reveal, the tool's
+// own Alt click, Shift+click and Alt+right-drag, with the platform's modifier names. The Ctrl
+// move and "drag to paint" are left out.
 void ui_paint_tool_hints_name_shared_gestures() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -677,19 +678,19 @@ void ui_paint_tool_hints_name_shared_gestures() {
     const char* prefix;
   };
   const std::array<ToolHint, 13> tools{{
-      {"toolBrushAction", "Brush: drag to paint, %1+click picks a color."},
-      {"toolCloneAction", "Clone Stamp: %1+click sets the source, then drag to paint the clone."},
-      {"toolMixerBrushAction", "Mixer Brush: drag to paint"},
-      {"toolPatternStampAction", "Pattern Stamp: drag to paint with the pattern."},
-      {"toolEraserAction", "Eraser: drag to erase."},
-      {"toolHealingBrushAction", "Healing Brush: %1+click sets the source"},
-      {"toolSpotHealingAction", "Spot Healing: drag over a spot"},
-      {"toolSmudgeAction", "Smudge: drag"},
-      {"toolDodgeAction", "Dodge: drag"},
-      {"toolBurnAction", "Burn: drag"},
-      {"toolSpongeAction", "Sponge: drag"},
-      {"toolBlurAction", "Blur: drag"},
-      {"toolSharpenAction", "Sharpen: drag"},
+      {"toolBrushAction", "Brush: Shift+click draws a line, %1+click picks a color, "},
+      {"toolCloneAction", "Clone Stamp: %1+click sets the source, Shift+click draws a line, "},
+      {"toolMixerBrushAction", "Mixer Brush: Shift+click draws a line, %1+click picks a color, "},
+      {"toolPatternStampAction", "Pattern Stamp: Shift+click draws a line, "},
+      {"toolEraserAction", "Eraser: Shift+click draws a line, "},
+      {"toolHealingBrushAction", "Healing Brush: %1+click sets the source, Shift+click draws a line, "},
+      {"toolSpotHealingAction", "Spot Healing: Shift+click draws a line, "},
+      {"toolSmudgeAction", "Smudge: Shift+click draws a line, "},
+      {"toolDodgeAction", "Dodge: Shift+click draws a line, "},
+      {"toolBurnAction", "Burn: Shift+click draws a line, "},
+      {"toolSpongeAction", "Sponge: Shift+click draws a line, "},
+      {"toolBlurAction", "Blur: Shift+click draws a line, "},
+      {"toolSharpenAction", "Sharpen: Shift+click draws a line, "},
   }};
   const auto alt = patchy::ui::alt_key_name();
   const auto ctrl = patchy::ui::ctrl_key_name();
@@ -710,11 +711,11 @@ void ui_paint_tool_hints_name_shared_gestures() {
     const auto& tool = tools[index];
     const auto& message = messages[index];
     CHECK(message.startsWith(QString::fromLatin1(tool.prefix).arg(alt)));
-    CHECK(message.contains(QStringLiteral("Shift+click draws a straight line from the last stroke.")));
-    CHECK(message.contains(ctrl + QStringLiteral("+click selects the layer under the pointer, ") + ctrl +
-                           QStringLiteral("+drag moves the layer")));
-    CHECK(message.contains(alt + QStringLiteral("+right-drag changes size and softness.")));
+    CHECK(message.endsWith(alt + QStringLiteral("+right-drag changes size and softness.")));
+    CHECK(!message.contains(ctrl + QLatin1Char('+')));
+    CHECK(!message.contains(QStringLiteral("drag to paint")));
     CHECK(!message.contains(QLatin1Char('%')));
+    CHECK(message.size() <= 120);
   }
 }
 

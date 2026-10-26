@@ -25887,62 +25887,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Supprimer le paramètre prédéfini « %1 » ?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Pinceau : faites glisser pour peindre, %ALT%+clic prélève une couleur.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Pinceau mélangeur : faites glisser pour peindre et mélanger avec les couleurs déjà présentes, %ALT%+clic prélève une couleur.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Tampon de motif : faites glisser pour peindre avec le motif.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Gomme : faites glisser pour effacer.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Tampon de duplication : %ALT%+clic définit la source, puis faites glisser pour peindre la copie.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Correcteur : %ALT%+clic définit la source, puis faites glisser sur la zone à corriger.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Correcteur localisé : faites glisser sur un défaut pour le corriger à partir de ses alentours.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Doigt : faites glisser pour étaler les pixels.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Densité - : faites glisser pour éclaircir.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Densité + : faites glisser pour assombrir.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Éponge : faites glisser pour modifier la saturation.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Goutte d&apos;eau : faites glisser pour adoucir les détails.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Netteté : faites glisser pour accentuer les détails.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Maj+clic trace une ligne droite depuis le dernier tracé. %CTRL%+clic sélectionne le calque sous le pointeur, %CTRL%+glisser déplace le calque, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation et superposition</translation>
     </message>
@@ -26033,6 +25977,18 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>&amp;Target Path</source>
         <translation>&amp;Tracé cible</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1 : Maj+clic trace une ligne, %ALT%+clic prélève une couleur, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1 : %ALT%+clic définit la source, Maj+clic trace une ligne, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1 : Maj+clic trace une ligne, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
     </message>
 </context>
 <context>

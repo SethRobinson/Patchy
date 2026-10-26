@@ -25887,62 +25887,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Eliminare il predefinito &quot;%1&quot;?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Pennello: trascina per dipingere, %ALT%+clic preleva un colore.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Pennello miscela colori: trascina per dipingere e mescolare con i colori già presenti, %ALT%+clic preleva un colore.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Timbro con pattern: trascina per dipingere con il pattern.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Gomma: trascina per cancellare.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Timbro clone: %ALT%+clic imposta l&apos;origine, poi trascina per dipingere il clone.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Pennello correttivo: %ALT%+clic imposta l&apos;origine, poi trascina sull&apos;area da correggere.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Pennello correttivo al volo: trascina su un difetto per correggerlo con ciò che lo circonda.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Sfumino: trascina per sfumare i pixel.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Scherma: trascina per schiarire.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Brucia: trascina per scurire.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Spugna: trascina per cambiare la saturazione.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Sfoca: trascina per ammorbidire i dettagli.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Contrasta: trascina per rendere più nitidi i dettagli.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Maiusc+clic traccia una linea retta dall&apos;ultimo tratto. %CTRL%+clic seleziona il livello sotto il puntatore, %CTRL%+trascina sposta il livello, %ALT%+trascina con il tasto destro cambia dimensione e morbidezza.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Impostazioni della sorgente di clonazione: sorgenti, spostamento, scala, rotazione e sovrapposizione</translation>
     </message>
@@ -26033,6 +25977,18 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>&amp;Target Path</source>
         <translation>&amp;Tracciato di destinazione</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Maiusc+clic traccia una linea, %ALT%+clic preleva un colore, %ALT%+trascina con il tasto destro cambia dimensione e morbidezza.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+clic imposta l&apos;origine, Maiusc+clic traccia una linea, %ALT%+trascina con il tasto destro cambia dimensione e morbidezza.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Maiusc+clic traccia una linea, %ALT%+trascina con il tasto destro cambia dimensione e morbidezza.</translation>
     </message>
 </context>
 <context>

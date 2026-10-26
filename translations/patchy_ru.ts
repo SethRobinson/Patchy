@@ -25960,62 +25960,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Удалить предустановку «%1»?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Кисть: перетаскивайте, чтобы рисовать, %ALT%+щелчок берёт цвет.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Микс-кисть: перетаскивайте, чтобы рисовать и смешивать с уже нанесёнными цветами, %ALT%+щелчок берёт цвет.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Узорный штамп: перетаскивайте, чтобы рисовать узором.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Ластик: перетаскивайте, чтобы стирать.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Штамп: %ALT%+щелчок задаёт источник, затем перетаскивайте, чтобы рисовать клон.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Восстанавливающая кисть: %ALT%+щелчок задаёт источник, затем перетаскивайте по области, которую нужно восстановить.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Точечное восстановление: проведите по дефекту, чтобы восстановить его по окружению.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Палец: перетаскивайте, чтобы размазывать пиксели.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Осветлитель: перетаскивайте, чтобы осветлять.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Затемнитель: перетаскивайте, чтобы затемнять.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Губка: перетаскивайте, чтобы менять насыщенность.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Размытие: перетаскивайте, чтобы смягчать детали.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Резкость: перетаскивайте, чтобы повышать резкость деталей.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Shift+щелчок рисует прямую линию от последнего штриха. %CTRL%+щелчок выбирает слой под указателем, %CTRL%+перетаскивание перемещает слой, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот и наложение</translation>
     </message>
@@ -26106,6 +26050,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>&amp;Target Path</source>
         <translation>Целевой &amp;контур</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+щелчок рисует линию, %ALT%+щелчок берёт цвет, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+щелчок задаёт источник, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
 </context>
 <context>
