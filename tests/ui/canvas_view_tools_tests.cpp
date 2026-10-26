@@ -1028,6 +1028,84 @@ void ui_crop_options_bar_groups_its_controls() {
   CHECK(problems.empty());
 }
 
+// GitHub issue 328 follow-up: the Perspective Crop bar groups its controls by the
+// options-bar rules (docs/options-bar.md). W, swap and H stay together, Resolution is its
+// own group, Front Image and Clear stay beside the fields they fill, Turn and the Show
+// Grid checkbox are separate groups, and Apply/Cancel come last. One row at 1366 px.
+void ui_perspective_crop_options_bar_groups_its_controls() {
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string name = scheme == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    require_action(window, "toolPerspectiveCropAction")->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    // Captured before the checks, so a failing run still shows the bar.
+    save_widget_artifact("issue_328_perspective_crop_options_bar_" + name, *options_bar);
+    const auto tokens = options_row_tokens(*options);
+    std::printf("  %-6s", name.c_str());
+    for (const auto& token : tokens) {
+      std::printf(" %s", qPrintable(token));
+    }
+    std::printf("\n");
+    // "" stands for a label (its token is its translated text).
+    const std::vector<QString> expected = {
+        QString(),
+        QStringLiteral("perspectiveCropWidthSpin"),
+        QStringLiteral("perspectiveCropSwapButton"),
+        QString(),
+        QStringLiteral("perspectiveCropHeightSpin"),
+        QStringLiteral("|"),
+        QString(),
+        QStringLiteral("perspectiveCropResolutionSpin"),
+        QStringLiteral("|"),
+        QStringLiteral("perspectiveCropFrontImageButton"),
+        QStringLiteral("perspectiveCropClearButton"),
+        QStringLiteral("|"),
+        QStringLiteral("perspectiveCropTurnButton"),
+        QStringLiteral("|"),
+        QStringLiteral("perspectiveCropShowGridCheck"),
+        QStringLiteral("|"),
+        QStringLiteral("perspectiveCropApplyButton"),
+        QStringLiteral("perspectiveCropCancelButton"),
+    };
+    bool matches = tokens.size() == expected.size();
+    for (std::size_t i = 0; matches && i < tokens.size(); ++i) {
+      if (expected[i].isEmpty()) {
+        const auto labels = options->findChildren<QLabel*>(Qt::FindDirectChildrenOnly);
+        matches = std::any_of(labels.begin(), labels.end(), [&](const QLabel* label) {
+          return label->isVisible() && label->text() == tokens[i];
+        });
+      } else {
+        matches = tokens[i] == expected[i];
+      }
+    }
+    if (!matches) {
+      problems.push_back(name + ": the bar is not W swap H | Resolution | Front Image Clear | Turn | Show Grid | "
+                                "Apply Cancel");
+    }
+    if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
+      problems.push_back(name + ": takes " + std::to_string(lines) + " rows at 1366 px (row " +
+                         std::to_string(right) + " px)");
+    } else {
+      std::printf("  %s: one row, %d px\n", name.c_str(), right);
+    }
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
+
 // The retouch bars (GitHub issues 381, 382, 383): Clone, Healing, Spot Healing and Patch
 // show the Sample combo with Ignore Adjustment Layers beside it, the Healing Brush its
 // Mode combo, each on one row at 1366 px. The Healing bar is the issue shot.
@@ -9472,6 +9550,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_crop_options_bar_groups_its_controls", ui_crop_options_bar_groups_its_controls},
+      {"ui_perspective_crop_options_bar_groups_its_controls", ui_perspective_crop_options_bar_groups_its_controls},
       {"ui_options_menu_buttons_show_the_gear", ui_options_menu_buttons_show_the_gear},
       {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
       {"ui_retouch_options_bars_show_sample_and_mode", ui_retouch_options_bars_show_sample_and_mode},
