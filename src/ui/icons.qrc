@@ -18,6 +18,7 @@
     <file alias="transform-perspective.svg">icons/transform-perspective.svg</file>
     <file alias="warp.svg">icons/warp.svg</file>
     <file alias="mask.svg">icons/mask.svg</file>
+    <file alias="film.svg">icons/film.svg</file>
     <file alias="quick-mask.svg">icons/quick-mask.svg</file>
     <file alias="quick-mask-on.svg">icons/quick-mask-on.svg</file>
     <file alias="link.svg">icons/link.svg</file>

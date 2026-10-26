@@ -733,8 +733,8 @@ QString photoshop_style_template() {
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
-      min-width: 18px;
-      max-width: 18px;
+      min-width: 10px;
+      max-width: 10px;
       min-height: 20px;
       max-height: 20px;
     }

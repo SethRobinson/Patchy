@@ -186,19 +186,33 @@ constexpr int kLayerRowBaseIndent = 6;
 // The color label strip sits inside the base indent (GitHub issue 244).
 constexpr int kLayerColorStripWidth = 4;
 static_assert(kLayerColorStripWidth < kLayerRowBaseIndent);
-constexpr int kLayerFolderDisclosureWidth = 18;
+// The folder, Layer Styles and Smart Filters arrows (#386 follow-up: smaller than the old
+// 18 px). The QSS sets the same content width; its 1 px border on each side makes the slot.
+constexpr int kLayerFolderDisclosureWidth = 10;
 constexpr int kLayerFolderDisclosureHeight = 20;
-// The row keeps the eye, folder arrow, clip badge and thumbnail close (#397 follow-up): one
-// small gap between them, no empty arrow slot on rows that have no arrow.
+constexpr int kLayerDisclosureSlotWidth = kLayerFolderDisclosureWidth + 2;
+// The row keeps the eye, folder arrow, clip badge and thumbnail close (#397): one small gap.
 constexpr int kLayerRowHorizontalSpacing = 4;
-// One nesting level. Rows without an arrow have no arrow slot, so a child's indent covers its
-// folder's arrow (18 px plus the 1 px QSS border on each side) and its gap, and then sets the
-// child 8 px past the folder's glyph, as the folder tests pin.
-constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + 2 + kLayerRowHorizontalSpacing + 8;
+// One nesting level: a child's thumbnail (and every column after it) sits this far right of
+// its folder's (#386 follow-up).
+constexpr int kLayerChildIndent = 16;
 
-// The indent widget is followed by the row spacing, which the first level already counts.
-int layer_tree_indent_width(int depth) {
+// Column layout (#386 follow-up): in a document with any folder every main row reserves the
+// arrow slot, so content thumbnails form one column per depth whether or not a row has an
+// arrow. A folder row's indent is followed by the row spacing and its arrow; any other row's
+// indent takes the arrow slot itself. A document without folders reserves nothing (#397).
+int layer_tree_indent_width(int depth, bool takes_arrow_slot) {
+  if (takes_arrow_slot) {
+    return std::max(0, depth) * kLayerChildIndent + kLayerDisclosureSlotWidth;
+  }
   return depth > 0 ? depth * kLayerChildIndent - kLayerRowHorizontalSpacing : 0;
+}
+
+// Every row reserves the folder-arrow slot once the document has a folder, so thumbnails line
+// up per depth (#386 follow-up). A nested folder needs a top-level one, so the top level decides.
+bool layer_list_needs_arrow_column(const Document& document) {
+  return std::any_of(document.layers().begin(), document.layers().end(),
+                     [](const Layer& layer) { return layer.kind() == LayerKind::Group; });
 }
 
 // What a disclosure-arrow click toggles: the folder alone, the folder and its
@@ -208,9 +222,10 @@ enum class LayerFolderToggleScope { Single, Branch, All };
 
 class LayerTreeIndentWidget final : public QWidget {
 public:
-  explicit LayerTreeIndentWidget(int depth, QWidget* parent = nullptr)
+  LayerTreeIndentWidget(int depth, bool takes_arrow_slot, QWidget* parent = nullptr)
       : QWidget(parent), depth_(std::max(0, depth)) {
-    setFixedWidth(layer_tree_indent_width(depth_));
+    setObjectName(QStringLiteral("layerTreeIndent"));
+    setFixedWidth(layer_tree_indent_width(depth_, takes_arrow_slot));
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
     setAttribute(Qt::WA_TransparentForMouseEvents);
   }
@@ -229,7 +244,7 @@ protected:
     painter.setPen(QPen(depth_guide, 1));
     // Each guide runs under that level's folder arrow.
     for (int level = 0; level < depth_; ++level) {
-      const auto x = level * kLayerChildIndent + (kLayerFolderDisclosureWidth + 2) / 2;
+      const auto x = level * kLayerChildIndent + kLayerDisclosureSlotWidth / 2;
       painter.drawLine(QPoint(x, 4), QPoint(x, height() - 4));
     }
   }
@@ -1615,7 +1630,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId)> toggle_effects_expanded = {},
                                bool smart_filters_expanded = true,
                                std::function<void(LayerId)> toggle_smart_filters_expanded = {},
-                               LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize) {
+                               LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize,
+                               bool arrow_column = false) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -1675,11 +1691,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
   layout->addWidget(visibility, 0, Qt::AlignVCenter);
 
-  if (depth > 0) {
-    layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
+  const auto is_group = layer.kind() == LayerKind::Group;
+  const auto indent_takes_arrow_slot = arrow_column && !is_group;
+  if (depth > 0 || indent_takes_arrow_slot) {
+    layout->addWidget(new LayerTreeIndentWidget(depth, indent_takes_arrow_slot, row), 0, Qt::AlignVCenter);
   }
 
-  const auto is_group = layer.kind() == LayerKind::Group;
   if (is_group) {
     auto* disclosure = new QToolButton(row);
     disclosure->setObjectName(QStringLiteral("layerFolderDisclosureButton"));
@@ -1687,7 +1704,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     disclosure->setChecked(group_expanded);
     disclosure->setArrowType(group_expanded ? Qt::DownArrow : Qt::RightArrow);
     disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    disclosure->setFixedSize(kLayerDisclosureSlotWidth, kLayerFolderDisclosureHeight);
     // An empty folder toggles too (GitHub issue 229): a new folder can be closed before
     // anything goes in, and a PSD's closed empty folder can be opened.
     disclosure->setToolTip(
@@ -1719,8 +1736,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   const auto content_tile = layer_thumbnail_tile_size(thumbnail_size);
   const auto mask_tile = layer_mask_thumbnail_tile_size(thumbnail_size);
   if (clipped) {
-    // As wide as the content thumbnail and in its slot (after the folder arrow's
-    // spacer), so the arrow centers on the base row's thumbnail below (#397).
+    // As wide as the content thumbnail and in its depth's thumbnail column, so the arrow
+    // centers on the base row's thumbnail below (#397); the clipped layer's thumbnail
+    // takes the next column.
     auto* clip_badge = new LayerRowFixedSizeButton(QSize(content_tile > 0 ? content_tile + 2 : 24, 24), row);
     clip_badge->setObjectName(QStringLiteral("layerClippingBadgeButton"));
     clip_badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -1966,9 +1984,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   constexpr int kNestedRowHeight = 26;
   constexpr int kNestedRowSpacing = 5;
   // Every nested eye but the Layer Styles header's sits this far in: past that header's
-  // disclosure arrow (18 px plus the 1 px QSS border on each side) and the row spacing. So all
+  // disclosure arrow slot (kLayerDisclosureSlotWidth) and the row spacing. So all
   // the Smart Filter and effect eyes share one column and their names line up (issues 256, 349).
-  constexpr int kNestedEyeIndent = kLayerFolderDisclosureWidth + 2 + kNestedRowSpacing;
+  constexpr int kNestedEyeIndent = kLayerDisclosureSlotWidth + kNestedRowSpacing;
   const auto nested_button_style = QStringLiteral(
       "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
       "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
@@ -2006,10 +2024,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       nested_row->installEventFilter(list_parent);
     }
     auto* nested_layout = new QHBoxLayout(nested_row);
-    // Under the main row's thumbnail: past the eye, the tree indent and a folder's arrow.
-    const auto indent = kLayerRowBaseIndent + 22 + kLayerRowHorizontalSpacing +
-                        (depth > 0 ? layer_tree_indent_width(depth) + kLayerRowHorizontalSpacing : 0) +
-                        (is_group ? kLayerFolderDisclosureWidth + 2 + kLayerRowHorizontalSpacing : 0) + extra_indent;
+    // Under the main row's thumbnail column: past the eye, the depth's indent and the arrow slot.
+    const auto indent = kLayerRowBaseIndent + 22 + kLayerRowHorizontalSpacing + std::max(0, depth) * kLayerChildIndent +
+                        (arrow_column || is_group ? kLayerDisclosureSlotWidth + kLayerRowHorizontalSpacing : 0) +
+                        extra_indent;
     nested_layout->setContentsMargins(indent, 1, 8, 1);
     nested_layout->setSpacing(kNestedRowSpacing);
     row_layout->addWidget(nested_row);
@@ -2089,7 +2107,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     smart_filters_disclosure->setChecked(smart_filters_expanded);
     smart_filters_disclosure->setArrowType(smart_filters_expanded ? Qt::DownArrow : Qt::RightArrow);
     smart_filters_disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    smart_filters_disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    smart_filters_disclosure->setFixedSize(kLayerDisclosureSlotWidth, kLayerFolderDisclosureHeight);
     smart_filters_disclosure->setFocusPolicy(Qt::NoFocus);
     smart_filters_disclosure->setToolTip(smart_filters_expanded ? QObject::tr("Collapse the Smart Filter rows")
                                                                 : QObject::tr("Expand the Smart Filter rows"));
@@ -2707,7 +2725,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     effects_disclosure->setChecked(effects_expanded);
     effects_disclosure->setArrowType(effects_expanded ? Qt::DownArrow : Qt::RightArrow);
     effects_disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    effects_disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    effects_disclosure->setFixedSize(kLayerDisclosureSlotWidth, kLayerFolderDisclosureHeight);
     effects_disclosure->setFocusPolicy(Qt::NoFocus);
     effects_disclosure->setToolTip(effects_expanded ? QObject::tr("Collapse the layer style rows")
                                                     : QObject::tr("Expand the layer style rows"));
@@ -3897,6 +3915,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     }
   };
   const auto build_started = std::chrono::steady_clock::now();
+  layer_list_arrow_column_ = layer_list_needs_arrow_column(doc);
   append_layers(doc.layers(), 0, true, kLayerLockNone);
   const auto insert_started = std::chrono::steady_clock::now();
   const auto session_layer = live_text_session_layer_id();
@@ -4150,7 +4169,7 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
                                     [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); },
                                     !session().collapsed_smart_filters.contains(layer.id()),
                                     [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); },
-                                    layer_thumbnail_size_);
+                                    layer_thumbnail_size_, layer_list_arrow_column_);
   if (session_layer == layer.id() && layer_is_text(layer)) {
     // The content tile above came without the badge; the tooltip has to agree.
     if (auto* thumbnail = row_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
@@ -4179,6 +4198,10 @@ bool MainWindow::insert_duplicated_layer_rows(const std::vector<LayerId>& copy_i
   }
   const auto started = std::chrono::steady_clock::now();
   const auto& doc = std::as_const(document());
+  // The first folder in a document moves every row's thumbnail column (#386 follow-up).
+  if (layer_list_needs_arrow_column(doc) != layer_list_arrow_column_) {
+    return false;
+  }
   const auto location = find_layer_location(doc.layers(), copy_ids_top_to_bottom.back());
   if (!location.has_value()) {
     return false;
