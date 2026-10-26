@@ -84,7 +84,9 @@ class DialogBackgroundFilter final : public QObject {
     static const char* const kAdded = "patchy.themeDialogBackground";
     const auto selector = dialog->objectName().isEmpty() ? QStringLiteral("QDialog")
                                                          : QStringLiteral("QDialog#") + dialog->objectName();
-    const auto addition = host->dialog_background_stylesheet().arg(selector);
+    // No "dialogs" background: nothing to add (arg() on the empty template warns at every show).
+    const auto pattern = host->dialog_background_stylesheet();
+    const auto addition = pattern.isEmpty() ? QString() : pattern.arg(selector);
     auto sheet = dialog->styleSheet();
     if (const auto previous = dialog->property(kAdded).toString(); !previous.isEmpty() && sheet.endsWith(previous)) {
       sheet.chop(previous.size());
