@@ -17,6 +17,7 @@
 #include "formats/exr_document_io.hpp"
 #include "formats/hdr_document_io.hpp"
 #include "formats/jp2_document_io.hpp"
+#include "formats/jpeg_deep_reader.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
@@ -1948,6 +1949,82 @@ void exr_round_trips_float_rgba() {
   CHECK(rejected);
 }
 
+// 12-bit and lossless JPEGs decode through the vendored libjpeg-turbo (#438). testorig12.jpg
+// is libjpeg-turbo's own 12-bit test image; the lossless files were written by libjpeg-turbo
+// from the formulas below (test-fixtures/jpeg, provenance in NOTICE-THIRD-PARTY.md). The
+// 12-bit reference values are imagecodecs 2026.10.10's decode of the same file.
+void jpeg_deep_reads_12bit_and_lossless_fixtures() {
+  using Bytes = std::vector<std::uint8_t>;
+  const auto read_fixture = [](const char* name) {
+    std::ifstream in(patchy::test::committed_format_fixture_path("jpeg", name), std::ios::binary);
+    return Bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  const auto scale12 = [](std::uint32_t v) { return static_cast<std::uint16_t>((v * 65535U + 2047U) / 4095U); };
+
+  const auto twelve = read_fixture("testorig12.jpg");
+  CHECK(twelve.size() == 12394U);
+  CHECK(patchy::jpeg_deep::needs_deep_decoder(twelve));
+  const auto image = patchy::jpeg_deep::read_deep_jpeg(twelve);
+  CHECK(image.width == 227 && image.height == 149 && image.channels == 3);
+  CHECK(image.precision == 12 && !image.lossless && image.output_bits == 16);
+  CHECK(image.samples.size() == 227U * 149U * 3U);
+  struct Reference {
+    int x;
+    int y;
+    std::array<std::uint32_t, 3> rgb;
+  };
+  for (const auto& reference : {Reference{0, 0, {766, 748, 708}}, Reference{10, 10, {745, 712, 681}},
+                                Reference{100, 50, {3551, 851, 682}}, Reference{226, 148, {626, 751, 613}},
+                                Reference{50, 120, {3535, 3274, 2956}}}) {
+    const auto at = (static_cast<std::size_t>(reference.y) * 227U + static_cast<std::size_t>(reference.x)) * 3U;
+    for (std::size_t c = 0; c < 3; ++c) {
+      CHECK(image.samples[at + c] == scale12(reference.rgb[c]));
+    }
+  }
+
+  const auto rgb16 = patchy::jpeg_deep::read_deep_jpeg(read_fixture("lossless16-rgb.jpg"));
+  CHECK(rgb16.width == 32 && rgb16.height == 24 && rgb16.channels == 3 && rgb16.precision == 16 && rgb16.lossless);
+  bool rgb16_exact = rgb16.samples.size() == 32U * 24U * 3U;
+  for (std::uint32_t y = 0; rgb16_exact && y < 24; ++y) {
+    for (std::uint32_t x = 0; x < 32; ++x) {
+      const auto* px = rgb16.samples.data() + (y * 32U + x) * 3U;
+      rgb16_exact = rgb16_exact && px[0] == (x * 2000U + y * 7U) % 65536U && px[1] == (y * 2500U + x) % 65536U &&
+                    px[2] == (x * y * 97U) % 65536U;
+    }
+  }
+  CHECK(rgb16_exact);
+
+  const auto gray12 = patchy::jpeg_deep::read_deep_jpeg(read_fixture("lossless12-gray.jpg"));
+  CHECK(gray12.width == 32 && gray12.height == 24 && gray12.channels == 1 && gray12.precision == 12 &&
+        gray12.lossless && gray12.output_bits == 16);
+  bool gray12_exact = gray12.samples.size() == 32U * 24U;
+  for (std::uint32_t y = 0; gray12_exact && y < 24; ++y) {
+    for (std::uint32_t x = 0; x < 32; ++x) {
+      gray12_exact = gray12_exact && gray12.samples[y * 32U + x] == scale12((x * 100U + y * 3U) % 4096U);
+    }
+  }
+  CHECK(gray12_exact);
+
+  // Ordinary 8-bit and hierarchical frames are not this reader's: Qt decodes the first and
+  // the open-failure diagnosis names the second.
+  const Bytes eight{0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 1, 0, 1, 1, 1, 0x11, 0};
+  const Bytes hierarchical{0xff, 0xd8, 0xff, 0xc5, 0, 11, 12, 0, 1, 0, 1, 1, 1, 0x11, 0};
+  CHECK(!patchy::jpeg_deep::needs_deep_decoder(eight));
+  CHECK(!patchy::jpeg_deep::needs_deep_decoder(hierarchical));
+  CHECK(!patchy::jpeg_deep::needs_deep_decoder(Bytes{0x89, 'P', 'N', 'G'}));
+
+  // A file cut off after its frame header has no image to decode: an error, not a crash.
+  Bytes cut(twelve.begin(), twelve.begin() + 200);
+  CHECK(patchy::jpeg_deep::needs_deep_decoder(cut));
+  bool threw = false;
+  try {
+    (void)patchy::jpeg_deep::read_deep_jpeg(cut);
+  } catch (const std::runtime_error& error) {
+    threw = std::string(error.what()) == "The JPEG file is damaged or truncated";
+  }
+  CHECK(threw);
+}
+
 void jp2_round_trips_losslessly_at_8_and_16_bits() {
   using patchy::BitDepth;
   for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16}) {
@@ -2267,6 +2344,7 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"hdr_rgbe_round_trips_linear_values", hdr_rgbe_round_trips_linear_values},
       {"exr_round_trips_float_rgba", exr_round_trips_float_rgba},
       {"jp2_round_trips_losslessly_at_8_and_16_bits", jp2_round_trips_losslessly_at_8_and_16_bits},
+      {"jpeg_deep_reads_12bit_and_lossless_fixtures", jpeg_deep_reads_12bit_and_lossless_fixtures},
       {"avif_decodes_synthetic_still_and_rejects_damage", avif_decodes_synthetic_still_and_rejects_damage},
       {"avif_imports_image_sequence_frames_as_layers", avif_imports_image_sequence_frames_as_layers},
       {"avif_decodes_corpus_samples_if_available", avif_decodes_corpus_samples_if_available},
