@@ -54,6 +54,7 @@ namespace {
 
 using patchy::BlendMode;
 using patchy::Document;
+using patchy::RgbColor;
 namespace builder = patchy::test::xcf;
 
 // --- helpers --------------------------------------------------------------------------------
@@ -587,6 +588,64 @@ void xcf_reads_gray_and_indexed_images() {
     CHECK(first[0] == 200 && first[1] == 100 && first[2] == 50 && first[3] == 255);
     const auto second = rgba_at(document.layers()[0], 1, 0);
     CHECK(second[3] == 0);
+    // The colormap rides along in file order for the open path's Palette mode offer (#452).
+    const auto& palette = document.indexed_palette();
+    CHECK(palette.has_value() && palette->colors.size() == 3 && palette->source_bit_depth == 2);
+    CHECK(palette.has_value() && palette->colors[0] == (RgbColor{10, 20, 30}) &&
+          palette->colors[2] == (RgbColor{0, 255, 0}));
+  }
+}
+
+// philipzae's indexed GIMP 3.2 samples from issue 452 (local-test-fixtures/xcf-indexed,
+// README.txt there): the colormap attaches whole and in order, every pixel is one of its
+// colors, and the composite matches GIMP's render.
+void xcf_indexed_samples_attach_their_colormap() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-indexed";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  struct Sample {
+    const char* name;
+    std::size_t count;
+    std::uint16_t bits;
+    RgbColor first;
+    RgbColor last;
+    std::uint64_t checksum;  // sum of (7r + 13g + 17b) * (index + 1) over the colormap
+  };
+  for (const auto& sample : {Sample{"palette-8bit", 228, 8, {0, 0, 0}, {255, 255, 255}, 161554654},
+                             Sample{"palette-4bit", 7, 4, {24, 20, 12}, {196, 68, 72}, 114824},
+                             Sample{"palette-1bit", 2, 2, {0, 0, 0}, {255, 255, 255}, 18870}}) {
+    const auto document = patchy::xcf::DocumentIo::read_file(dir / (std::string(sample.name) + ".xcf"));
+    const auto& palette = document.indexed_palette();
+    CHECK(palette.has_value());
+    if (!palette.has_value()) {
+      continue;
+    }
+    const auto& colors = palette->colors;
+    CHECK(colors.size() == sample.count && palette->source_bit_depth == sample.bits);
+    CHECK(!colors.empty() && colors.front() == sample.first && colors.back() == sample.last);
+    std::uint64_t checksum = 0;
+    for (std::size_t i = 0; i < colors.size(); ++i) {
+      checksum += (7ULL * colors[i].red + 13ULL * colors[i].green + 17ULL * colors[i].blue) * (i + 1);
+    }
+    CHECK(checksum == sample.checksum);
+    CHECK(!document.palette_editing().has_value());
+    CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt8);
+    const auto composite = composite_rgba8(document);
+    std::size_t off_palette = 0;
+    for (std::int32_t y = 0; y < composite.height(); ++y) {
+      for (std::int32_t x = 0; x < composite.width(); ++x) {
+        const auto* px = composite.pixel(x, y);
+        const RgbColor color{px[0], px[1], px[2]};
+        if (std::find(colors.begin(), colors.end(), color) == colors.end()) {
+          ++off_palette;
+        }
+      }
+    }
+    CHECK(off_palette == 0);
+    const auto reference = dir / "gimp-renders" / (std::string(sample.name) + ".xcf.png");
+    if (std::filesystem::exists(reference)) {
+      const auto difference = compare_with_png(composite, reference);
+      CHECK(difference.has_value() && difference->worst == 0);
+    }
   }
 }
 
@@ -1565,6 +1624,7 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_reads_every_tile_compression_and_pointer_size", xcf_reads_every_tile_compression_and_pointer_size},
       {"xcf_reads_every_precision", xcf_reads_every_precision},
       {"xcf_reads_gray_and_indexed_images", xcf_reads_gray_and_indexed_images},
+      {"xcf_indexed_samples_attach_their_colormap", xcf_indexed_samples_attach_their_colormap},
       {"xcf_maps_every_gimp_layer_mode", xcf_maps_every_gimp_layer_mode},
       {"xcf_text_parasites_parse_gimp_2_and_3_forms", xcf_text_parasites_parse_gimp_2_and_3_forms},
       {"xcf_text_layers_open_as_editable_text_over_gimps_raster", xcf_text_layers_open_as_editable_text_over_gimps_raster},
