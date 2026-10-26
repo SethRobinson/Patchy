@@ -32,6 +32,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
+#include <QCollator>
 #include <QAbstractItemView>
 #include <QComboBox>
 #include <QTime>
@@ -690,6 +691,101 @@ void ui_open_dialog_hides_name_filter_details() {
   });
   require_action(window, "fileSaveAsAction")->trigger();
   CHECK(saw_save_dialog);
+}
+
+// The Open dialog's type list leads with the all-formats row, then every format row A to
+// Z by its translated name, and ends with All Files (GitHub issue 270). Save As keeps
+// the registry order, Photoshop Document first.
+void ui_open_dialog_lists_formats_alphabetically() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_open_dialog = false;
+  QStringList displayed;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
+    if (dialog == nullptr) {
+      return;
+    }
+    if (auto* type_combo = dialog->findChild<QComboBox*>(QStringLiteral("fileTypeCombo"))) {
+      for (int i = 0; i < type_combo->count(); ++i) {
+        displayed.push_back(type_combo->itemText(i));
+      }
+      // Review capture: the dialog with its type list open.
+      type_combo->showPopup();
+      QApplication::processEvents();
+      QImage shot = dialog->grab().toImage();
+      if (auto* popup = type_combo->view()->window(); popup != nullptr && popup->isVisible()) {
+        const auto popup_shot = popup->grab().toImage();
+        const auto offset = dialog->mapFromGlobal(popup->mapToGlobal(QPoint(0, 0)));
+        const auto bounds = QRect(QPoint(0, 0), shot.size()).united(QRect(offset, popup_shot.size()));
+        QImage combined(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+        combined.fill(Qt::transparent);
+        QPainter painter(&combined);
+        painter.drawImage(-bounds.topLeft(), shot);
+        painter.drawImage(offset - bounds.topLeft(), popup_shot);
+        painter.end();
+        shot = combined;
+      }
+      type_combo->hidePopup();
+      ensure_artifact_dir();
+      shot.save(QStringLiteral("test-artifacts/open_dialog_type_list.png"));
+    }
+    saw_open_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "fileOpenAction")->trigger();
+  CHECK(saw_open_dialog);
+  CHECK(displayed.size() > 10);
+  if (displayed.size() <= 10) {
+    return;
+  }
+  CHECK(displayed.first().startsWith(QStringLiteral("Supported Files")));
+  CHECK(displayed.last() == QStringLiteral("All Files (*.*)"));
+  const auto format_rows = displayed.mid(1, displayed.size() - 2);
+  QCollator collator;
+  collator.setCaseSensitivity(Qt::CaseInsensitive);
+  for (qsizetype i = 1; i < format_rows.size(); ++i) {
+    if (collator.compare(format_rows[i - 1], format_rows[i]) > 0) {
+      std::fprintf(stderr, "out of order: '%s' before '%s'\n", qPrintable(format_rows[i - 1]),
+                   qPrintable(format_rows[i]));
+    }
+    CHECK(collator.compare(format_rows[i - 1], format_rows[i]) <= 0);
+  }
+  // Spot checks that do not lean on the collator: Affinity leads, the JPEG family sits
+  // together, Photoshop follows PDF.
+  CHECK(format_rows.first().startsWith(QStringLiteral("Affinity Document")));
+  const auto index_of = [&](const QString& prefix) {
+    for (qsizetype i = 0; i < format_rows.size(); ++i) {
+      if (format_rows[i].startsWith(prefix)) {
+        return i;
+      }
+    }
+    return qsizetype{-1};
+  };
+  CHECK(index_of(QStringLiteral("JPEG Image")) >= 0);
+  CHECK(index_of(QStringLiteral("JPEG Image")) < index_of(QStringLiteral("JPEG XL Image")));
+  CHECK(index_of(QStringLiteral("Bitmap Image")) < index_of(QStringLiteral("Camera Raw Image")));
+  CHECK(index_of(QStringLiteral("Photoshop Document")) > index_of(QStringLiteral("PDF Document")) ||
+        index_of(QStringLiteral("PDF Document")) < 0);
+  CHECK(index_of(QStringLiteral("WebP Image")) > index_of(QStringLiteral("TIFF Image")));
+
+  // Save As is untouched: Photoshop Document stays first.
+  bool saw_save_dialog = false;
+  QStringList save_filters;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    if (dialog == nullptr) {
+      return;
+    }
+    save_filters = dialog->nameFilters();
+    saw_save_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "fileSaveAsAction")->trigger();
+  CHECK(saw_save_dialog);
+  CHECK(!save_filters.isEmpty());
+  CHECK(!save_filters.isEmpty() && save_filters.first().startsWith(QStringLiteral("Photoshop Document")));
 }
 
 // A cancelled File > Open still remembers the folder it was showing, so the next Open
@@ -2979,6 +3075,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
        ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts},
       {"ui_recent_history_checks_in_background_and_skips_network_paths", ui_recent_history_checks_in_background_and_skips_network_paths},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
+      {"ui_open_dialog_lists_formats_alphabetically", ui_open_dialog_lists_formats_alphabetically},
       {"ui_open_dialog_opens_every_selected_file", ui_open_dialog_opens_every_selected_file},
       {"ui_open_dialog_cancel_remembers_the_folder", ui_open_dialog_cancel_remembers_the_folder},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},

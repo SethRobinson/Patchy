@@ -3597,11 +3597,20 @@ void ui_open_dialog_remembers_last_filter() {
   }
   // Without a remembered row the all-formats row leads.
   CHECK(selected_first == rows.front());
-  patchy::ui::app_settings().setValue(QStringLiteral("lastOpenFilter"), rows[1]);
+  // The rows run A to Z (issue 270), so the remembered row is found by its text, not
+  // its position: TIFF sits near the end of the list.
+  QString tiff_row;
+  for (const auto& row : rows) {
+    if (row.startsWith(QStringLiteral("TIFF Image"))) {
+      tiff_row = row;
+    }
+  }
+  CHECK(!tiff_row.isEmpty());
+  patchy::ui::app_settings().setValue(QStringLiteral("lastOpenFilter"), tiff_row);
   open_and_read(&selected_second);
-  CHECK(selected_second == rows[1]);
+  CHECK(selected_second == tiff_row);
   // A cancelled dialog leaves the remembered row alone.
-  CHECK(patchy::ui::app_settings().value(QStringLiteral("lastOpenFilter")).toString() == rows[1]);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("lastOpenFilter")).toString() == tiff_row);
 }
 
 // A failed open names the file above the reason, so a multi-file import that

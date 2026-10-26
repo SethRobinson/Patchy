@@ -87,6 +87,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QCollator>
 #include <QColorSpace>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -824,16 +825,27 @@ QString open_file_filter() {
   // way (visible_pattern_hint) so no row is wider than the dialog's dropdown.
   const auto supported_name =
       QObject::tr("Supported Files (%1 and more)").arg(QStringLiteral("*.psd *.png *.jpg"));
-  QStringList filters;
-  filters.push_back(QStringLiteral("%1 (%2)").arg(supported_name, extension_patterns(all_extensions)));
+  // The format rows run A to Z by their translated names (GitHub issue 270), between the
+  // all-formats row and All Files. Only this list is sorted: Save As and Export keep the
+  // registry order, Photoshop Document first. lastOpenFilter stores the row text, so the
+  // remembered row is found wherever it lands.
+  QStringList format_rows;
   for (const auto& entry : file_format_entries()) {
     if (entry.open_extensions.isEmpty()) {
       continue;
     }
-    filters.push_back(QStringLiteral("%1 (%2) (%3)").arg(translate_data_text(entry.display_name),
-                                                        visible_pattern_hint(entry.open_extensions),
-                                                        extension_patterns(entry.open_extensions)));
+    format_rows.push_back(QStringLiteral("%1 (%2) (%3)").arg(translate_data_text(entry.display_name),
+                                                            visible_pattern_hint(entry.open_extensions),
+                                                            extension_patterns(entry.open_extensions)));
   }
+  QCollator collator;
+  collator.setCaseSensitivity(Qt::CaseInsensitive);
+  std::stable_sort(format_rows.begin(), format_rows.end(), [&collator](const QString& left, const QString& right) {
+    return collator.compare(left, right) < 0;
+  });
+  QStringList filters;
+  filters.push_back(QStringLiteral("%1 (%2)").arg(supported_name, extension_patterns(all_extensions)));
+  filters.append(format_rows);
   filters.push_back(QStringLiteral("%1 (*.*)").arg(QObject::tr("All Files (*.*)")));
   return filters.join(QStringLiteral(";;"));
 }
