@@ -26061,6 +26061,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Apply</source>
         <translation>Zastosuj</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Pokaż nakładkę</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Pokazuje źródło pod pędzlem przed malowaniem</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

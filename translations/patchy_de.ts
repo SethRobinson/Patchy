@@ -25988,6 +25988,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Apply</source>
         <translation>Anwenden</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Überlagerung anzeigen</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Zeigt die Quelle unter dem Pinsel, bevor Sie malen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

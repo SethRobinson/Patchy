@@ -3589,8 +3589,8 @@ private:
   // The stroke in flight's destination-to-source mapping, built at the press (identity
   // for the Healing Brush).
   patchy::CloneSourceMapping clone_stroke_mapping_{};
-  bool clone_overlay_shown_{false};
-  int clone_overlay_opacity_{50};
+  bool clone_overlay_shown_{true};
+  int clone_overlay_opacity_{100};
   mutable QRect clone_overlay_drawn_rect_{};
   std::function<void()> clone_source_changed_callback_;
   std::optional<PatternResource> pattern_stamp_pattern_;
