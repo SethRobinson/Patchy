@@ -7652,9 +7652,12 @@ void ui_options_bar_field_drag_scrubs_and_click_edits() {
   send_key(*size_spin, Qt::Key_Home, Qt::ShiftModifier);
   CHECK(editor->hasSelectedText());
 
-  // Enter ends editing: the focused field scrubs again and keeps focus, number selected.
+  // Enter ends editing and hands the keyboard to the canvas (GitHub issue 439); a field the user
+  // focuses again scrubs and keeps focus, number selected.
   send_key(*size_spin, Qt::Key_Return);
   CHECK(size_spin->value() == 55);
+  size_spin->setFocus(Qt::MouseFocusReason);
+  QApplication::processEvents();
   const int finished_before_scrub = finished;
   press(origin);
   move(origin + QPoint(drag_start + 5, 0));
