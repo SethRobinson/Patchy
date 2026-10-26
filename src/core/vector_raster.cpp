@@ -1638,6 +1638,64 @@ void update_vector_mask_raster(Layer& layer, Rect canvas) {
   layer.set_vector_mask(std::move(updated));
 }
 
+void update_vector_mask_raster_region(Layer& layer, Rect canvas, std::span<const Rect> dirty) {
+  const auto* mask = std::as_const(layer).vector_mask();
+  if (mask == nullptr) {
+    return;
+  }
+  std::vector<Rect> regions;
+  Rect region;  // their union
+  for (const auto& rect : dirty) {
+    if (const auto clipped = intersect_rect(rect, canvas); !clipped.empty()) {
+      regions.push_back(clipped);
+      region = unite_rect(region, clipped);
+    }
+  }
+  if (regions.empty()) {
+    return;
+  }
+  if (mask->feather > 0.05 || mask->path.empty() || mask->cache.empty() || mask->cache_bounds.empty() ||
+      mask->cache.format() != PixelFormat::gray8()) {
+    update_vector_mask_raster(layer, canvas);
+    return;
+  }
+  // An inverted mask's full update covers the whole canvas; a plain one covers the
+  // path, so the old cache plus the dirty rect still holds every covered pixel.
+  const auto bounds = mask->inverted ? canvas : intersect_rect(unite_rect(mask->cache_bounds, region), canvas);
+  auto updated = *mask;
+  if (bounds != mask->cache_bounds) {
+    PixelBuffer grown(bounds.width, bounds.height, PixelFormat::gray8());
+    const auto keep = intersect_rect(mask->cache_bounds, bounds);
+    for (std::int32_t y = keep.y; y < keep.y + keep.height; ++y) {
+      std::memcpy(grown.pixel(keep.x - bounds.x, y - bounds.y),
+                  mask->cache.pixel(keep.x - mask->cache_bounds.x, y - mask->cache_bounds.y),
+                  static_cast<std::size_t>(keep.width));
+    }
+    updated.cache = std::move(grown);
+    updated.cache_bounds = bounds;
+  }
+  auto* cache_bytes = updated.cache.data().data();  // one detach, before the row writes
+  const auto stride = updated.cache.stride_bytes();
+  for (const auto& rect : regions) {
+    const auto coverage = rasterize_vector_mask_coverage(updated, rect);
+    const auto patch = intersect_rect(rect, bounds);
+    for (std::int32_t y = patch.y; y < patch.y + patch.height; ++y) {
+      auto* row = cache_bytes + static_cast<std::size_t>(y - bounds.y) * stride;
+      std::memset(row + (patch.x - bounds.x), 0, static_cast<std::size_t>(patch.width));
+      if (coverage.bounds.empty() || y < coverage.bounds.y || y >= coverage.bounds.y + coverage.bounds.height) {
+        continue;
+      }
+      const auto from = std::max(patch.x, coverage.bounds.x);
+      const auto to = std::min(patch.x + patch.width, coverage.bounds.x + coverage.bounds.width);
+      if (from < to) {
+        std::memcpy(row + (from - bounds.x), coverage.pixels.pixel(from - coverage.bounds.x, y - coverage.bounds.y),
+                    static_cast<std::size_t>(to - from));
+      }
+    }
+  }
+  layer.set_vector_mask(std::move(updated));
+}
+
 CoverageBuffer rasterize_vector_mask_coverage(const LayerVectorMask& mask, Rect clip) {
   VectorRasterOptions options;
   options.clip = clip;

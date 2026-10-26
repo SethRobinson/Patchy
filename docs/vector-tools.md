@@ -123,7 +123,11 @@ on a work path, each gesture one undo step with live coverage: shape drags
 Select (and the Pen's Ctrl latch) move and edit them, Delete removes the
 selection, Ctrl+T runs the path transform, and the Paths panel selects the
 transient "<layer> Vector Mask" row; a click on that row (even already
-selected) targets the mask (tests/ui/vector_mask_editing_tests.cpp).
+selected) targets the mask (tests/ui/vector_mask_editing_tests.cpp). Drags
+patch only the swept area, and expensive effects draft hidden until release
+(["Vector-shape edits"](performance.md#vector-shape-edits-invalidate-their-effect-rect-not-the-canvas)).
+Effects draw from the masked shape (the "Hides Effects" options off), so the
+drop shadow follows the mask (`ui_vector_mask_layer_effects_render_on_canvas`).
 
 Link (`LayerVectorMask::unlinked`, vmsk bit 1): the chain or the thumbnail menu
 toggles it, one undo step. A linked mask follows Move and Free Transform; an

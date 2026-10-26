@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 
@@ -115,5 +117,11 @@ void refresh_vector_shape_effect_matte(Layer& layer, Rect canvas, const PatternS
 [[nodiscard]] std::shared_ptr<const PixelBuffer> deep_gradient_fill_raster(const Layer& layer, BitDepth depth);
 // Regenerates the vector mask's grayscale cache from its path.
 void update_vector_mask_raster(Layer& layer, Rect canvas);
+// The same coverage, re-rasterized only inside the `dirty` rects (where an edited
+// path's boundary swept): pixels outside them keep the previous cache, the cache
+// bounds grow to cover them. Byte-identical to update_vector_mask_raster where the
+// two caches overlap. Falls back to the full update for a feathered mask, an
+// empty path or a missing cache. Interactive path drags use it per move.
+void update_vector_mask_raster_region(Layer& layer, Rect canvas, std::span<const Rect> dirty);
 
 }  // namespace patchy

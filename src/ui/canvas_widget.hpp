@@ -2204,6 +2204,9 @@ private:
   bool handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point);
   // Move press with an unlinked vector mask targeted: drags the mask path alone.
   bool handle_move_vector_mask_press(QMouseEvent* event, QPointF document_point);
+  // Shows the effects a vector mask drag hid again and repaints them (release, tool
+  // switch, document reset). No-op when none are hidden.
+  void restore_path_drag_effects();
   void set_shape_ctrl_path_select(bool active);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
@@ -3025,6 +3028,10 @@ private:
   // Move tool on a targeted, unlinked vector mask: the gesture drags the whole mask path
   // through the path-edit handlers as Path Select would (press -> release).
   bool move_vector_mask_drag_{false};
+  // A vector mask drag on a layer with expensive effects hides them until release
+  // (their style masks would rebuild over the whole layer per move); see
+  // restore_path_drag_effects.
+  std::optional<LayerId> path_drag_effects_hidden_layer_;
   bool pen_auto_add_delete_{true};
   PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
   PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};
