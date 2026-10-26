@@ -588,4 +588,52 @@ std::vector<std::uint8_t> write_tiff(const TiffStream& stream) {
   return out;
 }
 
+bool is_tiff_structure_tag(std::uint16_t tag) noexcept {
+  switch (tag) {
+    case 254:
+    case 255:
+    case 256:
+    case 257:
+    case 258:
+    case 259:
+    case 262:
+    case 263:
+    case 264:
+    case 265:
+    case 266:
+    case 273:
+    case 277:
+    case 278:
+    case 279:
+    case 280:
+    case 281:
+    case 284:
+    case 292:
+    case 293:
+    case 317:
+    case 320:
+    case 322:
+    case 323:
+    case 324:
+    case 325:
+    case 330:
+    case 338:
+    case 339:
+    case 340:
+    case 341:
+    case 347:
+    case 529:
+    case 530:
+    case 532:
+    case 700:
+    case 33723:
+    case 34377:
+    case 34675:
+    case 37724:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace patchy::metadata

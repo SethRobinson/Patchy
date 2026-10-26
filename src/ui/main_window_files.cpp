@@ -1329,14 +1329,15 @@ bool has_visible_top_level_layer(const Document& document) {
   return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); });
 }
 
-// File Info (docs/file-info.md): PSD/PSB metadata was lifted by the PSD reader; every
-// other format is scanned here from the file bytes. The source RGB profile becomes the
-// document's embedded profile only when the pixels are still in the file's color space.
+// File Info (docs/file-info.md): the PSD reader lifted PSD/PSB metadata and the XCF reader
+// read XCF parasites; every other format is scanned here from the file bytes. The source
+// RGB profile becomes the document's embedded profile only when the pixels are still in
+// the file's color space.
 void capture_file_info(Document& opened, const QString& path, bool pixels_in_source_space,
                        bool orientation_applied) {
   const QFileInfo file(path);
   auto& info = opened.file_info();
-  if (info.source_format == "PSD" || info.source_format == "PSB") {
+  if (info.source_format == "PSD" || info.source_format == "PSB" || info.source_format == "XCF") {
     info.source_file_size = static_cast<std::uint64_t>(std::max<qint64>(0, file.size()));
     return;
   }

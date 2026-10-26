@@ -4,6 +4,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "formats/metadata/metadata_edit.hpp"
 #include "formats/xcf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
@@ -19,13 +20,17 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
+#include <QListWidget>
 #include <QStatusBar>
 #include <QTemporaryDir>
+#include <QTimer>
 
 #include <algorithm>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
@@ -207,6 +212,84 @@ void ui_script_opens_xcf_files() {
   CHECK(patchy::test::ui::scripting_support::run_script(window, source));
 }
 
+// File Info shows what the XCF reader read from the parasites: the open path used to rescan
+// the file for metadata and replace it (GitHub issue 450). With philipzae's samples present
+// (local-test-fixtures/xcf-metadata) File Info's Description and IPTC pages are saved for
+// the card.
+void ui_xcf_metadata_reaches_file_info() {
+  namespace builder = patchy::test::xcf;
+  namespace md = patchy::metadata;
+  const auto parasite = [](const std::string& text) { return std::vector<std::uint8_t>(text.begin(), text.end()); };
+  builder::Image image;
+  image.version = 11;
+  image.width = 4;
+  image.height = 4;
+  image.properties.push_back(builder::prop_parasites(
+      {{"gimp-comment", parasite(std::string("Made in GIMP\0", 13))},
+       {"gimp-image-metadata", parasite("<metadata><tag name=\"Xmp.dc.title\">lang=&quot;x-default&quot; GIMP title"
+                                        "</tag><tag name=\"Exif.Image.Artist\">Ann</tag></metadata>")}}));
+  builder::Layer layer;
+  layer.name = "Only";
+  layer.drawable = builder::solid(4, 4, {200, 40, 90, 255});
+  layer.properties.push_back(builder::prop_offsets(0, 0));
+  image.layers.push_back(std::move(layer));
+  const auto bytes = builder::write(image);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = temp.filePath(QStringLiteral("metadata.xcf"));
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+        static_cast<qint64>(bytes.size()));
+  file.close();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  {
+    const auto& info = patchy::ui::MainWindowTestAccess::document(window).file_info();
+    CHECK(info.source_format == "XCF" && info.source_file_size == bytes.size());
+    CHECK(info.text.size() == 1 && info.text[0].value == "Made in GIMP");
+    CHECK(md::read_fields(info).title == "GIMP title");
+    CHECK(md::read_fields(info).authors == std::vector<std::string>({"Ann"}));
+  }
+
+  const auto samples = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-metadata";
+  for (const auto& [name, page] : {std::pair<const char*, const char*>{"description", "fileInfoDescriptionPage"},
+                                   std::pair<const char*, const char*>{"iptc", "fileInfoIptcPage"}}) {
+    const auto sample = samples / (std::string(name) + ".xcf");
+    if (!std::filesystem::exists(sample)) {
+      return;
+    }
+    patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(sample.wstring()));
+    QApplication::processEvents();
+    bool captured = false;
+    QTimer::singleShot(0, [&captured, name, page] {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      dialog->resize(900, 640);
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+      CHECK(categories != nullptr);
+      for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+        if (categories->item(row)->data(Qt::UserRole).toString() == QLatin1String(page)) {
+          categories->setCurrentRow(row);
+        }
+      }
+      QApplication::processEvents();
+      patchy::test::ui::save_widget_artifact(std::string("xcf-metadata/file-info-") + name, *dialog);
+      captured = true;
+      dialog->reject();
+    });
+    patchy::test::ui::require_action(window, "fileInfoAction")->trigger();
+    QApplication::processEvents();
+    CHECK(captured);
+  }
+}
+
 // For the card: GIMP's text and structure files as Patchy shows them (local fixtures).
 void ui_xcf_review_capture() {
   for (const char* name : {"text.xcf", "groups.xcf"}) {
@@ -232,5 +315,6 @@ std::vector<patchy::test::TestCase> xcf_ui_tests() {
       {"ui_xcf_text_layers_stay_editable", ui_xcf_text_layers_stay_editable},
       {"ui_script_opens_xcf_files", ui_script_opens_xcf_files},
       {"ui_xcf_review_capture", ui_xcf_review_capture},
+      {"ui_xcf_metadata_reaches_file_info", ui_xcf_metadata_reaches_file_info},
   };
 }
