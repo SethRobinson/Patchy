@@ -22,6 +22,7 @@ Read this before moving functions, adding members to the large UI classes, split
 - `main_window_smart_objects.cpp` - smart-object export, commit, refresh, relink, embed, replace, convert, and place flows.
 - `main_window_sessions.cpp` - document sessions, tabs, close paths, float windows, and `update_start_panel_visibility()`.
 - `main_window_preferences.cpp` - Preferences, guides, and pen/view settings.
+- `main_window_preferences_themes.cpp` - the Preferences Colors and Themes page (theme list, details, theme file buttons).
 - `main_window_document_dialogs.cpp` - Image Size/Canvas Size and resize/reset members (`reset_document`, `create_new_document`). The New Document dialog lives in `src/ui/new_document_dialog.cpp`; its presets, settings keys and options are in [new-document.md](new-document.md).
 - `main_window_docks.cpp` - dock creation and right-dock resize handles.
 - `main_window_history.cpp` - undo/redo, snapshots, selection history, and history-panel refresh.

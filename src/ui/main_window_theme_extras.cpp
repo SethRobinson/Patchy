@@ -68,6 +68,8 @@ bool MainWindow::confirm_theme_scripts(QWidget* parent, const QString& theme_nam
                       .arg(theme_name),
                   QMessageBox::NoButton, parent);
   box.setObjectName(QStringLiteral("themeScriptTrustPrompt"));
+  // The name comes from a downloaded theme.json: as rich text it could rewrite this prompt.
+  box.setTextFormat(Qt::PlainText);
   auto* allow = box.addButton(tr("Allow"), QMessageBox::AcceptRole);
   allow->setObjectName(QStringLiteral("themeScriptTrustAllowButton"));
   auto* deny = box.addButton(tr("Don't Allow"), QMessageBox::RejectRole);

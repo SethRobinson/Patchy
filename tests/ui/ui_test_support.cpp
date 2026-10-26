@@ -1075,6 +1075,39 @@ bool select_preferences_page(QWidget& dialog, const QString& title) {
   return true;
 }
 
+QListWidget* preferences_theme_list(QWidget& dialog) {
+  if (!select_preferences_page(dialog, QStringLiteral("Colors and Themes"))) {
+    return nullptr;
+  }
+  return dialog.findChild<QListWidget*>(QStringLiteral("preferencesThemeList"));
+}
+
+int preferences_theme_row(QListWidget& list, const QString& token) {
+  for (int row = 0; row < list.count(); ++row) {
+    if (list.item(row)->data(Qt::UserRole).toString() == token) {
+      return row;
+    }
+  }
+  return -1;
+}
+
+bool select_preferences_theme(QWidget& dialog, const QString& token) {
+  auto* list = preferences_theme_list(dialog);
+  const int row = list != nullptr ? preferences_theme_row(*list, token) : -1;
+  if (row < 0) {
+    return false;
+  }
+  list->setCurrentRow(row);
+  QApplication::processEvents();
+  return true;
+}
+
+QString preferences_selected_theme(QWidget& dialog) {
+  auto* list = dialog.findChild<QListWidget*>(QStringLiteral("preferencesThemeList"));
+  return list != nullptr && list->currentItem() != nullptr ? list->currentItem()->data(Qt::UserRole).toString()
+                                                           : QString();
+}
+
 void accept_save_file_dialog_then(const QString& object_name, const QString& path, std::function<void()> next) {
   QTimer::singleShot(0, [object_name, path, next = std::move(next)] {
     auto* save = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));

@@ -563,6 +563,17 @@ QWidget* preferences_current_page(QWidget& dialog);
 int preferences_page_row(QWidget& dialog, const QString& title);
 // Selects that page as a click would and processes events; false when it is missing.
 bool select_preferences_page(QWidget& dialog, const QString& title);
+// The Colors and Themes page's theme list, after selecting the page (its first visit
+// reads the themes). Rows carry their token in Qt::UserRole: "system", "dark", "light"
+// or "custom:" + theme id; section headers have none.
+QListWidget* preferences_theme_list(QWidget& dialog);
+// The row holding `token`, or -1.
+int preferences_theme_row(QListWidget& list, const QString& token);
+// Selects the row holding `token` as a click would (a live preview) and processes
+// events; false when it is missing.
+bool select_preferences_theme(QWidget& dialog, const QString& token);
+// The token of the selected theme row.
+QString preferences_selected_theme(QWidget& dialog);
 
 // A hidden stand-in parent for a dialog a test opens without a MainWindow. The app's QSS
 // (photoshop_style()) is set on the MainWindow, not on qApp, and reaches a dialog only

@@ -13346,6 +13346,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>Изображения спрайта &quot;%1&quot; нет в пакете (пропущено).</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot; должно быть текстом (пропущено).</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot; должно быть версией, например &quot;1.20&quot; (пропущено).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -21884,14 +21892,6 @@ Y: %2
         <translation>Светлая</translation>
     </message>
     <message>
-        <source>%1 (built-in)</source>
-        <translation>%1 (встроенный)</translation>
-    </message>
-    <message>
-        <source>Color scheme:</source>
-        <translation>Цветовая гамма:</translation>
-    </message>
-    <message>
         <source>Import Theme...</source>
         <translation>Импортировать тему...</translation>
     </message>
@@ -26931,10 +26931,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Воспроизводить короткие анимации, которые тема показывает при событиях, например фейерверк при открытии документа.</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>Запускать скрипты темы</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>Запускать скрипты из пакета темы. Они могут воспроизводить звуки и эффекты и добавлять команды меню, но не могут читать файлы и изменять документы.</translation>
     </message>
@@ -26957,6 +26953,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme</source>
         <translation>Тема</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>Запускать скрипты этой темы</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>У выбранной темы нет скриптов.</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>Цвета и темы</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>Тема &quot;%1&quot; рассчитана на Patchy %2 или новее. Это Patchy %3, поэтому части темы могут отображаться или работать не так, как задумано.</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>Не удалось загрузить</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>Версия %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>автор: %1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Встроена в Patchy</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>Пакет темы</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>Файл темы</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>Нужен Patchy %1</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>Тёмная и светлая</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>Светлая или тёмная, как в системе</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>Встроенные темы</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>Ваши темы</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>Нужна более новая версия Patchy</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>На основе светлой</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>На основе тёмной</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>значки</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>фон</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>звуки</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>эффекты</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>скрипты</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>Включает: %1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>Рассчитано на Patchy %1 или новее. Это Patchy %2, поэтому некоторые части могут не работать.</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>Всё равно импортировать?</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>Всё равно импортировать</translation>
     </message>
 </context>
 <context>

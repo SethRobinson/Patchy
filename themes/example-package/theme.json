@@ -1,6 +1,8 @@
 {
   "format": 1,
   "name": "Example Package",
+  "version": "1.0",
+  "author": "RTsoft",
   "base": "dark",
   "menuTitle": "Example",
   "recolorIcons": false,

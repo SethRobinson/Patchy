@@ -40,6 +40,7 @@ struct ThemeEventAction {
 
 struct ThemeAssets {
   ThemePackageOptions options;
+  ThemeInfo info;  // carried into Export Theme Package
   QHash<QString, ThemeIcon> icons;    // keyed on the built-in icon stem
   QImage backdrop;                    // options.backdrop_image decoded; null when none
   QHash<QString, QByteArray> sounds;  // keyed on the sound event id (theme_sounds.hpp), RIFF/WAVE bytes

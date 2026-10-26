@@ -13272,6 +13272,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>スプライト画像 &quot;%1&quot; がパッケージ内にありません (無視しました)。</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot; にはテキストを指定してください (無視しました)。</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot; には &quot;1.20&quot; のようなバージョンを指定してください (無視しました)。</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -17893,10 +17901,6 @@ RGB: -
     <message>
         <source>Language:</source>
         <translation>言語:</translation>
-    </message>
-    <message>
-        <source>Color scheme:</source>
-        <translation>配色:</translation>
     </message>
     <message>
         <source>Follow system</source>
@@ -23049,10 +23053,6 @@ Clipped to the layer below</source>
         <translation>テーマを書き出し</translation>
     </message>
     <message>
-        <source>%1 (built-in)</source>
-        <translation>%1（内蔵）</translation>
-    </message>
-    <message>
         <source>Cycle Marquee Tools</source>
         <translation>選択ツールを切り替え</translation>
     </message>
@@ -26779,10 +26779,6 @@ The open document keeps its blend modes either way.</source>
         <translation>テーマがイベントで表示する短いアニメーションを再生します (ドキュメントを開いたときの花火など)。</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>テーマのスクリプトを実行</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>テーマパッケージに含まれるスクリプトを実行します。サウンドやエフェクトの再生とメニューコマンドの追加はできますが、ファイルの読み込みやドキュメントの変更はできません。</translation>
     </message>
@@ -26805,6 +26801,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme</source>
         <translation>テーマ</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>このテーマのスクリプトを実行</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>選択中のテーマにはスクリプトがありません。</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>カラーとテーマ</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>&quot;%1&quot; は Patchy %2 以降向けです。現在の Patchy は %3 のため、テーマの一部が意図どおりに表示または動作しない可能性があります。</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>読み込めませんでした</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>バージョン %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>作者: %1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Patchy に組み込み</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>テーマパッケージ</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>テーマファイル</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>Patchy %1 が必要</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>ダークとライト</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>システムのライト/ダーク設定に合わせる</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>付属のテーマ</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>自分のテーマ</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>新しい Patchy が必要</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>ライトがベース</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>ダークがベース</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>アイコン</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>背景</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>サウンド</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>エフェクト</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>スクリプト</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>含まれるもの: %1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>Patchy %1 以降向けです。現在の Patchy は %2 のため、一部が動作しない可能性があります。</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>それでも読み込みますか?</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>それでも読み込む</translation>
     </message>
 </context>
 <context>

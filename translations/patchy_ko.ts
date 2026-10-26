@@ -13272,6 +13272,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>스프라이트 이미지 &quot;%1&quot;이(가) 패키지에 없습니다(무시됨).</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot;은(는) 텍스트여야 합니다(무시됨).</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot;은 &quot;1.20&quot;과 같은 버전이어야 합니다(무시됨).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -21770,14 +21778,6 @@ Y: %2
         <translation>밝게</translation>
     </message>
     <message>
-        <source>%1 (built-in)</source>
-        <translation>%1(내장됨)</translation>
-    </message>
-    <message>
-        <source>Color scheme:</source>
-        <translation>색 구성표:</translation>
-    </message>
-    <message>
         <source>Import Theme...</source>
         <translation>테마 가져오기...</translation>
     </message>
@@ -26779,10 +26779,6 @@ The open document keeps its blend modes either way.</source>
         <translation>테마가 이벤트에 표시하는 짧은 애니메이션을 재생합니다(예: 문서를 열 때의 불꽃놀이).</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>테마 스크립트 실행</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>테마 패키지에 포함된 스크립트를 실행합니다. 사운드와 효과를 재생하고 메뉴 명령을 추가할 수 있지만 파일을 읽거나 문서를 바꿀 수는 없습니다.</translation>
     </message>
@@ -26805,6 +26801,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme</source>
         <translation>테마</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>이 테마의 스크립트 실행</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>선택한 테마에는 스크립트가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>색상 및 테마</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>&quot;%1&quot;은(는) Patchy %2 이상용입니다. 현재 Patchy %3을(를) 사용 중이므로 테마 일부가 의도대로 표시되거나 작동하지 않을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>불러올 수 없음</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>버전 %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>제작: %1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Patchy 기본 제공</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>테마 패키지</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>테마 파일</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>Patchy %1 필요</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>어둡게 및 밝게</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>시스템의 밝게 또는 어둡게 설정을 따름</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>포함된 테마</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>내 테마</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>최신 Patchy 필요</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>밝게 기반</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>어둡게 기반</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>아이콘</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>배경</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>사운드</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>효과</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>스크립트</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>포함: %1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>Patchy %1 이상용입니다. 현재 Patchy %2을(를) 사용 중이므로 일부가 작동하지 않을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>그래도 가져올까요?</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>그래도 가져오기</translation>
     </message>
 </context>
 <context>

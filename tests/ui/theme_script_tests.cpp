@@ -28,6 +28,7 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QCheckBox>
+#include <QListWidget>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -45,6 +46,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <functional>
 #include <vector>
 
 namespace {
@@ -59,14 +61,12 @@ public:
   ScriptThemesDir()
       : restore_dir_("PATCHY_THEMES_DIR"), restore_sound_("PATCHY_NO_SOUND"),
         restore_trust_(QStringLiteral("themeScripts/trust")),
-        restore_scripts_(QStringLiteral("preferences/runThemeScripts")),
         restore_effects_(QStringLiteral("preferences/playThemeEffects")) {
     CHECK(dir_.isValid());
     qputenv("PATCHY_THEMES_DIR", dir_.path().toUtf8());
     qputenv("PATCHY_NO_SOUND", "1");
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("themeScripts/trust"));
-    settings.setValue(QStringLiteral("preferences/runThemeScripts"), true);
     settings.setValue(QStringLiteral("preferences/playThemeEffects"), true);
   }
   ~ScriptThemesDir() {
@@ -80,7 +80,6 @@ private:
   EnvironmentVariableRestorer restore_dir_;
   EnvironmentVariableRestorer restore_sound_;
   SettingsValueRestorer restore_trust_;
-  SettingsValueRestorer restore_scripts_;
   SettingsValueRestorer restore_effects_;
   QTemporaryDir dir_;
 };
@@ -509,37 +508,76 @@ void ui_theme_effects_and_scripts_preferences() {
   SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
   SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
   write_package(themes.file(QStringLiteral("Prefs")), {}, QByteArrayLiteral("patchy.theme.log('on');\n"));
+  write_package(themes.file(QStringLiteral("Other")), {}, QByteArrayLiteral("patchy.theme.log('other');\n"));
   patchy::ui::MainWindow window;
   show_window(window);
+  // Other is trusted too, so previewing it below never prompts.
+  apply(QStringLiteral("Other"), true);
   apply(QStringLiteral("Prefs"), true);
   auto& host = ThemeScriptHost::instance();
   CHECK(host.running());
-  bool saw = false;
-  QTimer::singleShot(0, [&saw] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
-    CHECK(dialog != nullptr);
-    if (dialog == nullptr) {
-      return;
-    }
-    auto* effects = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPlayThemeEffectsCheck"));
-    auto* scripts = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesRunThemeScriptsCheck"));
-    CHECK(effects != nullptr && scripts != nullptr);
-    if (effects != nullptr && scripts != nullptr) {
-      CHECK(effects->isChecked() && scripts->isChecked());
-      effects->setChecked(false);
-      scripts->setChecked(false);
-      saw = true;
-    }
-    dialog->accept();
-  });
-  require_action(window, "filePreferencesAction")->trigger();
-  QApplication::processEvents();
-  CHECK(saw);
+  const auto trust_of = [](const QString& id) {
+    const auto loaded = patchy::ui::load_theme_by_id(id);
+    return patchy::ui::stored_theme_script_trust(id, patchy::ui::theme_scripts_digest(*loaded.theme->assets));
+  };
+  // Runs `body` on the open Preferences dialog's Colors and Themes page, then OK or Cancel.
+  const auto with_preferences = [&window](const std::function<void(QDialog&, QCheckBox&, QCheckBox&)>& body,
+                                          bool accept) {
+    bool saw = false;
+    QTimer::singleShot(0, [&saw, &body, accept] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* list = preferences_theme_list(*dialog);
+      auto* effects = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPlayThemeEffectsCheck"));
+      auto* scripts = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesRunThemeScriptsCheck"));
+      CHECK(list != nullptr && effects != nullptr && scripts != nullptr);
+      if (list != nullptr && effects != nullptr && scripts != nullptr) {
+        body(*dialog, *effects, *scripts);
+        saw = true;
+      }
+      accept ? dialog->accept() : dialog->reject();
+    });
+    require_action(window, "filePreferencesAction")->trigger();
+    QApplication::processEvents();
+    CHECK(saw);
+  };
+  // The box is the shown theme's own: turning Prefs off leaves Other on, a theme without
+  // scripts disables the box, and coming back to Prefs shows the pending edit.
+  with_preferences(
+      [](QDialog& dialog, QCheckBox& effects, QCheckBox& scripts) {
+        CHECK(effects.isChecked() && scripts.isEnabled() && scripts.isChecked());
+        effects.setChecked(false);
+        scripts.setChecked(false);
+        CHECK(select_preferences_theme(dialog, QStringLiteral("custom:Other")));
+        CHECK(scripts.isEnabled() && scripts.isChecked());
+        CHECK(select_preferences_theme(dialog, QStringLiteral("dark")));
+        CHECK(!scripts.isEnabled() && !scripts.isChecked());
+        CHECK(select_preferences_theme(dialog, QStringLiteral("custom:Prefs")));
+        CHECK(scripts.isEnabled() && !scripts.isChecked());
+      },
+      true);
   CHECK(!patchy::ui::theme_effects_enabled());
-  CHECK(!patchy::ui::theme_scripts_enabled());
+  CHECK(trust_of(QStringLiteral("Prefs")) == patchy::ui::ThemeScriptTrust::Denied);
+  CHECK(trust_of(QStringLiteral("Other")) == patchy::ui::ThemeScriptTrust::Allowed);
+  CHECK(ThemeManager::instance().active_custom_theme_id() == QStringLiteral("Prefs"));
   CHECK(!host.running());
-  patchy::ui::set_theme_scripts_enabled(true);
+
+  // Cancel stores nothing; OK turns this theme's scripts back on, with no prompt.
+  with_preferences([](QDialog&, QCheckBox&, QCheckBox& scripts) { scripts.setChecked(true); }, false);
+  CHECK(trust_of(QStringLiteral("Prefs")) == patchy::ui::ThemeScriptTrust::Denied);
+  CHECK(!host.running());
+  with_preferences(
+      [](QDialog&, QCheckBox&, QCheckBox& scripts) {
+        CHECK(!scripts.isChecked());
+        scripts.setChecked(true);
+      },
+      true);
+  CHECK(trust_of(QStringLiteral("Prefs")) == patchy::ui::ThemeScriptTrust::Allowed);
   CHECK(host.running());
+  CHECK(find_top_level_dialog(QStringLiteral("themeScriptTrustPrompt")) == nullptr);
   ThemeManager::instance().clear_custom_theme(/*persist=*/true);
 }
 

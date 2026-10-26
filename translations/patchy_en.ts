@@ -13292,6 +13292,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -20861,10 +20869,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Color scheme:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Interface scale:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23057,10 +23061,6 @@ Y: %2
     </message>
     <message>
         <source>Export Theme</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 (built-in)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -26773,10 +26773,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -26798,6 +26794,114 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Theme</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -5,10 +5,11 @@
 
 ## Pages
 
-In order: Application, Tools, Metadata and Watermarks, Pen, Units & Grids, Snapping, Hotkeys,
-and Plug-ins (Windows only, [plugins.md](plugins.md)). Tool and canvas-input behavior (the mouse
-wheel, Free Transform options) goes on Tools; Pen holds only pen and tablet settings;
-Application holds app-level settings (language, theme, updates, recovery, open/save policies).
+In order: Application, Colors and Themes, Tools, Metadata and Watermarks, Pen, Units & Grids,
+Snapping, Hotkeys, and Plug-ins (Windows only, [plugins.md](plugins.md)). Tool and canvas-input
+behavior (the mouse wheel, Free Transform options) goes on Tools; Pen holds only pen and tablet
+settings; Application holds app-level settings (language, updates, recovery, open/save
+policies); Colors and Themes the color scheme and themes ([theme-files.md](theme-files.md#preferences-ui)).
 
 The pages are listed down the left (issue 451): `preferencesPageList`, a QListWidget, drives
 `preferencesPageStack`, a QStackedWidget, so a new page adds a row instead of widening the
@@ -27,11 +28,13 @@ vertical-only `preferencesTabScroll`.
 - **Keyboard.** The list takes the focus on open, so Up and Down step through the pages.
 - **Hotkeys page.** Its ~150 rows are built on the first visit (the stack's `currentChanged`),
   after the dialog sheet, so Qt never repolishes them. Keep the page at its position.
+- **Colors and Themes page.** Its widgets are built with the dialog, but the themes are read on
+  the first visit (the same `currentChanged`), because loading every theme package is slow.
 
 ## Remembered state
 
-- Each list row carries a page id in `Qt::UserRole`: `application`, `tools`, `metadata`, `pen`,
-  `unitsAndGrids`, `snapping`, `hotkeys`, `plugins`. They are persisted; never rename one.
+- Each list row carries a page id in `Qt::UserRole`: `application`, `themes`, `tools`, `metadata`,
+  `pen`, `unitsAndGrids`, `snapping`, `hotkeys`, `plugins`. They are persisted; never rename one.
 - The dialog reopens on the page it was closed on (OK or Cancel): key `preferences/lastPage`
   (`stored_preferences_last_page`), read when the dialog opens with `PreferencesPage::Last`,
   the default. An unknown id opens Application. `show_hotkey_preferences` opens Hotkeys with

@@ -1,5 +1,6 @@
 #include "ui/theme_file.hpp"
 
+#include "patchy_version.hpp"
 #include "ui/theme_package.hpp"
 
 #include <QCoreApplication>
@@ -12,7 +13,11 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QRegularExpression>
 #include <QStandardPaths>
+#include <QVersionNumber>
+
+#include <utility>
 
 // The bundled theme resources (themes.qrc) live in the static patchy_ui
 // library; force registration before first use, as icon_theme.cpp does for
@@ -123,6 +128,32 @@ void parse_package_options(const QJsonObject& object, ThemePackageOptions& optio
   return QStringLiteral("tile");
 }
 
+// "version", "author" and "minPatchyVersion": text, trimmed and capped so a list row
+// stays readable; a bad value is a warning and the key stays empty.
+void parse_theme_info(const QJsonObject& object, ThemeInfo& info, QStringList& warnings) {
+  const auto text = [&object, &warnings](const QString& key, qsizetype limit) {
+    const auto value = object.value(key);
+    if (value.isUndefined()) {
+      return QString();
+    }
+    if (!value.isString()) {
+      warnings.push_back(QCoreApplication::translate("ThemeFile", "\"%1\" must be text (ignored).").arg(key));
+      return QString();
+    }
+    return value.toString().simplified().left(limit);
+  };
+  info.version = text(QStringLiteral("version"), 32);
+  info.author = text(QStringLiteral("author"), 100);
+  const auto minimum = text(QStringLiteral("minPatchyVersion"), 32);
+  static const QRegularExpression dotted(QStringLiteral("^\\d{1,4}(\\.\\d{1,4}){0,3}$"));
+  if (dotted.match(minimum).hasMatch()) {
+    info.min_patchy_version = minimum;
+  } else if (!minimum.isEmpty()) {
+    warnings.push_back(QCoreApplication::translate(
+                           "ThemeFile", "\"minPatchyVersion\" must be a version such as \"1.20\" (ignored)."));
+  }
+}
+
 }  // namespace
 
 std::optional<QColor> parse_theme_color(const QString& text) {
@@ -196,6 +227,7 @@ ThemeLoadResult load_theme_from_json(const QByteArray& json) {
   custom_theme.name = object.value(QStringLiteral("name")).toString();
   custom_theme.palette = theme(*base);  // seed: every role the file omits keeps this value.
   parse_package_options(object, custom_theme.options, result.warnings);
+  parse_theme_info(object, custom_theme.info, result.warnings);
 
   const auto& members = role_members();
   const auto roles_object = roles_value.toObject();
@@ -222,7 +254,7 @@ ThemeLoadResult load_theme_from_json(const QByteArray& json) {
 }
 
 QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base, const QString& name,
-                                   const ThemePackageOptions* options) {
+                                   const ThemePackageOptions* options, const ThemeInfo* info) {
   QJsonObject roles_object;
   for (const auto& [role_name, member] : theme_palette_roles()) {
     roles_object.insert(QString(role_name), color_to_hex(palette.*member));
@@ -231,6 +263,15 @@ QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base
   QJsonObject object;
   object.insert(QStringLiteral("format"), kThemeFileFormat);
   object.insert(QStringLiteral("name"), name);
+  if (info != nullptr) {
+    for (const auto& [key, value] : {std::pair{QStringLiteral("version"), info->version},
+                                     std::pair{QStringLiteral("author"), info->author},
+                                     std::pair{QStringLiteral("minPatchyVersion"), info->min_patchy_version}}) {
+      if (!value.isEmpty()) {
+        object.insert(key, value);
+      }
+    }
+  }
   object.insert(QStringLiteral("base"), base_token(base));
   object.insert(QStringLiteral("roles"), roles_object);
   if (options != nullptr) {
@@ -248,6 +289,16 @@ QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base
     }
   }
   return QJsonDocument(object).toJson(QJsonDocument::Indented);
+}
+
+QString running_patchy_version() { return QStringLiteral(PATCHY_VERSION); }
+
+bool theme_needs_newer_patchy(const ThemeInfo& info) {
+  if (info.min_patchy_version.isEmpty()) {
+    return false;
+  }
+  return QVersionNumber::fromString(info.min_patchy_version) >
+         QVersionNumber::fromString(running_patchy_version());
 }
 
 bool is_bundled_theme_id(const QString& id) { return id.startsWith(kBundledThemeIdPrefix); }

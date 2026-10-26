@@ -25,6 +25,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
+#include "ui/preferences_themes_page.hpp"
 #include "ui/script_stroke.hpp"
 #include "ui/view_extras.hpp"
 #include "ui/stress_test.hpp"
@@ -1188,6 +1189,10 @@ private:
   // The trust prompt, shared by theme selection and Import: true when the user allows
   // the theme's scripts.
   static bool confirm_theme_scripts(QWidget* parent, const QString& theme_name);
+  // Preferences > Colors and Themes (main_window_preferences_themes.cpp): builds the
+  // page into `layout`; the themes themselves are read by the returned populate.
+  PreferencesThemesPage build_preferences_themes_page(QDialog& dialog, QVBoxLayout* layout,
+                                                      const std::function<void(QFrame*)>& configure_panel);
   // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
   void apply_tool_palette_factor(double factor);
   void new_guide_dialog();

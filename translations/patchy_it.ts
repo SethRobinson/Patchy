@@ -13309,6 +13309,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>L&apos;immagine sprite &quot;%1&quot; non è nel pacchetto (ignorata).</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot; deve essere testo (ignorato).</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot; deve essere una versione come &quot;1.20&quot; (ignorato).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -20907,10 +20915,6 @@ Y: %2
         <translation>Chiaro</translation>
     </message>
     <message>
-        <source>Color scheme:</source>
-        <translation>Combinazione colori:</translation>
-    </message>
-    <message>
         <source>Interface scale:</source>
         <translation>Scala dell&apos;interfaccia:</translation>
     </message>
@@ -23110,10 +23114,6 @@ Y: %2
     <message>
         <source>Export Theme</source>
         <translation>Esporta tema</translation>
-    </message>
-    <message>
-        <source>%1 (built-in)</source>
-        <translation>%1 (integrato)</translation>
     </message>
     <message>
         <source>Cycle Marquee Tools</source>
@@ -26855,10 +26855,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Riproduce le brevi animazioni che un tema mostra per gli eventi, come i fuochi d&apos;artificio all&apos;apertura di un documento.</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>Esegui gli script del tema</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>Esegue gli script inclusi in un pacchetto tema. Possono riprodurre suoni ed effetti e aggiungere comandi di menu, ma non possono leggere file né modificare documenti.</translation>
     </message>
@@ -26881,6 +26877,114 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Theme</source>
         <translation>Tema</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>Esegui gli script di questo tema</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>Il tema selezionato non ha script.</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>Colori e temi</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>&quot;%1&quot; è pensato per Patchy %2 o successivo. Questo è Patchy %3, quindi alcune parti del tema potrebbero non essere visualizzate o non funzionare come previsto.</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>Impossibile caricare</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>Versione %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>di %1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Integrato in Patchy</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>Pacchetto tema</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>File tema</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>Richiede Patchy %1</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>Scuro e Chiaro</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>Segue l&apos;impostazione chiara o scura del sistema</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>Temi inclusi</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>I tuoi temi</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>Serve un Patchy più recente</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>Basato su Chiaro</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>Basato su Scuro</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>icone</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>sfondo</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>suoni</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>effetti</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>script</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>Include: %1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>Pensato per Patchy %1 o successivo. Questo è Patchy %2, quindi alcune parti potrebbero non funzionare.</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>Importarlo comunque?</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>Importa comunque</translation>
     </message>
 </context>
 <context>

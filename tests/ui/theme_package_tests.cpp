@@ -19,6 +19,7 @@
 #include "ui/theme_package.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/theme_script_host.hpp"
 #include "ui/theme_sounds.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -36,6 +37,9 @@
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
+#include <QListWidget>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
@@ -617,22 +621,21 @@ void ui_preferences_lists_theme_packages_and_sound_preference() {
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
+    auto* list = preferences_theme_list(*dialog);
     auto* sounds = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPlayThemeSoundsCheck"));
-    CHECK(combo != nullptr && sounds != nullptr);
+    CHECK(list != nullptr && sounds != nullptr);
     CHECK(dialog->findChild<QPushButton*>(QStringLiteral("preferencesExportThemePackageButton")) != nullptr);
     CHECK(dialog->findChild<QPushButton*>(QStringLiteral("preferencesExportIconTemplateButton")) != nullptr);
-    if (combo == nullptr || sounds == nullptr) {
+    if (list == nullptr || sounds == nullptr) {
       dialog->reject();
       return;
     }
     CHECK(sounds->isChecked());
-    const auto folder_index = combo->findData(QStringLiteral("custom:Folder Theme"));
-    const auto zip_index = combo->findData(QStringLiteral("custom:zipped.zip"));
-    CHECK(folder_index >= 0 && zip_index >= 0);
-    CHECK(combo->itemText(zip_index) == QStringLiteral("Zipped Theme"));
-    combo->setCurrentIndex(folder_index);
-    QApplication::processEvents();
+    const auto folder_row = preferences_theme_row(*list, QStringLiteral("custom:Folder Theme"));
+    const auto zip_row = preferences_theme_row(*list, QStringLiteral("custom:zipped.zip"));
+    CHECK(folder_row >= 0 && zip_row >= 0);
+    CHECK(zip_row >= 0 && list->item(zip_row)->text() == QStringLiteral("Zipped Theme"));
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Folder Theme")));
     CHECK(patchy::ui::theme().window_bg == QColor(11, 22, 33));
     CHECK(patchy::ui::theme_backdrop_active());
     sounds->setChecked(false);
@@ -676,8 +679,7 @@ void ui_theme_package_icon_template_and_example_package() {
 void ui_theme_package_capture_shots() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
-  SettingsValueRestorer restore_scripts(QStringLiteral("preferences/runThemeScripts"));
-  patchy::ui::app_settings().setValue(QStringLiteral("preferences/runThemeScripts"), true);
+  SettingsValueRestorer restore_trust(QStringLiteral("themeScripts/trust"));
   {
     patchy::ui::MainWindow window;
     show_window(window);
@@ -693,14 +695,15 @@ void ui_theme_package_capture_shots() {
     require_action(window, "filePreferencesAction")->trigger();
     QApplication::processEvents();
   }
-  // The example ships a script; these shots are about the package, so no trust prompt.
-  patchy::ui::app_settings().setValue(QStringLiteral("preferences/runThemeScripts"), false);
   for (const bool with_package : {false, true}) {
     if (with_package) {
       const auto example = QDir(QStringLiteral(PATCHY_SOURCE_DIR)).filePath(QStringLiteral("themes/example-package"));
       auto result = patchy::ui::load_theme_package_directory(example);
       CHECK(result.theme.has_value());
       if (result.theme) {
+        // The example ships a script; these shots are about the package, so no trust prompt.
+        patchy::ui::store_theme_script_trust(QStringLiteral("example-package"),
+                                             patchy::ui::theme_scripts_digest(*result.theme->assets), false);
         ThemeManager::instance().set_custom_theme(QStringLiteral("example-package"), *result.theme, false);
       }
     } else {
@@ -730,6 +733,120 @@ void ui_theme_package_capture_shots() {
   ThemeManager::instance().clear_custom_theme(/*persist=*/false);
 }
 
+// theme.json "version", "author" and "minPatchyVersion": parsed, written back, shown in
+// the Colors and Themes list and details, and a theme for a newer Patchy warns once.
+void ui_theme_info_shows_version_author_and_minimum_patchy() {
+  const auto parse = [](const QJsonObject& extra) {
+    QJsonObject object{{QStringLiteral("base"), QStringLiteral("dark")}, {QStringLiteral("name"), QStringLiteral("Info")}};
+    for (auto it = extra.begin(); it != extra.end(); ++it) {
+      object.insert(it.key(), it.value());
+    }
+    return patchy::ui::load_theme_from_json(QJsonDocument(object).toJson());
+  };
+  const auto future = parse(QJsonObject{{QStringLiteral("version"), QStringLiteral(" 2.1 ")},
+                                        {QStringLiteral("author"), QStringLiteral("Ann <b>Bold</b>")},
+                                        {QStringLiteral("minPatchyVersion"), QStringLiteral("999.0")}});
+  CHECK(future.theme.has_value() && future.warnings.isEmpty());
+  if (!future.theme) {
+    return;
+  }
+  CHECK(future.theme->info.version == QStringLiteral("2.1"));
+  CHECK(future.theme->info.author == QStringLiteral("Ann <b>Bold</b>"));
+  CHECK(patchy::ui::theme_needs_newer_patchy(future.theme->info));
+  const auto current = parse(QJsonObject{{QStringLiteral("minPatchyVersion"), QStringLiteral("1.0")}});
+  CHECK(current.theme && !patchy::ui::theme_needs_newer_patchy(current.theme->info));
+  CHECK(!patchy::ui::theme_needs_newer_patchy(patchy::ui::ThemeInfo{}));
+  // Bad values are warnings and stay empty; the theme still loads.
+  const auto bad = parse(QJsonObject{{QStringLiteral("minPatchyVersion"), QStringLiteral("soon")},
+                                     {QStringLiteral("author"), 7}});
+  CHECK(bad.theme.has_value() && bad.warnings.size() == 2);
+  CHECK(bad.theme && bad.theme->info.min_patchy_version.isEmpty() && bad.theme->info.author.isEmpty());
+  // Written back only when given, and read back the same.
+  const auto json = patchy::ui::serialize_theme_to_json(future.theme->palette, future.theme->base,
+                                                        QStringLiteral("Info"), nullptr, &future.theme->info);
+  const auto reread = patchy::ui::load_theme_from_json(json);
+  CHECK(reread.theme && reread.theme->info.version == QStringLiteral("2.1") &&
+        reread.theme->info.min_patchy_version == QStringLiteral("999.0"));
+  CHECK(!patchy::ui::serialize_theme_to_json(future.theme->palette, future.theme->base, QStringLiteral("Info"))
+             .contains("minPatchyVersion"));
+
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir themes;
+  write_bytes(themes.file(QStringLiteral("future.patchytheme")), json);
+  write_bytes(themes.file(QStringLiteral("broken.patchytheme")), QByteArrayLiteral("{ not json"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  int warnings_seen = 0;
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* list = preferences_theme_list(*dialog);
+    CHECK(list != nullptr);
+    if (list == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const int row = preferences_theme_row(*list, QStringLiteral("custom:future.patchytheme"));
+    CHECK(row >= 0);
+    if (row < 0) {
+      dialog->reject();
+      return;
+    }
+    const auto subtitle = list->item(row)->data(Qt::UserRole + 1).toString();
+    CHECK(subtitle.contains(QStringLiteral("Version 2.1")) && subtitle.contains(QStringLiteral("by Ann")) &&
+          subtitle.contains(QStringLiteral("Needs Patchy 999.0")));
+    // A theme that does not load is listed, but cannot be chosen.
+    const int broken = preferences_theme_row(*list, QStringLiteral("custom:broken.patchytheme"));
+    CHECK(broken >= 0 && (list->item(broken)->flags() & Qt::ItemIsSelectable) == 0);
+    CHECK(broken >= 0 && !list->item(broken)->toolTip().isEmpty());
+
+    // Selecting it warns once per dialog, as plain text.
+    const auto answer_warning = [&warnings_seen] {
+      QTimer::singleShot(0, [&warnings_seen] {
+        auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("themeNeedsNewerPatchyMessageBox")));
+        CHECK(box != nullptr);
+        if (box != nullptr) {
+          ++warnings_seen;
+          CHECK(box->textFormat() == Qt::PlainText);
+          CHECK(box->text().contains(QStringLiteral("999.0")));
+          box->accept();
+        }
+      });
+    };
+    // Selected directly: the select helper processes events, which would run the
+    // answer before the box opens.
+    answer_warning();
+    list->setCurrentRow(row);
+    process_events_for(50);
+    CHECK(warnings_seen == 1);
+    auto* meta = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeMeta"));
+    auto* compatibility = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeCompatibility"));
+    CHECK(meta != nullptr && meta->textFormat() == Qt::PlainText && meta->text().contains(QStringLiteral("by Ann <b>")));
+    CHECK(compatibility != nullptr && compatibility->isVisible() &&
+          compatibility->text().contains(QStringLiteral("999.0")));
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("dark")));
+    CHECK(compatibility != nullptr && !compatibility->isVisible());
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:future.patchytheme")));
+    process_events_for(50);
+    CHECK(warnings_seen == 1);
+    save_widget_artifact("preferences_theme_needs_newer_patchy", *dialog);
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(!patchy::ui::has_active_custom_palette());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> theme_package_tests() {
@@ -751,5 +868,6 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
        ui_preferences_lists_theme_packages_and_sound_preference},
       {"ui_theme_package_icon_template_and_example_package", ui_theme_package_icon_template_and_example_package},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},
+      {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
   };
 }

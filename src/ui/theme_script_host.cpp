@@ -28,11 +28,7 @@ namespace patchy::ui {
 
 namespace {
 
-// Persisted identifiers.
-const QString& run_theme_scripts_key() {
-  static const QString key = QStringLiteral("preferences/runThemeScripts");
-  return key;
-}
+// Persisted identifier.
 const QString& trust_key() {
   static const QString key = QStringLiteral("themeScripts/trust");
   return key;
@@ -180,15 +176,6 @@ const char* const kPrelude = R"JS(
 [[nodiscard]] qint64 now_ms(const QElapsedTimer& clock) { return clock.elapsed(); }
 
 }  // namespace
-
-bool theme_scripts_enabled() { return app_settings().value(run_theme_scripts_key(), true).toBool(); }
-
-void set_theme_scripts_enabled(bool enabled) {
-  app_settings().setValue(run_theme_scripts_key(), enabled);
-  if (auto* host = ThemeScriptHost::existing(); host != nullptr) {
-    host->restart();
-  }
-}
 
 QString theme_scripts_digest(const ThemeAssets& assets) {
   QCryptographicHash hash(QCryptographicHash::Sha256);
@@ -597,9 +584,6 @@ void ThemeScriptHost::restart() {
     commands_.clear();
     schedule("commands");
   }
-  if (!theme_scripts_enabled()) {
-    return;
-  }
   switch (stored_theme_script_trust(theme_id_, theme_scripts_digest(*assets_))) {
     case ThemeScriptTrust::Allowed:
       start();
@@ -622,6 +606,7 @@ void ThemeScriptHost::set_trust(const QString& theme_id, bool allowed) {
   if (allowed && !running()) {
     start();
   }
+  emit trust_changed(theme_id);
 }
 
 void ThemeScriptHost::start() {

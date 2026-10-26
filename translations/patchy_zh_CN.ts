@@ -13272,6 +13272,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>精灵图像 &quot;%1&quot; 不在包中(已忽略)。</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot; 必须是文本(已忽略)。</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot; 必须是类似 &quot;1.20&quot; 的版本号(已忽略)。</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -20857,10 +20865,6 @@ Y: %2
         <translation>浅色</translation>
     </message>
     <message>
-        <source>Color scheme:</source>
-        <translation>配色方案:</translation>
-    </message>
-    <message>
         <source>Interface scale:</source>
         <translation>界面缩放:</translation>
     </message>
@@ -23047,10 +23051,6 @@ Y: %2
     <message>
         <source>Export Theme</source>
         <translation>导出主题</translation>
-    </message>
-    <message>
-        <source>%1 (built-in)</source>
-        <translation>%1（内置）</translation>
     </message>
     <message>
         <source>Cycle Marquee Tools</source>
@@ -26779,10 +26779,6 @@ The open document keeps its blend modes either way.</source>
         <translation>播放主题在事件发生时显示的简短动画,例如打开文档时的烟花。</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>运行主题脚本</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>运行主题包中包含的脚本。它们可以播放声音和效果并添加菜单命令,但无法读取文件或更改文档。</translation>
     </message>
@@ -26805,6 +26801,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme</source>
         <translation>主题</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>运行此主题的脚本</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>所选主题没有脚本。</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>颜色和主题</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>&quot;%1&quot; 适用于 Patchy %2 或更高版本。当前是 Patchy %3，因此主题的部分内容可能无法按预期显示或工作。</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>无法加载</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>版本 %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>作者：%1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Patchy 内置</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>主题包</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>主题文件</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>需要 Patchy %1</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>深色和浅色</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>跟随系统的浅色或深色设置</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>内置主题</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>你的主题</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>需要更新版本的 Patchy</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>基于浅色</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>基于深色</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>图标</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>背景</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>声音</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>效果</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>脚本</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>包含：%1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>适用于 Patchy %1 或更高版本。当前是 Patchy %2，因此部分内容可能无法工作。</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>仍要导入吗？</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>仍然导入</translation>
     </message>
 </context>
 <context>

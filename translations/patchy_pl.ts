@@ -13346,6 +13346,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>Obrazu sprite&apos;a &quot;%1&quot; nie ma w pakiecie (zignorowano).</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot; musi być tekstem (zignorowano).</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot; musi być wersją, np. &quot;1.20&quot; (zignorowano).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -21884,14 +21892,6 @@ Y: %2
         <translation>Jasny</translation>
     </message>
     <message>
-        <source>%1 (built-in)</source>
-        <translation>%1 (wbudowany)</translation>
-    </message>
-    <message>
-        <source>Color scheme:</source>
-        <translation>Schemat kolorów:</translation>
-    </message>
-    <message>
         <source>Import Theme...</source>
         <translation>Importuj motyw...</translation>
     </message>
@@ -26931,10 +26931,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Odtwarzaj krótkie animacje, które motyw pokazuje przy zdarzeniach, na przykład fajerwerki po otwarciu dokumentu.</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>Uruchamiaj skrypty motywu</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>Uruchamiaj skrypty dołączone do pakietu motywu. Mogą odtwarzać dźwięki i efekty oraz dodawać polecenia menu, ale nie mogą czytać plików ani zmieniać dokumentów.</translation>
     </message>
@@ -26957,6 +26953,114 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Theme</source>
         <translation>Motyw</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>Uruchamiaj skrypty tego motywu</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>Wybrany motyw nie ma skryptów.</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>Kolory i motywy</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>&quot;%1&quot; jest przeznaczony dla Patchy %2 lub nowszego. To jest Patchy %3, więc części motywu mogą nie wyświetlać się lub nie działać zgodnie z zamierzeniem.</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>Nie można wczytać</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>Wersja %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>autor: %1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Wbudowany w Patchy</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>Pakiet motywu</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>Plik motywu</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>Wymaga Patchy %1</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>Ciemny i Jasny</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>Zgodnie z jasnym lub ciemnym ustawieniem systemu</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>Dołączone motywy</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>Twoje motywy</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>Wymagany nowszy Patchy</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>Na podstawie Jasnego</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>Na podstawie Ciemnego</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>ikony</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>tło</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>dźwięki</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>efekty</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>skrypty</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>Zawiera: %1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>Przeznaczony dla Patchy %1 lub nowszego. To jest Patchy %2, więc niektóre części mogą nie działać.</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>Zaimportować mimo to?</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>Importuj mimo to</translation>
     </message>
 </context>
 <context>

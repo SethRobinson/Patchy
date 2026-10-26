@@ -42,15 +42,12 @@ struct ThemeAssets;
 class ScriptWatchdog;
 enum class CanvasTool;
 
-// "preferences/runThemeScripts" (a persisted key), on by default.
-[[nodiscard]] bool theme_scripts_enabled();
-void set_theme_scripts_enabled(bool enabled);
-
 enum class ThemeScriptTrust { Unknown, Allowed, Denied };
 // SHA-256 over every scripts/ file, path and bytes, in path order: a stored answer
 // holds only while the scripts are unchanged.
 [[nodiscard]] QString theme_scripts_digest(const ThemeAssets& assets);
-// "themeScripts/trust" (a persisted key): theme id -> "<digest>:allow" or ":deny".
+// "themeScripts/trust" (a persisted key): theme id -> "<digest>:allow" or ":deny". Each
+// theme keeps its own answer; nothing turns every theme's scripts on at once.
 [[nodiscard]] ThemeScriptTrust stored_theme_script_trust(const QString& theme_id, const QString& digest);
 void store_theme_script_trust(const QString& theme_id, const QString& digest, bool allowed);
 
@@ -108,7 +105,7 @@ class ThemeScriptHost final : public QObject {
   // Answers trust_needed: records the answer for this theme and these scripts and,
   // when allowed and still the active theme, starts them.
   void set_trust(const QString& theme_id, bool allowed);
-  // Stops the running scripts and starts them again under the current preference.
+  // Stops the running scripts and starts them again under the stored answer.
   void restart();
 
   [[nodiscard]] bool running() const { return engine_ != nullptr; }
@@ -142,6 +139,8 @@ class ThemeScriptHost final : public QObject {
 
  signals:
   void trust_needed(const QString& theme_id, const QString& theme_name);
+  // set_trust stored an answer (Preferences shows each theme's own).
+  void trust_changed(const QString& theme_id);
   void commands_changed();
   void cursors_changed();
   void panel_backgrounds_changed();

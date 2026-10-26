@@ -144,6 +144,7 @@ ThemeLoadResult load_theme_package_files(QHash<QString, QByteArray> files, const
   }
   auto assets = std::make_shared<ThemeAssets>();
   assets->options = result.theme->options;
+  assets->info = result.theme->info;
 
   QSet<QString> stems;
   for (const auto& stem : overridable_icon_stems()) {
@@ -421,7 +422,8 @@ ThemeLoadResult load_theme_package_zip_file(const QString& path, const ThemePack
 QByteArray serialize_theme_package_zip(const ThemePalette& palette, ColorScheme base, const QString& name,
                                        const ThemeAssets* assets) {
   std::vector<ora::detail::ZipEntry> entries;
-  const auto manifest = serialize_theme_to_json(palette, base, name, assets != nullptr ? &assets->options : nullptr);
+  const auto manifest = serialize_theme_to_json(palette, base, name, assets != nullptr ? &assets->options : nullptr,
+                                                assets != nullptr ? &assets->info : nullptr);
   entries.push_back({std::string(kThemePackageManifest.data(), kThemePackageManifest.size()),
                      to_bytes(manifest), true});
   if (assets != nullptr) {

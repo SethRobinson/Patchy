@@ -314,27 +314,26 @@ void ui_preferences_reload_reapplies_an_edited_theme_file() {
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
+    auto* list = preferences_theme_list(*dialog);
     auto* reload = dialog->findChild<QPushButton*>(QStringLiteral("preferencesReloadThemesButton"));
     auto* remove = dialog->findChild<QPushButton*>(QStringLiteral("preferencesDeleteThemeButton"));
-    CHECK(combo != nullptr && reload != nullptr && remove != nullptr);
-    if (combo == nullptr || reload == nullptr || remove == nullptr) {
+    CHECK(list != nullptr && reload != nullptr && remove != nullptr);
+    if (list == nullptr || reload == nullptr || remove == nullptr) {
       dialog->reject();
       return;
     }
     CHECK(!remove->isEnabled());
-    const auto index = combo->findData(QStringLiteral("custom:editable.patchytheme"));
-    CHECK(index >= 0);
-    CHECK(combo->itemText(index) == QStringLiteral("Editable"));
-    combo->setCurrentIndex(index);
-    QApplication::processEvents();
+    const auto row = preferences_theme_row(*list, QStringLiteral("custom:editable.patchytheme"));
+    CHECK(row >= 0);
+    CHECK(row >= 0 && list->item(row)->text() == QStringLiteral("Editable"));
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:editable.patchytheme")));
     CHECK(patchy::ui::theme().window_bg == QColor(10, 20, 30));
     CHECK(remove->isEnabled());
 
     write_theme_file(path, QColor(40, 50, 60), QStringLiteral("Editable"));
     reload->click();
     QApplication::processEvents();
-    CHECK(combo->currentData().toString() == QStringLiteral("custom:editable.patchytheme"));
+    CHECK(preferences_selected_theme(*dialog) == QStringLiteral("custom:editable.patchytheme"));
     CHECK(patchy::ui::theme().window_bg == QColor(40, 50, 60));
     CHECK(remove->isEnabled());
     saw_dialog = true;
@@ -371,17 +370,14 @@ void ui_preferences_delete_removes_theme_file_and_entry() {
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
+    auto* list = preferences_theme_list(*dialog);
     auto* remove = dialog->findChild<QPushButton*>(QStringLiteral("preferencesDeleteThemeButton"));
-    CHECK(combo != nullptr && remove != nullptr);
-    if (combo == nullptr || remove == nullptr) {
+    CHECK(list != nullptr && remove != nullptr);
+    if (list == nullptr || remove == nullptr) {
       dialog->reject();
       return;
     }
-    const auto index = combo->findData(QStringLiteral("custom:doomed.patchytheme"));
-    CHECK(index >= 0);
-    combo->setCurrentIndex(index);
-    QApplication::processEvents();
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:doomed.patchytheme")));
     CHECK(patchy::ui::theme().window_bg == QColor(70, 80, 90));
 
     QTimer::singleShot(0, [&] {
@@ -403,11 +399,11 @@ void ui_preferences_delete_removes_theme_file_and_entry() {
     QApplication::processEvents();
 
     CHECK(!QFileInfo::exists(path));
-    CHECK(combo->findData(QStringLiteral("custom:doomed.patchytheme")) < 0);
-    // No user entry left, so its separator went too: the built-ins, one
-    // separator, and the bundled set remain.
-    CHECK(combo->count() == 4 + patchy::ui::bundled_theme_file_names().size());
-    CHECK(combo->currentIndex() == 0);
+    CHECK(preferences_theme_row(*list, QStringLiteral("custom:doomed.patchytheme")) < 0);
+    // No user theme left, so its section header went too: the two headers, the three
+    // built-ins and the bundled set remain, and Follow system is selected.
+    CHECK(list->count() == 5 + patchy::ui::bundled_theme_file_names().size());
+    CHECK(preferences_selected_theme(*dialog) == QStringLiteral("system"));
     CHECK(!remove->isEnabled());
     CHECK(!patchy::ui::has_active_custom_palette());
     saw_dialog = true;
@@ -455,25 +451,25 @@ void ui_bundled_themes_load_and_list_in_preferences() {
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
+    auto* list = preferences_theme_list(*dialog);
     auto* remove = dialog->findChild<QPushButton*>(QStringLiteral("preferencesDeleteThemeButton"));
-    CHECK(combo != nullptr && remove != nullptr);
-    if (combo == nullptr || remove == nullptr) {
+    CHECK(list != nullptr && remove != nullptr);
+    if (list == nullptr || remove == nullptr) {
       dialog->reject();
       return;
     }
-    // Three built-ins, one separator, then the bundled set in authored order.
-    CHECK(combo->count() == 4 + names.size());
+    // A header, the three built-ins, a header, then the bundled set in authored order.
+    CHECK(list->count() == 5 + names.size());
+    CHECK(preferences_theme_row(*list, QStringLiteral("system")) == 1);
     for (int i = 0; i < names.size(); ++i) {
-      CHECK(combo->itemData(4 + i).toString() == QStringLiteral("custom:bundled:") + names[i]);
+      CHECK(list->item(5 + i)->data(Qt::UserRole).toString() == QStringLiteral("custom:bundled:") + names[i]);
     }
-    save_widget_artifact("preferences_application_tab", *dialog);
-    const auto index = combo->findData(QStringLiteral("custom:bundled:nord.patchytheme"));
-    CHECK(index >= 0);
-    combo->setCurrentIndex(index);
-    QApplication::processEvents();
-    CHECK(combo->currentText() == QStringLiteral("Nord (built-in)"));
-    save_widget_artifact("preferences_application_tab_nord", *dialog);
+    save_widget_artifact("preferences_colors_and_themes_page", *dialog);
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:bundled:nord.patchytheme")));
+    CHECK(list->currentItem() != nullptr && list->currentItem()->text() == QStringLiteral("Nord"));
+    auto* name = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeName"));
+    CHECK(name != nullptr && name->text() == QStringLiteral("Nord"));
+    save_widget_artifact("preferences_colors_and_themes_page_nord", *dialog);
     CHECK(patchy::ui::has_active_custom_palette());
     CHECK(patchy::ui::theme().window_bg == QColor(0x2e, 0x34, 0x40));
     CHECK(!remove->isEnabled());
@@ -507,16 +503,15 @@ void ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy() {
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
+    auto* list = preferences_theme_list(*dialog);
     auto* export_button = dialog->findChild<QPushButton*>(QStringLiteral("preferencesExportThemeButton"));
     auto* remove = dialog->findChild<QPushButton*>(QStringLiteral("preferencesDeleteThemeButton"));
-    CHECK(combo != nullptr && export_button != nullptr && remove != nullptr);
-    if (combo == nullptr || export_button == nullptr || remove == nullptr) {
+    CHECK(list != nullptr && export_button != nullptr && remove != nullptr);
+    if (list == nullptr || export_button == nullptr || remove == nullptr) {
       dialog->reject();
       return;
     }
-    combo->setCurrentIndex(combo->findData(QStringLiteral("custom:bundled:nord.patchytheme")));
-    QApplication::processEvents();
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:bundled:nord.patchytheme")));
 
     QTimer::singleShot(0, [&] {
       auto* save = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("exportThemeFileDialog")));
@@ -537,11 +532,11 @@ void ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy() {
 
     const auto copy_path = QDir(themes_dir.path()).filePath(QStringLiteral("Nord.patchytheme"));
     CHECK(QFileInfo::exists(copy_path));
-    // Three built-ins, a separator, the bundled set, a separator, the one user file.
-    CHECK(combo->count() == 6 + names.size());
-    CHECK(combo->currentData().toString() == QStringLiteral("custom:Nord.patchytheme"));
-    CHECK(combo->currentText() == QStringLiteral("Nord"));
-    CHECK(combo->findData(QStringLiteral("custom:bundled:nord.patchytheme")) >= 0);
+    // Two headers and three built-ins, the bundled set, a header and the one user file.
+    CHECK(list->count() == 7 + names.size());
+    CHECK(preferences_selected_theme(*dialog) == QStringLiteral("custom:Nord.patchytheme"));
+    CHECK(list->currentItem() != nullptr && list->currentItem()->text() == QStringLiteral("Nord"));
+    CHECK(preferences_theme_row(*list, QStringLiteral("custom:bundled:nord.patchytheme")) >= 0);
     CHECK(remove->isEnabled());
     CHECK(patchy::ui::theme().window_bg == QColor(0x2e, 0x34, 0x40));
     const auto reread = patchy::ui::load_theme_by_id(QStringLiteral("Nord.patchytheme"));

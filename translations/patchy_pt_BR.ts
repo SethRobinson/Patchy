@@ -13309,6 +13309,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Sprite image &quot;%1&quot; is not in the package (ignored).</source>
         <translation>A imagem de sprite &quot;%1&quot; não está no pacote (ignorada).</translation>
     </message>
+    <message>
+        <source>&quot;%1&quot; must be text (ignored).</source>
+        <translation>&quot;%1&quot; deve ser texto (ignorado).</translation>
+    </message>
+    <message>
+        <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
+        <translation>&quot;minPatchyVersion&quot; deve ser uma versão como &quot;1.20&quot; (ignorado).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -21827,14 +21835,6 @@ Y: %2
         <translation>Claro</translation>
     </message>
     <message>
-        <source>%1 (built-in)</source>
-        <translation>%1 (integrado)</translation>
-    </message>
-    <message>
-        <source>Color scheme:</source>
-        <translation>Esquema de cores:</translation>
-    </message>
-    <message>
         <source>Import Theme...</source>
         <translation>Importar tema...</translation>
     </message>
@@ -26855,10 +26855,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Reproduzir as animações curtas que um tema mostra em eventos, como fogos de artifício ao abrir um documento.</translation>
     </message>
     <message>
-        <source>Run theme scripts</source>
-        <translation>Executar scripts do tema</translation>
-    </message>
-    <message>
         <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
         <translation>Executar os scripts incluídos em um pacote de tema. Eles podem reproduzir sons e efeitos e adicionar comandos de menu, mas não podem ler arquivos nem alterar documentos.</translation>
     </message>
@@ -26881,6 +26877,114 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Theme</source>
         <translation>Tema</translation>
+    </message>
+    <message>
+        <source>Run this theme&apos;s scripts</source>
+        <translation>Executar os scripts deste tema</translation>
+    </message>
+    <message>
+        <source>The selected theme has no scripts.</source>
+        <translation>O tema selecionado não tem scripts.</translation>
+    </message>
+    <message>
+        <source>Colors and Themes</source>
+        <translation>Cores e temas</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is made for Patchy %2 or later. This is Patchy %3, so parts of the theme may not show or work as intended.</source>
+        <translation>&quot;%1&quot; foi feito para o Patchy %2 ou posterior. Este é o Patchy %3, então partes do tema podem não aparecer ou não funcionar como esperado.</translation>
+    </message>
+    <message>
+        <source>Could not be loaded</source>
+        <translation>Não foi possível carregar</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>Versão %1</translation>
+    </message>
+    <message>
+        <source>by %1</source>
+        <translation>por %1</translation>
+    </message>
+    <message>
+        <source>Built into Patchy</source>
+        <translation>Integrado ao Patchy</translation>
+    </message>
+    <message>
+        <source>Theme package</source>
+        <translation>Pacote de tema</translation>
+    </message>
+    <message>
+        <source>Theme file</source>
+        <translation>Arquivo de tema</translation>
+    </message>
+    <message>
+        <source>Needs Patchy %1</source>
+        <translation>Requer o Patchy %1</translation>
+    </message>
+    <message>
+        <source>Dark and Light</source>
+        <translation>Escuro e Claro</translation>
+    </message>
+    <message>
+        <source>Matches the system&apos;s light or dark setting</source>
+        <translation>Segue a configuração clara ou escura do sistema</translation>
+    </message>
+    <message>
+        <source>Included themes</source>
+        <translation>Temas incluídos</translation>
+    </message>
+    <message>
+        <source>Your themes</source>
+        <translation>Seus temas</translation>
+    </message>
+    <message>
+        <source>Newer Patchy Needed</source>
+        <translation>Patchy mais recente necessário</translation>
+    </message>
+    <message>
+        <source>Based on Light</source>
+        <translation>Baseado no Claro</translation>
+    </message>
+    <message>
+        <source>Based on Dark</source>
+        <translation>Baseado no Escuro</translation>
+    </message>
+    <message>
+        <source>icons</source>
+        <translation>ícones</translation>
+    </message>
+    <message>
+        <source>backdrop</source>
+        <translation>fundo</translation>
+    </message>
+    <message>
+        <source>sounds</source>
+        <translation>sons</translation>
+    </message>
+    <message>
+        <source>effects</source>
+        <translation>efeitos</translation>
+    </message>
+    <message>
+        <source>scripts</source>
+        <translation>scripts</translation>
+    </message>
+    <message>
+        <source>Includes: %1</source>
+        <translation>Inclui: %1</translation>
+    </message>
+    <message>
+        <source>Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.</source>
+        <translation>Feito para o Patchy %1 ou posterior. Este é o Patchy %2, então partes dele podem não funcionar.</translation>
+    </message>
+    <message>
+        <source>Import it anyway?</source>
+        <translation>Importar mesmo assim?</translation>
+    </message>
+    <message>
+        <source>Import Anyway</source>
+        <translation>Importar mesmo assim</translation>
     </message>
 </context>
 <context>

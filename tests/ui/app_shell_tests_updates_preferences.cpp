@@ -214,15 +214,7 @@ int choose_preferences_color_scheme(patchy::ui::MainWindow& window, const QStrin
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
-    CHECK(combo != nullptr);
-    if (combo == nullptr) {
-      dialog->reject();
-      return;
-    }
-    const auto index = combo->findData(token);
-    CHECK(index >= 0);
-    combo->setCurrentIndex(index);
+    CHECK(select_preferences_theme(*dialog, token));
     saw_dialog = true;
     result = accept ? QDialog::Accepted : QDialog::Rejected;
     if (accept) {

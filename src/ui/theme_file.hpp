@@ -41,11 +41,20 @@ struct ThemePackageOptions {
   ThemeBackdropMode backdrop_mode = ThemeBackdropMode::Tile;   // "backdrop"."mode"
 };
 
+// Optional theme.json keys describing the theme itself (docs/theme-files.md, "Format"),
+// shown in Preferences. Each is empty when the file has none.
+struct ThemeInfo {
+  QString version;             // "version": the theme's own version, free text ("1.2")
+  QString author;              // "author"
+  QString min_patchy_version;  // "minPatchyVersion": dotted digits ("1.20"), validated
+};
+
 struct CustomTheme {
   QString name;
   ColorScheme base = ColorScheme::Dark;
   ThemePalette palette;
   ThemePackageOptions options;
+  ThemeInfo info;
   // A package's icons, backdrop image and sounds; null for a single-file theme.
   std::shared_ptr<const ThemeAssets> assets;
 };
@@ -66,10 +75,16 @@ struct ThemeLoadResult {
 
 // Serializes every role in `palette` (Export writes the full, current set of
 // values, never a diff against `base`). `options`, when given, adds the package keys
-// that differ from their defaults.
+// that differ from their defaults; `info`, when given, its non-empty keys.
 [[nodiscard]] QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base,
                                                   const QString& name,
-                                                  const ThemePackageOptions* options = nullptr);
+                                                  const ThemePackageOptions* options = nullptr,
+                                                  const ThemeInfo* info = nullptr);
+
+// True when the theme names a "minPatchyVersion" newer than this build.
+[[nodiscard]] bool theme_needs_newer_patchy(const ThemeInfo& info);
+// This build's version, as theme files compare against it ("1.19").
+[[nodiscard]] QString running_patchy_version();
 
 // Desktop persistence directory for imported theme files; empty on wasm (no
 // AppData store there -- the theme buttons are desktop-only, see
