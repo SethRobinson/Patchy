@@ -26106,6 +26106,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Press Esc to exit full screen</source>
         <translation>Appuyez sur Échap pour quitter le plein écran</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Rien à rogner : chaque pixel est transparent dans la limite de la tolérance. Réduisez la Tolérance.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Rien à rogner : chaque pixel est dans la tolérance de la couleur de rognage. Réduisez la Tolérance.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

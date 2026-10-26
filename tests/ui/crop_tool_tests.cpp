@@ -2160,6 +2160,29 @@ void ui_trim_tolerance_cuts_near_matches() {
     run_trim(window, answer);
   }
   check_trim_size(window, document, 30, 20);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  check_trim_size(window, document, 200, 150);
+
+  // A tolerance so high that every pixel matches leaves nothing, and says why.
+  {
+    TrimDialogAnswer answer{"trimTopLeftRadio", {true, true, true, true}, false};
+    answer.tolerance = 255;
+    run_trim(window, answer);
+  }
+  check_trim_size(window, document, 200, 150);
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance."));
+  CHECK(run_trim_script(window, QString::fromLatin1(kTrimStickerSetup)));
+  auto& stickers = patchy::ui::MainWindowTestAccess::document(window);
+  {
+    TrimDialogAnswer answer{"trimTransparentRadio", {true, true, true, true}, true};
+    answer.tolerance = 255;
+    run_trim(window, answer);
+  }
+  check_trim_size(window, stickers, 200, 150);
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance."));
   clear_trim_settings();
 }
 

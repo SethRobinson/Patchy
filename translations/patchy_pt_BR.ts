@@ -26106,6 +26106,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Press Esc to exit full screen</source>
         <translation>Pressione Esc para sair da tela cheia</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nada para aparar: todos os pixels são transparentes dentro da tolerância. Diminua a Tolerância.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nada para aparar: todos os pixels estão dentro da tolerância da cor de corte. Diminua a Tolerância.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

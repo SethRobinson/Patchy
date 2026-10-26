@@ -26179,6 +26179,14 @@ The open document keeps its blend modes either way.</source>
         <source>Press Esc to exit full screen</source>
         <translation>Нажмите Esc, чтобы выйти из полноэкранного режима</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели прозрачны в пределах допуска. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели в пределах допуска от цвета обрезки. Уменьшите Допуск.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
