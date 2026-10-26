@@ -403,6 +403,9 @@ public:
   // live under the per-user app-data folder (created on first use).
   [[nodiscard]] static QString bundled_scripts_directory();
   [[nodiscard]] static QString user_scripts_directory();
+  // Every extension File > Open lists in this build (file_format_entries' open
+  // extensions). The installers' "Open with" lists are checked against it.
+  [[nodiscard]] static QStringList openable_file_extensions();
   // Keeps one persistent QAction per script in the scan (File > Scripts entries and the
   // hotkey commands of category "scripts", ids from script_hotkey_command_id): new scripts
   // register, vanished ones unregister, and every action's text, icon, path and @hotkey

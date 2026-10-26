@@ -2406,6 +2406,14 @@ int MainWindow::open_folder_path(const QString& directory) {
   return opened;
 }
 
+QStringList MainWindow::openable_file_extensions() {
+  QStringList extensions;
+  for (const auto& entry : file_format_entries()) {
+    extensions.append(entry.open_extensions);
+  }
+  return extensions;
+}
+
 QStringList MainWindow::supported_layer_drop_paths(const QMimeData* mime_data) const {
   if (preview_dialog_edit_locked()) {
     return {};

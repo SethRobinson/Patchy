@@ -938,7 +938,8 @@ function Get-PatchyDefaultInstallRoot {
 
 # Extensions Patchy is offered for in Explorer's "Open with" list. Keep in step with
 # file_format_entries() in src/ui/main_window_files.cpp and the camera raw list in
-# src/formats/raw_document_io.cpp. PDF is left out on purpose.
+# src/formats/raw_document_io.cpp (open_with_lists_claim_every_openable_extension
+# checks it). PDF is left out on purpose.
 $PatchyOpenWithExtensions = @(
     "psd", "psb", "png", "apng", "jpg", "jpeg", "bmp", "tif", "tiff", "webp", "gif",
     "aseprite", "ase", "ora", "tga", "ico", "cur", "pcx", "lbm", "iff", "bbm", "pbm", "pgm", "ppm", "pnm",

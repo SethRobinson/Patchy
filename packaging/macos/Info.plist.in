@@ -46,7 +46,6 @@
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>psd</string>
-				<string>psb</string>
 			</array>
 		</dict>
 		<dict>
@@ -109,6 +108,96 @@
 				<string>tiff</string>
 				<string>webp</string>
 				<string>jxl</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Claimed by extension: a dictionary with LSItemContentTypes ignores its extension list. -->
+			<key>CFBundleTypeName</key>
+			<string>Image File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>psb</string>
+				<string>apng</string>
+				<string>aseprite</string>
+				<string>ase</string>
+				<string>tga</string>
+				<string>ico</string>
+				<string>cur</string>
+				<string>pcx</string>
+				<string>lbm</string>
+				<string>iff</string>
+				<string>bbm</string>
+				<string>svg</string>
+				<string>rttex</string>
+				<string>dds</string>
+				<string>hdr</string>
+				<string>rgbe</string>
+				<string>exr</string>
+				<string>jp2</string>
+				<string>j2k</string>
+				<string>j2c</string>
+				<string>jpc</string>
+				<string>jpx</string>
+				<string>jpf</string>
+				<string>avif</string>
+				<string>avifs</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Formats Patchy opens but never writes (Save routes to Save As). -->
+			<key>CFBundleTypeName</key>
+			<string>Imported Image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>hif</string>
+				<string>pbm</string>
+				<string>pgm</string>
+				<string>ppm</string>
+				<string>pnm</string>
+				<string>svgz</string>
+				<string>dng</string>
+				<string>cr2</string>
+				<string>cr3</string>
+				<string>crw</string>
+				<string>nef</string>
+				<string>nrw</string>
+				<string>arw</string>
+				<string>sr2</string>
+				<string>srf</string>
+				<string>orf</string>
+				<string>raf</string>
+				<string>rw2</string>
+				<string>pef</string>
+				<string>srw</string>
+				<string>mrw</string>
+				<string>3fr</string>
+				<string>fff</string>
+				<string>iiq</string>
+				<string>erf</string>
+				<string>kdc</string>
+				<string>dcr</string>
+				<string>mos</string>
+				<string>rwl</string>
+				<string>x3f</string>
+				<string>af</string>
+				<string>afphoto</string>
+				<string>afdesign</string>
+				<string>afpub</string>
+				<string>pdn</string>
+				<string>xcf</string>
+				<string>xcfgz</string>
+				<string>xcfbz2</string>
+				<string>xcfxz</string>
+				<string>kra</string>
+				<string>krz</string>
 			</array>
 		</dict>
 	</array>

@@ -15,6 +15,8 @@ signatures; executing that intermediate connector can be killed by macOS.
 
 Bundle metadata lives in `Info.plist.in` (configured through CMake's
 `MACOSX_BUNDLE_*` properties; the version comes from the CMake project version).
+Its `CFBundleDocumentTypes` list the formats Finder offers Patchy for; keep them in
+step with File > Open (rules in [file-formats.md](../../docs/file-formats.md)).
 `patchy.icns` contains native and Retina representations up to 1024 px, rendered
 from the folded SVG source. Regenerate all platform icons together with
 `scripts/dev/generate-branding.py`; see [branding](../branding/README.md).

@@ -2426,6 +2426,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/save_metadata_tests.cpp
       tests/ui/layered_tiff_tests.cpp
       tests/ui/appimage_menu_entry_tests.cpp
+      tests/ui/open_with_registration_tests.cpp
       tests/ui/composite_render_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp

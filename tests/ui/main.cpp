@@ -453,6 +453,7 @@ int main(int argc, char* argv[]) {
            save_metadata_tests,
            layered_tiff_ui_tests,
            appimage_menu_entry_tests,
+           open_with_registration_tests,
            composite_render_tests,
            readme_screenshot_tests,
        }) {
