@@ -21,6 +21,23 @@ Every entry below is API 1.
 see it, and theme scripts see nothing else. Permanent identifiers: those names, the event ids, the
 effect names and option keys, the panel ids and the `theme.<theme id>.<command id>` hotkey ids. Pinned
 by `ui_theme_script_engine_is_isolated` and `ui_theme_menu_sits_right_of_help_with_hotkeys`.
+2026-10-26 (behavioral): `patchy.ui.toolPalette.showGearButton` is a no-op: the tool palette's gear
+was removed (Customize Tool Palette opens from the Window menu, the palette's right-click menu and
+Preferences). It always reads false and setting it is ignored; the key stays (a permanent identifier).
+Pinned by `ui_script_tool_palette_reads_and_sets`.
+2026-10-26 (additive): `doc.encodeForWeb(format, options)` returns `{bytes, width, height}`
+(`bytes` an ArrayBuffer) for `format` `"jpeg"`, `"webp"`, `"png"`, `"gif"`, `"avif"` or `"jxl"`
+without writing a file; `options` are the `exportAs` keys of that format, strictly parsed
+([web-export.md](web-export.md)). An unknown format, an unknown key or a bad value throws.
+Permanent identifiers: the method name, the six format tokens and the result keys. Pinned by
+`ui_script_encode_for_web`.
+2026-10-26 (additive): text runs (`addTextLayer`, `setTextRuns`) take the Character panel styles
+(GitHub issue 346, [text-character-styles.md](text-character-styles.md)): `caps` (`"all"`, `"small"`,
+`"none"`), `script` (`"superscript"`, `"subscript"`, `"none"`), and booleans `underline`,
+`strikethrough`, `ordinals`, `fractions`; an unset key keeps the layer's. `textRuns` reads all six
+back. Another `caps` or `script` value throws. Permanent identifiers: those keys and values. Pinned by
+`ui_text_underline_and_strikethrough_match_photoshop_if_available` and its siblings in
+tests/ui/text_character_styles_tests.cpp.
 2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options `colors` (2..256), `dither` (`"none"`,
 `"diffusion"`) and `ditherAmount` (0..100) for `.gif`, and for `.png` with the new `pngColors`
 (`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette

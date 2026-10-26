@@ -5333,9 +5333,12 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
       position_window_chrome_controls();
     }
-    // A full-screen window has no title bar to drag or double-click (screen modes,
-    // GitHub issue 212); Windows already skips its HTCAPTION answer there.
-    const auto title_bar_event = isFullScreen() ? QEvent::None : event->type();
+    // A full-screen window has no title bar to drag (screen modes, GitHub issue 212);
+    // Windows already skips its HTCAPTION answer there, so these events arrive on every
+    // custom-chrome platform. Only the double-click stays: it leaves full screen, as it
+    // restores a maximized window.
+    const auto title_bar_event =
+        isFullScreen() && event->type() != QEvent::MouseButtonDblClick ? QEvent::None : event->type();
 
     // The blank menu-bar area is the window title bar. On a real Windows window it
     // answers WM_NCHITTEST with HTCAPTION (MainWindow::nativeEvent), so the OS handles
@@ -5356,7 +5359,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         if (mouse_event->button() == Qt::LeftButton && title_bar_drag_area_contains(mouse_event->pos())) {
           chrome_title_press_pending_ = false;
           chrome_dragging_ = false;
-          isMaximized() ? restore_window_from_maximize() : showMaximized();
+          if (isFullScreen()) {
+            if (screen_mode_ != ScreenMode::Standard) {
+              set_screen_mode(ScreenMode::Standard);
+            }
+          } else {
+            isMaximized() ? restore_window_from_maximize() : showMaximized();
+          }
           mouse_event->accept();
           return true;
         }
@@ -7910,6 +7919,47 @@ void MainWindow::open_text_character_dialog() {
   configure_text_character_spin(text_character_v_scale_spin_);
   layout->addRow(tr("Vertical scale:"), text_character_v_scale_spin_);
 
+  // Character styles (GitHub issue 346): one row of toggles. The buttons keep no focus, so the
+  // keyboard stays in a live text session.
+  {
+    struct StyleButton {
+      const char* object_name;
+      QString tooltip;
+    };
+    const std::array<StyleButton, 8> styles{{
+        {"textCharacterAllCapsButton", tr("All Caps")},
+        {"textCharacterSmallCapsButton", tr("Small Caps")},
+        {"textCharacterSuperscriptButton", tr("Superscript")},
+        {"textCharacterSubscriptButton", tr("Subscript")},
+        {"textCharacterUnderlineButton", tr("Underline")},
+        {"textCharacterStrikethroughButton", tr("Strikethrough")},
+        {"textCharacterOrdinalsButton", tr("Ordinals (fonts that have them)")},
+        {"textCharacterFractionsButton", tr("Fractions (fonts that have them)")},
+    }};
+    auto* row = new QWidget(dialog);
+    row->setObjectName(QStringLiteral("textCharacterStyleRow"));
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(2);
+    for (int index = 0; index < static_cast<int>(styles.size()); ++index) {
+      auto* button = new QPushButton(row);
+      button->setObjectName(QLatin1String(styles[static_cast<std::size_t>(index)].object_name));
+      button->setCheckable(true);
+      button->setFocusPolicy(Qt::NoFocus);
+      button->setIcon(text_character_style_icon(index));
+      button->setIconSize(QSize(20, 20));
+      button->setFixedSize(30, 26);
+      button->setToolTip(styles[static_cast<std::size_t>(index)].tooltip);
+      button->setAccessibleName(styles[static_cast<std::size_t>(index)].tooltip);
+      connect(button, &QPushButton::toggled, this,
+              [this, index](bool on) { apply_text_character_style_to_active_editor(index, on); });
+      text_character_style_buttons_[static_cast<std::size_t>(index)] = button;
+      row_layout->addWidget(button);
+    }
+    row_layout->addStretch(1);
+    layout->addRow(tr("Style:"), row);
+  }
+
   connect(text_character_auto_leading_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_leading_to_active_editor(); });
   connect(text_character_faux_bold_, &QCheckBox::toggled, this,
@@ -7948,6 +7998,7 @@ void MainWindow::open_text_character_dialog() {
   text_character_faux_bold_ = nullptr;
   text_character_faux_italic_ = nullptr;
   text_character_rotate_roman_ = nullptr;
+  text_character_style_buttons_.fill(nullptr);
 }
 
 std::vector<LayerId> MainWindow::text_character_target_layer_ids() const {
@@ -8116,6 +8167,11 @@ void MainWindow::sync_text_character_dialog_from_editor() {
   text_character_v_scale_spin_->setEnabled(enabled);
   text_character_faux_bold_->setEnabled(enabled);
   text_character_faux_italic_->setEnabled(enabled);
+  for (auto* button : text_character_style_buttons_) {
+    if (button != nullptr) {
+      button->setEnabled(enabled);
+    }
+  }
   // Only vertical text has a Roman orientation to choose.
   const bool vertical_target =
       session_open ? text_editor_is_vertical(*editor) : (layer != nullptr && layer_text_is_vertical(*layer));
@@ -8165,6 +8221,18 @@ void MainWindow::sync_text_character_dialog_from_editor() {
                                         format.property(kTextFauxBoldFormatProperty).toBool());
   text_character_faux_italic_->setChecked(format.hasProperty(kTextFauxItalicFormatProperty) &&
                                           format.property(kTextFauxItalicFormatProperty).toBool());
+  {
+    const auto styles = text_character_styles_from_format(format);
+    const std::array<bool, 8> checked{styles.caps == 2,      styles.caps == 1,      styles.baseline == 1,
+                                      styles.baseline == 2,  styles.underline,      styles.strikethrough,
+                                      styles.ordinals,       styles.fractions};
+    for (std::size_t index = 0; index < checked.size(); ++index) {
+      if (auto* button = text_character_style_buttons_[index]; button != nullptr) {
+        const QSignalBlocker block_style(button);
+        button->setChecked(checked[index]);
+      }
+    }
+  }
   if (text_character_rotate_roman_ != nullptr) {
     QSignalBlocker block_rotate(text_character_rotate_roman_);
     text_character_rotate_roman_->setChecked(format.hasProperty(kTextRotatedRomanFormatProperty) &&
@@ -8681,6 +8749,55 @@ void MainWindow::apply_text_character_faux_italic_to_active_editor() {
     mutate_text_editor_character_formats(editor, [faux_italic](QTextCharFormat& format) {
       // A flag only; the shear happens at render time, so it follows later size and face edits.
       format.setProperty(kTextFauxItalicFormatProperty, faux_italic);
+    });
+    return true;
+  });
+}
+
+void MainWindow::apply_text_character_style_to_active_editor(int style, bool on) {
+  if (canvas_ == nullptr || style < 0 || style >= static_cast<int>(text_character_style_buttons_.size())) {
+    return;
+  }
+  // The other half of an exclusive pair shows off at once; the edit below writes it.
+  const int partner = style <= 3 ? (style ^ 1) : -1;
+  if (on && partner >= 0) {
+    if (auto* button = text_character_style_buttons_[static_cast<std::size_t>(partner)]; button != nullptr) {
+      const QSignalBlocker blocker(button);
+      button->setChecked(false);
+    }
+  }
+  apply_text_character_edit([style, on](QTextEdit& editor) {
+    mutate_text_editor_character_formats(editor, [style, on](QTextCharFormat& format) {
+      // Flags only, like faux bold: build_text_render_document draws them, so the text keeps
+      // its case and size (apply_text_character_styles_to_document).
+      switch (style) {
+        case 0:
+        case 1: {
+          const int caps = style == 0 ? 2 : 1;
+          const int current = format.property(kTextFontCapsFormatProperty).toInt();
+          format.setProperty(kTextFontCapsFormatProperty, on ? caps : (current == caps ? 0 : current));
+          break;
+        }
+        case 2:
+        case 3: {
+          const int baseline = style == 2 ? 1 : 2;
+          const int current = format.property(kTextFontBaselineFormatProperty).toInt();
+          format.setProperty(kTextFontBaselineFormatProperty, on ? baseline : (current == baseline ? 0 : current));
+          break;
+        }
+        case 4:
+          format.setProperty(kTextUnderlineFormatProperty, on);
+          break;
+        case 5:
+          format.setProperty(kTextStrikethroughFormatProperty, on);
+          break;
+        case 6:
+          format.setProperty(kTextOrdinalsFormatProperty, on);
+          break;
+        default:
+          format.setProperty(kTextFractionsFormatProperty, on);
+          break;
+      }
     });
     return true;
   });

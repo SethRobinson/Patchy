@@ -223,8 +223,9 @@ public:
   ~MainWindow() override;
   // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md): opens the
   // dialog (non-modal; a second call brings the open one forward on that tab), and applies and
-  // stores a choice live.
-  void show_tool_palette_customization(ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools);
+  // stores a choice live. `parent` is the dialog it opens from (Preferences), else the window.
+  void show_tool_palette_customization(ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools,
+                                       QWidget* parent = nullptr);
   void apply_tool_palette_customization(const ToolPaletteCustomization& customization);
   [[nodiscard]] const ToolPaletteCustomization& tool_palette_customization() const noexcept {
     return tool_palette_customization_;
@@ -2393,6 +2394,10 @@ private:
   void apply_text_character_faux_bold_to_active_editor();
   void apply_text_character_faux_italic_to_active_editor();
   void apply_text_character_rotate_roman_to_active_editor();
+  // One of the Character panel's style toggles (text_character_style_icon order: All Caps, Small
+  // Caps, Superscript, Subscript, Underline, Strikethrough, Ordinals, Fractions). The two caps
+  // and the two baselines exclude each other, as in Photoshop.
+  void apply_text_character_style_to_active_editor(int style, bool on);
   // Paragraph panel (alignment, indents, spacing): the same live-session-or-selected-layers
   // model as the Character panel. Metrics are paragraph-level, so a bare caret edits its
   // paragraph and the no-session path edits every paragraph of each selected layer.
@@ -3062,6 +3067,8 @@ private:
   // Vertical type only: rotate Roman glyphs along the column (Photoshop's Standard Vertical
   // Roman Alignment, /BaselineDirection 2).
   QCheckBox* text_character_rotate_roman_{nullptr};
+  // Character panel style toggles (GitHub issue 346), in text_character_style_icon order.
+  std::array<QPushButton*, 8> text_character_style_buttons_{};
   // Paragraph panel (alignment, indents, spacing), exempt from the focus-loss auto-commit
   // like the Character panel.
   QPushButton* text_paragraph_button_{nullptr};

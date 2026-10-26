@@ -13012,10 +13012,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>끄면 &gt; 화살표로 열을 더 엽니다.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>팔레트에 톱니바퀴 버튼 표시</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>도구</translation>
     </message>
@@ -13030,6 +13026,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Reset to Default</source>
         <translation>기본값으로 재설정</translation>
+    </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>무손실, 속도 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>품질 %1, 속도 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>무손실, 노력 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>품질 %1, 노력 %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>다른 형식보다 인코딩에 시간이 더 걸립니다. 끝나면 미리 보기가 업데이트됩니다.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 설정</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 설정</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>선택하면 인코딩</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>인코딩 중...</translation>
     </message>
 </context>
 <context>
@@ -26699,6 +26731,38 @@ The open document keeps its blend modes either way.</source>
         <translation>모든 버튼 표시</translation>
     </message>
     <message>
+        <source>All Caps</source>
+        <translation>모두 대문자</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>작은 대문자</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>위 첨자</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>아래 첨자</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>밑줄</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>취소선</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>서수 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>분수 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
         <source>Play theme effects</source>
         <translation>테마 효과 재생</translation>
     </message>
@@ -28725,6 +28789,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: 알 수 없는 값 &quot;%1&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format은 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb에서 인코딩하지 못했습니다: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: 텍스트 구간 %2의 %3은(는) &apos;%4&apos;, &apos;%5&apos; 또는 &apos;none&apos;이어야 합니다.</translation>
     </message>
 </context>
 <context>

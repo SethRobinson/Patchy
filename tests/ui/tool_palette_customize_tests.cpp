@@ -31,9 +31,12 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QWheelEvent>
 
+#include <cstdio>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <vector>
@@ -143,7 +146,16 @@ void ui_tool_palette_customize_hidden_tools_keep_hotkeys() {
   auto* hand_button = button_named(window, "handToolButton");
   auto* healing_button = button_named(window, "healingToolButton");
   CHECK(on_palette(*palette, hand_button));
-  CHECK(on_palette(*palette, button_named(window, "toolPaletteCustomizeButton")));
+  // No gear: the palette starts with Move, as before Customize Tool Palette.
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("toolPaletteCustomizeButton")) == nullptr);
+  auto* move_button = button_named(window, "moveToolButton");
+  CHECK(on_palette(*palette, move_button));
+  for (auto* button : palette->findChildren<QToolButton*>()) {
+    if (button != move_button && button->isVisibleTo(palette) && button->defaultAction() != nullptr &&
+        button->defaultAction()->property(patchy::ui::kToolPaletteToolIdProperty).isValid()) {
+      CHECK(geometry_in_palette(*palette, *button).top() > geometry_in_palette(*palette, *move_button).top());
+    }
+  }
   const int full_height = palette->sizeHint().height();
 
   ToolPaletteCustomization customization;
@@ -425,9 +437,8 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
 }
 
 // The dialog (mockup 1): ticks change the preview, OK applies and stores, Cancel changes
-// nothing, Reset to Default restores everything and clears the stored keys. The gear, the
-// Window menu and the palette's right-click menu open it; a new window reads the stored
-// choice.
+// nothing, Reset to Default restores everything and clears the stored keys. The Window menu
+// and the palette's right-click menu open it; a new window reads the stored choice.
 void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   CustomizationSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -437,9 +448,7 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   }
   window.resize(window.width(), 1400);
   settle();
-  auto* gear = button_named(window, "toolPaletteCustomizeButton");
   auto* window_menu_action = require_action(window, "windowCustomizeToolPaletteAction");
-  CHECK(gear->defaultAction() == window_menu_action);
 
   // Untick Hand and Red Eye, pick two columns, OK.
   bool ran = false;
@@ -465,6 +474,15 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
       CHECK(red_eye->parent() != nullptr && red_eye->parent()->checkState(0) == Qt::PartiallyChecked);
       red_eye->parent()->setExpanded(true);
     }
+    // Rows have room (GitHub issue 213 follow-up): a tool row and a member row at least 24 px,
+    // a cluster heading taller than a row.
+    if (auto* hand = tree_row(*tree, QStringLiteral("Hand")); hand != nullptr) {
+      CHECK(tree->visualItemRect(hand).height() >= 24);
+      CHECK(tree->visualItemRect(hand->parent()).height() > tree->visualItemRect(hand).height());
+    }
+    if (auto* patch = tree_row(*tree, QStringLiteral("Patch")); patch != nullptr) {
+      CHECK(tree->visualItemRect(patch).height() >= 24);
+    }
     (void)capture_widget_artifact("ui_tool_palette_customize_dialog", dialog);
     const int one_column_width = preview->width();
     dialog.findChild<QRadioButton*>(QStringLiteral("toolPaletteTwoColumnsRadio"))->setChecked(true);
@@ -472,7 +490,7 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
     CHECK(preview->width() > one_column_width);
     press_dialog_button(dialog, QDialogButtonBox::Ok);
   });
-  gear->click();
+  window_menu_action->trigger();
   CHECK(ran);
   settle();
   auto expected = ToolPaletteCustomization{};
@@ -495,7 +513,8 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   ran = false;
   when_customize_dialog_opens([&](QDialog& dialog) {
     ran = true;
-    dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowGearCheck"))->setChecked(false);
+    CHECK(dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowGearCheck")) == nullptr);
+    dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteWheelScrollCheck"))->setChecked(false);
     press_dialog_button(dialog, QDialogButtonBox::Cancel);
   });
   window_menu_action->trigger();
@@ -537,7 +556,7 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   }
   CHECK(on_palette(*palette, button_named(window, "handToolButton")));
 
-  // The palette's right-click menu leads with Customize Tool Palette...; the gear can be hidden.
+  // The palette's right-click menu leads with Customize Tool Palette....
   const QPoint position(palette->width() / 2, palette->height() - 2);
   QContextMenuEvent event(QContextMenuEvent::Mouse, position, palette->mapToGlobal(position));
   QApplication::sendEvent(palette, &event);
@@ -547,14 +566,165 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   if (menu != nullptr) {
     menu->close();
   }
-  auto hidden_gear = ToolPaletteCustomization{};
-  hidden_gear.show_customize_button = false;
-  window.apply_tool_palette_customization(hidden_gear);
+}
+
+// GitHub issue 213 follow-up: settings written by an earlier version name only what was hidden
+// then, so a tool they do not mention (one added later) shows, in its flyout too, even in a
+// flyout whose stored members are all hidden; ids this build does not know are ignored and
+// kept. The Layers footer works the same way.
+void ui_tool_palette_settings_from_an_older_version_show_new_tools() {
+  CustomizationSettingsGuard settings_guard;
+  {
+    auto settings = patchy::ui::app_settings();
+    // Pick hidden, Ruler (the "new" tool) not named; plus ids from some other version.
+    settings.setValue(QStringLiteral("toolPalette/hiddenTools"),
+                      QStringList{QStringLiteral("tools.eyedropper"), QStringLiteral("tools.hand"),
+                                  QStringLiteral("tools.not_yet_invented")});
+    settings.setValue(QStringLiteral("layersPanel/hiddenFooterButtons"),
+                      QStringList{QStringLiteral("animation"), QStringLiteral("future_button")});
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* palette = tool_palette(window);
+  if (palette == nullptr) {
+    return;
+  }
+  window.resize(window.width(), 1400);
   settle();
-  CHECK(!gear->isVisible());
-  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  auto* pick_button = button_named(window, "pickToolButton");
+  auto* ruler = require_action(window, "toolRulerAction");
+  auto* pick = require_action(window, "toolPickAction");
+  CHECK(on_palette(*palette, pick_button));
+  CHECK(pick_button->defaultAction() == ruler);
+  CHECK(pick_button->menu() != nullptr && pick_button->menu()->actions().contains(ruler));
+  CHECK(!pick_button->menu()->actions().contains(pick));
+  CHECK(!on_palette(*palette, button_named(window, "handToolButton")));
+  // Shift+I walks the visible members: only Ruler.
+  require_action(window, "toolBrushAction")->trigger();
+  QTest::keyClick(canvas, Qt::Key_I, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Ruler);
+  // Every other slot shows.
+  auto* layout = window.tool_palette_layout();
+  CHECK(layout != nullptr);
+  if (layout != nullptr) {
+    for (const auto& slot : layout->entries()) {
+      if (slot.button != button_named(window, "handToolButton")) {
+        CHECK(on_palette(*palette, slot.button));
+      }
+    }
+  }
+  // Unknown ids are kept, never an error; the footer hides only what it knows.
+  CHECK(window.tool_palette_customization().hidden_tools.contains(QStringLiteral("tools.not_yet_invented")));
+  CHECK(window.tool_palette_customization().hidden_layer_buttons.contains(QStringLiteral("future_button")));
+  auto* animation = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
+  auto* duplicate = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
+  CHECK(animation != nullptr && !animation->isVisible());
+  CHECK(duplicate != nullptr && duplicate->isVisible());
+  // OK in the dialog writes the unknown ids back.
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization();
+  CHECK(ran);
   settle();
-  CHECK(gear->isVisible());
+  const auto stored = patchy::ui::stored_tool_palette_customization();
+  CHECK(stored.hidden_tools.contains(QStringLiteral("tools.not_yet_invented")));
+  CHECK(stored.hidden_tools.contains(QStringLiteral("tools.eyedropper")));
+  CHECK(!stored.hidden_tools.contains(QStringLiteral("tools.ruler")));
+  CHECK(stored.hidden_layer_buttons.contains(QStringLiteral("future_button")));
+}
+
+// The dialog's rows come from the palette itself: every tool the palette holds has a row, and
+// every Layers footer button an entry, so a tool added later needs no list of its own.
+void ui_tool_palette_dialog_lists_every_palette_tool() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  QStringList palette_tools;
+  for (const auto* action : window.findChildren<QAction*>()) {
+    if (const auto id = action->property(patchy::ui::kToolPaletteToolIdProperty).toString(); !id.isEmpty()) {
+      palette_tools.push_back(id);
+    }
+  }
+  palette_tools.removeDuplicates();
+  CHECK(palette_tools.size() >= 40);
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("toolPaletteCustomizeTree"));
+    auto* layer_list = dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList"));
+    CHECK(tree != nullptr && layer_list != nullptr);
+    if (tree != nullptr) {
+      QStringList rows;
+      for (QTreeWidgetItemIterator it(tree); *it != nullptr; ++it) {
+        if (const auto id = (*it)->data(0, Qt::UserRole).toString(); !id.isEmpty()) {
+          rows.push_back(id);
+        }
+      }
+      for (const auto& id : palette_tools) {
+        if (!rows.contains(id)) {
+          std::fprintf(stderr, "no dialog row for %s\n", qPrintable(id));
+        }
+        CHECK(rows.contains(id));
+      }
+      CHECK(rows.size() == palette_tools.size());
+    }
+    if (layer_list != nullptr) {
+      CHECK(layer_list->count() == static_cast<int>(std::size(patchy::ui::kLayerFooterButtonIds)));
+    }
+    press_dialog_button(dialog, QDialogButtonBox::Cancel);
+  });
+  window.show_tool_palette_customization();
+  CHECK(ran);
+}
+
+// Preferences > Application has a Customize Tool Palette... button under Toolbar icon size; the
+// dialog opens as Preferences' child.
+void ui_preferences_opens_customize_tool_palette() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  bool saw_preferences = false;
+  bool saw_customize = false;
+  QTimer::singleShot(0, [&] {
+    QDialog* preferences = nullptr;
+    process_events_until([&] {
+      preferences = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+      return preferences != nullptr && preferences->isVisible();
+    });
+    CHECK(preferences != nullptr);
+    if (preferences == nullptr) {
+      return;
+    }
+    saw_preferences = true;
+    auto* button = preferences->findChild<QPushButton*>(QStringLiteral("preferencesCustomizeToolPaletteButton"));
+    auto* size_combo = preferences->findChild<QWidget*>(QStringLiteral("preferencesToolbarIconSizeCombo"));
+    CHECK(button != nullptr && size_combo != nullptr);
+    if (button == nullptr || size_combo == nullptr) {
+      preferences->reject();
+      return;
+    }
+    // On the line under Interface scale and Toolbar icon size, lined up with their fields.
+    const auto button_top = button->mapTo(preferences, QPoint(0, 0));
+    const auto combo_top = size_combo->mapTo(preferences, QPoint(0, 0));
+    CHECK(button_top.y() > combo_top.y());
+    if (auto* pages = preferences->findChild<QListWidget*>(QStringLiteral("preferencesPageList")); pages != nullptr) {
+      pages->setCurrentRow(0);
+      QApplication::processEvents();
+    }
+    (void)capture_widget_artifact("ui_preferences_customize_tool_palette_button", *preferences);
+    when_customize_dialog_opens([&, preferences](QDialog& dialog) {
+      saw_customize = true;
+      CHECK(dialog.parentWidget() == preferences);
+      press_dialog_button(dialog, QDialogButtonBox::Cancel);
+      QTimer::singleShot(0, preferences, [preferences] { preferences->reject(); });
+    });
+    button->click();
+  });
+  patchy::ui::MainWindowTestAccess::show_preferences(window);
+  settle();
+  CHECK(saw_preferences);
+  CHECK(saw_customize);
 }
 
 // patchy.ui.toolPalette reads and sets the choice (any subset of keys), applies it live and
@@ -571,7 +741,12 @@ void ui_script_tool_palette_reads_and_sets() {
   CHECK(run_script(window, QStringLiteral("const p = patchy.ui.toolPalette;"
                                           "console.log('layout=' + p.layout + ' wheel=' + p.wheelScroll + "
                                           "' gear=' + p.showGearButton + ' hidden=' + p.hiddenTools.length);")));
-  CHECK(backlog_contains(window, QStringLiteral("layout=oneColumn wheel=true gear=true hidden=0")));
+  CHECK(backlog_contains(window, QStringLiteral("layout=oneColumn wheel=true gear=false hidden=0")));
+  // showGearButton is a no-op now (the palette has no gear): accepted, still false.
+  CHECK(run_script(window, QStringLiteral("patchy.ui.toolPalette = {showGearButton: true};"
+                                          "console.log('gear now=' + patchy.ui.toolPalette.showGearButton);")));
+  CHECK(backlog_contains(window, QStringLiteral("gear now=false")));
+  CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
   CHECK(run_script(window, QStringLiteral("patchy.ui.toolPalette = {hiddenTools: ['tools.hand', 'tools.ruler'],"
                                           " layout: 'twoColumns', hiddenLayerButtons: ['animation']};"
                                           "console.log('now=' + patchy.ui.toolPalette.hiddenTools.join(','));")));
@@ -611,5 +786,9 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_customize_dialog_applies_cancels_and_resets",
        ui_tool_palette_customize_dialog_applies_cancels_and_resets},
       {"ui_script_tool_palette_reads_and_sets", ui_script_tool_palette_reads_and_sets},
+      {"ui_tool_palette_settings_from_an_older_version_show_new_tools",
+       ui_tool_palette_settings_from_an_older_version_show_new_tools},
+      {"ui_tool_palette_dialog_lists_every_palette_tool", ui_tool_palette_dialog_lists_every_palette_tool},
+      {"ui_preferences_opens_customize_tool_palette", ui_preferences_opens_customize_tool_palette},
   };
 }

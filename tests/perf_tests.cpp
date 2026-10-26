@@ -3449,6 +3449,138 @@ void cmyk_brush_stroke_perf_if_available() {
   stroke("plain_rgb_200");
 }
 
+
+// A Direct Select drag of one vector mask anchor (#447 follow-up): a 2000x3000
+// document, a canvas-filled layer whose Reveal All mask holds a 4-point curved
+// path, the mask targeted, plain and with Drop Shadow, Inner Shadow and Bevel.
+// Each mouse move, its queued path apply and the repaint are timed.
+void vector_mask_anchor_drag_perf() {
+  constexpr int kWidth = 2000;
+  constexpr int kHeight = 3000;
+  for (const auto& [effects, zoom] : std::array<std::pair<bool, double>, 4>{
+           {{false, 1.0}, {true, 1.0}, {false, 0.3}, {true, 0.3}}}) {
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer backdrop(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    backdrop.clear(230);
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Backdrop", std::move(backdrop)));
+    patchy::PixelBuffer paint(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    for (int y = 0; y < kHeight; ++y) {
+      auto row = paint.row(y);
+      for (int x = 0; x < kWidth; ++x) {
+        auto* pixel = row.data() + static_cast<std::size_t>(x) * 4U;
+        pixel[0] = 230;
+        pixel[1] = 50;
+        pixel[2] = 40;
+        pixel[3] = 255;
+      }
+    }
+    patchy::Layer layer(document.allocate_layer_id(), "Paint", std::move(paint));
+    patchy::LayerVectorMask mask;
+    patchy::PathSubpath curve;
+    const std::array<std::array<double, 2>, 4> corners{{{400.0, 600.0}, {1600.0, 500.0}, {1500.0, 2400.0}, {500.0, 2500.0}}};
+    for (const auto& corner : corners) {
+      patchy::PathAnchor anchor;
+      anchor.anchor_x = corner[0];
+      anchor.anchor_y = corner[1];
+      anchor.in_x = corner[0] - 250.0;
+      anchor.in_y = corner[1] + 120.0;
+      anchor.out_x = corner[0] + 250.0;
+      anchor.out_y = corner[1] - 120.0;
+      anchor.smooth = true;
+      curve.anchors.push_back(anchor);
+    }
+    mask.path.subpaths.push_back(curve);
+    layer.set_vector_mask(std::move(mask));
+    patchy::update_vector_mask_raster(layer, patchy::Rect::from_size(kWidth, kHeight));
+    if (effects) {
+      patchy::LayerDropShadow shadow;
+      shadow.enabled = true;
+      shadow.distance = 20.0F;
+      shadow.size = 20.0F;
+      layer.layer_style().drop_shadows.push_back(shadow);
+      patchy::LayerInnerShadow inner;
+      inner.enabled = true;
+      layer.layer_style().inner_shadows.push_back(inner);
+      patchy::LayerBevelEmboss bevel;
+      bevel.enabled = true;
+      layer.layer_style().bevels.push_back(bevel);
+    }
+    document.add_layer(std::move(layer));
+
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+      window.showMaximized();
+    } else {
+      window.show();
+    }
+    QApplication::processEvents();
+    window.add_document_session(std::move(document), QStringLiteral("Vector Mask Drag Perf"));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    const auto settle = [&] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    settle();
+    {
+      // Frame the dragged anchor at about `zoom`.
+      QRect view(QPoint(0, 0), QSize(static_cast<int>(canvas->width() / zoom), static_cast<int>(canvas->height() / zoom)));
+      view.moveCenter(QPoint(1400, 800));
+      canvas->zoom_to_document_rect(view);
+    }
+    canvas->set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::VectorMask);
+    canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+    QApplication::processEvents();
+    settle();
+
+    const auto start = canvas->widget_position_for_document_point(QPoint(1600, 500));
+    CHECK(canvas->rect().contains(start));
+    const auto press_ms = elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+      QApplication::processEvents();
+      canvas->repaint();
+    });
+    constexpr int kFrames = 40;
+    std::vector<double> frames;
+    frames.reserve(kFrames);
+    for (int frame = 1; frame <= kFrames; ++frame) {
+      const auto point = start + QPoint(-frame * 3, frame * 2);  // widget pixels
+      frames.push_back(elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+        QApplication::processEvents();
+        canvas->repaint();
+      }));
+    }
+    const auto release_ms = elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(-kFrames * 3, kFrames * 2), Qt::LeftButton,
+                 Qt::NoButton);
+      QApplication::processEvents();
+      canvas->repaint();
+    });
+    const auto settle_ms = elapsed_ms(settle);
+    const auto* moved = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().back().vector_mask();
+    CHECK(moved != nullptr && std::abs(moved->path.subpaths[0].anchors[1].anchor_x - 1600.0) > 10.0);
+
+    auto sorted = frames;
+    std::sort(sorted.begin(), sorted.end());
+    double total = 0.0;
+    for (const auto value : frames) {
+      total += value;
+    }
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] vectormaskdrag " << kWidth << 'x' << kHeight
+              << " effects=" << (effects ? "on" : "off") << " zoom=" << canvas->zoom() << " press_ms=" << press_ms
+              << " first_frame_ms=" << frames.front() << " frame_avg_ms=" << total / kFrames
+              << " frame_median_ms=" << sorted[sorted.size() / 2] << " frame_max_ms=" << sorted.back()
+              << " release_ms=" << release_ms << " settle_ms=" << settle_ms
+              << " threads=" << patchy::hardware_worker_threads() << '\n';
+  }
+}
+
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
 #ifdef Q_OS_WIN
@@ -3528,6 +3660,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "textdrag") {
       run_scenario("textdrag", text_layer_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "vectormaskdrag") {
+      run_scenario("vectormaskdrag", vector_mask_anchor_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "warpdrag") {

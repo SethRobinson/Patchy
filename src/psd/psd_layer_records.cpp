@@ -682,7 +682,9 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                   text_payload, *record.text, record.text_size.value_or(36),
                   record.text_color.value_or(RgbColor{0, 0, 0}), cmyk,
                   text_object != nullptr ? std::span<const TextParagraphFontSize>(text_object->paragraph_font_sizes)
-                                         : std::span<const TextParagraphFontSize>{});
+                                         : std::span<const TextParagraphFontSize>{},
+                  text_object != nullptr ? std::span<const TextStyleRunFeatures>(text_object->style_features)
+                                         : std::span<const TextStyleRunFeatures>{});
               runs.has_value()) {
             if (!runs->empty()) {
               const auto& first_run = runs->front();

@@ -91,16 +91,19 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"8", engine_integer(tracking)},
       {"9", engine_number(std::isfinite(run.baseline_shift) ? run.baseline_shift : 0.0)},
       {"11", engine_integer(1)},
-      {"12", engine_integer(0)},
-      {"13", engine_integer(0)},
+      // Character-panel styles (GitHub issue 346, Photoshop 2026 captures): /12 FontCaps, /13
+      // FontBaseline, /15 strikethrough (1 on), /16 underline (2 on, Photoshop's horizontal
+      // "underline left"), /23 Fractions, /24 Ordinals.
+      {"12", engine_integer(run.font_caps == 1 || run.font_caps == 2 ? run.font_caps : 0)},
+      {"13", engine_integer(run.font_baseline == 1 || run.font_baseline == 2 ? run.font_baseline : 0)},
       {"14", engine_integer(0)},
-      {"15", engine_integer(0)},
-      {"16", engine_integer(0)},
+      {"15", engine_integer(run.strikethrough ? 1 : 0)},
+      {"16", engine_integer(run.underline ? 2 : 0)},
       {"18", engine_bool(true)},
       {"19", engine_bool(false)},
       {"20", engine_bool(false)},
-      {"23", engine_bool(false)},
-      {"24", engine_bool(false)},
+      {"23", engine_bool(run.fractions)},
+      {"24", engine_bool(run.ordinals)},
       {"25", engine_bool(false)},
       {"26", engine_bool(false)},
       {"27", engine_bool(false)},
@@ -327,6 +330,31 @@ std::vector<TextParagraphFontSize> TextEngineBlock::object_paragraph_font_sizes(
   return result;
 }
 
+std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::size_t index) const {
+  std::vector<TextStyleRunFeatures> result;
+  const auto* list = objects();
+  const auto* runs = list != nullptr && index < list->list.size() ? list->list[index].at_path({"0", "6", "0"}) : nullptr;
+  if (runs == nullptr || !runs->is_list()) return result;
+  const auto flag = [](const EngineNode* sheet, std::string_view key) {
+    const auto* node = sheet != nullptr ? sheet->find(key) : nullptr;
+    return node != nullptr && node->boolean().value_or(false);
+  };
+  bool any = false;
+  for (const auto& run : runs->list) {
+    TextStyleRunFeatures entry;
+    const auto* length = run.at_path({"1"});
+    entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
+    // A run's sparse style sheet is /0/0/6; a key it leaves out is off in every default sheet.
+    const auto* sheet = run.at_path({"0", "0", "6"});
+    entry.ordinals = flag(sheet, "24");
+    entry.fractions = flag(sheet, "23");
+    any = any || entry.ordinals || entry.fractions;
+    result.push_back(entry);
+  }
+  if (!any) result.clear();
+  return result;
+}
+
 std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload) {
   std::vector<TextFrameGeometry> result;
   if (const auto engine = TextEngineBlock::parse(payload)) {
@@ -334,6 +362,7 @@ std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::u
     for (std::size_t i = 0; i < engine->object_count(); ++i) {
       auto geometry = engine->object_geometry(i);
       geometry.paragraph_font_sizes = engine->object_paragraph_font_sizes(i);
+      geometry.style_features = engine->object_style_features(i);
       result.push_back(std::move(geometry));
     }
     return result;

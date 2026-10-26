@@ -50,12 +50,22 @@ struct TextParagraphFontSize {
   std::optional<double> size;
 };
 
+// The OpenType features one style run of a text object turns on (style keys /24 Ordinals and
+// /23 Fractions). Photoshop writes them only here, never into the TySh (GitHub issue 346).
+struct TextStyleRunFeatures {
+  int length{0};
+  bool ordinals{false};
+  bool fractions{false};
+};
+
 struct TextFrameGeometry {
   enum class Kind { Point, Box, Area, Unsupported };
   Kind kind{Kind::Unsupported};
   std::optional<VectorPath> area;
   // One entry per paragraph run of the object; empty when no paragraph supplies a size.
   std::vector<TextParagraphFontSize> paragraph_font_sizes{};
+  // One entry per style run of the object; empty when no run turns a feature on.
+  std::vector<TextStyleRunFeatures> style_features{};
 };
 
 // Unaddressed TySh index for regenerated text beside a verbatim legacy engine,
@@ -86,6 +96,7 @@ class TextEngineBlock {
   [[nodiscard]] std::optional<std::size_t> object_frame_index(std::size_t index) const;
   [[nodiscard]] TextFrameGeometry object_geometry(std::size_t index) const;
   [[nodiscard]] std::vector<TextParagraphFontSize> object_paragraph_font_sizes(std::size_t index) const;
+  [[nodiscard]] std::vector<TextStyleRunFeatures> object_style_features(std::size_t index) const;
 
   // Authors a text object from the inputs and stores it at `index` (replacing the object and
   // its frame there, or appending when `index` is past the end); fonts join the FontSet as

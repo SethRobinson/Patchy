@@ -6,14 +6,18 @@
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 
+#include "core/layer_render_utils.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/paths_panel.hpp"
+#include "render/compositor.hpp"
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QElapsedTimer>
@@ -85,10 +89,21 @@ struct MaskWindow {
   patchy::LayerId red{0};
   patchy::LayerId blue{0};
 
-  MaskWindow() {
-    patchy::Document base(400, 300, patchy::PixelFormat::rgb8());
-    blue = base.add_pixel_layer("Blue", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(30, 30, 200))).id();
-    red = base.add_pixel_layer("Red", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), kRed)).id();
+  // `paint_layer`: Seth's #447 setup instead, a light Background under an
+  // RGBA "Paint Layer" filled red.
+  explicit MaskWindow(bool paint_layer = false, QSize size = QSize(400, 300)) {
+    const int width = size.width();
+    const int height = size.height();
+    patchy::Document base(width, height, patchy::PixelFormat::rgb8());
+    blue = base.add_pixel_layer(paint_layer ? "Background" : "Blue",
+                                solid_pixels(width, height, patchy::PixelFormat::rgb8(),
+                                             paint_layer ? QColor(225, 225, 225) : QColor(30, 30, 200)))
+               .id();
+    red = base.add_pixel_layer(paint_layer ? "Paint Layer" : "Red",
+                               solid_pixels(width, height,
+                                            paint_layer ? patchy::PixelFormat::rgba8() : patchy::PixelFormat::rgb8(),
+                                            kRed))
+              .id();
     base.set_active_layer(red);
     window.add_document_session(std::move(base), QStringLiteral("Vector Mask Editing"));
     show_window(window);
@@ -471,6 +486,160 @@ void ui_vector_mask_hide_all_reveals_drawn_shapes() {
   CHECK(!color_close(canvas_pixel(*fixture.canvas, QPoint(100, 100)), kRed, 8));
 }
 
+
+// #447 follow-up: Drop Shadow, Inner Shadow and Bevel added through the Layer
+// Style dialog to a canvas-filled layer whose vector mask cuts a triangle out
+// draw from the triangle: in the reference composite, on the canvas zoomed in,
+// and at 15% (the default 5 px effects are about one screen pixel there).
+// Small page and a 3600x2700 one (past the 8 Mpx line where full refreshes go
+// async).
+void ui_vector_mask_layer_effects_render_on_canvas() {
+  for (const int scale : {1, 9}) {
+    VectorSettingsGuard settings_guard;
+    MaskWindow fixture(true, QSize(400 * scale, 300 * scale));
+    const auto at = [scale](int x, int y) { return QPoint(x * scale, y * scale); };
+    fixture.trigger("layerVectorMaskRevealAllAction");
+    fixture.canvas->set_tool(patchy::ui::CanvasTool::Pen);
+    pen_click_at(*fixture.canvas, at(60, 60));
+    pen_click_at(*fixture.canvas, at(300, 80));
+    pen_click_at(*fixture.canvas, at(120, 240));
+    pen_click_at(*fixture.canvas, at(60, 60));
+    CHECK(fixture.mask(fixture.red) != nullptr && fixture.mask(fixture.red)->path.subpaths.size() == 1);
+    const auto below_edge = at(210, 160) + QPoint(2, 3);  // just outside the lower right edge
+    bool handled = false;
+    when_dialog_shown(QStringLiteral("patchyLayerStyleDialog"), [&](QDialog& dialog) {
+      for (const auto* name : {"layerStyleDropShadowCategoryCheck", "layerStyleInnerShadowCategoryCheck",
+                               "layerStyleBevelEmbossCategoryCheck"}) {
+        auto* check = dialog.findChild<QCheckBox*>(QLatin1String(name));
+        CHECK(check != nullptr);
+        if (check != nullptr) {
+          check->setChecked(true);
+        }
+      }
+      QApplication::processEvents();
+      handled = true;
+      dialog.accept();
+    });
+    fixture.trigger("layerBlendingOptionsAction");
+    pump_until([&] { return handled; });
+    const auto settle = [&] {
+      QElapsedTimer clock;
+      clock.start();
+      while (clock.elapsed() < 1500) {
+        QApplication::processEvents(QEventLoop::AllEvents, 20);
+      }
+    };
+    settle();
+    const auto* styled = std::as_const(fixture.document()).find_layer(fixture.red);
+    CHECK(styled->layer_style().drop_shadows.size() == 1 && styled->layer_style().inner_shadows.size() == 1 &&
+          styled->layer_style().bevels.size() == 1 && !styled->layer_style().vector_mask_hides_effects);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(std::as_const(fixture.document()));
+    CHECK(flattened.pixel(below_edge.x(), below_edge.y())[0] < 200);  // the shadow on the 225 Background
+    save_widget_artifact(scale == 1 ? "vector_mask_layer_effects" : "vector_mask_layer_effects_large_fit", fixture.window);
+
+    fixture.canvas->zoom_to_document_rect(QRect(below_edge - QPoint(100, 100), QSize(200, 200)));
+    settle();
+    CHECK(canvas_pixel(*fixture.canvas, below_edge).red() < 200);
+    save_widget_artifact(scale == 1 ? "vector_mask_layer_effects_close" : "vector_mask_layer_effects_large_close",
+                         fixture.window);
+
+    // Zoomed out, with the pixels targeted and the Move tool (no path outline).
+    fixture.canvas->set_tool(patchy::ui::CanvasTool::Move);
+    click_layer_row_thumbnail(*fixture.layers, QStringLiteral("Paint Layer"), QStringLiteral("layerContentThumbnail"));
+    fixture.canvas->set_zoom_centered(0.15);
+    settle();
+    CHECK(fixture.canvas->rect().contains(fixture.canvas->widget_position_for_document_point(below_edge)));
+    const auto with_effects = fixture.canvas->grab().toImage();
+    fixture.document().find_layer(fixture.red)->layer_style().effects_visible = false;
+    fixture.canvas->force_refresh();
+    const auto without_effects = fixture.canvas->grab().toImage();
+    fixture.document().find_layer(fixture.red)->layer_style().effects_visible = true;
+    fixture.canvas->force_refresh();
+    int changed = 0;
+    for (int y = 0; y < with_effects.height(); ++y) {
+      for (int x = 0; x < with_effects.width(); ++x) {
+        const auto a = with_effects.pixelColor(x, y);
+        const auto b = without_effects.pixelColor(x, y);
+        changed +=
+            std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) > 24 ? 1 : 0;
+      }
+    }
+    std::printf("[vector-mask] scale %d: effects change %d screen pixels at 15%%\n", scale, changed);
+    CHECK(changed > 0);
+  }
+}
+
+// #447 follow-up: dragging a vector mask anchor re-renders only the area the
+// moved segments sweep, never the whole canvas-sized layer, and a layer with
+// expensive effects drafts them (hidden) during the drag and shows them again
+// on release. The drag stays one undo step.
+void ui_vector_mask_anchor_drag_patches_only_the_moved_area() {
+  VectorSettingsGuard settings_guard;
+  MaskWindow fixture(true, QSize(1200, 900));
+  auto& document = fixture.document();
+  fixture.trigger("layerVectorMaskRevealAllAction");
+  fixture.pen_square(QPoint(100, 100), 100);
+  {
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.distance = 8.0F;
+    shadow.size = 8.0F;
+    document.find_layer(fixture.red)->layer_style().drop_shadows.push_back(shadow);
+    fixture.canvas->document_changed();
+  }
+  fixture.canvas->set_zoom(0.5);
+  fixture.canvas->repaint();
+  QApplication::processEvents();
+  fixture.trigger("toolDirectSelectAction");
+  const auto history = Access::active_session_undo_depth(fixture.window);
+  const auto start = fixture.canvas->widget_position_for_document_point(QPoint(200, 200));
+  send_mouse(*fixture.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  bool hidden_during_drag = true;
+  // The first move hides the effects (one canvas-wide refresh); count from there.
+  patchy::ui::CanvasWidget::RenderCacheDiagnostics before{};
+  for (int step = 1; step <= 6; ++step) {
+    if (step == 2) {
+      before = fixture.canvas->render_cache_diagnostics();
+    }
+    send_mouse(*fixture.canvas, QEvent::MouseMove, start + QPoint(step * 4, step * 3), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    fixture.canvas->repaint();
+    hidden_during_drag =
+        hidden_during_drag && !std::as_const(document).find_layer(fixture.red)->layer_style().effects_visible;
+  }
+  const auto during = fixture.canvas->render_cache_diagnostics();
+  send_mouse(*fixture.canvas, QEvent::MouseButtonRelease, start + QPoint(24, 18), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto* layer = std::as_const(document).find_layer(fixture.red);
+  CHECK(has_anchor(*layer->vector_mask(), 248.0, 236.0, 2.5));
+  CHECK(hidden_during_drag);
+  CHECK(layer->layer_style().effects_visible);
+  CHECK(Access::active_session_undo_depth(fixture.window) == history + 1);
+  // The per-move patches add up to exactly a fresh full rasterization.
+  {
+    auto fresh = *layer;
+    patchy::update_vector_mask_raster(fresh, patchy::Rect::from_size(1200, 900));
+    int differences = 0;
+    for (std::int32_t y = 0; y < 400; ++y) {
+      for (std::int32_t x = 0; x < 400; ++x) {
+        differences += patchy::vector_mask_alpha_at(*layer, x, y) != patchy::vector_mask_alpha_at(fresh, x, y) ? 1 : 0;
+      }
+    }
+    CHECK(differences == 0);
+  }
+  // No full refresh after the first move; each later move patches a small area.
+  const auto moves_pixels = during.dirty_region_pixels - before.dirty_region_pixels;
+  std::printf("[vector-mask] drag: full refreshes %d, patched pixels %llu\n",
+              during.full_refreshes - before.full_refreshes, static_cast<unsigned long long>(moves_pixels));
+  CHECK(during.full_refreshes == before.full_refreshes);
+  CHECK(moves_pixels < static_cast<std::uint64_t>(1200 * 900));
+  Access::undo(fixture.window);
+  QApplication::processEvents();
+  layer = std::as_const(document).find_layer(fixture.red);
+  CHECK(has_anchor(*layer->vector_mask(), 200.0, 200.0, 0.5));
+  CHECK(layer->layer_style().effects_visible);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_mask_editing_tests() {
@@ -480,5 +649,7 @@ std::vector<patchy::test::TestCase> vector_mask_editing_tests() {
       {"ui_vector_mask_double_click_opens_mask_properties", ui_vector_mask_double_click_opens_mask_properties},
       {"ui_vector_mask_link_button_controls_move", ui_vector_mask_link_button_controls_move},
       {"ui_vector_mask_hide_all_reveals_drawn_shapes", ui_vector_mask_hide_all_reveals_drawn_shapes},
+      {"ui_vector_mask_layer_effects_render_on_canvas", ui_vector_mask_layer_effects_render_on_canvas},
+      {"ui_vector_mask_anchor_drag_patches_only_the_moved_area", ui_vector_mask_anchor_drag_patches_only_the_moved_area},
   };
 }

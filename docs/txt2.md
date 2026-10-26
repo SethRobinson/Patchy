@@ -159,7 +159,12 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/8` | Tracking | integer (200 in the tracking fixture) |
 | `/9` | BaselineShift | Engine pixels; positive raises glyphs, runs v8 column 15 |
 | `/11` | AutoKerning | 1 |
+| `/12` | FontCaps | 0, 1 Small Caps, 2 All Caps |
+| `/13` | FontBaseline | 0, 1 superscript, 2 subscript |
+| `/15` | Strikethrough | 0, 1 on |
+| `/16` | Underline | 0, 2 on (Photoshop's "underline left") |
 | `/18` | Ligatures | true |
+| `/23`, `/24` | Fractions, Ordinals | bool; Txt2 only, the TySh has no key ([text-character-styles.md](text-character-styles.md)) |
 | `/38` | Language | 14 |
 | `/53`, `/54` | FillColor, StrokeColor | `<< /99 /SimplePaint /0 << /0 1 /1 [ a r g b ] >> >>` (floats 0..1, alpha first) |
 | `/55` | blender | `/SimpleBlender` (default sheets) |

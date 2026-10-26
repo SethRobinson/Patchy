@@ -13012,10 +13012,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>オフのときは &gt; 矢印で列を追加表示します。</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>パレットに歯車ボタンを表示</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>ツール</translation>
     </message>
@@ -13030,6 +13026,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Reset to Default</source>
         <translation>初期設定に戻す</translation>
+    </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>可逆圧縮、速度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>品質 %1、速度 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>可逆圧縮、エフォート %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>品質 %1、エフォート %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>ほかの形式よりエンコードに時間がかかります。終わるとプレビューが更新されます。</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 設定</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 設定</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>選択でエンコード</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>エンコード中...</translation>
     </message>
 </context>
 <context>
@@ -26699,6 +26731,38 @@ The open document keeps its blend modes either way.</source>
         <translation>すべてのボタンを表示</translation>
     </message>
     <message>
+        <source>All Caps</source>
+        <translation>すべて大文字</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>スモールキャップス</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>上付き文字</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>下付き文字</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>下線</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>取り消し線</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>序数 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>分数 (対応フォントのみ)</translation>
+    </message>
+    <message>
         <source>Play theme effects</source>
         <translation>テーマのエフェクトを再生</translation>
     </message>
@@ -28725,6 +28789,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: 不明な値 &quot;%1&quot; です。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format は %1 のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb でエンコードできませんでした: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: ラン %2 の %3 は &apos;%4&apos;、&apos;%5&apos;、&apos;none&apos; のいずれかにしてください。</translation>
     </message>
 </context>
 <context>

@@ -1913,6 +1913,45 @@ void ui_script_export_as_palette_keys() {
   }
 }
 
+// doc.encodeForWeb (docs/web-export.md): every web format without a file, the exportAs keys
+// for that format, strict like exportAs.
+void ui_script_encode_for_web() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("encode-for-web");
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(64, 48);
+    d.activeLayer.fill('#336699');
+    var cases = [['jpeg', {quality: 70, progressive: true}], ['webp', {lossless: true}], ['png', {pngColors: 'palette', colors: 8}],
+                 ['gif', {colors: 16, dither: 'diffusion'}], ['avif', {quality: 50, speed: 8}], ['jxl', {effort: 3}]];
+    for (var i = 0; i < cases.length; ++i) {
+      var r = d.encodeForWeb(cases[i][0], cases[i][1]);
+      if (!(r.bytes instanceof ArrayBuffer) || r.bytes.byteLength < 16) throw Error('bytes ' + cases[i][0]);
+      if (r.width !== 64 || r.height !== 48) throw Error('size ' + cases[i][0] + ' ' + r.width + 'x' + r.height);
+    }
+    var jpeg = new Uint8Array(d.encodeForWeb('jpeg').bytes);
+    if (jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw Error('not a JPEG');
+    var threw = 0;
+    try { d.encodeForWeb('bmp'); } catch (e) { threw++; }
+    try { d.encodeForWeb('png', {quality: 5}); } catch (e) { threw++; }
+    try { d.encodeForWeb('avif', {speed: 11}); } catch (e) { threw++; }
+    try { d.encodeForWeb('jxl', {effort: 'max'}); } catch (e) { threw++; }
+    try { d.encodeForWeb('gif', {colors: 8, unknownKey: 1}); } catch (e) { threw++; }
+    if (threw !== 5) throw Error('not strict: ' + threw);
+    if (d.path !== '' ) throw Error('encodeForWeb changed the document path');
+    console.log('done');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host, 60000);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) {
+    for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << std::endl;
+  }
+  CHECK(!host.last_run_had_error());
+}
+
 void ui_script_save_as_options_write_jxl() {
   patchy::set_deep_editing_override(true);
   patchy::ui::MainWindow window;
@@ -2597,6 +2636,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_script_save_as_options_are_strict", ui_script_save_as_options_are_strict},
       {"ui_script_export_as_jpeg_coding_options", ui_script_export_as_jpeg_coding_options},
       {"ui_script_export_as_palette_keys", ui_script_export_as_palette_keys},
+      {"ui_script_encode_for_web", ui_script_encode_for_web},
       {"ui_script_hotkey_runs_user_script", ui_script_hotkey_runs_user_script},
       {"ui_script_hotkey_ids_follow_relative_path", ui_script_hotkey_ids_follow_relative_path},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},

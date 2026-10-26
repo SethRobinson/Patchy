@@ -13086,10 +13086,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Иначе стрелка &gt; открывает дополнительные столбцы.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Показывать кнопку с шестерёнкой на палитре</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Инструменты</translation>
     </message>
@@ -13104,6 +13100,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Reset to Default</source>
         <translation>Восстановить по умолчанию</translation>
+    </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Без потерь, скорость %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Качество %1, скорость %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Без потерь, усилие %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Качество %1, усилие %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>Кодирование занимает больше времени, чем у других форматов; предпросмотр обновится по завершении.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>Параметры AVIF</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>Параметры JPEG XL</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>выберите для кодирования</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Кодирование...</translation>
     </message>
 </context>
 <context>
@@ -26851,6 +26883,38 @@ The open document keeps its blend modes either way.</source>
         <translation>Показать все кнопки</translation>
     </message>
     <message>
+        <source>All Caps</source>
+        <translation>Все прописные</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Капитель</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Надстрочный</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Подстрочный</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Подчеркнутый</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Зачеркнутый</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Порядковые (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Дроби (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
         <source>Play theme effects</source>
         <translation>Воспроизводить эффекты темы</translation>
     </message>
@@ -28879,6 +28943,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: неизвестное значение &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format должен быть одним из %1.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb не удалось закодировать: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: текстовый фрагмент %2: %3 должен быть &apos;%4&apos;, &apos;%5&apos; или &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

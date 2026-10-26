@@ -2453,6 +2453,24 @@ void apply_text_run_to_format(MainWindow& window, QTextCharFormat& format,
   if (run.color.isValid()) {
     format.setForeground(QBrush(run.color));
   }
+  if (run.caps.has_value()) {
+    format.setProperty(kTextFontCapsFormatProperty, *run.caps);
+  }
+  if (run.script.has_value()) {
+    format.setProperty(kTextFontBaselineFormatProperty, *run.script);
+  }
+  if (run.underline.has_value()) {
+    format.setProperty(kTextUnderlineFormatProperty, *run.underline);
+  }
+  if (run.strikethrough.has_value()) {
+    format.setProperty(kTextStrikethroughFormatProperty, *run.strikethrough);
+  }
+  if (run.ordinals.has_value()) {
+    format.setProperty(kTextOrdinalsFormatProperty, *run.ordinals);
+  }
+  if (run.fractions.has_value()) {
+    format.setProperty(kTextFractionsFormatProperty, *run.fractions);
+  }
   if (!run.family.isEmpty() || run.bold.has_value() || run.italic.has_value()) {
     format.clearProperty(kTextStyleNameFormatProperty);
   }
@@ -2678,6 +2696,9 @@ std::vector<ScriptEngineHost::TextRunInfo> ScriptEngineHost::text_layer_runs(std
     run.family = decode(fields[6]);
     if (fields.size() >= 13) {
       run.style = decode(fields[12]);
+    }
+    if (fields.size() >= 17) {
+      run.styles = parse_text_character_styles(fields[16]);
     }
     runs.push_back(std::move(run));
   }
@@ -3930,7 +3951,8 @@ QJSValue ScriptEngineHost::tool_palette_state() {
   state.setProperty(QStringLiteral("layout"), QString::fromLatin1(customization.two_columns ? kScriptTwoColumnsLayout
                                                                                            : kScriptOneColumnLayout));
   state.setProperty(QStringLiteral("wheelScroll"), customization.wheel_scroll);
-  state.setProperty(QStringLiteral("showGearButton"), customization.show_customize_button);
+  // The palette's gear was removed; the key stays and always reads false (a permanent identifier).
+  state.setProperty(QStringLiteral("showGearButton"), false);
   state.setProperty(QStringLiteral("hiddenLayerButtons"), list(customization.hidden_layer_buttons));
   return state;
 }
@@ -3995,9 +4017,7 @@ void ScriptEngineHost::set_tool_palette_state(const QJSValue& state) {
   if (state.hasProperty(QStringLiteral("wheelScroll"))) {
     customization.wheel_scroll = state.property(QStringLiteral("wheelScroll")).toBool();
   }
-  if (state.hasProperty(QStringLiteral("showGearButton"))) {
-    customization.show_customize_button = state.property(QStringLiteral("showGearButton")).toBool();
-  }
+  // showGearButton is accepted and ignored: the palette has no gear any more.
   window_.apply_tool_palette_customization(customization);
 }
 

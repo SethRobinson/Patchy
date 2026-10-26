@@ -1,8 +1,7 @@
 #pragma once
 
 // The tool palette's items as the customization lays them out (GitHub issues 213 and 316;
-// docs/tool-palette.md, "Customizing the palette"): the gear, then each cluster's visible
-// slots, one per toolbar item (one column) or two side by side per row widget (two columns),
+// docs/tool-palette.md, "Customizing the palette"): each cluster's visible slots, one per toolbar item (one column) or two side by side per row widget (two columns),
 // with a separator between clusters. Hiding a tool never touches its QAction, so its shortcut
 // and its Shift+letter cycle membership are decided here, not by QAction visibility (a hidden
 // QAction drops its shortcut). In wheel-scroll mode the leading items of an overflowing
@@ -62,9 +61,8 @@ public:
     QWidgetAction* item{nullptr};
   };
 
-  // `customize_widget` (the gear) becomes the palette's first item. `stash` (hidden) keeps
-  // the buttons of slots that are not on the palette.
-  ToolPaletteLayout(QToolBar* palette, QWidget* customize_widget, QWidget* stash);
+  // `stash` (hidden) keeps the buttons of slots that are not on the palette.
+  ToolPaletteLayout(QToolBar* palette, QWidget* stash);
 
   // Slots in palette order; `cluster` counts from 0 (select, paint, retouch, draw/type, view).
   void add_slot(int cluster, QToolButton* button, QMenu* menu, QList<QAction*> members, QAction* cycle);
@@ -112,7 +110,6 @@ private:
   QPointer<QToolBar> palette_;
   QPointer<QWidget> stash_;
   QPointer<QToolButton> extension_;
-  QAction* customize_item_{nullptr};
   QAction* scroll_up_item_{nullptr};
   ToolPaletteScrollArrow* scroll_down_arrow_{nullptr};
   std::vector<Slot> slots_;

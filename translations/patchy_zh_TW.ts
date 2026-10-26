@@ -13012,10 +13012,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>否則用 &gt; 箭頭展開更多欄。</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>在面板上顯示齒輪按鈕</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>工具</translation>
     </message>
@@ -13030,6 +13026,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Reset to Default</source>
         <translation>還原預設值</translation>
+    </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>無失真，速度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>品質 %1，速度 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>無失真，編碼強度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>品質 %1，編碼強度 %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>編碼比其他格式耗時更長；完成後預覽會更新。</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 設定</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 設定</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>選取後編碼</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>正在編碼...</translation>
     </message>
 </context>
 <context>
@@ -26699,6 +26731,38 @@ The open document keeps its blend modes either way.</source>
         <translation>顯示所有按鈕</translation>
     </message>
     <message>
+        <source>All Caps</source>
+        <translation>全部大寫字母</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>小型大寫字母</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>上標</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>下標</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>底線</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>刪除線</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>序數 (僅限支援的字型)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>分數 (僅限支援的字型)</translation>
+    </message>
+    <message>
         <source>Play theme effects</source>
         <translation>播放佈景主題效果</translation>
     </message>
@@ -28725,6 +28789,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette：未知的值「%1」。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb：format 必須是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb 無法編碼：%1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1：第 %2 段的 %3 必須是 &apos;%4&apos;、&apos;%5&apos; 或 &apos;none&apos;。</translation>
     </message>
 </context>
 <context>

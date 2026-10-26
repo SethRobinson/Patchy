@@ -13049,10 +13049,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Sonst öffnet der Pfeil &gt; weitere Spalten.</translation>
     </message>
     <message>
-        <source>Show the gear button on the palette</source>
-        <translation>Zahnrad-Schaltfläche in der Palette anzeigen</translation>
-    </message>
-    <message>
         <source>Tools</source>
         <translation>Werkzeuge</translation>
     </message>
@@ -13067,6 +13063,42 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Reset to Default</source>
         <translation>Auf Standard zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Verlustfrei, Geschwindigkeit %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Qualität %1, Geschwindigkeit %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Verlustfrei, Aufwand %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Qualität %1, Aufwand %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>Das Kodieren dauert länger als bei den anderen Formaten; die Vorschau aktualisiert sich, wenn es fertig ist.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF-Einstellungen</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG-XL-Einstellungen</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>zum Kodieren wählen</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Wird kodiert...</translation>
     </message>
 </context>
 <context>
@@ -26775,6 +26807,38 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Alle Schaltflächen anzeigen</translation>
     </message>
     <message>
+        <source>All Caps</source>
+        <translation>Großbuchstaben</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Kapitälchen</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Hochgestellt</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Tiefgestellt</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Unterstrichen</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Durchgestrichen</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Ordinalzeichen (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Brüche (Schriften, die sie haben)</translation>
+    </message>
+    <message>
         <source>Play theme effects</source>
         <translation>Themeneffekte abspielen</translation>
     </message>
@@ -28802,6 +28866,18 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: unbekannter Wert &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format muss eines von %1 sein.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb konnte nicht kodieren: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: Textabschnitt %2: %3 muss &apos;%4&apos;, &apos;%5&apos; oder &apos;none&apos; sein.</translation>
     </message>
 </context>
 <context>
