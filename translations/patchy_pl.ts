@@ -25956,62 +25956,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Usunąć ustawienie wstępne „%1”?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Pędzel: przeciągnij, aby malować, %ALT%+kliknięcie pobiera kolor.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Pędzel mieszający: przeciągnij, aby malować i mieszać z kolorami, które już są, %ALT%+kliknięcie pobiera kolor.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Stempel ze wzorkiem: przeciągnij, aby malować wzorkiem.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Gumka: przeciągnij, aby wymazać.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Stempel: %ALT%+kliknięcie ustawia źródło, potem przeciągnij, aby malować klon.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Pędzel korygujący: %ALT%+kliknięcie ustawia źródło, potem przeciągnij po obszarze do skorygowania.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Punktowy pędzel korygujący: przeciągnij po skazie, aby ją skorygować na podstawie otoczenia.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Smuga: przeciągnij, aby rozmazać piksele.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Rozjaśnianie: przeciągnij, aby rozjaśnić.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Ściemnianie: przeciągnij, aby ściemnić.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Gąbka: przeciągnij, aby zmienić nasycenie.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Rozmycie: przeciągnij, aby zmiękczyć szczegóły.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Wyostrz: przeciągnij, aby wyostrzyć szczegóły.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Shift+kliknięcie rysuje prostą linię od ostatniego pociągnięcia. %CTRL%+kliknięcie zaznacza warstwę pod wskaźnikiem, %CTRL%+przeciągnięcie przesuwa warstwę, %ALT%+przeciągnięcie prawym przyciskiem zmienia rozmiar i miękkość.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót i nakładka</translation>
     </message>
@@ -26098,6 +26042,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Przesuwanie: przeciągnij, aby przesunąć, Shift+przeciąganie utrzymuje ruch w poziomie lub pionie, %ALT%+przeciąganie powiela. %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt, podobnie jak przeciąganie po pustym miejscu przy włączonym automatycznym zaznaczaniu.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+kliknięcie rysuje linię, %ALT%+kliknięcie pobiera kolor, %ALT%+przeciągnięcie prawym przyciskiem zmienia rozmiar i miękkość.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+kliknięcie ustawia źródło, Shift+kliknięcie rysuje linię, %ALT%+przeciągnięcie prawym przyciskiem zmienia rozmiar i miękkość.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+kliknięcie rysuje linię, %ALT%+przeciągnięcie prawym przyciskiem zmienia rozmiar i miękkość.</translation>
     </message>
 </context>
 <context>

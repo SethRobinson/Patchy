@@ -25883,62 +25883,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Vorgabe &quot;%1&quot; löschen?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Pinsel: Ziehen zum Malen, %ALT%+Klick nimmt eine Farbe auf.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Mischpinsel: Ziehen zum Malen und Vermischen mit den vorhandenen Farben, %ALT%+Klick nimmt eine Farbe auf.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Musterstempel: Ziehen zum Malen mit dem Muster.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Radiergummi: Ziehen zum Radieren.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Kopierstempel: %ALT%+Klick legt die Quelle fest, dann ziehen, um den Klon zu malen.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Reparatur-Pinsel: %ALT%+Klick legt die Quelle fest, dann über den zu reparierenden Bereich ziehen.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Bereichsreparatur: Über eine Stelle ziehen, um sie aus ihrer Umgebung zu reparieren.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Wischfinger: Ziehen zum Verwischen der Pixel.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Abwedler: Ziehen zum Aufhellen.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Nachbelichter: Ziehen zum Abdunkeln.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Schwamm: Ziehen zum Ändern der Sättigung.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Weichzeichner: Ziehen zum Weichzeichnen von Details.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Scharfzeichner: Ziehen zum Schärfen von Details.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Umschalt+Klick zeichnet eine gerade Linie vom letzten Strich. %CTRL%+Klick wählt die Ebene unter dem Zeiger, %CTRL%+Ziehen verschiebt die Ebene, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung und Überlagerung</translation>
     </message>
@@ -26025,6 +25969,18 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Verschieben: Ziehen verschiebt, Umschalt+Ziehen hält es waagerecht oder senkrecht, %ALT%+Ziehen dupliziert. %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus, mit „Autom. auswählen“ auch Ziehen auf leerer Fläche.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Umschalt+Klick zeichnet eine Linie, %ALT%+Klick nimmt eine Farbe auf, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+Klick legt die Quelle fest, Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
     </message>
 </context>
 <context>

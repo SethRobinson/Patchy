@@ -25810,62 +25810,6 @@ The open document keeps its blend modes either way.</source>
         <translation>是否删除预设“%1”?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>画笔：拖动以绘画，%ALT%+单击拾取颜色。</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>混合器画笔：拖动以绘画并与已有颜色混合，%ALT%+单击拾取颜色。</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>图案图章：拖动以用图案绘画。</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>橡皮擦：拖动以擦除。</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>仿制图章：%ALT%+单击设置源，然后拖动以绘制仿制内容。</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>修复画笔：%ALT%+单击设置源，然后在要修复的区域上拖动。</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>污点修复：在瑕疵上拖动，根据周围像素进行修复。</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>涂抹：拖动以涂抹像素。</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>减淡：拖动以提亮。</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>加深：拖动以变暗。</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>海绵：拖动以更改饱和度。</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>模糊：拖动以柔化细节。</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>锐化：拖动以锐化细节。</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Shift+单击从上一笔画出直线。%CTRL%+单击选择指针下方的图层，%CTRL%+拖动移动图层，%ALT%+右键拖动更改大小和柔和度。</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>仿制源设置: 源、位移、缩放、旋转和叠加</translation>
     </message>
@@ -25952,6 +25896,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移动：拖动以移动，Shift+拖动保持水平或垂直，%ALT%+拖动以复制。%CTRL%+单击选择图层，Shift+单击切换选择。%CTRL%+拖动框选；开启自动选择时，在空白处拖动也可框选。</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：Shift+单击画直线，%ALT%+单击拾取颜色，%ALT%+右键拖动更改大小和柔和度。</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%ALT%+单击设置源，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
 </context>
 <context>
