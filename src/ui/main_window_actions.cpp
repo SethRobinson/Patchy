@@ -365,6 +365,11 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
     zoom_out_mode_action_->setChecked(canvas_->zoom_tool_zooms_out());
   }
   set_checked(wand_sample_all_layers_check_, canvas_->wand_sample_all_layers());
+  if (wand_sample_size_combo_ != nullptr) {
+    const QSignalBlocker blocker(wand_sample_size_combo_);
+    wand_sample_size_combo_->setCurrentIndex(
+        std::max(0, wand_sample_size_combo_->findData(canvas_->wand_sample_size())));
+  }
   set_checked(quick_select_sample_all_layers_check_, canvas_->quick_select_sample_all_layers());
   set_checked(quick_select_enhance_edge_check_, canvas_->quick_select_enhance_edge());
   set_checked(object_select_sample_all_layers_check_, canvas_->object_select_sample_all_layers());

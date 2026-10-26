@@ -2177,6 +2177,8 @@ void MainWindow::load_tool_settings() {
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
       settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
+  // Its own key, Point Sample when missing (GitHub issue 435); never the Pick tool's Size.
+  canvas_->set_wand_sample_size(settings.value(QStringLiteral("tools/wandSampleSize"), 1).toInt());
   for (const auto& keys : kSelectionEdgeSettingKeys) {
     const auto index = static_cast<std::size_t>(CanvasWidget::selection_tool_index(keys.tool));
     selection_feather_by_tool_[index] =
@@ -2725,21 +2727,6 @@ QString MainWindow::retouch_sample_info_text() const {
   return tr("sample all layers");
 }
 
-void MainWindow::apply_shared_sample_size(int size) {
-  current_eyedropper_sample_size_ = size;
-  if (canvas_ != nullptr) {
-    canvas_->set_eyedropper_sample_size(size);
-    current_eyedropper_sample_size_ = canvas_->eyedropper_sample_size();  // clamped to an odd side
-  }
-  for (QComboBox* combo : {eyedropper_sample_size_combo_, wand_sample_size_combo_}) {
-    if (combo != nullptr) {
-      const QSignalBlocker blocker(combo);
-      combo->setCurrentIndex(std::max(0, combo->findData(current_eyedropper_sample_size_)));
-    }
-  }
-  save_tool_settings();
-}
-
 void MainWindow::save_tool_settings() const {
   // Nothing to save before the stored values were read: a save here would write the
   // defaults donor's values over them (startup_tool_settings_pending_).
@@ -2789,6 +2776,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/brushSmoothingZoomAdjust"), current_brush_smoothing_zoom_adjust_);
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
+  settings.setValue(QStringLiteral("tools/wandSampleSize"), canvas_->wand_sample_size());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
   for (const auto& keys : kSelectionEdgeSettingKeys) {
     const auto index = static_cast<std::size_t>(CanvasWidget::selection_tool_index(keys.tool));
@@ -3782,11 +3770,15 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(sponge_mode_combo_);
     sponge_mode_combo_->setCurrentIndex(std::max(0, index));
   }
-  for (QComboBox* combo : {eyedropper_sample_size_combo_, wand_sample_size_combo_}) {
-    if (combo != nullptr) {
-      QSignalBlocker blocker(combo);
-      combo->setCurrentIndex(std::max(0, combo->findData(current_eyedropper_sample_size_)));
-    }
+  if (eyedropper_sample_size_combo_ != nullptr) {
+    QSignalBlocker blocker(eyedropper_sample_size_combo_);
+    eyedropper_sample_size_combo_->setCurrentIndex(
+        std::max(0, eyedropper_sample_size_combo_->findData(current_eyedropper_sample_size_)));
+  }
+  if (wand_sample_size_combo_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(wand_sample_size_combo_);
+    wand_sample_size_combo_->setCurrentIndex(
+        std::max(0, wand_sample_size_combo_->findData(canvas_->wand_sample_size())));
   }
   if (eyedropper_sample_layers_combo_ != nullptr) {
     QSignalBlocker blocker(eyedropper_sample_layers_combo_);
