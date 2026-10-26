@@ -26310,6 +26310,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>Se cambiaron la densidad y el calado de la máscara de capa</translation>
     </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Modo de pantalla: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Haga clic para el siguiente modo. Mantenga pulsado o haga clic derecho para elegir uno.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

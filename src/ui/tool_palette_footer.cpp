@@ -197,6 +197,9 @@ void ToolPaletteFooter::set_scale(double palette_factor) {
   foreground_->move(length(4), length(7));
   default_->move(1, length(30));
   quick_mask_->setIconSize(QSize(length(22), length(22)));
+  if (screen_mode_ != nullptr) {
+    screen_mode_->setIconSize(QSize(length(17), length(17)));
+  }
   place_controls();
   updateGeometry();
 }
@@ -215,8 +218,31 @@ void ToolPaletteFooter::place_controls() {
   // above the background swatch as it sits right of the foreground swatch.
   swap_->move(cell - glyph_size_ - 2, tool_palette_length(5, scale_));
   const auto size = quick_mask_->size();
+  const int quick_mask_row = tool_palette_length(kQuickMaskRowHeight, scale_);
   quick_mask_->move(std::max(0, (cell - size.width()) / 2),
-                    well_height_ + std::max(0, (height_ - well_height_ - size.height()) / 2));
+                    well_height_ + std::max(0, (quick_mask_row - size.height()) / 2));
+  if (screen_mode_ != nullptr) {
+    // The screen mode button's own row under Quick Mask, centered the same way.
+    const auto mode_size = screen_mode_->size();
+    const int row_top = well_height_ + quick_mask_row;
+    screen_mode_->move(std::max(0, (cell - mode_size.width()) / 2),
+                       row_top + std::max(0, (height_ - row_top - mode_size.height()) / 2));
+  }
+}
+
+void ToolPaletteFooter::set_screen_mode_button(QToolButton* button) {
+  if (screen_mode_ != nullptr) {
+    screen_mode_->removeEventFilter(this);
+  }
+  screen_mode_ = button;
+  if (screen_mode_ != nullptr) {
+    screen_mode_->setParent(this);
+    screen_mode_->setIconSize(QSize(tool_palette_length(17, scale_), tool_palette_length(17, scale_)));
+    // The QSS polish resizes the button after it joins the footer.
+    screen_mode_->installEventFilter(this);
+    screen_mode_->show();
+  }
+  place_controls();
 }
 
 void ToolPaletteFooter::resizeEvent(QResizeEvent* event) {
@@ -225,7 +251,8 @@ void ToolPaletteFooter::resizeEvent(QResizeEvent* event) {
 }
 
 bool ToolPaletteFooter::eventFilter(QObject* watched, QEvent* event) {
-  if (watched == quick_mask_ && event->type() == QEvent::Resize) {
+  if ((watched == quick_mask_ || (screen_mode_ != nullptr && watched == screen_mode_)) &&
+      event->type() == QEvent::Resize) {
     place_controls();
   }
   return QWidget::eventFilter(watched, event);

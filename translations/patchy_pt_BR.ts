@@ -26310,6 +26310,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>Densidade e difusão da máscara de camada alteradas</translation>
     </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Modo de tela: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Clique para o próximo modo. Mantenha pressionado ou clique com o botão direito para escolher um.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

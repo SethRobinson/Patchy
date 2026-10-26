@@ -26310,6 +26310,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>Dichte und weiche Kante der Ebenenmaske geändert</translation>
     </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Bildschirmmodus: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Klicken für den nächsten Modus. Gedrückt halten oder rechtsklicken, um einen zu wählen.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

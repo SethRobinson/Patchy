@@ -26237,6 +26237,14 @@ The open document keeps its blend modes either way.</source>
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>已變更圖層遮色片的濃度和羽化</translation>
     </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>螢幕模式：%1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>按一下切換到下一個模式。按住或按右鍵可選擇模式。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

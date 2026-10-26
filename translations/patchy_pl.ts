@@ -26383,6 +26383,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Changed the layer mask&apos;s density and feather</source>
         <translation>Zmieniono gęstość i wtapianie maski warstwy</translation>
     </message>
+    <message>
+        <source>Screen Mode: %1</source>
+        <translation>Tryb ekranu: %1</translation>
+    </message>
+    <message>
+        <source>Click for the next mode. Hold or right-click to choose one.</source>
+        <translation>Kliknij, aby przejść do następnego trybu. Przytrzymaj lub kliknij prawym przyciskiem, aby wybrać tryb.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
