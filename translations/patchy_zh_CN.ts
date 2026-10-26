@@ -10541,10 +10541,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>缺少的字体</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>此文档使用的部分字体缺失。请为每种字体选择一种已安装的字体，在使用它的所有文字图层中替换，或保持不解析。</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>解析字体</translation>
     </message>
@@ -10552,12 +10548,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Installed, but has no glyphs for this text. Used in %n text layer(s).</source>
         <translation>
             <numerusform>已安装，但没有此文本的字形。用于 %n 个文字图层。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>未安装。用于 %n 个文字图层。</numerusform>
         </translation>
     </message>
     <message>
@@ -12746,6 +12736,24 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>像素与裁切颜色相差多少仍会被裁掉 (0 表示完全一致)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>此文档使用的部分字体在这台计算机上缺失。请为每种字体选择一种已安装的字体，在使用它的所有文字图层中替换，或保持不解析。</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>不解析</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>用于 %n 个文字图层。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>打开文档时不显示（可在 首选项 &gt; 应用程序 中重新开启）</translation>
     </message>
 </context>
 <context>

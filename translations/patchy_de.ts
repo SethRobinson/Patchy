@@ -10573,10 +10573,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Fehlende Schriftarten</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Einige in diesem Dokument verwendete Schriftarten fehlen. Wählen Sie für jede eine installierte Schriftart, die sie in allen Textebenen ersetzt, oder lassen Sie sie unaufgelöst.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>Schriftarten auflösen</translation>
     </message>
@@ -10585,13 +10581,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>
             <numerusform>Installiert, enthält aber keine Glyphen für diesen Text. Verwendet in %n Textebene.</numerusform>
             <numerusform>Installiert, enthält aber keine Glyphen für diesen Text. Verwendet in %n Textebenen.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>Nicht installiert. Verwendet in %n Textebene.</numerusform>
-            <numerusform>Nicht installiert. Verwendet in %n Textebenen.</numerusform>
         </translation>
     </message>
     <message>
@@ -12781,6 +12770,25 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>Wie weit ein Pixel von der Trim-Farbe abweichen darf und trotzdem entfernt wird (0 ist eine exakte Übereinstimmung)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>Einige in diesem Dokument verwendete Schriftarten fehlen auf diesem Computer. Wählen Sie für jede eine installierte Schriftart, die sie in allen Textebenen ersetzt, oder lassen Sie sie unaufgelöst.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>Nicht auflösen</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>Verwendet in %n Textebene.</numerusform>
+            <numerusform>Verwendet in %n Textebenen.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>Beim Öffnen von Dokumenten nicht anzeigen (unter Voreinstellungen &gt; Anwendung wieder einschaltbar)</translation>
     </message>
 </context>
 <context>

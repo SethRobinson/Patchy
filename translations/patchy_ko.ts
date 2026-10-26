@@ -10541,10 +10541,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>누락된 글꼴</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>이 문서에 사용된 일부 글꼴이 없습니다. 해당 글꼴을 사용하는 모든 텍스트 레이어에서 각 글꼴을 대체할 설치된 글꼴을 선택하거나 해결하지 않은 상태로 두십시오.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>글꼴 해결</translation>
     </message>
@@ -10552,12 +10548,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Installed, but has no glyphs for this text. Used in %n text layer(s).</source>
         <translation>
             <numerusform>설치되어 있지만 이 텍스트의 글리프가 없습니다. 텍스트 레이어 %n개에서 사용됩니다.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>설치되지 않았습니다. 텍스트 레이어 %n개에서 사용됩니다.</numerusform>
         </translation>
     </message>
     <message>
@@ -12746,6 +12736,24 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>재단 기준 색상과 얼마나 달라도 잘라낼지 정합니다 (0은 정확히 일치)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>이 문서에 사용된 일부 글꼴이 이 컴퓨터에 없습니다. 해당 글꼴을 사용하는 모든 텍스트 레이어에서 각 글꼴을 대체할 설치된 글꼴을 선택하거나 해결하지 않은 상태로 두십시오.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>해결 안 함</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>텍스트 레이어 %n개에서 사용됩니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>문서를 열 때 표시 안 함 (환경설정 &gt; 애플리케이션에서 다시 켤 수 있음)</translation>
     </message>
 </context>
 <context>
