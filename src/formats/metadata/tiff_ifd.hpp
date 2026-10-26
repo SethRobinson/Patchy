@@ -103,6 +103,11 @@ constexpr std::uint16_t kTagExifIfd = 34665;
 constexpr std::uint16_t kTagGpsIfd = 34853;
 constexpr std::uint16_t kTagInteropIfd = 40965;
 
+// Tags that describe a TIFF file's image data rather than the image (dimensions,
+// strips, tiles, embedded XMP/IPTC/ICC blocks). They stay out of the EXIF slot,
+// which other formats write back as their EXIF block.
+[[nodiscard]] bool is_tiff_structure_tag(std::uint16_t tag) noexcept;
+
 struct TiffParseOptions {
   // Follow IFD0's next-IFD chain past IFD1 (multi-page TIFF files).
   bool follow_page_chain{false};

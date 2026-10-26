@@ -624,6 +624,7 @@ add_library(patchy_formats
   src/formats/jxr_document_io.cpp
   src/formats/layered_blend_support.cpp
   src/formats/metadata/exif_tags.cpp
+  src/formats/metadata/gimp_image_metadata.cpp
   src/formats/metadata/iptc_iim.cpp
   src/formats/metadata/jumbf.cpp
   src/formats/metadata/metadata_containers.cpp

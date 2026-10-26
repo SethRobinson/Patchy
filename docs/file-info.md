@@ -35,6 +35,9 @@ document tab's menu) opens File Info on the Watermarks page with the scan run.
   Patchy's 4213 out of `raw_psd_image_resources`. The writer puts them back from
   `file_info()`. A blob that still contains any of them was never lifted (a document built
   by other code); it stays authoritative and is written as before.
+- XCF: the XCF reader fills `file_info()` from GIMP's parasites (comment, Exif, XMP, and the
+  `gimp-image-metadata` tag list as Exif, XMP and IPTC; [xcf.md](xcf.md)), and
+  `capture_file_info` keeps it as it keeps PSD's.
 - Everything else: `capture_file_info` (`main_window_files.cpp`) runs
   `extract_file_info_from_path` on the file after the document is built. Files over 512 MB
   are scanned from their first 64 MB.
