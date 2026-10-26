@@ -246,6 +246,19 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
       reader.read_int(key, value, 0, 100, options.jpeg_quality);
       return true;
     }
+    // Export for Web's JPEG coding (docs/web-export.md).
+    if (key == QStringLiteral("progressive")) {
+      reader.read_bool(key, value, options.jpeg_progressive);
+      return true;
+    }
+    if (key == QStringLiteral("optimizeCoding")) {
+      reader.read_bool(key, value, options.jpeg_optimize);
+      return true;
+    }
+    if (key == QStringLiteral("thumbnail")) {
+      reader.read_bool(key, value, options.jpeg_exif_thumbnail);
+      return true;
+    }
     return false;
   }
   if (is_webp_extension(extension)) {

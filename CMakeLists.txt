@@ -1278,6 +1278,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/image_save_option_keys.hpp
       src/ui/image_save_option_keys.cpp
       src/ui/image_save_options_dialog.cpp
+      src/ui/web_export.hpp
+      src/ui/web_export.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_style_dialog_controls.cpp
       src/ui/layer_style_dialog_controls.hpp
@@ -2419,6 +2421,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/clone_source_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
+      tests/ui/web_export_tests.cpp
       tests/ui/rgb_profile_tests.cpp
       tests/ui/new_document_options_tests.cpp
       tests/ui/watermark_tests.cpp

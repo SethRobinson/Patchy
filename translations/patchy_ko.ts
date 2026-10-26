@@ -12755,6 +12755,154 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>문서를 열 때 표시 안 함 (환경설정 &gt; 애플리케이션에서 다시 켤 수 있음)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>품질 %1, 프로그레시브</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>품질 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>무손실</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, 애니메이션</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>풀 컬러</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>웹용으로 내보내기</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>크기는 각 형식의 설정으로 실제 인코딩한 파일의 크기이며 설정을 바꾸면 업데이트됩니다.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 설정</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>프로그레시브(로드하는 동안 대략적인 이미지를 먼저 표시)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>코딩 최적화(같은 이미지, 더 작은 파일)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>투명한 영역을 채웁니다(JPEG에는 투명도가 없음)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 설정</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>보이는 각 최상위 레이어가 한 프레임이 되며 맨 위 레이어가 처음입니다.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 설정</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>풀 컬러, 무손실. 투명도가 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>이미지 크기</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>(원본 %1 x %2)</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>픽셀 아트(정수 픽셀)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>픽셀 아트는 부드럽게 하지 않고 정수 픽셀 단위로 확대하므로 스프라이트가 선명하게 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>메타데이터 및 색상</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>포함할 파일 정보 메타데이터입니다. 없음은 가장 작은 파일을 씁니다.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>미리 보기 이미지 포함(약 5~10KB)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>EXIF 데이터에 작은 미리 보기 이미지를 추가합니다. 파일에 EXIF 메타데이터가 남을 때만 기록됩니다.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>sRGB로 변환(원본: %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>브라우저는 프로필이 없는 이미지를 sRGB로 표시합니다. 선택을 해제하면 파일에 색상 프로필이 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB, 프로필 필요 없음</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>비교:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>분할</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>나란히</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>결과만</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>모든 설정을 기본값으로 되돌리기</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>실패</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>인코딩 중...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>출력 %1 x %2, %3 %4(비압축 %6의 %5%)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: 인코딩 중...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>인코딩 실패: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>%1 인코딩 중...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26040,6 +26188,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
         <translation>재단할 것이 없습니다: 모든 픽셀이 재단 색상의 허용치 안에 있습니다. 허용치를 낮추세요.</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>웹용으로 내보내기(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>웹용으로 내보내기</translation>
     </message>
 </context>
 <context>

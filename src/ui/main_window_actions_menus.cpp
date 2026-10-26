@@ -405,6 +405,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(place_linked_action);
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
+  // Directly under Save As, not in the Export submenu (Seth, October 26, 2026): the
+  // web formats with live previews and sizes (docs/web-export.md).
+  auto* export_for_web_action = file_menu->addAction(tr("Export for &Web..."));
+  bind_action_text(export_for_web_action, QT_TR_NOOP("Export for &Web..."));
+  export_for_web_action->setObjectName(QStringLiteral("fileExportForWebAction"));
+  export_for_web_action->setMenuRole(QAction::NoRole);
+  // Ctrl+Alt+Shift+S, the conventional key for a web export (Qt maps CTRL onto Command on
+  // macOS); Export > Flat Image had it until October 26, 2026.
+  register_hotkey(export_for_web_action, "file.export_for_web",
+                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
+  connect(export_for_web_action, &QAction::triggered, this, [this] { export_for_web(); });
+  register_document_action(export_for_web_action);
   // The export commands sit in their own submenu, the way Import does: the verb
   // belongs to the submenu title so no row has to repeat it.
   auto* export_menu = file_menu->addMenu(tr("E&xport"));
@@ -572,9 +584,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   preferences_action->setMenuRole(QAction::PreferencesRole);
   quit_action->setMenuRole(QAction::QuitRole);
   register_hotkey(quit_action, "file.quit", QKeySequence(Qt::CTRL | Qt::Key_Q));
-  // Ctrl+Alt+Shift+S is Photoshop's Save for Web key (Qt maps CTRL onto Command on macOS).
-  register_hotkey(export_flat_action, "file.export_flat",
-                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
+  // No default key: Ctrl+Alt+Shift+S moved to File > Export for Web (October 26, 2026).
+  register_hotkey(export_flat_action, "file.export_flat");
   register_hotkey(page_setup_action, "file.page_setup");
   // Cmd+, is the universal macOS settings shortcut (Qt maps CTRL to Cmd there);
   // Windows/Linux take Photoshop's Ctrl+K (GitHub issue 144).

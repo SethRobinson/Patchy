@@ -12755,6 +12755,154 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>開啟文件時不顯示（可在 偏好設定 &gt; 應用程式 中重新開啟）</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>品質 %1，漸進式</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>品質 %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>無失真</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1，動畫</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>全彩</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>匯出為網頁格式</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>大小為依各格式自身設定實際編碼後的檔案大小，變更設定時會更新。</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>JPEG 設定</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>漸進式（載入時先顯示粗略影像）</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>最佳化編碼（檔案更小，影像相同）</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>填滿透明區域（JPEG 不支援透明）</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>WebP 設定</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>每個可見的頂層圖層成為一個影格，最上面的圖層在前。</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>PNG 設定</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>全彩，無失真。保留透明度。</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>影像尺寸</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>（原始 %1 x %2）</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>像素畫（整像素）</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>像素畫以整像素放大且不平滑，讓精靈保持清晰。</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>中繼資料和色彩</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>要包含的檔案資訊中繼資料。「無」寫出的檔案最小。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>包含縮圖（約 5 到 10 KB）</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>在 EXIF 資料中加入小型預覽影像。僅在檔案保留 EXIF 中繼資料時寫入。</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>轉換為 sRGB（從 %1）</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>瀏覽器會將未標記的影像顯示為 sRGB。取消勾選時，檔案會保留其色彩描述檔。</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB，不需要描述檔</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>比較:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>分割</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>並排</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>僅結果</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>將所有設定還原為預設值</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>失敗</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>正在編碼...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>輸出 %1 x %2，%3 %4（未壓縮 %6 的 %5%）</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1：正在編碼...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>編碼失敗：%1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>正在編碼 %1...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26040,6 +26188,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
         <translation>沒有可修剪的內容：每個像素都在修剪顏色的容許度範圍內。請降低容許度。</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>匯出為網頁格式(&amp;W)...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>匯出為網頁格式</translation>
     </message>
 </context>
 <context>

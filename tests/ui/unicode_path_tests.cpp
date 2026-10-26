@@ -38,6 +38,7 @@
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/web_export.hpp"
 #include "core/document.hpp"
 #include "core/smart_object.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -384,6 +385,32 @@ void ui_unicode_export_flat_image_dialog() {
   const auto exported = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
   CHECK(exported.width() == 1024);
   CHECK(exported.height() == 768);
+}
+
+// Export for Web writes the bytes its preview encoded (write_encoded_image_file), one
+// file per web format, to a Unicode path.
+void ui_unicode_export_for_web_writes_encoded_bytes() {
+  const auto dir = unicode_dir(QStringLiteral("export-for-web"));
+  const auto document = small_document();
+  const QSize size(document.width(), document.height());
+  QStringList expected;
+  for (const auto format : patchy::ui::web_export_formats()) {
+    const auto job = patchy::ui::web_export_job(patchy::ui::WebExportSettings{}, format, size);
+    const auto prepared =
+        patchy::ui::WebExportPreviewEngine::prepare(document, job.geometry, job.convert_to_srgb, nullptr);
+    const auto result = patchy::ui::WebExportPreviewEngine::encode(document, job, prepared);
+    CHECK(result.bytes != nullptr && !result.bytes->empty());
+    if (result.bytes == nullptr) {
+      continue;
+    }
+    const auto name = q(kUnicodeCombinedStem) + QLatin1Char('.') + patchy::ui::web_export_extension(format);
+    const auto path = dir + QLatin1Char('/') + name;
+    patchy::ui::write_encoded_image_file(path, *result.bytes);
+    expected << name;
+    CHECK(QFileInfo(path).size() == static_cast<qint64>(result.bytes->size()));
+    CHECK(QImage(path).size() == QSize(8, 6));
+  }
+  check_dir_holds_only(dir, expected);
 }
 
 void ui_unicode_recent_files_persist_through_settings() {
@@ -821,6 +848,7 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_save_as_dialog_round_trip", ui_unicode_save_as_dialog_round_trip},
       {"ui_unicode_open_dialog_round_trip", ui_unicode_open_dialog_round_trip},
       {"ui_unicode_export_flat_image_dialog", ui_unicode_export_flat_image_dialog},
+      {"ui_unicode_export_for_web_writes_encoded_bytes", ui_unicode_export_for_web_writes_encoded_bytes},
       {"ui_unicode_recent_files_persist_through_settings", ui_unicode_recent_files_persist_through_settings},
       {"ui_unicode_recent_history_merges_unattended_work_and_refreshes", ui_unicode_recent_history_merges_unattended_work_and_refreshes},
       {"ui_unicode_legacy_plugin_probe_from_unicode_dir", ui_unicode_legacy_plugin_probe_from_unicode_dir},

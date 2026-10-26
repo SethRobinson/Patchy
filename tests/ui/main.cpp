@@ -446,6 +446,7 @@ int main(int argc, char* argv[]) {
            clone_source_tests,
            history_stroke_patch_tests,
            file_info_tests,
+           web_export_tests,
            rgb_profile_ui_tests,
            new_document_options_ui_tests,
            watermark_tests,

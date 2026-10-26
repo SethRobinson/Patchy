@@ -394,7 +394,7 @@ doc.exportAs("page.pdf", {imageQuality: "high", editableLayers: true});
 
 | Extension | Keys |
 | --- | --- |
-| `.jpg`, `.jpeg` | `quality` (0 to 100) |
+| `.jpg`, `.jpeg` | `quality` (0 to 100), `progressive` and `optimizeCoding` (smaller web files, both off by default), `thumbnail` (the EXIF preview thumbnail, on by default; written only when EXIF is kept) |
 | `.webp` | `quality` (0 to 100), `lossless` |
 | `.jxr` | `quality` (1 to 100), `lossless` |
 | `.jxl` | `quality` (1 to 100), `lossless`, `effort` (1 to 9), `animate` (visible top-level layers become frames, top first), `frameDelayMs`, `loopCount` (0 loops forever) |

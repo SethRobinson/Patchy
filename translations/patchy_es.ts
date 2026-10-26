@@ -12790,6 +12790,154 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>No mostrar al abrir documentos (Preferencias &gt; Aplicación lo vuelve a activar)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>Calidad %1, progresivo</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>Calidad %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>Sin pérdida</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, animado</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>Color completo</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Exportar para web</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>Los tamaños son los de los archivos codificados reales con los ajustes de cada formato y se actualizan al cambiarlos.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>Ajustes de JPEG</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>Progresivo (muestra primero una imagen aproximada al cargar)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>Optimizar codificación (archivo más pequeño, misma imagen)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>Rellena las áreas transparentes (JPEG no tiene transparencia)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>Ajustes de WebP</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>Ajustes de PNG</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>Color completo, sin pérdida. Se conserva la transparencia.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Tamaño de imagen</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>de %1 x %2</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>Pixel art (píxeles enteros)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>Pixel art amplía por píxeles enteros sin suavizado, para que los sprites sigan nítidos.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>Metadatos y color</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>Metadatos de Información de archivo que se incluyen. Ninguno escribe el archivo más pequeño.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>Incluir miniatura (unos 5 a 10 KB)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>Añade una pequeña imagen de vista previa a los datos EXIF. Solo se escribe si el archivo conserva metadatos EXIF.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>Convertir a sRGB (desde %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>Los navegadores muestran las imágenes sin perfil como sRGB. Desmarcado, el archivo conserva su perfil de color.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB, no necesita perfil</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>Comparar:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>Dividido</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>Lado a lado</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>Solo resultado</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>Restablecer todos los ajustes a sus valores predeterminados</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>error</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>codificando...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>Salida %1 x %2, %3 %4 (%5 % de %6 sin comprimir)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: codificando...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>Error de codificación: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>Codificando %1...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26113,6 +26261,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
         <translation>Nada que cortar: todos los píxeles están dentro de la tolerancia del color de recorte. Reduzca la Tolerancia.</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Exportar para &amp;web...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Exportar para web</translation>
     </message>
 </context>
 <context>

@@ -1106,6 +1106,8 @@ private:
   void run_save_write(const QString& path, bool on_worker, bool show_progress,
                       const std::function<void(SaveProgress&)>& write);
   void export_flat_image();
+  // File > Export for Web (docs/web-export.md): the live-preview dialog, then the file name.
+  void export_for_web();
   void export_multipage_pdf();
   // File > Export Documents to Folder: the checked open documents as numbered
   // flattened image files (the document-level sibling of export_image_sequence).

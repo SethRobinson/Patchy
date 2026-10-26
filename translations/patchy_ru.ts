@@ -12825,6 +12825,154 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Не показывать при открытии документов (снова включается в Настройки &gt; Приложение)</translation>
     </message>
+    <message>
+        <source>Quality %1, progressive</source>
+        <translation>Качество %1, прогрессивный</translation>
+    </message>
+    <message>
+        <source>Quality %1</source>
+        <translation>Качество %1</translation>
+    </message>
+    <message>
+        <source>Lossless</source>
+        <translation>Без потерь</translation>
+    </message>
+    <message>
+        <source>%1, animated</source>
+        <translation>%1, анимация</translation>
+    </message>
+    <message>
+        <source>Full color</source>
+        <translation>Полноцветный</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Экспорт для веба</translation>
+    </message>
+    <message>
+        <source>Sizes are the real encoded files at each format&apos;s own settings and update as you change them.</source>
+        <translation>Размеры соответствуют реально закодированным файлам с настройками каждого формата и обновляются при их изменении.</translation>
+    </message>
+    <message>
+        <source>JPEG settings</source>
+        <translation>Параметры JPEG</translation>
+    </message>
+    <message>
+        <source>Progressive (shows a rough image first while loading)</source>
+        <translation>Прогрессивный (при загрузке сначала показывает грубое изображение)</translation>
+    </message>
+    <message>
+        <source>Optimize coding (smaller file, same image)</source>
+        <translation>Оптимизировать кодирование (меньше файл, то же изображение)</translation>
+    </message>
+    <message>
+        <source>Fills transparent areas (JPEG has no transparency)</source>
+        <translation>Заполняет прозрачные области (в JPEG нет прозрачности)</translation>
+    </message>
+    <message>
+        <source>WebP settings</source>
+        <translation>Параметры WebP</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
+        <translation>Каждый видимый слой верхнего уровня становится одним кадром, верхний слой первый.</translation>
+    </message>
+    <message>
+        <source>PNG settings</source>
+        <translation>Параметры PNG</translation>
+    </message>
+    <message>
+        <source>Full color, lossless. Transparency is kept.</source>
+        <translation>Полноцветный, без потерь. Прозрачность сохраняется.</translation>
+    </message>
+    <message>
+        <source>Image size</source>
+        <translation>Размер изображения</translation>
+    </message>
+    <message>
+        <source>of %1 x %2</source>
+        <translation>от %1 x %2</translation>
+    </message>
+    <message>
+        <source>Pixel art (whole pixels)</source>
+        <translation>Пиксель-арт (целые пиксели)</translation>
+    </message>
+    <message>
+        <source>Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp.</source>
+        <translation>Пиксель-арт увеличивает на целые пиксели без сглаживания, поэтому спрайты остаются чёткими.</translation>
+    </message>
+    <message>
+        <source>Metadata and color</source>
+        <translation>Метаданные и цвет</translation>
+    </message>
+    <message>
+        <source>File Info metadata to include. None writes the smallest file.</source>
+        <translation>Метаданные сведений о файле для включения. «Нет» даёт самый маленький файл.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail (about 5 to 10 KB)</source>
+        <translation>Включить миниатюру (около 5–10 КБ)</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
+        <translation>Добавляет небольшое изображение предпросмотра в данные EXIF. Записывается, только если файл сохраняет метаданные EXIF.</translation>
+    </message>
+    <message>
+        <source>Convert to sRGB (from %1)</source>
+        <translation>Преобразовать в sRGB (из %1)</translation>
+    </message>
+    <message>
+        <source>Browsers show untagged images as sRGB. Unchecked, the file keeps its color profile.</source>
+        <translation>Браузеры показывают изображения без профиля как sRGB. Если флажок снят, файл сохраняет свой цветовой профиль.</translation>
+    </message>
+    <message>
+        <source>sRGB, no profile needed</source>
+        <translation>sRGB, профиль не нужен</translation>
+    </message>
+    <message>
+        <source>Compare:</source>
+        <translation>Сравнить:</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>Разделение</translation>
+    </message>
+    <message>
+        <source>Side by side</source>
+        <translation>Рядом</translation>
+    </message>
+    <message>
+        <source>Result only</source>
+        <translation>Только результат</translation>
+    </message>
+    <message>
+        <source>Return every setting to its default</source>
+        <translation>Вернуть все настройки по умолчанию</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <translation>ошибка</translation>
+    </message>
+    <message>
+        <source>encoding...</source>
+        <translation>кодирование...</translation>
+    </message>
+    <message>
+        <source>Output %1 x %2, %3 %4 (%5% of %6 uncompressed)</source>
+        <translation>Результат %1 x %2, %3 %4 (%5% от %6 без сжатия)</translation>
+    </message>
+    <message>
+        <source>%1: encoding...</source>
+        <translation>%1: кодирование...</translation>
+    </message>
+    <message>
+        <source>Encoding failed: %1</source>
+        <translation>Ошибка кодирования: %1</translation>
+    </message>
+    <message>
+        <source>Encoding %1...</source>
+        <translation>Кодирование %1...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26186,6 +26334,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
         <translation>Нечего обрезать: все пиксели в пределах допуска от цвета обрезки. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>Export for &amp;Web...</source>
+        <translation>Экспорт для &amp;веба...</translation>
+    </message>
+    <message>
+        <source>Export for Web</source>
+        <translation>Экспорт для веба</translation>
     </message>
 </context>
 <context>
