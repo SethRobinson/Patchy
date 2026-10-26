@@ -2351,6 +2351,81 @@ void ui_screen_modes_cycle_hide_chrome_and_restore_standard() {
   QApplication::processEvents();
 }
 
+// In Full Screen with Menus the menu bar is still the custom title bar (Windows and Linux):
+// a double-click on its blank part returns to Standard, where it would maximize or
+// restore (GitHub issue 212 follow-up). A click or a drag there does nothing, and a
+// double-click on a menu title keeps opening that menu without leaving full screen.
+void ui_screen_modes_title_bar_double_click_returns_to_standard() {
+  using patchy::ui::MainWindow;
+  if (!MainWindow::use_custom_window_chrome()) {
+    patchy::test::skip("native window frame owns the title bar on this platform");
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  static_cast<void>(canvas);
+  auto* with_menus = require_action(window, "viewScreenModeFullWithMenusAction");
+  auto* bar = window.menuBar();
+  auto* controls = window.findChild<QWidget*>(QStringLiteral("windowChromeControls"));
+  CHECK(with_menus != nullptr && bar != nullptr && controls != nullptr && !bar->actions().isEmpty());
+  if (with_menus == nullptr || bar == nullptr || controls == nullptr || bar->actions().isEmpty()) {
+    return;
+  }
+  const auto before_geometry = window.geometry();
+  const bool before_maximized = window.isMaximized();
+  with_menus->trigger();
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreenWithMenus && window.isFullScreen());
+  const auto full_geometry = window.geometry();
+
+  // A blank spot of the bar: not a menu title, not the window controls.
+  QPoint blank(-1, bar->height() / 2);
+  for (int x = controls->x() - 1; x >= 0; --x) {
+    if (bar->actionAt(QPoint(x, blank.y())) == nullptr) {
+      blank.setX(x);
+      break;
+    }
+  }
+  CHECK(blank.x() >= 0);
+  CHECK(patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, blank));
+  const auto double_click = [&](QPoint point) {
+    send_mouse(*bar, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*bar, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+    send_mouse(*bar, QEvent::MouseButtonDblClick, point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*bar, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto close_popups = [] {
+    for (int pass = 0; pass < 4 && QApplication::activePopupWidget() != nullptr; ++pass) {
+      QApplication::activePopupWidget()->close();
+      QApplication::processEvents();
+    }
+  };
+
+  // A click and a drag on the blank part change nothing.
+  send_mouse(*bar, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseButtonRelease, blank, Qt::LeftButton, Qt::NoButton);
+  const QPoint dragged = blank + QPoint(-QApplication::startDragDistance() * 4, 30);
+  send_mouse(*bar, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseMove, dragged, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseButtonRelease, dragged, Qt::LeftButton, Qt::NoButton);
+  process_events_for(50);
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreenWithMenus && window.isFullScreen());
+  CHECK(window.geometry() == full_geometry);
+
+  // A double-click on a menu title is the menu's, not the title bar's.
+  double_click(bar->actionGeometry(bar->actions().constFirst()).center());
+  close_popups();
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreenWithMenus && window.isFullScreen());
+
+  // On the blank part it returns to Standard with the window as it was.
+  double_click(blank);
+  process_events_for(50);
+  close_popups();
+  CHECK(window.screen_mode() == MainWindow::ScreenMode::Standard);
+  CHECK(!window.isFullScreen());
+  CHECK(window.isMaximized() == before_maximized);
+  CHECK(window.geometry() == before_geometry);
+}
+
 // The ways back without menus (GitHub issue 212): Escape leaves either full-screen mode
 // once nothing on the canvas uses it (a Free Transform keeps its Escape first), and the
 // canvas right-click menu offers Exit Full Screen, on the document and the pasteboard.
@@ -4724,6 +4799,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
       {"ui_screen_modes_cycle_hide_chrome_and_restore_standard", ui_screen_modes_cycle_hide_chrome_and_restore_standard},
       {"ui_screen_modes_escape_and_context_menu_return_to_standard", ui_screen_modes_escape_and_context_menu_return_to_standard},
+      {"ui_screen_modes_title_bar_double_click_returns_to_standard", ui_screen_modes_title_bar_double_click_returns_to_standard},
       {"ui_screen_mode_button_cycles_and_lists_modes", ui_screen_mode_button_cycles_and_lists_modes},
       {"ui_tool_palette_quick_mask_button_shows_its_icon", ui_tool_palette_quick_mask_button_shows_its_icon},
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches", ui_tool_palette_overflow_hides_quick_mask_before_swatches},

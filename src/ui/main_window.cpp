@@ -5332,9 +5332,12 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
       position_window_chrome_controls();
     }
-    // A full-screen window has no title bar to drag or double-click (screen modes,
-    // GitHub issue 212); Windows already skips its HTCAPTION answer there.
-    const auto title_bar_event = isFullScreen() ? QEvent::None : event->type();
+    // A full-screen window has no title bar to drag (screen modes, GitHub issue 212);
+    // Windows already skips its HTCAPTION answer there, so these events arrive on every
+    // custom-chrome platform. Only the double-click stays: it leaves full screen, as it
+    // restores a maximized window.
+    const auto title_bar_event =
+        isFullScreen() && event->type() != QEvent::MouseButtonDblClick ? QEvent::None : event->type();
 
     // The blank menu-bar area is the window title bar. On a real Windows window it
     // answers WM_NCHITTEST with HTCAPTION (MainWindow::nativeEvent), so the OS handles
@@ -5355,7 +5358,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         if (mouse_event->button() == Qt::LeftButton && title_bar_drag_area_contains(mouse_event->pos())) {
           chrome_title_press_pending_ = false;
           chrome_dragging_ = false;
-          isMaximized() ? restore_window_from_maximize() : showMaximized();
+          if (isFullScreen()) {
+            if (screen_mode_ != ScreenMode::Standard) {
+              set_screen_mode(ScreenMode::Standard);
+            }
+          } else {
+            isMaximized() ? restore_window_from_maximize() : showMaximized();
+          }
           mouse_event->accept();
           return true;
         }
