@@ -106,7 +106,8 @@ checkbox tooltip says the same. Applying with Resample off is a metadata-only un
 ("Print resolution").
 
 New Document: presets carry a resolution (physical paper presets 300; the screen presets,
-the default 1024x768 included, and Clipboard follow Photoshop's 72 screen convention). One
+the default 1024x768 included, and Clipboard follow Photoshop's 72 screen convention) and a
+display unit that a pick switches the W/H combo to ([new-document.md](new-document.md#template-units-local-013)). One
 shared W/H unit combo (px/in/cm/mm) converts through the Resolution spin; physical entry
 holds its size when the resolution changes.
 

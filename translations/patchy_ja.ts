@@ -3603,10 +3603,6 @@ Flow: %6
         <translation>%1 x %2 px</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 インチ、%3 ppi</translation>
-    </message>
-    <message>
         <source>%1: %2 x %3 px at %4 ppi</source>
         <translation>%1: %2 x %3 px、%4 ppi</translation>
     </message>
@@ -12720,6 +12716,16 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The JPEG image is too large to open</source>
         <translation>JPEG 画像が大きすぎるため開けません</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1、%2 ppi</translation>
     </message>
 </context>
 <context>

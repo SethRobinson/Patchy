@@ -6870,10 +6870,6 @@ Flow: %6
         <translation>创建</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 英寸，%3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>使用剪贴板中的图像创建文档</translation>
     </message>
@@ -12720,6 +12716,16 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The JPEG image is too large to open</source>
         <translation>JPEG 图像太大，无法打开</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1，%2 ppi</translation>
     </message>
 </context>
 <context>

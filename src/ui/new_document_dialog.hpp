@@ -21,6 +21,8 @@ namespace patchy::ui {
 inline constexpr int kNewDocumentPresetIdRole = Qt::UserRole + 1;
 inline constexpr int kNewDocumentPresetSizeRole = Qt::UserRole + 2;
 inline constexpr int kNewDocumentPresetPpiRole = Qt::UserRole + 3;
+// The size a card shows, in its unit ("210 x 297 mm", "1920 x 1080 px").
+inline constexpr int kNewDocumentPresetSizeTextRole = Qt::UserRole + 7;
 
 struct NewDocumentSettings {
   std::int32_t width{1024};
@@ -82,8 +84,9 @@ struct ArtboardSizePreset {
 // The New Document search rule (GitHub issue 223), shared with the Artboard bar's preset
 // picker: every whitespace-separated word of `text` must appear, ignoring case, in the
 // preset's name or its group's name; a word holding a digit may also match the size
-// ("1080 x 1920", "1080x1920").
+// ("1080 x 1920", "1080x1920") or the size the card shows in its own unit, `shown_size`
+// ("210 x 297 mm", so "210" and "8.5" find paper).
 [[nodiscard]] bool size_preset_matches_search(const QString& name, const QString& group, QSize size,
-                                              const QString& text);
+                                              const QString& text, const QString& shown_size = {});
 
 }  // namespace patchy::ui

@@ -6880,10 +6880,6 @@ Flusso: %6
         <translation>Crea</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 in a %3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crea il documento dall&apos;immagine negli appunti</translation>
     </message>
@@ -12755,6 +12751,16 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>The JPEG image is too large to open</source>
         <translation>L’immagine JPEG è troppo grande per essere aperta</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 a %2 ppi</translation>
     </message>
 </context>
 <context>

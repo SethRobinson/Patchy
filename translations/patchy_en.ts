@@ -6875,10 +6875,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12737,6 +12733,16 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>The JPEG image is too large to open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

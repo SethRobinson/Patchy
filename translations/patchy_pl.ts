@@ -7186,10 +7186,6 @@ Przepływ:%6
         <translation>Utwórz</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 cale przy %3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Utwórz dokument z obrazu schowka</translation>
     </message>
@@ -12790,6 +12786,16 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>The JPEG image is too large to open</source>
         <translation>Obraz JPEG jest zbyt duży, aby go otworzyć</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 przy %2 ppi</translation>
     </message>
 </context>
 <context>

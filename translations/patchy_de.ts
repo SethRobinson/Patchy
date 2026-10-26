@@ -6880,10 +6880,6 @@ Textfluss: %6
         <translation>Erstellen</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%1 x %2 Zoll bei %3 ppi</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Das Dokument aus dem Bild in der Zwischenablage erstellen</translation>
     </message>
@@ -12755,6 +12751,16 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>The JPEG image is too large to open</source>
         <translation>Das JPEG-Bild ist zu groß zum Öffnen</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%1 bei %2 ppi</translation>
     </message>
 </context>
 <context>

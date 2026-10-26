@@ -1,6 +1,7 @@
 // New Document options (docs/new-document.md): the Color Mode list and Color Profile line
-// (GitHub issue 360), the empty-layer preference (issue 363), and the Name field and saved
-// presets (issue 374), plus app.newDocument's matching options.
+// (GitHub issue 360), the empty-layer preference (issue 363), the Name field and saved
+// presets (issue 374), and the templates' own units (local-013), plus app.newDocument's
+// matching options.
 #include "scripting_test_support.hpp"
 #include "test_harness.hpp"
 #include "ui/app_settings.hpp"
@@ -36,6 +37,7 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -104,6 +106,167 @@ QListWidgetItem* card_with_id(QListWidget& list, const QString& id) {
     }
   }
   return nullptr;
+}
+
+QString card_size_text(const QListWidgetItem* item) {
+  return item != nullptr ? item->data(patchy::ui::kNewDocumentPresetSizeTextRole).toString() : QString();
+}
+
+// Paper and print templates show their size in the unit they are specified in (local-013):
+// the cards read "210 x 297 mm" or "8.5 x 11 in", picking one switches the Width/Height unit
+// to it (a screen template back to Pixels), the document keeps the template's pixels, and
+// search finds the shown size. Recent cards and saved presets show their stored unit.
+void ui_new_document_templates_show_their_unit() {
+  const NewDocumentSettingsScope scope;
+  SettingsValueRestorer ruler_units(QStringLiteral("view/rulerUnits"));
+  patchy::ui::app_settings().setValue(QStringLiteral("view/rulerUnits"), QStringLiteral("cm"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto pick = [](QDialog& dialog, const char* chip, const QString& id) {
+    if (auto* group = dialog.findChild<QToolButton*>(QLatin1String(chip)); group != nullptr) {
+      group->click();
+      QApplication::processEvents();
+    }
+    auto* presets = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+    auto* card = presets != nullptr ? card_with_id(*presets, id) : nullptr;
+    CHECK(card != nullptr);
+    if (card != nullptr) {
+      presets->setCurrentItem(card);
+      QApplication::processEvents();
+    }
+    return card;
+  };
+
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    auto* presets = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+    auto* unit = dialog.findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+    auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    auto* height = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+    auto* resolution = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
+    auto* summary = dialog.findChild<QLabel*>(QStringLiteral("newDocumentSummaryLabel"));
+    auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    CHECK(presets != nullptr && unit != nullptr && width != nullptr && height != nullptr && resolution != nullptr &&
+          summary != nullptr && search != nullptr);
+    if (presets == nullptr || unit == nullptr || width == nullptr || height == nullptr || resolution == nullptr ||
+        summary == nullptr || search == nullptr) {
+      dialog.reject();
+      return;
+    }
+    // The opening card (Default) keeps the remembered unit, here the ruler unit.
+    CHECK(unit->currentText() == QStringLiteral("Centimeters"));
+    CHECK(card_size_text(card_with_id(*presets, QStringLiteral("screen-1024x768"))) ==
+          QStringLiteral("1024 x 768 px"));
+
+    // Every paper and print card reads its nominal size in its own unit.
+    const std::vector<std::pair<const char*, const char*>> print_cards = {
+        {"print-a6", "105 x 148 mm"},
+        {"print-a5", "148 x 210 mm"},
+        {"print-a4", "210 x 297 mm"},
+        {"print-a3", "297 x 420 mm"},
+        {"print-a2", "420 x 594 mm"},
+        {"print-us-letter", "8.5 x 11 in"},
+        {"print-us-legal", "8.5 x 14 in"},
+        {"print-tabloid", "11 x 17 in"},
+        {"print-business-card-us", "3.5 x 2 in"},
+        {"print-business-card-eu", "85 x 55 mm"},
+        {"print-poster-18x24", "18 x 24 in"},
+    };
+    const std::vector<std::pair<const char*, const char*>> photo_cards = {
+        {"photo-print-4x6", "4 x 6 in"},       {"print-5x7", "5 x 7 in"},
+        {"print-8x10", "8 x 10 in"},           {"photo-print-11x14", "11 x 14 in"},
+        {"photo-print-8x8", "8 x 8 in"},       {"photo-print-10x15cm", "10 x 15 cm"},
+        {"photo-print-13x18cm", "13 x 18 cm"}, {"photo-3x2-3000", "3000 x 2000 px"},
+    };
+    for (const auto& [chip, cards] : {std::pair{"newDocumentPrintChip", &print_cards},
+                                      std::pair{"newDocumentPhotoChip", &photo_cards}}) {
+      if (auto* group = dialog.findChild<QToolButton*>(QLatin1String(chip)); group != nullptr) {
+        group->click();
+        QApplication::processEvents();
+      }
+      for (const auto& [id, text] : *cards) {
+        const auto shown = card_size_text(card_with_id(*presets, QLatin1String(id)));
+        if (shown != QLatin1String(text)) {
+          std::cerr << id << " shows " << shown.toStdString() << '\n';
+        }
+        CHECK(shown == QLatin1String(text));
+      }
+    }
+
+    // Picking a template takes its unit; the pixels and the resolution stay the template's.
+    pick(dialog, "newDocumentPrintChip", QStringLiteral("print-a4"));
+    CHECK(unit->currentText() == QStringLiteral("Millimeters"));
+    CHECK(std::abs(width->value() - 210.0) < 1e-6);
+    CHECK(std::abs(height->value() - 297.0) < 1e-6);
+    CHECK(std::abs(resolution->value() - 300.0) < 1e-6);
+    CHECK(summary->text().contains(QStringLiteral("2480 x 3508 px")));
+    CHECK(summary->text().contains(QStringLiteral("210 x 297 mm at 300 ppi")));
+    save_widget_artifact("local_013_new_document_print_a4", dialog);
+    pick(dialog, "newDocumentPrintChip", QStringLiteral("print-us-letter"));
+    CHECK(unit->currentText() == QStringLiteral("Inches"));
+    CHECK(std::abs(width->value() - 8.5) < 1e-6);
+    CHECK(std::abs(height->value() - 11.0) < 1e-6);
+    pick(dialog, "newDocumentPhotoChip", QStringLiteral("photo-print-10x15cm"));
+    CHECK(unit->currentText() == QStringLiteral("Centimeters"));
+    CHECK(std::abs(width->value() - 10.0) < 1e-6);
+    CHECK(std::abs(height->value() - 15.0) < 1e-6);
+    pick(dialog, "newDocumentScreenChip", QStringLiteral("screen-1080p"));
+    CHECK(unit->currentText() == QStringLiteral("Pixels"));
+    CHECK(width->value() == 1920);
+    CHECK(summary->text().contains(QStringLiteral("26.667 x 15 in at 72 ppi")));
+
+    // Search matches the shown size as well as the pixels.
+    const auto search_ids = [&](const QString& text) {
+      search->setText(text);
+      QApplication::processEvents();
+      QStringList ids;
+      for (int row = 0; row < presets->count(); ++row) {
+        ids << presets->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString();
+      }
+      return ids;
+    };
+    auto ids = search_ids(QStringLiteral("210"));
+    CHECK(ids.contains(QStringLiteral("print-a4")) && ids.contains(QStringLiteral("print-a5")));
+    CHECK(!ids.contains(QStringLiteral("print-us-letter")));
+    ids = search_ids(QStringLiteral("8.5"));
+    CHECK(ids.contains(QStringLiteral("print-us-letter")) && ids.contains(QStringLiteral("print-us-legal")));
+    CHECK(!ids.contains(QStringLiteral("print-a4")));
+    ids = search_ids(QStringLiteral("2480"));
+    CHECK(ids.contains(QStringLiteral("print-a4")));
+    search->clear();
+    QApplication::processEvents();
+
+    pick(dialog, "newDocumentPrintChip", QStringLiteral("print-a4"));
+    dialog.accept();
+  }));
+  const auto& document = MainWindowTestAccess::document(window);
+  CHECK(document.width() == 2480 && document.height() == 3508);
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 300.0) < 1e-6);
+
+  // The Recent card shows its stored unit, and so does a saved preset.
+  patchy::ui::app_settings().setValue(
+      QStringLiteral("newDocument/userPresets"),
+      QStringLiteral(R"([{"id":"user-1","name":"Inch card","w":600,"h":300,"ppi":300,"unit":"in",)"
+                     R"("resolutionUnit":0,"background":"#ffffffff","bits":8,"artboards":false}])"));
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    auto* recent = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
+    auto* presets = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+    auto* unit = dialog.findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+    auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    CHECK(recent != nullptr && presets != nullptr && unit != nullptr && width != nullptr);
+    if (recent == nullptr || presets == nullptr || unit == nullptr || width == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(card_size_text(card_with_id(*recent, QStringLiteral("last-used"))) == QStringLiteral("210 x 297 mm"));
+    CHECK(unit->currentText() == QStringLiteral("Millimeters"));
+    CHECK(std::abs(width->value() - 210.0) < 1e-6);
+    auto* saved = pick(dialog, "newDocumentSavedChip", QStringLiteral("user-1"));
+    CHECK(card_size_text(saved) == QStringLiteral("2 x 1 in"));
+    CHECK(unit->currentText() == QStringLiteral("Inches"));
+    CHECK(std::abs(width->value() - 2.0) < 1e-6);
+    dialog.reject();
+  }));
 }
 
 // GitHub issue 360: Color Mode holds RGB Color and CMYK Proof; CMYK Proof creates the
@@ -466,6 +629,7 @@ std::vector<patchy::test::TestCase> new_document_options_ui_tests() {
       {"ui_new_document_empty_layer_preference", ui_new_document_empty_layer_preference},
       {"ui_new_document_name_reaches_tab_and_save_as", ui_new_document_name_reaches_tab_and_save_as},
       {"ui_new_document_save_preset_and_reload", ui_new_document_save_preset_and_reload},
+      {"ui_new_document_templates_show_their_unit", ui_new_document_templates_show_their_unit},
       {"ui_script_new_document_options", ui_script_new_document_options},
   };
 }

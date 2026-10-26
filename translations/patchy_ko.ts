@@ -7160,10 +7160,6 @@ Flow: %6
         <translation>만들기</translation>
     </message>
     <message>
-        <source>%1 x %2 in at %3 ppi</source>
-        <translation>%3ppi에서 %1 x %2인치</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>클립보드 이미지에서 문서 만들기</translation>
     </message>
@@ -12720,6 +12716,16 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The JPEG image is too large to open</source>
         <translation>JPEG 이미지가 너무 커서 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>%1 x %2 %3</source>
+        <comment>new document card size: width, height, unit suffix</comment>
+        <translation>%1 x %2 %3</translation>
+    </message>
+    <message>
+        <source>%1 at %2 ppi</source>
+        <comment>new document summary: printed size, resolution</comment>
+        <translation>%2ppi에서 %1</translation>
     </message>
 </context>
 <context>
