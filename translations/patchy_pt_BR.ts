@@ -26010,6 +26010,38 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Vector Mask</source>
         <translation>Máscara vetorial</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Modo de &amp;tela</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Padrão</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Tela cheia com &amp;menus</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>Tela &amp;cheia</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>&amp;Alternar modo de tela</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Sair da tela cheia</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Pressione %1 ou Esc para sair da tela cheia</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Pressione Esc para sair da tela cheia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

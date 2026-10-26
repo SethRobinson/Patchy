@@ -26083,6 +26083,38 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Vector Mask</source>
         <translation>Maska wektorowa</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>Tryb &amp;ekranu</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Standardowy</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Pełny ekran z &amp;menu</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Pełny ekran</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>Przełącz &amp;tryb ekranu</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Zamknij pełny ekran</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Naciśnij %1 lub Esc, aby zamknąć pełny ekran</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Naciśnij Esc, aby zamknąć pełny ekran</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

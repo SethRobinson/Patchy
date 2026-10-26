@@ -26010,6 +26010,38 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Vector Mask</source>
         <translation>Vektormaske</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>&amp;Bildschirmmodus</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>&amp;Standard</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>Vollbild mit &amp;Menüs</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>&amp;Vollbild</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>Bildschirmmodus &amp;wechseln</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>Vollbild beenden</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>Drücken Sie %1 oder Esc, um den Vollbildmodus zu beenden</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Drücken Sie Esc, um den Vollbildmodus zu beenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

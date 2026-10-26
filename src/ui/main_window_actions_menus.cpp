@@ -2201,6 +2201,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     }
   });
   register_document_action(tiling_mode_action_);
+  view_menu->addSeparator();
+  build_screen_mode_actions(*view_menu);
   zoom_in->setObjectName(QStringLiteral("viewZoomInAction"));
   zoom_out->setObjectName(QStringLiteral("viewZoomOutAction"));
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));

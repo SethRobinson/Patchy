@@ -25937,6 +25937,38 @@ The open document keeps its blend modes either way.</source>
         <source>Vector Mask</source>
         <translation>ベクトルマスク</translation>
     </message>
+    <message>
+        <source>Screen &amp;Mode</source>
+        <translation>スクリーンモード(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Standard</source>
+        <translation>標準(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Full Screen with &amp;Menus</source>
+        <translation>メニュー付きフルスクリーン(&amp;M)</translation>
+    </message>
+    <message>
+        <source>&amp;Full Screen</source>
+        <translation>フルスクリーン(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Cycle Screen Mode</source>
+        <translation>スクリーンモードを切り替え(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>フルスクリーンを終了</translation>
+    </message>
+    <message>
+        <source>Press %1 or Esc to exit full screen</source>
+        <translation>%1 または Esc キーでフルスクリーンを終了します</translation>
+    </message>
+    <message>
+        <source>Press Esc to exit full screen</source>
+        <translation>Esc キーでフルスクリーンを終了します</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -5332,6 +5332,9 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
       position_window_chrome_controls();
     }
+    // A full-screen window has no title bar to drag or double-click (screen modes,
+    // GitHub issue 212); Windows already skips its HTCAPTION answer there.
+    const auto title_bar_event = isFullScreen() ? QEvent::None : event->type();
 
     // The blank menu-bar area is the window title bar. On a real Windows window it
     // answers WM_NCHITTEST with HTCAPTION (MainWindow::nativeEvent), so the OS handles
@@ -5346,7 +5349,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     // threshold on purpose: started from the press, a compositor grab would span every
     // click, and the second press of a double-click would maximize a window the
     // compositor was still dragging.
-    switch (event->type()) {
+    switch (title_bar_event) {
       case QEvent::MouseButtonDblClick: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         if (mouse_event->button() == Qt::LeftButton && title_bar_drag_area_contains(mouse_event->pos())) {
@@ -5508,6 +5511,9 @@ void MainWindow::changeEvent(QEvent* event) {
     }
 #endif
     resync_native_frame_geometry();
+    // The window system or the maximize control left full screen on its own (macOS's
+    // green button, a compositor): Standard takes the chrome back (screen modes).
+    schedule_screen_mode_window_state_sync();
   }
   QMainWindow::changeEvent(event);
 }
@@ -5582,6 +5588,9 @@ void MainWindow::closeEvent(QCloseEvent* event) {
       return;
     }
   }
+  // A full-screen mode's hidden bars and panels are not the layout to keep, and the
+  // next start is always Standard (screen modes, GitHub issue 212).
+  restore_standard_screen_chrome();
   save_window_geometry();
   save_panel_layout();
   // Flush any tool-option change still waiting on the save debounce; the timer
@@ -5950,6 +5959,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_selection_context_actions_callback([this] { return selection_context_actions_; });
   canvas->set_selection_tool_context_actions_callback([this] { return selection_tool_context_actions_; });
   canvas->set_zoom_tool_context_actions_callback([this] { return zoom_tool_context_actions_; });
+  // Screen modes (GitHub issue 212): the way back from a full screen without menus.
+  canvas->set_screen_mode_context_actions_callback([this] {
+    return screen_mode_ == ScreenMode::Standard ? QList<QAction*>{} : QList<QAction*>{exit_full_screen_action_};
+  });
+  canvas->set_unused_escape_callback([this, canvas] { return canvas->window() == this && exit_full_screen_on_escape(); });
   // A right-click on the active shape layer: the Layer > Shape and Edit menus'
   // own QActions (docs/tools.md, "Canvas right-click menu").
   canvas->set_shape_context_actions_callback([this] {
