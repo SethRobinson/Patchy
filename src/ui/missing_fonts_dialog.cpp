@@ -27,8 +27,9 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
   dialog.setWindowTitle(QObject::tr("Missing Fonts"));
   auto* layout = new QVBoxLayout(&dialog);
 
-  auto* intro = new QLabel(QObject::tr("Some fonts used in this document are missing. Choose an installed font to "
-                                       "replace each one in every text layer that uses it, or leave it unresolved."),
+  auto* intro = new QLabel(QObject::tr("Some fonts used in this document are missing on this computer. Choose an "
+                                       "installed font to replace each one in every text layer that uses it, or "
+                                       "leave it unresolved."),
                            &dialog);
   intro->setObjectName(QStringLiteral("missingFontsIntroLabel"));
   intro->setWordWrap(true);
@@ -44,13 +45,27 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     FontPickerCombo* picker;
   };
   std::vector<Row> rows;
-  auto* resolve_button = new QPushButton(QObject::tr("Resolve Fonts"), &dialog);
+  // Always enabled (issue 169 follow-up): with no row ticked it reads "Don't Resolve" and closes
+  // keeping every font, so the "Don't show" box is plainly saved either way.
+  const auto resolve_text = QObject::tr("Resolve Fonts");
+  const auto dont_resolve_text = QObject::tr("Don't Resolve");
+  auto* resolve_button = new QPushButton(resolve_text, &dialog);
   resolve_button->setObjectName(QStringLiteral("missingFontsResolveButton"));
-  const auto sync_resolve_button = [&rows, resolve_button] {
-    resolve_button->setEnabled(std::ranges::any_of(rows, [](const Row& row) { return row.replace->isChecked(); }));
+  const auto sync_resolve_button = [&rows, resolve_button, resolve_text, dont_resolve_text] {
+    const bool any = std::ranges::any_of(rows, [](const Row& row) { return row.replace->isChecked(); });
+    resolve_button->setText(any ? resolve_text : dont_resolve_text);
   };
   for (const auto& entry : fonts) {
     const auto index = static_cast<int>(rows.size());
+    // Rows sit on even grid rows; a divider line fills the odd row between two of them.
+    const auto grid_row = index * 2;
+    if (index > 0) {
+      auto* divider = new QFrame(rows_widget);
+      divider->setObjectName(QStringLiteral("missingFontsRowDivider"));
+      divider->setFrameShape(QFrame::HLine);
+      divider->setFrameShadow(QFrame::Plain);
+      grid->addWidget(divider, grid_row - 1, 0, 1, 3);
+    }
     auto* name = new QLabel(entry.family, rows_widget);
     name->setObjectName(QStringLiteral("missingFontName%1").arg(index));
     name->setTextFormat(Qt::PlainText);
@@ -58,7 +73,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     auto* detail = new QLabel(entry.no_glyphs
                                   ? QObject::tr("Installed, but has no glyphs for this text. Used in %n text layer(s).",
                                                 nullptr, entry.layer_count)
-                                  : QObject::tr("Not installed. Used in %n text layer(s).", nullptr, entry.layer_count),
+                                  : QObject::tr("Used in %n text layer(s).", nullptr, entry.layer_count),
                               rows_widget);
     detail->setObjectName(QStringLiteral("missingFontDetail"));
     // One line: wrapped, the name column shrank until the count broke across lines.
@@ -66,13 +81,13 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     name_column->setSpacing(1);
     name_column->addWidget(name);
     name_column->addWidget(detail);
-    grid->addLayout(name_column, index, 0);
+    grid->addLayout(name_column, grid_row, 0);
 
     // Unchecked is Photoshop's "Don't Resolve": the file keeps naming the font, so a colleague
     // who has it still sees the original. The picker starts on the face drawing the text now.
     auto* replace = new QCheckBox(QObject::tr("Replace with:"), rows_widget);
     replace->setObjectName(QStringLiteral("missingFontReplaceCheck%1").arg(index));
-    grid->addWidget(replace, index, 1, Qt::AlignVCenter);
+    grid->addWidget(replace, grid_row, 1, Qt::AlignVCenter);
     auto* picker = new FontPickerCombo(rows_widget);
     picker->setObjectName(QStringLiteral("missingFontReplacementCombo%1").arg(index));
     picker->setMinimumWidth(220);
@@ -80,7 +95,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
       picker->setCurrentFont(QFont(entry.suggested));
     }
     picker->setEnabled(false);
-    grid->addWidget(picker, index, 2, Qt::AlignVCenter);
+    grid->addWidget(picker, grid_row, 2, Qt::AlignVCenter);
     QObject::connect(replace, &QCheckBox::toggled, picker, &QWidget::setEnabled);
     QObject::connect(replace, &QCheckBox::toggled, &dialog, [&sync_resolve_button](bool) { sync_resolve_button(); });
     rows.push_back(Row{&entry, replace, picker});
@@ -97,7 +112,9 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
   scroll->setMinimumHeight(std::min(rows_widget->sizeHint().height(), row_height * 5) + 4);
   layout->addWidget(scroll, 1);
 
-  auto* dont_show = new QCheckBox(QObject::tr("Don't show when opening documents"), &dialog);
+  // The label names the way back itself: a tooltip alone went unseen (issue 169 follow-up).
+  auto* dont_show = new QCheckBox(
+      QObject::tr("Don't show when opening documents (Preferences > Application turns it back on)"), &dialog);
   dont_show->setObjectName(QStringLiteral("missingFontsDontShowCheck"));
   dont_show->setToolTip(QObject::tr("Type > Resolve Missing Fonts opens this dialog at any time. Preferences can "
                                     "turn it back on for opened documents."));
@@ -114,7 +131,16 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
   resolve_button->setDefault(true);
   sync_resolve_button();
 
-  append_themed_style(dialog, QStringLiteral("QLabel#missingFontDetail { color: @text_secondary; }"));
+  append_themed_style(dialog, QStringLiteral("QLabel#missingFontDetail { color: @text_secondary; }"
+                                             "QFrame#missingFontsRowDivider { background: @dlg_divider; color: "
+                                             "@dlg_divider; min-height: 1px; max-height: 1px; border: 0; }"));
+  // Wide enough for either label (measured with the theme applied), so ticking a row does not
+  // shift the buttons.
+  resolve_button->ensurePolished();
+  const auto metrics = resolve_button->fontMetrics();
+  const auto padding = resolve_button->sizeHint().width() - metrics.horizontalAdvance(resolve_button->text());
+  resolve_button->setMinimumWidth(
+      padding + std::max(metrics.horizontalAdvance(resolve_text), metrics.horizontalAdvance(dont_resolve_text)));
   dialog.resize(std::max(560, dialog.sizeHint().width()), dialog.sizeHint().height());
   remember_dialog_position(dialog);
   const auto accepted = exec_dialog(dialog) == QDialog::Accepted;

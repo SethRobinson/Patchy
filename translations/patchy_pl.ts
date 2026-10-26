@@ -10605,10 +10605,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Brakujące czcionki</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Brakuje niektórych czcionek użytych w tym dokumencie. Wybierz zainstalowaną czcionkę, która zastąpi każdą z nich we wszystkich warstwach tekstowych, albo pozostaw ją nierozwiązaną.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>Rozwiąż czcionki</translation>
     </message>
@@ -10618,14 +10614,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
             <numerusform>Zainstalowana, ale nie ma glifów dla tego tekstu. Używana w %n warstwie tekstowej.</numerusform>
             <numerusform>Zainstalowana, ale nie ma glifów dla tego tekstu. Używana w %n warstwach tekstowych.</numerusform>
             <numerusform>Zainstalowana, ale nie ma glifów dla tego tekstu. Używana w %n warstwach tekstowych.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>Niezainstalowana. Używana w %n warstwie tekstowej.</numerusform>
-            <numerusform>Niezainstalowana. Używana w %n warstwach tekstowych.</numerusform>
-            <numerusform>Niezainstalowana. Używana w %n warstwach tekstowych.</numerusform>
         </translation>
     </message>
     <message>
@@ -12816,6 +12804,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>Jak bardzo piksel może różnić się od koloru przycinania, aby nadal został odcięty (0 oznacza dokładne dopasowanie)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>Na tym komputerze brakuje niektórych czcionek użytych w tym dokumencie. Wybierz zainstalowaną czcionkę, która zastąpi każdą z nich we wszystkich warstwach tekstowych, albo pozostaw ją nierozwiązaną.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>Nie rozwiązuj</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>Używana w %n warstwie tekstowej.</numerusform>
+            <numerusform>Używana w %n warstwach tekstowych.</numerusform>
+            <numerusform>Używana w %n warstwach tekstowych.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>Nie pokazuj przy otwieraniu dokumentów (Preferencje &gt; Aplikacja włącza to ponownie)</translation>
     </message>
 </context>
 <context>

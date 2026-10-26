@@ -10557,22 +10557,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
         <source>Installed, but has no glyphs for this text. Used in %n text layer(s).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
         <translation type="unfinished">
             <numerusform></numerusform>
             <numerusform></numerusform>
@@ -12763,6 +12752,25 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

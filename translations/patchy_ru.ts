@@ -10605,10 +10605,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Отсутствующие шрифты</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Некоторые шрифты, используемые в этом документе, отсутствуют. Выберите установленный шрифт для замены каждого из них во всех текстовых слоях, где он используется, или оставьте его без изменений.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>Заменить шрифты</translation>
     </message>
@@ -10618,14 +10614,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
             <numerusform>Установлен, но не содержит глифов для этого текста. Используется в %n текстовом слое.</numerusform>
             <numerusform>Установлен, но не содержит глифов для этого текста. Используется в %n текстовых слоях.</numerusform>
             <numerusform>Установлен, но не содержит глифов для этого текста. Используется в %n текстовых слоях.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>Не установлен. Используется в %n текстовом слое.</numerusform>
-            <numerusform>Не установлен. Используется в %n текстовых слоях.</numerusform>
-            <numerusform>Не установлен. Используется в %n текстовых слоях.</numerusform>
         </translation>
     </message>
     <message>
@@ -12816,6 +12804,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>Насколько пиксель может отличаться от цвета обрезки, чтобы всё равно быть обрезанным (0 означает точное совпадение)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>Некоторые шрифты, используемые в этом документе, отсутствуют на этом компьютере. Выберите установленный шрифт для замены каждого из них во всех текстовых слоях, где он используется, или оставьте его без изменений.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>Не заменять</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>Используется в %n текстовом слое.</numerusform>
+            <numerusform>Используется в %n текстовых слоях.</numerusform>
+            <numerusform>Используется в %n текстовых слоях.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>Не показывать при открытии документов (снова включается в Настройки &gt; Приложение)</translation>
     </message>
 </context>
 <context>

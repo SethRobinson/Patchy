@@ -10573,10 +10573,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Font mancanti</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Alcuni font usati in questo documento mancano. Scegli un font installato per sostituire ciascuno in tutti i livelli di testo che lo usano, oppure lascialo non risolto.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>Risolvi font</translation>
     </message>
@@ -10585,13 +10581,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>
             <numerusform>Installato, ma senza glifi per questo testo. Usato in %n livello di testo.</numerusform>
             <numerusform>Installato, ma senza glifi per questo testo. Usato in %n livelli di testo.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>Non installato. Usato in %n livello di testo.</numerusform>
-            <numerusform>Non installato. Usato in %n livelli di testo.</numerusform>
         </translation>
     </message>
     <message>
@@ -12781,6 +12770,25 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>Quanto un pixel può differire dal colore da rifilare ed essere comunque tagliato (0 è una corrispondenza esatta)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>Alcuni font usati in questo documento mancano su questo computer. Scegli un font installato per sostituire ciascuno in tutti i livelli di testo che lo usano, oppure lascialo non risolto.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>Non risolvere</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>Usato in %n livello di testo.</numerusform>
+            <numerusform>Usato in %n livelli di testo.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>Non mostrare all&apos;apertura dei documenti (Preferenze &gt; Applicazione lo riattiva)</translation>
     </message>
 </context>
 <context>

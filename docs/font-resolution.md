@@ -234,16 +234,19 @@ not render nothing).
 - **Type > Resolve Missing Fonts** (issue 169; hotkey id `type.resolve_missing_fonts`;
   `src/ui/missing_fonts_dialog.*`, `main_window_missing_fonts.cpp`). One row per family any text
   layer cannot draw, hidden and grouped layers included, deduped by `text_font_replacement_key`
-  (the compact key). Rows start unchecked, Photoshop's "Don't Resolve": the file keeps the name,
-  so a machine with the font still shows the original. The picker starts on the face drawing the
-  text now. Resolve runs one hidden session per affected layer with `text_font_replacements_` set:
+  (the compact key), with a `@dlg_divider` line between rows. Rows start unchecked, Photoshop's
+  "Don't Resolve": the file keeps the name, so a machine with the font still shows the original.
+  The picker starts on the face drawing the text now. The accept button is always enabled and
+  reads "Don't Resolve" until a row is ticked (then "Resolve Fonts"); either way, and on Cancel,
+  the "Don't show" box is saved. Resolve runs one hidden session per affected layer with `text_font_replacements_` set:
   only the mapped families change (base family and runs), other missing families keep their
   names, and all commits share one "Resolve Missing Fonts" undo step. A commit regenerates the
   layer, so its TySh and the Txt2 object name the replacement on the next save. Locked layers and
   protected text geometry are skipped and counted in the status message.
 - Every interactive open (`open_document_path`, never unattended automation) shows the dialog while
   `imports/showMissingFontsDialog` (default true) allows. Its "Don't show when opening documents"
-  box and Preferences > Application set that key. The UI test main sets it false; tests that need
+  box (its label names Preferences > Application as the way back) and Preferences > Application
+  set that key. The UI test main sets it false; tests that need
   the dialog turn it on. Tests: the `missing_font` filter (tests/ui/missing_fonts_tests.cpp).
 
 ## Photoshop 5.x `tySh` faces

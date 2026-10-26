@@ -10573,10 +10573,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Fontes ausentes</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Algumas fontes usadas neste documento estão ausentes. Escolha uma fonte instalada para substituir cada uma em todas as camadas de texto que a usam, ou deixe-a sem resolver.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>Resolver fontes</translation>
     </message>
@@ -10585,13 +10581,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>
             <numerusform>Instalada, mas sem glifos para este texto. Usada em %n camada de texto.</numerusform>
             <numerusform>Instalada, mas sem glifos para este texto. Usada em %n camadas de texto.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>Não instalada. Usada em %n camada de texto.</numerusform>
-            <numerusform>Não instalada. Usada em %n camadas de texto.</numerusform>
         </translation>
     </message>
     <message>
@@ -12781,6 +12770,25 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>Quanto um pixel pode diferir da cor de corte e ainda ser removido (0 é uma correspondência exata)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>Algumas fontes usadas neste documento não estão instaladas neste computador. Escolha uma fonte instalada para substituir cada uma em todas as camadas de texto que a usam, ou deixe-a sem resolver.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>Não resolver</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>Usada em %n camada de texto.</numerusform>
+            <numerusform>Usada em %n camadas de texto.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>Não mostrar ao abrir documentos (Preferências &gt; Aplicativo reativa)</translation>
     </message>
 </context>
 <context>

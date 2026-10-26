@@ -10573,10 +10573,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Polices manquantes</translation>
     </message>
     <message>
-        <source>Some fonts used in this document are missing. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
-        <translation>Certaines polices utilisées dans ce document sont manquantes. Choisissez une police installée pour remplacer chacune d&apos;elles dans tous les calques de texte qui l&apos;utilisent, ou laissez-la non résolue.</translation>
-    </message>
-    <message>
         <source>Resolve Fonts</source>
         <translation>Résoudre les polices</translation>
     </message>
@@ -10585,13 +10581,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>
             <numerusform>Installée, mais sans glyphes pour ce texte. Utilisée dans %n calque de texte.</numerusform>
             <numerusform>Installée, mais sans glyphes pour ce texte. Utilisée dans %n calques de texte.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Not installed. Used in %n text layer(s).</source>
-        <translation>
-            <numerusform>Non installée. Utilisée dans %n calque de texte.</numerusform>
-            <numerusform>Non installée. Utilisée dans %n calques de texte.</numerusform>
         </translation>
     </message>
     <message>
@@ -12781,6 +12770,25 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
         <translation>Écart maximal entre un pixel et la couleur de rognage pour qu’il soit encore supprimé (0 correspond à une égalité exacte)</translation>
+    </message>
+    <message>
+        <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
+        <translation>Certaines polices utilisées dans ce document sont absentes de cet ordinateur. Choisissez une police installée pour remplacer chacune d&apos;elles dans tous les calques de texte qui l&apos;utilisent, ou laissez-la non résolue.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Resolve</source>
+        <translation>Ne pas résoudre</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used in %n text layer(s).</source>
+        <translation>
+            <numerusform>Utilisée dans %n calque de texte.</numerusform>
+            <numerusform>Utilisée dans %n calques de texte.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
+        <translation>Ne pas afficher à l&apos;ouverture des documents (Préférences &gt; Application permet de le réactiver)</translation>
     </message>
 </context>
 <context>
