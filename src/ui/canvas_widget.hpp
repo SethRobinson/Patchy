@@ -1557,7 +1557,8 @@ private:
   // a band just outside each corner (Rotate), and a Move core that a small box keeps
   // ahead of its handles.
   enum class TransformHitZones { HandlesOnly, EdgesAndCorners };
-  // What a Free Transform handle drag does (transform_drag_kind_for, chosen at press).
+  // What a Free Transform handle drag does (transform_drag_kind_for, chosen at press;
+  // retarget_transform_drag switches it when the modifiers change mid-drag).
   enum class TransformDragKind { Scale, DistortCorner, SkewCorner, PerspectiveCorner, MoveEdge, SlideEdge };
 
   enum class StrokeConstraintAxis {
@@ -2351,6 +2352,14 @@ private:
   // Sets up a Skew/Distort/Perspective drag at press; false (with a status message)
   // when the gesture would need a non-affine result the target cannot take.
   bool begin_transform_distort_drag(TransformHandle handle, Qt::KeyboardModifiers modifiers, QPointF document_press);
+  // A corner or side drag whose gesture the held modifiers change mid-drag (Ctrl
+  // pressed or released, GitHub issue 351) restarts from the press state as the new
+  // gesture; true when it switched.
+  bool retarget_transform_drag(Qt::KeyboardModifiers modifiers);
+  // The passive Move box's cursor over a corner or side: the skew/distort gesture
+  // cursor while Ctrl is held (a press there distorts, GitHub issue 351), else the
+  // resize cursor. False when the point is not on a corner or side.
+  bool apply_move_box_handle_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers);
   void update_free_transform_distort(QPointF document_point, Qt::KeyboardModifiers modifiers);
   [[nodiscard]] QTransform layer_preview_transform(patchy::LayerId id) const;
   // Document-space bounds of the overlay-drawn layer paths that currently

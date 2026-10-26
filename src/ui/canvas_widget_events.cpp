@@ -272,6 +272,9 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           update_tool_cursor();
           text_ctrl_cursor_override_.reset();
         }
+      } else if (tool_ == CanvasTool::Move && apply_move_box_handle_cursor(last_mouse_position_, modifiers)) {
+        // Over a Move-box corner or side, Ctrl (with Shift) turns the press into a
+        // distort or skew (GitHub issue 351): the cursor shows it, no motion needed.
       } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Move) {
         // With Auto-Select off, Ctrl held over artwork previews the layer a
         // click would select (GitHub issue 73); refresh the outline from the
@@ -1177,15 +1180,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       // off the press drags the selection and never looks at clicked_layer.
       clicked_layer = const_cast<Layer*>(auto_select_target_layer(clicked_layer));
     }
-    if (event->modifiers().testFlag(Qt::ControlModifier)) {
-      begin_move_layer_selection(event, clicked_layer, true);
-      return;
-    }
     const auto passive_transform_rect = move_transform_controls_rect();
     auto passive_handle = TransformHandle::None;
     if (passive_transform_rect.has_value()) {
       passive_handle =
           transform_handle_at(event->pos(), *passive_transform_rect, 0.0, TransformHitZones::EdgesAndCorners);
+    }
+    // Ctrl on a corner or side distorts or skews it, as Ctrl does in a Free
+    // Transform session (GitHub issue 351); anywhere else Ctrl selects layers.
+    if (event->modifiers().testFlag(Qt::ControlModifier) && !transform_handle_is_corner(passive_handle) &&
+        !transform_handle_is_edge(passive_handle)) {
+      begin_move_layer_selection(event, clicked_layer, true);
+      return;
+    }
+    if (passive_transform_rect.has_value()) {
       if (passive_handle != TransformHandle::None && passive_handle != TransformHandle::Move) {
         // A handle grab starts a Free Transform session; at zoom <= 50% its
         // source preparation builds the preview-scaled document (every raster
@@ -1203,10 +1211,17 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           transform_drag_grab_offset_ = transform_handle_grab_offset(
               passive_handle, transform_current_rect_, transform_angle_, transform_drag_start_point_);
           transform_session_step_at_press_ = current_transform_session_step();
-          transform_drag_kind_ = TransformDragKind::Scale;
           transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
           transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
-          update_drag_readout_region();
+          if (begin_transform_distort_drag(passive_handle, event->modifiers(), transform_drag_start_point_)) {
+            update_drag_readout_region();
+          } else {
+            // A corner distort the target cannot take (type): nothing changed, so
+            // the session this grab opened closes again; the status says why.
+            dragging_transform_ = false;
+            transform_drag_handle_ = TransformHandle::None;
+            cancel_free_transform();
+          }
         } else {
           cancel_free_transform();
         }
@@ -2461,7 +2476,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
           if (handle != TransformHandle::None) {
             if (handle == TransformHandle::Move) {
               apply_move_tool_cursor(event->pos());
-            } else {
+            } else if (!apply_move_box_handle_cursor(event->pos(), event->modifiers())) {
               set_transform_cursor_at(event->pos(), handle, *rect, 0.0);
             }
             if (handle == TransformHandle::Move && auto_select_layer_) {
@@ -3940,13 +3955,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
-  // Shift/Alt pressed mid-transform-drag: replay the drag at the last pointer
+  // Shift/Alt/Ctrl pressed mid-transform-drag: replay the drag at the last pointer
   // position so a stationary cursor re-snaps (aspect lock, 15-degree rotate
-  // steps, Alt scale-about-reference). The event reports the modifier state
+  // steps, Alt scale-about-reference, Ctrl's distort). The event reports the modifier state
   // before this key, so fold the pressed key in.
-  if (dragging_transform_ && (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) &&
+  if (dragging_transform_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt || event->key() == Qt::Key_Control) &&
       !event->isAutoRepeat()) {
-    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier
+                     : event->key() == Qt::Key_Alt ? Qt::AltModifier
+                                                   : Qt::ControlModifier;
     update_free_transform_preview(document_position_f(QPointF(last_mouse_position_)), event->modifiers() | bit);
     event->accept();
     return;
@@ -4400,11 +4418,14 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
-  // Shift/Alt released mid-transform-drag: replay without the released key so
+  // Shift/Alt/Ctrl released mid-transform-drag: replay without the released key so
   // the box snaps back to the unconstrained geometry under a stationary cursor.
-  if (dragging_transform_ && (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) &&
+  if (dragging_transform_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt || event->key() == Qt::Key_Control) &&
       !event->isAutoRepeat()) {
-    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier
+                     : event->key() == Qt::Key_Alt ? Qt::AltModifier
+                                                   : Qt::ControlModifier;
     update_free_transform_preview(document_position_f(QPointF(last_mouse_position_)), event->modifiers() & ~bit);
     event->accept();
     return;
