@@ -12755,6 +12755,30 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>ドキュメントを開くときに表示しない (環境設定 &gt; アプリケーションで再度オンにできます)</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>レイヤーとベクトルマスクはリンクされています。クリックでリンクを解除します。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>レイヤーとベクトルマスクはリンクされていません。クリックでリンクします。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>ベクトルマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>レイヤーマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>マスクで隠れた部分の不透明度です。100%未満ではその部分にもレイヤーが透けて見えます。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>マスクの境界をこのピクセル数だけぼかします</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14568,6 +14592,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>エクストラを非表示にしています</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>ベクトルマスクにはまだ移動するパスがありません。ペンまたはシェイプツールで描いてください。</translation>
     </message>
 </context>
 <context>
@@ -26000,6 +26028,58 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>フレーム時間のあるレイヤーはありません</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>ベクトルマスクを編集中: ペンまたはシェイプツールでパスやシェイプを描いてレイヤーをマスクします</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>ベクトルマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>ベクトルマスクをリンク</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>マスクのプロパティ...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>ベクトルマスクを追加しました。ペンまたはシェイプツールでパスやシェイプを描いてレイヤーをマスクします</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>ベクトルマスクをリンク</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>ベクトルマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>レイヤーとベクトルマスクをリンクしました</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>レイヤーとベクトルマスクのリンクを解除しました</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>ベクトルマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>レイヤーマスクのプロパティ</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>ベクトルマスクの密度とぼかしを変更しました</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>レイヤーマスクの密度とぼかしを変更しました</translation>
     </message>
 </context>
 <context>

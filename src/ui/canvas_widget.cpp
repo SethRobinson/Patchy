@@ -525,6 +525,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     }
     pen_temp_direct_select_ = false;
     shape_temp_path_select_ = false;
+    move_vector_mask_drag_ = false;
     shape_ctrl_path_select_ = false;
     arrow_swap_active_ = false;
     path_selection_by_path_select_ = tool == CanvasTool::PathSelect;

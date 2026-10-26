@@ -1165,6 +1165,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Move && handle_move_vector_mask_press(event, document_position_f(event->position()))) {
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::Move) {
     const ZoomTraceScope press_trace("move_press", zoom_);
     Layer* top_clicked_layer = nullptr;
@@ -1947,6 +1951,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
   }
 
+  if (move_vector_mask_drag_) {
+    handle_path_edit_move(event, document_position_f(event->position()));
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     handle_path_edit_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
@@ -2707,6 +2717,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  if (move_vector_mask_drag_ && event->button() == Qt::LeftButton) {
+    handle_path_edit_release(event);
+    move_vector_mask_drag_ = false;
+    clear_path_edit_selection();
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     if (handle_path_edit_release(event)) {
       if (!path_transform_active_) {

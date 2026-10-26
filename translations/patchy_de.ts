@@ -12790,6 +12790,30 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Beim Öffnen von Dokumenten nicht anzeigen (unter Voreinstellungen &gt; Anwendung wieder einschaltbar)</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Ebene und Vektormaske sind verknüpft. Klicken, um die Verknüpfung aufzuheben.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Ebene und Vektormaske sind nicht verknüpft. Klicken, um sie zu verknüpfen.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Eigenschaften der Vektormaske</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Eigenschaften der Ebenenmaske</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Wie deckend die ausgeblendeten Bereiche der Maske sind. Unter 100% scheint die Ebene dort durch.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Macht die Kanten der Maske um so viele Pixel weich</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14603,6 +14627,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Hiding extras</source>
         <translation>Extras werden ausgeblendet</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>Die Vektormaske hat noch keinen Pfad zum Verschieben. Zeichnen Sie einen mit dem Zeichenstift oder einem Formwerkzeug.</translation>
     </message>
 </context>
 <context>
@@ -26073,6 +26101,58 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>No frame times on any layer</source>
         <translation>Keine Frame-Zeiten auf den Ebenen</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Vektormaske wird bearbeitet: Zeichnen Sie mit dem Zeichenstift oder einem Formwerkzeug einen Pfad oder eine Form, um die Ebene zu maskieren</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Verknüpfung der Vektormaske aufheben</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Vektormaske verknüpfen</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Maskeneigenschaften...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Vektormaske hinzugefügt. Zeichnen Sie mit dem Zeichenstift oder einem Formwerkzeug einen Pfad oder eine Form, um die Ebene zu maskieren</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Vektormaske verknüpfen</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Verknüpfung der Vektormaske aufheben</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Ebene und Vektormaske verknüpft</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Ebene und Vektormaske nicht mehr verknüpft</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Eigenschaften der Vektormaske</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Eigenschaften der Ebenenmaske</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Dichte und weiche Kante der Vektormaske geändert</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Dichte und weiche Kante der Ebenenmaske geändert</translation>
     </message>
 </context>
 <context>

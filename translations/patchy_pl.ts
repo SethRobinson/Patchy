@@ -12825,6 +12825,30 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Nie pokazuj przy otwieraniu dokumentów (Preferencje &gt; Aplikacja włącza to ponownie)</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Warstwa i maska wektorowa są połączone. Kliknij, aby odłączyć.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Warstwa i maska wektorowa są rozłączone. Kliknij, aby połączyć.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Właściwości maski wektorowej</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Właściwości maski warstwy</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Krycie obszarów ukrytych przez maskę. Poniżej 100% warstwa prześwituje przez nie.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Zmiękcza krawędzie maski o tyle pikseli</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14638,6 +14662,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Hiding extras</source>
         <translation>Dodatki są ukryte</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>Maska wektorowa nie ma jeszcze ścieżki do przesunięcia. Narysuj ją Piórem lub narzędziem kształtu.</translation>
     </message>
 </context>
 <context>
@@ -26146,6 +26174,58 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>No frame times on any layer</source>
         <translation>Żadna warstwa nie ma czasu klatki</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Edycja maski wektorowej: narysuj ścieżkę lub kształt Piórem albo narzędziem kształtu, aby zamaskować warstwę</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Odłącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Połącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Właściwości maski...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Dodano maskę wektorową. Narysuj ścieżkę lub kształt Piórem albo narzędziem kształtu, aby zamaskować warstwę</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Połącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Odłącz maskę wektorową</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Warstwa i maska wektorowa połączone</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Warstwa i maska wektorowa rozłączone</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Właściwości maski wektorowej</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Właściwości maski warstwy</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Zmieniono gęstość i wtapianie maski wektorowej</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Zmieniono gęstość i wtapianie maski warstwy</translation>
     </message>
 </context>
 <context>

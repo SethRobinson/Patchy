@@ -79,6 +79,20 @@ namespace patchy::ui {
 
 namespace {
 
+// An unlinked vector mask stays put while its layer transforms (the raster mask's rule,
+// transformed_linked_raster_mask): run `transform` and put such a mask back.
+template <typename Transform>
+void transform_keeping_unlinked_vector_mask(Layer& layer, Transform&& transform) {
+  std::optional<LayerVectorMask> kept;
+  if (const auto* mask = std::as_const(layer).vector_mask(); mask != nullptr && mask->unlinked) {
+    kept = *mask;
+  }
+  transform();
+  if (kept.has_value()) {
+    layer.set_vector_mask(std::move(*kept));
+  }
+}
+
 constexpr double kMinimumTransformScalePercent = 0.01;
 // A numeric rotation this small still counts as axis-aligned for pixel-grid snapping.
 constexpr double kPixelGridSnapAngleTolerance = 0.01;
@@ -4949,14 +4963,16 @@ void CanvasWidget::commit_free_transform() {
       const auto delta = shape_layer_commit_delta(*layer);
       const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                          delta.m22(), delta.dx(),  delta.dy()};
-      if (transform_has_perspective(delta)) {
-        patchy::transform_layer_vector_data_projective(*document_, *layer, homography_from_qtransform(delta),
-                                                       Rect::from_size(document_->width(), document_->height()));
-      } else {
-        patchy::transform_layer_vector_data(
-            *document_, *layer, matrix,
-            Rect::from_size(document_->width(), document_->height()));
-      }
+      transform_keeping_unlinked_vector_mask(*layer, [&] {
+        if (transform_has_perspective(delta)) {
+          patchy::transform_layer_vector_data_projective(*document_, *layer, homography_from_qtransform(delta),
+                                                         Rect::from_size(document_->width(), document_->height()));
+        } else {
+          patchy::transform_layer_vector_data(
+              *document_, *layer, matrix,
+              Rect::from_size(document_->width(), document_->height()));
+        }
+      });
       new_bounds = layer->bounds();
     } else if (layer_is_smart_object(*layer) && smart_object_lock_reason(*layer).empty()) {
       // The text-layer pattern for placed content: compose the delta into the
@@ -5111,13 +5127,14 @@ Document CanvasWidget::free_transform_vector_preview_document(const std::pair<La
   }
   const auto& delta = key.second;
   const auto canvas = Rect::from_size(preview.width(), preview.height());
-  if (transform_has_perspective(delta)) {
-    patchy::transform_layer_vector_data_projective(preview, *layer, homography_from_qtransform(delta), canvas);
-  } else {
-    patchy::transform_layer_vector_data(preview, *layer,
-                                        {delta.m11(), delta.m12(), delta.m21(), delta.m22(), delta.dx(), delta.dy()},
-                                        canvas);
-  }
+  transform_keeping_unlinked_vector_mask(*layer, [&] {
+    if (transform_has_perspective(delta)) {
+      patchy::transform_layer_vector_data_projective(preview, *layer, homography_from_qtransform(delta), canvas);
+    } else {
+      patchy::transform_layer_vector_data(
+          preview, *layer, {delta.m11(), delta.m12(), delta.m21(), delta.m22(), delta.dx(), delta.dy()}, canvas);
+    }
+  });
   return preview;
 }
 
@@ -5169,11 +5186,13 @@ void CanvasWidget::commit_free_transform_multi() {
   // Distort/Perspective quad.
   const auto transform_vector_data = [this, &delta, &matrix](Layer& layer) {
     const auto canvas = Rect::from_size(document_->width(), document_->height());
-    if (transform_has_perspective(delta)) {
-      patchy::transform_layer_vector_data_projective(*document_, layer, homography_from_qtransform(delta), canvas);
-    } else {
-      patchy::transform_layer_vector_data(*document_, layer, matrix, canvas);
-    }
+    transform_keeping_unlinked_vector_mask(layer, [&] {
+      if (transform_has_perspective(delta)) {
+        patchy::transform_layer_vector_data_projective(*document_, layer, homography_from_qtransform(delta), canvas);
+      } else {
+        patchy::transform_layer_vector_data(*document_, layer, matrix, canvas);
+      }
+    });
   };
   const auto transform_linked_raster_mask = [this, &delta, &dirty_rect](Layer& layer) {
     auto updated = transformed_linked_raster_mask(std::as_const(layer), delta, transform_interpolation_);

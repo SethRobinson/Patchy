@@ -12755,6 +12755,30 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>打开文档时不显示（可在 首选项 &gt; 应用程序 中重新开启）</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>图层与矢量蒙版已链接。单击可取消链接。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>图层与矢量蒙版未链接。单击可链接。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>矢量蒙版属性</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>图层蒙版属性</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>蒙版隐藏区域的不透明度。低于 100% 时图层会透过这些区域显示。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>按此像素数柔化蒙版边缘</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14568,6 +14592,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>正在隐藏额外内容</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>矢量蒙版还没有可移动的路径。请用钢笔或形状工具绘制一条。</translation>
     </message>
 </context>
 <context>
@@ -26000,6 +26028,58 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>没有图层带有帧时间</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>正在编辑矢量蒙版：用钢笔或形状工具绘制路径或形状来遮盖图层</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>取消链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>蒙版属性...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>已添加矢量蒙版。用钢笔或形状工具绘制路径或形状来遮盖图层</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>取消链接矢量蒙版</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>图层与矢量蒙版已链接</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>图层与矢量蒙版已取消链接</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>矢量蒙版属性</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>图层蒙版属性</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>已更改矢量蒙版的密度和羽化</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>已更改图层蒙版的密度和羽化</translation>
     </message>
 </context>
 <context>

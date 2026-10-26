@@ -2170,6 +2170,8 @@ private:
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
   // Ctrl with a shape tool acts as Path Select (GitHub issue 312).
   bool handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point);
+  // Move press with an unlinked vector mask targeted: drags the mask path alone.
+  bool handle_move_vector_mask_press(QMouseEvent* event, QPointF document_point);
   void set_shape_ctrl_path_select(bool active);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
@@ -2978,6 +2980,9 @@ private:
   // gesture a Ctrl press latched onto the path-edit handlers (press -> release).
   bool shape_ctrl_path_select_{false};
   bool shape_temp_path_select_{false};
+  // Move tool on a targeted, unlinked vector mask: the gesture drags the whole mask path
+  // through the path-edit handlers as Path Select would (press -> release).
+  bool move_vector_mask_drag_{false};
   bool pen_auto_add_delete_{true};
   PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
   PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};

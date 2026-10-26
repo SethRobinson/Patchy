@@ -12755,6 +12755,30 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>開啟文件時不顯示（可在 偏好設定 &gt; 應用程式 中重新開啟）</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>圖層與向量圖遮色片已連結。按一下可取消連結。</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>圖層與向量圖遮色片未連結。按一下可建立連結。</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>向量圖遮色片內容</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>圖層遮色片內容</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>遮色片隱藏區域的不透明度。低於 100% 時圖層會透過這些區域顯示。</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>以此像素數柔化遮色片邊緣</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14568,6 +14592,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>正在隱藏額外內容</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>向量圖遮色片還沒有可移動的路徑。請用筆型工具或形狀工具繪製一條。</translation>
     </message>
 </context>
 <context>
@@ -26000,6 +26028,58 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>No frame times on any layer</source>
         <translation>沒有圖層帶有影格時間</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>正在編輯向量圖遮色片：用筆型工具或形狀工具繪製路徑或形狀來遮蓋圖層</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>取消連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>遮色片內容...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>已增加向量圖遮色片。用筆型工具或形狀工具繪製路徑或形狀來遮蓋圖層</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>取消連結向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>已連結圖層與向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>已取消連結圖層與向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>向量圖遮色片內容</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>圖層遮色片內容</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>已變更向量圖遮色片的濃度和羽化</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>已變更圖層遮色片的濃度和羽化</translation>
     </message>
 </context>
 <context>

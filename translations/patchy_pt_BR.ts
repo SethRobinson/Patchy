@@ -12790,6 +12790,30 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Não mostrar ao abrir documentos (Preferências &gt; Aplicativo reativa)</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Camada e máscara vetorial estão vinculadas. Clique para desvincular.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Camada e máscara vetorial estão desvinculadas. Clique para vincular.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Propriedades da máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Propriedades da máscara de camada</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>A opacidade das áreas ocultas pela máscara. Abaixo de 100% a camada aparece através delas.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Suaviza as bordas da máscara por este número de pixels</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14603,6 +14627,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Hiding extras</source>
         <translation>Ocultando extras</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>A máscara vetorial ainda não tem um demarcador para mover. Desenhe um com a Caneta ou uma ferramenta de forma.</translation>
     </message>
 </context>
 <context>
@@ -26073,6 +26101,58 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>No frame times on any layer</source>
         <translation>Nenhuma camada tem duração de quadro</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Editando a máscara vetorial: desenhe um demarcador ou uma forma com a Caneta ou uma ferramenta de forma para mascarar a camada</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Desvincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Vincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Propriedades da máscara...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Adicionada uma máscara vetorial. Desenhe um demarcador ou uma forma com a Caneta ou uma ferramenta de forma para mascarar a camada</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Vincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Desvincular máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Camada e máscara vetorial vinculadas</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Camada e máscara vetorial desvinculadas</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Propriedades da máscara vetorial</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Propriedades da máscara de camada</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Densidade e difusão da máscara vetorial alteradas</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Densidade e difusão da máscara de camada alteradas</translation>
     </message>
 </context>
 <context>

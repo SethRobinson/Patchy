@@ -12790,6 +12790,30 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Ne pas afficher à l&apos;ouverture des documents (Préférences &gt; Application permet de le réactiver)</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Le calque et le masque vectoriel sont liés. Cliquez pour les dissocier.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Le calque et le masque vectoriel sont dissociés. Cliquez pour les lier.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Propriétés du masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Propriétés du masque de fusion</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Opacité des zones masquées. En dessous de 100 %, le calque transparaît à travers elles.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Adoucit les bords du masque de ce nombre de pixels</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14603,6 +14627,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Hiding extras</source>
         <translation>Masquage des extras</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>Le masque vectoriel n&apos;a pas encore de tracé à déplacer. Dessinez-en un avec la Plume ou un outil de forme.</translation>
     </message>
 </context>
 <context>
@@ -26073,6 +26101,58 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>No frame times on any layer</source>
         <translation>Aucun calque n&apos;a de durée d&apos;image</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Modification du masque vectoriel : dessinez un tracé ou une forme avec la Plume ou un outil de forme pour masquer le calque</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Dissocier le masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Lier le masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Propriétés du masque...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Masque vectoriel ajouté. Dessinez un tracé ou une forme avec la Plume ou un outil de forme pour masquer le calque</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Lier le masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Dissocier le masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Calque et masque vectoriel liés</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Calque et masque vectoriel dissociés</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Propriétés du masque vectoriel</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Propriétés du masque de fusion</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Densité et contour progressif du masque vectoriel modifiés</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Densité et contour progressif du masque de fusion modifiés</translation>
     </message>
 </context>
 <context>

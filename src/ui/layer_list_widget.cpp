@@ -109,6 +109,7 @@ int scroll_bar_drag_travel(QScrollBar& scroll_bar, const QStyleOptionSlider& opt
 bool layer_row_button_owns_clicks(const QString& object_name) {
   return object_name == QLatin1String("layerVisibilityCheck") ||
          object_name == QLatin1String("layerMaskLinkButton") ||
+         object_name == QLatin1String("layerVectorMaskLinkButton") ||
          object_name == QLatin1String("layerFxBadgeButton") ||
          object_name == QLatin1String("layerSmartObjectBadgeButton") ||
          object_name == QLatin1String("layerVectorBadgeButton") ||
@@ -479,6 +480,11 @@ void LayerListWidget::set_item_double_click_callback(std::function<void(QListWid
 void LayerListWidget::set_content_thumbnail_double_click_callback(
     std::function<void(QListWidgetItem*)> callback) {
   content_thumbnail_double_click_callback_ = std::move(callback);
+}
+
+void LayerListWidget::set_mask_thumbnail_double_click_callback(
+    std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
+  mask_thumbnail_double_click_callback_ = std::move(callback);
 }
 
 void LayerListWidget::set_smart_filter_double_click_callback(
@@ -912,7 +918,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     }
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
         (mouse_event->modifiers() & Qt::ControlModifier) != 0 &&
-        widget->objectName() != QStringLiteral("layerMaskLinkButton")) {
+        widget->objectName() != QStringLiteral("layerMaskLinkButton") &&
+        widget->objectName() != QStringLiteral("layerVectorMaskLinkButton")) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       auto* item = itemAt(viewport_pos);
       const auto target = item != nullptr ? ctrl_click_target(item, viewport_pos) : std::nullopt;
@@ -2009,6 +2016,14 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item, QPoint vie
     if (const auto target = ctrl_click_target(item, viewport_pos);
         target.has_value() && *target == LayerCtrlClickTarget::ContentThumbnail) {
       content_thumbnail_double_click_callback_(item);
+      return true;
+    }
+  }
+  if (mask_thumbnail_double_click_callback_) {
+    if (const auto target = ctrl_click_target(item, viewport_pos);
+        target.has_value() && (*target == LayerCtrlClickTarget::MaskThumbnail ||
+                               *target == LayerCtrlClickTarget::VectorMaskThumbnail)) {
+      mask_thumbnail_double_click_callback_(item, *target);
       return true;
     }
   }

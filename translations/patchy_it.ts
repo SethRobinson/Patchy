@@ -12790,6 +12790,30 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Non mostrare all&apos;apertura dei documenti (Preferenze &gt; Applicazione lo riattiva)</translation>
     </message>
+    <message>
+        <source>Layer and vector mask are linked. Click to unlink.</source>
+        <translation>Livello e maschera vettoriale sono collegati. Fai clic per scollegarli.</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask are unlinked. Click to link.</source>
+        <translation>Livello e maschera vettoriale sono scollegati. Fai clic per collegarli.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Properties</source>
+        <translation>Proprietà maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Layer Mask Properties</source>
+        <translation>Proprietà maschera di livello</translation>
+    </message>
+    <message>
+        <source>How opaque the hidden areas of the mask are. Below 100% the layer shows through them.</source>
+        <translation>Quanto sono opache le aree nascoste della maschera. Sotto il 100% il livello traspare attraverso di esse.</translation>
+    </message>
+    <message>
+        <source>Softens the mask&apos;s edges by this many pixels</source>
+        <translation>Ammorbidisce i bordi della maschera di questo numero di pixel</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14603,6 +14627,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Hiding extras</source>
         <translation>Extra nascosti</translation>
+    </message>
+    <message>
+        <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
+        <translation>La maschera vettoriale non ha ancora un tracciato da spostare. Disegnane uno con la Penna o uno strumento forma.</translation>
     </message>
 </context>
 <context>
@@ -26073,6 +26101,58 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>No frame times on any layer</source>
         <translation>Nessun livello ha un tempo fotogramma</translation>
+    </message>
+    <message>
+        <source>Editing the vector mask: draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Modifica della maschera vettoriale: disegna un tracciato o una forma con la Penna o uno strumento forma per mascherare il livello</translation>
+    </message>
+    <message>
+        <source>Unlink Vector Mask</source>
+        <translation>Scollega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Link Vector Mask</source>
+        <translation>Collega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Mask Properties...</source>
+        <translation>Proprietà maschera...</translation>
+    </message>
+    <message>
+        <source>Added a vector mask. Draw a path or shape with the Pen or a shape tool to mask the layer</source>
+        <translation>Maschera vettoriale aggiunta. Disegna un tracciato o una forma con la Penna o uno strumento forma per mascherare il livello</translation>
+    </message>
+    <message>
+        <source>Link vector mask</source>
+        <translation>Collega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Unlink vector mask</source>
+        <translation>Scollega maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask linked</source>
+        <translation>Livello e maschera vettoriale collegati</translation>
+    </message>
+    <message>
+        <source>Layer and vector mask unlinked</source>
+        <translation>Livello e maschera vettoriale scollegati</translation>
+    </message>
+    <message>
+        <source>Vector mask properties</source>
+        <translation>Proprietà maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>Layer mask properties</source>
+        <translation>Proprietà maschera di livello</translation>
+    </message>
+    <message>
+        <source>Changed the vector mask&apos;s density and feather</source>
+        <translation>Densità e sfumatura della maschera vettoriale modificate</translation>
+    </message>
+    <message>
+        <source>Changed the layer mask&apos;s density and feather</source>
+        <translation>Densità e sfumatura della maschera di livello modificate</translation>
     </message>
 </context>
 <context>
