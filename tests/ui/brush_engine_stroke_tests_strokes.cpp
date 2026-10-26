@@ -2508,6 +2508,9 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Clone);
   // No source yet: a press would be refused, and the cursor says so (GitHub issue 380).
   CHECK(canvas->cursor().shape() == Qt::ForbiddenCursor);
+  // The checks read painted pixels from the widget, where the source overlay (on by default,
+  // GitHub issue 426) would cover the hovered brush.
+  canvas->set_clone_overlay_shown(false);
   canvas->set_brush_softness(100);
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   CHECK(clone_aligned != nullptr);

@@ -280,6 +280,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {move_show_transform_controls_check_, QT_TR_NOOP("Transform Controls")},
       {move_snap_check_, QT_TR_NOOP("Snap")},
       {clone_aligned_check_, QT_TR_NOOP("Aligned")},
+      {clone_overlay_check_, QT_TR_NOOP("Show Overlay")},
       {crop_delete_pixels_check_, QT_TR_NOOP("Delete Cropped Pixels")},
       {crop_delete_layers_check_, QT_TR_NOOP("Delete Off-Canvas Layers")},
       {perspective_crop_grid_check_, QT_TR_NOOP("Show Grid")},
@@ -336,6 +337,7 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
   set_checked(move_auto_select_check_, canvas_->auto_select_layer());
   set_checked(move_show_transform_controls_check_, canvas_->show_transform_controls());
   set_checked(clone_aligned_check_, canvas_->clone_aligned());
+  set_checked(clone_overlay_check_, current_clone_overlay_shown_);
   if (healing_mode_combo_ != nullptr) {
     const QSignalBlocker blocker(healing_mode_combo_);
     healing_mode_combo_->setCurrentIndex(
@@ -363,6 +365,11 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
     zoom_out_mode_action_->setChecked(canvas_->zoom_tool_zooms_out());
   }
   set_checked(wand_sample_all_layers_check_, canvas_->wand_sample_all_layers());
+  if (wand_sample_size_combo_ != nullptr) {
+    const QSignalBlocker blocker(wand_sample_size_combo_);
+    wand_sample_size_combo_->setCurrentIndex(
+        std::max(0, wand_sample_size_combo_->findData(canvas_->wand_sample_size())));
+  }
   set_checked(quick_select_sample_all_layers_check_, canvas_->quick_select_sample_all_layers());
   set_checked(quick_select_enhance_edge_check_, canvas_->quick_select_enhance_edge());
   set_checked(object_select_sample_all_layers_check_, canvas_->object_select_sample_all_layers());

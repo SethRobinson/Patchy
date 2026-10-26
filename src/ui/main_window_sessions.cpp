@@ -132,6 +132,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_wand_tolerance(canvas_->wand_tolerance());
     session->canvas->set_wand_contiguous(canvas_->wand_contiguous());
     session->canvas->set_wand_sample_all_layers(canvas_->wand_sample_all_layers());
+    session->canvas->set_wand_sample_size(canvas_->wand_sample_size());
     session->canvas->set_magnetic_lasso_width(canvas_->magnetic_lasso_width());
     session->canvas->set_magnetic_lasso_edge_contrast(canvas_->magnetic_lasso_edge_contrast());
     session->canvas->set_magnetic_lasso_frequency(canvas_->magnetic_lasso_frequency());

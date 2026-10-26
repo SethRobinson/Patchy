@@ -12779,6 +12779,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Вид &gt; Вспомогательные элементы показывает и скрывает отмеченные здесь элементы.
 Собственная настройка каждого элемента в меню «Вид» по-прежнему действует.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Файл JPEG повреждён или обрезан</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Этот JPEG хранит отсчёты CMYK глубиной более 8 бит, которые Patchy не может открыть</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>Изображение JPEG слишком велико для открытия</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22936,10 +22948,6 @@ Y: %2
         <translation>%CTRL%+щелчок выбирает слой, Shift+щелчок переключает его. %CTRL%+перетаскивание выбирает слои в прямоугольнике; удерживайте Shift перед перетаскиванием, чтобы добавить. %ALT%+перетаскивание дублирует. Shift ограничивает перемещение слоя.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Перемещение: %CTRL%+щелчок выбирает слой, Shift+щелчок переключает его. %CTRL%+перетаскивание выбирает прямоугольник; Shift добавляет. Перетащите выбранный объект, чтобы переместить его, %ALT%+перетаскивание дублирует его.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Сбросить рамку кадрирования к холсту (Esc)</translation>
     </message>
@@ -26060,6 +26068,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>Применить</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Показывать наложение</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Показывает источник под кистью до начала рисования</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Перемещение: перетаскивание перемещает, Shift+перетаскивание держит движение по горизонтали или вертикали, %ALT%+перетаскивание дублирует. %CTRL%+щелчок выбирает слой, Shift+щелчок переключает его. %CTRL%+перетаскивание выбирает прямоугольник, как и перетаскивание по пустому месту при включённом автоматическом выборе.</translation>
     </message>
 </context>
 <context>

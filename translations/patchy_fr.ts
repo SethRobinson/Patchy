@@ -12744,6 +12744,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Affichage &gt; Extras affiche et masque les éléments cochés ici.
 Le réglage propre de chaque élément dans le menu Affichage s&apos;applique toujours.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Le fichier JPEG est endommagé ou tronqué</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Ce JPEG contient des échantillons CMJN de plus de 8 bits, que Patchy ne peut pas ouvrir</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>L’image JPEG est trop grande pour être ouverte</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22874,10 +22886,6 @@ Convertis en images : %1.</translation>
         <translation>%CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne les calques dans un rectangle ; maintenez Maj avant de glisser pour ajouter. %ALT%+glisser duplique. Maj contraint le déplacement du calque.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Déplacement : %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle ; Maj ajoute. Faites glisser l&apos;illustration sélectionnée pour la déplacer, %ALT%+glisser pour la dupliquer.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Réinitialiser le cadre de recadrage sur la zone de travail (Échap)</translation>
     </message>
@@ -25987,6 +25995,18 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Apply</source>
         <translation>Appliquer</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Afficher la superposition</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Affiche la source sous le pinceau avant de peindre</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Déplacement : glisser déplace, Maj+glisser le garde horizontal ou vertical, %ALT%+glisser duplique. %CTRL%+clic sélectionne un calque, Maj+clic le bascule. %CTRL%+glisser sélectionne un rectangle, comme glisser sur une zone vide avec Sélection auto activée.</translation>
     </message>
 </context>
 <context>

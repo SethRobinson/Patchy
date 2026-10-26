@@ -12709,6 +12709,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>视图 &gt; 额外内容会显示或隐藏此处勾选的项目。
 每个项目自己的视图设置仍然有效。</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>JPEG 文件已损坏或被截断</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>此 JPEG 存储的是高于 8 位的 CMYK 采样，Patchy 无法打开</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>JPEG 图像太大，无法打开</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22812,10 +22824,6 @@ Baked into images: %1.</source>
         <translation>%CTRL%+单击选择图层，Shift+单击切换选择。%CTRL%+拖动框选图层；拖动前按住 Shift 可追加。%ALT%+拖动可复制。Shift 约束图层移动方向。</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>移动：%CTRL%+单击选择图层，Shift+单击切换选择。%CTRL%+拖动框选；Shift 追加。拖动所选内容以移动，%ALT%+拖动以复制。</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>将裁剪框重置为画布 (Esc)</translation>
     </message>
@@ -25914,6 +25922,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>应用</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>显示叠加</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>绘画前在画笔下预览源</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>移动：拖动以移动，Shift+拖动保持水平或垂直，%ALT%+拖动以复制。%CTRL%+单击选择图层，Shift+单击切换选择。%CTRL%+拖动框选；开启自动选择时，在空白处拖动也可框选。</translation>
     </message>
 </context>
 <context>

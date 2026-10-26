@@ -12727,6 +12727,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
 Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22818,10 +22830,6 @@ Baked into images: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25904,6 +25912,18 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Apply</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

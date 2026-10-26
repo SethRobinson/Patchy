@@ -243,7 +243,7 @@ constexpr std::array<TransformTypeButton, 4> kTransformTypeButtons{{
 constexpr const char* kTransformTypeModeProperty = "patchy.transformTypeMode";
 
 // The sample squares of the Pick tool's Size and the Magic Wand's Sample (GitHub issues
-// 151 and 435): one shared setting, two combos with the same entries.
+// 151 and 435): two separate settings with the same entries.
 constexpr std::array<int, 7> kEyedropperSampleSizes{1, 3, 5, 11, 31, 51, 101};
 
 QString eyedropper_sample_size_text(int size) {
@@ -1254,12 +1254,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                         CanvasTool::ObjectSelect, CanvasTool::PatchTool});
 
   // The Magic Wand's Sample (GitHub issue 435): the seed color averages this square
-  // around the click. It is the Pick tool's Size setting, shared as Photoshop shares it,
-  // so this combo and eyedropperSampleSizeCombo mirror one value.
+  // around the click. The sizes are the Pick tool's, but the setting is the wand's own
+  // (tools/wandSampleSize, Point Sample by default): changing one never changes the other.
   add_option_label(QT_TR_NOOP("Sample:"), {CanvasTool::MagicWand});
   wand_sample_size_combo_ = new QComboBox(toolbar);
   wand_sample_size_combo_->setObjectName(QStringLiteral("wandSampleSizeCombo"));
-  fill_sample_size_combo(wand_sample_size_combo_, current_eyedropper_sample_size_);
+  fill_sample_size_combo(wand_sample_size_combo_, canvas_defaults->wand_sample_size());
   bind_tooltip(wand_sample_size_combo_,
                QT_TR_NOOP("Compare against the average color of a square around the click instead of one pixel"));
   add_option_widget(wand_sample_size_combo_, {CanvasTool::MagicWand});
@@ -1267,7 +1267,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (index < 0 || wand_sample_size_combo_ == nullptr) {
       return;
     }
-    apply_shared_sample_size(wand_sample_size_combo_->itemData(index).toInt());
+    if (canvas_ != nullptr) {
+      canvas_->set_wand_sample_size(wand_sample_size_combo_->itemData(index).toInt());
+      save_tool_settings();
+    }
   });
   add_option_separator({CanvasTool::MagicWand});
 
@@ -2936,6 +2939,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       refresh_clone_source_panel();
     }
   });
+  // Show Overlay (GitHub issue 426): the popup's overlay checkbox, also on the bar after
+  // Aligned; its opacity stays in the popup.
+  clone_overlay_check_ = new CheckGlyphBox(tr("Show Overlay"), toolbar);
+  clone_overlay_check_->setObjectName(QStringLiteral("cloneOverlayCheck"));
+  clone_overlay_check_->setChecked(current_clone_overlay_shown_);
+  bind_tooltip(clone_overlay_check_, QT_TR_NOOP("Preview the source under the brush before you paint"));
+  add_option_widget(clone_overlay_check_, {CanvasTool::Clone, CanvasTool::Healing});
+  connect(clone_overlay_check_, &QCheckBox::toggled, this,
+          [this](bool checked) { apply_clone_overlay_settings(checked, current_clone_overlay_opacity_); });
   // Clone source settings (GitHub issue 424): the slots, offset, scale and rotation and
   // the overlay, in a popup on a gear button (rule 8) after the checkbox group.
   clone_source_options_button_ = new QToolButton(toolbar);
@@ -2970,16 +2982,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
               }
               refresh_clone_source_panel();
             });
-    connect(clone_source_panel_, &CloneSourcePanel::overlay_edited, this, [this](bool shown, int opacity) {
-      current_clone_overlay_shown_ = shown;
-      current_clone_overlay_opacity_ = std::clamp(opacity, 1, 100);
-      for (auto* canvas : findChildren<CanvasWidget*>()) {
-        canvas->set_clone_overlay_shown(current_clone_overlay_shown_);
-        canvas->set_clone_overlay_opacity(current_clone_overlay_opacity_);
-      }
-      schedule_save_tool_settings();
-      refresh_clone_source_panel();
-    });
+    connect(clone_source_panel_, &CloneSourcePanel::overlay_edited, this,
+            [this](bool shown, int opacity) { apply_clone_overlay_settings(shown, opacity); });
     clone_source_options_button_->setMenu(clone_source_menu_);
   }
   add_option_widget(clone_source_options_button_, {CanvasTool::Clone, CanvasTool::Healing});
@@ -3574,7 +3578,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (index < 0 || eyedropper_sample_size_combo_ == nullptr) {
       return;
     }
-    apply_shared_sample_size(eyedropper_sample_size_combo_->itemData(index).toInt());
+    current_eyedropper_sample_size_ = eyedropper_sample_size_combo_->itemData(index).toInt();
+    if (canvas_ != nullptr) {
+      canvas_->set_eyedropper_sample_size(current_eyedropper_sample_size_);
+    }
+    save_tool_settings();
   });
 
   add_option_label(QT_TR_NOOP("Layer:"), {CanvasTool::Eyedropper});

@@ -2200,9 +2200,6 @@ private:
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
-  // The Pick tool's Size, which the Magic Wand's Sample shares (GitHub issue 435): sets it on the
-  // canvas, mirrors both combos and saves.
-  void apply_shared_sample_size(int size);
   // Restart the debounce so the live tool-option sliders flush to disk once,
   // after the drag settles, instead of on every intermediate value.
   void schedule_save_tool_settings();
@@ -2542,6 +2539,8 @@ private:
   // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
   // the gear popup's panel follows the active canvas.
   void refresh_clone_source_panel();
+  // Applies the shared overlay settings to every canvas and both checkboxes, and saves them.
+  void apply_clone_overlay_settings(bool shown, int opacity);
   // The Sample choice for the document info lines ("active layer", ...).
   [[nodiscard]] QString retouch_sample_info_text() const;
   // Derives the crop ratio preset combo's row from the canvas ratio values
@@ -2817,12 +2816,14 @@ private:
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  // Show Overlay on the bar (GitHub issue 426), the same setting as the popup's checkbox.
+  QCheckBox* clone_overlay_check_{nullptr};
   QToolButton* clone_source_options_button_{nullptr};
   QMenu* clone_source_menu_{nullptr};
   CloneSourcePanel* clone_source_panel_{nullptr};
   // The overlay settings every canvas shares (tools/cloneOverlay, tools/cloneOverlayOpacity).
-  bool current_clone_overlay_shown_{false};
-  int current_clone_overlay_opacity_{50};
+  bool current_clone_overlay_shown_{true};
+  int current_clone_overlay_opacity_{100};
   QComboBox* retouch_sample_layers_combo_{nullptr};
   QComboBox* healing_mode_combo_{nullptr};
   QCheckBox* retouch_ignore_adjustments_check_{nullptr};
@@ -2844,7 +2845,7 @@ private:
   QComboBox* sponge_mode_combo_{nullptr};
   QComboBox* brush_mode_combo_{nullptr};
   QComboBox* eyedropper_sample_size_combo_{nullptr};
-  QComboBox* wand_sample_size_combo_{nullptr};  // mirrors the Pick tool's Size (GitHub issue 435)
+  QComboBox* wand_sample_size_combo_{nullptr};  // the Magic Wand's own Sample (GitHub issue 435)
   QComboBox* eyedropper_sample_layers_combo_{nullptr};
   QPushButton* eyedropper_sets_foreground_button_{nullptr};
   QPushButton* eyedropper_sets_background_button_{nullptr};

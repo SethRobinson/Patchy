@@ -528,6 +528,10 @@ public:
   void set_wand_contiguous(bool enabled) noexcept;
   [[nodiscard]] bool wand_contiguous() const noexcept;
   void set_wand_sample_all_layers(bool enabled) noexcept;
+  // The Magic Wand's Sample (GitHub issue 435): odd side 1 (Point Sample) to 101, its own
+  // setting, separate from the Pick tool's Size.
+  void set_wand_sample_size(int size) noexcept;
+  [[nodiscard]] int wand_sample_size() const noexcept;
   [[nodiscard]] bool wand_sample_all_layers() const noexcept;
   void set_quick_select_size(int size);
   [[nodiscard]] int quick_select_size() const noexcept;
@@ -3160,6 +3164,7 @@ private:
   int wand_tolerance_{24};
   bool wand_contiguous_{true};
   bool wand_sample_all_layers_{false};
+  int wand_sample_size_{1};
   int quick_select_size_{32};
   bool quick_select_sample_all_layers_{false};
   bool quick_select_enhance_edge_{false};
@@ -3638,8 +3643,8 @@ private:
   // The stroke in flight's destination-to-source mapping, built at the press (identity
   // for the Healing Brush).
   patchy::CloneSourceMapping clone_stroke_mapping_{};
-  bool clone_overlay_shown_{false};
-  int clone_overlay_opacity_{50};
+  bool clone_overlay_shown_{true};
+  int clone_overlay_opacity_{100};
   mutable QRect clone_overlay_drawn_rect_{};
   std::function<void()> clone_source_changed_callback_;
   std::optional<PatternResource> pattern_stamp_pattern_;

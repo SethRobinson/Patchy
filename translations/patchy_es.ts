@@ -12744,6 +12744,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Vista &gt; Extras muestra y oculta los elementos marcados aquí.
 El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>El archivo JPEG está dañado o truncado</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Este JPEG guarda muestras CMYK de más de 8 bits, que Patchy no puede abrir</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>La imagen JPEG es demasiado grande para abrirla</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22874,10 +22886,6 @@ Convertido en imágenes: %1.</translation>
         <translation>%CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona capas en un rectángulo; mantén Mayús antes de arrastrar para añadir. %ALT%+arrastrar duplica. Mayús restringe el movimiento de la capa.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Mover: %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo; Mayús añade. Arrastra el arte seleccionado para moverlo, %ALT%+arrastrar para duplicarlo.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Restablecer el cuadro de recorte al lienzo (Esc)</translation>
     </message>
@@ -25987,6 +25995,18 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Apply</source>
         <translation>Aplicar</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Mostrar superposición</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Muestra el origen bajo el pincel antes de pintar</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Mover: arrastrar mueve, Mayús+arrastrar lo mantiene horizontal o vertical, %ALT%+arrastrar duplica. %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo, igual que arrastrar en un espacio vacío con Selección automática activada.</translation>
     </message>
 </context>
 <context>

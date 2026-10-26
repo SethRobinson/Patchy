@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QToolBar>
 #include <QToolButton>
 #include <algorithm>
 #include <array>
@@ -286,7 +287,10 @@ void ui_clone_source_overlay_previews_source_under_brush() {
     const auto image = canvas.grab().toImage();
     return image.pixelColor(hover + QPoint(2, 2));
   };
-  CHECK(!canvas.clone_overlay_shown());
+  // On at 100% by default (GitHub issue 426).
+  CHECK(canvas.clone_overlay_shown());
+  CHECK(canvas.clone_overlay_opacity() == 100);
+  canvas.set_clone_overlay_shown(false);
   const auto plain = pixel_under_brush();
   CHECK(color_close(plain, QColor(30, 40, 210), 12));
 
@@ -389,6 +393,84 @@ void ui_clone_source_gear_popup_drives_canvas() {
   QApplication::processEvents();
 }
 
+// Show Overlay on the Clone Stamp and Healing Brush bars (GitHub issue 426): after Aligned,
+// on at 100% with no saved setting, and the same setting as the popup's checkbox both ways.
+// The artifact is the issue shot: the Clone Stamp bar at 1366 px.
+void ui_clone_source_bar_overlay_check_follows_popup() {
+  SettingsValueRestorer saved_overlay(QStringLiteral("tools/cloneOverlay"));
+  SettingsValueRestorer saved_opacity(QStringLiteral("tools/cloneOverlayOpacity"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/cloneOverlay"));
+    settings.remove(QStringLiteral("tools/cloneOverlayOpacity"));
+    settings.sync();
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1366, 738);
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+  auto* bar_check = window.findChild<QCheckBox*>(QStringLiteral("cloneOverlayCheck"));
+  auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+  auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+  CHECK(aligned != nullptr && bar_check != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
+  if (aligned == nullptr || bar_check == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+    return;
+  }
+  CHECK(bar_check->isVisible());
+  CHECK(bar_check->text() == QStringLiteral("Show Overlay"));
+  // After Aligned, before the gear, on the same row.
+  CHECK(bar_check->x() > aligned->x() && gear->x() > bar_check->x());
+  CHECK(bar_check->geometry().center().y() == aligned->geometry().center().y());
+  CHECK(bar_check->isChecked());
+  CHECK(canvas->clone_overlay_shown());
+  CHECK(canvas->clone_overlay_opacity() == 100);
+  open_gear_popup(*gear, *menu);
+  CHECK(panel->overlay_check()->isChecked());
+  CHECK(panel->overlay_opacity_spin()->value() == 100);
+
+  // Popup to bar.
+  panel->overlay_check()->setChecked(false);
+  CHECK(!bar_check->isChecked());
+  CHECK(!canvas->clone_overlay_shown());
+  panel->overlay_opacity_spin()->setValue(70);
+  menu->close();
+  QApplication::processEvents();
+
+  // Bar to popup; the opacity stays.
+  bar_check->click();
+  CHECK(bar_check->isChecked());
+  CHECK(canvas->clone_overlay_shown());
+  CHECK(canvas->clone_overlay_opacity() == 70);
+  open_gear_popup(*gear, *menu);
+  CHECK(panel->overlay_check()->isChecked());
+  CHECK(panel->overlay_opacity_spin()->value() == 70);
+  menu->close();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/cloneOverlay")).toBool());
+    CHECK(settings.value(QStringLiteral("tools/cloneOverlayOpacity")).toInt() == 70);
+  }
+
+  // The Healing Brush bar has it too, with the same state.
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(bar_check->isVisible());
+  CHECK(bar_check->isChecked());
+  bar_check->click();
+  CHECK(!canvas->clone_overlay_shown());
+  bar_check->click();
+
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
+    save_widget_artifact("issue426_clone_bar_show_overlay", *options_bar);
+  }
+}
+
 // Screenshot for the issue: the popup open over a scene, and the overlay in use with a
 // turned, enlarged source.
 void ui_clone_source_overlay_screenshot() {
@@ -473,6 +555,7 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_healing_brush_ignores_transform", ui_clone_source_healing_brush_ignores_transform},
       {"ui_clone_source_overlay_previews_source_under_brush", ui_clone_source_overlay_previews_source_under_brush},
       {"ui_clone_source_gear_popup_drives_canvas", ui_clone_source_gear_popup_drives_canvas},
+      {"ui_clone_source_bar_overlay_check_follows_popup", ui_clone_source_bar_overlay_check_follows_popup},
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},
   };
 }

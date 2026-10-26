@@ -41,8 +41,8 @@ public:
     patchy::CloneSourceTransform transform{};
     // False on the Healing Brush, which samples its source untransformed.
     bool transform_applies{true};
-    bool overlay_shown{false};
-    int overlay_opacity{50};
+    bool overlay_shown{true};
+    int overlay_opacity{100};
   };
 
   explicit CloneSourcePanel(QWidget* parent = nullptr);

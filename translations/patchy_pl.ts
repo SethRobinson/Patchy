@@ -12779,6 +12779,18 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Widok &gt; Dodatki pokazuje i ukrywa zaznaczone tu elementy.
 Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translation>
     </message>
+    <message>
+        <source>The JPEG file is damaged or truncated</source>
+        <translation>Plik JPEG jest uszkodzony lub ucięty</translation>
+    </message>
+    <message>
+        <source>This JPEG stores CMYK samples deeper than 8 bits, which Patchy cannot open</source>
+        <translation>Ten plik JPEG zawiera próbki CMYK o głębi większej niż 8 bitów, których Patchy nie może otworzyć</translation>
+    </message>
+    <message>
+        <source>The JPEG image is too large to open</source>
+        <translation>Obraz JPEG jest zbyt duży, aby go otworzyć</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22936,10 +22948,6 @@ Y: %2
         <translation>%CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza warstwy w prostokącie; przytrzymaj Shift przed przeciąganiem, aby dodać. %ALT%+przeciąganie powiela. Shift ogranicza ruch warstwy.</translation>
     </message>
     <message>
-        <source>Move: %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it, %ALT%+drag to duplicate it.</source>
-        <translation>Przesuwanie: %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt; Shift dodaje. Przeciągnij zaznaczoną grafikę, aby ją przesunąć, %ALT%+przeciąganie, aby ją powielić.</translation>
-    </message>
-    <message>
         <source>Reset the crop box to the canvas (Esc)</source>
         <translation>Przywróć ramkę kadrowania do obszaru roboczego (Esc)</translation>
     </message>
@@ -26060,6 +26068,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Apply</source>
         <translation>Zastosuj</translation>
+    </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Pokaż nakładkę</translation>
+    </message>
+    <message>
+        <source>Preview the source under the brush before you paint</source>
+        <translation>Pokazuje źródło pod pędzlem przed malowaniem</translation>
+    </message>
+    <message>
+        <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation>Przesuwanie: przeciągnij, aby przesunąć, Shift+przeciąganie utrzymuje ruch w poziomie lub pionie, %ALT%+przeciąganie powiela. %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt, podobnie jak przeciąganie po pustym miejscu przy włączonym automatycznym zaznaczaniu.</translation>
     </message>
 </context>
 <context>
